@@ -1,0 +1,432 @@
+{
+  "simpleSubgraph": {
+    "version": 1,
+    "nodes": [
+      {
+        "id": 1,
+        "type": "basic/math",
+        "pos": [200, 150],
+        "size": [120, 60],
+        "inputs": [
+          { "name": "a", "type": "number", "link": null },
+          { "name": "b", "type": "number", "link": null }
+        ],
+        "outputs": [{ "name": "result", "type": "number", "links": [] }],
+        "properties": { "operation": "add" },
+        "flags": {},
+        "mode": 0
+      }
+    ],
+    "links": {},
+    "groups": [],
+    "config": {},
+    "definitions": { "subgraphs": [] },
+
+    "id": "simple-subgraph-uuid",
+    "name": "Simple Math Subgraph",
+
+    "inputNode": {
+      "id": -10,
+      "type": "subgraph/input",
+      "pos": [10, 100],
+      "size": [140, 26],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+    "outputNode": {
+      "id": -20,
+      "type": "subgraph/output",
+      "pos": [400, 100],
+      "size": [140, 26],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+
+    "inputs": [
+      {
+        "name": "input_a",
+        "type": "number",
+        "pos": [0, 0]
+      },
+      {
+        "name": "input_b",
+        "type": "number",
+        "pos": [0, 1]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "number",
+        "pos": [0, 0]
+      }
+    ],
+    "widgets": []
+  },
+
+  "complexSubgraph": {
+    "version": 1,
+    "nodes": [
+      {
+        "id": 1,
+        "type": "math/multiply",
+        "pos": [150, 100],
+        "size": [120, 60],
+        "inputs": [
+          { "name": "a", "type": "number", "link": null },
+          { "name": "b", "type": "number", "link": null }
+        ],
+        "outputs": [{ "name": "result", "type": "number", "links": [1] }],
+        "properties": {},
+        "flags": {},
+        "mode": 0
+      },
+      {
+        "id": 2,
+        "type": "math/add",
+        "pos": [300, 100],
+        "size": [120, 60],
+        "inputs": [
+          { "name": "a", "type": "number", "link": 1 },
+          { "name": "b", "type": "number", "link": null }
+        ],
+        "outputs": [{ "name": "result", "type": "number", "links": [2] }],
+        "properties": {},
+        "flags": {},
+        "mode": 0
+      },
+      {
+        "id": 3,
+        "type": "logic/compare",
+        "pos": [150, 200],
+        "size": [120, 60],
+        "inputs": [
+          { "name": "a", "type": "number", "link": null },
+          { "name": "b", "type": "number", "link": null }
+        ],
+        "outputs": [{ "name": "result", "type": "boolean", "links": [] }],
+        "properties": { "operation": "greater_than" },
+        "flags": {},
+        "mode": 0
+      },
+      {
+        "id": 4,
+        "type": "string/concat",
+        "pos": [300, 200],
+        "size": [120, 60],
+        "inputs": [
+          { "name": "a", "type": "string", "link": null },
+          { "name": "b", "type": "string", "link": null }
+        ],
+        "outputs": [{ "name": "result", "type": "string", "links": [] }],
+        "properties": {},
+        "flags": {},
+        "mode": 0
+      }
+    ],
+    "links": {
+      "1": {
+        "id": 1,
+        "origin_id": 1,
+        "origin_slot": 0,
+        "target_id": 2,
+        "target_slot": 0,
+        "type": "number"
+      },
+      "2": {
+        "id": 2,
+        "origin_id": 2,
+        "origin_slot": 0,
+        "target_id": -20,
+        "target_slot": 0,
+        "type": "number"
+      }
+    },
+    "groups": [],
+    "config": {},
+    "definitions": { "subgraphs": [] },
+
+    "id": "complex-subgraph-uuid",
+    "name": "Complex Processing Subgraph",
+
+    "inputNode": {
+      "id": -10,
+      "type": "subgraph/input",
+      "pos": [10, 150],
+      "size": [140, 86],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+    "outputNode": {
+      "id": -20,
+      "type": "subgraph/output",
+      "pos": [450, 150],
+      "size": [140, 66],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+
+    "inputs": [
+      {
+        "name": "number1",
+        "type": "number",
+        "pos": [0, 0]
+      },
+      {
+        "name": "number2",
+        "type": "number",
+        "pos": [0, 1]
+      },
+      {
+        "name": "text1",
+        "type": "string",
+        "pos": [0, 2]
+      },
+      {
+        "name": "text2",
+        "type": "string",
+        "pos": [0, 3]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "calculated_result",
+        "type": "number",
+        "pos": [0, 0]
+      },
+      {
+        "name": "comparison_result",
+        "type": "boolean",
+        "pos": [0, 1]
+      },
+      {
+        "name": "concatenated_text",
+        "type": "string",
+        "pos": [0, 2]
+      }
+    ],
+    "widgets": []
+  },
+
+  "nestedSubgraphLevel1": {
+    "version": 1,
+    "nodes": [],
+    "links": {},
+    "groups": [],
+    "config": {},
+    "definitions": {
+      "subgraphs": [
+        {
+          "version": 1,
+          "nodes": [
+            {
+              "id": 1,
+              "type": "basic/constant",
+              "pos": [200, 100],
+              "size": [100, 40],
+              "inputs": [],
+              "outputs": [{ "name": "value", "type": "number", "links": [] }],
+              "properties": { "value": 42 },
+              "flags": {},
+              "mode": 0
+            }
+          ],
+          "links": {},
+          "groups": [],
+          "config": {},
+          "definitions": { "subgraphs": [] },
+
+          "id": "nested-level2-uuid",
+          "name": "Level 2 Subgraph",
+
+          "inputNode": {
+            "id": -10,
+            "type": "subgraph/input",
+            "pos": [10, 100],
+            "size": [140, 26],
+            "inputs": [],
+            "outputs": [],
+            "properties": {},
+            "flags": {},
+            "mode": 0
+          },
+          "outputNode": {
+            "id": -20,
+            "type": "subgraph/output",
+            "pos": [350, 100],
+            "size": [140, 26],
+            "inputs": [],
+            "outputs": [],
+            "properties": {},
+            "flags": {},
+            "mode": 0
+          },
+
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "constant_value",
+              "type": "number",
+              "pos": [0, 0]
+            }
+          ],
+          "widgets": []
+        }
+      ]
+    },
+
+    "id": "nested-level1-uuid",
+    "name": "Level 1 Subgraph",
+
+    "inputNode": {
+      "id": -10,
+      "type": "subgraph/input",
+      "pos": [10, 100],
+      "size": [140, 26],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+    "outputNode": {
+      "id": -20,
+      "type": "subgraph/output",
+      "pos": [400, 100],
+      "size": [140, 26],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+
+    "inputs": [
+      {
+        "name": "external_input",
+        "type": "string",
+        "pos": [0, 0]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "processed_output",
+        "type": "number",
+        "pos": [0, 0]
+      }
+    ],
+    "widgets": []
+  },
+
+  "emptySubgraph": {
+    "version": 1,
+    "nodes": [],
+    "links": {},
+    "groups": [],
+    "config": {},
+    "definitions": { "subgraphs": [] },
+
+    "id": "empty-subgraph-uuid",
+    "name": "Empty Subgraph",
+
+    "inputNode": {
+      "id": -10,
+      "type": "subgraph/input",
+      "pos": [10, 100],
+      "size": [140, 26],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+    "outputNode": {
+      "id": -20,
+      "type": "subgraph/output",
+      "pos": [400, 100],
+      "size": [140, 26],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+
+    "inputs": [],
+    "outputs": [],
+    "widgets": []
+  },
+
+  "maxIOSubgraph": {
+    "version": 1,
+    "nodes": [],
+    "links": {},
+    "groups": [],
+    "config": {},
+    "definitions": { "subgraphs": [] },
+
+    "id": "max-io-subgraph-uuid",
+    "name": "Max I/O Subgraph",
+
+    "inputNode": {
+      "id": -10,
+      "type": "subgraph/input",
+      "pos": [10, 100],
+      "size": [140, 200],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+    "outputNode": {
+      "id": -20,
+      "type": "subgraph/output",
+      "pos": [400, 100],
+      "size": [140, 200],
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "flags": {},
+      "mode": 0
+    },
+
+    "inputs": [
+      { "name": "input_0", "type": "number", "pos": [0, 0] },
+      { "name": "input_1", "type": "string", "pos": [0, 1] },
+      { "name": "input_2", "type": "boolean", "pos": [0, 2] },
+      { "name": "input_3", "type": "number", "pos": [0, 3] },
+      { "name": "input_4", "type": "string", "pos": [0, 4] },
+      { "name": "input_5", "type": "boolean", "pos": [0, 5] },
+      { "name": "input_6", "type": "number", "pos": [0, 6] },
+      { "name": "input_7", "type": "string", "pos": [0, 7] },
+      { "name": "input_8", "type": "boolean", "pos": [0, 8] },
+      { "name": "input_9", "type": "number", "pos": [0, 9] }
+    ],
+    "outputs": [
+      { "name": "output_0", "type": "number", "pos": [0, 0] },
+      { "name": "output_1", "type": "string", "pos": [0, 1] },
+      { "name": "output_2", "type": "boolean", "pos": [0, 2] },
+      { "name": "output_3", "type": "number", "pos": [0, 3] },
+      { "name": "output_4", "type": "string", "pos": [0, 4] },
+      { "name": "output_5", "type": "boolean", "pos": [0, 5] },
+      { "name": "output_6", "type": "number", "pos": [0, 6] },
+      { "name": "output_7", "type": "string", "pos": [0, 7] },
+      { "name": "output_8", "type": "boolean", "pos": [0, 8] },
+      { "name": "output_9", "type": "number", "pos": [0, 9] }
+    ],
+    "widgets": []
+  }
+}

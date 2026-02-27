@@ -1,0 +1,21 @@
+<svg width="48" height="24" viewBox="0 0 48 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="12" width="24" height="24" rx="8" fill="url(#paint0_linear_1814_3711)"/>
+<circle cx="24.35" cy="12.35" r="7.35" fill="url(#paint1_radial_1814_3711)"/>
+<circle cx="24.35" cy="12.35" r="7.35" fill="url(#paint2_radial_1814_3711)"/>
+<defs>
+<linearGradient id="paint0_linear_1814_3711" x1="24" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D18EFF"/>
+<stop offset="1" stop-color="#5C91FD"/>
+</linearGradient>
+<radialGradient id="paint1_radial_1814_3711" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24.35 12.35) rotate(90) scale(7.35)">
+<stop stop-color="#2BECFF"/>
+<stop offset="0.37" stop-color="#F03CFF"/>
+<stop offset="0.72" stop-color="#133AFF"/>
+<stop offset="1" stop-color="#34F0FF"/>
+</radialGradient>
+<radialGradient id="paint2_radial_1814_3711" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24.35 12.35) rotate(90) scale(7.35)">
+<stop stop-color="#8998FF"/>
+<stop offset="1" stop-color="#8998FF" stop-opacity="0"/>
+</radialGradient>
+</defs>
+</svg>

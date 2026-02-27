@@ -1,0 +1,66 @@
+<style>
+  body {
+    overflow-y: auto !important;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
+  }
+
+  /* Light theme default - with explicit color to override media queries */
+  body:not(.dark-theme) {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Override browser dark mode preference for light theme */
+  @media (prefers-color-scheme: dark) {
+    body:not(.dark-theme) {
+      color: #000 !important;
+      --fg-color: #000 !important;
+      --bg-color: #fff !important;
+    }
+  }
+
+  /* Dark theme styles */
+  body.dark-theme,
+  .dark-theme body {
+    background-color: #202020;
+    color: #fff;
+  }
+
+  /* Ensure Storybook canvas follows theme */
+  .sb-show-main {
+    transition: background-color 0.3s ease;
+  }
+
+  .dark-theme .sb-show-main,
+  .dark-theme .docs-story {
+    background-color: #202020 !important;
+  }
+
+  /* CSS Variables for theme consistency */
+  body:not(.dark-theme) {
+    --fg-color: #000;
+    --bg-color: #fff;
+    --content-bg: #e0e0e0;
+    --content-fg: #000;
+    --content-hover-bg: #adadad;
+    --content-hover-fg: #000;
+  }
+
+  body.dark-theme {
+    --fg-color: #fff;
+    --bg-color: #202020;
+    --content-bg: #4e4e4e;
+    --content-fg: #fff;
+    --content-hover-bg: #222;
+    --content-hover-fg: #fff;
+  }
+
+  /* Override Storybook's problematic & selector styles */
+  /* Reset only the specific properties that Storybook injects */
+  li + li {
+    margin: 0;
+    padding: revert-layer;
+  }
+</style>

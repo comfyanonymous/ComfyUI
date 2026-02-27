@@ -1,0 +1,22 @@
+{
+  "last_node_id": 9,
+  "last_link_id": 13,
+  "nodes": [],
+  "links": [],
+  "groups": [
+    {
+      "title": "Group",
+      "bounding": [0, 0, 335, 346],
+      "color": "#3f789e",
+      "font_size": 24
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.2100000000000006,
+      "offset": [104.34159172650945, 241.35965953210126]
+    }
+  },
+  "version": 0.4
+}

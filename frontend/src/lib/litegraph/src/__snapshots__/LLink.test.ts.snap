@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LLink > matches previous snapshot > Basic 1`] = `
+[
+  1,
+  4,
+  2,
+  5,
+  3,
+  "float",
+]
+`;
+
+exports[`LLink > serializes to the previous snapshot > Basic 1`] = `
+[
+  1,
+  4,
+  2,
+  5,
+  3,
+  "float",
+]
+`;

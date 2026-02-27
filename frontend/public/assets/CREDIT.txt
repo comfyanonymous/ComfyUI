@@ -1,0 +1,9 @@
+Node usage data merged from two sources:
+- Mixpanel "app:node_search_result_selected" events (Nov 2025): 1,112 nodes, 46,514 selections
+  Reflects actual user search behavior - what users choose when searching.
+- OpenArt workflow data (Sept 2024): 2,600 nodes, 118,676 uses
+  Reflects overall popularity - what's used in workflows.
+
+Merge strategy: New data overwrites old for 514 overlapping nodes. Old data
+normalized by 2.55x scale factor to match new data. Total: 3,198 nodes.
+Search-selected nodes prioritized in ranking.

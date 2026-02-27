@@ -1,0 +1,363 @@
+{
+  "Comfy-Desktop_CheckForUpdates": {
+    "label": "Güncellemeleri Kontrol Et"
+  },
+  "Comfy-Desktop_Folders_OpenCustomNodesFolder": {
+    "label": "Özel Düğüm Klasörünü Aç"
+  },
+  "Comfy-Desktop_Folders_OpenInputsFolder": {
+    "label": "Girdi Klasörünü Aç"
+  },
+  "Comfy-Desktop_Folders_OpenLogsFolder": {
+    "label": "Kayıt Klasörünü Aç"
+  },
+  "Comfy-Desktop_Folders_OpenModelConfig": {
+    "label": "extra_model_paths.yaml dosyasını Aç"
+  },
+  "Comfy-Desktop_Folders_OpenModelsFolder": {
+    "label": "Model Klasörünü Aç"
+  },
+  "Comfy-Desktop_Folders_OpenOutputsFolder": {
+    "label": "Çıktı Klasörünü Aç"
+  },
+  "Comfy-Desktop_OpenDevTools": {
+    "label": "Geliştirici Araçlarını Aç"
+  },
+  "Comfy-Desktop_OpenUserGuide": {
+    "label": "Masaüstü Kullanıcı Kılavuzu"
+  },
+  "Comfy-Desktop_Quit": {
+    "label": "Çıkış"
+  },
+  "Comfy-Desktop_Reinstall": {
+    "label": "Yeniden Yükle"
+  },
+  "Comfy-Desktop_Restart": {
+    "label": "Yeniden Başlat"
+  },
+  "Comfy_3DViewer_Open3DViewer": {
+    "label": "Seçili Düğüm için 3D Görüntüleyiciyi Aç (Beta)"
+  },
+  "Comfy_BrowseModelAssets": {
+    "label": "Deneysel: Model Varlıklarını Gözat"
+  },
+  "Comfy_BrowseTemplates": {
+    "label": "Şablonlara Gözat"
+  },
+  "Comfy_Canvas_CopySelected": {
+    "label": "Kopyala"
+  },
+  "Comfy_Canvas_DeleteSelectedItems": {
+    "label": "Seçili Öğeleri Sil"
+  },
+  "Comfy_Canvas_FitView": {
+    "label": "Görünümü seçili düğümlere sığdır"
+  },
+  "Comfy_Canvas_Lock": {
+    "label": "Tuvali Kilitle"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Down": {
+    "label": "Seçili Düğümleri Aşağı Taşı"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Left": {
+    "label": "Seçili Düğümleri Sola Taşı"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Right": {
+    "label": "Seçili Düğümleri Sağa Taşı"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Up": {
+    "label": "Seçili Düğümleri Yukarı Taşı"
+  },
+  "Comfy_Canvas_PasteFromClipboard": {
+    "label": "Yapıştır"
+  },
+  "Comfy_Canvas_ResetView": {
+    "label": "Görünümü Sıfırla"
+  },
+  "Comfy_Canvas_Resize": {
+    "label": "Seçili Düğümleri Yeniden Boyutlandır"
+  },
+  "Comfy_Canvas_SelectAll": {
+    "label": "Tümünü Seç"
+  },
+  "Comfy_Canvas_ToggleLinkVisibility": {
+    "label": "Tuval Bağlantı Görünürlüğünü Aç/Kapat"
+  },
+  "Comfy_Canvas_ToggleLock": {
+    "label": "Tuval Kilidini Aç/Kapat"
+  },
+  "Comfy_Canvas_ToggleMinimap": {
+    "label": "Mini Haritayı Aç/Kapat"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Bypass": {
+    "label": "Seçili Düğümleri Atla/Geri Al"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Collapse": {
+    "label": "Seçili Düğümleri Daralt/Genişlet"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Mute": {
+    "label": "Seçili Düğümleri Sessize Al/Sesi Aç"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Pin": {
+    "label": "Seçili Düğümleri Sabitle/Sabitlemeyi Kaldır"
+  },
+  "Comfy_Canvas_ToggleSelected_Pin": {
+    "label": "Seçili Öğeleri Sabitle/Sabitlemeyi Kaldır"
+  },
+  "Comfy_Canvas_Unlock": {
+    "label": "Tuvalin Kilidini Aç"
+  },
+  "Comfy_Canvas_ZoomIn": {
+    "label": "Yakınlaştır"
+  },
+  "Comfy_Canvas_ZoomOut": {
+    "label": "Uzaklaştır"
+  },
+  "Comfy_ClearPendingTasks": {
+    "label": "Bekleyen Görevleri Temizle"
+  },
+  "Comfy_ClearWorkflow": {
+    "label": "İş Akışını Temizle"
+  },
+  "Comfy_ContactSupport": {
+    "label": "Destekle İletişime Geç"
+  },
+  "Comfy_Dev_ShowModelSelector": {
+    "label": "Model Seçiciyi Göster (Geliştirici)"
+  },
+  "Comfy_DuplicateWorkflow": {
+    "label": "Mevcut İş Akışını Çoğalt"
+  },
+  "Comfy_ExportWorkflow": {
+    "label": "İş Akışını Dışa Aktar"
+  },
+  "Comfy_ExportWorkflowAPI": {
+    "label": "İş Akışını Dışa Aktar (API Formatı)"
+  },
+  "Comfy_Graph_ConvertToSubgraph": {
+    "label": "Seçimi Alt Grafiğe Dönüştür"
+  },
+  "Comfy_Graph_EditSubgraphWidgets": {
+    "label": "Alt Grafik Bileşenlerini Düzenle"
+  },
+  "Comfy_Graph_ExitSubgraph": {
+    "label": "Alt Grafikten Çık"
+  },
+  "Comfy_Graph_FitGroupToContents": {
+    "label": "Grubu İçeriğe Sığdır"
+  },
+  "Comfy_Graph_GroupSelectedNodes": {
+    "label": "Seçili Düğümleri Gruplandır"
+  },
+  "Comfy_Graph_ToggleWidgetPromotion": {
+    "label": "Vurgulanan bileşenin önceliğini değiştir"
+  },
+  "Comfy_Graph_UnpackSubgraph": {
+    "label": "Seçili Alt Grafiği Aç"
+  },
+  "Comfy_GroupNode_ConvertSelectedNodesToGroupNode": {
+    "label": "Seçili düğümleri grup düğümüne dönüştür"
+  },
+  "Comfy_GroupNode_ManageGroupNodes": {
+    "label": "Grup düğümlerini yönet"
+  },
+  "Comfy_GroupNode_UngroupSelectedGroupNodes": {
+    "label": "Seçili grup düğümlerinin grubunu çöz"
+  },
+  "Comfy_Help_AboutComfyUI": {
+    "label": "ComfyUI Hakkında'yı Aç"
+  },
+  "Comfy_Help_OpenComfyOrgDiscord": {
+    "label": "Comfy-Org Discord'unu Aç"
+  },
+  "Comfy_Help_OpenComfyUIDocs": {
+    "label": "ComfyUI Belgelerini Aç"
+  },
+  "Comfy_Help_OpenComfyUIForum": {
+    "label": "ComfyUI Forumunu Aç"
+  },
+  "Comfy_Help_OpenComfyUIIssues": {
+    "label": "ComfyUI Sorunlarını Aç"
+  },
+  "Comfy_Interrupt": {
+    "label": "Kes"
+  },
+  "Comfy_LoadDefaultWorkflow": {
+    "label": "Varsayılan İş Akışını Yükle"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowCustomNodesMenu": {
+    "label": "Özel Düğüm Yöneticisi"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowLegacyCustomNodesMenu": {
+    "label": "Özel Düğümler (Eski)"
+  },
+  "Comfy_Manager_ShowLegacyManagerMenu": {
+    "label": "Yönetici Menüsü (Eski)"
+  },
+  "Comfy_Manager_ShowMissingPacks": {
+    "label": "Eksik Özel Düğümleri Yükle"
+  },
+  "Comfy_Manager_ShowUpdateAvailablePacks": {
+    "label": "Özel Düğüm Güncellemelerini Kontrol Et"
+  },
+  "Comfy_MaskEditor_BrushSize_Decrease": {
+    "label": "Maske Düzenleyicide Fırça Boyutunu Azalt"
+  },
+  "Comfy_MaskEditor_BrushSize_Increase": {
+    "label": "Maske Düzenleyicide Fırça Boyutunu Artır"
+  },
+  "Comfy_MaskEditor_ColorPicker": {
+    "label": "MaskEditor'da Renk Seçiciyi Aç"
+  },
+  "Comfy_MaskEditor_Mirror_Horizontal": {
+    "label": "MaskEditor'da Yatay Aynala"
+  },
+  "Comfy_MaskEditor_Mirror_Vertical": {
+    "label": "MaskEditor'da Dikey Aynala"
+  },
+  "Comfy_MaskEditor_OpenMaskEditor": {
+    "label": "Seçili Düğüm için Maske Düzenleyiciyi Aç"
+  },
+  "Comfy_MaskEditor_Rotate_Left": {
+    "label": "MaskEditor'da Sola Döndür"
+  },
+  "Comfy_MaskEditor_Rotate_Right": {
+    "label": "MaskEditor'da Sağa Döndür"
+  },
+  "Comfy_Memory_UnloadModels": {
+    "label": "Modelleri Boşalt"
+  },
+  "Comfy_Memory_UnloadModelsAndExecutionCache": {
+    "label": "Modelleri ve Yürütme Önbelleğini Boşalt"
+  },
+  "Comfy_NewBlankWorkflow": {
+    "label": "Yeni Boş İş Akışı"
+  },
+  "Comfy_OpenClipspace": {
+    "label": "Clipspace"
+  },
+  "Comfy_OpenManagerDialog": {
+    "label": "Yönetici"
+  },
+  "Comfy_OpenWorkflow": {
+    "label": "İş Akışını Aç"
+  },
+  "Comfy_PublishSubgraph": {
+    "label": "Alt Grafiği Yayınla"
+  },
+  "Comfy_QueuePrompt": {
+    "label": "İstemi Kuyruğa Al"
+  },
+  "Comfy_QueuePromptFront": {
+    "label": "İstemi Kuyruğa Al (Ön)"
+  },
+  "Comfy_QueueSelectedOutputNodes": {
+    "label": "Seçili Çıktı Düğümlerini Kuyruğa Al"
+  },
+  "Comfy_Queue_ToggleOverlay": {
+    "label": "İş Geçmişini Göster/Gizle"
+  },
+  "Comfy_Redo": {
+    "label": "Yinele"
+  },
+  "Comfy_RefreshNodeDefinitions": {
+    "label": "Düğüm Tanımlarını Yenile"
+  },
+  "Comfy_RenameWorkflow": {
+    "label": "Çalışma Akışını Yeniden Adlandır"
+  },
+  "Comfy_SaveWorkflow": {
+    "label": "İş Akışını Kaydet"
+  },
+  "Comfy_SaveWorkflowAs": {
+    "label": "İş Akışını Farklı Kaydet"
+  },
+  "Comfy_ShowSettingsDialog": {
+    "label": "Ayarlar İletişim Kutusunu Göster"
+  },
+  "Comfy_Subgraph_SetDescription": {
+    "label": "Alt Grafik Açıklamasını Ayarla"
+  },
+  "Comfy_Subgraph_SetSearchAliases": {
+    "label": "Alt Grafik Arama Takma Adlarını Ayarla"
+  },
+  "Comfy_ToggleAssetAPI": {
+    "label": "Deneysel: AssetAPI'yi Etkinleştir"
+  },
+  "Comfy_ToggleCanvasInfo": {
+    "label": "Tuval Performansı"
+  },
+  "Comfy_ToggleHelpCenter": {
+    "label": "Yardım Merkezi"
+  },
+  "Comfy_ToggleLinear": {
+    "label": "Doğrusal Modu Aç/Kapat"
+  },
+  "Comfy_ToggleQPOV2": {
+    "label": "Kuyruk Paneli V2'yi Aç/Kapat"
+  },
+  "Comfy_ToggleTheme": {
+    "label": "Temayı Değiştir (Karanlık/Açık)"
+  },
+  "Comfy_Undo": {
+    "label": "Geri Al"
+  },
+  "Comfy_User_OpenSignInDialog": {
+    "label": "Giriş Yapma İletişim Kutusunu Aç"
+  },
+  "Comfy_User_SignOut": {
+    "label": "Çıkış Yap"
+  },
+  "Experimental_ToggleVueNodes": {
+    "label": "Deneysel: Vue Düğümlerini Etkinleştir"
+  },
+  "Workspace_CloseWorkflow": {
+    "label": "Mevcut İş Akışını Kapat"
+  },
+  "Workspace_NextOpenedWorkflow": {
+    "label": "Sonraki Açılan İş Akışı"
+  },
+  "Workspace_PreviousOpenedWorkflow": {
+    "label": "Önceki Açılan İş Akışı"
+  },
+  "Workspace_SearchBox_Toggle": {
+    "label": "Arama Kutusunu Aç/Kapat"
+  },
+  "Workspace_ToggleBottomPanel": {
+    "label": "Alt Paneli Aç/Kapat"
+  },
+  "Workspace_ToggleBottomPanelTab_command-terminal": {
+    "label": "Terminal Alt Panelini Aç/Kapat"
+  },
+  "Workspace_ToggleBottomPanelTab_logs-terminal": {
+    "label": "Kayıtlar Alt Panelini Aç/Kapat"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-essentials": {
+    "label": "Temel Alt Paneli Aç/Kapat"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-view-controls": {
+    "label": "Görünüm Kontrolleri Alt Panelini Aç/Kapat"
+  },
+  "Workspace_ToggleBottomPanel_Shortcuts": {
+    "label": "Tuş Atamaları İletişim Kutusunu Göster"
+  },
+  "Workspace_ToggleFocusMode": {
+    "label": "Odak Modunu Aç/Kapat"
+  },
+  "Workspace_ToggleSidebarTab_assets": {
+    "label": "Varlıklar Kenar Çubuğunu Aç/Kapat",
+    "tooltip": "Varlıklar"
+  },
+  "Workspace_ToggleSidebarTab_model-library": {
+    "label": "Model Kütüphanesi Kenar Çubuğunu Aç/Kapat",
+    "tooltip": "Model Kütüphanesi"
+  },
+  "Workspace_ToggleSidebarTab_node-library": {
+    "label": "Düğüm Kütüphanesi Kenar Çubuğunu Aç/Kapat",
+    "tooltip": "Düğüm Kütüphanesi"
+  },
+  "Workspace_ToggleSidebarTab_workflows": {
+    "label": "İş Akışları Kenar Çubuğunu Aç/Kapat",
+    "tooltip": "İş Akışları"
+  }
+}

@@ -1,0 +1,81 @@
+name: 'CI: Dist Telemetry Scan'
+
+on:
+  pull_request:
+    branches-ignore: [wip/*, draft/*, temp/*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Use Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+        env:
+          DISTRIBUTION: localhost
+
+      - name: Scan dist for GTM telemetry references
+        run: |
+          set -euo pipefail
+          echo '🔍 Scanning for Google Tag Manager references...'
+          if rg --no-ignore -n \
+            -g '*.html' \
+            -g '*.js' \
+            -e 'Google Tag Manager' \
+            -e '(?i)\bgtm\.js\b' \
+            -e '(?i)googletagmanager\.com/gtm\.js\\?id=' \
+            -e '(?i)googletagmanager\.com/ns\.html\\?id=' \
+            dist; then
+            echo '❌ ERROR: Google Tag Manager references found in dist assets!'
+            echo 'GTM must be properly tree-shaken from OSS builds.'
+            exit 1
+          fi
+          echo '✅ No GTM references found'
+
+      - name: Scan dist for Mixpanel telemetry references
+        run: |
+          set -euo pipefail
+          echo '🔍 Scanning for Mixpanel references...'
+          if rg --no-ignore -n \
+            -g '*.html' \
+            -g '*.js' \
+            -e '(?i)mixpanel\.init' \
+            -e '(?i)mixpanel\.identify' \
+            -e 'MixpanelTelemetryProvider' \
+            -e 'mp\.comfy\.org' \
+            -e 'mixpanel-browser' \
+            -e '(?i)mixpanel\.track\(' \
+            dist; then
+            echo '❌ ERROR: Mixpanel references found in dist assets!'
+            echo 'Mixpanel must be properly tree-shaken from OSS builds.'
+            echo ''
+            echo 'To fix this:'
+            echo '1. Use the TelemetryProvider pattern (see src/platform/telemetry/)'
+            echo '2. Call telemetry via useTelemetry() hook'
+            echo '3. Use conditional dynamic imports behind isCloud checks'
+            exit 1
+          fi
+          echo '✅ No Mixpanel references found'

@@ -1,0 +1,335 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 10,
+      "type": "workflow>group_node",
+      "pos": {
+        "0": 26,
+        "1": 186
+      },
+      "size": {
+        "0": 400,
+        "1": 390
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "workflow>group_node"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1,
+        "v1-5-pruned-emaonly.ckpt",
+        "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,",
+        "text, watermark",
+        156680208700286,
+        "randomize",
+        20,
+        8,
+        "euler",
+        "normal",
+        1,
+        "ComfyUI"
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    },
+    "groupNodes": {
+      "group_node": {
+        "nodes": [
+          {
+            "id": -1,
+            "type": "EmptyLatentImage",
+            "pos": {
+              "0": 473,
+              "1": 609
+            },
+            "size": {
+              "0": 315,
+              "1": 106
+            },
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [],
+                "slot_index": 0
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "EmptyLatentImage"
+            },
+            "widgets_values": [512, 512, 1],
+            "index": 0
+          },
+          {
+            "id": -1,
+            "type": "CheckpointLoaderSimple",
+            "pos": {
+              "0": 26,
+              "1": 474
+            },
+            "size": {
+              "0": 315,
+              "1": 98
+            },
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "MODEL",
+                "type": "MODEL",
+                "links": [],
+                "slot_index": 0
+              },
+              {
+                "name": "CLIP",
+                "type": "CLIP",
+                "links": [],
+                "slot_index": 1
+              },
+              {
+                "name": "VAE",
+                "type": "VAE",
+                "links": [],
+                "slot_index": 2
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CheckpointLoaderSimple"
+            },
+            "widgets_values": ["v1-5-pruned-emaonly.ckpt"],
+            "index": 1
+          },
+          {
+            "id": -1,
+            "type": "CLIPTextEncode",
+            "pos": {
+              "0": 415,
+              "1": 186
+            },
+            "size": {
+              "0": 422.84503173828125,
+              "1": 164.31304931640625
+            },
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": [],
+                "slot_index": 0
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [
+              "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
+            ],
+            "index": 2
+          },
+          {
+            "id": -1,
+            "type": "CLIPTextEncode",
+            "pos": {
+              "0": 413,
+              "1": 389
+            },
+            "size": {
+              "0": 425.27801513671875,
+              "1": 180.6060791015625
+            },
+            "flags": {},
+            "order": 3,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": [],
+                "slot_index": 0
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": ["text, watermark"],
+            "index": 3
+          },
+          {
+            "id": -1,
+            "type": "KSampler",
+            "pos": {
+              "0": 863,
+              "1": 186
+            },
+            "size": {
+              "0": 315,
+              "1": 262
+            },
+            "flags": {},
+            "order": 4,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "link": null
+              },
+              {
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": null
+              },
+              {
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": null
+              },
+              {
+                "name": "latent_image",
+                "type": "LATENT",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [],
+                "slot_index": 0
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "KSampler"
+            },
+            "widgets_values": [
+              156680208700286,
+              "randomize",
+              20,
+              8,
+              "euler",
+              "normal",
+              1
+            ],
+            "index": 4
+          },
+          {
+            "id": -1,
+            "type": "VAEDecode",
+            "pos": {
+              "0": 1209,
+              "1": 188
+            },
+            "size": {
+              "0": 210,
+              "1": 46
+            },
+            "flags": {},
+            "order": 5,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "samples",
+                "type": "LATENT",
+                "link": null
+              },
+              {
+                "name": "vae",
+                "type": "VAE",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "name": "IMAGE",
+                "type": "IMAGE",
+                "links": [],
+                "slot_index": 0
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "VAEDecode"
+            },
+            "index": 5
+          },
+          {
+            "id": -1,
+            "type": "SaveImage",
+            "pos": {
+              "0": 1451,
+              "1": 189
+            },
+            "size": {
+              "0": 210,
+              "1": 58
+            },
+            "flags": {},
+            "order": 6,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "images",
+                "type": "IMAGE",
+                "link": null
+              }
+            ],
+            "outputs": [],
+            "properties": {},
+            "widgets_values": ["ComfyUI"],
+            "index": 6
+          }
+        ],
+        "links": [
+          [1, 1, 2, 0, 4, "CLIP"],
+          [1, 1, 3, 0, 4, "CLIP"],
+          [1, 0, 4, 0, 4, "MODEL"],
+          [2, 0, 4, 1, 6, "CONDITIONING"],
+          [3, 0, 4, 2, 7, "CONDITIONING"],
+          [0, 0, 4, 3, 5, "LATENT"],
+          [4, 0, 5, 0, 3, "LATENT"],
+          [1, 2, 5, 1, 4, "VAE"],
+          [5, 0, 6, 0, 8, "IMAGE"]
+        ],
+        "external": []
+      }
+    }
+  },
+  "version": 0.4
+}

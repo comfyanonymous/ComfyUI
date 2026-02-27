@@ -1,0 +1,33 @@
+# Description: Validates YAML syntax and style using yamllint with relaxed rules
+name: 'CI: YAML Validation'
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.yml'
+      - '**/*.yaml'
+  pull_request:
+    paths:
+      - '**/*.yml'
+      - '**/*.yaml'
+
+jobs:
+  yaml-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install yamllint
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install yamllint
+
+      - name: Validate YAML syntax and style
+        run: ./scripts/cicd/check-yaml.sh

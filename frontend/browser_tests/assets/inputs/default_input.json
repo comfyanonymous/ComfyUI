@@ -1,0 +1,40 @@
+{
+  "id": "9bcb9451-8319-492a-88d4-fb711d8c3d25",
+  "revision": 0,
+  "last_node_id": 6,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 6,
+      "type": "DevToolsNodeWithDefaultInput",
+      "pos": [8.39722728729248, 29.727279663085938],
+      "size": [315, 82],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "float_input",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithDefaultInput"
+      },
+      "widgets_values": [0, 1, 0]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

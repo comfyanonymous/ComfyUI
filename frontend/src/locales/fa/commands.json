@@ -1,0 +1,363 @@
+{
+  "Comfy-Desktop_CheckForUpdates": {
+    "label": "بررسی به‌روزرسانی‌ها"
+  },
+  "Comfy-Desktop_Folders_OpenCustomNodesFolder": {
+    "label": "باز کردن پوشه Custom Nodes"
+  },
+  "Comfy-Desktop_Folders_OpenInputsFolder": {
+    "label": "باز کردن پوشه Inputs"
+  },
+  "Comfy-Desktop_Folders_OpenLogsFolder": {
+    "label": "باز کردن پوشه Logs"
+  },
+  "Comfy-Desktop_Folders_OpenModelConfig": {
+    "label": "باز کردن extra_model_paths.yaml"
+  },
+  "Comfy-Desktop_Folders_OpenModelsFolder": {
+    "label": "باز کردن پوشه Models"
+  },
+  "Comfy-Desktop_Folders_OpenOutputsFolder": {
+    "label": "باز کردن پوشه Outputs"
+  },
+  "Comfy-Desktop_OpenDevTools": {
+    "label": "باز کردن DevTools"
+  },
+  "Comfy-Desktop_OpenUserGuide": {
+    "label": "راهنمای کاربر دسکتاپ"
+  },
+  "Comfy-Desktop_Quit": {
+    "label": "خروج"
+  },
+  "Comfy-Desktop_Reinstall": {
+    "label": "نصب مجدد"
+  },
+  "Comfy-Desktop_Restart": {
+    "label": "راه‌اندازی مجدد"
+  },
+  "Comfy_3DViewer_Open3DViewer": {
+    "label": "نمایشگر سه‌بعدی (بتا) را برای نود انتخاب‌شده باز کنید"
+  },
+  "Comfy_BrowseModelAssets": {
+    "label": "آزمایشی: مرور Model Assets"
+  },
+  "Comfy_BrowseTemplates": {
+    "label": "مرور قالب‌ها"
+  },
+  "Comfy_Canvas_CopySelected": {
+    "label": "کپی"
+  },
+  "Comfy_Canvas_DeleteSelectedItems": {
+    "label": "حذف آیتم‌های انتخاب‌شده"
+  },
+  "Comfy_Canvas_FitView": {
+    "label": "تنظیم نما بر اساس nodeهای انتخاب‌شده"
+  },
+  "Comfy_Canvas_Lock": {
+    "label": "قفل کردن بوم"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Down": {
+    "label": "انتقال nodeهای انتخاب‌شده به پایین"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Left": {
+    "label": "انتقال nodeهای انتخاب‌شده به چپ"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Right": {
+    "label": "انتقال nodeهای انتخاب‌شده به راست"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Up": {
+    "label": "انتقال nodeهای انتخاب‌شده به بالا"
+  },
+  "Comfy_Canvas_PasteFromClipboard": {
+    "label": "چسباندن"
+  },
+  "Comfy_Canvas_ResetView": {
+    "label": "بازنشانی نما"
+  },
+  "Comfy_Canvas_Resize": {
+    "label": "تغییر اندازه nodeهای انتخاب‌شده"
+  },
+  "Comfy_Canvas_SelectAll": {
+    "label": "انتخاب همه"
+  },
+  "Comfy_Canvas_ToggleLinkVisibility": {
+    "label": "نمایش/مخفی‌سازی لینک‌ها در بوم"
+  },
+  "Comfy_Canvas_ToggleLock": {
+    "label": "قفل/باز کردن قفل بوم"
+  },
+  "Comfy_Canvas_ToggleMinimap": {
+    "label": "نمایش/مخفی‌سازی نقشه کوچک بوم"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Bypass": {
+    "label": "فعال/غیرفعال کردن bypass برای nodeهای انتخاب‌شده"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Collapse": {
+    "label": "جمع/باز کردن nodeهای انتخاب‌شده"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Mute": {
+    "label": "بی‌صدا/فعال کردن nodeهای انتخاب‌شده"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Pin": {
+    "label": "سنجاق/برداشتن سنجاق nodeهای انتخاب‌شده"
+  },
+  "Comfy_Canvas_ToggleSelected_Pin": {
+    "label": "سنجاق/برداشتن سنجاق آیتم‌های انتخاب‌شده"
+  },
+  "Comfy_Canvas_Unlock": {
+    "label": "باز کردن قفل بوم"
+  },
+  "Comfy_Canvas_ZoomIn": {
+    "label": "بزرگ‌نمایی"
+  },
+  "Comfy_Canvas_ZoomOut": {
+    "label": "کوچک‌نمایی"
+  },
+  "Comfy_ClearPendingTasks": {
+    "label": "پاک‌سازی وظایف در انتظار"
+  },
+  "Comfy_ClearWorkflow": {
+    "label": "پاک‌سازی workflow"
+  },
+  "Comfy_ContactSupport": {
+    "label": "تماس با پشتیبانی"
+  },
+  "Comfy_Dev_ShowModelSelector": {
+    "label": "نمایش Model Selector (توسعه‌دهنده)"
+  },
+  "Comfy_DuplicateWorkflow": {
+    "label": "تکثیر workflow فعلی"
+  },
+  "Comfy_ExportWorkflow": {
+    "label": "خروجی گرفتن از workflow"
+  },
+  "Comfy_ExportWorkflowAPI": {
+    "label": "خروجی گرفتن از workflow (فرمت API)"
+  },
+  "Comfy_Graph_ConvertToSubgraph": {
+    "label": "تبدیل انتخاب به subgraph"
+  },
+  "Comfy_Graph_EditSubgraphWidgets": {
+    "label": "ویرایش ابزارک‌های subgraph"
+  },
+  "Comfy_Graph_ExitSubgraph": {
+    "label": "خروج از subgraph"
+  },
+  "Comfy_Graph_FitGroupToContents": {
+    "label": "تنظیم گروه بر اساس محتوا"
+  },
+  "Comfy_Graph_GroupSelectedNodes": {
+    "label": "گروه‌بندی نودهای انتخاب‌شده"
+  },
+  "Comfy_Graph_ToggleWidgetPromotion": {
+    "label": "تغییر وضعیت ارتقاء ویجت در حال اشاره"
+  },
+  "Comfy_Graph_UnpackSubgraph": {
+    "label": "بازکردن زیرگراف انتخاب‌شده"
+  },
+  "Comfy_GroupNode_ConvertSelectedNodesToGroupNode": {
+    "label": "تبدیل نودهای انتخاب‌شده به گروه نود"
+  },
+  "Comfy_GroupNode_ManageGroupNodes": {
+    "label": "مدیریت گروه نودها"
+  },
+  "Comfy_GroupNode_UngroupSelectedGroupNodes": {
+    "label": "خارج کردن گروه نودهای انتخاب‌شده از گروه"
+  },
+  "Comfy_Help_AboutComfyUI": {
+    "label": "درباره ComfyUI"
+  },
+  "Comfy_Help_OpenComfyOrgDiscord": {
+    "label": "بازکردن دیسکورد Comfy-Org"
+  },
+  "Comfy_Help_OpenComfyUIDocs": {
+    "label": "بازکردن مستندات ComfyUI"
+  },
+  "Comfy_Help_OpenComfyUIForum": {
+    "label": "بازکردن انجمن ComfyUI"
+  },
+  "Comfy_Help_OpenComfyUIIssues": {
+    "label": "بازکردن مشکلات ComfyUI"
+  },
+  "Comfy_Interrupt": {
+    "label": "توقف"
+  },
+  "Comfy_LoadDefaultWorkflow": {
+    "label": "بارگذاری ورک‌فلو پیش‌فرض"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowCustomNodesMenu": {
+    "label": "مدیریت نودهای سفارشی"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowLegacyCustomNodesMenu": {
+    "label": "نودهای سفارشی (قدیمی)"
+  },
+  "Comfy_Manager_ShowLegacyManagerMenu": {
+    "label": "منوی مدیریت (قدیمی)"
+  },
+  "Comfy_Manager_ShowMissingPacks": {
+    "label": "نصب نودهای سفارشی گمشده"
+  },
+  "Comfy_Manager_ShowUpdateAvailablePacks": {
+    "label": "بررسی به‌روزرسانی نودهای سفارشی"
+  },
+  "Comfy_MaskEditor_BrushSize_Decrease": {
+    "label": "کاهش اندازه قلم‌مو در MaskEditor"
+  },
+  "Comfy_MaskEditor_BrushSize_Increase": {
+    "label": "افزایش اندازه قلم‌مو در MaskEditor"
+  },
+  "Comfy_MaskEditor_ColorPicker": {
+    "label": "بازکردن انتخابگر رنگ در MaskEditor"
+  },
+  "Comfy_MaskEditor_Mirror_Horizontal": {
+    "label": "آینه افقی در MaskEditor"
+  },
+  "Comfy_MaskEditor_Mirror_Vertical": {
+    "label": "آینه عمودی در MaskEditor"
+  },
+  "Comfy_MaskEditor_OpenMaskEditor": {
+    "label": "بازکردن ویرایشگر ماسک برای نود انتخاب‌شده"
+  },
+  "Comfy_MaskEditor_Rotate_Left": {
+    "label": "چرخش به چپ در MaskEditor"
+  },
+  "Comfy_MaskEditor_Rotate_Right": {
+    "label": "چرخش به راست در MaskEditor"
+  },
+  "Comfy_Memory_UnloadModels": {
+    "label": "خارج کردن مدل‌ها از حافظه"
+  },
+  "Comfy_Memory_UnloadModelsAndExecutionCache": {
+    "label": "خارج کردن مدل‌ها و کش اجرا از حافظه"
+  },
+  "Comfy_NewBlankWorkflow": {
+    "label": "ورک‌فلو جدید خالی"
+  },
+  "Comfy_OpenClipspace": {
+    "label": "Clipspace"
+  },
+  "Comfy_OpenManagerDialog": {
+    "label": "مدیریت"
+  },
+  "Comfy_OpenWorkflow": {
+    "label": "بازکردن ورک‌فلو"
+  },
+  "Comfy_PublishSubgraph": {
+    "label": "انتشار زیرگراف"
+  },
+  "Comfy_QueuePrompt": {
+    "label": "صف‌بندی پرامپت"
+  },
+  "Comfy_QueuePromptFront": {
+    "label": "صف‌بندی پرامپت (ابتدا)"
+  },
+  "Comfy_QueueSelectedOutputNodes": {
+    "label": "صف‌بندی نودهای خروجی انتخاب‌شده"
+  },
+  "Comfy_Queue_ToggleOverlay": {
+    "label": "تغییر وضعیت تاریخچه وظایف"
+  },
+  "Comfy_Redo": {
+    "label": "انجام مجدد"
+  },
+  "Comfy_RefreshNodeDefinitions": {
+    "label": "به‌روزرسانی تعاریف نود"
+  },
+  "Comfy_RenameWorkflow": {
+    "label": "تغییر نام Workflow"
+  },
+  "Comfy_SaveWorkflow": {
+    "label": "ذخیره ورک‌فلو"
+  },
+  "Comfy_SaveWorkflowAs": {
+    "label": "ذخیره ورک‌فلو با نام جدید"
+  },
+  "Comfy_ShowSettingsDialog": {
+    "label": "نمایش پنجره تنظیمات"
+  },
+  "Comfy_Subgraph_SetDescription": {
+    "label": "تنظیم توضیحات زیرگراف"
+  },
+  "Comfy_Subgraph_SetSearchAliases": {
+    "label": "تنظیم نام‌های جایگزین جستجوی زیرگراف"
+  },
+  "Comfy_ToggleAssetAPI": {
+    "label": "آزمایشی: فعال‌سازی AssetAPI"
+  },
+  "Comfy_ToggleCanvasInfo": {
+    "label": "عملکرد بوم"
+  },
+  "Comfy_ToggleHelpCenter": {
+    "label": "مرکز راهنما"
+  },
+  "Comfy_ToggleLinear": {
+    "label": "تغییر حالت خطی"
+  },
+  "Comfy_ToggleQPOV2": {
+    "label": "تغییر پنل صف V2"
+  },
+  "Comfy_ToggleTheme": {
+    "label": "تغییر تم (تاریک/روشن)"
+  },
+  "Comfy_Undo": {
+    "label": "واگردانی"
+  },
+  "Comfy_User_OpenSignInDialog": {
+    "label": "باز کردن پنجره ورود"
+  },
+  "Comfy_User_SignOut": {
+    "label": "خروج از حساب"
+  },
+  "Experimental_ToggleVueNodes": {
+    "label": "آزمایشی: فعال‌سازی Nodes 2.0"
+  },
+  "Workspace_CloseWorkflow": {
+    "label": "بستن گردش‌کار جاری"
+  },
+  "Workspace_NextOpenedWorkflow": {
+    "label": "گردش‌کار باز بعدی"
+  },
+  "Workspace_PreviousOpenedWorkflow": {
+    "label": "گردش‌کار باز قبلی"
+  },
+  "Workspace_SearchBox_Toggle": {
+    "label": "تغییر جعبه جستجو"
+  },
+  "Workspace_ToggleBottomPanel": {
+    "label": "تغییر پنل پایین"
+  },
+  "Workspace_ToggleBottomPanelTab_command-terminal": {
+    "label": "نمایش/مخفی‌کردن پنل پایینی ترمینال"
+  },
+  "Workspace_ToggleBottomPanelTab_logs-terminal": {
+    "label": "نمایش/مخفی‌کردن پنل پایینی گزارش‌ها"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-essentials": {
+    "label": "تغییر پنل ضروریات پایین"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-view-controls": {
+    "label": "تغییر پنل کنترل‌های نمای پایین"
+  },
+  "Workspace_ToggleBottomPanel_Shortcuts": {
+    "label": "نمایش پنجره کلیدهای میانبر"
+  },
+  "Workspace_ToggleFocusMode": {
+    "label": "تغییر حالت تمرکز"
+  },
+  "Workspace_ToggleSidebarTab_assets": {
+    "label": "تغییر نوار کناری دارایی‌ها",
+    "tooltip": "دارایی‌ها"
+  },
+  "Workspace_ToggleSidebarTab_model-library": {
+    "label": "تغییر نوار کناری کتابخانه مدل",
+    "tooltip": "کتابخانه مدل"
+  },
+  "Workspace_ToggleSidebarTab_node-library": {
+    "label": "تغییر نوار کناری کتابخانه node",
+    "tooltip": "کتابخانه node"
+  },
+  "Workspace_ToggleSidebarTab_workflows": {
+    "label": "تغییر نوار کناری گردش‌کارها",
+    "tooltip": "گردش‌کارها"
+  }
+}

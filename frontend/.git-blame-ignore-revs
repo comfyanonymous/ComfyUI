@@ -1,0 +1,30 @@
+# .git-blame-ignore-revs
+# List of commits to ignore in git blame
+# Format: <commit hash> # <description>
+
+# npm run format on litegraph merge (10,672 insertions, 7,327 deletions across 129 files)
+c53f197de2a3e0fa66b16dedc65c131235c1c4b6
+
+# Reorganize renderer components into domain-driven folder structure
+c8a83a9caede7bdb5f8598c5492b07d08c339d49
+
+# Domain-driven design (DDD) refactors - September 2025
+# These commits reorganized the codebase into domain-driven architecture
+
+# [refactor] Improve renderer domain organization (#5552)
+6349ceee6c0a57fc7992e85635def9b6e22eaeb2
+
+# [refactor] Improve settings domain organization (#5550)  
+4c8c4a1ad4f53354f700a33ea1b95262aeda2719
+
+# [refactor] Improve workflow domain organization (#5584)
+ca312fd1eab540cc4ddc0e3d244d38b3858574f0
+
+# [refactor] Move thumbnail functionality to renderer/core domain (#5586)
+e3bb29ceb8174b8bbca9e48ec7d42cd540f40efa
+
+# [refactor] Improve updates/notifications domain organization (#5590)
+27ab355f9c73415dc39f4d3f512b02308f847801
+
+# Migrate Tailwind styles to design-system package
+9f19d8fb4bd22518879343b49c05634dca777df0

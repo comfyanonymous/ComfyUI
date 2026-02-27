@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# Run Knip with cache via package script
+pnpm knip 1>&2
+

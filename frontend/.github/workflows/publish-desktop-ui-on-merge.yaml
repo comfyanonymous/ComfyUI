@@ -1,0 +1,83 @@
+---
+name: Publish Desktop UI on PR Merge
+
+on:
+  pull_request:
+    types: ['closed']
+    branches: [main, core/*]
+    paths:
+      - 'apps/desktop-ui/package.json'
+
+jobs:
+  resolve:
+    name: Resolve Version and Dist Tag
+    runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'Release')
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      dist_tag: ${{ steps.dist.outputs.dist_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+
+      - name: Read desktop-ui version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./apps/desktop-ui/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Determine dist-tag
+        id: dist
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            echo "dist_tag=next" >> $GITHUB_OUTPUT
+          else
+            echo "dist_tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+  publish:
+    name: Publish Desktop UI to npm
+    needs: resolve
+    uses: ./.github/workflows/publish-desktop-ui.yaml
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      dist_tag: ${{ needs.resolve.outputs.dist_tag }}
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  comment_desktop_publish:
+    name: Comment Desktop Publish Summary
+    needs:
+      - resolve
+      - publish
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 2
+
+      - name: Post desktop release summary comment
+        uses: ./.github/actions/comment-release-links
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          version_file: apps/desktop-ui/package.json

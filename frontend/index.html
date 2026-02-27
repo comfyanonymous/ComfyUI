@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ComfyUI</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link rel="stylesheet" type="text/css" href="materialdesignicons.min.css" />
+
+    <!-- Fullscreen mode on mobile browsers -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Status bar style (eg. black or transparent) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <style>
+      @media (prefers-color-scheme: dark) {
+        body {
+          /* Setting it early for background during load */
+          --bg-color: #202020;
+          --fg-color: #ffffff;
+        }
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        background-color: var(--bg-color);
+        background-image: var(--bg-img);
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+    <link rel="manifest" href="manifest.json" />
+  </head>
+
+  <body class="litegraph grid">
+    <div id="vue-app">
+      <span class="visually-hidden" role="status">Loading ComfyUI...</span>
+    </div>
+    <script type="module" src="src/main.ts"></script>
+  </body>
+</html>

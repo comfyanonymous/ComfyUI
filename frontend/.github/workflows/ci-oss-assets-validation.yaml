@@ -1,0 +1,118 @@
+name: 'CI: OSS Assets Validation'
+
+on:
+  pull_request:
+    branches-ignore: [wip/*, draft/*, temp/*]
+  push:
+    branches: [main, dev*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-fonts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@9fd676a19091d4595eefd76e4bd31c97133911f1 # v4.2.0
+        with:
+          version: 10
+
+      - name: Use Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+        env:
+          DISTRIBUTION: localhost
+
+      - name: Check for proprietary fonts in dist
+        run: |
+          set -euo pipefail
+          echo '🔍 Checking dist for proprietary ABCROM fonts...'
+
+          if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
+            echo '❌ ERROR: dist/ directory missing or empty!'
+            exit 1
+          fi
+
+          # Check for ABCROM font files
+          if find dist/ -type f -iname '*abcrom*' \
+            \( -name '*.woff' -o -name '*.woff2' -o -name '*.ttf' -o -name '*.otf' \) \
+            -print -quit | grep -q .; then
+            echo ''
+            echo '❌ ERROR: Found proprietary ABCROM font files in dist!'
+            echo ''
+            find dist/ -type f -iname '*abcrom*' \
+              \( -name '*.woff' -o -name '*.woff2' -o -name '*.ttf' -o -name '*.otf' \)
+            echo ''
+            echo 'ABCROM fonts are proprietary and should not ship to OSS builds.'
+            echo ''
+            echo 'To fix this:'
+            echo '1. Use conditional font loading based on isCloud'
+            echo '2. Ensure fonts are dynamically imported, not bundled'
+            echo '3. Check vite config for font handling'
+            exit 1
+          fi
+
+          echo '✅ No proprietary fonts found in dist'
+
+  validate-licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@9fd676a19091d4595eefd76e4bd31c97133911f1 # v4.2.0
+        with:
+          version: 10
+
+      - name: Use Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate production dependency licenses
+        run: |
+          set -euo pipefail
+          echo '🔍 Checking production dependency licenses...'
+
+          # Use license-checker-rseidelsohn (actively maintained fork, handles monorepos)
+          # Exclude internal @comfyorg packages from license check
+          # Run in if condition to capture exit code
+          if npx license-checker-rseidelsohn@4 \
+            --production \
+            --summary \
+            --excludePackages '@comfyorg/comfyui-frontend;@comfyorg/design-system;@comfyorg/registry-types;@comfyorg/shared-frontend-utils;@comfyorg/tailwind-utils;@comfyorg/comfyui-electron-types' \
+            --onlyAllow 'MIT;MIT*;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;Python-2.0;CC0-1.0;Unlicense;(MIT OR Apache-2.0);(MIT OR GPL-3.0);(Apache-2.0 OR MIT);(MPL-2.0 OR Apache-2.0);CC-BY-4.0;CC-BY-3.0;GPL-3.0-only'; then
+            echo ''
+            echo '✅ All production dependency licenses are approved!'
+          else
+            echo ''
+            echo '❌ ERROR: Found dependencies with non-approved licenses!'
+            echo ''
+            echo 'To fix this:'
+            echo '1. Check the license of the problematic package'
+            echo '2. Find an alternative package with an approved license'
+            echo '3. If the license is safe and OSI-approved, add it to the --onlyAllow list'
+            echo ''
+            echo 'For more info on OSI-approved licenses:'
+            echo 'https://opensource.org/licenses'
+            exit 1
+          fi

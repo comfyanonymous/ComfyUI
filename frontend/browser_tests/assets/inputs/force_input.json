@@ -1,0 +1,55 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "DevToolsNodeWithForceInput",
+      "pos": {
+        "0": 9,
+        "1": 39
+      },
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "int_input",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "int_input"
+          }
+        },
+        {
+          "name": "float_input",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "float_input"
+          },
+          "shape": 7
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithForceInput"
+      },
+      "widgets_values": [0, 1, 0]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

@@ -1,0 +1,164 @@
+---
+name: Release Draft Create
+
+on:
+  pull_request:
+    types: ['closed']
+    branches: [main, core/*]
+    paths:
+      - 'package.json'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'Release')
+    outputs:
+      version: ${{ steps.current_version.outputs.version }}
+      is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Get current version
+        id: current_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Check if prerelease
+        id: check_prerelease
+        run: |
+          VERSION=${{ steps.current_version.outputs.version }}
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Build project
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+          ENABLE_MINIFY: 'true'
+          USE_PROD_CONFIG: 'true'
+          IS_NIGHTLY: ${{  case(github.ref == 'refs/heads/main', 'true', 'false') }}
+        run: |
+          pnpm install --frozen-lockfile
+
+          # Desktop-specific release artifact with desktop distribution flags.
+          DISTRIBUTION=desktop pnpm build
+          pnpm zipdist ./dist ./dist-desktop.zip
+
+          # Default release artifact for core/PyPI.
+          NX_SKIP_NX_CACHE=true pnpm build
+          pnpm zipdist
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-files
+          path: |
+            dist/
+            dist.zip
+            dist-desktop.zip
+
+  draft_release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-files
+      - name: Create release
+        id: create_release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            dist.zip
+            dist-desktop.zip
+          tag_name: v${{ needs.build.outputs.version }}
+          target_commitish: ${{ github.event.pull_request.base.ref }}
+          make_latest: >-
+            ${{ github.event.pull_request.base.ref == 'main' &&
+                needs.build.outputs.is_prerelease == 'false' }}
+          draft: >-
+            ${{ github.event.pull_request.base.ref != 'main' ||
+                needs.build.outputs.is_prerelease == 'true' }}
+          prerelease: >-
+            ${{ needs.build.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+
+  publish_pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Download dist artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-files
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Install build dependencies
+        run: python -m pip install build
+      - name: Setup pypi package
+        run: |
+          mkdir -p comfyui_frontend_package/comfyui_frontend_package/static/
+          cp -r dist/* comfyui_frontend_package/comfyui_frontend_package/static/
+      - name: Build pypi package
+        run: python -m build
+        working-directory: comfyui_frontend_package
+        env:
+          COMFYUI_FRONTEND_VERSION: ${{ needs.build.outputs.version }}
+      - name: Publish pypi package
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          packages-dir: comfyui_frontend_package/dist
+
+  publish_types:
+    needs: build
+    uses: ./.github/workflows/release-npm-types.yaml
+    with:
+      version: ${{ needs.build.outputs.version }}
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
+    secrets: inherit
+
+  comment_release_summary:
+    name: Comment Release Summary
+    needs:
+      - draft_release
+      - publish_pypi
+      - publish_types
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 2
+
+      - name: Post release summary comment
+        uses: ./.github/actions/comment-release-links
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          version_file: package.json

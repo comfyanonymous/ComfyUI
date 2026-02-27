@@ -1,0 +1,63 @@
+{
+  "id": "solarized",
+  "name": "Solarized",
+  "colors": {
+    "node_slot": {
+      "CLIP": "#2AB7CA",
+      "CLIP_VISION": "#6c71c4",
+      "CLIP_VISION_OUTPUT": "#859900",
+      "CONDITIONING": "#d33682",
+      "CONTROL_NET": "#d1ffd7",
+      "IMAGE": "#5940bb",
+      "LATENT": "#268bd2",
+      "MASK": "#CCC9E7",
+      "MODEL": "#dc322f",
+      "STYLE_MODEL": "#1a998a",
+      "UPSCALE_MODEL": "#054A29",
+      "VAE": "#facfad"
+    },
+    "litegraph_base": {
+      "NODE_TITLE_COLOR": "#fdf6e3",
+      "NODE_SELECTED_TITLE_COLOR": "#A9D400",
+      "NODE_TEXT_SIZE": 14,
+      "NODE_TEXT_COLOR": "#657b83",
+      "NODE_SUBTEXT_SIZE": 12,
+      "NODE_DEFAULT_COLOR": "#094656",
+      "NODE_DEFAULT_BGCOLOR": "#073642",
+      "NODE_DEFAULT_BOXCOLOR": "#839496",
+      "NODE_DEFAULT_SHAPE": 2,
+      "NODE_BOX_OUTLINE_COLOR": "#fdf6e3",
+      "NODE_BYPASS_BGCOLOR": "#FF00FF",
+      "NODE_ERROR_COLOUR": "#E00",
+      "DEFAULT_SHADOW_COLOR": "rgba(0,0,0,0.5)",
+      "DEFAULT_GROUP_FONT": 24,
+      "WIDGET_BGCOLOR": "#002b36",
+      "WIDGET_OUTLINE_COLOR": "#839496",
+      "WIDGET_TEXT_COLOR": "#fdf6e3",
+      "WIDGET_SECONDARY_TEXT_COLOR": "#93a1a1",
+      "WIDGET_DISABLED_TEXT_COLOR": "#657b83",
+      "LINK_COLOR": "#2aa198",
+      "EVENT_LINK_COLOR": "#268bd2",
+      "CONNECTING_LINK_COLOR": "#859900"
+    },
+    "comfy_base": {
+      "fg-color": "#fdf6e3",
+      "bg-color": "#002b36",
+      "comfy-menu-bg": "#073642",
+      "comfy-menu-secondary-bg": "#06323D",
+      "comfy-input-bg": "#002b36",
+      "input-text": "#93a1a1",
+      "descrip-text": "#586e75",
+      "drag-text": "#839496",
+      "error-text": "#dc322f",
+      "border-color": "#657b83",
+      "tr-even-bg-color": "#002b36",
+      "tr-odd-bg-color": "#073642",
+      "content-bg": "#657b83",
+      "content-fg": "#fdf6e3",
+      "content-hover-bg": "#002b36",
+      "content-hover-fg": "#fdf6e3",
+      "bar-shadow": "rgba(16, 16, 16, 0.5) 0 0 0.5rem"
+    }
+  }
+}

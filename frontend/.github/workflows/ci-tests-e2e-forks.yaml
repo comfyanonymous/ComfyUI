@@ -1,0 +1,90 @@
+# Description: Deploys test results from forked PRs (forks can't access deployment secrets)
+name: 'CI: Tests E2E (Deploy for Forks)'
+
+on:
+  workflow_run:
+    workflows: ['CI: Tests E2E']
+    types: [requested, completed]
+
+jobs:
+  deploy-and-comment-forked-pr:
+    runs-on: ubuntu-latest
+    if: |
+      github.repository == 'Comfy-Org/ComfyUI_frontend' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository != null &&
+      github.event.workflow_run.repository != null &&
+      github.event.workflow_run.head_repository.full_name != github.event.workflow_run.repository.full_name
+    permissions:
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Log workflow trigger info
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Event: ${{ github.event.workflow_run.event }}"
+          echo "Head repo: ${{ github.event.workflow_run.head_repository.full_name || 'null' }}"
+          echo "Base repo: ${{ github.event.workflow_run.repository.full_name || 'null' }}"
+          echo "Is forked: ${{ github.event.workflow_run.head_repository.full_name != github.event.workflow_run.repository.full_name }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Get PR Number
+        id: pr
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const pr = prs.find(p => p.head.sha === context.payload.workflow_run.head_sha);
+
+            if (!pr) {
+              console.log('No PR found for SHA:', context.payload.workflow_run.head_sha);
+              return null;
+            }
+
+            console.log(`Found PR #${pr.number} from fork: ${context.payload.workflow_run.head_repository.full_name}`);
+            return pr.number;
+
+      - name: Handle Test Start
+        if: steps.pr.outputs.result != 'null' && github.event.action == 'requested'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x scripts/cicd/pr-playwright-deploy-and-comment.sh
+          ./scripts/cicd/pr-playwright-deploy-and-comment.sh \
+            "${{ steps.pr.outputs.result }}" \
+            "${{ github.event.workflow_run.head_branch }}" \
+            "starting"
+
+      - name: Download and Deploy Reports
+        if: steps.pr.outputs.result != 'null' && github.event.action == 'completed'
+        uses: actions/download-artifact@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          pattern: playwright-report-*
+          path: reports
+
+      - name: Handle Test Completion
+        if: steps.pr.outputs.result != 'null' && github.event.action == 'completed'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # Rename merged report if exists
+          [ -d "reports/playwright-report-chromium-merged" ] && \
+            mv reports/playwright-report-chromium-merged reports/playwright-report-chromium
+
+          chmod +x scripts/cicd/pr-playwright-deploy-and-comment.sh
+          ./scripts/cicd/pr-playwright-deploy-and-comment.sh \
+            "${{ steps.pr.outputs.result }}" \
+            "${{ github.event.workflow_run.head_branch }}" \
+            "completed"

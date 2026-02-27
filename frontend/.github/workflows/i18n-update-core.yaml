@@ -1,0 +1,61 @@
+# Description: Generates and updates translations for core ComfyUI components using OpenAI
+name: 'i18n: Update Core'
+
+on:
+  # Manual dispatch for urgent translation updates
+  workflow_dispatch:
+  # Only trigger on PRs to main/master - additional branch filtering in job condition
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  update-locales:
+    # Branch detection: Only run for manual dispatch or version-bump-* branches from main repo
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'version-bump-'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+
+      # Setup playwright environment
+      - name: Setup ComfyUI Frontend
+        uses: ./.github/actions/setup-frontend
+        with:
+          include_build_step: true
+      - name: Setup ComfyUI Server
+        uses: ./.github/actions/setup-comfyui-server
+        with:
+          launch_server: true
+      - name: Setup Playwright
+        uses: ./.github/actions/setup-playwright
+
+      - name: Start dev server
+        # Run electron dev server as it is a superset of the web dev server
+        # We do want electron specific UIs to be translated.
+        run: pnpm dev:electron &
+
+      # Update locales, collect new strings and update translations using OpenAI, then commit changes
+      - name: Update en.json
+        run: pnpm collect-i18n
+        env:
+          PLAYWRIGHT_TEST_URL: http://localhost:5173
+      - name: Update translations
+        run: pnpm locale && pnpm format
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Commit updated locales
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git fetch origin ${{ github.head_ref }}
+          # Stash any local changes before checkout
+          git stash -u
+          git checkout -B ${{ github.head_ref }} origin/${{ github.head_ref }}
+          # Apply the stashed changes if any
+          git stash pop || true
+          git add src/locales/
+          git diff --staged --quiet || git commit -m "Update locales"
+          git push origin HEAD:${{ github.head_ref }}

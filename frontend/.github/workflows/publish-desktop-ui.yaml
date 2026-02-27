@@ -1,0 +1,192 @@
+name: Publish Desktop UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.2.3)'
+        required: true
+        type: string
+      dist_tag:
+        description: 'npm dist-tag to use'
+        required: true
+        default: latest
+        type: string
+      ref:
+        description: 'Git ref to checkout (commit SHA, tag, or branch)'
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      dist_tag:
+        required: false
+        type: string
+        default: latest
+      ref:
+        required: false
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: true
+
+concurrency:
+  group: publish-desktop-ui-${{ github.workflow }}-${{ inputs.version }}-${{ inputs.dist_tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish_desktop_ui:
+    name: Publish @comfyorg/desktop-ui
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      ENABLE_MINIFY: 'true'
+    steps:
+      - name: Validate inputs
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SEMVER_REGEX='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
+          if [[ ! "$VERSION" =~ $SEMVER_REGEX ]]; then
+            echo "::error title=Invalid version::Version '$VERSION' must follow semantic versioning (x.y.z[-suffix][+build])" >&2
+            exit 1
+          fi
+
+      - name: Determine ref to checkout
+        id: resolve_ref
+        env:
+          REF: ${{ inputs.ref }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$REF" ]; then
+            if ! git check-ref-format --allow-onelevel "$REF"; then
+              echo "::error title=Invalid ref::Ref '$REF' fails git check-ref-format validation." >&2
+              exit 1
+            fi
+            echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=refs/tags/v$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.resolve_ref.outputs.ref }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          cache: 'pnpm'
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build Desktop UI
+        run: pnpm build:desktop
+
+      - name: Prepare npm package
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PKG=apps/desktop-ui/package.json
+          ROOT_PKG=package.json
+
+          NAME=$(jq -r .name "$APP_PKG")
+          APP_VERSION=$(jq -r .version "$APP_PKG")
+          ROOT_LICENSE=$(jq -r .license "$ROOT_PKG")
+          REPO=$(jq -r .repository "$ROOT_PKG")
+
+          if [ -z "$NAME" ] || [ "$NAME" = "null" ]; then
+            echo "::error title=Missing name::apps/desktop-ui/package.json is missing 'name'" >&2
+            exit 1
+          fi
+
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ "$APP_VERSION" != "$INPUT_VERSION" ]; then
+            echo "::error title=Version mismatch::apps/desktop-ui version $APP_VERSION does not match input $INPUT_VERSION" >&2
+            exit 1
+          fi
+
+          if [ ! -d apps/desktop-ui/dist ]; then
+            echo "::error title=Missing build::apps/desktop-ui/dist not found. Did build succeed?" >&2
+            exit 1
+          fi
+
+          PUBLISH_DIR=apps/desktop-ui/.npm-publish
+          rm -rf "$PUBLISH_DIR"
+          mkdir -p "$PUBLISH_DIR"
+          cp -R apps/desktop-ui/dist "$PUBLISH_DIR/dist"
+
+          INPUT_VERSION="${{ inputs.version }}"
+          jq -n \
+            --arg name "$NAME" \
+            --arg version "$INPUT_VERSION" \
+            --arg description "Static assets for the ComfyUI Desktop UI" \
+            --arg license "$ROOT_LICENSE" \
+            --arg repository "$REPO" \
+            '{
+              name: $name,
+              version: $version,
+              description: $description,
+              license: $license,
+              repository: $repository,
+              type: "module",
+              private: false,
+              files: ["dist"],
+              publishConfig: { access: "public" }
+            }' > "$PUBLISH_DIR/package.json"
+
+          if [ -f apps/desktop-ui/README.md ]; then
+            cp apps/desktop-ui/README.md "$PUBLISH_DIR/README.md"
+          fi
+
+          echo "publish_dir=$PUBLISH_DIR" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version already on npm
+        id: check_npm
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VER: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS=0
+          OUTPUT=$(npm view "${NAME}@${VER}" --json 2>&1) || STATUS=$?
+          if [ "$STATUS" -eq 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Already published::${NAME}@${VER} already exists on npm. Skipping publish."
+          else
+            if echo "$OUTPUT" | grep -q "E404"; then
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error title=Registry lookup failed::$OUTPUT" >&2
+              exit "$STATUS"
+            fi
+          fi
+
+      - name: Publish package
+        if: steps.check_npm.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: pnpm publish --access public --tag "$DIST_TAG" --no-git-checks --ignore-scripts
+        working-directory: ${{ steps.pkg.outputs.publish_dir }}

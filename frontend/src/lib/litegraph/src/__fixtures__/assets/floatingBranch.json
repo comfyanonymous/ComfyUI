@@ -1,0 +1,123 @@
+{
+  "id": "e5ffd5e1-1c01-45ac-90dd-b7d83a206b0f",
+  "revision": 0,
+  "last_node_id": 3,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "InvertMask",
+      "pos": [100, 130],
+      "size": [140, 26],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": [2, 3]
+        }
+      ],
+      "properties": { "Node name for S&R": "InvertMask" },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "InvertMask",
+      "pos": [400, 220],
+      "size": [140, 26],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        { "localized_name": "mask", "name": "mask", "type": "MASK", "link": 3 }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": { "Node name for S&R": "InvertMask" },
+      "widgets_values": []
+    },
+    {
+      "id": 2,
+      "type": "InvertMask",
+      "pos": [400, 130],
+      "size": [140, 26],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        { "localized_name": "mask", "name": "mask", "type": "MASK", "link": 2 }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": { "Node name for S&R": "InvertMask" },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [2, 1, 0, 2, 0, "MASK"],
+    [3, 1, 0, 3, 0, "MASK"]
+  ],
+  "floatingLinks": [
+    {
+      "id": 6,
+      "origin_id": 1,
+      "origin_slot": 0,
+      "target_id": -1,
+      "target_slot": -1,
+      "type": "MASK",
+      "parentId": 1
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.2100000000000002,
+      "offset": [319.8264462809916, 109.2148760330578]
+    },
+    "linkExtensions": [
+      { "id": 2, "parentId": 3 },
+      { "id": 3, "parentId": 3 }
+    ],
+    "reroutes": [
+      {
+        "id": 1,
+        "parentId": 2,
+        "pos": [350, 110],
+        "linkIds": [],
+        "floating": { "slotType": "output" }
+      },
+      { "id": 2, "parentId": 4, "pos": [310, 150], "linkIds": [2, 3] },
+      { "id": 3, "parentId": 2, "pos": [360, 170], "linkIds": [2, 3] },
+      {
+        "id": 4,
+        "pos": [271.9090881347656, 146.9834747314453],
+        "linkIds": [2, 3]
+      }
+    ]
+  },
+  "version": 0.4
+}

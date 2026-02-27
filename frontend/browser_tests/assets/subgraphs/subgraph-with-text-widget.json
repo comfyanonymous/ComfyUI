@@ -1,0 +1,124 @@
+{
+  "id": "c4a254bb-935e-4013-b380-5e36954de4b0",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "422723e8-4bf6-438c-823f-881ca81acead",
+      "pos": [791.59912109375, 386.13336181640625],
+      "size": [140, 26],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "422723e8-4bf6-438c-823f-881ca81acead",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 10,
+          "lastLinkId": 10,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [481.59912109375, 379.13336181640625, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1121.59912109375, 379.13336181640625, 120, 40]
+        },
+        "inputs": [
+          {
+            "id": "79e69fca-ad12-499b-8d9b-9f1656b85354",
+            "name": "clip",
+            "type": "CLIP",
+            "linkIds": [10],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 399.13336181640625
+            }
+          }
+        ],
+        "outputs": [],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 10,
+            "type": "CLIPTextEncode",
+            "pos": [661.59912109375, 314.13336181640625],
+            "size": [400, 200],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "clip",
+                "name": "clip",
+                "type": "CLIP",
+                "link": 10
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "CONDITIONING",
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [""]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 10,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 10,
+            "target_slot": 0,
+            "type": "CLIP"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "frontendVersion": "1.24.1",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "ds": {
+      "scale": 0.9581355200690549,
+      "offset": [258.6405769416877, 147.17927927927929]
+    }
+  },
+  "version": 0.4
+}

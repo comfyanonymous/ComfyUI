@@ -1,0 +1,102 @@
+name: Bug Report
+description: 'Report something that is not working correctly'
+labels: ['Potential Bug']
+type: Bug
+
+body:
+  - type: checkboxes
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I am running the latest version of ComfyUI
+          required: true
+        - label: I have custom nodes enabled
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug. Include screenshots or videos if helpful.
+      placeholder: |
+        Example: "When I connect a VAE Decode node to a KSampler, the connection line appears but the workflow fails to execute with an error message..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue? Please attach your workflow (JSON or PNG).
+      placeholder: |
+        1. Add a KSampler node
+        2. Connect it to...
+        3. Click Queue Prompt
+        4. See error
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How is this affecting you?
+      options:
+        - Crashes ComfyUI completely
+        - Workflow won't execute
+        - Feature doesn't work as expected
+        - Visual/UI issue only
+        - Minor inconvenience
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ComfyUI Frontend Version
+      description: Found in Settings > About (e.g., "1.3.45")
+      placeholder: '1.3.45'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      description: Which browser are you using?
+      options:
+        - Chrome/Chromium
+        - Firefox
+        - Safari
+        - Edge
+        - Other
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Additional Information (Optional)
+        *The following fields help us debug complex issues but are not required for most bug reports.*
+
+  - type: textarea
+    id: console-errors
+    attributes:
+      label: Console Errors
+      description: If you see red error messages in the browser console (F12), paste them here
+      render: javascript
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: If relevant, paste any terminal/server logs here
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that might help (OS, GPU, specific nodes involved, etc.)

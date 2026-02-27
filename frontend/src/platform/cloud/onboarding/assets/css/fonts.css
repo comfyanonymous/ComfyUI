@@ -1,0 +1,33 @@
+/* ABC ROM Extended — full face mapping */
+@font-face {
+  font-family: 'ABC ROM Extended';
+  src:
+    local('ABC ROM Extended Black Italic'),
+    local('ABCRom BlackItalic'),
+    url('../fonts/ABCROMExtended-BlackItalic.woff2') format('woff2'),
+    url('../fonts/ABCROMExtended-BlackItalic.woff') format('woff');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Prevent browser from synthesizing fake bold/italic which can cause mismatches */
+.hero-title,
+.font-abcrom {
+  font-family: 'ABC ROM Extended', sans-serif;
+  font-synthesis: none; /* no faux bold/italic */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Figma-like hero style */
+.hero-title {
+  font-size: 32px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  text-shadow: 0 4px 4px rgb(0 0 0 / 0.25);
+  /* Figma has leading-trim/text-edge which CSS doesn't support; emulate with tight line-height */
+  line-height: 1.1;
+}

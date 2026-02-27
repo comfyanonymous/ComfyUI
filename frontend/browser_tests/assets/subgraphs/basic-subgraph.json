@@ -1,0 +1,197 @@
+{
+  "id": "fe4562c0-3a0b-4614-bdec-7039a58d75b8",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "e5fb1765-9323-4548-801a-5aead34d879e",
+      "pos": [627.5973510742188, 423.0972900390625],
+      "size": [144.15234375, 46],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "e5fb1765-9323-4548-801a-5aead34d879e",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 2,
+          "lastLinkId": 4,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [347.90441582814213, 417.3822440655296, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [892.5973510742188, 416.0972900390625, 120, 60]
+        },
+        "inputs": [
+          {
+            "id": "c5cc99d8-a2b6-4bf3-8be7-d4949ef736cd",
+            "name": "positive",
+            "type": "CONDITIONING",
+            "linkIds": [1],
+            "pos": {
+              "0": 447.9044189453125,
+              "1": 437.3822326660156
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": "9bd488b9-e907-4c95-a7a4-85c5597a87af",
+            "name": "LATENT",
+            "type": "LATENT",
+            "linkIds": [2],
+            "pos": {
+              "0": 912.5973510742188,
+              "1": 436.0972900390625
+            }
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 1,
+            "type": "KSampler",
+            "pos": [554.8743286132812, 100.95539093017578],
+            "size": [270, 262],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": null
+              },
+              {
+                "localized_name": "positive",
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": 1
+              },
+              {
+                "localized_name": "negative",
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": null
+              },
+              {
+                "localized_name": "latent_image",
+                "name": "latent_image",
+                "type": "LATENT",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "LATENT",
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [2]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "KSampler"
+            },
+            "widgets_values": [0, "randomize", 20, 8, "euler", "simple", 1]
+          },
+          {
+            "id": 2,
+            "type": "VAEEncode",
+            "pos": [685.1265869140625, 439.1734619140625],
+            "size": [140, 46],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "pixels",
+                "name": "pixels",
+                "type": "IMAGE",
+                "link": null
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "LATENT",
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [4]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "VAEEncode"
+            }
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 2,
+            "origin_id": 1,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "LATENT"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8894351682943402,
+      "offset": [58.7671207025881, 137.7124650620126]
+    },
+    "frontendVersion": "1.24.1"
+  },
+  "version": 0.4
+}

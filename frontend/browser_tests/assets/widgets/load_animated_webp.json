@@ -1,0 +1,11 @@
+{
+  "8": {
+    "inputs": {
+      "image": "animated_web.webp"
+    },
+    "class_type": "DevToolsLoadAnimatedImageTest",
+    "_meta": {
+      "title": "Load Animated Image"
+    }
+  }
+}

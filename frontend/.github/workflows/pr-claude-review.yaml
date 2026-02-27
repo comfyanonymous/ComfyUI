@@ -1,0 +1,69 @@
+# Description: AI-powered code review triggered by adding the 'claude-review' label to a PR
+name: 'PR: Claude Review'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  statuses: write
+
+on:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'claude-review'
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: refs/pull/${{ github.event.pull_request.number }}/head
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies for analysis tools
+        run: |
+          pnpm install -g typescript @vue/compiler-sfc
+
+      - name: Run Claude PR Review
+        uses: anthropics/claude-code-action@ff34ce0ff04a470bd3fa56c1ef391c8f1c19f8e9 # v1.0.38
+        with:
+          label_trigger: 'claude-review'
+          prompt: |
+            Read the file .claude/commands/comprehensive-pr-review.md and follow ALL the instructions exactly.
+
+            CRITICAL: You must post individual inline comments using the gh api commands shown in the file.
+            DO NOT create a summary comment.
+            Each issue must be posted as a separate inline comment on the specific line of code.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 256 --allowedTools 'Bash(git:*),Bash(gh api:*),Bash(gh pr:*),Bash(gh repo:*),Bash(jq:*),Bash(echo:*),Read,Write,Edit,Glob,Grep,WebFetch'"
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REPOSITORY: ${{ github.repository }}
+
+      - name: Remove claude-review label
+        if: always()
+        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label "claude-review"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

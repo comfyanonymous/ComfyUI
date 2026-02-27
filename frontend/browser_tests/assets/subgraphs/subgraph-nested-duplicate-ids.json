@@ -1,0 +1,599 @@
+{
+  "id": "9a37f747-e96b-4304-9212-7abcaad7bdac",
+  "revision": 0,
+  "last_node_id": 5,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "1e38d8ea-45e1-48a5-aa20-966584201867",
+      "pos": [788, 433.5],
+      "size": [210, 108],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string_a",
+          "type": "STRING",
+          "widget": {
+            "name": "string_a"
+          },
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [5]
+        }
+      ],
+      "properties": {
+        "proxyWidgets": [["-1", "string_a"]]
+      },
+      "widgets_values": [""]
+    },
+    {
+      "id": 2,
+      "type": "PreviewAny",
+      "pos": [1135, 429],
+      "size": [250, 145.5],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 5
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [null, null, false]
+    },
+    {
+      "id": 1,
+      "type": "PrimitiveStringMultiline",
+      "pos": [456, 450],
+      "size": [225, 121.5],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [4]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": ["Outer\n"]
+    }
+  ],
+  "links": [
+    [4, 1, 0, 5, 0, "STRING"],
+    [5, 5, 0, 2, 0, "STRING"]
+  ],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "1e38d8ea-45e1-48a5-aa20-966584201867",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 6,
+          "lastLinkId": 9,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [351, 432.5, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1315, 432.5, 120, 60]
+        },
+        "inputs": [
+          {
+            "id": "7bf3e1d4-0521-4b5c-92f5-47ca598b7eb4",
+            "name": "string_a",
+            "type": "STRING",
+            "linkIds": [1],
+            "localized_name": "string_a",
+            "pos": [451, 452.5]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "fbe975ba-d7c2-471e-a99a-a1e2c6ab466d",
+            "name": "STRING",
+            "type": "STRING",
+            "linkIds": [9],
+            "localized_name": "STRING",
+            "pos": [1335, 452.5]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 3,
+            "type": "StringConcatenate",
+            "pos": [815, 373],
+            "size": [347, 231],
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "string_a",
+                "name": "string_a",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_a"
+                },
+                "link": 1
+              },
+              {
+                "localized_name": "string_b",
+                "name": "string_b",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_b"
+                },
+                "link": 2
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [7]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "StringConcatenate"
+            },
+            "widgets_values": ["", "", ""]
+          },
+          {
+            "id": 6,
+            "type": "9be42452-056b-4c99-9f9f-7381d11c4454",
+            "pos": [955, 775],
+            "size": [210, 88],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "string_a",
+                "name": "string_a",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_a"
+                },
+                "link": 7
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [9]
+              }
+            ],
+            "properties": {
+              "proxyWidgets": [["-1", "string_a"]]
+            },
+            "widgets_values": [""]
+          },
+          {
+            "id": 4,
+            "type": "PrimitiveStringMultiline",
+            "pos": [313, 685],
+            "size": [325, 109],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [2]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "PrimitiveStringMultiline"
+            },
+            "widgets_values": ["Inner 1\n"]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 2,
+            "origin_id": 4,
+            "origin_slot": 0,
+            "target_id": 3,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 3,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 7,
+            "origin_id": 3,
+            "origin_slot": 0,
+            "target_id": 6,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 6,
+            "origin_id": 6,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 9,
+            "origin_id": 6,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "STRING"
+          }
+        ],
+        "extra": {}
+      },
+      {
+        "id": "9be42452-056b-4c99-9f9f-7381d11c4454",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 9,
+          "lastLinkId": 12,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [680, 774, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1320, 774, 120, 60]
+        },
+        "inputs": [
+          {
+            "id": "01c05c51-86b5-4bad-b32f-9c911683a13d",
+            "name": "string_a",
+            "type": "STRING",
+            "linkIds": [4],
+            "localized_name": "string_a",
+            "pos": [780, 794]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "a8bcf3bf-a66a-4c71-8d92-17a2a4d03686",
+            "name": "STRING",
+            "type": "STRING",
+            "linkIds": [12],
+            "localized_name": "STRING",
+            "pos": [1340, 794]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 5,
+            "type": "StringConcatenate",
+            "pos": [860, 719],
+            "size": [400, 200],
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "string_a",
+                "name": "string_a",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_a"
+                },
+                "link": 4
+              },
+              {
+                "localized_name": "string_b",
+                "name": "string_b",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_b"
+                },
+                "link": 7
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [11]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "StringConcatenate"
+            },
+            "widgets_values": ["", "", ""]
+          },
+          {
+            "id": 6,
+            "type": "PrimitiveStringMultiline",
+            "pos": [401, 973],
+            "size": [400, 200],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [7]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "PrimitiveStringMultiline"
+            },
+            "widgets_values": ["Inner 2\n"]
+          },
+          {
+            "id": 9,
+            "type": "7c2915a5-5eb8-4958-a8fd-4beb30f370ce",
+            "pos": [1046, 985],
+            "size": [210, 88],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "string_a",
+                "name": "string_a",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_a"
+                },
+                "link": 11
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [12]
+              }
+            ],
+            "properties": {
+              "proxyWidgets": [["-1", "string_a"]]
+            },
+            "widgets_values": [""]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 4,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 5,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 7,
+            "origin_id": 6,
+            "origin_slot": 0,
+            "target_id": 5,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 11,
+            "origin_id": 5,
+            "origin_slot": 0,
+            "target_id": 9,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 10,
+            "origin_id": 9,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 12,
+            "origin_id": 9,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "STRING"
+          }
+        ],
+        "extra": {}
+      },
+      {
+        "id": "7c2915a5-5eb8-4958-a8fd-4beb30f370ce",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 8,
+          "lastLinkId": 10,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [262, 1222, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1330, 1222, 120, 60]
+        },
+        "inputs": [
+          {
+            "id": "934a8baa-d79c-428c-8ec9-814ad437d7c7",
+            "name": "string_a",
+            "type": "STRING",
+            "linkIds": [9],
+            "localized_name": "string_a",
+            "pos": [362, 1242]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "4c3d243b-9ff6-4dcd-9dbf-e4ec8e1fc879",
+            "name": "STRING",
+            "type": "STRING",
+            "linkIds": [10],
+            "localized_name": "STRING",
+            "pos": [1350, 1242]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 7,
+            "type": "StringConcatenate",
+            "pos": [870, 1038],
+            "size": [400, 200],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "string_a",
+                "name": "string_a",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_a"
+                },
+                "link": 9
+              },
+              {
+                "localized_name": "string_b",
+                "name": "string_b",
+                "type": "STRING",
+                "widget": {
+                  "name": "string_b"
+                },
+                "link": 8
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [10]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "StringConcatenate"
+            },
+            "widgets_values": ["", "", ""]
+          },
+          {
+            "id": 8,
+            "type": "PrimitiveStringMultiline",
+            "pos": [442, 1296],
+            "size": [400, 200],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "STRING",
+                "name": "STRING",
+                "type": "STRING",
+                "links": [8]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "PrimitiveStringMultiline"
+            },
+            "widgets_values": ["Inner 3\n"]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 8,
+            "origin_id": 8,
+            "origin_slot": 0,
+            "target_id": 7,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 9,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 7,
+            "target_slot": 0,
+            "type": "STRING"
+          },
+          {
+            "id": 10,
+            "origin_id": 7,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "STRING"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [-7, 144]
+    },
+    "frontendVersion": "1.38.13"
+  },
+  "version": 0.4
+}

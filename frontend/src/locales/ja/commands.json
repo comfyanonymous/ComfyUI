@@ -1,0 +1,363 @@
+{
+  "Comfy-Desktop_CheckForUpdates": {
+    "label": "アップデートを確認"
+  },
+  "Comfy-Desktop_Folders_OpenCustomNodesFolder": {
+    "label": "カスタムノードフォルダーを開く"
+  },
+  "Comfy-Desktop_Folders_OpenInputsFolder": {
+    "label": "入力フォルダーを開く"
+  },
+  "Comfy-Desktop_Folders_OpenLogsFolder": {
+    "label": "ログフォルダーを開く"
+  },
+  "Comfy-Desktop_Folders_OpenModelConfig": {
+    "label": "extra_model_paths.yaml を開く"
+  },
+  "Comfy-Desktop_Folders_OpenModelsFolder": {
+    "label": "モデルフォルダーを開く"
+  },
+  "Comfy-Desktop_Folders_OpenOutputsFolder": {
+    "label": "出力フォルダーを開く"
+  },
+  "Comfy-Desktop_OpenDevTools": {
+    "label": "開発者ツールを開く"
+  },
+  "Comfy-Desktop_OpenUserGuide": {
+    "label": "デスクトップユーザーガイド"
+  },
+  "Comfy-Desktop_Quit": {
+    "label": "終了"
+  },
+  "Comfy-Desktop_Reinstall": {
+    "label": "再インストール"
+  },
+  "Comfy-Desktop_Restart": {
+    "label": "再起動"
+  },
+  "Comfy_3DViewer_Open3DViewer": {
+    "label": "選択したノードの3Dビューアー（ベータ）を開く"
+  },
+  "Comfy_BrowseModelAssets": {
+    "label": "実験的: モデルアセットを参照"
+  },
+  "Comfy_BrowseTemplates": {
+    "label": "テンプレートを参照"
+  },
+  "Comfy_Canvas_CopySelected": {
+    "label": "コピー"
+  },
+  "Comfy_Canvas_DeleteSelectedItems": {
+    "label": "選択したアイテムを削除"
+  },
+  "Comfy_Canvas_FitView": {
+    "label": "選択したノードにビューを合わせる"
+  },
+  "Comfy_Canvas_Lock": {
+    "label": "キャンバスをロック"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Down": {
+    "label": "選択したノードを下に移動"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Left": {
+    "label": "選択したノードを左に移動"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Right": {
+    "label": "選択したノードを右に移動"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Up": {
+    "label": "選択したノードを上に移動"
+  },
+  "Comfy_Canvas_PasteFromClipboard": {
+    "label": "貼り付け"
+  },
+  "Comfy_Canvas_ResetView": {
+    "label": "ビューをリセット"
+  },
+  "Comfy_Canvas_Resize": {
+    "label": "選択したノードのサイズ変更"
+  },
+  "Comfy_Canvas_SelectAll": {
+    "label": "すべて選択"
+  },
+  "Comfy_Canvas_ToggleLinkVisibility": {
+    "label": "キャンバスのリンク表示を切り替える"
+  },
+  "Comfy_Canvas_ToggleLock": {
+    "label": "キャンバスのロックを切り替える"
+  },
+  "Comfy_Canvas_ToggleMinimap": {
+    "label": "キャンバス ミニマップ切り替え"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Bypass": {
+    "label": "選択したノードのバイパス/バイパス解除"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Collapse": {
+    "label": "選択したノードの折りたたみ/展開"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Mute": {
+    "label": "選択したノードのミュート/ミュート解除"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Pin": {
+    "label": "選択したノードのピン留め/ピン留め解除"
+  },
+  "Comfy_Canvas_ToggleSelected_Pin": {
+    "label": "選択したアイテムのピン留め/ピン留め解除"
+  },
+  "Comfy_Canvas_Unlock": {
+    "label": "キャンバスをロック解除"
+  },
+  "Comfy_Canvas_ZoomIn": {
+    "label": "ズームイン"
+  },
+  "Comfy_Canvas_ZoomOut": {
+    "label": "ズームアウト"
+  },
+  "Comfy_ClearPendingTasks": {
+    "label": "保留中のタスクをクリア"
+  },
+  "Comfy_ClearWorkflow": {
+    "label": "ワークフローをクリア"
+  },
+  "Comfy_ContactSupport": {
+    "label": "サポートに連絡"
+  },
+  "Comfy_Dev_ShowModelSelector": {
+    "label": "モデルセレクターを表示（開発用）"
+  },
+  "Comfy_DuplicateWorkflow": {
+    "label": "現在のワークフローを複製"
+  },
+  "Comfy_ExportWorkflow": {
+    "label": "ワークフローをエクスポート"
+  },
+  "Comfy_ExportWorkflowAPI": {
+    "label": "ワークフローをエクスポート（API形式）"
+  },
+  "Comfy_Graph_ConvertToSubgraph": {
+    "label": "選択範囲をサブグラフに変換"
+  },
+  "Comfy_Graph_EditSubgraphWidgets": {
+    "label": "サブグラフウィジェットを編集"
+  },
+  "Comfy_Graph_ExitSubgraph": {
+    "label": "サブグラフを終了"
+  },
+  "Comfy_Graph_FitGroupToContents": {
+    "label": "グループを内容に合わせて調整"
+  },
+  "Comfy_Graph_GroupSelectedNodes": {
+    "label": "選択したノードをグループ化"
+  },
+  "Comfy_Graph_ToggleWidgetPromotion": {
+    "label": "ホバー中のウィジェットの優先表示を切り替え"
+  },
+  "Comfy_Graph_UnpackSubgraph": {
+    "label": "選択したサブグラフを展開"
+  },
+  "Comfy_GroupNode_ConvertSelectedNodesToGroupNode": {
+    "label": "選択したノードをグループノードに変換"
+  },
+  "Comfy_GroupNode_ManageGroupNodes": {
+    "label": "グループノードの管理"
+  },
+  "Comfy_GroupNode_UngroupSelectedGroupNodes": {
+    "label": "選択したグループノードのグループ解除"
+  },
+  "Comfy_Help_AboutComfyUI": {
+    "label": "ComfyUIについてを開く"
+  },
+  "Comfy_Help_OpenComfyOrgDiscord": {
+    "label": "Comfy-OrgのDiscordを開く"
+  },
+  "Comfy_Help_OpenComfyUIDocs": {
+    "label": "ComfyUIのドキュメントを開く"
+  },
+  "Comfy_Help_OpenComfyUIForum": {
+    "label": "Comfy-Orgフォーラムを開く"
+  },
+  "Comfy_Help_OpenComfyUIIssues": {
+    "label": "ComfyUIの問題を開く"
+  },
+  "Comfy_Interrupt": {
+    "label": "中断"
+  },
+  "Comfy_LoadDefaultWorkflow": {
+    "label": "デフォルトのワークフローを読み込む"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowCustomNodesMenu": {
+    "label": "カスタムノード（ベータ版）"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowLegacyCustomNodesMenu": {
+    "label": "カスタムノード（レガシー）"
+  },
+  "Comfy_Manager_ShowLegacyManagerMenu": {
+    "label": "マネージャーメニュー（レガシー）"
+  },
+  "Comfy_Manager_ShowMissingPacks": {
+    "label": "不足しているパックをインストール"
+  },
+  "Comfy_Manager_ShowUpdateAvailablePacks": {
+    "label": "更新を確認"
+  },
+  "Comfy_MaskEditor_BrushSize_Decrease": {
+    "label": "マスクエディタでブラシサイズを縮小"
+  },
+  "Comfy_MaskEditor_BrushSize_Increase": {
+    "label": "マスクエディタでブラシサイズを大きくする"
+  },
+  "Comfy_MaskEditor_ColorPicker": {
+    "label": "MaskEditorでカラーピッカーを開く"
+  },
+  "Comfy_MaskEditor_Mirror_Horizontal": {
+    "label": "マスクエディタで左右反転"
+  },
+  "Comfy_MaskEditor_Mirror_Vertical": {
+    "label": "マスクエディタで上下反転"
+  },
+  "Comfy_MaskEditor_OpenMaskEditor": {
+    "label": "選択したノードのマスクエディタを開く"
+  },
+  "Comfy_MaskEditor_Rotate_Left": {
+    "label": "マスクエディタで左回転"
+  },
+  "Comfy_MaskEditor_Rotate_Right": {
+    "label": "マスクエディタで右回転"
+  },
+  "Comfy_Memory_UnloadModels": {
+    "label": "モデルのアンロード"
+  },
+  "Comfy_Memory_UnloadModelsAndExecutionCache": {
+    "label": "モデルと実行キャッシュのアンロード"
+  },
+  "Comfy_NewBlankWorkflow": {
+    "label": "新しい空のワークフロー"
+  },
+  "Comfy_OpenClipspace": {
+    "label": "クリップスペース"
+  },
+  "Comfy_OpenManagerDialog": {
+    "label": "マネージャー"
+  },
+  "Comfy_OpenWorkflow": {
+    "label": "ワークフローを開く"
+  },
+  "Comfy_PublishSubgraph": {
+    "label": "サブグラフを公開"
+  },
+  "Comfy_QueuePrompt": {
+    "label": "キュープロンプト"
+  },
+  "Comfy_QueuePromptFront": {
+    "label": "キュープロンプト（フロント）"
+  },
+  "Comfy_QueueSelectedOutputNodes": {
+    "label": "選択した出力ノードをキューに追加"
+  },
+  "Comfy_Queue_ToggleOverlay": {
+    "label": "ジョブ履歴を切り替え"
+  },
+  "Comfy_Redo": {
+    "label": "やり直す"
+  },
+  "Comfy_RefreshNodeDefinitions": {
+    "label": "ノード定義を更新"
+  },
+  "Comfy_RenameWorkflow": {
+    "label": "ワークフローの名前を変更"
+  },
+  "Comfy_SaveWorkflow": {
+    "label": "ワークフローを保存する"
+  },
+  "Comfy_SaveWorkflowAs": {
+    "label": "名前を付けてワークフローを保存"
+  },
+  "Comfy_ShowSettingsDialog": {
+    "label": "設定ダイアログを表示"
+  },
+  "Comfy_Subgraph_SetDescription": {
+    "label": "サブグラフの説明を設定"
+  },
+  "Comfy_Subgraph_SetSearchAliases": {
+    "label": "サブグラフの検索エイリアスを設定"
+  },
+  "Comfy_ToggleAssetAPI": {
+    "label": "実験的: AssetAPIを有効化"
+  },
+  "Comfy_ToggleCanvasInfo": {
+    "label": "キャンバスパフォーマンス"
+  },
+  "Comfy_ToggleHelpCenter": {
+    "label": "ヘルプセンター"
+  },
+  "Comfy_ToggleLinear": {
+    "label": "リニアモードを切り替え"
+  },
+  "Comfy_ToggleQPOV2": {
+    "label": "Queue Panel V2 を切り替え"
+  },
+  "Comfy_ToggleTheme": {
+    "label": "テーマの切り替え（ダーク/ライト）"
+  },
+  "Comfy_Undo": {
+    "label": "元に戻す"
+  },
+  "Comfy_User_OpenSignInDialog": {
+    "label": "サインインダイアログを開く"
+  },
+  "Comfy_User_SignOut": {
+    "label": "サインアウト"
+  },
+  "Experimental_ToggleVueNodes": {
+    "label": "実験的: Vueノードを有効化"
+  },
+  "Workspace_CloseWorkflow": {
+    "label": "現在のワークフローを閉じる"
+  },
+  "Workspace_NextOpenedWorkflow": {
+    "label": "次の開いたワークフロー"
+  },
+  "Workspace_PreviousOpenedWorkflow": {
+    "label": "前の開いたワークフロー"
+  },
+  "Workspace_SearchBox_Toggle": {
+    "label": "検索ボックスの切り替え"
+  },
+  "Workspace_ToggleBottomPanel": {
+    "label": "パネル下部の切り替え"
+  },
+  "Workspace_ToggleBottomPanelTab_command-terminal": {
+    "label": "ターミナル下部パネルを切り替え"
+  },
+  "Workspace_ToggleBottomPanelTab_logs-terminal": {
+    "label": "ログ下部パネルを切り替え"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-essentials": {
+    "label": "必須な下部パネルを切り替え"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-view-controls": {
+    "label": "表示コントロール下部パネルの切り替え"
+  },
+  "Workspace_ToggleBottomPanel_Shortcuts": {
+    "label": "キーバインドダイアログを表示"
+  },
+  "Workspace_ToggleFocusMode": {
+    "label": "フォーカスモードの切り替え"
+  },
+  "Workspace_ToggleSidebarTab_assets": {
+    "label": "アセットサイドバーの表示切り替え",
+    "tooltip": "アセット"
+  },
+  "Workspace_ToggleSidebarTab_model-library": {
+    "label": "モデルライブラリサイドバーの切り替え",
+    "tooltip": "モデルライブラリ"
+  },
+  "Workspace_ToggleSidebarTab_node-library": {
+    "label": "ノードライブラリサイドバーの切り替え",
+    "tooltip": "ノードライブラリ"
+  },
+  "Workspace_ToggleSidebarTab_workflows": {
+    "label": "ワークフローサイドバーの切り替え",
+    "tooltip": "ワークフロー"
+  }
+}

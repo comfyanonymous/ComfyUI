@@ -1,0 +1,68 @@
+{
+  "id": "d175890f-716a-4ece-ba33-1d17a513b7be",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "VAEDecode",
+      "pos": [63.44815444946289, 178.71633911132812],
+      "size": [210, 46],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "floatingLinks": [
+    {
+      "id": 4,
+      "origin_id": 2,
+      "origin_slot": 0,
+      "target_id": -1,
+      "target_slot": -1,
+      "type": "IMAGE",
+      "parentId": 1
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "linkExtensions": [],
+    "reroutes": [
+      {
+        "id": 1,
+        "pos": [393.2383117675781, 194.61941528320312],
+        "linkIds": [],
+        "floating": {
+          "slotType": "output"
+        }
+      }
+    ]
+  },
+  "version": 0.4
+}

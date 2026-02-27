@@ -1,0 +1,186 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Load3DAnimation",
+      "pos": [100, 100],
+      "size": [300, 100],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MESH",
+          "type": "MESH",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Load3DAnimation"
+      },
+      "widgets_values": ["model.glb"]
+    },
+    {
+      "id": 2,
+      "type": "Preview3DAnimation",
+      "pos": [450, 100],
+      "size": [300, 100],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Preview3DAnimation"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "ConditioningAverage ",
+      "pos": [100, 300],
+      "size": [300, 100],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning_to",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "conditioning_from",
+          "type": "CONDITIONING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [1],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ConditioningAverage "
+      },
+      "widgets_values": [1]
+    },
+    {
+      "id": 4,
+      "type": "SDV_img2vid_Conditioning",
+      "pos": [450, 300],
+      "size": [300, 150],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": null
+        },
+        {
+          "name": "init_image",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [2],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SDV_img2vid_Conditioning"
+      },
+      "widgets_values": [1024, 576, 14, 127, 25, 0.02]
+    },
+    {
+      "id": 5,
+      "type": "KSampler",
+      "pos": [800, 300],
+      "size": [300, 262],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 1
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [42, "fixed", 20, 8, "euler", "normal", 1]
+    }
+  ],
+  "links": [
+    [1, 3, 0, 5, 1, "CONDITIONING"],
+    [2, 4, 2, 5, 3, "LATENT"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

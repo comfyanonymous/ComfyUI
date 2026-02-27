@@ -1,0 +1,166 @@
+{
+  "last_node_id": 36,
+  "last_link_id": 44,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -0.6348835229873657,
+        238.0631866455078
+      ],
+      "size": [
+        315,
+        98
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": []
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 1,
+          "links": []
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "slot_index": 2,
+          "links": [
+            40
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "v1-5-pruned-emaonly.safetensors"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "VAEDecode",
+      "pos": [
+        611.6028442382812,
+        254.6018524169922
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [
+      40,
+      4,
+      2,
+      12,
+      1,
+      "VAE"
+    ]
+  ],
+  "floatingLinks": [
+    {
+      "id": 4,
+      "origin_id": 4,
+      "origin_slot": 2,
+      "target_id": -1,
+      "target_slot": -1,
+      "type": "*",
+      "parentId": 3
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.6672297511789418,
+      "offset": [
+        262.0504372113823,
+        124.35120995663942
+      ]
+    },
+    "linkExtensions": [
+      {
+        "id": 40,
+        "parentId": 1
+      }
+    ],
+    "reroutes": [
+      {
+        "id": 1,
+        "pos": [
+          530.268310546875,
+          287.761962890625
+        ],
+        "linkIds": [
+          40
+        ],
+        "parentId": 2
+      },
+      {
+        "id": 2,
+        "pos": [
+          400.3304138183594,
+          288.12872314453125
+        ],
+        "linkIds": [
+          40
+        ]
+      },
+      {
+        "id": 3,
+        "pos": [
+          528.3152770996094,
+          377.4836730957031
+        ],
+        "linkIds": [],
+        "parentId": 2,
+        "floating": {
+          "slotType": "output"
+        }
+      }
+    ]
+  },
+  "version": 0.4
+}

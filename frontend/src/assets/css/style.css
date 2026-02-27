@@ -1,0 +1,23 @@
+@import '@comfyorg/design-system/css/style.css';
+
+@media (prefers-reduced-motion: no-preference) {
+  /* List transition animations */
+  .list-scale-move,
+  .list-scale-enter-active,
+  .list-scale-leave-active {
+    transition:
+      opacity 150ms ease,
+      transform 150ms ease;
+  }
+
+  .list-scale-enter-from,
+  .list-scale-leave-to {
+    opacity: 0;
+    transform: scale(70%);
+  }
+
+  .list-scale-leave-active {
+    position: absolute;
+    width: 100%;
+  }
+}

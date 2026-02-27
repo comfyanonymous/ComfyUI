@@ -1,0 +1,122 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    ".i18nrc.cjs",
+    ".nx/*",
+    "**/vite.config.*.timestamp*",
+    "**/vitest.config.*.timestamp*",
+    "components.d.ts",
+    "coverage/*",
+    "dist/*",
+    "packages/registry-types/src/comfyRegistryTypes.ts",
+    "playwright-report/*",
+    "src/extensions/core/*",
+    "src/scripts/*",
+    "src/types/generatedManagerTypes.ts",
+    "src/types/vue-shim.d.ts",
+    "test-results/*",
+    "vitest.setup.ts"
+  ],
+  "plugins": [
+    "eslint",
+    "import",
+    "oxc",
+    "typescript",
+    "unicorn",
+    "vitest",
+    "vue"
+  ],
+  "rules": {
+    "no-async-promise-executor": "off",
+    "no-console": [
+      "error",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
+    "no-control-regex": "off",
+    "no-eval": "off",
+    "no-redeclare": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "primevue/calendar",
+            "message": "Calendar is deprecated in PrimeVue 4+. Use DatePicker instead: import DatePicker from 'primevue/datepicker'"
+          },
+          {
+            "name": "primevue/dropdown",
+            "message": "Dropdown is deprecated in PrimeVue 4+. Use Select instead: import Select from 'primevue/select'"
+          },
+          {
+            "name": "primevue/inputswitch",
+            "message": "InputSwitch is deprecated in PrimeVue 4+. Use ToggleSwitch instead: import ToggleSwitch from 'primevue/toggleswitch'"
+          },
+          {
+            "name": "primevue/overlaypanel",
+            "message": "OverlayPanel is deprecated in PrimeVue 4+. Use Popover instead: import Popover from 'primevue/popover'"
+          },
+          {
+            "name": "primevue/sidebar",
+            "message": "Sidebar is deprecated in PrimeVue 4+. Use Drawer instead: import Drawer from 'primevue/drawer'"
+          }
+        ]
+      }
+    ],
+    "no-self-assign": "allow",
+    "no-unused-expressions": "off",
+    "no-unused-private-class-members": "off",
+    "no-useless-rename": "off",
+    "import/default": "error",
+    "import/export": "error",
+    "import/namespace": "error",
+    "import/no-duplicates": "error",
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+    "jest/expect-expect": "off",
+    "jest/no-conditional-expect": "off",
+    "jest/no-disabled-tests": "off",
+    "jest/no-standalone-expect": "off",
+    "jest/valid-title": "off",
+    "typescript/no-this-alias": "off",
+    "typescript/no-unnecessary-parameter-property-assignment": "off",
+    "typescript/no-unsafe-declaration-merging": "off",
+    "typescript/no-unused-vars": "off",
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-single-promise-in-promise-methods": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-useless-spread": "off",
+    "typescript/await-thenable": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-duplicate-type-constituents": "off",
+    "typescript/no-for-in-array": "off",
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-explicit-any": "error",
+    "vue/no-import-compiler-macros": "error",
+    "vue/no-dupe-keys": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{stories,test,spec}.ts", "**/*.stories.vue"],
+      "rules": {
+        "no-console": "allow"
+      }
+    },
+    {
+      "files": ["browser_tests/**/*.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "error",
+        "no-async-promise-executor": "error",
+        "no-control-regex": "error",
+        "no-useless-rename": "error",
+        "no-unused-private-class-members": "error",
+        "unicorn/no-empty-file": "error"
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+name: Validate Action SHA Pins
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+      - '.pinact.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: suzuki-shunsuke/pinact-action@3d49c6412901042473ffa78becddab1aea46bbea # v1.3.1
+        with:
+          skip_push: 'true'

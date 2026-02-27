@@ -1,0 +1,195 @@
+# Description: Manual workflow to increment package version with semantic versioning support
+name: 'Release: Version Bump'
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version increment type'
+        required: true
+        default: 'patch'
+        type: 'choice'
+        options: [patch, minor, major, prepatch, preminor, premajor, prerelease]
+      pre_release:
+        description: Pre-release ID (suffix)
+        required: false
+        default: ''
+        type: string
+      branch:
+        description: 'Base branch to bump (e.g., main, core/1.29, core/1.30)'
+        required: true
+        default: 'main'
+        type: string
+  schedule:
+    # 00:00 UTC ≈ 4:00 PM PST / 5:00 PM PDT on the previous calendar day
+    - cron: '0 0 * * *'
+
+concurrency:
+  group: release-version-bump
+  cancel-in-progress: true
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Prepare inputs
+        id: prepared-inputs
+        shell: bash
+        env:
+          RAW_VERSION_TYPE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version_type || '' }}
+          RAW_PRE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pre_release || '' }}
+          RAW_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || '' }}
+        run: |
+          set -euo pipefail
+          VERSION_TYPE="$RAW_VERSION_TYPE"
+          PRE_RELEASE="$RAW_PRE_RELEASE"
+          TARGET_BRANCH="$RAW_BRANCH"
+
+          if [[ -z "$VERSION_TYPE" ]]; then
+            VERSION_TYPE='patch'
+          fi
+
+          if [[ -z "$TARGET_BRANCH" ]]; then
+            TARGET_BRANCH='main'
+          fi
+
+          {
+            echo "version_type=$VERSION_TYPE"
+            echo "pre_release=$PRE_RELEASE"
+            echo "branch=$TARGET_BRANCH"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Close stale nightly version bump PRs
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const prefix = 'version-bump-'
+            const closed = []
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            })
+
+            for (const pr of prs) {
+              if (!pr.head?.ref?.startsWith(prefix)) {
+                continue
+              }
+
+              if (pr.user?.login !== 'github-actions[bot]') {
+                continue
+              }
+
+              // Only clean up stale nightly PRs targeting main.
+              // Adjust here if other target branches should be cleaned.
+              if (pr.base?.ref !== 'main') {
+                continue
+              }
+
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                state: 'closed'
+              })
+
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${pr.head.ref}`
+                })
+              } catch (error) {
+                if (![404, 422].includes(error.status)) {
+                  throw error
+                }
+              }
+
+              closed.push(pr.number)
+            }
+
+            core.info(`Closed ${closed.length} stale PR(s).`)
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.prepared-inputs.outputs.branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate branch exists
+        env:
+          TARGET_BRANCH: ${{ steps.prepared-inputs.outputs.branch }}
+        run: |
+          BRANCH="$TARGET_BRANCH"
+          if ! git show-ref --verify --quiet "refs/heads/$BRANCH" && ! git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+            echo "❌ Branch '$BRANCH' does not exist"
+            echo ""
+            echo "Available core branches:"
+            git branch -r | grep 'origin/core/' | sed 's/.*origin\//  - /' || echo "  (none found)"
+            echo ""
+            echo "Main branch:"
+            echo "  - main"
+            exit 1
+          fi
+          echo "✅ Branch '$BRANCH' exists"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Bump version
+        id: bump-version
+        env:
+          VERSION_TYPE: ${{ steps.prepared-inputs.outputs.version_type }}
+          PRE_RELEASE: ${{ steps.prepared-inputs.outputs.pre_release }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$PRE_RELEASE" && ! "$VERSION_TYPE" =~ ^pre(major|minor|patch)$ && "$VERSION_TYPE" != "prerelease" ]]; then
+            echo "❌ pre_release was provided but version_type='$VERSION_TYPE' does not support --preid"
+            exit 1
+          fi
+          if [[ -n "$PRE_RELEASE" ]]; then
+            pnpm version "$VERSION_TYPE" --preid "$PRE_RELEASE" --no-git-tag-version
+          else
+            pnpm version "$VERSION_TYPE" --no-git-tag-version
+          fi
+
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Format PR string
+        id: capitalised
+        env:
+          VERSION_TYPE: ${{ steps.prepared-inputs.outputs.version_type }}
+        run: |
+          CAPITALISED_TYPE="$VERSION_TYPE"
+          echo "capitalised=${CAPITALISED_TYPE@u}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+          commit-message: '[release] Increment version to ${{ steps.bump-version.outputs.NEW_VERSION }}'
+          title: ${{ steps.bump-version.outputs.NEW_VERSION }}
+          body: |
+            ${{ steps.capitalised.outputs.capitalised }} version increment to ${{ steps.bump-version.outputs.NEW_VERSION }}
+
+            **Base branch:** `${{ steps.prepared-inputs.outputs.branch }}`
+          branch: version-bump-${{ steps.bump-version.outputs.NEW_VERSION }}
+          base: ${{ steps.prepared-inputs.outputs.branch }}
+          labels: |
+            Release

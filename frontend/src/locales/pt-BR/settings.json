@@ -1,0 +1,499 @@
+{
+  "Comfy-Desktop_AutoUpdate": {
+    "name": "Verificar atualizações automaticamente"
+  },
+  "Comfy-Desktop_SendStatistics": {
+    "name": "Enviar métricas de uso anônimas"
+  },
+  "Comfy-Desktop_UV_PypiInstallMirror": {
+    "name": "Espelho de instalação do Pypi",
+    "tooltip": "Espelho padrão para instalação via pip"
+  },
+  "Comfy-Desktop_UV_PythonInstallMirror": {
+    "name": "Espelho de instalação do Python",
+    "tooltip": "Instalações gerenciadas do Python são baixadas do projeto Astral python-build-standalone. Esta variável pode ser definida para uma URL de espelho para usar uma fonte diferente para as instalações do Python. A URL fornecida substituirá https://github.com/astral-sh/python-build-standalone/releases/download em, por exemplo, https://github.com/astral-sh/python-build-standalone/releases/download/20240713/cpython-3.12.4%2B20240713-aarch64-apple-darwin-install_only.tar.gz. As distribuições podem ser lidas de um diretório local usando o esquema de URL file://."
+  },
+  "Comfy-Desktop_UV_TorchInstallMirror": {
+    "name": "Espelho de instalação do Torch",
+    "tooltip": "Espelho pip para instalação do pytorch"
+  },
+  "Comfy-Desktop_WindowStyle": {
+    "name": "Estilo da janela",
+    "options": {
+      "custom": "personalizado",
+      "default": "padrão"
+    },
+    "tooltip": "Personalizado: Substitui a barra de título do sistema pelo menu superior do ComfyUI"
+  },
+  "Comfy_Canvas_BackgroundImage": {
+    "name": "Imagem de fundo do canvas",
+    "tooltip": "URL da imagem para o fundo do canvas. Você pode clicar com o botão direito em uma imagem no painel de saídas e selecionar \"Definir como fundo\" para usá-la, ou enviar sua própria imagem usando o botão de upload."
+  },
+  "Comfy_Canvas_LeftMouseClickBehavior": {
+    "name": "Comportamento do clique esquerdo do mouse",
+    "options": {
+      "Panning": "Deslocar",
+      "Select": "Selecionar"
+    }
+  },
+  "Comfy_Canvas_MouseWheelScroll": {
+    "name": "Rolar com a roda do mouse",
+    "options": {
+      "Panning": "Deslocar",
+      "Zoom in/out": "Zoom in/out"
+    }
+  },
+  "Comfy_Canvas_NavigationMode": {
+    "name": "Modo de navegação",
+    "options": {
+      "Custom": "Personalizado",
+      "Drag Navigation": "Navegação por arrasto",
+      "Standard (New)": "Padrão (Novo)"
+    }
+  },
+  "Comfy_Canvas_SelectionToolbox": {
+    "name": "Mostrar caixa de ferramentas de seleção",
+    "tooltip": "Exibe uma barra de ferramentas flutuante quando os nós estão selecionados, proporcionando acesso rápido a ações comuns."
+  },
+  "Comfy_ConfirmClear": {
+    "name": "Exigir confirmação ao limpar o fluxo de trabalho"
+  },
+  "Comfy_DOMClippingEnabled": {
+    "name": "Ativar recorte de elementos DOM (ativar pode reduzir o desempenho)"
+  },
+  "Comfy_DevMode": {
+    "name": "Ativar opções de modo desenvolvedor (salvar API, etc.)"
+  },
+  "Comfy_DisableFloatRounding": {
+    "name": "Desativar arredondamento padrão de widget float.",
+    "tooltip": "(requer recarregar a página) Não é possível desativar o arredondamento quando ele é definido pelo nó no backend."
+  },
+  "Comfy_DisableSliders": {
+    "name": "Desativar sliders dos widgets dos nós"
+  },
+  "Comfy_EditAttention_Delta": {
+    "name": "Precisão de Ctrl+cima/baixo"
+  },
+  "Comfy_EnableTooltips": {
+    "name": "Ativar dicas de ferramenta"
+  },
+  "Comfy_EnableWorkflowViewRestore": {
+    "name": "Salvar e restaurar posição e nível de zoom do canvas nos fluxos de trabalho"
+  },
+  "Comfy_Execution_PreviewMethod": {
+    "name": "Método de visualização ao vivo",
+    "options": {
+      "auto": "auto",
+      "default": "padrão",
+      "latent2rgb": "latent2rgb",
+      "none": "nenhum",
+      "taesd": "taesd"
+    },
+    "tooltip": "Método de visualização ao vivo durante a geração de imagem. \"padrão\" usa a configuração do servidor CLI."
+  },
+  "Comfy_FloatRoundingPrecision": {
+    "name": "Casas decimais de arredondamento do widget float [0 = auto].",
+    "tooltip": "(requer recarregar a página)"
+  },
+  "Comfy_Graph_CanvasInfo": {
+    "name": "Mostrar informações do canvas no canto inferior esquerdo (fps, etc.)"
+  },
+  "Comfy_Graph_CanvasMenu": {
+    "name": "Mostrar menu do canvas do grafo"
+  },
+  "Comfy_Graph_CtrlShiftZoom": {
+    "name": "Ativar atalho de zoom rápido (Ctrl + Shift + Arrastar)"
+  },
+  "Comfy_Graph_DeduplicateSubgraphNodeIds": {
+    "name": "Desduplicar IDs de nós de subgrafos",
+    "tooltip": "Reatribui automaticamente IDs de nós duplicados em subgrafos ao carregar um fluxo de trabalho."
+  },
+  "Comfy_Graph_LinkMarkers": {
+    "name": "Marcadores de meio do link",
+    "options": {
+      "Arrow": "Seta",
+      "Circle": "Círculo",
+      "None": "Nenhum"
+    }
+  },
+  "Comfy_Graph_LiveSelection": {
+    "name": "Seleção ao vivo",
+    "tooltip": "Quando ativado, os nós são selecionados/deselecionados em tempo real enquanto você arrasta o retângulo de seleção, semelhante a outras ferramentas de design."
+  },
+  "Comfy_Graph_ZoomSpeed": {
+    "name": "Velocidade de zoom da tela"
+  },
+  "Comfy_GroupSelectedNodes_Padding": {
+    "name": "Espaçamento dos nós selecionados no grupo"
+  },
+  "Comfy_Group_DoubleClickTitleToEdit": {
+    "name": "Clique duplo no título do grupo para editar"
+  },
+  "Comfy_LinkRelease_Action": {
+    "name": "Ação ao soltar o link (Sem modificador)",
+    "options": {
+      "context menu": "menu de contexto",
+      "no action": "nenhuma ação",
+      "search box": "caixa de pesquisa"
+    }
+  },
+  "Comfy_LinkRelease_ActionShift": {
+    "name": "Ação ao soltar o link (Shift)",
+    "options": {
+      "context menu": "menu de contexto",
+      "no action": "nenhuma ação",
+      "search box": "caixa de pesquisa"
+    }
+  },
+  "Comfy_LinkRenderMode": {
+    "name": "Modo de renderização do link",
+    "options": {
+      "Hidden": "Oculto",
+      "Linear": "Linear",
+      "Spline": "Spline",
+      "Straight": "Reto"
+    },
+    "tooltip": "Controla a aparência e a visibilidade dos links de conexão entre os nós no canvas."
+  },
+  "Comfy_Load3D_3DViewerEnable": {
+    "name": "Ativar Visualizador 3D (Beta)",
+    "tooltip": "Ativa o Visualizador 3D (Beta) para os nós selecionados. Este recurso permite visualizar e interagir com modelos 3D diretamente no visualizador 3D em tamanho completo."
+  },
+  "Comfy_Load3D_BackgroundColor": {
+    "name": "Cor de Fundo Inicial",
+    "tooltip": "Controla a cor de fundo padrão da cena 3D. Esta configuração determina a aparência do fundo ao criar um novo widget 3D, mas pode ser ajustada individualmente para cada widget após a criação."
+  },
+  "Comfy_Load3D_CameraType": {
+    "name": "Tipo de Câmera Inicial",
+    "options": {
+      "orthographic": "ortográfica",
+      "perspective": "perspectiva"
+    },
+    "tooltip": "Controla se a câmera será perspectiva ou ortográfica por padrão ao criar um novo widget 3D. Este padrão ainda pode ser alternado individualmente para cada widget após a criação."
+  },
+  "Comfy_Load3D_LightAdjustmentIncrement": {
+    "name": "Incremento de Ajuste de Luz",
+    "tooltip": "Controla o tamanho do incremento ao ajustar a intensidade da luz em cenas 3D. Um valor menor permite um controle mais preciso dos ajustes de iluminação, enquanto um valor maior resulta em mudanças mais perceptíveis por ajuste."
+  },
+  "Comfy_Load3D_LightIntensity": {
+    "name": "Intensidade de Luz Inicial",
+    "tooltip": "Define o nível de brilho padrão da iluminação na cena 3D. Este valor determina a intensidade com que as luzes iluminam os objetos ao criar um novo widget 3D, mas pode ser ajustado individualmente para cada widget após a criação."
+  },
+  "Comfy_Load3D_LightIntensityMaximum": {
+    "name": "Intensidade Máxima da Luz",
+    "tooltip": "Define o valor máximo permitido para a intensidade da luz em cenas 3D. Isso determina o limite superior de brilho que pode ser definido ao ajustar a iluminação em qualquer widget 3D."
+  },
+  "Comfy_Load3D_LightIntensityMinimum": {
+    "name": "Intensidade Mínima da Luz",
+    "tooltip": "Define o valor mínimo permitido para a intensidade da luz em cenas 3D. Isso determina o limite inferior de brilho que pode ser definido ao ajustar a iluminação em qualquer widget 3D."
+  },
+  "Comfy_Load3D_PLYEngine": {
+    "name": "Engine PLY",
+    "options": {
+      "fastply": "fastply",
+      "sparkjs": "sparkjs",
+      "threejs": "threejs"
+    },
+    "tooltip": "Selecione a engine para carregar arquivos PLY. \"threejs\" usa o PLYLoader nativo do Three.js (melhor para arquivos PLY de malha). \"fastply\" usa um carregador otimizado para arquivos PLY de nuvem de pontos ASCII. \"sparkjs\" usa Spark.js para arquivos PLY de Gaussian Splatting 3D."
+  },
+  "Comfy_Load3D_ShowGrid": {
+    "name": "Visibilidade Inicial da Grade",
+    "tooltip": "Controla se a grade estará visível por padrão ao criar um novo widget 3D. Este padrão ainda pode ser alternado individualmente para cada widget após a criação."
+  },
+  "Comfy_Locale": {
+    "name": "Idioma"
+  },
+  "Comfy_MaskEditor_BrushAdjustmentSpeed": {
+    "name": "Multiplicador de velocidade de ajuste do pincel",
+    "tooltip": "Controla a rapidez com que o tamanho e a dureza do pincel mudam ao ajustar. Valores mais altos significam mudanças mais rápidas."
+  },
+  "Comfy_MaskEditor_UseDominantAxis": {
+    "name": "Travar ajuste do pincel ao eixo dominante",
+    "tooltip": "Quando ativado, os ajustes do pincel afetarão apenas o tamanho OU a dureza, dependendo de qual direção você mover mais"
+  },
+  "Comfy_ModelLibrary_AutoLoadAll": {
+    "name": "Carregar automaticamente todas as pastas de modelos",
+    "tooltip": "Se verdadeiro, todas as pastas serão carregadas assim que você abrir a biblioteca de modelos (isso pode causar atrasos durante o carregamento). Se falso, as pastas de modelos no nível raiz só serão carregadas quando você clicar nelas."
+  },
+  "Comfy_ModelLibrary_NameFormat": {
+    "name": "Qual nome exibir na visualização em árvore da biblioteca de modelos",
+    "options": {
+      "filename": "filename",
+      "title": "title"
+    },
+    "tooltip": "Selecione \"filename\" para exibir uma visualização simplificada do nome do arquivo bruto (sem diretório ou extensão \".safetensors\") na lista de modelos. Selecione \"title\" para exibir o título configurável dos metadados do modelo."
+  },
+  "Comfy_NodeBadge_NodeIdBadgeMode": {
+    "name": "Modo de exibição do ID do nó",
+    "options": {
+      "None": "Nenhum",
+      "Show all": "Mostrar todos"
+    }
+  },
+  "Comfy_NodeBadge_NodeLifeCycleBadgeMode": {
+    "name": "Modo de exibição do ciclo de vida do nó",
+    "options": {
+      "None": "Nenhum",
+      "Show all": "Mostrar todos"
+    }
+  },
+  "Comfy_NodeBadge_NodeSourceBadgeMode": {
+    "name": "Modo de exibição da origem do nó",
+    "options": {
+      "Hide built-in": "Ocultar integrados",
+      "None": "Nenhum",
+      "Show all": "Mostrar todos"
+    }
+  },
+  "Comfy_NodeBadge_ShowApiPricing": {
+    "name": "Mostrar selo de preço do nó de API"
+  },
+  "Comfy_NodeLibrary_NewDesign": {
+    "name": "Novo Design da Biblioteca de Nós",
+    "tooltip": "Ative a barra lateral redesenhada da biblioteca de nós com abas (Essencial, Todos, Personalizado), busca aprimorada e pré-visualizações ao passar o mouse."
+  },
+  "Comfy_NodeReplacement_Enabled": {
+    "name": "Ativar substituição automática de nós",
+    "tooltip": "Quando ativado, nós ausentes podem ser substituídos automaticamente por seus equivalentes mais recentes, se existir um mapeamento de substituição."
+  },
+  "Comfy_NodeSearchBoxImpl": {
+    "name": "Implementação da caixa de busca de nós",
+    "options": {
+      "default": "padrão",
+      "litegraph (legacy)": "litegraph (legado)",
+      "v1 (legacy)": "v1 (legado)"
+    }
+  },
+  "Comfy_NodeSearchBoxImpl_NodePreview": {
+    "name": "Pré-visualização do nó",
+    "tooltip": "Aplica-se apenas à implementação padrão"
+  },
+  "Comfy_NodeSearchBoxImpl_ShowCategory": {
+    "name": "Mostrar categoria do nó nos resultados da busca",
+    "tooltip": "Aplica-se apenas à implementação padrão"
+  },
+  "Comfy_NodeSearchBoxImpl_ShowIdName": {
+    "name": "Mostrar nome de ID do nó nos resultados da busca",
+    "tooltip": "Aplica-se apenas à implementação padrão"
+  },
+  "Comfy_NodeSearchBoxImpl_ShowNodeFrequency": {
+    "name": "Mostrar frequência do nó nos resultados da busca",
+    "tooltip": "Aplica-se apenas à implementação padrão"
+  },
+  "Comfy_NodeSuggestions_number": {
+    "name": "Número de sugestões de nós",
+    "tooltip": "Apenas para a caixa de busca/menu de contexto do litegraph"
+  },
+  "Comfy_Node_AllowImageSizeDraw": {
+    "name": "Mostrar largura × altura abaixo da pré-visualização da imagem"
+  },
+  "Comfy_Node_AlwaysShowAdvancedWidgets": {
+    "name": "Sempre mostrar widgets avançados em todos os nodes",
+    "tooltip": "Quando ativado, os widgets avançados ficam sempre visíveis em todos os nodes, sem a necessidade de expandi-los individualmente."
+  },
+  "Comfy_Node_AutoSnapLinkToSlot": {
+    "name": "Ajustar automaticamente o link ao slot do nó",
+    "tooltip": "Ao arrastar um link sobre um nó, o link se ajusta automaticamente a um slot de entrada viável no nó"
+  },
+  "Comfy_Node_BypassAllLinksOnDelete": {
+    "name": "Manter todos os links ao excluir nós",
+    "tooltip": "Ao excluir um nó, tenta reconectar todos os seus links de entrada e saída (ignorando o nó excluído)"
+  },
+  "Comfy_Node_DoubleClickTitleToEdit": {
+    "name": "Clique duplo no título do nó para editar"
+  },
+  "Comfy_Node_MiddleClickRerouteNode": {
+    "name": "Clique do meio cria um novo nó de redirecionamento"
+  },
+  "Comfy_Node_Opacity": {
+    "name": "Opacidade do nó"
+  },
+  "Comfy_Node_ShowDeprecated": {
+    "name": "Mostrar nós obsoletos na busca",
+    "tooltip": "Nós obsoletos são ocultados por padrão na interface, mas permanecem funcionais em fluxos de trabalho existentes que os utilizam."
+  },
+  "Comfy_Node_ShowExperimental": {
+    "name": "Mostrar nós experimentais na busca",
+    "tooltip": "Nós experimentais são marcados como tal na interface e podem sofrer alterações significativas ou remoção em versões futuras. Use com cautela em fluxos de trabalho de produção"
+  },
+  "Comfy_Node_SnapHighlightsNode": {
+    "name": "Destacar nó ao ajustar link",
+    "tooltip": "Ao arrastar um link sobre um nó com slot de entrada viável, destaca o nó"
+  },
+  "Comfy_Notification_ShowVersionUpdates": {
+    "name": "Mostrar atualizações de versão",
+    "tooltip": "Mostrar atualizações para novos modelos e grandes novos recursos."
+  },
+  "Comfy_Pointer_ClickBufferTime": {
+    "name": "Atraso de tolerância de clique do ponteiro",
+    "tooltip": "Após pressionar um botão do ponteiro, este é o tempo máximo (em milissegundos) em que o movimento do ponteiro pode ser ignorado.\n\nAjuda a evitar que objetos sejam movidos acidentalmente se o ponteiro for movido ao clicar."
+  },
+  "Comfy_Pointer_ClickDrift": {
+    "name": "Tolerância de movimento do clique do ponteiro (distância máxima)",
+    "tooltip": "Se o ponteiro se mover mais do que esta distância enquanto um botão estiver pressionado, será considerado arrastar (em vez de clicar).\n\nAjuda a evitar que objetos sejam movidos acidentalmente se o ponteiro for movido ao clicar."
+  },
+  "Comfy_Pointer_DoubleClickTime": {
+    "name": "Intervalo de duplo clique (máximo)",
+    "tooltip": "O tempo máximo em milissegundos entre os dois cliques de um duplo clique. Aumentar este valor pode ajudar se os duplos cliques às vezes não forem registrados."
+  },
+  "Comfy_PreviewFormat": {
+    "name": "Formato da imagem de pré-visualização",
+    "tooltip": "Ao exibir uma pré-visualização no widget de imagem, converta para uma imagem leve, por exemplo, webp, jpeg, webp;50, etc."
+  },
+  "Comfy_PromptFilename": {
+    "name": "Solicitar nome do arquivo ao salvar fluxo de trabalho"
+  },
+  "Comfy_QueueButton_BatchCountLimit": {
+    "name": "Limite de quantidade por lote",
+    "tooltip": "O número máximo de tarefas adicionadas à fila em um único clique"
+  },
+  "Comfy_Queue_MaxHistoryItems": {
+    "name": "Tamanho do histórico da fila",
+    "tooltip": "O número máximo de tarefas exibidas no histórico da fila."
+  },
+  "Comfy_Queue_QPOV2": {
+    "name": "Usar a fila de tarefas unificada no painel lateral de Assets",
+    "tooltip": "Substitui o painel flutuante de fila de tarefas por uma fila de tarefas equivalente incorporada ao painel lateral de Assets. Você pode desativar isso para voltar ao layout do painel flutuante."
+  },
+  "Comfy_RightSidePanel_ShowErrorsTab": {
+    "name": "Mostrar aba de erros no painel lateral",
+    "tooltip": "Quando ativado, uma aba de erros é exibida no painel lateral direito para mostrar rapidamente os erros de execução do fluxo de trabalho."
+  },
+  "Comfy_Sidebar_Location": {
+    "name": "Localização da barra lateral",
+    "options": {
+      "left": "esquerda",
+      "right": "direita"
+    }
+  },
+  "Comfy_Sidebar_Size": {
+    "name": "Tamanho da barra lateral",
+    "options": {
+      "normal": "normal",
+      "small": "pequena"
+    }
+  },
+  "Comfy_Sidebar_Style": {
+    "name": "Estilo da barra lateral",
+    "options": {
+      "connected": "conectada",
+      "floating": "flutuante"
+    }
+  },
+  "Comfy_Sidebar_UnifiedWidth": {
+    "name": "Largura unificada da barra lateral"
+  },
+  "Comfy_SnapToGrid_GridSize": {
+    "name": "Tamanho do grid de alinhamento",
+    "tooltip": "Ao arrastar e redimensionar nós segurando shift, eles serão alinhados à grade. Este valor controla o tamanho dessa grade."
+  },
+  "Comfy_TextareaWidget_FontSize": {
+    "name": "Tamanho da fonte do widget de área de texto"
+  },
+  "Comfy_TextareaWidget_Spellcheck": {
+    "name": "Verificação ortográfica do widget de área de texto"
+  },
+  "Comfy_TreeExplorer_ItemPadding": {
+    "name": "Espaçamento dos itens do explorador em árvore"
+  },
+  "Comfy_UI_TabBarLayout": {
+    "name": "Layout da Barra de Abas",
+    "options": {
+      "Default": "Padrão",
+      "Integrated": "Integrado"
+    },
+    "tooltip": "Controla o layout da barra de abas. \"Integrado\" move os controles de Ajuda e Usuário para a área da barra de abas."
+  },
+  "Comfy_UseNewMenu": {
+    "name": "Usar novo menu",
+    "options": {
+      "Disabled": "Desativado",
+      "Top": "Superior"
+    },
+    "tooltip": "Ativar a barra de menu superior redesenhada."
+  },
+  "Comfy_Validation_Workflows": {
+    "name": "Validar fluxos de trabalho"
+  },
+  "Comfy_VueNodes_AutoScaleLayout": {
+    "name": "Auto-escalar layout (Nodes 2.0)",
+    "tooltip": "Escala automaticamente as posições dos nós ao alternar para a renderização Nodes 2.0 para evitar sobreposição"
+  },
+  "Comfy_VueNodes_Enabled": {
+    "name": "Design Moderno de Nós (Nodes 2.0)",
+    "tooltip": "Moderno: renderização baseada em DOM com interatividade aprimorada, recursos nativos do navegador e design visual atualizado. Clássico: renderização tradicional em canvas."
+  },
+  "Comfy_WidgetControlMode": {
+    "name": "Modo de controle do widget",
+    "options": {
+      "after": "depois",
+      "before": "antes"
+    },
+    "tooltip": "Controla quando os valores do widget são atualizados (aleatorizar/incrementar/decrementar), antes ou depois do fluxo ser adicionado à fila."
+  },
+  "Comfy_Window_UnloadConfirmation": {
+    "name": "Mostrar confirmação ao fechar a janela"
+  },
+  "Comfy_Workflow_AutoSave": {
+    "name": "Salvar automaticamente",
+    "options": {
+      "after delay": "após atraso",
+      "off": "desligado"
+    }
+  },
+  "Comfy_Workflow_AutoSaveDelay": {
+    "name": "Atraso de Salvamento Automático (ms)",
+    "tooltip": "Aplica-se apenas se o Salvamento Automático estiver definido como \"após atraso\"."
+  },
+  "Comfy_Workflow_ConfirmDelete": {
+    "name": "Mostrar confirmação ao excluir fluxos de trabalho"
+  },
+  "Comfy_Workflow_Persist": {
+    "name": "Persistir estado do fluxo de trabalho e restaurar ao recarregar a página"
+  },
+  "Comfy_Workflow_ShowMissingModelsWarning": {
+    "name": "Mostrar aviso de modelos ausentes"
+  },
+  "Comfy_Workflow_ShowMissingNodesWarning": {
+    "name": "Mostrar aviso de nós ausentes"
+  },
+  "Comfy_Workflow_SortNodeIdOnSave": {
+    "name": "Ordenar IDs dos nós ao salvar fluxo de trabalho"
+  },
+  "Comfy_Workflow_WarnBlueprintOverwrite": {
+    "name": "Exigir confirmação para sobrescrever um blueprint de subgrafo existente"
+  },
+  "Comfy_Workflow_WorkflowTabsPosition": {
+    "name": "Posição dos fluxos de trabalho abertos",
+    "options": {
+      "Sidebar": "Barra lateral",
+      "Topbar": "Barra superior"
+    }
+  },
+  "LiteGraph_Canvas_MaximumFps": {
+    "name": "FPS Máximo",
+    "tooltip": "O número máximo de quadros por segundo que o canvas pode renderizar. Limita o uso da GPU ao custo de suavidade. Se 0, a taxa de atualização da tela é usada. Padrão: 0"
+  },
+  "LiteGraph_Canvas_MinFontSizeForLOD": {
+    "name": "Zoom do Nível de Detalhe do Nó - limite de tamanho da fonte",
+    "tooltip": "Controla quando os nós mudam para renderização LOD de baixa qualidade. Usa o tamanho da fonte em pixels para determinar quando alternar. Defina como 0 para desativar. Valores de 1-24 definem o limite mínimo de tamanho da fonte para LOD - valores mais altos (24px) = alterna para renderização simplificada dos nós mais cedo ao afastar o zoom, valores mais baixos (1px) = mantém a qualidade total do nó por mais tempo."
+  },
+  "LiteGraph_ContextMenu_Scaling": {
+    "name": "Escalar menus de combinação de nós (listas) ao dar zoom"
+  },
+  "LiteGraph_Node_DefaultPadding": {
+    "name": "Sempre reduzir novos nós",
+    "tooltip": "Redimensiona os nós para o menor tamanho possível ao serem criados. Quando desativado, um nó recém-adicionado será ligeiramente alargado para mostrar os valores dos widgets."
+  },
+  "LiteGraph_Node_TooltipDelay": {
+    "name": "Atraso da Dica de Ferramenta"
+  },
+  "LiteGraph_Reroute_SplineOffset": {
+    "name": "Deslocamento da curva de redirecionamento",
+    "tooltip": "O deslocamento do ponto de controle bezier a partir do ponto central de redirecionamento"
+  },
+  "pysssss_SnapToGrid": {
+    "name": "Sempre alinhar à grade",
+    "tooltip": "Quando ativado, os nós se alinharão automaticamente à grade ao serem movidos ou redimensionados."
+  }
+}

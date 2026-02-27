@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2023", "ES2023.Array", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "incremental": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "allowJs": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/utils/formatUtil": [
+        "./packages/shared-frontend-utils/src/formatUtil.ts"
+      ],
+      "@/utils/networkUtil": [
+        "./packages/shared-frontend-utils/src/networkUtil.ts"
+      ],
+      "@tests-ui/*": ["./tests-ui/*"]
+    },
+    "typeRoots": ["src/types", "node_modules/@types", "./node_modules"],
+    "types": ["vitest/globals", "@webgpu/types"],
+    "outDir": "./dist",
+    "rootDir": "./"
+  },
+  "include": [
+    ".storybook/**/*",
+    "eslint.config.ts",
+    "global.d.ts",
+    "knip.config.ts",
+    "lint-staged.config.ts",
+    "src/**/*.vue",
+    "src/**/*",
+    "src/types/**/*.d.ts",
+    "playwright.config.ts",
+    "playwright.i18n.config.ts",
+
+    "tests-ui/**/*",
+    "vite.config.mts",
+    "vitest.config.ts"
+    // "vitest.setup.ts",
+  ]
+}

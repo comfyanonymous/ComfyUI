@@ -1,0 +1,170 @@
+{
+  "id": "preview-subgraph-test-001",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "pos": [318.6320139868054, 212.9091015141833],
+      "size": [225, 368],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "proxyWidgets": [
+          ["10", "filename_prefix"],
+          ["10", "$$canvas-image-preview"]
+        ],
+        "cnr_id": "comfy-core",
+        "ver": "0.13.0",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.6.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 11,
+      "type": "LoadImage",
+      "pos": [-0.5080003681592018, 211.3051121416672],
+      "size": [282.8333435058594, 364],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [2]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.13.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": ["example.png", "image"]
+    }
+  ],
+  "links": [[2, 11, 0, 5, 0, "IMAGE"]],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 11,
+          "lastLinkId": 2,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [300, 350, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [900, 350, 120, 40]
+        },
+        "inputs": [
+          {
+            "id": "img-slot-001",
+            "name": "images",
+            "type": "IMAGE",
+            "linkIds": [1],
+            "pos": [400, 370]
+          }
+        ],
+        "outputs": [],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 10,
+            "type": "SaveImage",
+            "pos": [500.0046924937855, 300.0146992076527],
+            "size": [315, 340],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "link": 1
+              }
+            ],
+            "outputs": [],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.13.0",
+              "Node name for S&R": "SaveImage",
+              "ue_properties": {
+                "widget_ue_connectable": {},
+                "version": "7.6.2",
+                "input_ue_unconnectable": {}
+              }
+            },
+            "widgets_values": ["ComfyUI"]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 10,
+            "target_slot": 0,
+            "type": "IMAGE"
+          }
+        ],
+        "extra": {
+          "ue_links": [],
+          "links_added_by_ue": []
+        }
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.1819400303977265,
+      "offset": [81.66005130613983, -19.028558221588725]
+    },
+    "frontendVersion": "1.40.3",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

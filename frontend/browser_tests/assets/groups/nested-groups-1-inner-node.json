@@ -1,0 +1,79 @@
+{
+  "id": "2ba0b800-2f13-4f21-b8d6-c6cdb0152cae",
+  "revision": 0,
+  "last_node_id": 17,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 17,
+      "type": "VAEDecode",
+      "pos": [318.8446183157076, 355.3961392345528],
+      "size": [225, 102],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "groups": [
+    {
+      "id": 4,
+      "title": "Outer Group",
+      "bounding": [
+        -46.25245366331014, -150.82497138023245, 1034.4034361963616,
+        1007.338460439933
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Inner Group",
+      "bounding": [
+        80.96059074101554, 28.123757436778178, 718.286373661183,
+        691.2397164539732
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7121393732101533,
+      "offset": [289.18242848011835, 367.0747755524199]
+    },
+    "frontendVersion": "1.35.5",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "workflowRendererVersion": "Vue"
+  },
+  "version": 0.4
+}

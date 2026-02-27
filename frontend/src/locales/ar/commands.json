@@ -1,0 +1,363 @@
+{
+  "Comfy-Desktop_CheckForUpdates": {
+    "label": "التحقق من التحديثات"
+  },
+  "Comfy-Desktop_Folders_OpenCustomNodesFolder": {
+    "label": "فتح مجلد العقد المخصصة"
+  },
+  "Comfy-Desktop_Folders_OpenInputsFolder": {
+    "label": "فتح مجلد المدخلات"
+  },
+  "Comfy-Desktop_Folders_OpenLogsFolder": {
+    "label": "فتح مجلد السجلات"
+  },
+  "Comfy-Desktop_Folders_OpenModelConfig": {
+    "label": "فتح extra_model_paths.yaml"
+  },
+  "Comfy-Desktop_Folders_OpenModelsFolder": {
+    "label": "فتح مجلد النماذج"
+  },
+  "Comfy-Desktop_Folders_OpenOutputsFolder": {
+    "label": "فتح مجلد المخرجات"
+  },
+  "Comfy-Desktop_OpenDevTools": {
+    "label": "فتح أدوات المطور"
+  },
+  "Comfy-Desktop_OpenUserGuide": {
+    "label": "دليل مستخدم سطح المكتب"
+  },
+  "Comfy-Desktop_Quit": {
+    "label": "خروج"
+  },
+  "Comfy-Desktop_Reinstall": {
+    "label": "إعادة التثبيت"
+  },
+  "Comfy-Desktop_Restart": {
+    "label": "إعادة التشغيل"
+  },
+  "Comfy_3DViewer_Open3DViewer": {
+    "label": "افتح عارض ثلاثي الأبعاد (تجريبي) للعقدة المحددة"
+  },
+  "Comfy_BrowseModelAssets": {
+    "label": "تجريبي: تصفح أصول النماذج"
+  },
+  "Comfy_BrowseTemplates": {
+    "label": "تصفح القوالب"
+  },
+  "Comfy_Canvas_CopySelected": {
+    "label": "نسخ"
+  },
+  "Comfy_Canvas_DeleteSelectedItems": {
+    "label": "حذف العناصر المحددة"
+  },
+  "Comfy_Canvas_FitView": {
+    "label": "تعديل العرض ليناسب العقد المحددة"
+  },
+  "Comfy_Canvas_Lock": {
+    "label": "قفل اللوحة"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Down": {
+    "label": "تحريك العقد المحددة للأسفل"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Left": {
+    "label": "تحريك العقد المحددة لليسار"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Right": {
+    "label": "تحريك العقد المحددة لليمين"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Up": {
+    "label": "تحريك العقد المحددة للأعلى"
+  },
+  "Comfy_Canvas_PasteFromClipboard": {
+    "label": "لصق"
+  },
+  "Comfy_Canvas_ResetView": {
+    "label": "إعادة تعيين العرض"
+  },
+  "Comfy_Canvas_Resize": {
+    "label": "تغيير حجم العقد المحددة"
+  },
+  "Comfy_Canvas_SelectAll": {
+    "label": "تحديد الكل"
+  },
+  "Comfy_Canvas_ToggleLinkVisibility": {
+    "label": "تبديل رؤية الروابط في اللوحة"
+  },
+  "Comfy_Canvas_ToggleLock": {
+    "label": "تبديل القفل في اللوحة"
+  },
+  "Comfy_Canvas_ToggleMinimap": {
+    "label": "تبديل الخريطة المصغرة في اللوحة"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Bypass": {
+    "label": "تجاوز/إلغاء تجاوز العقد المحددة"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Collapse": {
+    "label": "طي/توسيع العقد المحددة"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Mute": {
+    "label": "كتم/إلغاء كتم العقد المحددة"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Pin": {
+    "label": "تثبيت/إلغاء تثبيت العقد المحددة"
+  },
+  "Comfy_Canvas_ToggleSelected_Pin": {
+    "label": "تثبيت/إلغاء تثبيت العناصر المحددة"
+  },
+  "Comfy_Canvas_Unlock": {
+    "label": "فتح اللوحة"
+  },
+  "Comfy_Canvas_ZoomIn": {
+    "label": "تكبير"
+  },
+  "Comfy_Canvas_ZoomOut": {
+    "label": "تصغير"
+  },
+  "Comfy_ClearPendingTasks": {
+    "label": "مسح المهام المعلقة"
+  },
+  "Comfy_ClearWorkflow": {
+    "label": "مسح سير العمل"
+  },
+  "Comfy_ContactSupport": {
+    "label": "الاتصال بالدعم"
+  },
+  "Comfy_Dev_ShowModelSelector": {
+    "label": "إظهار منتقي النماذج (للمطورين)"
+  },
+  "Comfy_DuplicateWorkflow": {
+    "label": "تكرار سير العمل الحالي"
+  },
+  "Comfy_ExportWorkflow": {
+    "label": "تصدير سير العمل"
+  },
+  "Comfy_ExportWorkflowAPI": {
+    "label": "تصدير سير العمل (تنسيق API)"
+  },
+  "Comfy_Graph_ConvertToSubgraph": {
+    "label": "تحويل التحديد إلى رسم فرعي"
+  },
+  "Comfy_Graph_EditSubgraphWidgets": {
+    "label": "تحرير عناصر واجهة الرسم البياني الفرعي"
+  },
+  "Comfy_Graph_ExitSubgraph": {
+    "label": "الخروج من الرسم البياني الفرعي"
+  },
+  "Comfy_Graph_FitGroupToContents": {
+    "label": "ضبط المجموعة على المحتويات"
+  },
+  "Comfy_Graph_GroupSelectedNodes": {
+    "label": "تجميع العقد المحددة"
+  },
+  "Comfy_Graph_ToggleWidgetPromotion": {
+    "label": "تبديل ترقية عنصر الواجهة المحوم فوقه"
+  },
+  "Comfy_Graph_UnpackSubgraph": {
+    "label": "فك التفرع الفرعي المحدد"
+  },
+  "Comfy_GroupNode_ConvertSelectedNodesToGroupNode": {
+    "label": "تحويل العقد المحددة إلى عقدة مجموعة"
+  },
+  "Comfy_GroupNode_ManageGroupNodes": {
+    "label": "إدارة عقد المجموعات"
+  },
+  "Comfy_GroupNode_UngroupSelectedGroupNodes": {
+    "label": "إلغاء تجميع عقد المجموعات المحددة"
+  },
+  "Comfy_Help_AboutComfyUI": {
+    "label": "حول ComfyUI"
+  },
+  "Comfy_Help_OpenComfyOrgDiscord": {
+    "label": "فتح خادم Comfy-Org على Discord"
+  },
+  "Comfy_Help_OpenComfyUIDocs": {
+    "label": "فتح مستندات ComfyUI"
+  },
+  "Comfy_Help_OpenComfyUIForum": {
+    "label": "فتح منتدى ComfyUI"
+  },
+  "Comfy_Help_OpenComfyUIIssues": {
+    "label": "فتح مشكلات ComfyUI"
+  },
+  "Comfy_Interrupt": {
+    "label": "إيقاف مؤقت"
+  },
+  "Comfy_LoadDefaultWorkflow": {
+    "label": "تحميل سير العمل الافتراضي"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowCustomNodesMenu": {
+    "label": "مدير العقد المخصصة"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowLegacyCustomNodesMenu": {
+    "label": "العقد المخصصة (قديم)"
+  },
+  "Comfy_Manager_ShowLegacyManagerMenu": {
+    "label": "قائمة المدير (قديم)"
+  },
+  "Comfy_Manager_ShowMissingPacks": {
+    "label": "تثبيت العقد المخصصة المفقودة"
+  },
+  "Comfy_Manager_ShowUpdateAvailablePacks": {
+    "label": "التحقق من تحديثات العقد المخصصة"
+  },
+  "Comfy_MaskEditor_BrushSize_Decrease": {
+    "label": "تقليل حجم الفرشاة في محرر القناع"
+  },
+  "Comfy_MaskEditor_BrushSize_Increase": {
+    "label": "زيادة حجم الفرشاة في محرر القناع"
+  },
+  "Comfy_MaskEditor_ColorPicker": {
+    "label": "فتح منتقي الألوان في محرر القناع"
+  },
+  "Comfy_MaskEditor_Mirror_Horizontal": {
+    "label": "انعكاس أفقي في محرر القناع"
+  },
+  "Comfy_MaskEditor_Mirror_Vertical": {
+    "label": "انعكاس عمودي في محرر القناع"
+  },
+  "Comfy_MaskEditor_OpenMaskEditor": {
+    "label": "فتح محرر القناع للعقدة المحددة"
+  },
+  "Comfy_MaskEditor_Rotate_Left": {
+    "label": "تدوير لليسار في محرر القناع"
+  },
+  "Comfy_MaskEditor_Rotate_Right": {
+    "label": "تدوير لليمين في محرر القناع"
+  },
+  "Comfy_Memory_UnloadModels": {
+    "label": "تفريغ النماذج"
+  },
+  "Comfy_Memory_UnloadModelsAndExecutionCache": {
+    "label": "تفريغ النماذج وذاكرة التنفيذ المؤقتة"
+  },
+  "Comfy_NewBlankWorkflow": {
+    "label": "سير عمل جديد فارغ"
+  },
+  "Comfy_OpenClipspace": {
+    "label": "Clipspace"
+  },
+  "Comfy_OpenManagerDialog": {
+    "label": "مدير"
+  },
+  "Comfy_OpenWorkflow": {
+    "label": "فتح سير عمل"
+  },
+  "Comfy_PublishSubgraph": {
+    "label": "نشر الرسم البياني الفرعي"
+  },
+  "Comfy_QueuePrompt": {
+    "label": "إضافة الأمر إلى قائمة الانتظار"
+  },
+  "Comfy_QueuePromptFront": {
+    "label": "إضافة الأمر إلى مقدمة قائمة الانتظار"
+  },
+  "Comfy_QueueSelectedOutputNodes": {
+    "label": "إدراج عقد الإخراج المحددة في قائمة الانتظار"
+  },
+  "Comfy_Queue_ToggleOverlay": {
+    "label": "تبديل سجل المهام"
+  },
+  "Comfy_Redo": {
+    "label": "إعادة"
+  },
+  "Comfy_RefreshNodeDefinitions": {
+    "label": "تحديث تعريفات العقد"
+  },
+  "Comfy_RenameWorkflow": {
+    "label": "إعادة تسمية سير العمل"
+  },
+  "Comfy_SaveWorkflow": {
+    "label": "حفظ سير العمل"
+  },
+  "Comfy_SaveWorkflowAs": {
+    "label": "حفظ سير العمل باسم"
+  },
+  "Comfy_ShowSettingsDialog": {
+    "label": "عرض نافذة الإعدادات"
+  },
+  "Comfy_Subgraph_SetDescription": {
+    "label": "تعيين وصف الرسم البياني الفرعي"
+  },
+  "Comfy_Subgraph_SetSearchAliases": {
+    "label": "تعيين الأسماء المستعارة للبحث في الرسم البياني الفرعي"
+  },
+  "Comfy_ToggleAssetAPI": {
+    "label": "تجريبي: تمكين AssetAPI"
+  },
+  "Comfy_ToggleCanvasInfo": {
+    "label": "أداء اللوحة"
+  },
+  "Comfy_ToggleHelpCenter": {
+    "label": "مركز المساعدة"
+  },
+  "Comfy_ToggleLinear": {
+    "label": "تبديل الوضع الخطي"
+  },
+  "Comfy_ToggleQPOV2": {
+    "label": "تبديل لوحة قائمة الانتظار V2"
+  },
+  "Comfy_ToggleTheme": {
+    "label": "تبديل النمط (فاتح/داكن)"
+  },
+  "Comfy_Undo": {
+    "label": "تراجع"
+  },
+  "Comfy_User_OpenSignInDialog": {
+    "label": "فتح نافذة تسجيل الدخول"
+  },
+  "Comfy_User_SignOut": {
+    "label": "تسجيل الخروج"
+  },
+  "Experimental_ToggleVueNodes": {
+    "label": "تجريبي: تمكين عقد Vue"
+  },
+  "Workspace_CloseWorkflow": {
+    "label": "إغلاق سير العمل الحالي"
+  },
+  "Workspace_NextOpenedWorkflow": {
+    "label": "سير العمل التالي المفتوح"
+  },
+  "Workspace_PreviousOpenedWorkflow": {
+    "label": "سير العمل السابق المفتوح"
+  },
+  "Workspace_SearchBox_Toggle": {
+    "label": "تبديل مربع البحث"
+  },
+  "Workspace_ToggleBottomPanel": {
+    "label": "تبديل اللوحة السفلية"
+  },
+  "Workspace_ToggleBottomPanelTab_command-terminal": {
+    "label": "تبديل لوحة الطرفية السفلية"
+  },
+  "Workspace_ToggleBottomPanelTab_logs-terminal": {
+    "label": "تبديل لوحة السجلات السفلية"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-essentials": {
+    "label": "تبديل اللوحة السفلية الأساسية"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-view-controls": {
+    "label": "تبديل لوحة تحكم العرض السفلية"
+  },
+  "Workspace_ToggleBottomPanel_Shortcuts": {
+    "label": "عرض مربع حوار اختصارات لوحة المفاتيح"
+  },
+  "Workspace_ToggleFocusMode": {
+    "label": "تبديل وضع التركيز"
+  },
+  "Workspace_ToggleSidebarTab_assets": {
+    "label": "تبديل الشريط الجانبي للأصول",
+    "tooltip": "الأصول"
+  },
+  "Workspace_ToggleSidebarTab_model-library": {
+    "label": "تبديل الشريط الجانبي لمكتبة النماذج",
+    "tooltip": "مكتبة النماذج"
+  },
+  "Workspace_ToggleSidebarTab_node-library": {
+    "label": "تبديل الشريط الجانبي لمكتبة العقد",
+    "tooltip": "مكتبة العقد"
+  },
+  "Workspace_ToggleSidebarTab_workflows": {
+    "label": "تبديل الشريط الجانبي لسير العمل",
+    "tooltip": "سير العمل"
+  }
+}

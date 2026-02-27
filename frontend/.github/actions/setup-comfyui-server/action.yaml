@@ -1,0 +1,55 @@
+name: Setup ComfyUI Server
+description: 'Setup ComfyUI server for continuous integration (with ComfyUI_devtools node installed)'
+inputs:
+  extra_server_params:
+    description: 'Additional parameters to pass to ComfyUI server'
+    required: false
+    default: ''
+  launch_server:
+    description: 'Whether to launch the server after setup'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    # Note: this workflow assume frontend repo is checked out and is built in ../dist
+
+    # Checkout ComfyUI repo, install the dev_tools node and start server
+    - name: Checkout ComfyUI
+      uses: actions/checkout@v6
+      with:
+        repository: 'comfyanonymous/ComfyUI'
+        path: 'ComfyUI'
+
+    - name: Install ComfyUI_devtools from frontend repo
+      shell: bash
+      run: |
+        mkdir -p ComfyUI/custom_nodes/ComfyUI_devtools
+        if ! cp -r ./tools/devtools/* ComfyUI/custom_nodes/ComfyUI_devtools/; then
+          echo "::error::Failed to copy ComfyUI_devtools from ./tools/devtools/"
+          echo "::error::This action assumes the ComfyUI_frontend repository is checked out in the current working directory."
+          echo "::error::Please ensure you have run 'actions/checkout@v5' before calling this action."
+          exit 1
+        fi
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.10'
+
+    - name: Install Python requirements
+      shell: bash
+      working-directory: ComfyUI
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
+        pip install wait-for-it
+
+    - name: Start ComfyUI server
+      if: ${{ inputs.launch_server == 'true' }}
+      shell: bash
+      working-directory: ComfyUI
+      run: |
+        python main.py --cpu --multi-user --front-end-root ../dist ${{ inputs.extra_server_params }} &
+        wait-for-it --service 127.0.0.1:8188 -t 600

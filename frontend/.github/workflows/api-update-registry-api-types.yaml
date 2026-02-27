@@ -1,0 +1,109 @@
+# Description: When upstream comfy-api is updated, click dispatch to update the TypeScript type definitions in this repo
+name: 'Api: Update Registry API Types'
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+
+  # Triggered from comfy-api repo
+  repository_dispatch:
+    types: [comfy-api-updated]
+
+jobs:
+  update-registry-types:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Checkout comfy-api repository
+        uses: actions/checkout@v6
+        with:
+          repository: Comfy-Org/comfy-api
+          path: comfy-api
+          token: ${{ secrets.COMFY_API_PAT }}
+          clean: true
+
+      - name: Get API commit information
+        id: api-info
+        run: |
+          cd comfy-api
+          API_COMMIT=$(git rev-parse --short HEAD)
+          echo "commit=${API_COMMIT}" >> $GITHUB_OUTPUT
+          cd ..
+
+      - name: Generate API types
+        run: |
+          echo "Generating TypeScript types from comfy-api@${{ steps.api-info.outputs.commit }}..."
+          mkdir -p ./packages/registry-types/src
+          pnpm dlx openapi-typescript ./comfy-api/openapi.yml --output ./packages/registry-types/src/comfyRegistryTypes.ts
+
+      - name: Validate generated types
+        run: |
+          if [ ! -f ./packages/registry-types/src/comfyRegistryTypes.ts ]; then
+            echo "Error: Types file was not generated."
+            exit 1
+          fi
+
+          # Check if file is not empty
+          if [ ! -s ./packages/registry-types/src/comfyRegistryTypes.ts ]; then
+            echo "Error: Generated types file is empty."
+            exit 1
+          fi
+
+      - name: Lint generated types
+        run: |
+          echo "Linting generated Comfy Registry API types..."
+          pnpm lint:fix:no-cache -- ./packages/registry-types/src/comfyRegistryTypes.ts
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if [[ -z $(git status --porcelain ./packages/registry-types/src/comfyRegistryTypes.ts) ]]; then
+            echo "No changes to Comfy Registry API types detected."
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "Changes detected in Comfy Registry API types."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+          commit-message: '[chore] Update Comfy Registry API types from comfy-api@${{ steps.api-info.outputs.commit }}'
+          title: '[chore] Update Comfy Registry API types from comfy-api@${{ steps.api-info.outputs.commit }}'
+          body: |
+            ## Automated API Type Update
+
+            This PR updates the Comfy Registry API types from the latest comfy-api OpenAPI specification.
+
+            - API commit: ${{ steps.api-info.outputs.commit }}
+            - Generated on: ${{ github.event.repository.updated_at }}
+
+            These types are automatically generated using openapi-typescript.
+          branch: update-registry-types-${{ steps.api-info.outputs.commit }}
+          base: main
+          labels: CNR
+          delete-branch: true
+          add-paths: |
+            packages/registry-types/src/comfyRegistryTypes.ts

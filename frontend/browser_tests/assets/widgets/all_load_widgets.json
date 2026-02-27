@@ -1,0 +1,160 @@
+{
+  "id": "e74f5af9-b886-4a21-abbf-ed535d12e2fb",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadAudio",
+      "pos": [41.52964782714844, 16.930862426757812],
+      "size": [444, 125],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadAudio"
+      },
+      "widgets_values": [null, null, ""]
+    },
+    {
+      "id": 2,
+      "type": "LoadVideo",
+      "pos": [502.28570556640625, 16.857147216796875],
+      "size": [444, 525],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [null, "image"]
+    },
+    {
+      "id": 3,
+      "type": "DevToolsLoadAnimatedImageTest",
+      "pos": [41.71427917480469, 188.0000457763672],
+      "size": [444, 553],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsLoadAnimatedImageTest"
+      },
+      "widgets_values": [null, "image"]
+    },
+    {
+      "id": 5,
+      "type": "LoadImage",
+      "pos": [958.285888671875, 16.57145118713379],
+      "size": [444, 553],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [null, "image"]
+    },
+    {
+      "id": 6,
+      "type": "LoadImageMask",
+      "pos": [503.4285888671875, 588],
+      "size": [444, 563],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImageMask"
+      },
+      "widgets_values": [null, "alpha", "image"]
+    },
+    {
+      "id": 7,
+      "type": "LoadImageOutput",
+      "pos": [965.1429443359375, 612],
+      "size": [444, 553],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImageOutput"
+      },
+      "widgets_values": [null, false, "refresh", "image"]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    },
+    "frontendVersion": "1.28.3"
+  },
+  "version": 0.4
+}

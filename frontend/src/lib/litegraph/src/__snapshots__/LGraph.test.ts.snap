@@ -1,0 +1,43 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LGraph > supports schema v0.4 graphs > oldSchemaGraph 1`] = `
+{
+  "config": {},
+  "definitions": undefined,
+  "extra": {
+    "reroutes": undefined,
+  },
+  "floatingLinks": undefined,
+  "groups": [
+    {
+      "bounding": [
+        20,
+        20,
+        1,
+        3,
+      ],
+      "color": "#6029aa",
+      "flags": {},
+      "font_size": 14,
+      "id": 123,
+      "title": "A group to test with",
+    },
+  ],
+  "id": "b4e984f1-b421-4d24-b8b4-ff895793af13",
+  "last_link_id": 0,
+  "last_node_id": 1,
+  "links": [],
+  "nodes": [
+    {
+      "id": 1,
+      "mode": 0,
+      "pos": [
+        10,
+        10,
+      ],
+    },
+  ],
+  "revision": 0,
+  "version": 0.4,
+}
+`;

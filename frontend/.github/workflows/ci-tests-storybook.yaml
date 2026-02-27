@@ -1,0 +1,180 @@
+# Description: Builds Storybook and runs visual regression testing via Chromatic, deploys previews to Cloudflare Pages
+name: 'CI: Tests Storybook'
+
+on:
+  workflow_dispatch: # Allow manual triggering
+  pull_request:
+
+jobs:
+  # Post starting comment for non-forked PRs
+  comment-on-pr-start:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Post starting comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x scripts/cicd/pr-storybook-deploy-and-comment.sh
+          ./scripts/cicd/pr-storybook-deploy-and-comment.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.head_ref }}" \
+            "starting"
+
+  # Build Storybook for all PRs (free Cloudflare deployment)
+  storybook-build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      conclusion: ${{ steps.job-status.outputs.conclusion }}
+      workflow-url: ${{ steps.workflow-url.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Build Storybook
+        run: pnpm build-storybook
+
+      - name: Set job status
+        id: job-status
+        if: always()
+        run: |
+          echo "conclusion=${{ job.status }}" >> $GITHUB_OUTPUT
+
+      - name: Get workflow URL
+        id: workflow-url
+        if: always()
+        run: |
+          echo "url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+      - name: Upload Storybook build
+        if: success() && github.event.pull_request.head.repo.fork == false
+        uses: actions/upload-artifact@v6
+        with:
+          name: storybook-static
+          path: storybook-static/
+          retention-days: 7
+
+  # Chromatic deployment only for version-bump-* branches or manual triggers
+  chromatic-deployment:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'version-bump-'))
+    outputs:
+      conclusion: ${{ steps.job-status.outputs.conclusion }}
+      workflow-url: ${{ steps.workflow-url.outputs.url }}
+      chromatic-build-url: ${{ steps.chromatic.outputs.buildUrl }}
+      chromatic-storybook-url: ${{ steps.chromatic.outputs.storybookUrl }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Required for Chromatic baseline
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Build Storybook and run Chromatic
+        id: chromatic
+        uses: chromaui/action@07791f8243f4cb2698bf4d00426baf4b2d1cb7e0 # v13.3.5
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          buildScriptName: build-storybook
+          autoAcceptChanges: 'main' # Auto-accept changes on main branch
+          exitOnceUploaded: true # Don't wait for UI tests to complete
+          onlyChanged: true # Only capture changed stories
+
+      - name: Set job status
+        id: job-status
+        if: always()
+        run: |
+          echo "conclusion=${{ job.status }}" >> $GITHUB_OUTPUT
+
+      - name: Get workflow URL
+        id: workflow-url
+        if: always()
+        run: |
+          echo "url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+  # Deploy and comment for non-forked PRs only
+  deploy-and-comment:
+    needs: [storybook-build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && always()
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download Storybook build
+        if: needs.storybook-build.outputs.conclusion == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          name: storybook-static
+          path: storybook-static
+
+      - name: Make deployment script executable
+        run: chmod +x scripts/cicd/pr-storybook-deploy-and-comment.sh
+
+      - name: Deploy Storybook and comment on PR
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          WORKFLOW_CONCLUSION: ${{ needs.storybook-build.outputs.conclusion }}
+          WORKFLOW_URL: ${{ needs.storybook-build.outputs.workflow-url }}
+        run: |
+          ./scripts/cicd/pr-storybook-deploy-and-comment.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.head_ref }}" \
+            "completed"
+
+  # Update comment with Chromatic URLs for version-bump branches
+  update-comment-with-chromatic:
+    needs: [chromatic-deployment, deploy-and-comment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && startsWith(github.head_ref, 'version-bump-') && needs.chromatic-deployment.outputs.chromatic-build-url != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Update comment with Chromatic URLs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const buildUrl = '${{ needs.chromatic-deployment.outputs.chromatic-build-url }}';
+            const storybookUrl = '${{ needs.chromatic-deployment.outputs.chromatic-storybook-url }}';
+
+            // Find the existing Storybook comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }}
+            });
+
+            const storybookComment = comments.find(comment =>
+              comment.body.includes('<!-- STORYBOOK_BUILD_STATUS -->')
+            );
+
+            if (storybookComment && buildUrl && storybookUrl) {
+              // Append Chromatic info to existing comment
+              const updatedBody = storybookComment.body.replace(
+                /---\n(.*)$/s,
+                `---\n### 🎨 Chromatic Visual Tests\n- 📊 [View Chromatic Build](${buildUrl})\n- 📚 [View Chromatic Storybook](${storybookUrl})\n\n$1`
+              );
+
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: storybookComment.id,
+                body: updatedBody
+              });
+            }

@@ -1,0 +1,108 @@
+# Description: When upstream ComfyUI-Manager API is updated, click dispatch to update the TypeScript type definitions in this repo
+name: 'Api: Update Manager API Types'
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch for the PR'
+        required: true
+        default: 'main'
+
+jobs:
+  update-manager-types:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Checkout ComfyUI-Manager repository
+        uses: actions/checkout@v6
+        with:
+          repository: Comfy-Org/ComfyUI-Manager
+          path: ComfyUI-Manager
+          clean: true
+
+      - name: Get Manager commit information
+        id: manager-info
+        run: |
+          cd ComfyUI-Manager
+          MANAGER_COMMIT=$(git rev-parse --short HEAD)
+          echo "commit=${MANAGER_COMMIT}" >> $GITHUB_OUTPUT
+          cd ..
+
+      - name: Generate Manager API types
+        run: |
+          echo "Generating TypeScript types from ComfyUI-Manager@${{ steps.manager-info.outputs.commit }}..."
+          pnpm dlx openapi-typescript ./ComfyUI-Manager/openapi.yaml --output ./src/types/generatedManagerTypes.ts
+
+      - name: Validate generated types
+        run: |
+          if [ ! -f ./src/types/generatedManagerTypes.ts ]; then
+            echo "Error: Types file was not generated."
+            exit 1
+          fi
+
+          # Check if file is not empty
+          if [ ! -s ./src/types/generatedManagerTypes.ts ]; then
+            echo "Error: Generated types file is empty."
+            exit 1
+          fi
+
+      - name: Lint generated types
+        run: |
+          echo "Linting generated ComfyUI-Manager API types..."
+          pnpm lint:fix:no-cache -- ./src/types/generatedManagerTypes.ts
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if [[ -z $(git status --porcelain ./src/types/generatedManagerTypes.ts) ]]; then
+            echo "No changes to ComfyUI-Manager API types detected."
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "Changes detected in ComfyUI-Manager API types."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+          commit-message: '[chore] Update ComfyUI-Manager API types from ComfyUI-Manager@${{ steps.manager-info.outputs.commit }}'
+          title: '[chore] Update ComfyUI-Manager API types from ComfyUI-Manager@${{ steps.manager-info.outputs.commit }}'
+          body: |
+            ## Automated API Type Update
+
+            This PR updates the ComfyUI-Manager API types from the latest ComfyUI-Manager OpenAPI specification.
+
+            - Manager commit: ${{ steps.manager-info.outputs.commit }}
+            - Generated on: ${{ github.event.repository.updated_at }}
+
+            These types are automatically generated using openapi-typescript.
+          branch: update-manager-types-${{ steps.manager-info.outputs.commit }}
+          base: ${{ inputs.target_branch }}
+          labels: Manager
+          delete-branch: true
+          add-paths: |
+            src/types/generatedManagerTypes.ts

@@ -1,0 +1,394 @@
+{
+  "id": "43e9499c-2512-43b5-a5a1-2485eb65da32",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [170.55728894250745, 515.6401487466619],
+      "size": [282.8166809082031, 363.8333435058594],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [7, 9]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": ["example.png", "image"]
+    },
+    {
+      "id": 7,
+      "type": "21dea088-e1b4-47a4-a01f-3d1bf4504001",
+      "pos": [500.2639113468392, 519.9960755960157],
+      "size": [464.95001220703125, 615.8333129882812],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [10]
+        }
+      ],
+      "properties": {
+        "proxyWidgets": [
+          ["2", "$$canvas-image-preview"],
+          ["4", "$$canvas-image-preview"]
+        ]
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 8,
+      "type": "a7a0350a-af99-4d26-9391-450b4f726206",
+      "pos": [1000.5293620197185, 499.9253405678786],
+      "size": [225, 359.8333435058594],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 10
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "proxyWidgets": [["6", "$$canvas-image-preview"]]
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [7, 1, 0, 7, 0, "IMAGE"],
+    [9, 1, 0, 8, 0, "IMAGE"],
+    [10, 7, 0, 8, 1, "IMAGE"]
+  ],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "21dea088-e1b4-47a4-a01f-3d1bf4504001",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 8,
+          "lastLinkId": 10,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [297.7833638107301, 502.6302057820892, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1052.8175480718996, 502.6302057820892, 120, 60]
+        },
+        "inputs": [
+          {
+            "id": "afc8dbc3-12e6-4b3c-9840-9b398d06e6bd",
+            "name": "images",
+            "type": "IMAGE",
+            "linkIds": [1, 2],
+            "localized_name": "images",
+            "pos": [397.7833638107301, 522.6302057820892]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "d0a84974-5f4d-4f4b-b23a-2e7288a9689d",
+            "name": "IMAGE",
+            "type": "IMAGE",
+            "linkIds": [5],
+            "localized_name": "IMAGE",
+            "pos": [1072.8175480718996, 522.6302057820892]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 4,
+            "type": "PreviewImage",
+            "pos": [767.8225773415076, 602.8695134060456],
+            "size": [225, 303.8333435058594],
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "link": 3
+              }
+            ],
+            "outputs": [],
+            "properties": {
+              "Node name for S&R": "PreviewImage"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 2,
+            "type": "PreviewImage",
+            "pos": [754.9358989867657, 188.55375831225257],
+            "size": [225, 303.8333435058594],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "link": 1
+              }
+            ],
+            "outputs": [],
+            "properties": {
+              "Node name for S&R": "PreviewImage"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 3,
+            "type": "ImageInvert",
+            "pos": [477.783932416778, 542.2440719627998],
+            "size": [225, 71.83333587646484],
+            "flags": {
+              "collapsed": false
+            },
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "image",
+                "name": "image",
+                "type": "IMAGE",
+                "link": 2
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "IMAGE",
+                "name": "IMAGE",
+                "type": "IMAGE",
+                "links": [3, 5]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ImageInvert"
+            },
+            "widgets_values": []
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 3,
+            "origin_id": 3,
+            "origin_slot": 0,
+            "target_id": 4,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 2,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 2,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 3,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 5,
+            "origin_id": 3,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "IMAGE"
+          }
+        ],
+        "extra": {}
+      },
+      {
+        "id": "a7a0350a-af99-4d26-9391-450b4f726206",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 8,
+          "lastLinkId": 10,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [973.7423316105073, 561.9744246746379, 120, 80]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1905.487372786412, 581.9744246746379, 120, 40]
+        },
+        "inputs": [
+          {
+            "id": "20ac4159-6814-4d40-a217-ea260152b689",
+            "name": "image1",
+            "type": "IMAGE",
+            "linkIds": [4],
+            "localized_name": "image1",
+            "pos": [1073.7423316105073, 581.9744246746379]
+          },
+          {
+            "id": "c3759a8c-914e-4450-bc41-ca683ffce96b",
+            "name": "image2",
+            "type": "IMAGE",
+            "linkIds": [8],
+            "localized_name": "image2",
+            "shape": 7,
+            "pos": [1073.7423316105073, 601.9744246746379]
+          }
+        ],
+        "outputs": [],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 5,
+            "type": "ImageStitch",
+            "pos": [1153.7423085222254, 396.2033931749105],
+            "size": [270, 225.1666717529297],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "image1",
+                "name": "image1",
+                "type": "IMAGE",
+                "link": 4
+              },
+              {
+                "localized_name": "image2",
+                "name": "image2",
+                "shape": 7,
+                "type": "IMAGE",
+                "link": 8
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "IMAGE",
+                "name": "IMAGE",
+                "type": "IMAGE",
+                "links": [6]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ImageStitch"
+            },
+            "widgets_values": ["right", true, 0, "white"]
+          },
+          {
+            "id": 6,
+            "type": "PreviewImage",
+            "pos": [1620.4874189629757, 529.9122050216333],
+            "size": [225, 307.8333435058594],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "link": 6
+              }
+            ],
+            "outputs": [],
+            "properties": {
+              "Node name for S&R": "PreviewImage"
+            },
+            "widgets_values": []
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 6,
+            "origin_id": 5,
+            "origin_slot": 0,
+            "target_id": 6,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 4,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 5,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 8,
+            "origin_id": -10,
+            "origin_slot": 1,
+            "target_id": 5,
+            "target_slot": 1,
+            "type": "IMAGE"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7269777827561446,
+      "offset": [-35.273237658266034, -55.17394203309256]
+    },
+    "frontendVersion": "1.40.8"
+  },
+  "version": 0.4
+}

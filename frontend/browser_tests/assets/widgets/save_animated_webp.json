@@ -1,0 +1,64 @@
+{
+  "id": "3f1fcbf9-f9de-4935-8fad-401813f61b13",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 9,
+      "type": "SaveAnimatedWEBP",
+      "pos": [336, 104],
+      "size": [210, 368],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 4
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI", 6, true, 80, "default"]
+    },
+    {
+      "id": 10,
+      "type": "DevToolsLoadAnimatedImageTest",
+      "pos": [64, 104],
+      "size": [210, 316],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [4]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsLoadAnimatedImageTest"
+      },
+      "widgets_values": ["animated_web.webp", "image"]
+    }
+  ],
+  "links": [[4, 10, 0, 9, 0, "IMAGE"]],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "frontendVersion": "1.17.0",
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    }
+  },
+  "version": 0.4
+}

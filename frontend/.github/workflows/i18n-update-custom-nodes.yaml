@@ -1,0 +1,136 @@
+name: i18n Update Custom Nodes
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        description: 'Owner of the repository to update locales for'
+        required: true
+        type: string
+      repository:
+        description: 'Repository to update locales for'
+        required: true
+        type: string
+      fork_owner:
+        description: 'Owner of the forked repository'
+        required: false
+        type: string
+        default: 'Comfy-Org'
+
+jobs:
+  update-locales:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # Setup playwright environment with custom node repository
+      - name: Setup ComfyUI Server (without launching)
+        uses: ./.github/actions/setup-comfyui-server
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+        with:
+          include_build_step: 'true'
+      - name: Setup Playwright
+        uses: ./.github/actions/setup-playwright
+
+      # Install the custom node repository
+      - name: Checkout custom node repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.owner }}/${{ inputs.repository }}
+          path: 'ComfyUI/custom_nodes/${{ inputs.repository }}'
+      - name: Install custom node Python requirements
+        working-directory: ComfyUI/custom_nodes/${{ inputs.repository }}
+        run: |
+          if [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          fi
+
+      # Start ComfyUI Server
+      - name: Start ComfyUI Server
+        shell: bash
+        working-directory: ComfyUI
+        run: |
+          python main.py --cpu --multi-user --front-end-root ../dist --custom-node-path ../ComfyUI/custom_nodes/${{ inputs.repository }} &
+          wait-for-it --service
+
+      - name: Start dev server
+        # Run electron dev server as it is a superset of the web dev server
+        # We do want electron specific UIs to be translated.
+        run: pnpm dev:electron &
+
+      - name: Capture base i18n
+        run: pnpm exec tsx scripts/diff-i18n capture
+      - name: Update en.json
+        run: pnpm collect-i18n
+        env:
+          PLAYWRIGHT_TEST_URL: http://localhost:5173
+      - name: Update translations
+        run: pnpm locale
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Diff base vs updated i18n
+        run: pnpm exec tsx scripts/diff-i18n diff
+      - name: Update i18n in custom node repository
+        run: |
+          LOCALE_DIR=ComfyUI/custom_nodes/${{ inputs.repository }}/locales/
+          install -d "$LOCALE_DIR"
+          cp -rf ComfyUI_frontend/temp/diff/* "$LOCALE_DIR"
+
+      # Git ops for pushing changes and creating PR
+      - name: Check and create fork of custom node repository
+        run: |
+          # Try to fork the repository
+          gh repo fork ${{ inputs.owner }}/${{ inputs.repository }} --clone=false || {
+            echo "Fork failed - repository might already be forked"
+            # Exit 0 to prevent the workflow from failing
+            exit 0
+          }
+
+          # Enable workflows on the forked repository
+          gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ inputs.fork_owner }}/${{ inputs.repository }}/actions/permissions/workflow" \
+            -F can_approve_pull_request_reviews=true \
+            -F default_workflow_permissions="write" \
+            -F enabled=true
+        env:
+          GH_TOKEN: ${{ secrets.PR_GH_TOKEN }}
+
+      - name: Commit changes
+        working-directory: ComfyUI/custom_nodes/${{ inputs.repository }}
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+
+          # Create and switch to new branch
+          git checkout -b update-locales
+
+          # Stage and commit changes
+          git add -A
+          git commit -m "Update locales"
+
+      - name: Install SSH key For PUSH
+        uses: shimataro/ssh-key-action@d4fffb50872869abe2d9a9098a6d9c5aa7d16be4 # v2.7.0
+        with:
+          # PR private key from action server
+          key: ${{ secrets.PR_SSH_PRIVATE_KEY }}
+          # github public key to confirm it's github server
+          known_hosts: github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
+
+      - name: Push changes
+        working-directory: ComfyUI/custom_nodes/${{ inputs.repository }}
+        run: |
+          # Force push to create the branch
+          echo "Pushing changes to ${{ inputs.fork_owner }}/${{ inputs.repository }}"
+          git push -f git@github.com:${{ inputs.fork_owner }}/${{ inputs.repository }}.git update-locales
+
+      - name: Create PR
+        working-directory: ComfyUI/custom_nodes/${{ inputs.repository }}
+        run: |
+          # Create PR using gh cli
+          gh pr create --title "Update locales for ${{ inputs.repository }}" --repo ${{ inputs.owner }}/${{ inputs.repository }} --head ${{ inputs.fork_owner }}:update-locales --body "Update locales for ${{ inputs.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.PR_GH_TOKEN }}

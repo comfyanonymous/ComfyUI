@@ -1,0 +1,38 @@
+{
+  "last_node_id": 12,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 12,
+      "type": "DevToolsSimpleSlider",
+      "pos": [50, 50],
+      "size": [315, 58],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null,
+          "label": "FLOAT"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsSimpleSlider"
+      },
+      "widgets_values": [0.5]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

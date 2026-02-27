@@ -1,0 +1,28 @@
+name: Setup Playwright
+description: Cache and install Playwright browsers with dependencies
+runs:
+  using: composite
+  steps:
+    - name: Detect Playwright version
+      id: detect-version
+      shell: bash
+      run: |
+        PLAYWRIGHT_VERSION=$(pnpm ls @playwright/test --json | jq --raw-output '.[0].devDependencies["@playwright/test"].version')
+        echo "playwright-version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright Browsers
+      uses: actions/cache@v5 # v5.0.2
+      id: cache-playwright-browsers
+      with:
+        path: '~/.cache/ms-playwright'
+        key: ${{ runner.os }}-playwright-browsers-${{ steps.detect-version.outputs.playwright-version }}
+
+    - name: Install Playwright Browsers
+      if: steps.cache-playwright-browsers.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm exec playwright install chromium --with-deps
+
+    - name: Install Playwright Browsers (operating system dependencies)
+      if: steps.cache-playwright-browsers.outputs.cache-hit == 'true'
+      shell: bash
+      run: pnpm exec playwright install-deps

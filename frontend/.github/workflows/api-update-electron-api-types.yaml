@@ -1,0 +1,50 @@
+# Description: When upstream electron API is updated, click dispatch to update the TypeScript type definitions in this repo
+name: 'Api: Update Electron API Types'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-electron-types:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - name: Update electron types
+        run: pnpm install --workspace-root @comfyorg/comfyui-electron-types@latest
+
+      - name: Get new version
+        id: get-version
+        run: |
+          NEW_VERSION=$(pnpm list @comfyorg/comfyui-electron-types --json --depth=0 | jq -r '.[0].dependencies."@comfyorg/comfyui-electron-types".version')
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+          commit-message: '[chore] Update electron-types to ${{ steps.get-version.outputs.NEW_VERSION }}'
+          title: '[chore] Update electron-types to ${{ steps.get-version.outputs.NEW_VERSION }}'
+          body: |
+            Automated update of desktop API types to version ${{ steps.get-version.outputs.NEW_VERSION }}.
+          branch: update-electron-types-${{ steps.get-version.outputs.NEW_VERSION }}
+          base: main
+          labels: |
+            dependencies
+            Electron

@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    /* Test files should not be compiled */
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "resolveJsonModule": true,
+    "types": ["vite/client"]
+  },
+  "include": [
+    "**/*.ts",
+    "../src/types/**/*.d.ts",
+    "../global.d.ts",
+    "types/**/*.d.ts"
+  ]
+}
