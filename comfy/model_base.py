@@ -1507,22 +1507,7 @@ class WAN21_SCAIL(WAN21):
             pose_latents = torch.cat([pose_latents, pose_mask], dim=1)
             out['pose_latents'] = comfy.conds.CONDRegular(pose_latents)
 
-        pose_start = kwargs.get("pose_start", 0.0)
-        pose_end = kwargs.get("pose_end", 1.0)
-        out['pose_start'] = comfy.conds.CONDConstant(pose_start)
-        out['pose_end'] = comfy.conds.CONDConstant(pose_end)
-
         return out
-
-    def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, pose_start=0.0, pose_end=1.0, **kwargs):
-        if t[0] >= self.model_sampling.percent_to_sigma(pose_start) or t[0] <= self.model_sampling.percent_to_sigma(pose_end):
-            kwargs.pop("pose_latents", None)
-
-        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
-            self._apply_model,
-            self,
-            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.APPLY_MODEL, transformer_options)
-        ).execute(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
 
     def extra_conds_shapes(self, **kwargs):
         out = {}

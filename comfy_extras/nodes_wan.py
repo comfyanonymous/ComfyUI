@@ -1505,8 +1505,8 @@ class WanSCAILToVideo(io.ComfyNode):
         if pose_video is not None:
             pose_video = comfy.utils.common_upscale(pose_video[:length].movedim(-1, 1), width // 2, height // 2, "area", "center").movedim(1, -1)
             pose_video_latent = vae.encode(pose_video[:, :, :, :3]) * pose_strength
-            positive = node_helpers.conditioning_set_values(positive, {"pose_video_latent": pose_video_latent, "pose_start": pose_start, "pose_end": pose_end})
-            negative = node_helpers.conditioning_set_values(negative, {"pose_video_latent": pose_video_latent, "pose_start": pose_start, "pose_end": pose_end})
+            positive = node_helpers.conditioning_set_values_with_timestep_range(positive, {"pose_video_latent": pose_video_latent}, pose_start, pose_end)
+            negative = node_helpers.conditioning_set_values_with_timestep_range(negative, {"pose_video_latent": pose_video_latent}, pose_start, pose_end)
 
         out_latent = {}
         out_latent["samples"] = latent
