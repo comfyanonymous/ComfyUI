@@ -1,0 +1,54 @@
+name: i18n Update Nodes
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger_type:
+        description: 'Type of trigger (manual or automatic)'
+        required: false
+        type: string
+        default: 'manual'
+
+jobs:
+  update-locales:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      # Setup playwright environment
+      - name: Setup ComfyUI Server (and start)
+        uses: ./.github/actions/setup-comfyui-server
+        with:
+          launch_server: true
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+        with:
+          include_build_step: true
+      - name: Setup Playwright
+        uses: ./.github/actions/setup-playwright
+
+      - name: Start dev server
+        # Run electron dev server as it is a superset of the web dev server
+        # We do want electron specific UIs to be translated.
+        run: pnpm dev:electron &
+      - name: Update en.json
+        run: pnpm collect-i18n -- scripts/collect-i18n-node-defs.ts
+        env:
+          PLAYWRIGHT_TEST_URL: http://localhost:5173
+      - name: Update translations
+        run: pnpm locale
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+          commit-message: 'Update locales for node definitions'
+          title: 'Update locales for node definitions'
+          body: |
+            Automated PR to update locales for node definitions
+
+            This PR was created automatically by the frontend update workflow.
+          branch: update-locales-node-defs-${{ github.event.inputs.trigger_type }}-${{ github.run_id }}
+          base: main
+          labels: dependencies

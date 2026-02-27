@@ -1,0 +1,7 @@
+issue_enrichment:
+  auto_enrich:
+    enabled: true
+reviews:
+  high_level_summary: false
+  auto_review:
+    drafts: true

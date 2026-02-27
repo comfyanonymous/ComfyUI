@@ -1,0 +1,22 @@
+{
+  "last_node_id": 0,
+  "last_link_id": 0,
+  "nodes": [],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "models": [
+    {
+      "name": "fake_model.safetensors",
+      "url": "http://localhost:8188/api/devtools/fake_model.safetensors",
+      "directory": "text_encoders"
+    }
+  ],
+  "version": 0.4
+}

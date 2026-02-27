@@ -1,0 +1,99 @@
+# Description: Linting and code formatting validation for pull requests
+name: 'CI: Lint Format'
+
+on:
+  pull_request:
+    branches-ignore: [wip/*, draft/*, temp/*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ !github.event.pull_request.head.repo.fork && github.head_ref || github.ref }}
+          token: ${{ !github.event.pull_request.head.repo.fork && secrets.PR_GH_TOKEN || github.token }}
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Detect browser_tests changes
+        id: changed-paths
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            browser_tests:
+              - 'browser_tests/**'
+
+      - name: Run ESLint with auto-fix
+        run: pnpm lint:fix
+
+      - name: Run Stylelint with auto-fix
+        run: pnpm stylelint:fix
+
+      - name: Run oxfmt with auto-format
+        run: pnpm format
+
+      - name: Check for changes
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit changes
+        if: steps.verify-changed-files.outputs.changed == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "[automated] Apply ESLint and Oxfmt fixes"
+          git push
+
+      - name: Final validation
+        run: |
+          pnpm lint
+          pnpm stylelint
+          pnpm format:check
+          pnpm knip
+
+      - name: Typecheck browser tests
+        if: steps.changed-paths.outputs.browser_tests == 'true'
+        run: pnpm typecheck:browser
+
+      - name: Comment on PR about auto-fix
+        if: steps.verify-changed-files.outputs.changed == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        uses: actions/github-script@v8
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 🔧 Auto-fixes Applied\n\nThis PR has been automatically updated to fix linting and formatting issues.\n\n**⚠️ Important**: Your local branch is now behind. Run `git pull` before making additional changes to avoid conflicts.\n\n### Changes made:\n- ESLint auto-fixes\n- Oxfmt formatting'
+            })
+
+      - name: Comment on PR about manual fix needed
+        if: steps.verify-changed-files.outputs.changed == 'true' && github.event.pull_request.head.repo.full_name != github.repository
+        continue-on-error: true
+        uses: actions/github-script@v8
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## ⚠️ Linting/Formatting Issues Found\n\nThis PR has linting or formatting issues that need to be fixed.\n\n**Since this PR is from a fork, auto-fix cannot be applied automatically.**\n\n### Option 1: Set up pre-commit hooks (recommended)\nRun this once to automatically format code on every commit:\n```bash\npnpm prepare\n```\n\n### Option 2: Fix manually\nRun these commands and push the changes:\n```bash\npnpm lint:fix\npnpm format\n```\n\nSee [CONTRIBUTING.md](https://github.com/Comfy-Org/ComfyUI_frontend/blob/main/CONTRIBUTING.md#git-pre-commit-hooks) for more details.'
+            })

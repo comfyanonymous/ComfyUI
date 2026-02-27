@@ -1,0 +1,144 @@
+# Description: Automated weekly documentation accuracy check and update via Claude
+name: 'Weekly Documentation Check'
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 50
+          ref: main
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies for analysis tools
+        run: |
+          # Check if packages are already available locally
+          if ! pnpm list typescript @vue/compiler-sfc >/dev/null 2>&1; then
+            echo "Installing TypeScript and Vue compiler globally..."
+            pnpm install -g typescript @vue/compiler-sfc
+          else
+            echo "TypeScript and Vue compiler already available locally"
+          fi
+
+      - name: Run Claude Documentation Review
+        uses: anthropics/claude-code-action@ff34ce0ff04a470bd3fa56c1ef391c8f1c19f8e9 # v1.0.38
+        with:
+          prompt: |
+            Is all documentation still 100% accurate?
+
+            INSTRUCTIONS:
+            1. Fact-check all documentation against the current codebase
+            2. Look for:
+               - Outdated API references
+               - Deprecated functions or components still documented
+               - Missing documentation for new features
+               - Incorrect code examples
+               - Broken internal references
+               - Configuration examples that no longer work
+               - Documentation that contradicts actual implementation
+            3. Update any inaccurate or outdated documentation
+            4. Add documentation for significant undocumented features
+            5. Ensure all code examples are valid and tested against current code
+
+            Focus on these key areas:
+            - docs/**/*.md (all documentation files)
+            - CLAUDE.md (project guidelines)
+            - README.md files throughout the repository
+            - .claude/commands/*.md (Claude command documentation)
+
+            Make changes directly to the documentation files as needed.
+            DO NOT modify any source code files unless absolutely necessary for documentation accuracy.
+
+            After making all changes, create a comprehensive PR message summary:
+            1. Write a detailed PR body to /tmp/pr-body-${{ github.run_id }}.md in markdown format
+            2. Include:
+               - ## Summary section with bullet points of what was changed
+               - ## Changes Made section with details organized by category
+               - ## Review Notes section with any important context
+            3. Be specific about which files were updated and why
+            4. If no changes were needed, write a brief message stating documentation is up to date
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 256 --allowedTools 'Bash(git status),Bash(git diff),Bash(git log),Bash(pnpm:*),Bash(npm:*),Bash(node:*),Bash(tsc:*),Bash(echo:*),Read,Write,Edit,Glob,Grep'"
+        continue-on-error: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No documentation changes needed"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Documentation changes detected"
+          fi
+
+      - name: Create default PR body if not generated
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          if [ ! -f /tmp/pr-body-${{ github.run_id }}.md ]; then
+            cat > /tmp/pr-body-${{ github.run_id }}.md <<'EOF'
+          ## Automated Documentation Review
+
+          This PR contains documentation updates identified by the weekly automated review.
+
+          ### Review Process
+          - Automated fact-checking against current codebase
+          - Verification of code examples and API references
+          - Detection of outdated or missing documentation
+
+          ### What was checked
+          - All markdown documentation in `docs/`
+          - Project guidelines in `CLAUDE.md`
+          - README files throughout the repository
+          - Claude command documentation in `.claude/commands/`
+
+          **Note**: This is an automated PR. Please review all changes carefully before merging.
+
+          🤖 Generated by weekly documentation check workflow
+          EOF
+          fi
+
+      - name: Create or Update Pull Request
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_GH_TOKEN }}
+          commit-message: 'docs: weekly documentation accuracy update'
+          branch: docs/weekly-update
+          delete-branch: true
+          title: 'docs: Weekly Documentation Update'
+          body-path: /tmp/pr-body-${{ github.run_id }}.md
+          labels: |
+            documentation
+            automated
+          draft: true

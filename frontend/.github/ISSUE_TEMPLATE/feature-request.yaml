@@ -1,0 +1,73 @@
+name: Feature Request
+description: Report a problem or limitation you're experiencing
+labels: []
+type: Feature
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        *Please focus on describing the problem you're experiencing rather than proposing specific solutions. This helps us design the best possible solution for you and other users.*
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you experiencing?
+      description: Describe the issue or limitation you're facing in your workflow
+      placeholder: |
+        Example: "I frequently lose work when switching between different projects because there's no way to save my current workspace state"
+        NOT: "Add a save button that exports the workspace"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: When does this problem occur?
+      description: Describe the specific situations or workflows where you encounter this issue
+      placeholder: |
+        - When working with large node graphs...
+        - During batch processing workflows...
+        - While collaborating with team members...
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often do you encounter this problem?
+      options:
+        - Multiple times per day
+        - Daily
+        - Several times per week
+        - Weekly
+        - Occasionally
+        - Rarely
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: How much does this problem affect your workflow?
+      description: Help us understand the severity of this issue for you
+      options:
+        - Blocks me from completing tasks
+        - Significantly slows down my work
+        - Causes moderate inconvenience
+        - Minor annoyance
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workarounds
+      description: How do you currently deal with this problem, if at all?
+      placeholder: |
+        Example: "I manually export and reimport nodes between projects, which takes 10-15 minutes each time"
+  - type: textarea
+    id: ideas
+    attributes:
+      label: Ideas for solutions (Optional)
+      description: If you have thoughts on potential solutions, feel free to share them here. However, we'll explore all possible options to find the best approach.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context, screenshots, or examples that help illustrate the problem.

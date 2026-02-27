@@ -1,0 +1,86 @@
+{
+  "id": "save-image-and-webm-test",
+  "revision": 0,
+  "last_node_id": 12,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 10,
+      "type": "LoadImage",
+      "pos": [50, 100],
+      "size": [315, 314],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [1, 2]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": ["example.png", "image"]
+    },
+    {
+      "id": 11,
+      "type": "SaveImage",
+      "pos": [450, 100],
+      "size": [210, 270],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI"]
+    },
+    {
+      "id": 12,
+      "type": "SaveWEBM",
+      "pos": [450, 450],
+      "size": [210, 368],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI", "vp9", 6, 32]
+    }
+  ],
+  "links": [
+    [1, 10, 0, 11, 0, "IMAGE"],
+    [2, 10, 0, 12, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "frontendVersion": "1.17.0",
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    }
+  },
+  "version": 0.4
+}

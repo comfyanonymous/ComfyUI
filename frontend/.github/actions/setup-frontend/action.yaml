@@ -1,0 +1,33 @@
+name: Setup ComfyUI Frontend
+description: 'Install nodejs/pnpm/dependencies and optionally build ComfyUI_frontend'
+inputs:
+  include_build_step:
+    description: 'Include the build step to build the frontend. Set to true for workflows that need a built frontend'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    # Note: this workflow assume frontend repo is checked out in the root of the workspace
+
+    # Install pnpm, Node.js, build frontend
+    - name: Install pnpm
+      uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+      with:
+        version: 10
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: 'lts/*'
+        cache: 'pnpm'
+        cache-dependency-path: './pnpm-lock.yaml'
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Build ComfyUI_frontend
+      if: ${{ inputs.include_build_step == 'true' }}
+      shell: bash
+      run: pnpm build

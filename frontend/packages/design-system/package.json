@@ -1,0 +1,27 @@
+{
+  "name": "@comfyorg/design-system",
+  "version": "1.0.0",
+  "description": "Shared design system for ComfyUI Frontend",
+  "type": "module",
+  "exports": {
+    "./css/*": "./src/css/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "catalog:",
+    "@iconify/tailwind4": "catalog:"
+  },
+  "devDependencies": {
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "nx": {
+    "tags": [
+      "scope:shared",
+      "type:design"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "id": "1a95532f-c8aa-4c9d-a7f6-f928ba2d4862",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "PreviewAny",
+      "pos": [946.2566528320312, 598.4373168945312],
+      "size": [140, 76],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 3
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 1,
+      "type": "PreviewAny",
+      "pos": [951.0236206054688, 421.3861083984375],
+      "size": [140, 76],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "PrimitiveString",
+      "pos": [575.1760864257812, 504.5214538574219],
+      "size": [270, 58],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [2, 3]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveString"
+      },
+      "widgets_values": ["foo"]
+    }
+  ],
+  "links": [
+    [2, 3, 0, 1, 0, "*"],
+    [3, 3, 0, 4, 0, "*"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "frontendVersion": "1.19.1",
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    }
+  },
+  "version": 0.4
+}

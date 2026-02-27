@@ -1,0 +1,148 @@
+{
+  "last_node_id": 31,
+  "last_link_id": 38,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        47.948699951171875,
+        239.2628173828125
+      ],
+      "size": [
+        315,
+        98
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": []
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 1,
+          "links": []
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "slot_index": 2,
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "v1-5-pruned-emaonly.safetensors"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "VAEDecode",
+      "pos": [
+        620,
+        260
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.2526143885641918,
+      "offset": [
+        449.14488520559655,
+        200.06933385457722
+      ]
+    },
+    "reroutes": [
+      {
+        "id": 1,
+        "pos": [
+          547.5,
+          293
+        ],
+        "linkIds": [],
+        "floating": {
+          "slotType": "input"
+        }
+      },
+      {
+        "id": 2,
+        "pos": [
+          438.99267578125,
+          291.96600341796875
+        ],
+        "linkIds": [],
+        "floating": {
+          "slotType": "output"
+        }
+      }
+    ],
+    "linkExtensions": []
+  },
+  "version": 0.4,
+  "floatingLinks": [
+    {
+      "id": 7,
+      "origin_id": -1,
+      "origin_slot": -1,
+      "target_id": 12,
+      "target_slot": 1,
+      "type": "VAE",
+      "parentId": 1
+    },
+    {
+      "id": 8,
+      "origin_id": 4,
+      "origin_slot": 2,
+      "target_id": -1,
+      "target_slot": -1,
+      "type": "*",
+      "parentId": 2
+    }
+  ]
+}

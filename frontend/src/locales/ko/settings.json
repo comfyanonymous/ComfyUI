@@ -1,0 +1,499 @@
+{
+  "Comfy-Desktop_AutoUpdate": {
+    "name": "자동 업데이트 확인"
+  },
+  "Comfy-Desktop_SendStatistics": {
+    "name": "익명 사용 통계 보내기"
+  },
+  "Comfy-Desktop_UV_PypiInstallMirror": {
+    "name": "PyPI 설치 미러",
+    "tooltip": "기본 pip 설치 미러"
+  },
+  "Comfy-Desktop_UV_PythonInstallMirror": {
+    "name": "Python 설치 미러",
+    "tooltip": "관리되는 Python 설치파일은 Astral python-build-standalone 프로젝트에서 다운로드됩니다. 이 변수는 Python 설치파일의 다른 출처를 사용하기 위해 미러 URL로 설정할 수 있습니다. 예를 들어, 제공된 URL은 https://github.com/astral-sh/python-build-standalone/releases/download/20240713/cpython-3.12.4%2B20240713-aarch64-apple-darwin-install_only.tar.gz에서 https://github.com/astral-sh/python-build-standalone/releases/download 를 대체합니다. 배포판은 file:// URL 스키마를 사용하여 로컬 디렉토리에서 읽을 수 있습니다."
+  },
+  "Comfy-Desktop_UV_TorchInstallMirror": {
+    "name": "torch 설치 미러",
+    "tooltip": "pytorch를 위한 pip 설치 미러"
+  },
+  "Comfy-Desktop_WindowStyle": {
+    "name": "창 스타일",
+    "options": {
+      "custom": "사용자 정의",
+      "default": "기본"
+    },
+    "tooltip": "시스템 제목 표시 줄을 숨기려면 사용자 정의 옵션을 선택하세요"
+  },
+  "Comfy_Canvas_BackgroundImage": {
+    "name": "캔버스 배경 이미지",
+    "tooltip": "캔버스 배경에 사용할 이미지 URL입니다. 출력 패널에서 이미지를 마우스 오른쪽 버튼으로 클릭한 후 \"배경으로 설정\"을 선택해 사용할 수 있습니다."
+  },
+  "Comfy_Canvas_LeftMouseClickBehavior": {
+    "name": "왼쪽 마우스 클릭 동작",
+    "options": {
+      "Panning": "패닝",
+      "Select": "선택"
+    }
+  },
+  "Comfy_Canvas_MouseWheelScroll": {
+    "name": "마우스 휠 스크롤",
+    "options": {
+      "Panning": "패닝",
+      "Zoom in/out": "확대/축소"
+    }
+  },
+  "Comfy_Canvas_NavigationMode": {
+    "name": "캔버스 내비게이션 모드",
+    "options": {
+      "Custom": "사용자 지정",
+      "Drag Navigation": "드래그 내비게이션",
+      "Standard (New)": "표준(신규)"
+    }
+  },
+  "Comfy_Canvas_SelectionToolbox": {
+    "name": "선택 도구 상자 표시",
+    "tooltip": "노드가 선택되었을 때 공통 작업에 빠르게 접근할 수 있는 플로팅 툴바를 표시합니다."
+  },
+  "Comfy_ConfirmClear": {
+    "name": "워크플로 비우기 시 확인 요구"
+  },
+  "Comfy_DOMClippingEnabled": {
+    "name": "DOM 요소 클리핑 활성화 (활성화 시 성능 저하 가능)"
+  },
+  "Comfy_DevMode": {
+    "name": "개발자 모드 옵션 활성화 (API 저장 등)"
+  },
+  "Comfy_DisableFloatRounding": {
+    "name": "기본 부동 소수점 위젯 반올림 비활성화",
+    "tooltip": "(페이지 새로 고침 필요) 백엔드에서 노드에 의해 설정된 반올림이 있을 때 반올림을 비활성화할 수 없습니다."
+  },
+  "Comfy_DisableSliders": {
+    "name": "노드 위젯 슬라이더 비활성화"
+  },
+  "Comfy_EditAttention_Delta": {
+    "name": "Ctrl+위/아래 정밀도"
+  },
+  "Comfy_EnableTooltips": {
+    "name": "툴팁 활성화"
+  },
+  "Comfy_EnableWorkflowViewRestore": {
+    "name": "워크플로에서 캔버스 위치 및 확대/축소 수준 저장 및 복원"
+  },
+  "Comfy_Execution_PreviewMethod": {
+    "name": "라이브 미리보기 방식",
+    "options": {
+      "auto": "auto",
+      "default": "default",
+      "latent2rgb": "latent2rgb",
+      "none": "none",
+      "taesd": "taesd"
+    },
+    "tooltip": "이미지 생성 중 라이브 미리보기 방식입니다. \"default\"는 서버 CLI 설정을 사용합니다."
+  },
+  "Comfy_FloatRoundingPrecision": {
+    "name": "부동 소수점 위젯 반올림 소수 자리 수 [0 = 자동]",
+    "tooltip": "(페이지 새로 고침 필요)"
+  },
+  "Comfy_Graph_CanvasInfo": {
+    "name": "왼쪽 하단 모서리에 캔버스 정보 표시 (fps 등)"
+  },
+  "Comfy_Graph_CanvasMenu": {
+    "name": "그래프 캔버스 메뉴 표시"
+  },
+  "Comfy_Graph_CtrlShiftZoom": {
+    "name": "빠른 확대/축소 단축키 활성화 (Ctrl + Shift + 드래그)"
+  },
+  "Comfy_Graph_DeduplicateSubgraphNodeIds": {
+    "name": "서브그래프 노드 ID 중복 제거",
+    "tooltip": "워크플로우를 불러올 때 서브그래프 내 중복된 노드 ID를 자동으로 재할당합니다."
+  },
+  "Comfy_Graph_LinkMarkers": {
+    "name": "링크 중간점 마커",
+    "options": {
+      "Arrow": "화살표",
+      "Circle": "원",
+      "None": "없음"
+    }
+  },
+  "Comfy_Graph_LiveSelection": {
+    "name": "실시간 선택",
+    "tooltip": "활성화하면, 다른 디자인 툴처럼 선택 사각형을 드래그할 때 노드가 실시간으로 선택/해제됩니다."
+  },
+  "Comfy_Graph_ZoomSpeed": {
+    "name": "캔버스 확대/축소 속도"
+  },
+  "Comfy_GroupSelectedNodes_Padding": {
+    "name": "선택된 노드 패딩"
+  },
+  "Comfy_Group_DoubleClickTitleToEdit": {
+    "name": "그룹 제목을 두 번 클릭하여 편집"
+  },
+  "Comfy_LinkRelease_Action": {
+    "name": "링크 해제 시 동작 (수정자 없음)",
+    "options": {
+      "context menu": "컨텍스트 메뉴",
+      "no action": "작업 없음",
+      "search box": "검색 상자"
+    }
+  },
+  "Comfy_LinkRelease_ActionShift": {
+    "name": "링크 해제 시 동작 (Shift)",
+    "options": {
+      "context menu": "컨텍스트 메뉴",
+      "no action": "작업 없음",
+      "search box": "검색 상자"
+    }
+  },
+  "Comfy_LinkRenderMode": {
+    "name": "링크 렌더 모드",
+    "options": {
+      "Hidden": "숨김",
+      "Linear": "선형",
+      "Spline": "스플라인",
+      "Straight": "직선"
+    },
+    "tooltip": "캔버스에서 노드 간 연결 링크의 모양과 표시 여부를 제어합니다."
+  },
+  "Comfy_Load3D_3DViewerEnable": {
+    "name": "3D 뷰어 활성화 (베타)",
+    "tooltip": "선택한 노드에 대해 3D 뷰어(베타)를 활성화합니다. 이 기능을 통해 전체 크기의 3D 뷰어 내에서 3D 모델을 시각화하고 직접 상호작용할 수 있습니다."
+  },
+  "Comfy_Load3D_BackgroundColor": {
+    "name": "초기 배경색",
+    "tooltip": "3D 장면의 기본 배경색을 설정합니다. 이 설정은 새 3D 위젯이 생성될 때의 배경 모양을 결정하지만, 생성 후 각 위젯별로 개별 조정이 가능합니다."
+  },
+  "Comfy_Load3D_CameraType": {
+    "name": "초기 카메라 타입",
+    "options": {
+      "orthographic": "orthographic",
+      "perspective": "perspective"
+    },
+    "tooltip": "새 3D 위젯이 생성될 때 카메라가 기본적으로 원근(perspective) 또는 직교(orthographic)인지 제어합니다. 이 기본값은 생성 후 각 위젯별로 개별 전환이 가능합니다."
+  },
+  "Comfy_Load3D_LightAdjustmentIncrement": {
+    "name": "조명 조정 단위",
+    "tooltip": "3D 장면에서 조명 강도를 조정할 때의 증분 크기를 제어합니다. 더 작은 값은 조명 조정에 더 세밀한 제어를 제공하며, 더 큰 값은 한 번의 조정마다 더 뚜렷한 변화를 줍니다."
+  },
+  "Comfy_Load3D_LightIntensity": {
+    "name": "초기 조명 강도",
+    "tooltip": "3D 장면의 기본 조명 밝기 수준을 설정합니다. 이 값은 새 3D 위젯이 생성될 때 조명이 오브젝트를 얼마나 밝게 비추는지 결정하지만, 생성 후 각 위젯별로 개별 조정이 가능합니다."
+  },
+  "Comfy_Load3D_LightIntensityMaximum": {
+    "name": "최대 조명 강도",
+    "tooltip": "3D 장면에서 허용되는 최대 조명 강도 값을 설정합니다. 이 값은 모든 3D 위젯에서 조명 조정 시 설정할 수 있는 밝기의 상한선을 정의합니다."
+  },
+  "Comfy_Load3D_LightIntensityMinimum": {
+    "name": "최소 조명 강도",
+    "tooltip": "3D 장면에서 허용되는 최소 조명 강도 값을 설정합니다. 이 값은 모든 3D 위젯에서 조명 조정 시 설정할 수 있는 밝기의 하한선을 정의합니다."
+  },
+  "Comfy_Load3D_PLYEngine": {
+    "name": "PLY 엔진",
+    "options": {
+      "fastply": "fastply",
+      "sparkjs": "sparkjs",
+      "threejs": "threejs"
+    },
+    "tooltip": "PLY 파일을 불러올 엔진을 선택합니다. \"threejs\"는 네이티브 Three.js PLYLoader를 사용하며(메시 PLY 파일에 적합), \"fastply\"는 ASCII 포인트 클라우드 PLY 파일에 최적화된 로더를 사용합니다. \"sparkjs\"는 3D Gaussian Splatting PLY 파일에 Spark.js를 사용합니다."
+  },
+  "Comfy_Load3D_ShowGrid": {
+    "name": "초기 그리드 표시",
+    "tooltip": "새 3D 위젯이 생성될 때 그리드가 기본적으로 표시되는지 제어합니다. 이 기본값은 생성 후 각 위젯별로 개별 전환이 가능합니다."
+  },
+  "Comfy_Locale": {
+    "name": "언어"
+  },
+  "Comfy_MaskEditor_BrushAdjustmentSpeed": {
+    "name": "브러시 조정 속도 배수",
+    "tooltip": "조정할 때 브러시 크기와 경도가 얼마나 빨리 변하는지를 제어합니다. 값이 높을수록 변화가 더 빠릅니다."
+  },
+  "Comfy_MaskEditor_UseDominantAxis": {
+    "name": "브러시 조정을 지배 축에 고정",
+    "tooltip": "활성화하면 브러시 조정이 이동하는 방향에 따라 크기 또는 경도에만 영향을 미칩니다."
+  },
+  "Comfy_ModelLibrary_AutoLoadAll": {
+    "name": "모든 모델 폴더 자동 로드",
+    "tooltip": "참이면 모든 폴더가 모델 라이브러리를 열 때 즉시 로드됩니다 (로드하는 동안 지연이 발생할 수 있습니다). 거짓이면 루트 수준 모델 폴더는 클릭할 때만 로드됩니다."
+  },
+  "Comfy_ModelLibrary_NameFormat": {
+    "name": "모델 라이브러리 트리 뷰에 표시할 이름",
+    "options": {
+      "filename": "파일 이름",
+      "title": "제목"
+    },
+    "tooltip": "\"파일 이름\"을 선택하면 모델 목록에서 원시 파일 이름(디렉토리 또는 \".safetensors\" 확장자 없이)의 단순화된 뷰가 렌더링됩니다. \"제목\"을 선택하면 구성 가능한 모델 메타데이터 제목이 표시됩니다."
+  },
+  "Comfy_NodeBadge_NodeIdBadgeMode": {
+    "name": "노드 ID 배지 모드",
+    "options": {
+      "None": "없음",
+      "Show all": "모두 표시"
+    }
+  },
+  "Comfy_NodeBadge_NodeLifeCycleBadgeMode": {
+    "name": "노드 생명 주기 배지 모드",
+    "options": {
+      "None": "없음",
+      "Show all": "모두 표시"
+    }
+  },
+  "Comfy_NodeBadge_NodeSourceBadgeMode": {
+    "name": "노드 출처 배지 모드",
+    "options": {
+      "Hide built-in": "내장 숨기기",
+      "None": "없음",
+      "Show all": "모두 표시"
+    }
+  },
+  "Comfy_NodeBadge_ShowApiPricing": {
+    "name": "API 노드 가격 배지 표시"
+  },
+  "Comfy_NodeLibrary_NewDesign": {
+    "name": "새로운 노드 라이브러리 디자인",
+    "tooltip": "탭(필수, 전체, 사용자 정의), 향상된 검색, 그리고 미리보기 기능이 추가된 새롭게 디자인된 노드 라이브러리 사이드바를 활성화합니다."
+  },
+  "Comfy_NodeReplacement_Enabled": {
+    "name": "노드 교체 제안 활성화",
+    "tooltip": "활성화하면, 교체 매핑이 존재하는 누락 노드가 교체 가능으로 표시되어 검토 후 교체할 수 있습니다."
+  },
+  "Comfy_NodeSearchBoxImpl": {
+    "name": "노드 검색 상자 구현",
+    "options": {
+      "default": "기본",
+      "litegraph (legacy)": "litegraph (구버전)",
+      "v1 (legacy)": "v1 (legacy)"
+    }
+  },
+  "Comfy_NodeSearchBoxImpl_NodePreview": {
+    "name": "노드 미리보기",
+    "tooltip": "기본 구현에만 적용됩니다."
+  },
+  "Comfy_NodeSearchBoxImpl_ShowCategory": {
+    "name": "검색 결과에 노드 카테고리 표시",
+    "tooltip": "기본 구현에만 적용됩니다."
+  },
+  "Comfy_NodeSearchBoxImpl_ShowIdName": {
+    "name": "검색 결과에 노드 ID 이름 표시",
+    "tooltip": "기본 구현에만 적용됩니다."
+  },
+  "Comfy_NodeSearchBoxImpl_ShowNodeFrequency": {
+    "name": "검색 결과에 노드 빈도 표시",
+    "tooltip": "기본 구현에만 적용됩니다."
+  },
+  "Comfy_NodeSuggestions_number": {
+    "name": "노드 제안 수",
+    "tooltip": "라이트그래프 검색 상자/컨텍스트 메뉴 전용"
+  },
+  "Comfy_Node_AllowImageSizeDraw": {
+    "name": "이미지 미리보기 아래에 너비 × 높이 표시"
+  },
+  "Comfy_Node_AlwaysShowAdvancedWidgets": {
+    "name": "모든 노드에서 고급 위젯 항상 표시",
+    "tooltip": "이 옵션을 활성화하면, 모든 노드에서 고급 위젯이 개별적으로 확장하지 않아도 항상 표시됩니다."
+  },
+  "Comfy_Node_AutoSnapLinkToSlot": {
+    "name": "링크를 노드 슬롯에 자동 스냅",
+    "tooltip": "링크를 노드 위로 드래그할 때 링크가 노드의 유효한 입력 슬롯에 자동으로 스냅됩니다."
+  },
+  "Comfy_Node_BypassAllLinksOnDelete": {
+    "name": "노드 삭제 시 모든 링크 유지",
+    "tooltip": "노드를 삭제할 때 모든 입력 및 출력 링크를 재연결하려고 시도합니다 (삭제된 노드를 우회)."
+  },
+  "Comfy_Node_DoubleClickTitleToEdit": {
+    "name": "노드 제목을 두 번 클릭하여 편집"
+  },
+  "Comfy_Node_MiddleClickRerouteNode": {
+    "name": "중간 클릭으로 새 경유점 생성"
+  },
+  "Comfy_Node_Opacity": {
+    "name": "노드 불투명도"
+  },
+  "Comfy_Node_ShowDeprecated": {
+    "name": "검색에서 지원 중단된 노드 표시",
+    "tooltip": "지원 중단된 노드는 기본적으로 UI에서 숨겨지지만, 이를 사용하는 기존 워크플로에서는 여전히 기능합니다."
+  },
+  "Comfy_Node_ShowExperimental": {
+    "name": "검색에서 실험적 노드 표시",
+    "tooltip": "실험적 노드는 UI에서 그렇게 표시되며, 향후 버전에서 상당한 변경이나 제거의 대상이 될 수 있습니다. 프로덕션 워크플로에서 주의하여 사용하십시오."
+  },
+  "Comfy_Node_SnapHighlightsNode": {
+    "name": "스냅 하이라이트 노드",
+    "tooltip": "링크를 유효한 입력 슬롯이 있는 노드 위로 드래그할 때 노드를 강조 표시합니다."
+  },
+  "Comfy_Notification_ShowVersionUpdates": {
+    "name": "버전 업데이트 표시",
+    "tooltip": "새 모델과 주요 신규 기능에 대한 업데이트를 표시합니다."
+  },
+  "Comfy_Pointer_ClickBufferTime": {
+    "name": "포인터 클릭 드리프트 지연",
+    "tooltip": "포인터 버튼을 누른 후, 포인터 움직임을 무시할 수 있는 최대 시간(밀리초)입니다.\n\n클릭하는 동안 포인터가 움직여 의도치 않게 객체가 밀리는 것을 방지합니다."
+  },
+  "Comfy_Pointer_ClickDrift": {
+    "name": "포인터 클릭 드리프트 (최대 거리)",
+    "tooltip": "버튼을 누른 상태에서 포인터가 이 거리보다 더 많이 움직이면, 클릭이 아닌 드래그로 간주됩니다.\n\n클릭하는 동안 포인터가 움직여 의도치 않게 객체가 밀리는 것을 방지합니다."
+  },
+  "Comfy_Pointer_DoubleClickTime": {
+    "name": "더블 클릭 간격 (최대)",
+    "tooltip": "더블 클릭의 두 클릭 사이의 최대 시간(밀리초)입니다. 이 값을 늘리면 가끔 더블 클릭이 인식되지 않는 문제를 해결할 수 있습니다."
+  },
+  "Comfy_PreviewFormat": {
+    "name": "미리보기 이미지 형식",
+    "tooltip": "이미지 위젯에서 미리보기를 표시할 때 경량 이미지로 변환합니다. '이미지 포맷;품질' 예: webp, jpeg, webp;50 등."
+  },
+  "Comfy_PromptFilename": {
+    "name": "워크플로 저장 시 파일 이름 프롬프트"
+  },
+  "Comfy_QueueButton_BatchCountLimit": {
+    "name": "배치 수 제한",
+    "tooltip": "한 번의 버튼 클릭으로 실행 큐에 추가되는 최대 작업 수입니다."
+  },
+  "Comfy_Queue_MaxHistoryItems": {
+    "name": "실행 큐 기록 갯수",
+    "tooltip": "실행 큐 기록에 표시되는 최대 작업 수입니다."
+  },
+  "Comfy_Queue_QPOV2": {
+    "name": "에셋 사이드 패널에서 통합 작업 큐 사용",
+    "tooltip": "떠다니는 작업 큐 패널을 에셋 사이드 패널에 내장된 동등한 작업 큐로 대체합니다. 이 옵션을 비활성화하면 기존의 떠다니는 패널 레이아웃으로 돌아갈 수 있습니다."
+  },
+  "Comfy_RightSidePanel_ShowErrorsTab": {
+    "name": "오류 탭을 사이드 패널에 표시",
+    "tooltip": "활성화하면 오른쪽 사이드 패널에 오류 탭이 표시되어 워크플로 실행 오류를 한눈에 확인할 수 있습니다."
+  },
+  "Comfy_Sidebar_Location": {
+    "name": "사이드바 위치",
+    "options": {
+      "left": "왼쪽",
+      "right": "오른쪽"
+    }
+  },
+  "Comfy_Sidebar_Size": {
+    "name": "사이드바 크기",
+    "options": {
+      "normal": "보통",
+      "small": "작음"
+    }
+  },
+  "Comfy_Sidebar_Style": {
+    "name": "사이드바 스타일",
+    "options": {
+      "connected": "연결됨",
+      "floating": "플로팅"
+    }
+  },
+  "Comfy_Sidebar_UnifiedWidth": {
+    "name": "통합 사이드바 너비"
+  },
+  "Comfy_SnapToGrid_GridSize": {
+    "name": "그리드 크기에 스냅",
+    "tooltip": "Shift 키를 누른 상태에서 노드를 드래그하거나 크기를 조절하면 그리드에 맞춰 정렬됩니다. 이 설정은 그리드의 크기를 제어합니다."
+  },
+  "Comfy_TextareaWidget_FontSize": {
+    "name": "텍스트 영역 위젯 글꼴 크기"
+  },
+  "Comfy_TextareaWidget_Spellcheck": {
+    "name": "텍스트 영역 위젯 맞춤법 검사"
+  },
+  "Comfy_TreeExplorer_ItemPadding": {
+    "name": "트리 탐색기 항목 패딩"
+  },
+  "Comfy_UI_TabBarLayout": {
+    "name": "탭 바 레이아웃",
+    "options": {
+      "Default": "기본값",
+      "Integrated": "통합"
+    },
+    "tooltip": "탭 바의 레이아웃을 제어합니다. \"통합\"을 선택하면 도움말과 사용자 컨트롤이 탭 바 영역으로 이동합니다."
+  },
+  "Comfy_UseNewMenu": {
+    "name": "새 메뉴 사용",
+    "options": {
+      "Disabled": "비활성화",
+      "Top": "상단"
+    },
+    "tooltip": "메뉴 바 위치입니다. 모바일 기기에서는 메뉴가 항상 상단에 표시됩니다."
+  },
+  "Comfy_Validation_Workflows": {
+    "name": "워크플로 유효성 검사"
+  },
+  "Comfy_VueNodes_AutoScaleLayout": {
+    "name": "자동 스케일 레이아웃 (Vue 노드)",
+    "tooltip": "Vue 렌더링으로 전환 시 노드 위치를 자동으로 조정하여 겹침 방지"
+  },
+  "Comfy_VueNodes_Enabled": {
+    "name": "모던 노드 디자인 (Vue 노드)",
+    "tooltip": "모던: 향상된 상호작용, 기본 브라우저 기능, 업데이트된 시각적 디자인을 갖춘 DOM 기반 렌더링. 클래식: 전통적인 캔버스 렌더링."
+  },
+  "Comfy_WidgetControlMode": {
+    "name": "위젯 제어 모드",
+    "options": {
+      "after": "다음",
+      "before": "이전"
+    },
+    "tooltip": "위젯 값이 업데이트되는 시점을 제어합니다 (무작위화/증가/감소), 프롬프트가 큐에 추가되기 전 또는 후입니다."
+  },
+  "Comfy_Window_UnloadConfirmation": {
+    "name": "창 닫을 때 확인 표시"
+  },
+  "Comfy_Workflow_AutoSave": {
+    "name": "자동 저장",
+    "options": {
+      "after delay": "지연 후",
+      "off": "끄기"
+    }
+  },
+  "Comfy_Workflow_AutoSaveDelay": {
+    "name": "자동 저장 지연 시간 (ms)",
+    "tooltip": "자동 저장이 \"지연 후\"로 설정된 경우에만 적용됩니다."
+  },
+  "Comfy_Workflow_ConfirmDelete": {
+    "name": "워크플로 삭제 시 확인 표시"
+  },
+  "Comfy_Workflow_Persist": {
+    "name": "페이지 (재)로드시 워크플로우 상태를 유지하고 복원"
+  },
+  "Comfy_Workflow_ShowMissingModelsWarning": {
+    "name": "누락된 모델 경고 표시"
+  },
+  "Comfy_Workflow_ShowMissingNodesWarning": {
+    "name": "누락된 노드 경고 표시"
+  },
+  "Comfy_Workflow_SortNodeIdOnSave": {
+    "name": "워크플로 저장 시 노드 ID 정렬"
+  },
+  "Comfy_Workflow_WarnBlueprintOverwrite": {
+    "name": "기존 서브그래프 블루프린트 덮어쓰기 전 확인 요청"
+  },
+  "Comfy_Workflow_WorkflowTabsPosition": {
+    "name": "열린 워크플로 위치",
+    "options": {
+      "Sidebar": "사이드바",
+      "Topbar": "상단바"
+    }
+  },
+  "LiteGraph_Canvas_MaximumFps": {
+    "name": "최대 FPS",
+    "tooltip": "캔버스가 렌더링할 수 있는 최대 프레임 수입니다. 부드럽게 동작하도록 GPU 사용률을 제한 합니다. 0이면 화면 주사율로 작동 합니다. 기본값: 0"
+  },
+  "LiteGraph_Canvas_MinFontSizeForLOD": {
+    "name": "줌 노드 상세 수준 - 글꼴 크기 임계값",
+    "tooltip": "노드가 저품질 LOD 렌더링으로 전환되는 시점을 제어합니다. 픽셀 단위의 글꼴 크기를 사용하여 전환 시점을 결정합니다. 0으로 설정하면 비활성화됩니다. 값 1-24는 LOD의 최소 글꼴 크기 임계값을 설정합니다 - 값이 높을수록(24px) 축소할 때 노드가 단순화된 렌더링으로 더 빨리 전환되고, 값이 낮을수록(1px) 전체 노드 품질이 더 오래 유지됩니다."
+  },
+  "LiteGraph_ContextMenu_Scaling": {
+    "name": "확대시 노드 콤보 위젯 메뉴 (목록) 스케일링"
+  },
+  "LiteGraph_Node_DefaultPadding": {
+    "name": "새 노드를 항상 축소",
+    "tooltip": "노드를 생성할 때 가능한 가장 작은 크기로 크기를 조정합니다. 비활성화하면 새로 추가된 노드가 위젯 값을 표시하기 위해 약간 넓어집니다."
+  },
+  "LiteGraph_Node_TooltipDelay": {
+    "name": "툴팁 지연"
+  },
+  "LiteGraph_Reroute_SplineOffset": {
+    "name": "경유점 스플라인 오프셋",
+    "tooltip": "경유점 중심에서 베지어 제어점까지의 오프셋"
+  },
+  "pysssss_SnapToGrid": {
+    "name": "항상 그리드에 스냅",
+    "tooltip": "활성화하면 노드를 이동하거나 크기를 조정할 때 자동으로 그리드에 정렬됩니다."
+  }
+}

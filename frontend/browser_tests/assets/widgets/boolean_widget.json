@@ -1,0 +1,33 @@
+{
+  "last_node_id": 11,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "DevToolsNodeWithBooleanInput",
+      "pos": [0, 30],
+      "size": [315, 58],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithBooleanInput"
+      },
+      "widgets_values": [false]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    }
+  },
+  "version": 0.4
+}

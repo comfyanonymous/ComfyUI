@@ -1,0 +1,65 @@
+# Global Ownership
+*                                                 @Comfy-org/comfy_frontend_devs
+
+# Desktop/Electron
+/apps/desktop-ui/                                 @benceruleanlu @Comfy-org/comfy_frontend_devs
+/src/stores/electronDownloadStore.ts              @benceruleanlu @Comfy-org/comfy_frontend_devs
+/src/extensions/core/electronAdapter.ts           @benceruleanlu @Comfy-org/comfy_frontend_devs
+/vite.electron.config.mts                         @benceruleanlu @Comfy-org/comfy_frontend_devs
+
+# Common UI Components
+/src/components/chip/                             @viva-jinyi @Comfy-org/comfy_frontend_devs
+/src/components/card/                             @viva-jinyi @Comfy-org/comfy_frontend_devs
+/src/components/button/                           @viva-jinyi @Comfy-org/comfy_frontend_devs
+/src/components/input/                            @viva-jinyi @Comfy-org/comfy_frontend_devs
+
+# Topbar
+/src/components/topbar/                           @pythongosssss @Comfy-org/comfy_frontend_devs
+
+# Thumbnail
+/src/renderer/core/thumbnail/                     @pythongosssss @Comfy-org/comfy_frontend_devs
+
+# Legacy UI
+/scripts/ui/                                      @pythongosssss @Comfy-org/comfy_frontend_devs
+
+# Link rendering
+/src/renderer/core/canvas/links/                  @benceruleanlu @Comfy-org/comfy_frontend_devs
+
+# Partner Nodes
+/src/composables/node/useNodePricing.ts           @jojodecayz @bigcat88 @Comfy-org/comfy_frontend_devs
+
+# Node help system
+/src/utils/nodeHelpUtil.ts                        @benceruleanlu @Comfy-org/comfy_frontend_devs
+/src/stores/workspace/nodeHelpStore.ts            @benceruleanlu @Comfy-org/comfy_frontend_devs
+/src/services/nodeHelpService.ts                  @benceruleanlu @Comfy-org/comfy_frontend_devs
+
+# Selection toolbox
+/src/components/graph/selectionToolbox/           @Myestery @Comfy-org/comfy_frontend_devs
+
+# Minimap
+/src/renderer/extensions/minimap/                 @jtydhr88 @Myestery @Comfy-org/comfy_frontend_devs
+
+# Workflow Templates
+/src/platform/workflow/templates/                 @Myestery @christian-byrne @comfyui-wiki @Comfy-org/comfy_frontend_devs
+/src/components/templates/                        @Myestery @christian-byrne @comfyui-wiki @Comfy-org/comfy_frontend_devs
+
+# Mask Editor
+/src/extensions/core/maskeditor.ts                @trsommer @brucew4yn3rp @Comfy-org/comfy_frontend_devs
+/src/extensions/core/maskEditorLayerFilenames.ts  @trsommer @brucew4yn3rp @Comfy-org/comfy_frontend_devs
+
+# 3D
+/src/extensions/core/load3d.ts                    @jtydhr88 @Comfy-org/comfy_frontend_devs
+/src/components/load3d/                           @jtydhr88 @Comfy-org/comfy_frontend_devs
+
+# Manager
+/src/workbench/extensions/manager/                @viva-jinyi @christian-byrne @ltdrdata @Comfy-org/comfy_frontend_devs
+
+# Translations
+/src/locales/                                     @Comfy-Org/comfy_maintainer @Comfy-org/comfy_frontend_devs
+
+# LLM Instructions (blank on purpose)
+.claude/
+.cursor/
+.cursorrules
+**/AGENTS.md
+**/CLAUDE.md

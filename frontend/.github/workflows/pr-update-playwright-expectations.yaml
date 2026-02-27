@@ -1,0 +1,309 @@
+# Setting test expectation screenshots for Playwright
+name: 'PR: Update Playwright Expectations'
+
+on:
+  pull_request:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: >
+      ( github.event_name == 'pull_request' && github.event.label.name == 'New Browser Test Expectations' ) ||
+      ( github.event.issue.pull_request &&
+        github.event_name == 'issue_comment' &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+        ) &&
+        startsWith(github.event.comment.body, '/update-playwright') )
+    outputs:
+      pr-number: ${{ steps.pr-info.outputs.pr-number }}
+      branch: ${{ steps.pr-info.outputs.branch }}
+      comment-id: ${{ steps.find-update-comment.outputs.comment-id }}
+    steps:
+      - name: Get PR info
+        id: pr-info
+        run: |
+          echo "pr-number=${{ github.event.number || github.event.issue.number }}" >> $GITHUB_OUTPUT
+          echo "branch=$(gh pr view ${{ github.event.number || github.event.issue.number }} --repo ${{ github.repository }} --json headRefName --jq '.headRefName')" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find Update Comment
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
+        id: 'find-update-comment'
+        with:
+          issue-number: ${{ steps.pr-info.outputs.pr-number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Updating Playwright Expectations'
+
+      - name: Add Starting Reaction
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        with:
+          comment-id: ${{ steps.find-update-comment.outputs.comment-id }}
+          issue-number: ${{ steps.pr-info.outputs.pr-number }}
+          body: |
+            Updating Playwright Expectations
+          edit-mode: replace
+          reactions: eyes
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.pr-info.outputs.branch }}
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+        with:
+          include_build_step: true
+
+      # Upload built dist/ (containerized test jobs will pnpm install without cache)
+      - name: Upload built frontend
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
+  # Sharded snapshot updates
+  update-snapshots-sharded:
+    needs: setup
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/comfy-org/comfyui-ci-container:0.0.12
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3, 4]
+        shardTotal: [4]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.setup.outputs.branch }}
+      - name: Download built frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Start ComfyUI server
+        uses: ./.github/actions/start-comfyui-server
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      # Run sharded tests with snapshot updates (browsers pre-installed in container)
+      - name: Update snapshots (Shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+        id: playwright-tests
+        run: pnpm exec playwright test --update-snapshots --grep @screenshot --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        continue-on-error: true
+
+      - name: Stage changed snapshot files
+        id: changed-snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Configure git safe.directory for container environment
+          git config --global --add safe.directory "$(pwd)"
+
+          # Get list of changed snapshot files (including untracked/new files)
+          changed_files=$( (
+            git diff --name-only browser_tests/ 2>/dev/null || true
+            git ls-files --others --exclude-standard browser_tests/ 2>/dev/null || true
+          ) | sort -u | grep -E '\-snapshots/' || true )
+
+          if [ -z "$changed_files" ]; then
+            echo "No snapshot changes in shard ${{ matrix.shardIndex }}"
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          file_count=$(echo "$changed_files" | wc -l)
+          echo "Shard ${{ matrix.shardIndex }}: $file_count changed snapshot(s):"
+          echo "$changed_files"
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+
+          # Copy changed files to staging directory
+          mkdir -p /tmp/changed_snapshots_shard
+          while IFS= read -r file; do
+            [ -f "$file" ] || continue
+            file_without_prefix="${file#browser_tests/}"
+            mkdir -p "/tmp/changed_snapshots_shard/$(dirname "$file_without_prefix")"
+            cp "$file" "/tmp/changed_snapshots_shard/$file_without_prefix"
+          done <<< "$changed_files"
+
+      # Upload ONLY the changed files from this shard
+      - name: Upload changed snapshots
+        uses: actions/upload-artifact@v6
+        if: steps.changed-snapshots.outputs.has-changes == 'true'
+        with:
+          name: snapshots-shard-${{ matrix.shardIndex }}
+          path: /tmp/changed_snapshots_shard/
+          retention-days: 1
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: playwright-report-shard-${{ matrix.shardIndex }}
+          path: ./playwright-report/
+          retention-days: 30
+
+  # Merge snapshots and commit
+  merge-and-commit:
+    needs: [setup, update-snapshots-sharded]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.setup.outputs.branch }}
+          token: ${{ secrets.PR_GH_TOKEN }}
+
+      # Download all changed snapshot files from shards
+      - name: Download snapshot artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: snapshots-shard-*
+          path: ./downloaded-snapshots
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: |
+          echo "=========================================="
+          echo "DOWNLOADED SNAPSHOT FILES"
+          echo "=========================================="
+          if [ -d "./downloaded-snapshots" ]; then
+            find ./downloaded-snapshots -type f
+            echo ""
+            echo "Total files: $(find ./downloaded-snapshots -type f | wc -l)"
+          else
+            echo "No snapshot artifacts downloaded (no changes in any shard)"
+            echo ""
+            echo "Total files: 0"
+          fi
+
+      # Merge only the changed files into browser_tests
+      - name: Merge changed snapshots
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "MERGING CHANGED SNAPSHOTS"
+          echo "=========================================="
+
+          # Check if any artifacts were downloaded (merge-multiple puts files directly in path)
+          if [ ! -d "./downloaded-snapshots" ]; then
+            echo "No snapshot artifacts to merge"
+            echo "=========================================="
+            echo "MERGE COMPLETE"
+            echo "=========================================="
+            echo "Files merged: 0"
+            exit 0
+          fi
+
+          # Verify target directory exists
+          if [ ! -d "browser_tests" ]; then
+            echo "::error::Target directory 'browser_tests' does not exist"
+            exit 1
+          fi
+
+          # Count files to merge
+          file_count=$(find ./downloaded-snapshots -type f | wc -l)
+
+          if [ "$file_count" -eq 0 ]; then
+            echo "No snapshot files found in downloaded artifacts"
+            echo "=========================================="
+            echo "MERGE COMPLETE"
+            echo "=========================================="
+            echo "Files merged: 0"
+            exit 0
+          fi
+
+          echo "Merging $file_count snapshot file(s)..."
+
+          # Copy all files directly, preserving directory structure
+          # With merge-multiple: true, files are directly in ./downloaded-snapshots/ without shard subdirs
+          cp -v -r ./downloaded-snapshots/* browser_tests/ 2>&1 | sed 's/^/  /'
+
+          echo ""
+          echo "=========================================="
+          echo "MERGE COMPLETE"
+          echo "=========================================="
+          echo "Files merged: $file_count"
+
+      - name: Show changes
+        run: |
+          echo "=========================================="
+          echo "CHANGES SUMMARY"
+          echo "=========================================="
+          echo ""
+          echo "Changed files in browser_tests (including untracked):"
+          CHANGES=$(git status --porcelain=v1 --untracked-files=all -- browser_tests/)
+          if [ -z "$CHANGES" ]; then
+            echo "No changes"
+            echo ""
+            echo "Total changes:"
+            echo "0"
+          else
+            echo "$CHANGES" | head -50
+            echo ""
+            echo "Total changes:"
+            echo "$CHANGES" | wc -l
+          fi
+
+      - name: Commit updated expectations
+        id: commit
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+
+          if [ -z "$(git status --porcelain=v1 --untracked-files=all -- browser_tests/)" ]; then
+            echo "No changes to commit"
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "=========================================="
+          echo "COMMITTING CHANGES"
+          echo "=========================================="
+
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+
+          git add browser_tests/
+          git commit -m "[automated] Update test expectations"
+
+          echo "Pushing to ${{ needs.setup.outputs.branch }}..."
+          git push origin ${{ needs.setup.outputs.branch }}
+
+          echo "✓ Commit and push successful"
+
+      - name: Add Done Reaction
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        if: github.event_name == 'issue_comment' && steps.commit.outputs.has-changes == 'true'
+        with:
+          comment-id: ${{ needs.setup.outputs.comment-id }}
+          issue-number: ${{ needs.setup.outputs.pr-number }}
+          reactions: +1
+          reactions-edit-mode: replace
+
+      - name: Remove New Browser Test Expectations label
+        if: always() && github.event_name == 'pull_request'
+        run: gh pr edit ${{ needs.setup.outputs.pr-number }} --remove-label "New Browser Test Expectations"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

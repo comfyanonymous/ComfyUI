@@ -1,0 +1,89 @@
+{
+  "id": "51b9b184-770d-40ac-a478-8cc31667ff23",
+  "revision": 0,
+  "last_node_id": 5,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "KSampler",
+      "pos": [867.4669799804688, 347.22369384765625],
+      "size": [315, 262],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [0, "randomize", 20, 8, "euler", "normal", 1]
+    },
+    {
+      "id": 5,
+      "type": "PrimitiveInt",
+      "pos": [443.0852355957031, 441.131591796875],
+      "size": [315, 82],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [3]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [0, "randomize"]
+    }
+  ],
+  "links": [[3, 5, 0, 4, 5, "INT"]],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.9487171000000016,
+      "offset": [-325.57196748514497, -168.13150517966463]
+    }
+  },
+  "version": 0.4
+}

@@ -1,0 +1,226 @@
+# Description: End-to-end testing with Playwright across multiple browsers, deploys test reports to Cloudflare Pages
+name: 'CI: Tests E2E'
+
+on:
+  push:
+    branches: [main, master, core/*, desktop/*]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches-ignore: [wip/*, draft/*, temp/*]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+        with:
+          include_build_step: true
+
+      # Upload only built dist/ (containerized test jobs will pnpm install without cache)
+      - name: Upload built frontend
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
+  # Sharded chromium tests
+  playwright-tests-chromium-sharded:
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/comfy-org/comfyui-ci-container:0.0.12
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3, 4, 5, 6, 7, 8]
+        shardTotal: [8]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Download built frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Start ComfyUI server
+        uses: ./.github/actions/start-comfyui-server
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      # Run sharded tests (browsers pre-installed in container)
+      - name: Run Playwright tests (Shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+        id: playwright
+        run: pnpm exec playwright test --project=chromium --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }} --reporter=blob
+        env:
+          PLAYWRIGHT_BLOB_OUTPUT_DIR: ./blob-report
+
+      - name: Upload blob report
+        uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: blob-report-chromium-${{ matrix.shardIndex }}
+          path: blob-report/
+          retention-days: 1
+
+  playwright-tests:
+    # Ideally, each shard runs test in 6 minutes, but allow up to 15 minutes
+    timeout-minutes: 15
+    needs: setup
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/comfy-org/comfyui-ci-container:0.0.12
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium-2x, chromium-0.5x, mobile-chrome]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Download built frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Start ComfyUI server
+        uses: ./.github/actions/start-comfyui-server
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      # Run tests (browsers pre-installed in container)
+      - name: Run Playwright tests (${{ matrix.browser }})
+        id: playwright
+        run: pnpm exec playwright test --project=${{ matrix.browser }} --reporter=blob
+        env:
+          PLAYWRIGHT_BLOB_OUTPUT_DIR: ./blob-report
+
+      - name: Generate HTML and JSON reports
+        if: always()
+        run: |
+          # Generate HTML report from blob
+          pnpm exec playwright merge-reports --reporter=html ./blob-report
+          # Generate JSON report separately with explicit output path
+          PLAYWRIGHT_JSON_OUTPUT_NAME=playwright-report/report.json \
+          pnpm exec playwright merge-reports --reporter=json ./blob-report
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: ./playwright-report/
+          retention-days: 30
+
+  # Merge sharded test reports (no container needed - only runs CLI)
+  merge-reports:
+    needs: [playwright-tests-chromium-sharded]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v7
+        with:
+          path: ./all-blob-reports
+          pattern: blob-report-chromium-*
+          merge-multiple: true
+
+      - name: Merge into HTML Report
+        run: |
+          # Generate HTML report
+          pnpm dlx @playwright/test merge-reports --reporter=html ./all-blob-reports
+          # Generate JSON report separately with explicit output path
+          PLAYWRIGHT_JSON_OUTPUT_NAME=playwright-report/report.json \
+          pnpm dlx @playwright/test merge-reports --reporter=json ./all-blob-reports
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report-chromium
+          path: ./playwright-report/
+          retention-days: 30
+
+  #### BEGIN Deployment and commenting (non-forked PRs only)
+  # when using pull_request event, we have permission to comment directly
+  # if its a forked repo, we need to use workflow_run event in a separate workflow (pr-playwright-deploy.yaml)
+
+  # Post starting comment for non-forked PRs
+  comment-on-pr-start:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Post starting comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x scripts/cicd/pr-playwright-deploy-and-comment.sh
+          ./scripts/cicd/pr-playwright-deploy-and-comment.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.head_ref }}" \
+            "starting"
+
+  # Deploy and comment for non-forked PRs only
+  deploy-and-comment:
+    needs: [playwright-tests, merge-reports]
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download all playwright reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: playwright-report-*
+          path: reports
+
+      - name: Deploy reports and comment on PR
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bash ./scripts/cicd/pr-playwright-deploy-and-comment.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.head_ref }}" \
+            "completed"
+  #### END Deployment and commenting (non-forked PRs only)

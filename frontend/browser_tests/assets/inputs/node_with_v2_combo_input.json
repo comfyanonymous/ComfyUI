@@ -1,0 +1,36 @@
+{
+  "id": "5635564e-189f-49e4-9b25-6b7634bcd595",
+  "revision": 0,
+  "last_node_id": 78,
+  "last_link_id": 53,
+  "nodes": [
+    {
+      "id": 78,
+      "type": "DevToolsNodeWithV2ComboInput",
+      "pos": [1320, 904],
+      "size": [270.3199157714844, 58],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "COMBO",
+          "type": "COMBO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithV2ComboInput"
+      },
+      "widgets_values": ["A"]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "frontendVersion": "1.19.7"
+  },
+  "version": 0.4
+}

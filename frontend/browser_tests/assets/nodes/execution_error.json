@@ -1,0 +1,70 @@
+{
+  "last_node_id": 17,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 14,
+      "type": "PreviewImage",
+      "pos": {
+        "0": 300,
+        "1": 60
+      },
+      "size": {
+        "0": 213.8594970703125,
+        "1": 50.65289306640625
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 15
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 17,
+      "type": "DevToolsErrorRaiseNode",
+      "pos": {
+        "0": 20,
+        "1": 60
+      },
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [15],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsErrorRaiseNode"
+      }
+    }
+  ],
+  "links": [[15, 17, 0, 14, 0, "IMAGE"]],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [117.20766722169206, 472.69035116826046]
+    }
+  },
+  "version": 0.4
+}

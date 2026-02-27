@@ -1,0 +1,37 @@
+{
+  "last_node_id": 15,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 15,
+      "type": "DevToolsRemoteWidgetNode",
+      "pos": [495, 735],
+      "size": [315, 58],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsRemoteWidgetNode"
+      },
+      "widgets_values": ["v1-5-pruned-emaonly-fp16.safetensors"]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8008869919566275,
+      "offset": [538.9801226576359, -55.24554581806672]
+    }
+  },
+  "version": 0.4
+}

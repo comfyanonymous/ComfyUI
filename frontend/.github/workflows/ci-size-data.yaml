@@ -1,0 +1,41 @@
+name: 'CI: Size Data'
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    if: github.repository == 'Comfy-Org/ComfyUI_frontend'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Collect size data
+        run: node scripts/size-collect.js
+
+      - name: Save PR number & base branch
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo ${{ github.event.number }} > ./temp/size/number.txt
+          echo ${{ github.base_ref }} > ./temp/size/base.txt
+
+      - name: Upload size data
+        uses: actions/upload-artifact@v6
+        with:
+          name: size-data
+          path: temp/size

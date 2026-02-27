@@ -1,0 +1,75 @@
+{
+  "last_node_id": 4,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "EmptyLatentImage",
+      "pos": [380.51641845703125, 191.39659118652344],
+      "size": [315, 106],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "breadth",
+          "type": "INT",
+          "widget": {
+            "name": "breadth"
+          },
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [512, 512, 1]
+    },
+    {
+      "id": 4,
+      "type": "PrimitiveNode",
+      "pos": [73.6164321899414, 197.9966278076172],
+      "size": [210, 82],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "widget": {
+            "name": "bredth"
+          },
+          "links": [2]
+        }
+      ],
+      "title": "breadth",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [512, "fixed"]
+    }
+  ],
+  "links": [[2, 4, 0, 3, 0, "INT"]],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    },
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": false,
+    "VHS_KeepIntermediate": false
+  },
+  "version": 0.4
+}

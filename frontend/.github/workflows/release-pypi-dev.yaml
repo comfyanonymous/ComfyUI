@@ -1,0 +1,79 @@
+name: Release PyPI Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      devVersion:
+        description: 'Dev version'
+        required: true
+        type: number
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.current_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Get current version
+        id: current_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      - name: Build project
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+          ENABLE_MINIFY: 'true'
+          USE_PROD_CONFIG: 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm zipdist
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-files
+          path: |
+            dist/
+            dist.zip
+
+  publish_pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Download dist artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-files
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Install build dependencies
+        run: python -m pip install build
+      - name: Setup pypi package
+        run: |
+          mkdir -p comfyui_frontend_package/comfyui_frontend_package/static/
+          cp -r dist/* comfyui_frontend_package/comfyui_frontend_package/static/
+      - name: Build pypi package
+        run: python -m build
+        working-directory: comfyui_frontend_package
+        env:
+          COMFYUI_FRONTEND_VERSION: ${{ format('{0}.dev{1}', needs.build.outputs.version, inputs.devVersion) }}
+      - name: Publish pypi package
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          packages-dir: comfyui_frontend_package/dist

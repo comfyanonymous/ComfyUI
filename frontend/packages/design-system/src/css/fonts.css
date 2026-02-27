@@ -1,0 +1,17 @@
+/* Inter Font Family */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-latin-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-latin-italic.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}

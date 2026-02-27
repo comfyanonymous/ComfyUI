@@ -1,0 +1,142 @@
+{
+  "last_node_id": 19,
+  "last_link_id": 14,
+  "nodes": [
+    {
+      "id": 19,
+      "type": "workflow>two_VAE_decode",
+      "pos": [1368.800048828125, 768.7999877929688],
+      "size": [418.1999816894531, 86],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "VAEDecode IMAGE",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {}
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    },
+    "node_versions": {},
+    "ue_links": [],
+    "groupNodes": {
+      "two_VAE_decode": {
+        "nodes": [
+          {
+            "id": -1,
+            "type": "VAEDecode",
+            "pos": [1368.800048828125, 768.7999877929688],
+            "size": [210, 46],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "samples",
+                "type": "LATENT",
+                "link": null,
+                "localized_name": "samples"
+              },
+              {
+                "name": "vae",
+                "type": "VAE",
+                "link": null,
+                "localized_name": "vae"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "IMAGE",
+                "type": "IMAGE",
+                "links": null,
+                "localized_name": "IMAGE"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "VAEDecode"
+            },
+            "index": 0
+          },
+          {
+            "id": -1,
+            "type": "VAEDecode",
+            "pos": [1368.800048828125, 873.7999877929688],
+            "size": [210, 46],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "samples",
+                "type": "LATENT",
+                "link": null,
+                "localized_name": "samples"
+              },
+              {
+                "name": "vae",
+                "type": "VAE",
+                "link": null,
+                "localized_name": "vae"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "IMAGE",
+                "type": "IMAGE",
+                "links": null,
+                "localized_name": "IMAGE"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "VAEDecode"
+            },
+            "index": 1
+          }
+        ],
+        "links": [],
+        "external": [],
+        "config": {
+          "1": {
+            "input": {
+              "samples": {
+                "visible": false
+              },
+              "vae": {
+                "visible": false
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version": 0.4
+}

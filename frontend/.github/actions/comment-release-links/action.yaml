@@ -1,0 +1,119 @@
+name: Post Release Summary Comment
+description: Post or update a PR comment summarizing release links with diff, derived versions, and optional extras.
+author: ComfyUI Frontend Team
+
+inputs:
+  issue-number:
+    description: Optional PR number override (defaults to the current pull request)
+    default: ''
+  version_file:
+    description: Path to the JSON file containing the current version (relative to repo root)
+    required: true
+
+outputs:
+  prev_version:
+    description: Previous version derived from the parent commit
+    value: ${{ steps.build.outputs.prev_version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build comment body
+      id: build
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        VERSION_FILE="${{ inputs.version_file }}"
+        REPO="${{ github.repository }}"
+
+        if [[ -z "$VERSION_FILE" ]]; then
+          echo "::error::version_file input is required" >&2
+          exit 1
+        fi
+
+        PREV_JSON=$(git show HEAD^1:"$VERSION_FILE" 2>/dev/null || true)
+        if [[ -z "$PREV_JSON" ]]; then
+          echo "::error::Unable to read $VERSION_FILE from parent commit" >&2
+          exit 1
+        fi
+        PREV_VERSION=$(printf '%s' "$PREV_JSON" | node -pe "const data = JSON.parse(require('fs').readFileSync(0, 'utf8')); if (!data.version) { process.exit(1); } data.version")
+        if [[ -z "$PREV_VERSION" ]]; then
+          echo "::error::Unable to determine previous version from $VERSION_FILE" >&2
+          exit 1
+        fi
+
+        NEW_VERSION=$(node -pe "const fs=require('fs');const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(!data.version){process.exit(1);}data.version" "$VERSION_FILE")
+        if [[ -z "$NEW_VERSION" ]]; then
+          echo "::error::Unable to determine current version from $VERSION_FILE" >&2
+          exit 1
+        fi
+
+        MARKER='release-summary'
+        MESSAGE='Publish jobs finished successfully:'
+        LINKS_VALUE=''
+
+        case "$VERSION_FILE" in
+          package.json)
+            LINKS_VALUE=$(printf '%s\n%s' \
+              'PyPI|https://pypi.org/project/comfyui-frontend-package/{{version}}/' \
+              'npm types|https://www.npmjs.com/package/@comfyorg/comfyui-frontend-types/v/{{version}}')
+            ;;
+          apps/desktop-ui/package.json)
+            MARKER='desktop-release-summary'
+            LINKS_VALUE='npm desktop UI|https://www.npmjs.com/package/@comfyorg/desktop-ui/v/{{version}}'
+            ;;
+        esac
+
+        DIFF_PREFIX='v'
+        DIFF_LABEL='Diff'
+        DIFF_URL="https://github.com/${REPO}/compare/${DIFF_PREFIX}${PREV_VERSION}...${DIFF_PREFIX}${NEW_VERSION}"
+        COMMENT_FILE=$(mktemp)
+
+        {
+          echo "<!--$MARKER:$DIFF_PREFIX$NEW_VERSION-->"
+          echo "$MESSAGE"
+          echo ""
+          echo "- $DIFF_LABEL: [\`$DIFF_PREFIX$PREV_VERSION...$DIFF_PREFIX$NEW_VERSION\`]($DIFF_URL)"
+
+          while IFS= read -r RAW_LINE; do
+            LINE=$(echo "$RAW_LINE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            [[ -z "$LINE" ]] && continue
+            if [[ "$LINE" != *"|"* ]]; then
+              echo "::warning::Skipping malformed link entry: $LINE" >&2
+              continue
+            fi
+            LABEL=${LINE%%|*}
+            URL_TEMPLATE=${LINE#*|}
+            URL=${URL_TEMPLATE//\{\{version\}\}/$NEW_VERSION}
+            URL=${URL//\{\{prev_version\}\}/$PREV_VERSION}
+            echo "- $LABEL: [\`$NEW_VERSION\`]($URL)"
+          done <<< "$LINKS_VALUE"
+
+          echo ""
+        } > "$COMMENT_FILE"
+
+        {
+          echo "body<<COMMENT_BODY_END_MARKER"
+          cat "$COMMENT_FILE"
+          echo "COMMENT_BODY_END_MARKER"
+        } >> "$GITHUB_OUTPUT"
+        echo "prev_version=$PREV_VERSION" >> "$GITHUB_OUTPUT"
+        echo "marker_search=<!--$MARKER:" >> "$GITHUB_OUTPUT"
+        echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Find existing comment
+      id: find
+      uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
+      with:
+        issue-number: ${{ inputs.issue-number || github.event.pull_request.number }}
+        comment-author: github-actions[bot]
+        body-includes: ${{ steps.build.outputs.marker_search }}
+
+    - name: Post or update comment
+      uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+      with:
+        issue-number: ${{ inputs.issue-number || github.event.pull_request.number }}
+        comment-id: ${{ steps.find.outputs.comment-id }}
+        body: ${{ steps.build.outputs.body }}
+        edit-mode: replace

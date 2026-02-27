@@ -1,0 +1,27 @@
+# Description: Unit and component testing with Vitest
+name: 'CI: Tests Unit'
+
+on:
+  push:
+    branches: [main, master, dev*, core/*, desktop/*]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches-ignore: [wip/*, draft/*, temp/*]
+    paths-ignore: ['**/*.md']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Run Vitest tests
+        run: pnpm test:unit

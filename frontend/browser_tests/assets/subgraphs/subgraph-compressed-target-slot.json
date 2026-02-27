@@ -1,0 +1,112 @@
+{
+  "id": "e0cb1d7e-5437-4911-b574-c9603dfbeaee",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "8bfe4227-f272-49e1-a892-0a972a86867c",
+      "pos": [-317, -336],
+      "size": [210, 58],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "proxyWidgets": [["-1", "batch_size"]]
+      },
+      "widgets_values": [1]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "8bfe4227-f272-49e1-a892-0a972a86867c",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 1,
+          "lastLinkId": 1,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [-562, -358, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [-52, -358, 120, 40]
+        },
+        "inputs": [
+          {
+            "id": "b4a8bc2a-8e9f-41aa-938d-c567a11d2c00",
+            "name": "batch_size",
+            "type": "INT",
+            "linkIds": [1],
+            "pos": [-462, -338]
+          }
+        ],
+        "outputs": [],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 1,
+            "type": "EmptyLatentImage",
+            "pos": [-382, -376],
+            "size": [270, 106],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "batch_size",
+                "name": "batch_size",
+                "type": "INT",
+                "widget": {
+                  "name": "batch_size"
+                },
+                "link": 1
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "LATENT",
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": null
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "EmptyLatentImage"
+            },
+            "widgets_values": [512, 512, 1]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 0,
+            "type": "INT"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "frontendVersion": "1.35.1"
+  },
+  "version": 0.4
+}

@@ -1,0 +1,31 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 10,
+      "type": "DevToolsNodeWithSeedInput",
+      "pos": [20, 50],
+      "size": [315, 82],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithSeedInput"
+      },
+      "widgets_values": [0, "randomize"]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

@@ -1,0 +1,75 @@
+{
+  "extends": [],
+  "overrides": [
+    {
+      "files": ["*.vue", "**/*.vue"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "rules": {
+    "import-notation": "string",
+    "font-family-no-missing-generic-family-keyword": true,
+    "declaration-property-value-no-unknown": [
+      true,
+      {
+        "typesSyntax": {
+          "radial-gradient()": "| <any-value>"
+        },
+        "ignoreProperties": {
+          "speak": ["none"],
+          "app-region": ["drag", "no-drag"],
+          "/^(width|height)$/": ["/^v-bind/"]
+        }
+      }
+    ],
+    "color-function-notation": "modern",
+    "shorthand-property-no-redundant-values": true,
+    "selector-pseudo-element-colon-notation": "double",
+    "no-duplicate-selectors": true,
+    "font-weight-notation": "numeric",
+    "length-zero-no-unit": true,
+    "color-no-invalid-hex": true,
+    "number-max-precision": 4,
+    "property-no-vendor-prefix": true,
+    "value-no-vendor-prefix": true,
+    "selector-no-vendor-prefix": true,
+    "media-feature-name-no-vendor-prefix": true,
+    "selector-max-universal": 1,
+    "selector-max-type": 2,
+    "declaration-block-no-duplicate-properties": true,
+    "block-no-empty": true,
+    "no-descending-specificity": null,
+    "no-duplicate-at-import-rules": true,
+    "at-rule-disallowed-list": ["apply"],
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "tailwind",
+          "layer",
+          "config",
+          "theme",
+          "reference",
+          "plugin",
+          "custom-variant",
+          "utility",
+          "source"
+        ]
+      }
+    ],
+    "function-no-unknown": [
+      true,
+      {
+        "ignoreFunctions": ["theme", "v-bind", "from-folder", "from-json"]
+      }
+    ]
+  },
+  "ignoreFiles": [
+    "node_modules/**",
+    "dist/**",
+    "playwright-report/**",
+    "public/**",
+    "src/lib/litegraph/**"
+  ],
+  "files": ["**/*.css", "**/*.vue"]
+}

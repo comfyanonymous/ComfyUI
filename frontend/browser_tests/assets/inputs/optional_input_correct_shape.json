@@ -1,0 +1,54 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "DevToolsNodeWithOptionalInput",
+      "pos": {
+        "0": 19,
+        "1": 46
+      },
+      "size": {
+        "0": 302.4000244140625,
+        "1": 46
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "required_input",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "optional_input",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithOptionalInput"
+      }
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

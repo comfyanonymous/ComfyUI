@@ -1,0 +1,69 @@
+---
+name: Cloud Backport Tag
+
+on:
+  pull_request:
+    types: ['closed']
+    branches: [cloud/*]
+
+jobs:
+  create-tag:
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'backport')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Create tag for cloud backport
+        id: tag
+        run: |
+          set -euo pipefail
+
+          BRANCH="${{ github.event.pull_request.base.ref }}"
+          if [[ ! "$BRANCH" =~ ^cloud/([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Base branch '$BRANCH' is not a cloud/x.y branch"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" =~ ^${MAJOR}\.${MINOR}\.([0-9]+)(-.+)?$ ]]; then
+            PATCH="${BASH_REMATCH[1]}"
+            SUFFIX="${BASH_REMATCH[2]:-}"
+          else
+            echo "::error::Version '${VERSION}' does not match cloud branch '${BRANCH}'"
+            exit 1
+          fi
+
+          TAG="cloud/v${VERSION}"
+
+          if git ls-remote --tags origin "${TAG}" | grep -Fq "refs/tags/${TAG}"; then
+            echo "::notice::Tag ${TAG} already exists; skipping"
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git tag "${TAG}" "${{ github.event.pull_request.merge_commit_sha }}"
+          git push origin "${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "Created tag: ${TAG}"
+            echo "Branch: ${BRANCH}"
+            echo "Version: ${VERSION}"
+            echo "Commit: ${{ github.event.pull_request.merge_commit_sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"

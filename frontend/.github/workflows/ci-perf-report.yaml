@@ -1,0 +1,110 @@
+name: 'CI: Performance Report'
+
+on:
+  push:
+    branches: [main, core/*]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches-ignore: [wip/*, draft/*, temp/*]
+    paths-ignore: ['**/*.md']
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  perf-tests:
+    if: github.repository == 'Comfy-Org/ComfyUI_frontend'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/comfy-org/comfyui-ci-container:0.0.12
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
+        with:
+          include_build_step: true
+
+      - name: Start ComfyUI server
+        uses: ./.github/actions/start-comfyui-server
+
+      - name: Run performance tests
+        id: perf
+        continue-on-error: true
+        run: pnpm exec playwright test --project=performance --workers=1
+
+      - name: Upload perf metrics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: perf-metrics
+          path: test-results/perf-metrics.json
+          retention-days: 30
+          if-no-files-found: warn
+
+  report:
+    needs: perf-tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Download PR perf metrics
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: perf-metrics
+          path: test-results/
+
+      - name: Download baseline perf metrics
+        uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
+        with:
+          branch: ${{ github.event.pull_request.base.ref }}
+          workflow: ci-perf-report.yaml
+          event: push
+          name: perf-metrics
+          path: temp/perf-baseline/
+          if_no_artifact_found: warn
+
+      - name: Generate perf report
+        run: npx --yes tsx scripts/perf-report.ts > perf-report.md
+
+      - name: Read perf report
+        id: perf-report
+        uses: juliangruber/read-file-action@b549046febe0fe86f8cb4f93c24e284433f9ab58 # v1.1.7
+        with:
+          path: ./perf-report.md
+
+      - name: Create or update PR comment
+        uses: actions-cool/maintain-one-comment@4b2dbf086015f892dcb5e8c1106f5fccd6c1476b # v3.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          number: ${{ github.event.pull_request.number }}
+          body: |
+            ${{ steps.perf-report.outputs.content }}
+            <!-- COMFYUI_FRONTEND_PERF -->
+          body-include: '<!-- COMFYUI_FRONTEND_PERF -->'

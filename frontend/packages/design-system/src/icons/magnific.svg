@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <linearGradient id="magnific_gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#F19F3A"/>
+    <stop offset="13%" stop-color="#EA6040"/>
+    <stop offset="31%" stop-color="#E95267"/>
+    <stop offset="50%" stop-color="#7380BD"/>
+    <stop offset="66%" stop-color="#5FB2CF"/>
+    <stop offset="79%" stop-color="#91BB8F"/>
+    <stop offset="100%" stop-color="#E6B051"/>
+  </linearGradient>
+</defs>
+<path d="M492.858 461.125H19.1416L256 50.875L492.858 461.125ZM148.18 386.625H363.82L256 199.875L148.18 386.625Z" fill="url(#magnific_gradient)"/>
+</svg>

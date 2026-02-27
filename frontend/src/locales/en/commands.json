@@ -1,0 +1,363 @@
+{
+  "Comfy-Desktop_CheckForUpdates": {
+    "label": "Check for Updates"
+  },
+  "Comfy-Desktop_Folders_OpenCustomNodesFolder": {
+    "label": "Open Custom Nodes Folder"
+  },
+  "Comfy-Desktop_Folders_OpenInputsFolder": {
+    "label": "Open Inputs Folder"
+  },
+  "Comfy-Desktop_Folders_OpenLogsFolder": {
+    "label": "Open Logs Folder"
+  },
+  "Comfy-Desktop_Folders_OpenModelConfig": {
+    "label": "Open extra_model_paths.yaml"
+  },
+  "Comfy-Desktop_Folders_OpenModelsFolder": {
+    "label": "Open Models Folder"
+  },
+  "Comfy-Desktop_Folders_OpenOutputsFolder": {
+    "label": "Open Outputs Folder"
+  },
+  "Comfy-Desktop_OpenDevTools": {
+    "label": "Open DevTools"
+  },
+  "Comfy-Desktop_OpenUserGuide": {
+    "label": "Desktop User Guide"
+  },
+  "Comfy-Desktop_Quit": {
+    "label": "Quit"
+  },
+  "Comfy-Desktop_Reinstall": {
+    "label": "Reinstall"
+  },
+  "Comfy-Desktop_Restart": {
+    "label": "Restart"
+  },
+  "Comfy_3DViewer_Open3DViewer": {
+    "label": "Open 3D Viewer (Beta) for Selected Node"
+  },
+  "Comfy_BrowseModelAssets": {
+    "label": "Experimental: Browse Model Assets"
+  },
+  "Comfy_BrowseTemplates": {
+    "label": "Browse Templates"
+  },
+  "Comfy_Canvas_CopySelected": {
+    "label": "Copy"
+  },
+  "Comfy_Canvas_DeleteSelectedItems": {
+    "label": "Delete Selected Items"
+  },
+  "Comfy_Canvas_FitView": {
+    "label": "Fit view to selected nodes"
+  },
+  "Comfy_Canvas_Lock": {
+    "label": "Lock Canvas"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Down": {
+    "label": "Move Selected Nodes Down"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Left": {
+    "label": "Move Selected Nodes Left"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Right": {
+    "label": "Move Selected Nodes Right"
+  },
+  "Comfy_Canvas_MoveSelectedNodes_Up": {
+    "label": "Move Selected Nodes Up"
+  },
+  "Comfy_Canvas_PasteFromClipboard": {
+    "label": "Paste"
+  },
+  "Comfy_Canvas_ResetView": {
+    "label": "Reset View"
+  },
+  "Comfy_Canvas_Resize": {
+    "label": "Resize Selected Nodes"
+  },
+  "Comfy_Canvas_SelectAll": {
+    "label": "Select All"
+  },
+  "Comfy_Canvas_ToggleLinkVisibility": {
+    "label": "Canvas Toggle Link Visibility"
+  },
+  "Comfy_Canvas_ToggleLock": {
+    "label": "Canvas Toggle Lock"
+  },
+  "Comfy_Canvas_ToggleMinimap": {
+    "label": "Canvas Toggle Minimap"
+  },
+  "Comfy_Canvas_ToggleSelected_Pin": {
+    "label": "Pin/Unpin Selected Items"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Bypass": {
+    "label": "Bypass/Unbypass Selected Nodes"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Collapse": {
+    "label": "Collapse/Expand Selected Nodes"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Mute": {
+    "label": "Mute/Unmute Selected Nodes"
+  },
+  "Comfy_Canvas_ToggleSelectedNodes_Pin": {
+    "label": "Pin/Unpin Selected Nodes"
+  },
+  "Comfy_Canvas_Unlock": {
+    "label": "Unlock Canvas"
+  },
+  "Comfy_Canvas_ZoomIn": {
+    "label": "Zoom In"
+  },
+  "Comfy_Canvas_ZoomOut": {
+    "label": "Zoom Out"
+  },
+  "Comfy_ClearPendingTasks": {
+    "label": "Clear Pending Tasks"
+  },
+  "Comfy_ClearWorkflow": {
+    "label": "Clear Workflow"
+  },
+  "Comfy_ContactSupport": {
+    "label": "Contact Support"
+  },
+  "Comfy_Dev_ShowModelSelector": {
+    "label": "Show Model Selector (Dev)"
+  },
+  "Comfy_DuplicateWorkflow": {
+    "label": "Duplicate Current Workflow"
+  },
+  "Comfy_ExportWorkflow": {
+    "label": "Export Workflow"
+  },
+  "Comfy_ExportWorkflowAPI": {
+    "label": "Export Workflow (API Format)"
+  },
+  "Comfy_Graph_ConvertToSubgraph": {
+    "label": "Convert Selection to Subgraph"
+  },
+  "Comfy_Graph_EditSubgraphWidgets": {
+    "label": "Edit Subgraph Widgets"
+  },
+  "Comfy_Graph_ExitSubgraph": {
+    "label": "Exit Subgraph"
+  },
+  "Comfy_Graph_FitGroupToContents": {
+    "label": "Fit Group To Contents"
+  },
+  "Comfy_Graph_GroupSelectedNodes": {
+    "label": "Group Selected Nodes"
+  },
+  "Comfy_Graph_ToggleWidgetPromotion": {
+    "label": "Toggle promotion of hovered widget"
+  },
+  "Comfy_Graph_UnpackSubgraph": {
+    "label": "Unpack the selected Subgraph"
+  },
+  "Comfy_GroupNode_ConvertSelectedNodesToGroupNode": {
+    "label": "Convert selected nodes to group node"
+  },
+  "Comfy_GroupNode_ManageGroupNodes": {
+    "label": "Manage group nodes"
+  },
+  "Comfy_GroupNode_UngroupSelectedGroupNodes": {
+    "label": "Ungroup selected group nodes"
+  },
+  "Comfy_Help_AboutComfyUI": {
+    "label": "Open About ComfyUI"
+  },
+  "Comfy_Help_OpenComfyOrgDiscord": {
+    "label": "Open Comfy-Org Discord"
+  },
+  "Comfy_Help_OpenComfyUIDocs": {
+    "label": "Open ComfyUI Docs"
+  },
+  "Comfy_Help_OpenComfyUIForum": {
+    "label": "Open ComfyUI Forum"
+  },
+  "Comfy_Help_OpenComfyUIIssues": {
+    "label": "Open ComfyUI Issues"
+  },
+  "Comfy_Interrupt": {
+    "label": "Interrupt"
+  },
+  "Comfy_LoadDefaultWorkflow": {
+    "label": "Load Default Workflow"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowCustomNodesMenu": {
+    "label": "Custom Nodes Manager"
+  },
+  "Comfy_Manager_CustomNodesManager_ShowLegacyCustomNodesMenu": {
+    "label": "Custom Nodes (Legacy)"
+  },
+  "Comfy_Manager_ShowLegacyManagerMenu": {
+    "label": "Manager Menu (Legacy)"
+  },
+  "Comfy_Manager_ShowMissingPacks": {
+    "label": "Install Missing Custom Nodes"
+  },
+  "Comfy_Manager_ShowUpdateAvailablePacks": {
+    "label": "Check for Custom Node Updates"
+  },
+  "Comfy_MaskEditor_BrushSize_Decrease": {
+    "label": "Decrease Brush Size in MaskEditor"
+  },
+  "Comfy_MaskEditor_BrushSize_Increase": {
+    "label": "Increase Brush Size in MaskEditor"
+  },
+  "Comfy_MaskEditor_ColorPicker": {
+    "label": "Open Color Picker in MaskEditor"
+  },
+  "Comfy_MaskEditor_Mirror_Horizontal": {
+    "label": "Mirror Horizontal in MaskEditor"
+  },
+  "Comfy_MaskEditor_Mirror_Vertical": {
+    "label": "Mirror Vertical in MaskEditor"
+  },
+  "Comfy_MaskEditor_OpenMaskEditor": {
+    "label": "Open Mask Editor for Selected Node"
+  },
+  "Comfy_MaskEditor_Rotate_Left": {
+    "label": "Rotate Left in MaskEditor"
+  },
+  "Comfy_MaskEditor_Rotate_Right": {
+    "label": "Rotate Right in MaskEditor"
+  },
+  "Comfy_Memory_UnloadModels": {
+    "label": "Unload Models"
+  },
+  "Comfy_Memory_UnloadModelsAndExecutionCache": {
+    "label": "Unload Models and Execution Cache"
+  },
+  "Comfy_NewBlankWorkflow": {
+    "label": "New Blank Workflow"
+  },
+  "Comfy_OpenClipspace": {
+    "label": "Clipspace"
+  },
+  "Comfy_OpenManagerDialog": {
+    "label": "Manager"
+  },
+  "Comfy_OpenWorkflow": {
+    "label": "Open Workflow"
+  },
+  "Comfy_PublishSubgraph": {
+    "label": "Publish Subgraph"
+  },
+  "Comfy_Queue_ToggleOverlay": {
+    "label": "Toggle Job History"
+  },
+  "Comfy_QueuePrompt": {
+    "label": "Queue Prompt"
+  },
+  "Comfy_QueuePromptFront": {
+    "label": "Queue Prompt (Front)"
+  },
+  "Comfy_QueueSelectedOutputNodes": {
+    "label": "Queue Selected Output Nodes"
+  },
+  "Comfy_Redo": {
+    "label": "Redo"
+  },
+  "Comfy_RefreshNodeDefinitions": {
+    "label": "Refresh Node Definitions"
+  },
+  "Comfy_RenameWorkflow": {
+    "label": "Rename Workflow"
+  },
+  "Comfy_SaveWorkflow": {
+    "label": "Save Workflow"
+  },
+  "Comfy_SaveWorkflowAs": {
+    "label": "Save Workflow As"
+  },
+  "Comfy_ShowSettingsDialog": {
+    "label": "Show Settings Dialog"
+  },
+  "Comfy_Subgraph_SetDescription": {
+    "label": "Set Subgraph Description"
+  },
+  "Comfy_Subgraph_SetSearchAliases": {
+    "label": "Set Subgraph Search Aliases"
+  },
+  "Comfy_ToggleAssetAPI": {
+    "label": "Experimental: Enable AssetAPI"
+  },
+  "Comfy_ToggleCanvasInfo": {
+    "label": "Canvas Performance"
+  },
+  "Comfy_ToggleHelpCenter": {
+    "label": "Help Center"
+  },
+  "Comfy_ToggleLinear": {
+    "label": "Toggle App Mode"
+  },
+  "Comfy_ToggleQPOV2": {
+    "label": "Toggle Queue Panel V2"
+  },
+  "Comfy_ToggleTheme": {
+    "label": "Toggle Theme (Dark/Light)"
+  },
+  "Comfy_Undo": {
+    "label": "Undo"
+  },
+  "Comfy_User_OpenSignInDialog": {
+    "label": "Open Sign In Dialog"
+  },
+  "Comfy_User_SignOut": {
+    "label": "Sign Out"
+  },
+  "Experimental_ToggleVueNodes": {
+    "label": "Experimental: Enable Nodes 2.0"
+  },
+  "Workspace_CloseWorkflow": {
+    "label": "Close Current Workflow"
+  },
+  "Workspace_NextOpenedWorkflow": {
+    "label": "Next Opened Workflow"
+  },
+  "Workspace_PreviousOpenedWorkflow": {
+    "label": "Previous Opened Workflow"
+  },
+  "Workspace_SearchBox_Toggle": {
+    "label": "Toggle Search Box"
+  },
+  "Workspace_ToggleBottomPanel": {
+    "label": "Toggle Bottom Panel"
+  },
+  "Workspace_ToggleBottomPanel_Shortcuts": {
+    "label": "Show Keybindings Dialog"
+  },
+  "Workspace_ToggleBottomPanelTab_command-terminal": {
+    "label": "Toggle Terminal Bottom Panel"
+  },
+  "Workspace_ToggleBottomPanelTab_logs-terminal": {
+    "label": "Toggle Logs Bottom Panel"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-essentials": {
+    "label": "Toggle Essential Bottom Panel"
+  },
+  "Workspace_ToggleBottomPanelTab_shortcuts-view-controls": {
+    "label": "Toggle View Controls Bottom Panel"
+  },
+  "Workspace_ToggleFocusMode": {
+    "label": "Toggle Focus Mode"
+  },
+  "Workspace_ToggleSidebarTab_assets": {
+    "label": "Toggle Assets Sidebar",
+    "tooltip": "Assets"
+  },
+  "Workspace_ToggleSidebarTab_model-library": {
+    "label": "Toggle Model Library Sidebar",
+    "tooltip": "Model Library"
+  },
+  "Workspace_ToggleSidebarTab_node-library": {
+    "label": "Toggle Node Library Sidebar",
+    "tooltip": "Node Library"
+  },
+  "Workspace_ToggleSidebarTab_workflows": {
+    "label": "Toggle Workflows Sidebar",
+    "tooltip": "Workflows"
+  }
+}

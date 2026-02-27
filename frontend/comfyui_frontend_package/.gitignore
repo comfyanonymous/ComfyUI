@@ -1,0 +1,4 @@
+comfyui_frontend_package/static/*
+comfyui_frontend_package.egg-info/*
+
+__pycache__/

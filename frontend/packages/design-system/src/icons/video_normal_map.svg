@@ -1,0 +1,23 @@
+<svg width="48" height="24" viewBox="0 0 48 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="12" width="24" height="24" rx="8" fill="url(#paint0_linear_1814_3713)"/>
+<path d="M20.4067 5C20.647 5.00776 20.8829 5.08384 21.0864 5.21875L30.0581 10.918C30.5296 11.2086 30.7025 11.7469 30.7026 12.1836C30.7026 12.6203 30.5286 13.1585 30.0571 13.4492L21.0864 19.1494C20.6583 19.4325 20.101 19.4371 19.6694 19.165L19.6665 19.1621C19.2403 18.8888 18.9873 18.3785 19.0005 17.8672V6.48438C18.9905 5.75928 19.5462 5.04079 20.3003 5.00195L20.4067 5ZM21.7251 15.0918L26.6382 12.0801L21.7251 9.06055V15.0918Z" fill="url(#paint1_radial_1814_3713)"/>
+<path d="M20.4067 5C20.647 5.00776 20.8829 5.08384 21.0864 5.21875L30.0581 10.918C30.5296 11.2086 30.7025 11.7469 30.7026 12.1836C30.7026 12.6203 30.5286 13.1585 30.0571 13.4492L21.0864 19.1494C20.6583 19.4325 20.101 19.4371 19.6694 19.165L19.6665 19.1621C19.2403 18.8888 18.9873 18.3785 19.0005 17.8672V6.48438C18.9905 5.75928 19.5462 5.04079 20.3003 5.00195L20.4067 5ZM21.7251 15.0918L26.6382 12.0801L21.7251 9.06055V15.0918Z" fill="url(#paint2_radial_1814_3713)"/>
+<defs>
+<linearGradient id="paint0_linear_1814_3713" x1="16.5" y1="4" x2="30.5" y2="24" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D18EFF"/>
+<stop offset="0.399038" stop-color="#CABFFF"/>
+<stop offset="1" stop-color="#5C91FD"/>
+</linearGradient>
+<radialGradient id="paint1_radial_1814_3713" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24.8513 12.1827) rotate(90) scale(7.18274 5.85132)">
+<stop stop-color="#2BECFF"/>
+<stop offset="0.14" stop-color="#D8E7FF"/>
+<stop offset="0.37" stop-color="#F03CFF"/>
+<stop offset="0.72" stop-color="#133AFF"/>
+<stop offset="1" stop-color="#34F0FF"/>
+</radialGradient>
+<radialGradient id="paint2_radial_1814_3713" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24.8513 12.1827) rotate(90) scale(7.18274 5.85132)">
+<stop stop-color="#8998FF"/>
+<stop offset="1" stop-color="#8998FF" stop-opacity="0"/>
+</radialGradient>
+</defs>
+</svg>

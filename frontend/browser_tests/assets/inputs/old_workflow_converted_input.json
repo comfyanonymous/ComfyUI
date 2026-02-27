@@ -1,0 +1,104 @@
+{
+  "last_node_id": 2,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "ControlNetApplyAdvanced",
+      "pos": {
+        "0": 449,
+        "1": 204
+      },
+      "size": [340.20001220703125, 166],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "control_net",
+          "type": "CONTROL_NET",
+          "link": null
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "strength",
+          "type": "FLOAT",
+          "link": 1,
+          "widget": {
+            "name": "strength"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": null
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetApplyAdvanced"
+      },
+      "widgets_values": [1, 0, 1]
+    },
+    {
+      "id": 2,
+      "type": "PrimitiveNode",
+      "pos": {
+        "0": 177,
+        "1": 265
+      },
+      "size": [210, 82],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [1],
+          "widget": {
+            "name": "strength"
+          }
+        }
+      ],
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [1, "fixed"]
+    }
+  ],
+  "links": [[1, 2, 0, 1, 4, "FLOAT"]],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": {
+        "0": 47.541666666666515,
+        "1": 186.9375
+      }
+    }
+  },
+  "version": 0.4
+}

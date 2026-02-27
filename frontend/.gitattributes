@@ -1,0 +1,6 @@
+# Force all text files to use LF line endings
+* text=auto eol=lf
+
+# Generated files
+packages/registry-types/src/comfyRegistryTypes.ts linguist-generated=true
+src/workbench/extensions/manager/types/generatedManagerTypes.ts linguist-generated=true

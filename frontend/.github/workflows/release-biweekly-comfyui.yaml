@@ -1,0 +1,324 @@
+# Automated bi-weekly workflow to bump ComfyUI frontend RC releases
+name: 'Release: Bi-weekly ComfyUI'
+
+on:
+  # Schedule for Monday at 12:00 PM PST (20:00 UTC)
+  schedule:
+    - cron: '0 20 * * 1'
+
+  # Allow manual triggering (bypasses bi-weekly check)
+  workflow_dispatch:
+    inputs:
+      comfyui_fork:
+        description: 'ComfyUI fork to use for PR (e.g., Comfy-Org/ComfyUI)'
+        required: false
+        default: 'Comfy-Org/ComfyUI'
+        type: string
+
+jobs:
+  check-release-week:
+    runs-on: ubuntu-latest
+    outputs:
+      is_release_week: ${{ steps.check.outputs.is_release_week }}
+    steps:
+      - name: Check if release week
+        id: check
+        run: |
+          # Anchor date: first bi-weekly release Monday
+          ANCHOR="2025-12-22"
+
+          ANCHOR_EPOCH=$(date -d "$ANCHOR" +%s)
+          NOW_EPOCH=$(date +%s)
+          WEEKS_SINCE=$(( (NOW_EPOCH - ANCHOR_EPOCH) / 604800 ))
+
+          if [ $((WEEKS_SINCE % 2)) -eq 0 ]; then
+            echo "Release week (week $WEEKS_SINCE since anchor $ANCHOR)"
+            echo "is_release_week=true" >> $GITHUB_OUTPUT
+          else
+            echo "Not a release week (week $WEEKS_SINCE since anchor $ANCHOR)"
+            echo "is_release_week=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Bi-weekly Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Is release week: ${{ steps.check.outputs.is_release_week }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Manual trigger: ${{ github.event_name == 'workflow_dispatch' }}" >> $GITHUB_STEP_SUMMARY
+
+  resolve-version:
+    needs: check-release-week
+    if: needs.check-release-week.outputs.is_release_week == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      current_version: ${{ steps.resolve.outputs.current_version }}
+      target_version: ${{ steps.resolve.outputs.target_version }}
+      target_minor: ${{ steps.resolve.outputs.target_minor }}
+      target_branch: ${{ steps.resolve.outputs.target_branch }}
+      needs_release: ${{ steps.resolve.outputs.needs_release }}
+      diff_url: ${{ steps.resolve.outputs.diff_url }}
+      latest_patch_tag: ${{ steps.resolve.outputs.latest_patch_tag }}
+
+    steps:
+      - name: Checkout ComfyUI_frontend
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          path: frontend
+
+      - name: Checkout ComfyUI (sparse)
+        uses: actions/checkout@v6
+        with:
+          repository: Comfy-Org/ComfyUI
+          sparse-checkout: |
+            requirements.txt
+          path: comfyui
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve release information
+        id: resolve
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+
+          # Run the resolver script
+          if ! RESULT=$(pnpm exec tsx scripts/cicd/resolve-comfyui-release.ts ../comfyui .); then
+            echo "Failed to resolve release information"
+            exit 1
+          fi
+
+          echo "Resolver output:"
+          echo "$RESULT"
+
+          # Validate JSON output
+          if ! echo "$RESULT" | jq empty 2>/dev/null; then
+            echo "Invalid JSON output from resolver"
+            exit 1
+          fi
+
+          # Parse JSON output and set outputs
+          echo "current_version=$(echo "$RESULT" | jq -r '.current_version')" >> $GITHUB_OUTPUT
+          echo "target_version=$(echo "$RESULT" | jq -r '.target_version')" >> $GITHUB_OUTPUT
+          echo "target_minor=$(echo "$RESULT" | jq -r '.target_minor')" >> $GITHUB_OUTPUT
+          echo "target_branch=$(echo "$RESULT" | jq -r '.target_branch')" >> $GITHUB_OUTPUT
+          echo "needs_release=$(echo "$RESULT" | jq -r '.needs_release')" >> $GITHUB_OUTPUT
+          echo "diff_url=$(echo "$RESULT" | jq -r '.diff_url')" >> $GITHUB_OUTPUT
+          echo "latest_patch_tag=$(echo "$RESULT" | jq -r '.latest_patch_tag')" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        run: |
+          echo "## Release Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Current version: ${{ steps.resolve.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Target version: ${{ steps.resolve.outputs.target_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Target branch: ${{ steps.resolve.outputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Needs release: ${{ steps.resolve.outputs.needs_release }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Diff: [${{ steps.resolve.outputs.current_version }}...${{ steps.resolve.outputs.target_version }}](${{ steps.resolve.outputs.diff_url }})" >> $GITHUB_STEP_SUMMARY
+
+  trigger-release-if-needed:
+    needs: resolve-version
+    if: needs.resolve-version.outputs.needs_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger release workflow
+        env:
+          GH_TOKEN: ${{ secrets.PR_GH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "Triggering release workflow for branch ${{ needs.resolve-version.outputs.target_branch }}"
+
+          # Trigger the release-version-bump workflow
+          if ! gh workflow run release-version-bump.yaml \
+            --repo Comfy-Org/ComfyUI_frontend \
+            --ref main \
+            --field version_type=patch \
+            --field branch=${{ needs.resolve-version.outputs.target_branch }}; then
+            echo "Failed to trigger release workflow"
+            exit 1
+          fi
+
+          echo "Release workflow triggered successfully for ${{ needs.resolve-version.outputs.target_branch }}"
+
+      - name: Summary
+        run: |
+          echo "## Release Workflow Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ needs.resolve-version.outputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Target version: ${{ needs.resolve-version.outputs.target_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- [View workflow runs](https://github.com/Comfy-Org/ComfyUI_frontend/actions/workflows/release-version-bump.yaml)" >> $GITHUB_STEP_SUMMARY
+
+  create-comfyui-pr:
+    needs: [check-release-week, resolve-version, trigger-release-if-needed]
+    if: always() && needs.resolve-version.result == 'success' && (needs.check-release-week.outputs.is_release_week == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ComfyUI fork
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.comfyui_fork || 'Comfy-Org/ComfyUI' }}
+          token: ${{ secrets.PR_GH_TOKEN }}
+          path: comfyui
+
+      - name: Sync with upstream
+        working-directory: comfyui
+        run: |
+          set -euo pipefail
+
+          # Fetch latest upstream to base our branch on fresh code
+          # Note: This only affects the local checkout, NOT the fork's master branch
+          # We only push the automation branch, leaving the fork's master untouched
+          echo "Fetching upstream master..."
+          if ! git fetch https://github.com/Comfy-Org/ComfyUI.git master; then
+            echo "Failed to fetch upstream master"
+            exit 1
+          fi
+
+          echo "Checking out upstream master..."
+          if ! git checkout FETCH_HEAD; then
+            echo "Failed to checkout FETCH_HEAD"
+            exit 1
+          fi
+
+          echo "Successfully synced with upstream master"
+
+      - name: Update requirements.txt
+        working-directory: comfyui
+        run: |
+          set -euo pipefail
+
+          TARGET_VERSION="${{ needs.resolve-version.outputs.target_version }}"
+          echo "Updating comfyui-frontend-package to ${TARGET_VERSION}"
+
+          # Update the comfyui-frontend-package version (POSIX-compatible)
+          sed -i.bak "s/comfyui-frontend-package==[0-9.][0-9.]*/comfyui-frontend-package==${TARGET_VERSION}/" requirements.txt
+          rm requirements.txt.bak
+
+          # Verify the change was made
+          if ! grep -q "comfyui-frontend-package==${TARGET_VERSION}" requirements.txt; then
+            echo "Failed to update requirements.txt"
+            exit 1
+          fi
+
+          echo "Updated requirements.txt:"
+          grep comfyui-frontend-package requirements.txt
+
+      - name: Build PR description
+        id: pr-body
+        run: |
+          BODY=$(cat <<'EOF'
+          Bumps frontend to ${{ needs.resolve-version.outputs.target_version }}
+
+          Test quickly:
+
+          ```bash
+          python main.py --front-end-version Comfy-Org/ComfyUI_frontend@${{ needs.resolve-version.outputs.target_version }}
+          ```
+
+          - Diff: [v${{ needs.resolve-version.outputs.current_version }}...v${{ needs.resolve-version.outputs.target_version }}](${{ needs.resolve-version.outputs.diff_url }})
+          - PyPI: https://pypi.org/project/comfyui-frontend-package/${{ needs.resolve-version.outputs.target_version }}/
+          - npm: https://www.npmjs.com/package/@comfyorg/comfyui-frontend-types/v/${{ needs.resolve-version.outputs.target_version }}
+          EOF
+          )
+
+          # Add release PR note if release was triggered
+          if [ "${{ needs.resolve-version.outputs.needs_release }}" = "true" ]; then
+            RELEASE_NOTE="⚠️ **Release PR must be merged first** - check [release workflow runs](https://github.com/Comfy-Org/ComfyUI_frontend/actions/workflows/release-version-bump.yaml)"
+            BODY=$''"${RELEASE_NOTE}"$'\n\n'"${BODY}"
+          fi
+
+          # Save to file for later use
+          printf '%s\n' "$BODY" > pr-body.txt
+          cat pr-body.txt
+
+      - name: Create PR to ComfyUI
+        working-directory: comfyui
+        env:
+          GH_TOKEN: ${{ secrets.PR_GH_TOKEN }}
+          COMFYUI_FORK: ${{ inputs.comfyui_fork || 'Comfy-Org/ComfyUI' }}
+        run: |
+          set -euo pipefail
+
+          # Extract fork owner from repository name
+          FORK_OWNER=$(echo "$COMFYUI_FORK" | cut -d'/' -f1)
+
+          echo "Creating PR from ${COMFYUI_FORK} to Comfy-Org/ComfyUI"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create/update branch (reuse same branch name each release cycle)
+          BRANCH="automation/comfyui-frontend-bump"
+          git checkout -B "$BRANCH"
+          git add requirements.txt
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Bump comfyui-frontend-package to ${{ needs.resolve-version.outputs.target_version }}"
+          else
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          # Force push to fork (overwrites previous release cycle's branch)
+          # Note: This intentionally destroys branch history to maintain a single PR
+          # Any review comments or manual commits will need to be re-applied
+          if ! git push -f origin "$BRANCH"; then
+            echo "Failed to push branch to fork"
+            exit 1
+          fi
+
+          # Create draft PR from fork to upstream
+          PR_BODY=$(cat ../pr-body.txt)
+
+          # Try to create PR, ignore error if it already exists
+          if ! gh pr create \
+            --repo Comfy-Org/ComfyUI \
+            --head "${FORK_OWNER}:${BRANCH}" \
+            --base master \
+            --title "Bump comfyui-frontend-package to ${{ needs.resolve-version.outputs.target_version }}" \
+            --body "$PR_BODY" \
+            --draft 2>&1; then
+
+            # Check if PR already exists
+            set +e
+            EXISTING_PR=$(gh pr list --repo Comfy-Org/ComfyUI --head "${FORK_OWNER}:${BRANCH}" --json number --jq '.[0].number' 2>&1)
+            PR_LIST_EXIT=$?
+            set -e
+
+            if [ $PR_LIST_EXIT -ne 0 ]; then
+              echo "Failed to check for existing PR: $EXISTING_PR"
+              exit 1
+            fi
+
+            if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+              echo "PR already exists (#${EXISTING_PR}), updating branch will update the PR"
+            else
+              echo "Failed to create PR and no existing PR found"
+              exit 1
+            fi
+          fi
+
+      - name: Summary
+        run: |
+          echo "## ComfyUI PR Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Draft PR created in Comfy-Org/ComfyUI" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### PR Body:" >> $GITHUB_STEP_SUMMARY
+          cat pr-body.txt >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,37 @@
+{
+  "last_node_id": 16,
+  "last_link_id": 17,
+  "nodes": [
+    {
+      "id": 16,
+      "type": "DevToolsNodeWithOptionalComboInput",
+      "pos": [1605, 480],
+      "size": [378, 58],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithOptionalComboInput"
+      },
+      "widgets_values": ["Random Unique Option 1740551583.3507228"]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 2.0875710456451313,
+      "offset": [-1311.5753953400676, -176.7620403697558]
+    }
+  },
+  "version": 0.4
+}

@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LGraphGroup > serializes to the existing format > Basic 1`] = `
+{
+  "bounding": [
+    10,
+    10,
+    140,
+    80,
+  ],
+  "color": "#3f789e",
+  "flags": {},
+  "font_size": 24,
+  "id": 929,
+  "title": "title",
+}
+`;

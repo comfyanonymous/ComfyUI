@@ -1,0 +1,101 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Package manager lockfiles (allow users to use different package managers)
+bun.lock
+bun.lockb
+yarn.lock
+
+# Cache files
+.eslintcache
+.prettiercache
+.stylelintcache
+
+node_modules
+.pnpm-store
+dist
+dist-ssr
+*.local
+# Claude configuration
+.claude/*.local.json
+.claude/*.local.md
+.claude/*.local.txt
+CLAUDE.local.md
+
+# Editor directories and files
+.vscode/*
+*.code-workspace
+!.vscode/extensions.json
+!.vscode/tailwind.json
+!.vscode/custom-css.json
+!.vscode/settings.json.default
+!.vscode/launch.json.default
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+components.d.ts
+
+# Ignore test data.
+tests-ui/data/*
+tests-ui/ComfyUI_examples
+tests-ui/workflows/examples
+coverage/
+
+# Browser tests
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+browser_tests/**/*-win32.png
+browser_tests/local/
+
+.env
+
+dist.zip
+
+/temp/
+/tmp/
+
+# Generated JSON Schemas
+/schemas/
+
+# Workflow templates assets
+# Hosted on https://github.com/Comfy-Org/workflow_templates
+/public/templates/
+
+# Temporary repository directory
+templates_repo/
+
+# Vite's timestamped config modules
+vite.config.mts.timestamp-*.mjs
+
+# Linux core dumps
+/core
+
+*storybook.log
+storybook-static
+
+# MCP Servers
+.playwright-mcp/*
+
+.nx/cache
+.nx/workspace-data
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+
+# Weekly docs check output
+/output.txt
+
+.amp

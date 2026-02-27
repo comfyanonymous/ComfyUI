@@ -1,0 +1,118 @@
+{
+  "name": "@comfyorg/desktop-ui",
+  "version": "0.0.6",
+  "type": "module",
+  "scripts": {
+    "lint": "nx run @comfyorg/desktop-ui:lint",
+    "typecheck": "nx run @comfyorg/desktop-ui:typecheck",
+    "storybook": "storybook dev -p 6007",
+    "build-storybook": "storybook build -o dist/storybook"
+  },
+  "dependencies": {
+    "@comfyorg/comfyui-electron-types": "catalog:",
+    "@comfyorg/shared-frontend-utils": "workspace:*",
+    "@primevue/core": "catalog:",
+    "@primevue/themes": "catalog:",
+    "@vueuse/core": "catalog:",
+    "pinia": "catalog:",
+    "primeicons": "catalog:",
+    "primevue": "catalog:",
+    "vue": "catalog:",
+    "vue-i18n": "catalog:",
+    "vue-router": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "dotenv": "catalog:",
+    "unplugin-icons": "catalog:",
+    "unplugin-vue-components": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-html": "catalog:",
+    "vite-plugin-vue-devtools": "catalog:",
+    "vue-tsc": "catalog:"
+  },
+  "nx": {
+    "tags": [
+      "scope:desktop",
+      "type:app"
+    ],
+    "targets": {
+      "dev": {
+        "executor": "nx:run-commands",
+        "continuous": true,
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "vite --config vite.config.mts"
+        }
+      },
+      "serve": {
+        "executor": "nx:run-commands",
+        "continuous": true,
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "vite --config vite.config.mts"
+        }
+      },
+      "build": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
+          "^build"
+        ],
+        "options": {
+          "command": "vite build --config apps/desktop-ui/vite.config.mts"
+        },
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      },
+      "preview": {
+        "executor": "nx:run-commands",
+        "continuous": true,
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "vite preview --config vite.config.mts"
+        }
+      },
+      "storybook": {
+        "executor": "nx:run-commands",
+        "continuous": true,
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "storybook dev -p 6007"
+        }
+      },
+      "build-storybook": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "storybook build -o dist/storybook"
+        },
+        "outputs": [
+          "{projectRoot}/dist/storybook"
+        ]
+      },
+      "lint": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "eslint src --cache"
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "cwd": "apps/desktop-ui",
+          "command": "vue-tsc --noEmit -p tsconfig.json"
+        }
+      }
+    }
+  }
+}

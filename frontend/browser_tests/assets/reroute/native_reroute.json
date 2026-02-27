@@ -1,0 +1,114 @@
+{
+  "last_node_id": 25,
+  "last_link_id": 33,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [160, 240],
+      "size": [315, 98],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": []
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 1,
+          "links": []
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "slot_index": 2,
+          "links": [33]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["v1-5-pruned-emaonly.safetensors"]
+    },
+    {
+      "id": 19,
+      "type": "VAEDecode",
+      "pos": [623.0897216796875, 324.64453125],
+      "size": [210, 46],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 33
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [[33, 4, 2, 19, 1, "VAE"]],
+  "floatingLinks": [
+    {
+      "id": 6,
+      "origin_id": 4,
+      "origin_slot": 2,
+      "target_id": -1,
+      "target_slot": -1,
+      "type": "VAE",
+      "parentId": 1
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    },
+    "reroutes": [
+      {
+        "id": 1,
+        "pos": [545.4541015625, 295.85760498046875],
+        "linkIds": [],
+        "floating": {
+          "slotType": "output"
+        }
+      },
+      {
+        "id": 2,
+        "pos": [543.8283081054688, 355.45849609375],
+        "linkIds": [33]
+      }
+    ],
+    "linkExtensions": [
+      {
+        "id": 33,
+        "parentId": 2
+      }
+    ]
+  },
+  "version": 0.4
+}

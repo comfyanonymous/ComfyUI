@@ -1,0 +1,183 @@
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "e5fb1765-aaaa-bbbb-cccc-ddddeeee0001",
+      "pos": [600, 400],
+      "size": [200, 100],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "e5fb1765-aaaa-bbbb-cccc-ddddeeee0001",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 2,
+          "lastLinkId": 5,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "Subgraph With Duplicate Links",
+        "inputNode": {
+          "id": -10,
+          "bounding": [200, 400, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [900, 400, 120, 60]
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "out-latent-1",
+            "name": "LATENT",
+            "type": "LATENT",
+            "linkIds": [2],
+            "pos": [920, 420]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 1,
+            "type": "KSampler",
+            "pos": [400, 100],
+            "size": [270, 262],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "link": null
+              },
+              {
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": null
+              },
+              {
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": null
+              },
+              {
+                "name": "latent_image",
+                "type": "LATENT",
+                "link": 1
+              }
+            ],
+            "outputs": [
+              {
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [2]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "KSampler"
+            },
+            "widgets_values": [0, "randomize", 20, 8, "euler", "simple", 1]
+          },
+          {
+            "id": 2,
+            "type": "EmptyLatentImage",
+            "pos": [100, 200],
+            "size": [200, 106],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [1, 3, 4, 5]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "EmptyLatentImage"
+            },
+            "widgets_values": [512, 512, 1]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 1,
+            "origin_id": 2,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 3,
+            "type": "LATENT"
+          },
+          {
+            "id": 2,
+            "origin_id": 1,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "LATENT"
+          },
+          {
+            "id": 3,
+            "origin_id": 2,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 3,
+            "type": "LATENT"
+          },
+          {
+            "id": 4,
+            "origin_id": 2,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 3,
+            "type": "LATENT"
+          },
+          {
+            "id": 5,
+            "origin_id": 2,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 3,
+            "type": "LATENT"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    },
+    "frontendVersion": "1.38.14"
+  },
+  "version": 0.4
+}

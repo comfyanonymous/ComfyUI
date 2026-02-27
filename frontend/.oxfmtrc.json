@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "tabWidth": 2,
+  "semi": false,
+  "trailingComma": "none",
+  "printWidth": 80,
+  "ignorePatterns": [
+    "packages/registry-types/src/comfyRegistryTypes.ts",
+    "public/materialdesignicons.min.css",
+    "src/types/generatedManagerTypes.ts",
+    "**/__fixtures__/**/*.json"
+  ]
+}

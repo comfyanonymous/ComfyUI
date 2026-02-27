@@ -1,0 +1,286 @@
+{
+  "id": "c4a254bb-935e-4013-b380-5e36954de4b0",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "422723e8-4bf6-438c-823f-881ca81acead",
+      "pos": [400, 300],
+      "size": [210, 168],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [""]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "422723e8-4bf6-438c-823f-881ca81acead",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 11,
+          "lastLinkId": 15,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [481.59912109375, 379.13336181640625, 120, 160]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [1121.59912109375, 379.13336181640625, 120, 40]
+        },
+        "inputs": [
+          {
+            "id": "0f07c10e-5705-4764-9b24-b69606c6dbcc",
+            "name": "text",
+            "type": "STRING",
+            "linkIds": [10],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 399.13336181640625
+            }
+          },
+          {
+            "id": "214a5060-24dd-4299-ab78-8027dc5b9c59",
+            "name": "clip",
+            "type": "CLIP",
+            "linkIds": [11],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 419.13336181640625
+            }
+          },
+          {
+            "id": "8ab94c5d-e7df-433c-9177-482a32340552",
+            "name": "model",
+            "type": "MODEL",
+            "linkIds": [12],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 439.13336181640625
+            }
+          },
+          {
+            "id": "8a4cd719-8c67-473b-9b44-ac0582d02641",
+            "name": "positive",
+            "type": "CONDITIONING",
+            "linkIds": [13],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 459.13336181640625
+            }
+          },
+          {
+            "id": "a78d6b3a-ad40-4300-b0a5-2cdbdb8dc135",
+            "name": "negative",
+            "type": "CONDITIONING",
+            "linkIds": [14],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 479.13336181640625
+            }
+          },
+          {
+            "id": "4c7abe0c-902d-49ef-a5b0-cbf02b50b693",
+            "name": "latent_image",
+            "type": "LATENT",
+            "linkIds": [15],
+            "pos": {
+              "0": 581.59912109375,
+              "1": 499.13336181640625
+            }
+          }
+        ],
+        "outputs": [],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 10,
+            "type": "CLIPTextEncode",
+            "pos": [661.59912109375, 314.13336181640625],
+            "size": [400, 200],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "clip",
+                "name": "clip",
+                "type": "CLIP",
+                "link": 11
+              },
+              {
+                "localized_name": "text",
+                "name": "text",
+                "type": "STRING",
+                "widget": {
+                  "name": "text"
+                },
+                "link": 10
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "CONDITIONING",
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [""]
+          },
+          {
+            "id": 11,
+            "type": "KSampler",
+            "pos": [674.1234741210938, 570.5839233398438],
+            "size": [270, 262],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 12
+              },
+              {
+                "localized_name": "positive",
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": 13
+              },
+              {
+                "localized_name": "negative",
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": 14
+              },
+              {
+                "localized_name": "latent_image",
+                "name": "latent_image",
+                "type": "LATENT",
+                "link": 15
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "LATENT",
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": null
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "KSampler"
+            },
+            "widgets_values": [0, "randomize", 20, 8, "euler", "simple", 1]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 10,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 10,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 11,
+            "origin_id": -10,
+            "origin_slot": 1,
+            "target_id": 10,
+            "target_slot": 0,
+            "type": "CLIP"
+          },
+          {
+            "id": 12,
+            "origin_id": -10,
+            "origin_slot": 2,
+            "target_id": 11,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 13,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 11,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 14,
+            "origin_id": -10,
+            "origin_slot": 4,
+            "target_id": 11,
+            "target_slot": 2,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 15,
+            "origin_id": -10,
+            "origin_slot": 5,
+            "target_id": 11,
+            "target_slot": 3,
+            "type": "LATENT"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.9581355200690549,
+      "offset": [258.6405769416877, 147.17927927927929]
+    },
+    "frontendVersion": "1.24.1"
+  },
+  "version": 0.4
+}

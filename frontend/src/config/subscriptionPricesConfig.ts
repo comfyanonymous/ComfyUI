@@ -1,0 +1,1 @@
+export const MONTHLY_SUBSCRIPTION_PRICE = 20

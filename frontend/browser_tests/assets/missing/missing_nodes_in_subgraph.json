@@ -1,0 +1,182 @@
+{
+  "id": "test-missing-nodes-in-subgraph",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "KSampler",
+      "pos": [100, 100],
+      "size": [270, 262],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [0, "randomize", 20, 8, "euler", "simple", 1]
+    },
+    {
+      "id": 2,
+      "type": "subgraph-with-missing-node",
+      "pos": [400, 100],
+      "size": [144, 46],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input1",
+          "type": "CONDITIONING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output1",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": []
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "subgraph-with-missing-node",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 2,
+          "lastLinkId": 2,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "Subgraph with Missing Node",
+        "inputNode": {
+          "id": -10,
+          "bounding": [100, 200, 120, 60]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [500, 200, 120, 60]
+        },
+        "inputs": [
+          {
+            "id": "input1-id",
+            "name": "input1",
+            "type": "CONDITIONING",
+            "linkIds": [1],
+            "pos": {
+              "0": 150,
+              "1": 220
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output1-id",
+            "name": "output1",
+            "type": "LATENT",
+            "linkIds": [2],
+            "pos": {
+              "0": 520,
+              "1": 220
+            }
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 1,
+            "type": "MISSING_NODE_TYPE_IN_SUBGRAPH",
+            "pos": [250, 180],
+            "size": [200, 100],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "input",
+                "type": "CONDITIONING",
+                "link": 1
+              }
+            ],
+            "outputs": [
+              {
+                "name": "output",
+                "type": "LATENT",
+                "links": [2]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "MISSING_NODE_TYPE_IN_SUBGRAPH"
+            },
+            "widgets_values": ["some", "widget", "values"]
+          }
+        ],
+        "links": [
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 0,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 2,
+            "origin_id": 1,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "LATENT"
+          }
+        ]
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}

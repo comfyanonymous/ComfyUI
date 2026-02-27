@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@frontend-locales/*": ["../../src/locales/*"]
+    }
+  },
+  "include": [
+    ".storybook/**/*",
+    "src/**/*.ts",
+    "src/**/*.vue",
+    "src/**/*.d.ts",
+    "vite.config.mts"
+  ],
+  "references": []
+}

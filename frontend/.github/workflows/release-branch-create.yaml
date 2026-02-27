@@ -1,0 +1,281 @@
+name: Release Branch Create
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - 'package.json'
+
+jobs:
+  create-release-branch:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'Release')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PR_GH_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+
+      - name: Check version bump type
+        id: check_version
+        run: |
+          # Get current version from main
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          # Remove 'v' prefix if present (shouldn't be in package.json, but defensive)
+          CURRENT_VERSION=${CURRENT_VERSION#v}
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          # Validate version format
+          if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "ERROR: Invalid version format: $CURRENT_VERSION"
+            exit 1
+          fi
+
+          # Extract major and minor versions
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3 | cut -d- -f1)
+
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "patch=$PATCH" >> $GITHUB_OUTPUT
+
+          # Get previous version from the commit before the merge
+          git checkout HEAD^1
+          PREV_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+          # Remove 'v' prefix if present
+          PREV_VERSION=${PREV_VERSION#v}
+
+          # Validate previous version format
+          if ! [[ "$PREV_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "WARNING: Invalid previous version format: $PREV_VERSION, using 0.0.0"
+            PREV_VERSION="0.0.0"
+          fi
+
+          PREV_MINOR=$(echo $PREV_VERSION | cut -d. -f2)
+
+          echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+          echo "prev_minor=$PREV_MINOR" >> $GITHUB_OUTPUT
+
+          BASE_COMMIT=$(git rev-parse HEAD)
+          echo "base_commit=$BASE_COMMIT" >> $GITHUB_OUTPUT
+
+          # Get previous major version for comparison
+          PREV_MAJOR=$(echo $PREV_VERSION | cut -d. -f1)
+
+          # Check if current version is a pre-release
+          if [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+
+          # Check if this was a minor version bump or major version bump
+          # But skip if it's a pre-release version
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            echo "is_minor_bump=false" >> $GITHUB_OUTPUT
+            echo "reason=prerelease version" >> $GITHUB_OUTPUT
+          elif [[ "$MAJOR" -gt "$PREV_MAJOR" && "$MINOR" == "0" && "$PATCH" == "0" ]]; then
+            # Major version bump (e.g., 1.99.x → 2.0.0)
+            echo "is_minor_bump=true" >> $GITHUB_OUTPUT
+            BRANCH_BASE="${PREV_MAJOR}.${PREV_MINOR}"
+            echo "branch_base=$BRANCH_BASE" >> $GITHUB_OUTPUT
+          elif [[ "$MAJOR" == "$PREV_MAJOR" && "$MINOR" -gt "$PREV_MINOR" && "$PATCH" == "0" ]]; then
+            # Minor version bump (e.g., 1.23.x → 1.24.0)
+            echo "is_minor_bump=true" >> $GITHUB_OUTPUT
+            BRANCH_BASE="${MAJOR}.${PREV_MINOR}"
+            echo "branch_base=$BRANCH_BASE" >> $GITHUB_OUTPUT
+          else
+            echo "is_minor_bump=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Return to main branch
+          git checkout main
+
+      - name: Create release branches
+        id: create_branches
+        if: steps.check_version.outputs.is_minor_bump == 'true'
+        run: |
+          BRANCH_BASE="${{ steps.check_version.outputs.branch_base }}"
+          PREV_VERSION="${{ steps.check_version.outputs.prev_version }}"
+
+          if [[ -z "$BRANCH_BASE" ]]; then
+            echo "::error::Branch base not set; unable to determine release branches"
+            exit 1
+          fi
+
+          BASE_COMMIT="${{ steps.check_version.outputs.base_commit }}"
+
+          if [[ -z "$BASE_COMMIT" ]]; then
+            echo "::error::Base commit not provided; cannot create release branches"
+            exit 1
+          fi
+
+          RESULTS_FILE=$(mktemp)
+          trap 'rm -f "$RESULTS_FILE"' EXIT
+
+          for PREFIX in core cloud; do
+            BRANCH_NAME="${PREFIX}/${BRANCH_BASE}"
+
+            if git ls-remote --exit-code --heads origin \
+              "$BRANCH_NAME" >/dev/null 2>&1; then
+              echo "⚠️  Branch $BRANCH_NAME already exists"
+              echo "ℹ️  Skipping creation for $BRANCH_NAME"
+              STATUS="exists"
+            else
+              # Create branch from the commit BEFORE the version bump
+              if ! git push origin "$BASE_COMMIT:refs/heads/$BRANCH_NAME"; then
+                echo "::error::Failed to push release branch $BRANCH_NAME"
+                exit 1
+              fi
+              echo "✅ Created release branch: $BRANCH_NAME"
+              STATUS="created"
+            fi
+
+            echo "$BRANCH_NAME|$STATUS|$PREV_VERSION" >> "$RESULTS_FILE"
+          done
+
+          {
+            echo "results<<EOF"
+            cat "$RESULTS_FILE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Ensure release labels
+        if: steps.check_version.outputs.is_minor_bump == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PR_GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          BRANCH_BASE="${{ steps.check_version.outputs.branch_base }}"
+
+          if [[ -z "$BRANCH_BASE" ]]; then
+            echo "::error::Branch base not set; unable to manage labels"
+            exit 1
+          fi
+
+          declare -A COLORS=(
+            [core]="4361ee"
+            [cloud]="4f6ef5"
+          )
+
+          for PREFIX in core cloud; do
+            LABEL="${PREFIX}/${BRANCH_BASE}"
+            COLOR="${COLORS[$PREFIX]}"
+            DESCRIPTION="Backport PRs for ${PREFIX} ${BRANCH_BASE}"
+
+            if gh label view "$LABEL" >/dev/null 2>&1; then
+              gh label edit "$LABEL" \
+                --color "$COLOR" \
+                --description "$DESCRIPTION"
+              echo "🔄 Updated label $LABEL"
+            else
+              gh label create "$LABEL" \
+                --color "$COLOR" \
+                --description "$DESCRIPTION"
+              echo "✨ Created label $LABEL"
+            fi
+          done
+
+          MIN_LABELS_TO_KEEP=3
+          MAX_LABELS_TO_FETCH=200
+
+          for PREFIX in core cloud; do
+            mapfile -t LABELS < <(
+              gh label list \
+                --json name \
+                --limit "$MAX_LABELS_TO_FETCH" \
+                --jq '.[].name' |
+              grep -E "^${PREFIX}/[0-9]+\.[0-9]+$" |
+              sort -t/ -k2,2V
+            )
+
+            TOTAL=${#LABELS[@]}
+
+            if (( TOTAL <= MIN_LABELS_TO_KEEP )); then
+              echo "ℹ️  Nothing to prune for $PREFIX labels"
+              continue
+            fi
+
+            REMOVE_COUNT=$((TOTAL - MIN_LABELS_TO_KEEP))
+
+            if (( REMOVE_COUNT > 1 )); then
+              REMOVE_COUNT=1
+            fi
+
+            for ((i=0; i<REMOVE_COUNT; i++)); do
+              OLD_LABEL="${LABELS[$i]}"
+              gh label delete "$OLD_LABEL" --yes
+              echo "🗑️ Removed old label $OLD_LABEL"
+            done
+          done
+
+      - name: Post summary
+        if: always() && steps.check_version.outputs.is_minor_bump == 'true'
+        run: |
+          CURRENT_VERSION="${{ steps.check_version.outputs.current_version }}"
+          RESULTS="${{ steps.create_branches.outputs.results }}"
+
+          if [[ -z "$RESULTS" ]]; then
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🌿 Release Branch Summary
+
+          Release branch creation skipped; no eligible branches were found.
+          EOF
+            exit 0
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🌿 Release Branch Summary
+
+          - **Main branch**: \`$CURRENT_VERSION\` (active development)
+
+          ### Branch Status
+          EOF
+
+          while IFS='|' read -r BRANCH STATUS PREV_VERSION; do
+            if [[ "$STATUS" == "created" ]]; then
+              cat >> $GITHUB_STEP_SUMMARY << EOF
+
+          - \`$BRANCH\` created from version \`$PREV_VERSION\`
+          EOF
+            else
+              cat >> $GITHUB_STEP_SUMMARY << EOF
+
+          - \`$BRANCH\` already existed (based on version \`$PREV_VERSION\`)
+          EOF
+            fi
+          done <<< "$RESULTS"
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+
+          ### Branch Policy
+
+          Release branches are feature-frozen and only accept:
+          - 🐛 Bug fixes
+          - 🔒 Security patches
+          - 📚 Documentation updates
+
+          All new features should continue to be developed against \`main\`.
+
+          ### Backporting Changes
+
+          To backport a fix:
+          1. Create your fix on \`main\` first
+          2. Cherry-pick to the target release branch
+          3. Create a PR targeting that branch
+          4. Apply the matching \`core/x.y\` or \`cloud/x.y\` label
+          EOF

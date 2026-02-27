@@ -1,0 +1,46 @@
+{
+  "last_node_id": 11,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "DevToolsNodeWithOnlyOptionalInput",
+      "pos": {
+        "0": 150,
+        "1": 464.2916564941406
+      },
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null,
+          "shape": 7,
+          "label": "clip"
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "DevToolsNodeWithOnlyOptionalInput"
+      },
+      "widgets_values": [""]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "groupNodes": {},
+    "ds": {
+      "offset": [0, 0],
+      "scale": 1
+    }
+  },
+  "version": 0.4
+}
