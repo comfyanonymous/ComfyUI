@@ -401,6 +401,7 @@ class VideoFromComponents(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
     ):
+        """Save the video to a file path or BytesIO buffer."""
         if format != VideoContainer.AUTO and format != VideoContainer.MP4:
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
