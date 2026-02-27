@@ -29,14 +29,14 @@ class RFDETR_detect(io.ComfyNode):
     def execute(cls, model, image, threshold, class_name) -> io.NodeOutput:
         B, H, W, C = image.shape
 
-        device = comfy.model_management.get_torch_device()
-        orig_size = torch.tensor([[W, H]], device=device, dtype=torch.float32).expand(B, -1)  # [B, 2] as (W, H)
-
         image_in = comfy.utils.common_upscale(image.movedim(-1, 1), 640, 640, "bilinear", crop="disabled")
 
+        device = comfy.model_management.get_torch_device()
+        dtype = model.model.get_dtype_inference()
+        orig_size = torch.tensor([[W, H]], device=device, dtype=dtype).expand(B, -1)  # [B, 2] as (W, H)
+
         comfy.model_management.load_model_gpu(model)
-        out     = model.model.diffusion_model(image_in.to(device=device)) # [B, num_queries, 4+num_classes]
-        results = model.model.diffusion_model.postprocess(out, orig_size)  # list of B dicts
+        results = model.model.diffusion_model(image_in.to(device=device, dtype=dtype), orig_size)  # list of B dicts
 
         all_bbox_dicts = []
 
