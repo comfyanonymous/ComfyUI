@@ -1,15 +1,43 @@
-"""Math expression node using JSONata for evaluation.
+"""Math expression node using simpleeval for safe evaluation.
 
-Provides a ComfyMathExpression node that evaluates JSONata expressions
+Provides a ComfyMathExpression node that evaluates math expressions
 against dynamically-grown numeric inputs.
 """
 
 from __future__ import annotations
 
-import jsonata as jsonata_lib
+import math
+
+from simpleeval import simple_eval
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
+
+
+def _variadic_sum(*args):
+    """Support both sum(values) and sum(a, b, c)."""
+    if len(args) == 1 and hasattr(args[0], "__iter__"):
+        return sum(args[0])
+    return sum(args)
+
+
+MATH_FUNCTIONS = {
+    "sum": _variadic_sum,
+    "min": min,
+    "max": max,
+    "abs": abs,
+    "round": round,
+    "pow": pow,
+    "sqrt": math.sqrt,
+    "ceil": math.ceil,
+    "floor": math.floor,
+    "log": math.log,
+    "log2": math.log2,
+    "log10": math.log10,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+}
 
 
 def _positional_alias(index: int) -> str:
@@ -18,7 +46,7 @@ def _positional_alias(index: int) -> str:
 
 
 class MathExpressionNode(io.ComfyNode):
-    """Evaluates a JSONata expression against dynamically-grown inputs."""
+    """Evaluates a math expression against dynamically-grown inputs."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -55,7 +83,7 @@ class MathExpressionNode(io.ComfyNode):
         context: dict = dict(values)
         context["values"] = list(values.values())
 
-        result = jsonata_lib.Jsonata(expression).evaluate(context)
+        result = simple_eval(expression, names=context, functions=MATH_FUNCTIONS)
         if isinstance(result, bool) or not isinstance(result, (int, float)):
             raise ValueError(
                 f"Math Expression '{expression}' must evaluate to a numeric result, "
