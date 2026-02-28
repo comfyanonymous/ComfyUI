@@ -31,7 +31,10 @@ class AudioVAEComponentConfig:
 
         raw_config = metadata["config"]
         if isinstance(raw_config, str):
-            parsed_config = json.loads(raw_config)
+            try:
+                parsed_config = json.loads(raw_config)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON config for audio VAE: {e}") from e
         else:
             parsed_config = raw_config
 
