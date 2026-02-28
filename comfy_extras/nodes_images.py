@@ -706,8 +706,8 @@ class SplitImageToTileList(IO.ComfyNode):
     @staticmethod
     def get_grid_coords(width, height, tile_width, tile_height, overlap):
         coords = []
-        stride_x = max(1, tile_width - overlap)
-        stride_y = max(1, tile_height - overlap)
+        stride_x = round(max(tile_width * 0.25, tile_width - overlap))
+        stride_y = round(max(tile_width * 0.25, tile_height - overlap))
 
         y = 0
         while y < height:
@@ -764,34 +764,6 @@ class ImageMergeTileList(IO.ComfyNode):
             ],
         )
 
-    @staticmethod
-    def get_grid_coords(width, height, tile_width, tile_height, overlap):
-        coords = []
-        stride_x = max(1, tile_width - overlap)
-        stride_y = max(1, tile_height - overlap)
-
-        y = 0
-        while y < height:
-            x = 0
-            y_end = min(y + tile_height, height)
-            y_start = max(0, y_end - tile_height)
-
-            while x < width:
-                x_end = min(x + tile_width, width)
-                x_start = max(0, x_end - tile_width)
-
-                coords.append((x_start, y_start, x_end, y_end))
-
-                if x_end >= width:
-                    break
-                x += stride_x
-
-            if y_end >= height:
-                break
-            y += stride_y
-
-        return coords
-
     @classmethod
     def execute(cls, image_list, final_width, final_height, overlap):
         w = final_width[0]
@@ -804,7 +776,7 @@ class ImageMergeTileList(IO.ComfyNode):
         device = first_tile.device
         dtype = first_tile.dtype
 
-        coords = cls.get_grid_coords(w, h, t_w, t_h, ovlp)
+        coords = SplitImageToTileList.get_grid_coords(w, h, t_w, t_h, ovlp)
 
         canvas = torch.zeros((b, h, w, c), device=device, dtype=dtype)
         weights = torch.zeros((b, h, w, 1), device=device, dtype=dtype)
