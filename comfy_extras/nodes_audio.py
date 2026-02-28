@@ -22,7 +22,7 @@ class EmptyLatentAudio(IO.ComfyNode):
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
                 IO.Int.Input(
-                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
+                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch.",
                 ),
             ],
             outputs=[IO.Latent.Output()],
@@ -159,6 +159,7 @@ class SaveAudio(IO.ComfyNode):
             search_aliases=["export flac"],
             display_name="Save Audio (FLAC)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -300,6 +301,7 @@ class LoadAudio(IO.ComfyNode):
             search_aliases=["import audio", "open audio", "audio file"],
             display_name="Load Audio",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Combo.Input("audio", upload=IO.UploadType.audio, options=sorted(files)),
             ],
@@ -677,6 +679,7 @@ class EmptyAudio(IO.ComfyNode):
                     tooltip="Sample rate of the empty audio clip.",
                     min=1,
                     max=192000,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "channels",
@@ -684,6 +687,7 @@ class EmptyAudio(IO.ComfyNode):
                     min=1,
                     max=2,
                     tooltip="Number of audio channels (1 for mono, 2 for stereo).",
+                    advanced=True,
                 ),
             ],
             outputs=[IO.Audio.Output()],
@@ -696,6 +700,67 @@ class EmptyAudio(IO.ComfyNode):
         return IO.NodeOutput({"waveform": waveform, "sample_rate": sample_rate})
 
     create_empty_audio = execute  # TODO: remove
+
+
+class AudioEqualizer3Band(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="AudioEqualizer3Band",
+            search_aliases=["eq", "bass boost", "treble boost", "equalizer"],
+            display_name="Audio Equalizer (3-Band)",
+            category="audio",
+            is_experimental=True,
+            inputs=[
+                IO.Audio.Input("audio"),
+                IO.Float.Input("low_gain_dB", default=0.0, min=-24.0, max=24.0, step=0.1, tooltip="Gain for Low frequencies (Bass)"),
+                IO.Int.Input("low_freq", default=100, min=20, max=500, tooltip="Cutoff frequency for Low shelf"),
+                IO.Float.Input("mid_gain_dB", default=0.0, min=-24.0, max=24.0, step=0.1, tooltip="Gain for Mid frequencies"),
+                IO.Int.Input("mid_freq", default=1000, min=200, max=4000, tooltip="Center frequency for Mids"),
+                IO.Float.Input("mid_q", default=0.707, min=0.1, max=10.0, step=0.1, tooltip="Q factor (bandwidth) for Mids"),
+                IO.Float.Input("high_gain_dB", default=0.0, min=-24.0, max=24.0, step=0.1, tooltip="Gain for High frequencies (Treble)"),
+                IO.Int.Input("high_freq", default=5000, min=1000, max=15000, tooltip="Cutoff frequency for High shelf"),
+            ],
+            outputs=[IO.Audio.Output()],
+        )
+
+    @classmethod
+    def execute(cls, audio, low_gain_dB, low_freq, mid_gain_dB, mid_freq, mid_q, high_gain_dB, high_freq) -> IO.NodeOutput:
+        waveform = audio["waveform"]
+        sample_rate = audio["sample_rate"]
+        eq_waveform = waveform.clone()
+
+        # 1. Apply Low Shelf (Bass)
+        if low_gain_dB != 0:
+            eq_waveform = torchaudio.functional.bass_biquad(
+                eq_waveform,
+                sample_rate,
+                gain=low_gain_dB,
+                central_freq=float(low_freq),
+                Q=0.707
+            )
+
+        # 2. Apply Peaking EQ (Mids)
+        if mid_gain_dB != 0:
+            eq_waveform = torchaudio.functional.equalizer_biquad(
+                eq_waveform,
+                sample_rate,
+                center_freq=float(mid_freq),
+                gain=mid_gain_dB,
+                Q=mid_q
+            )
+
+        # 3. Apply High Shelf (Treble)
+        if high_gain_dB != 0:
+            eq_waveform = torchaudio.functional.treble_biquad(
+                eq_waveform,
+                sample_rate,
+                gain=high_gain_dB,
+                central_freq=float(high_freq),
+                Q=0.707
+            )
+
+        return IO.NodeOutput({"waveform": eq_waveform, "sample_rate": sample_rate})
 
 
 class AudioExtension(ComfyExtension):
@@ -720,6 +785,7 @@ class AudioExtension(ComfyExtension):
             AudioMerge,
             AudioAdjustVolume,
             EmptyAudio,
+            AudioEqualizer3Band,
         ]
 
 async def comfy_entrypoint() -> AudioExtension:

@@ -350,7 +350,7 @@ AMD_ENABLE_MIOPEN_ENV = 'COMFYUI_ENABLE_MIOPEN'
 
 try:
     if is_amd():
-        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName.split(':')[0]
         if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
             if os.getenv(AMD_ENABLE_MIOPEN_ENV) != '1':
                 torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
@@ -378,7 +378,7 @@ try:
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if aotriton_supported(arch):  # AMD efficient attention implementation depends on aotriton.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx950", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
                 if rocm_version >= (7, 0):
                    if any((a in arch) for a in ["gfx1200", "gfx1201"]):
@@ -836,7 +836,7 @@ def unet_inital_load_device(parameters, dtype):
 
     mem_dev = get_free_memory(torch_dev)
     mem_cpu = get_free_memory(cpu_dev)
-    if mem_dev > mem_cpu and model_size < mem_dev and comfy.memory_management.aimdo_allocator is None:
+    if mem_dev > mem_cpu and model_size < mem_dev and comfy.memory_management.aimdo_enabled:
         return torch_dev
     else:
         return cpu_dev
@@ -1121,7 +1121,6 @@ def get_cast_buffer(offload_stream, device, size, ref):
             synchronize()
             del STREAM_CAST_BUFFERS[offload_stream]
             del cast_buffer
-            #FIXME: This doesn't work in Aimdo because mempool cant clear cache
             soft_empty_cache()
         with wf_context:
             cast_buffer = torch.empty((size), dtype=torch.int8, device=device)

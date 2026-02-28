@@ -308,6 +308,15 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def load_sd(self, sd):
         return self.transformer.load_state_dict(sd, strict=False, assign=getattr(self, "can_assign_sd", False))
 
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
+        if isinstance(tokens, dict):
+            tokens_only = next(iter(tokens.values())) # todo: get this better?
+        else:
+            tokens_only = tokens
+        tokens_only = [[t[0] for t in b] for b in tokens_only]
+        embeds = self.process_tokens(tokens_only, device=self.execution_device)[0]
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed)
+
 def parse_parentheses(string):
     result = []
     current_item = ""
@@ -564,6 +573,8 @@ class SDTokenizer:
         min_length = tokenizer_options.get("{}_min_length".format(self.embedding_key), self.min_length)
         min_padding = tokenizer_options.get("{}_min_padding".format(self.embedding_key), self.min_padding)
 
+        min_length = kwargs.get("min_length", min_length)
+
         text = escape_important(text)
         if kwargs.get("disable_weights", self.disable_weights):
             parsed_weights = [(text, 1.0)]
@@ -663,6 +674,9 @@ class SDTokenizer:
     def state_dict(self):
         return {}
 
+    def decode(self, token_ids, skip_special_tokens=True):
+        return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
+
 class SD1Tokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer, name=None):
         if name is not None:
@@ -685,6 +699,9 @@ class SD1Tokenizer:
 
     def state_dict(self):
         return getattr(self, self.clip).state_dict()
+
+    def decode(self, token_ids, skip_special_tokens=True):
+        return getattr(self, self.clip).decode(token_ids, skip_special_tokens=skip_special_tokens)
 
 class SD1CheckpointClipModel(SDClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
@@ -722,3 +739,6 @@ class SD1ClipModel(torch.nn.Module):
 
     def load_sd(self, sd):
         return getattr(self, self.clip).load_sd(sd)
+
+    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, seed=None):
+        return getattr(self, self.clip).generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, repetition_penalty=repetition_penalty, seed=seed)

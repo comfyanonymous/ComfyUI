@@ -20,7 +20,7 @@
 import torch
 import math
 import struct
-import comfy.checkpoint_pickle
+import comfy.memory_management
 import safetensors.torch
 import numpy as np
 from PIL import Image
@@ -29,7 +29,7 @@ import itertools
 from torch.nn.functional import interpolate
 from tqdm.auto import trange
 from einops import rearrange
-from comfy.cli_args import args, enables_dynamic_vram
+from comfy.cli_args import args
 import json
 import time
 import mmap
@@ -38,26 +38,26 @@ import warnings
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
 
-ALWAYS_SAFE_LOAD = False
-if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
+
+if True:  # ckpt/pt file whitelist for safe loading of old sd files
     class ModelCheckpoint:
         pass
     ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
 
     def scalar(*args, **kwargs):
-        from numpy.core.multiarray import scalar as sc
-        return sc(*args, **kwargs)
+        return None
     scalar.__module__ = "numpy.core.multiarray"
 
     from numpy import dtype
     from numpy.dtypes import Float64DType
-    from _codecs import encode
+
+    def encode(*args, **kwargs):  # no longer necessary on newer torch
+        return None
+    encode.__module__ = "_codecs"
 
     torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
-    ALWAYS_SAFE_LOAD = True
     logging.info("Checkpoint files will always be loaded safely.")
-else:
-    logging.warning("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended as older versions of pytorch are no longer supported.")
+
 
 # Current as of safetensors 0.7.0
 _TYPES = {
@@ -113,7 +113,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            if enables_dynamic_vram():
+            if comfy.memory_management.aimdo_enabled:
                 sd, metadata = load_safetensors(ckpt)
                 if not return_metadata:
                     metadata = None
@@ -140,11 +140,8 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
         if MMAP_TORCH_FILES:
             torch_args["mmap"] = True
 
-        if safe_load or ALWAYS_SAFE_LOAD:
-            pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
-        else:
-            logging.warning("WARNING: loading {} unsafely, upgrade your pytorch to 2.4 or newer to load this file safely.".format(ckpt))
-            pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
+        pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
+
         if "state_dict" in pl_sd:
             sd = pl_sd["state_dict"]
         else:
@@ -1157,7 +1154,7 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 def model_trange(*args, **kwargs):
-    if comfy.memory_management.aimdo_allocator is None:
+    if not comfy.memory_management.aimdo_enabled:
         return trange(*args, **kwargs)
 
     pbar = trange(*args, **kwargs, smoothing=1.0)
@@ -1421,3 +1418,11 @@ def deepcopy_list_dict(obj, memo=None):
 
     memo[obj_id] = res
     return res
+
+def normalize_image_embeddings(embeds, embeds_info, scale_factor):
+    """Normalize image embeddings to match text embedding scale"""
+    for info in embeds_info:
+        if info.get("type") == "image":
+            start_idx = info["index"]
+            end_idx = start_idx + info["size"]
+            embeds[:, start_idx:end_idx, :] /= scale_factor

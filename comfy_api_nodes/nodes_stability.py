@@ -86,6 +86,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -107,6 +108,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                     tooltip="A blurb of text describing what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "image_denoise",
@@ -218,6 +220,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "cfg_scale",
@@ -247,6 +250,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "image_denoise",
@@ -384,6 +388,7 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -474,6 +479,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -491,6 +497,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -624,6 +631,7 @@ class StabilityTextToAudio(IO.ComfyNode):
             node_id="StabilityTextToAudio",
             display_name="Stability AI Text To Audio",
             category="api node/audio/Stability AI",
+            essentials_category="Audio",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Combo.Input(
@@ -659,6 +667,7 @@ class StabilityTextToAudio(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -736,6 +745,7 @@ class StabilityAudioToAudio(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "strength",
@@ -829,6 +839,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "mask_start",
@@ -837,6 +848,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     max=190,
                     step=1,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "mask_end",
@@ -845,6 +857,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     max=190,
                     step=1,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[

@@ -54,6 +54,7 @@ async def execute_task(
         response_model=TaskStatusResponse,
         status_extractor=lambda r: r.state,
         progress_extractor=lambda r: r.progress,
+        price_extractor=lambda r: r.credits * 0.005 if r.credits is not None else None,
         max_poll_attempts=max_poll_attempts,
     )
     if not response.creations:
@@ -111,12 +112,14 @@ class ViduTextToVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -207,12 +210,14 @@ class ViduImageToVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -313,12 +318,14 @@ class ViduReferenceVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -425,12 +432,14 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -510,11 +519,12 @@ class Vidu2TextToVideoNode(IO.ComfyNode):
                     control_after_generate=True,
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "3:4", "4:3", "1:1"]),
-                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"], advanced=True),
                 IO.Boolean.Input(
                     "background_music",
                     default=False,
                     tooltip="Whether to add background music to the generated video.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -608,11 +618,13 @@ class Vidu2ImageToVideoNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "resolution",
                     options=["720p", "1080p"],
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -726,6 +738,7 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                     "audio",
                     default=False,
                     tooltip="When enabled video will contain generated speech and background music based on the prompt.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "duration",
@@ -745,11 +758,12 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                     control_after_generate=True,
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "4:3", "3:4", "1:1"]),
-                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"], advanced=True),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -863,11 +877,12 @@ class Vidu2StartEndToVideoNode(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                 ),
-                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"], advanced=True),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -1306,6 +1321,36 @@ class Vidu3TextToVideoNode(IO.ComfyNode):
                                 ),
                             ],
                         ),
+                        IO.DynamicCombo.Option(
+                            "viduq3-turbo",
+                            [
+                                IO.Combo.Input(
+                                    "aspect_ratio",
+                                    options=["16:9", "9:16", "3:4", "4:3", "1:1"],
+                                    tooltip="The aspect ratio of the output video.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720p", "1080p"],
+                                    tooltip="Resolution of the output video.",
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=1,
+                                    max=16,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.slider,
+                                    tooltip="Duration of the output video in seconds.",
+                                ),
+                                IO.Boolean.Input(
+                                    "audio",
+                                    default=False,
+                                    tooltip="When enabled, outputs video with sound "
+                                    "(including dialogue and sound effects).",
+                                ),
+                            ],
+                        ),
                     ],
                     tooltip="Model to use for video generation.",
                 ),
@@ -1334,13 +1379,20 @@ class Vidu3TextToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model.duration", "model.resolution"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
                 expr="""
                 (
                   $res := $lookup(widgets, "model.resolution");
-                  $base := $lookup({"720p": 0.075, "1080p": 0.1}, $res);
-                  $perSec := $lookup({"720p": 0.025, "1080p": 0.05}, $res);
-                  {"type":"usd","usd": $base + $perSec * ($lookup(widgets, "model.duration") - 1)}
+                  $d := $lookup(widgets, "model.duration");
+                  $contains(widgets.model, "turbo")
+                    ? (
+                        $rate := $lookup({"720p": 0.06, "1080p": 0.08}, $res);
+                        {"type":"usd","usd": $rate * $d}
+                      )
+                    : (
+                        $rate := $lookup({"720p": 0.15, "1080p": 0.16}, $res);
+                        {"type":"usd","usd": $rate * $d}
+                      )
                 )
                 """,
             ),
@@ -1409,6 +1461,31 @@ class Vidu3ImageToVideoNode(IO.ComfyNode):
                                 ),
                             ],
                         ),
+                        IO.DynamicCombo.Option(
+                            "viduq3-turbo",
+                            [
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720p", "1080p"],
+                                    tooltip="Resolution of the output video.",
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=1,
+                                    max=16,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.slider,
+                                    tooltip="Duration of the output video in seconds.",
+                                ),
+                                IO.Boolean.Input(
+                                    "audio",
+                                    default=False,
+                                    tooltip="When enabled, outputs video with sound "
+                                    "(including dialogue and sound effects).",
+                                ),
+                            ],
+                        ),
                     ],
                     tooltip="Model to use for video generation.",
                 ),
@@ -1442,13 +1519,20 @@ class Vidu3ImageToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model.duration", "model.resolution"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
                 expr="""
                 (
                   $res := $lookup(widgets, "model.resolution");
-                  $base := $lookup({"720p": 0.075, "1080p": 0.275, "2k": 0.35}, $res);
-                  $perSec := $lookup({"720p": 0.05, "1080p": 0.075, "2k": 0.075}, $res);
-                  {"type":"usd","usd": $base + $perSec * ($lookup(widgets, "model.duration") - 1)}
+                  $d := $lookup(widgets, "model.duration");
+                  $contains(widgets.model, "turbo")
+                    ? (
+                        $rate := $lookup({"720p": 0.06, "1080p": 0.08}, $res);
+                        {"type":"usd","usd": $rate * $d}
+                      )
+                    : (
+                        $rate := $lookup({"720p": 0.15, "1080p": 0.16, "2k": 0.2}, $res);
+                        {"type":"usd","usd": $rate * $d}
+                      )
                 )
                 """,
             ),
@@ -1481,6 +1565,145 @@ class Vidu3ImageToVideoNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
+class Vidu3StartEndToVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Vidu3StartEndToVideoNode",
+            display_name="Vidu Q3 Start/End Frame-to-Video Generation",
+            category="api node/video/Vidu",
+            description="Generate a video from a start frame, an end frame, and a prompt.",
+            inputs=[
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "viduq3-pro",
+                            [
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720p", "1080p"],
+                                    tooltip="Resolution of the output video.",
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=1,
+                                    max=16,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.slider,
+                                    tooltip="Duration of the output video in seconds.",
+                                ),
+                                IO.Boolean.Input(
+                                    "audio",
+                                    default=False,
+                                    tooltip="When enabled, outputs video with sound "
+                                    "(including dialogue and sound effects).",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "viduq3-turbo",
+                            [
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720p", "1080p"],
+                                    tooltip="Resolution of the output video.",
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=1,
+                                    max=16,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.slider,
+                                    tooltip="Duration of the output video in seconds.",
+                                ),
+                                IO.Boolean.Input(
+                                    "audio",
+                                    default=False,
+                                    tooltip="When enabled, outputs video with sound "
+                                    "(including dialogue and sound effects).",
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip="Model to use for video generation.",
+                ),
+                IO.Image.Input("first_frame"),
+                IO.Image.Input("end_frame"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="Prompt description (max 2000 characters).",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=1,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
+                expr="""
+                (
+                  $res := $lookup(widgets, "model.resolution");
+                  $d := $lookup(widgets, "model.duration");
+                  $contains(widgets.model, "turbo")
+                    ? (
+                        $rate := $lookup({"720p": 0.06, "1080p": 0.08}, $res);
+                        {"type":"usd","usd": $rate * $d}
+                      )
+                    : (
+                        $rate := $lookup({"720p": 0.15, "1080p": 0.16}, $res);
+                        {"type":"usd","usd": $rate * $d}
+                      )
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: dict,
+        first_frame: Input.Image,
+        end_frame: Input.Image,
+        prompt: str,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, max_length=2000)
+        validate_images_aspect_ratio_closeness(first_frame, end_frame, min_rel=0.8, max_rel=1.25, strict=False)
+        payload = TaskCreationRequest(
+            model=model["model"],
+            prompt=prompt,
+            duration=model["duration"],
+            seed=seed,
+            resolution=model["resolution"],
+            audio=model["audio"],
+            images=[
+                (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
+                for frame in (first_frame, end_frame)
+            ],
+        )
+        results = await execute_task(cls, VIDU_START_END_VIDEO, payload)
+        return IO.NodeOutput(await download_url_to_video_output(results[0].url))
+
+
 class ViduExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -1497,6 +1720,7 @@ class ViduExtension(ComfyExtension):
             ViduMultiFrameVideoNode,
             Vidu3TextToVideoNode,
             Vidu3ImageToVideoNode,
+            Vidu3StartEndToVideoNode,
         ]
 
 
