@@ -1431,7 +1431,11 @@ class EagerEval:
     def validate(self) -> None:
         if self.engine != "jsonata":
             raise ValueError(f"Unsupported EagerEval.engine '{self.engine}'. Only 'jsonata' is supported.")
-        if not self.expr and not self.expr_widget:
+        if self.expr is not None and (not isinstance(self.expr, str) or not self.expr.strip()):
+            raise ValueError("EagerEval.expr must be a non-empty string when provided.")
+        if self.expr_widget is not None and (not isinstance(self.expr_widget, str) or not self.expr_widget.strip()):
+            raise ValueError("EagerEval.expr_widget must be a non-empty string when provided.")
+        if self.expr is None and self.expr_widget is None:
             raise ValueError("EagerEval requires either 'expr' or 'expr_widget'.")
 
     def as_dict(self) -> dict[str, Any]:

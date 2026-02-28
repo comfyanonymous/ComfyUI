@@ -13,6 +13,19 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
 
+def _positional_alias(index: int) -> str:
+    """Convert 0-based index to spreadsheet-style column name: a..z, aa..az, ba..."""
+    s = ""
+    n = index
+    while True:
+        n, rem = divmod(n, 26)
+        s = chr(ord("a") + rem) + s
+        if n == 0:
+            break
+        n -= 1
+    return s
+
+
 class MathExpressionNode(io.ComfyNode):
     """Evaluates a JSONata expression against dynamically-grown inputs."""
 
@@ -53,11 +66,15 @@ class MathExpressionNode(io.ComfyNode):
     ) -> io.NodeOutput:
         context: dict = {}
         for i, (key, val) in enumerate(values.items()):
-            context[chr(ord("a") + i)] = val  # positional: a, b, c, ...
+            context[_positional_alias(i)] = val  # positional: a, b, c, ... aa, ab, ...
             context[key] = val  # also by input name: value0, value1, ...
         context["values"] = list(values.values())  # for $sum(values) etc.
 
         result = jsonata_lib.Jsonata(expression).evaluate(context)
+        if isinstance(result, bool) or not isinstance(result, (int, float)):
+            raise ValueError(
+                f"Math Expression must evaluate to a numeric result, got {type(result).__name__}."
+            )
         return io.NodeOutput(
             result, ui={"result": [result], "context": [context]}
         )
