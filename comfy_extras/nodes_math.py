@@ -13,16 +13,8 @@ from comfy_api.latest import ComfyExtension, io
 
 
 def _positional_alias(index: int) -> str:
-    """Convert 0-based index to spreadsheet-style column name: a..z, aa..az, ba..."""
-    s = ""
-    n = index
-    while True:
-        n, rem = divmod(n, 26)
-        s = chr(ord("a") + rem) + s
-        if n == 0:
-            break
-        n -= 1
-    return s
+    """Convert 0-based index to single letter: 0->a, 1->b, ..., 25->z."""
+    return chr(ord("a") + index)
 
 
 class MathExpressionNode(io.ComfyNode):
@@ -33,11 +25,10 @@ class MathExpressionNode(io.ComfyNode):
         template = io.MatchType.Template(
             "num", allowed_types=[io.Float, io.Int]
         )
-        autogrow = io.Autogrow.TemplatePrefix(
+        autogrow = io.Autogrow.TemplateNames(
             input=io.MatchType.Input("value", template=template),
-            prefix="value",
+            names=[_positional_alias(i) for i in range(26)],
             min=1,
-            max=100,
         )
         return io.Schema(
             node_id="ComfyMathExpression",
@@ -61,16 +52,14 @@ class MathExpressionNode(io.ComfyNode):
     def execute(
         cls, expression: str, values: io.Autogrow.Type
     ) -> io.NodeOutput:
-        context: dict = {}
-        for i, (key, val) in enumerate(values.items()):
-            context[_positional_alias(i)] = val  # positional: a, b, c, ... aa, ab, ...
-            context[key] = val  # also by input name: value0, value1, ...
-        context["values"] = list(values.values())  # for $sum(values) etc.
+        context: dict = dict(values)
+        context["values"] = list(values.values())
 
         result = jsonata_lib.Jsonata(expression).evaluate(context)
         if isinstance(result, bool) or not isinstance(result, (int, float)):
             raise ValueError(
-                f"Math Expression must evaluate to a numeric result, got {type(result).__name__}."
+                f"Math Expression '{expression}' must evaluate to a numeric result, "
+                f"got {type(result).__name__}: {result!r}"
             )
         return io.NodeOutput(result)
 
