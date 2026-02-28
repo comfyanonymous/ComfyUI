@@ -1,8 +1,7 @@
 """Math expression node using JSONata for evaluation.
 
 Provides a ComfyMathExpression node that evaluates JSONata expressions
-against dynamically-grown numeric inputs. Supports frontend eager
-evaluation via the eager_eval schema field.
+against dynamically-grown numeric inputs.
 """
 
 from __future__ import annotations
@@ -56,8 +55,6 @@ class MathExpressionNode(io.ComfyNode):
                     template=template, display_name="result"
                 ),
             ],
-            is_output_node=True,
-            eager_eval=io.EagerEval(expr_widget="expression"),
         )
 
     @classmethod
@@ -75,9 +72,7 @@ class MathExpressionNode(io.ComfyNode):
             raise ValueError(
                 f"Math Expression must evaluate to a numeric result, got {type(result).__name__}."
             )
-        return io.NodeOutput(
-            result, ui={"result": [result], "context": [context]}
-        )
+        return io.NodeOutput(result)
 
 
 class MathExtension(ComfyExtension):

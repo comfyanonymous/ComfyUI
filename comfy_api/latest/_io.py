@@ -1347,7 +1347,6 @@ class NodeInfoV1:
     price_badge: dict | None = None
     search_aliases: list[str]=None
     essentials_category: str=None
-    eager_eval: dict | None = None
 
 
 @dataclass
@@ -1415,39 +1414,6 @@ class PriceBadge:
 
 
 @dataclass
-class EagerEval:
-    """Frontend-evaluated expression badge for pure-computation nodes.
-
-    When declared, the frontend evaluates the JSONata expression against
-    widget values whenever they change, displaying the result as a badge
-    without a backend round-trip.
-    """
-    expr: str | None = None
-    """Static JSONata expression (e.g. "a + b")."""
-    expr_widget: str | None = None
-    """Name of a widget whose value is the dynamic expression."""
-    engine: str = field(default="jsonata")
-
-    def validate(self) -> None:
-        if self.engine != "jsonata":
-            raise ValueError(f"Unsupported EagerEval.engine '{self.engine}'. Only 'jsonata' is supported.")
-        if self.expr is not None and (not isinstance(self.expr, str) or not self.expr.strip()):
-            raise ValueError("EagerEval.expr must be a non-empty string when provided.")
-        if self.expr_widget is not None and (not isinstance(self.expr_widget, str) or not self.expr_widget.strip()):
-            raise ValueError("EagerEval.expr_widget must be a non-empty string when provided.")
-        if self.expr is None and self.expr_widget is None:
-            raise ValueError("EagerEval requires either 'expr' or 'expr_widget'.")
-
-    def as_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {"engine": self.engine}
-        if self.expr is not None:
-            d["expr"] = self.expr
-        if self.expr_widget is not None:
-            d["expr_widget"] = self.expr_widget
-        return d
-
-
-@dataclass
 class Schema:
     """Definition of V3 node properties."""
 
@@ -1504,8 +1470,6 @@ class Schema:
     """When True, all inputs from the prompt will be passed to the node as kwargs, even if not defined in the schema."""
     essentials_category: str | None = None
     """Optional category for the Essentials tab. Path-based like category field (e.g., 'Basic', 'Image Tools/Editing')."""
-    eager_eval: EagerEval | None = None
-    """Optional frontend-evaluated expression badge for pure-computation nodes."""
 
     def validate(self):
         '''Validate the schema:
@@ -1534,8 +1498,6 @@ class Schema:
             output.validate()
         if self.price_badge is not None:
             self.price_badge.validate()
-        if self.eager_eval is not None:
-            self.eager_eval.validate()
 
     def finalize(self):
         """Add hidden based on selected schema options, and give outputs without ids default ids."""
@@ -1615,7 +1577,6 @@ class Schema:
             price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
             search_aliases=self.search_aliases if self.search_aliases else None,
             essentials_category=self.essentials_category,
-            eager_eval=self.eager_eval.as_dict() if self.eager_eval is not None else None,
         )
         return info
 
@@ -2264,7 +2225,6 @@ __all__ = [
     "ImageCompare",
     "PriceBadgeDepends",
     "PriceBadge",
-    "EagerEval",
     "BoundingBox",
     "NodeReplace",
 ]
