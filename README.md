@@ -36,6 +36,14 @@
 
 ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
 
+## This Fork
+
+This fork is used for soccer highlight workflow experimentation on top of ComfyUI.
+
+- Custom workflow utilities and one-off maintenance scripts live under [tools/local_helpers](tools/local_helpers/README.md).
+- Local workflow and node experimentation may not be suitable for upstream as-is.
+- Upstream project information and installation steps below still apply unless explicitly overridden in this fork.
+
 ## Get Started
 
 #### [Desktop Application](https://www.comfy.org/download)
