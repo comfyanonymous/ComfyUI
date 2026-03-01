@@ -180,6 +180,14 @@ def is_ixuca():
         return True
     return False
 
+def is_wsl():
+    version = platform.uname().release
+    if version.endswith("-Microsoft"):
+        return True
+    elif version.endswith("microsoft-standard-WSL2"):
+        return True
+    return False
+
 def get_torch_device():
     global directml_enabled
     global cpu_state
