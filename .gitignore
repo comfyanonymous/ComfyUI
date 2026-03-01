@@ -7,6 +7,8 @@ __pycache__/
 /temp/
 /custom_nodes/
 !custom_nodes/example_node.py.example
+!custom_nodes/ComfyUI_SoccerHighlights/
+!custom_nodes/ComfyUI_SoccerHighlights/nodes.py
 extra_model_paths.yaml
 /.vs
 .vscode/
@@ -18,6 +20,9 @@ venv*/
 !/web/extensions/core/
 /tests-ui/data/object_info.json
 /user/
+!user/default/
+!user/default/workflows/
+!user/default/workflows/workflow_soccer_highlights_v5_gemini.json
 *.log
 web_custom_versions/
 .DS_Store
