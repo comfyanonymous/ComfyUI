@@ -884,9 +884,6 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     if "__value__" in val:
                         val = val["__value__"]
                         inputs[x] = val
-                    elif "__type__" in val and "__value__" in val:
-                        val = val["__value__"]
-                        inputs[x] = val
 
                 if input_type == "INT":
                     val = int(val)
