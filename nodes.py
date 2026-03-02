@@ -2038,6 +2038,24 @@ class ImagePadForOutpaint:
         return (new_image, mask.unsqueeze(0))
 
 
+class CurveEditor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "curve": ("CURVE", {"default": [[0, 0], [1, 1]]}),
+            }
+        }
+
+    RETURN_TYPES = ("CURVE",)
+    RETURN_NAMES = ("curve",)
+    FUNCTION = "execute"
+    CATEGORY = "utils"
+
+    def execute(self, curve):
+        return (curve,)
+
+
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
@@ -2106,6 +2124,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
+    "CurveEditor": CurveEditor,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -2174,6 +2193,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
+    "CurveEditor": "Curve Editor",
 }
 
 EXTENSION_WEB_DIRS = {}
