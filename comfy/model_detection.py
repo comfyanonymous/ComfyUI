@@ -279,6 +279,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["txt_norm"] = any_suffix_in(state_dict_keys, key_prefix, 'txt_norm.', ["weight", "scale"])
             if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
                 dit_config["txt_ids_dims"] = [1, 2]
+            if dit_config.get("context_in_dim") == 3584 and dit_config["vec_in_dim"] is None:  # LongCat-Image
+                dit_config["txt_ids_dims"] = [1, 2]
 
         return dit_config
 
@@ -496,6 +498,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "humo"
         elif '{}face_adapter.fuser_blocks.0.k_norm.weight'.format(key_prefix) in state_dict_keys:
             dit_config["model_type"] = "animate"
+        elif '{}patch_embedding_pose.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "scail"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"

@@ -49,6 +49,12 @@ def mock_provider(mock_releases):
     return provider
 
 
+@pytest.fixture(autouse=True)
+def clear_cache():
+    import utils.install_util
+    utils.install_util.PACKAGE_VERSIONS = {}
+
+
 def test_get_release(mock_provider, mock_releases):
     version = "1.0.0"
     release = mock_provider.get_release(version)

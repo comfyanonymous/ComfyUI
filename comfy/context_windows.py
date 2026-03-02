@@ -214,7 +214,7 @@ class IndexListContextHandler(ContextHandlerABC):
         mask = torch.isclose(model_options["transformer_options"]["sample_sigmas"], timestep[0], rtol=0.0001)
         matches = torch.nonzero(mask)
         if torch.numel(matches) == 0:
-            raise Exception("No sample_sigmas matched current timestep; something went wrong.")
+            return  # substep from multi-step sampler: keep self._step from the last full step
         self._step = int(matches[0].item())
 
     def get_context_windows(self, model: BaseModel, x_in: torch.Tensor, model_options: dict[str]) -> list[IndexListContextWindow]:
