@@ -76,6 +76,7 @@ class ModelType(Enum):
     FLUX = 8
     IMG_TO_IMG = 9
     FLOW_COSMOS = 10
+    IMG_TO_IMG_FLOW = 11
 
 
 def model_sampling(model_config, model_type):
@@ -108,6 +109,8 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.FLOW_COSMOS:
         c = comfy.model_sampling.COSMOS_RFLOW
         s = comfy.model_sampling.ModelSamplingCosmosRFlow
+    elif model_type == ModelType.IMG_TO_IMG_FLOW:
+        c = comfy.model_sampling.IMG_TO_IMG_FLOW
 
     class ModelSampling(s, c):
         pass
@@ -928,6 +931,25 @@ class Flux(BaseModel):
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
         return out
 
+class LongCatImage(Flux):
+    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
+        transformer_options = transformer_options.copy()
+        rope_opts = transformer_options.get("rope_options", {})
+        rope_opts = dict(rope_opts)
+        rope_opts.setdefault("shift_t", 1.0)
+        rope_opts.setdefault("shift_y", 512.0)
+        rope_opts.setdefault("shift_x", 512.0)
+        transformer_options["rope_options"] = rope_opts
+        return super()._apply_model(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
+
+    def encode_adm(self, **kwargs):
+        return None
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        out.pop('guidance', None)
+        return out
+
 class Flux2(Flux):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -976,6 +998,10 @@ class LTXV(BaseModel):
         keyframe_idxs = kwargs.get("keyframe_idxs", None)
         if keyframe_idxs is not None:
             out['keyframe_idxs'] = comfy.conds.CONDRegular(keyframe_idxs)
+
+        guide_attention_entries = kwargs.get("guide_attention_entries", None)
+        if guide_attention_entries is not None:
+            out['guide_attention_entries'] = comfy.conds.CONDConstant(guide_attention_entries)
 
         return out
 
@@ -1028,6 +1054,10 @@ class LTXAV(BaseModel):
         latent_shapes = kwargs.get("latent_shapes", None)
         if latent_shapes is not None:
             out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+
+        guide_attention_entries = kwargs.get("guide_attention_entries", None)
+        if guide_attention_entries is not None:
+            out['guide_attention_entries'] = comfy.conds.CONDConstant(guide_attention_entries)
 
         return out
 
@@ -1497,6 +1527,50 @@ class WAN22(WAN21):
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
+
+class WAN21_FlowRVS(WAN21):
+    def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG_FLOW, image_to_video=False, device=None):
+        model_config.unet_config["model_type"] = "t2v"
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel)
+        self.image_to_video = image_to_video
+
+class WAN21_SCAIL(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.SCAILWanModel)
+        self.memory_usage_factor_conds = ("reference_latent", "pose_latents")
+        self.memory_usage_shape_process = {"pose_latents": lambda shape: [shape[0], shape[1], 1.5, shape[-2], shape[-1]]}
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        reference_latents = kwargs.get("reference_latents", None)
+        if reference_latents is not None:
+            ref_latent = self.process_latent_in(reference_latents[-1])
+            ref_mask = torch.ones_like(ref_latent[:, :4])
+            ref_latent = torch.cat([ref_latent, ref_mask], dim=1)
+            out['reference_latent'] = comfy.conds.CONDRegular(ref_latent)
+
+        pose_latents = kwargs.get("pose_video_latent", None)
+        if pose_latents is not None:
+            pose_latents = self.process_latent_in(pose_latents)
+            pose_mask = torch.ones_like(pose_latents[:, :4])
+            pose_latents = torch.cat([pose_latents, pose_mask], dim=1)
+            out['pose_latents'] = comfy.conds.CONDRegular(pose_latents)
+
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['reference_latent'] = list([1, 20, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+
+        pose_latents = kwargs.get("pose_video_latent", None)
+        if pose_latents is not None:
+            out['pose_latents'] = [pose_latents.shape[0], 20, *pose_latents.shape[2:]]
+
+        return out
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

@@ -279,6 +279,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["txt_norm"] = any_suffix_in(state_dict_keys, key_prefix, 'txt_norm.', ["weight", "scale"])
             if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
                 dit_config["txt_ids_dims"] = [1, 2]
+            if dit_config.get("context_in_dim") == 3584 and dit_config["vec_in_dim"] is None:  # LongCat-Image
+                dit_config["txt_ids_dims"] = [1, 2]
 
         return dit_config
 
@@ -496,6 +498,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "humo"
         elif '{}face_adapter.fuser_blocks.0.k_norm.weight'.format(key_prefix) in state_dict_keys:
             dit_config["model_type"] = "animate"
+        elif '{}patch_embedding_pose.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "scail"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -508,6 +512,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         ref_conv_weight = state_dict.get('{}ref_conv.weight'.format(key_prefix))
         if ref_conv_weight is not None:
             dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
+
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
 
         return dit_config
 
@@ -792,6 +799,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         unet_config["use_temporal_resblock"] = False
         unet_config["use_temporal_attention"] = False
 
+    heatmap_key = '{}heatmap_head.conv_layers.0.weight'.format(key_prefix)
+    if heatmap_key in state_dict_keys:
+        unet_config["heatmap_head"] = True
+
     return unet_config
 
 def model_config_from_unet_config(unet_config, state_dict=None):
@@ -1012,7 +1023,7 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
 
     LotusD = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False, 'adm_in_channels': 4,
             'dtype': dtype, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': [2, 2, 2, 2], 'transformer_depth': [1, 1, 1, 1, 1, 1, 0, 0],
-            'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_heads': 8,
+            'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_head_channels': 64,
             'transformer_depth_output': [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
             'use_temporal_attention': False, 'use_temporal_resblock': False}
 

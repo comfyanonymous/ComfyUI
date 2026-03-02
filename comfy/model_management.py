@@ -180,6 +180,14 @@ def is_ixuca():
         return True
     return False
 
+def is_wsl():
+    version = platform.uname().release
+    if version.endswith("-Microsoft"):
+        return True
+    elif version.endswith("microsoft-standard-WSL2"):
+        return True
+    return False
+
 def get_torch_device():
     global directml_enabled
     global cpu_state
@@ -350,7 +358,7 @@ AMD_ENABLE_MIOPEN_ENV = 'COMFYUI_ENABLE_MIOPEN'
 
 try:
     if is_amd():
-        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName.split(':')[0]
         if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
             if os.getenv(AMD_ENABLE_MIOPEN_ENV) != '1':
                 torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
@@ -378,7 +386,7 @@ try:
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if aotriton_supported(arch):  # AMD efficient attention implementation depends on aotriton.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx950", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
                 if rocm_version >= (7, 0):
                    if any((a in arch) for a in ["gfx1200", "gfx1201"]):
@@ -631,12 +639,11 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_
         if not DISABLE_SMART_MEMORY:
             memory_to_free = memory_required - get_free_memory(device)
             ram_to_free = ram_required - get_free_ram()
-
-        if current_loaded_models[i].model.is_dynamic() and for_dynamic:
-            #don't actually unload dynamic models for the sake of other dynamic models
-            #as that works on-demand.
-            memory_required -= current_loaded_models[i].model.loaded_size()
-            memory_to_free = 0
+            if current_loaded_models[i].model.is_dynamic() and for_dynamic:
+                #don't actually unload dynamic models for the sake of other dynamic models
+                #as that works on-demand.
+                memory_required -= current_loaded_models[i].model.loaded_size()
+                memory_to_free = 0
         if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
             logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
             unloaded_model.append(i)
