@@ -796,6 +796,8 @@ def archive_model_dtypes(model):
     for name, module in model.named_modules():
         for param_name, param in module.named_parameters(recurse=False):
             setattr(module, f"{param_name}_comfy_model_dtype", param.dtype)
+        for buf_name, buf in module.named_buffers(recurse=False):
+            setattr(module, f"{buf_name}_comfy_model_dtype", buf.dtype)
 
 
 def cleanup_models():

@@ -241,6 +241,7 @@ class ModelPatcher:
 
         self.patches = {}
         self.backup = {}
+        self.backup_buffers = {}
         self.object_patches = {}
         self.object_patches_backup = {}
         self.weight_wrapper_patches = {}
@@ -309,7 +310,7 @@ class ModelPatcher:
         return comfy.model_management.get_free_memory(device)
 
     def get_clone_model_override(self):
-        return self.model, (self.backup, self.object_patches_backup, self.pinned)
+        return self.model, (self.backup, self.backup_buffers, self.object_patches_backup, self.pinned)
 
     def clone(self, disable_dynamic=False, model_override=None):
         class_ = self.__class__
@@ -336,7 +337,7 @@ class ModelPatcher:
 
         n.force_cast_weights = self.force_cast_weights
 
-        n.backup, n.object_patches_backup, n.pinned = model_override[1]
+        n.backup, n.backup_buffers, n.object_patches_backup, n.pinned = model_override[1]
 
         # attachments
         n.attachments = {}
@@ -1586,6 +1587,15 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 move_weight_functions(m, device_to)
 
+            for key, buf in self.model.named_buffers(recurse=True):
+                if key not in self.backup_buffers:
+                    self.backup_buffers[key] = buf
+                module, buf_name = comfy.utils.resolve_attr(self.model, key)
+                model_dtype = getattr(module, buf_name + "_comfy_model_dtype", None)
+                casted_buf = buf.to(dtype=model_dtype, device=device_to)
+                comfy.utils.set_attr_buffer(self.model, key, casted_buf)
+                self.model.model_loaded_weight_memory += casted_buf.numel() * casted_buf.element_size()
+
             force_load_stat = f" Force pre-loaded {len(self.backup)} weights: {self.model.model_loaded_weight_memory // 1024} KB." if len(self.backup) > 0 else ""
             logging.info(f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.{force_load_stat}")
 
@@ -1609,6 +1619,8 @@ class ModelPatcherDynamic(ModelPatcher):
             for key in list(self.backup.keys()):
                 bk = self.backup.pop(key)
                 comfy.utils.set_attr_param(self.model, key, bk.weight)
+            for key in list(self.backup_buffers.keys()):
+                comfy.utils.set_attr_buffer(self.model, key, self.backup_buffers.pop(key))
             freed += self.model.model_loaded_weight_memory
             self.model.model_loaded_weight_memory = 0
 
