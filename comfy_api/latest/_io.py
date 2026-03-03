@@ -1250,7 +1250,7 @@ class Curve(ComfyTypeIO):
                      socketless: bool=True, default: list[tuple[float, float]]=None, advanced: bool=None):
             super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
             if default is None:
-                self.default = [[0.0, 0.0], [1.0, 1.0]]
+                self.default = [(0.0, 0.0), (1.0, 1.0)]
 
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
