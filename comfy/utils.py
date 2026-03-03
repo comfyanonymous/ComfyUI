@@ -887,6 +887,13 @@ def set_attr(obj, attr, value):
 def set_attr_param(obj, attr, value):
     return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
 
+def set_attr_buffer(obj, attr, value):
+    obj, name = resolve_attr(obj, attr)
+    prev = getattr(obj, name, ATTR_UNSET)
+    persistent = name not in getattr(obj, "_non_persistent_buffers_set", set())
+    obj.register_buffer(name, value, persistent=persistent)
+    return prev
+
 def copy_to_param(obj, attr, value):
     # inplace update tensor instead of replacing it
     attrs = attr.split(".")
