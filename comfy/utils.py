@@ -869,15 +869,19 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
 
 ATTR_UNSET={}
 
-def set_attr(obj, attr, value):
+def resolve_attr(obj, attr):
     attrs = attr.split(".")
     for name in attrs[:-1]:
         obj = getattr(obj, name)
-    prev = getattr(obj, attrs[-1], ATTR_UNSET)
+    return obj, attrs[-1]
+
+def set_attr(obj, attr, value):
+    obj, name = resolve_attr(obj, attr)
+    prev = getattr(obj, name, ATTR_UNSET)
     if value is ATTR_UNSET:
-        delattr(obj, attrs[-1])
+        delattr(obj, name)
     else:
-        setattr(obj, attrs[-1], value)
+        setattr(obj, name, value)
     return prev
 
 def set_attr_param(obj, attr, value):
