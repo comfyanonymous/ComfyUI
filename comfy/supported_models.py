@@ -1702,6 +1702,7 @@ class ACEStep15(supported_models_base.BASE):
 
         return supported_models_base.ClipTarget(comfy.text_encoders.ace15.ACE15Tokenizer, comfy.text_encoders.ace15.te(**detect))
 
+
 class LongCatImage(supported_models_base.BASE):
     unet_config = {
         "image_model": "flux",
@@ -1732,6 +1733,7 @@ class LongCatImage(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_7b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.longcat_image.LongCatImageTokenizer, comfy.text_encoders.longcat_image.te(**hunyuan_detect))
+
 
 class RT_DETR_v4(supported_models_base.BASE):
     unet_config = {
