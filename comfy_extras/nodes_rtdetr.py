@@ -34,24 +34,18 @@ class RTDETR_detect(io.ComfyNode):
 
         image_in = comfy.utils.common_upscale(image.movedim(-1, 1), 640, 640, "bilinear", crop="disabled")
 
-        device = comfy.model_management.get_torch_device()
-        dtype = model.model.get_dtype_inference()
-        orig_size = torch.tensor([[W, H]], device=device, dtype=dtype).expand(B, -1)  # [B, 2] as (W, H)
-
         comfy.model_management.load_model_gpu(model)
-        results = model.model.diffusion_model(image_in.to(device=device, dtype=dtype), orig_size)  # list of B dicts
+        results = model.model.diffusion_model(image_in, (W, H))  # list of B dicts
 
         all_bbox_dicts = []
 
-        def _postprocess(results, threshold=0.5):
-            det   = results[0]
-            keep  = det['scores'] > threshold
-            return det['boxes'][keep].cpu(), det['labels'][keep].cpu(), det['scores'][keep].cpu()
+        for det in results:
+            keep   = det['scores'] > threshold
+            boxes  = det['boxes'][keep].cpu()
+            labels = det['labels'][keep].cpu()
+            scores = det['scores'][keep].cpu()
 
-        for i in range(B):
-            boxes, labels, scores = _postprocess(results[i:i+1], threshold=threshold)
-
-            bbox_dicts = sorted([
+            bbox_dicts = [
                 {
                     "x": float(box[0]),
                     "y": float(box[1]),
@@ -62,8 +56,9 @@ class RTDETR_detect(io.ComfyNode):
                 }
                 for box, label, score in zip(boxes, labels, scores)
                 if class_name == "all" or COCO_CLASSES[int(label)] == class_name
-            ], key=lambda d: d["score"], reverse=True)[:max_detections]
-            all_bbox_dicts.append(bbox_dicts)
+            ]
+            bbox_dicts.sort(key=lambda d: d["score"], reverse=True)
+            all_bbox_dicts.append(bbox_dicts[:max_detections])
 
         return io.NodeOutput(all_bbox_dicts)
 

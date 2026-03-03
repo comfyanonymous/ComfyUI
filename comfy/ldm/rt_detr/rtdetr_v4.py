@@ -31,7 +31,7 @@ class ConvBNAct(nn.Module):
         super().__init__()
 
         self.conv = operations.Conv2d(ic, oc, k, s, (k - 1) // 2, groups=groups, bias=False, device=device, dtype=dtype)
-        self.bn   = nn.BatchNorm2d(oc, device=device, dtype=dtype)
+        self.bn   = operations.BatchNorm2d(oc, device=device, dtype=dtype)
         self.act  = nn.ReLU() if use_act else nn.Identity()
 
     def forward(self, x):
@@ -399,7 +399,7 @@ class MSDeformableAttention(nn.Module):
         attn_w  = F.softmax(
             self.attention_weights(query).reshape(
                 bs, Lq, self.num_heads, sum(self.num_points_list)), -1)
-        scale   = self.num_points_scale.to(query.dtype).unsqueeze(-1)
+        scale   = self.num_points_scale.to(query).unsqueeze(-1)
         offset  = offsets * scale * ref_pts[:, :, None, :, 2:] * self.offset_scale
         locs    = ref_pts[:, :, None, :, :2] + offset  # [bs, Lq, n_head, sum_pts, 2]
         return _deformable_attn_v2(value, spatial_shapes, locs, attn_w, self.num_points_list)
@@ -662,12 +662,12 @@ class DFINETransformer(nn.Module):
             shapes.append([h, w])
         return torch.cat(flat, 1), shapes
 
-    def _decoder_input(self, memory: torch.Tensor, spatial_shapes):
-        anchors, valid_mask = self.anchors.to(memory.dtype), self.valid_mask
+    def _decoder_input(self, memory: torch.Tensor):
+        anchors, valid_mask = self.anchors.to(memory), self.valid_mask
         if memory.shape[0] > 1:
             anchors = anchors.repeat(memory.shape[0], 1, 1)
 
-        mem      = valid_mask.to(memory.dtype) * memory
+        mem      = valid_mask.to(memory) * memory
         out_mem  = self.enc_output(mem)
         logits   = self.enc_score_head(out_mem)
         _, idx   = torch.topk(logits.max(-1).values, self.num_queries, dim=-1)
@@ -679,7 +679,7 @@ class DFINETransformer(nn.Module):
 
     def forward(self, feats: List[torch.Tensor]):
         memory, shapes = self._encoder_input(feats)
-        content, ref   = self._decoder_input(memory, shapes)
+        content, ref   = self._decoder_input(memory)
         out_bboxes, out_logits = self.decoder(
             content, ref, memory, shapes,
             self.dec_bbox_head, self.dec_score_head,
@@ -705,21 +705,21 @@ class RTv4(nn.Module):
 
         self.num_classes = num_classes
         self.num_queries = num_queries
+        self.load_device = comfy.model_management.get_torch_device()
 
     def _forward(self, x: torch.Tensor):
         return self.decoder(self.encoder(self.backbone(x)))
 
-    def postprocess(self, outputs, orig_target_sizes: torch.Tensor):
+    def postprocess(self, outputs, orig_size: tuple = (640, 640)) -> List[dict]:
         logits = outputs['pred_logits']
         boxes  = torchvision.ops.box_convert(outputs['pred_boxes'], 'cxcywh', 'xyxy')
-        boxes  = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
+        boxes  = boxes * torch.tensor(orig_size, device=boxes.device, dtype=boxes.dtype).repeat(1, 2).unsqueeze(1)
         scores = F.sigmoid(logits)
         scores, idx = torch.topk(scores.flatten(1), self.num_queries, dim=-1)
         labels = idx % self.num_classes
         boxes  = boxes.gather(1, (idx // self.num_classes).unsqueeze(-1).expand(-1, -1, 4))
         return [{'labels': lbl, 'boxes': b, 'scores': s} for lbl, b, s in zip(labels, boxes, scores)]
 
-    def forward(self, x: torch.Tensor, orig_target_sizes: torch.Tensor, **kwargs):
-        x = comfy.model_management.cast_to_device(x, self.device, self.dtype)
-        outputs = self._forward(x)
-        return self.postprocess(outputs, orig_target_sizes)
+    def forward(self, x: torch.Tensor, orig_size: tuple = (640, 640), **kwargs):
+        outputs = self._forward(x.to(device=self.load_device, dtype=self.dtype))
+        return self.postprocess(outputs, orig_size)
