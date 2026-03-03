@@ -2449,7 +2449,7 @@ async def init_builtin_extra_nodes():
         "nodes_replacements.py",
         "nodes_nag.py",
         "nodes_sdpose.py",
-        "nodes_rfdetr.py"
+        "nodes_rtdetr.py"
     ]
 
     import_failed = []

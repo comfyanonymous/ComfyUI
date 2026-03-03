@@ -51,7 +51,7 @@ import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
 import comfy.ldm.ace.ace_step15
-import comfy.ldm.rf_detr.rfdetr_v4
+import comfy.ldm.rt_detr.rtdetr_v4
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1920,6 +1920,6 @@ class Kandinsky5Image(Kandinsky5):
     def concat_cond(self, **kwargs):
         return None
 
-class RF_DETR_v4(BaseModel):
+class RT_DETR_v4(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.rf_detr.rfdetr_v4.RTv4)
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.rt_detr.rtdetr_v4.RTv4)

@@ -1,7 +1,7 @@
 from typing_extensions import override
 
 import torch
-from comfy.ldm.rf_detr.rfdetr_v4 import COCO_CLASSES
+from comfy.ldm.rt_detr.rtdetr_v4 import COCO_CLASSES
 import comfy.model_management
 import comfy.utils
 from comfy_api.latest import ComfyExtension, io
@@ -9,12 +9,12 @@ from torchvision.transforms import ToPILImage, ToTensor
 from PIL import ImageDraw, ImageFont
 
 
-class RFDETR_detect(io.ComfyNode):
+class RTDETR_detect(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="RFDETR_detect",
-            display_name="RF-DETR Detect",
+            node_id="RTDETR_detect",
+            display_name="RT-DETR Detect",
             category="detection/",
             search_aliases=["bbox", "bounding box", "object detection", "coco"],
             inputs=[
@@ -75,7 +75,7 @@ class DrawBBoxes(io.ComfyNode):
             node_id="DrawBBoxes",
             display_name="Draw BBoxes",
             category="detection/",
-            search_aliases=["bbox", "bounding box", "object detection", "rf_detr", "visualize detections", "coco"],
+            search_aliases=["bbox", "bounding box", "object detection", "rt_detr", "visualize detections", "coco"],
             inputs=[
                 io.Image.Input("image", optional=True),
                 io.BoundingBox.Input("bboxes", force_input=True),
@@ -144,14 +144,14 @@ class DrawBBoxes(io.ComfyNode):
         return img
 
 
-class RFDETRExtension(ComfyExtension):
+class RTDETRExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
-            RFDETR_detect,
+            RTDETR_detect,
             DrawBBoxes,
         ]
 
 
-async def comfy_entrypoint() -> RFDETRExtension:
-    return RFDETRExtension()
+async def comfy_entrypoint() -> RTDETRExtension:
+    return RTDETRExtension()
