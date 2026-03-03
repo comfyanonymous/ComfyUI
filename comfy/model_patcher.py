@@ -1579,8 +1579,10 @@ class ModelPatcherDynamic(ModelPatcher):
                         weight, _, _ = get_key_weight(self.model, key)
                         if key not in self.backup:
                             self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight, False)
-                        comfy.utils.set_attr_param(self.model, key, weight.to(device=device_to))
-                        self.model.model_loaded_weight_memory += weight.numel() * weight.element_size()
+                        model_dtype = getattr(m, param + "_comfy_model_dtype", None)
+                        casted_weight = weight.to(dtype=model_dtype, device=device_to)
+                        comfy.utils.set_attr_param(self.model, key, casted_weight)
+                        self.model.model_loaded_weight_memory += casted_weight.numel() * casted_weight.element_size()
 
                 move_weight_functions(m, device_to)
 
