@@ -18,7 +18,6 @@ from comfy_api_nodes.apis.hunyuan3d import (
 from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_file_3d,
-    download_url_to_image_tensor,
     downscale_image_tensor_by_max_side,
     poll_op,
     sync_op,
@@ -346,7 +345,6 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             outputs=[
                 IO.File3DOBJ.Output(display_name="OBJ"),
                 IO.File3DFBX.Output(display_name="FBX"),
-                IO.Image.Output(),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -396,7 +394,6 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
         return IO.NodeOutput(
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
-            await download_url_to_image_tensor(get_file_from_response(result.ResultFile3Ds, "image").Url),
         )
 
 
@@ -656,7 +653,7 @@ class TencentHunyuan3DExtension(ComfyExtension):
         return [
             TencentTextToModelNode,
             TencentImageToModelNode,
-            # TencentModelTo3DUVNode,
+            TencentModelTo3DUVNode,
             # Tencent3DTextureEditNode,
             Tencent3DPartNode,
             TencentSmartTopologyNode,
