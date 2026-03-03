@@ -82,16 +82,18 @@ class DrawBBoxes(io.ComfyNode):
 
     @classmethod
     def execute(cls, bboxes, image=None) -> io.NodeOutput:
-        # Normalise bboxes to a list-of-lists (one list of detections per image).
-        # It may arrive as: a bare dict, a flat list of dicts, or a list of lists.
+        # Normalise to list[list[dict]], then fit to batch size B.
         B = image.shape[0] if image is not None else 1
         if isinstance(bboxes, dict):
-            bboxes = [[bboxes]] * B
-        elif not isinstance(bboxes, list) or len(bboxes) == 0:
-            bboxes = [[]] * B
-        elif not isinstance(bboxes[0], list):
-            # flat list of dicts: same detections for every image
-            bboxes = [bboxes] * B
+            bboxes = [[bboxes]]
+        elif not isinstance(bboxes, list) or not bboxes:
+            bboxes = [[]]
+        elif isinstance(bboxes[0], dict):
+            bboxes = [bboxes]  # flat list → same detections for every image
+
+        if len(bboxes) == 1:
+            bboxes = bboxes * B
+        bboxes = (bboxes + [[]] * B)[:B]
 
         if image is None:
             B = len(bboxes)
