@@ -946,6 +946,8 @@ class CFGGuider:
 
     def inner_set_conds(self, conds):
         for k in conds:
+            if self.model_patcher.is_dynamic() and comfy.sampler_helpers.cond_has_hooks(conds[k]):
+                self.model_patcher = self.model_patcher.get_non_dynamic_delegate()
             self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):

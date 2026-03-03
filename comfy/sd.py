@@ -60,6 +60,7 @@ import comfy.text_encoders.jina_clip_2
 import comfy.text_encoders.newbie
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
+import comfy.text_encoders.longcat_image
 
 import comfy.model_patcher
 import comfy.lora
@@ -203,7 +204,7 @@ def load_bypass_lora_for_models(model, clip, lora, strength_model, strength_clip
 
 
 class CLIP:
-    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}, parameters=0, state_dict=[], model_options={}):
+    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}, parameters=0, state_dict=[], model_options={}, disable_dynamic=False):
         if no_init:
             return
         params = target.params.copy()
@@ -232,7 +233,8 @@ class CLIP:
         model_management.archive_model_dtypes(self.cond_stage_model)
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        self.patcher = comfy.model_patcher.CoreModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        ModelPatcher = comfy.model_patcher.ModelPatcher if disable_dynamic else comfy.model_patcher.CoreModelPatcher
+        self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         #Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
@@ -266,9 +268,9 @@ class CLIP:
         logging.info("CLIP/text encoder model load device: {}, offload device: {}, current: {}, dtype: {}".format(load_device, offload_device, params['device'], dtype))
         self.tokenizer_options = {}
 
-    def clone(self):
+    def clone(self, disable_dynamic=False):
         n = CLIP(no_init=True)
-        n.patcher = self.patcher.clone()
+        n.patcher = self.patcher.clone(disable_dynamic=disable_dynamic)
         n.cond_stage_model = self.cond_stage_model
         n.tokenizer = self.tokenizer
         n.layer_idx = self.layer_idx
@@ -1160,16 +1162,24 @@ class CLIPType(Enum):
     KANDINSKY5_IMAGE = 23
     NEWBIE = 24
     FLUX2 = 25
+    LONGCAT_IMAGE = 26
 
 
-def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
+
+def load_clip_model_patcher(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
+    clip = load_clip(ckpt_paths, embedding_directory, clip_type, model_options, disable_dynamic)
+    return clip.patcher
+
+def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
     clip_data = []
     for p in ckpt_paths:
         sd, metadata = comfy.utils.load_torch_file(p, safe_load=True, return_metadata=True)
         if model_options.get("custom_operations", None) is None:
             sd, metadata = comfy.utils.convert_old_quants(sd, model_prefix="", metadata=metadata)
         clip_data.append(sd)
-    return load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
+    clip = load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options, disable_dynamic=disable_dynamic)
+    clip.patcher.cached_patcher_init = (load_clip_model_patcher, (ckpt_paths, embedding_directory, clip_type, model_options))
+    return clip
 
 
 class TEModel(Enum):
@@ -1274,7 +1284,7 @@ def llama_detect(clip_data):
 
     return {}
 
-def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
+def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
     clip_data = state_dicts
 
     class EmptyClass:
@@ -1372,6 +1382,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if clip_type == CLIPType.HUNYUAN_IMAGE:
                 clip_target.clip = comfy.text_encoders.hunyuan_image.te(byt5=False, **llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
+            elif clip_type == CLIPType.LONGCAT_IMAGE:
+                clip_target.clip = comfy.text_encoders.longcat_image.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.longcat_image.LongCatImageTokenizer
             else:
                 clip_target.clip = comfy.text_encoders.qwen_image.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.qwen_image.QwenImageTokenizer
@@ -1491,7 +1504,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, tokenizer_data=tokenizer_data, state_dict=clip_data, model_options=model_options)
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, tokenizer_data=tokenizer_data, state_dict=clip_data, model_options=model_options, disable_dynamic=disable_dynamic)
     return clip
 
 def load_gligen(ckpt_path):
@@ -1536,8 +1549,10 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, metadata=metadata, disable_dynamic=disable_dynamic)
     if out is None:
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
-    if output_model:
+    if output_model and out[0] is not None:
         out[0].cached_patcher_init = (load_checkpoint_guess_config_model_only, (ckpt_path, embedding_directory, model_options, te_model_options))
+    if output_clip and out[1] is not None:
+        out[1].patcher.cached_patcher_init = (load_checkpoint_guess_config_clip_only, (ckpt_path, embedding_directory, model_options, te_model_options))
     return out
 
 def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
@@ -1547,6 +1562,14 @@ def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None,
             te_model_options=te_model_options,
             disable_dynamic=disable_dynamic)
     return model
+
+def load_checkpoint_guess_config_clip_only(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
+    _, clip, *_ = load_checkpoint_guess_config(ckpt_path, False, True, False,
+            embedding_directory=embedding_directory, output_model=False,
+            model_options=model_options,
+            te_model_options=te_model_options,
+            disable_dynamic=disable_dynamic)
+    return clip.patcher
 
 def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, metadata=None, disable_dynamic=False):
     clip = None
@@ -1633,7 +1656,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
                 parameters = comfy.utils.calculate_parameters(clip_sd)
-                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd, parameters=parameters, state_dict=clip_sd, model_options=te_model_options)
+                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd, parameters=parameters, state_dict=clip_sd, model_options=te_model_options, disable_dynamic=disable_dynamic)
             else:
                 logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
 

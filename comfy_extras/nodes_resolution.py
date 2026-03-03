@@ -16,15 +16,15 @@ class AspectRatio(str, Enum):
     WIDESCREEN_V = "9:16 (Portrait Widescreen)"
 
 
-ASPECT_RATIOS: dict[str, tuple[int, int]] = {
-    "1:1 (Square)": (1, 1),
-    "3:2 (Photo)": (3, 2),
-    "4:3 (Standard)": (4, 3),
-    "16:9 (Widescreen)": (16, 9),
-    "21:9 (Ultrawide)": (21, 9),
-    "2:3 (Portrait Photo)": (2, 3),
-    "3:4 (Portrait Standard)": (3, 4),
-    "9:16 (Portrait Widescreen)": (9, 16),
+ASPECT_RATIOS: dict[AspectRatio, tuple[int, int]] = {
+    AspectRatio.SQUARE: (1, 1),
+    AspectRatio.PHOTO_H: (3, 2),
+    AspectRatio.STANDARD_H: (4, 3),
+    AspectRatio.WIDESCREEN_H: (16, 9),
+    AspectRatio.ULTRAWIDE_H: (21, 9),
+    AspectRatio.PHOTO_V: (2, 3),
+    AspectRatio.STANDARD_V: (3, 4),
+    AspectRatio.WIDESCREEN_V: (9, 16),
 }
 
 
@@ -55,8 +55,12 @@ class ResolutionSelector(io.ComfyNode):
                 ),
             ],
             outputs=[
-                io.Int.Output("width", tooltip="Calculated width in pixels (multiple of 8)."),
-                io.Int.Output("height", tooltip="Calculated height in pixels (multiple of 8)."),
+                io.Int.Output(
+                    "width", tooltip="Calculated width in pixels (multiple of 8)."
+                ),
+                io.Int.Output(
+                    "height", tooltip="Calculated height in pixels (multiple of 8)."
+                ),
             ],
         )
 

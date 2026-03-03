@@ -789,8 +789,6 @@ class GeminiImage2(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=True, min_length=1)
         if model == "Nano Banana 2 (Gemini 3.1 Flash Image)":
             model = "gemini-3.1-flash-image-preview"
-            if response_modalities == "IMAGE+TEXT":
-                raise ValueError("IMAGE+TEXT is not currently available for the Nano Banana 2 model.")
 
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
         if images is not None:
@@ -895,7 +893,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "response_modalities",
-                    options=["IMAGE"],
+                    options=["IMAGE", "IMAGE+TEXT"],
                     advanced=True,
                 ),
                 IO.Combo.Input(
@@ -925,6 +923,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
             ],
             outputs=[
                 IO.Image.Output(),
+                IO.String.Output(),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,

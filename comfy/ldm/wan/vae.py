@@ -485,7 +485,7 @@ class WanVAE(nn.Module):
         iter_ = 1 + (t - 1) // 4
         feat_map = None
         if iter_ > 1:
-            feat_map = [None] * count_conv3d(self.decoder)
+            feat_map = [None] * count_conv3d(self.encoder)
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
             conv_idx = [0]
