@@ -96,7 +96,7 @@ class VAEEncodeAudio(IO.ComfyNode):
 
 def vae_decode_audio(vae, samples, tile=None, overlap=None):
     if tile is not None:
-        audio = vae.decode_tiled(samples["samples"], tile_y=tile, overlap=overlap).movedim(-1, 1)
+        audio = vae.decode_tiled(samples["samples"], tile_x=tile, tile_y=tile, overlap=overlap).movedim(-1, 1)
     else:
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
 
