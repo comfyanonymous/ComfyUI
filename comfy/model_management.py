@@ -32,9 +32,6 @@ import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
 
-import comfy_aimdo.torch
-import comfy_aimdo.model_vbar
-
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
     NO_VRAM = 1     #Very low vram: enable all the options to save vram
