@@ -41,6 +41,7 @@ import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
+import comfy.ldm.helios.model
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -1267,6 +1268,35 @@ class ZImagePixelSpace(Lumina2):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiTPixelSpace)
         self.memory_usage_factor_conds = ("ref_latents",)
+
+class Helios(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.helios.model.HeliosTransformer3DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out["c_crossattn"] = comfy.conds.CONDRegular(cross_attn)
+
+        cond_keys = (
+            "indices_hidden_states",
+            "indices_latents_history_short",
+            "indices_latents_history_mid",
+            "indices_latents_history_long",
+            "latents_history_short",
+            "latents_history_mid",
+            "latents_history_long",
+        )
+
+        for key in cond_keys:
+            value = kwargs.get(key, None)
+            if value is None:
+                continue
+            if key.startswith("latents_"):
+                value = self.process_latent_in(value)
+            out[key] = comfy.conds.CONDRegular(value)
+        return out
 
 class WAN21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):

@@ -489,6 +489,48 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
+    if '{}condition_embedder.time_proj.weight'.format(key_prefix) in state_dict_keys and '{}patch_embedding.weight'.format(key_prefix) in state_dict_keys:  # Helios
+        dit_config = {}
+        dit_config["image_model"] = "helios"
+
+        patch_weight = state_dict['{}patch_embedding.weight'.format(key_prefix)]
+        inner_dim = patch_weight.shape[0]
+        patch_size = tuple(patch_weight.shape[2:])
+        out_proj = state_dict['{}proj_out.weight'.format(key_prefix)]
+
+        dit_config["patch_size"] = patch_size
+        dit_config["in_channels"] = patch_weight.shape[1]
+        dit_config["out_channels"] = out_proj.shape[0] // math.prod(patch_size)
+        dit_config["text_dim"] = state_dict['{}condition_embedder.text_embedder.linear_1.weight'.format(key_prefix)].shape[1]
+        dit_config["freq_dim"] = state_dict['{}condition_embedder.time_embedder.linear_1.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        dit_config["num_attention_heads"] = inner_dim // 128
+        dit_config["attention_head_dim"] = 128
+
+        ffn_in = state_dict.get('{}blocks.0.ffn.net.0.proj.weight'.format(key_prefix), None)
+        if ffn_in is None:
+            ffn_in = state_dict.get('{}blocks.0.ffn.0.weight'.format(key_prefix), None)
+        if ffn_in is not None:
+            dit_config["ffn_dim"] = ffn_in.shape[0]
+
+        if '{}blocks.0.attn2.add_k_proj.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["added_kv_proj_dim"] = state_dict['{}blocks.0.attn2.add_k_proj.weight'.format(key_prefix)].shape[1]
+
+        if '{}patch_short.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["has_multi_term_memory_patch"] = True
+        else:
+            dit_config["has_multi_term_memory_patch"] = False
+
+        if '{}blocks.0.attn1.history_key_scale'.format(key_prefix) in state_dict_keys:
+            dit_config["is_amplify_history"] = True
+            hk = state_dict['{}blocks.0.attn1.history_key_scale'.format(key_prefix)]
+            dit_config["history_scale_mode"] = "per_head" if len(hk.shape) > 0 and hk.numel() > 1 else "scalar"
+
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+
+        return dit_config
+
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
         dit_config = {}
         dit_config["image_model"] = "wan2.1"
