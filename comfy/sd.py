@@ -426,7 +426,7 @@ class CLIP:
     def get_key_patches(self):
         return self.patcher.get_key_patches()
 
-    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, presence_penalty=0.0, seed=None):
+    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, seed=None, presence_penalty=0.0):
         self.cond_stage_model.reset_clip_options()
 
         self.load_model(tokens)

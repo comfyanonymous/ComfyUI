@@ -44,7 +44,7 @@ class Qwen35Config:
     qkv_bias: bool = False
     final_norm: bool = True
     lm_head: bool = False
-    stop_tokens: list = field(default_factory=lambda: [248044])
+    stop_tokens: list = field(default_factory=lambda: [248044, 248046])
     # These are needed for BaseLlama/BaseGenerate compatibility but unused directly
     transformer_type: str = "qwen35_2b"
     rope_dims: list = None
