@@ -106,8 +106,8 @@ class VAEDecodeHunyuan3D(IO.ComfyNode):
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
-                IO.Int.Input("num_chunks", default=8000, min=1000, max=500000),
-                IO.Int.Input("octree_resolution", default=256, min=16, max=512),
+                IO.Int.Input("num_chunks", default=8000, min=1000, max=500000, advanced=True),
+                IO.Int.Input("octree_resolution", default=256, min=16, max=512, advanced=True),
             ],
             outputs=[
                 IO.Voxel.Output(),
@@ -456,7 +456,7 @@ class VoxelToMesh(IO.ComfyNode):
             category="3d",
             inputs=[
                 IO.Voxel.Input("voxel"),
-                IO.Combo.Input("algorithm", options=["surface net", "basic"]),
+                IO.Combo.Input("algorithm", options=["surface net", "basic"], advanced=True),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
             ],
             outputs=[
@@ -618,18 +618,32 @@ class SaveGLB(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveGLB",
+            display_name="Save 3D Model",
             search_aliases=["export 3d model", "save mesh"],
             category="3d",
+            essentials_category="Basics",
             is_output_node=True,
             inputs=[
-                IO.Mesh.Input("mesh"),
+                IO.MultiType.Input(
+                    IO.Mesh.Input("mesh"),
+                    types=[
+                        IO.File3DGLB,
+                        IO.File3DGLTF,
+                        IO.File3DOBJ,
+                        IO.File3DFBX,
+                        IO.File3DSTL,
+                        IO.File3DUSDZ,
+                        IO.File3DAny,
+                    ],
+                    tooltip="Mesh or 3D file to save",
+                ),
                 IO.String.Input("filename_prefix", default="mesh/ComfyUI"),
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo]
         )
 
     @classmethod
-    def execute(cls, mesh, filename_prefix) -> IO.NodeOutput:
+    def execute(cls, mesh: Types.MESH | Types.File3D, filename_prefix: str) -> IO.NodeOutput:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
         results = []
 
@@ -641,15 +655,27 @@ class SaveGLB(IO.ComfyNode):
                 for x in cls.hidden.extra_pnginfo:
                     metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
-        for i in range(mesh.vertices.shape[0]):
-            f = f"{filename}_{counter:05}_.glb"
-            save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata)
+        if isinstance(mesh, Types.File3D):
+            # Handle File3D input - save BytesIO data to output folder
+            ext = mesh.format or "glb"
+            f = f"{filename}_{counter:05}_.{ext}"
+            mesh.save_to(os.path.join(full_output_folder, f))
             results.append({
                 "filename": f,
                 "subfolder": subfolder,
                 "type": "output"
             })
-            counter += 1
+        else:
+            # Handle Mesh input - save vertices and faces as GLB
+            for i in range(mesh.vertices.shape[0]):
+                f = f"{filename}_{counter:05}_.glb"
+                save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata)
+                results.append({
+                    "filename": f,
+                    "subfolder": subfolder,
+                    "type": "output"
+                })
+                counter += 1
         return IO.NodeOutput(ui={"3d": results})
 
 

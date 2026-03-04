@@ -7,6 +7,7 @@ import logging
 from enum import Enum
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+from tqdm.auto import trange
 
 CLAMP_QUANTILE = 0.99
 
@@ -49,12 +50,22 @@ LORA_TYPES = {"standard": LORAType.STANDARD,
               "full_diff": LORAType.FULL_DIFF}
 
 def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd, lora_type, bias_diff=False):
-    comfy.model_management.load_models_gpu([model_diff], force_patch_weights=True)
+    comfy.model_management.load_models_gpu([model_diff])
     sd = model_diff.model_state_dict(filter_prefix=prefix_model)
 
-    for k in sd:
-        if k.endswith(".weight"):
+    sd_keys = list(sd.keys())
+    for index in trange(len(sd_keys), unit="weight"):
+        k = sd_keys[index]
+        op_keys = sd_keys[index].rsplit('.', 1)
+        if len(op_keys) < 2 or op_keys[1] not in ["weight", "bias"] or (op_keys[1] == "bias" and not bias_diff):
+            continue
+        op = comfy.utils.get_attr(model_diff.model, op_keys[0])
+        if hasattr(op, "comfy_cast_weights") and not getattr(op, "comfy_patched_weights", False):
+            weight_diff = model_diff.patch_weight_to_device(k, model_diff.load_device, return_weight=True)
+        else:
             weight_diff = sd[k]
+
+        if op_keys[1] == "weight":
             if lora_type == LORAType.STANDARD:
                 if weight_diff.ndim < 2:
                     if bias_diff:
@@ -69,8 +80,8 @@ def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd, lora
             elif lora_type == LORAType.FULL_DIFF:
                 output_sd["{}{}.diff".format(prefix_lora, k[len(prefix_model):-7])] = weight_diff.contiguous().half().cpu()
 
-        elif bias_diff and k.endswith(".bias"):
-            output_sd["{}{}.diff_b".format(prefix_lora, k[len(prefix_model):-5])] = sd[k].contiguous().half().cpu()
+        elif bias_diff and op_keys[1] == "bias":
+            output_sd["{}{}.diff_b".format(prefix_lora, k[len(prefix_model):-5])] = weight_diff.contiguous().half().cpu()
     return output_sd
 
 class LoraSave(io.ComfyNode):
@@ -83,9 +94,9 @@ class LoraSave(io.ComfyNode):
             category="_for_testing",
             inputs=[
                 io.String.Input("filename_prefix", default="loras/ComfyUI_extracted_lora"),
-                io.Int.Input("rank", default=8, min=1, max=4096, step=1),
-                io.Combo.Input("lora_type", options=tuple(LORA_TYPES.keys())),
-                io.Boolean.Input("bias_diff", default=True),
+                io.Int.Input("rank", default=8, min=1, max=4096, step=1, advanced=True),
+                io.Combo.Input("lora_type", options=tuple(LORA_TYPES.keys()), advanced=True),
+                io.Boolean.Input("bias_diff", default=True, advanced=True),
                 io.Model.Input(
                     "model_diff",
                     tooltip="The ModelSubtract output to be converted to a lora.",

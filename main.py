@@ -5,7 +5,7 @@ import os
 import importlib.util
 import folder_paths
 import time
-from comfy.cli_args import args
+from comfy.cli_args import args, enables_dynamic_vram
 from app.logger import setup_logger
 from app.assets.scanner import seed_assets
 import itertools
@@ -16,6 +16,10 @@ from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
+import comfy_aimdo.control
+
+if enables_dynamic_vram():
+    comfy_aimdo.control.init()
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -173,6 +177,7 @@ import gc
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
+
 import comfy.utils
 
 import execution
@@ -183,6 +188,31 @@ import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
+
+import comfy.memory_management
+import comfy.model_patcher
+
+if enables_dynamic_vram():
+    if comfy.model_management.torch_version_numeric < (2, 8):
+        logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+    elif comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
+        if args.verbose == 'DEBUG':
+            comfy_aimdo.control.set_log_debug()
+        elif args.verbose == 'CRITICAL':
+            comfy_aimdo.control.set_log_critical()
+        elif args.verbose == 'ERROR':
+            comfy_aimdo.control.set_log_error()
+        elif args.verbose == 'WARNING':
+            comfy_aimdo.control.set_log_warning()
+        else: #INFO
+            comfy_aimdo.control.set_log_info()
+
+        comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
+        comfy.memory_management.aimdo_enabled = True
+        logging.info("DynamicVRAM support detected and enabled")
+    else:
+        logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()

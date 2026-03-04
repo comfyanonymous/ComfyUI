@@ -348,7 +348,7 @@ class GrowMask(IO.ComfyNode):
             inputs=[
                 IO.Mask.Input("mask"),
                 IO.Int.Input("expand", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1),
-                IO.Boolean.Input("tapered_corners", default=True),
+                IO.Boolean.Input("tapered_corners", default=True, advanced=True),
             ],
             outputs=[IO.Mask.Output()],
         )

@@ -57,6 +57,7 @@ class _RequestConfig:
     files: dict[str, Any] | list[tuple[str, Any]] | None
     multipart_parser: Callable | None
     max_retries: int
+    max_retries_on_rate_limit: int
     retry_delay: float
     retry_backoff: float
     wait_label: str = "Waiting"
@@ -65,6 +66,7 @@ class _RequestConfig:
     final_label_on_success: str | None = "Completed"
     progress_origin_ts: float | None = None
     price_extractor: Callable[[dict[str, Any]], float | None] | None = None
+    is_rate_limited: Callable[[int, Any], bool] | None = None
 
 
 @dataclass
@@ -78,7 +80,7 @@ class _PollUIState:
     active_since: float | None = None  # start time of current active interval (None if queued)
 
 
-_RETRY_STATUS = {408, 429, 500, 502, 503, 504}
+_RETRY_STATUS = {408, 500, 502, 503, 504}  # status 429 is handled separately
 COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done", "complete"]
 FAILED_STATUSES = ["cancelled", "canceled", "canceling", "fail", "failed", "error"]
 QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing"]
@@ -103,6 +105,8 @@ async def sync_op(
     final_label_on_success: str | None = "Completed",
     progress_origin_ts: float | None = None,
     monitor_progress: bool = True,
+    max_retries_on_rate_limit: int = 16,
+    is_rate_limited: Callable[[int, Any], bool] | None = None,
 ) -> M:
     raw = await sync_op_raw(
         cls,
@@ -122,6 +126,8 @@ async def sync_op(
         final_label_on_success=final_label_on_success,
         progress_origin_ts=progress_origin_ts,
         monitor_progress=monitor_progress,
+        max_retries_on_rate_limit=max_retries_on_rate_limit,
+        is_rate_limited=is_rate_limited,
     )
     if not isinstance(raw, dict):
         raise Exception("Expected JSON response to validate into a Pydantic model, got non-JSON (binary or text).")
@@ -143,9 +149,9 @@ async def poll_op(
     poll_interval: float = 5.0,
     max_poll_attempts: int = 160,
     timeout_per_poll: float = 120.0,
-    max_retries_per_poll: int = 3,
+    max_retries_per_poll: int = 10,
     retry_delay_per_poll: float = 1.0,
-    retry_backoff_per_poll: float = 2.0,
+    retry_backoff_per_poll: float = 1.4,
     estimated_duration: int | None = None,
     cancel_endpoint: ApiEndpoint | None = None,
     cancel_timeout: float = 10.0,
@@ -194,6 +200,8 @@ async def sync_op_raw(
     final_label_on_success: str | None = "Completed",
     progress_origin_ts: float | None = None,
     monitor_progress: bool = True,
+    max_retries_on_rate_limit: int = 16,
+    is_rate_limited: Callable[[int, Any], bool] | None = None,
 ) -> dict[str, Any] | bytes:
     """
     Make a single network request.
@@ -222,6 +230,8 @@ async def sync_op_raw(
         final_label_on_success=final_label_on_success,
         progress_origin_ts=progress_origin_ts,
         price_extractor=price_extractor,
+        max_retries_on_rate_limit=max_retries_on_rate_limit,
+        is_rate_limited=is_rate_limited,
     )
     return await _request_base(cfg, expect_binary=as_binary)
 
@@ -240,9 +250,9 @@ async def poll_op_raw(
     poll_interval: float = 5.0,
     max_poll_attempts: int = 160,
     timeout_per_poll: float = 120.0,
-    max_retries_per_poll: int = 3,
+    max_retries_per_poll: int = 10,
     retry_delay_per_poll: float = 1.0,
-    retry_backoff_per_poll: float = 2.0,
+    retry_backoff_per_poll: float = 1.4,
     estimated_duration: int | None = None,
     cancel_endpoint: ApiEndpoint | None = None,
     cancel_timeout: float = 10.0,
@@ -506,7 +516,7 @@ def _friendly_http_message(status: int, body: Any) -> str:
     if status == 409:
         return "There is a problem with your account. Please contact support@comfy.org."
     if status == 429:
-        return "Rate Limit Exceeded: Please try again later."
+        return "Rate Limit Exceeded: The server returned 429 after all retry attempts. Please wait and try again."
     try:
         if isinstance(body, dict):
             err = body.get("error")
@@ -586,6 +596,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     start_time = cfg.progress_origin_ts if cfg.progress_origin_ts is not None else time.monotonic()
     attempt = 0
     delay = cfg.retry_delay
+    rate_limit_attempts = 0
+    rate_limit_delay = cfg.retry_delay
     operation_succeeded: bool = False
     final_elapsed_seconds: int | None = None
     extracted_price: float | None = None
@@ -653,17 +665,14 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                 payload_headers["Content-Type"] = "application/json"
                 payload_kw["json"] = cfg.data or {}
 
-            try:
-                request_logger.log_request_response(
-                    operation_id=operation_id,
-                    request_method=method,
-                    request_url=url,
-                    request_headers=dict(payload_headers) if payload_headers else None,
-                    request_params=dict(params) if params else None,
-                    request_data=request_body_log,
-                )
-            except Exception as _log_e:
-                logging.debug("[DEBUG] request logging failed: %s", _log_e)
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method=method,
+                request_url=url,
+                request_headers=dict(payload_headers) if payload_headers else None,
+                request_params=dict(params) if params else None,
+                request_data=request_body_log,
+            )
 
             req_coro = sess.request(method, url, params=params, **payload_kw)
             req_task = asyncio.create_task(req_coro)
@@ -688,41 +697,33 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         body = await resp.json()
                     except (ContentTypeError, json.JSONDecodeError):
                         body = await resp.text()
-                    if resp.status in _RETRY_STATUS and attempt <= cfg.max_retries:
+                    should_retry = False
+                    wait_time = 0.0
+                    retry_label = ""
+                    is_rl = resp.status == 429 or (
+                        cfg.is_rate_limited is not None and cfg.is_rate_limited(resp.status, body)
+                    )
+                    if is_rl and rate_limit_attempts < cfg.max_retries_on_rate_limit:
+                        rate_limit_attempts += 1
+                        wait_time = min(rate_limit_delay, 30.0)
+                        rate_limit_delay *= cfg.retry_backoff
+                        retry_label = f"rate-limit retry {rate_limit_attempts} of {cfg.max_retries_on_rate_limit}"
+                        should_retry = True
+                    elif resp.status in _RETRY_STATUS and (attempt - rate_limit_attempts) <= cfg.max_retries:
+                        wait_time = delay
+                        delay *= cfg.retry_backoff
+                        retry_label = f"retry {attempt - rate_limit_attempts} of {cfg.max_retries}"
+                        should_retry = True
+
+                    if should_retry:
                         logging.warning(
-                            "HTTP %s %s -> %s. Retrying in %.2fs (retry %d of %d).",
+                            "HTTP %s %s -> %s. Waiting %.2fs (%s).",
                             method,
                             url,
                             resp.status,
-                            delay,
-                            attempt,
-                            cfg.max_retries,
+                            wait_time,
+                            retry_label,
                         )
-                        try:
-                            request_logger.log_request_response(
-                                operation_id=operation_id,
-                                request_method=method,
-                                request_url=url,
-                                response_status_code=resp.status,
-                                response_headers=dict(resp.headers),
-                                response_content=body,
-                                error_message=_friendly_http_message(resp.status, body),
-                            )
-                        except Exception as _log_e:
-                            logging.debug("[DEBUG] response logging failed: %s", _log_e)
-
-                        await sleep_with_interrupt(
-                            delay,
-                            cfg.node_cls,
-                            cfg.wait_label if cfg.monitor_progress else None,
-                            start_time if cfg.monitor_progress else None,
-                            cfg.estimated_total,
-                            display_callback=_display_time_progress if cfg.monitor_progress else None,
-                        )
-                        delay *= cfg.retry_backoff
-                        continue
-                    msg = _friendly_http_message(resp.status, body)
-                    try:
                         request_logger.log_request_response(
                             operation_id=operation_id,
                             request_method=method,
@@ -730,10 +731,27 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                             response_status_code=resp.status,
                             response_headers=dict(resp.headers),
                             response_content=body,
-                            error_message=msg,
+                            error_message=f"HTTP {resp.status} ({retry_label}, will retry in {wait_time:.1f}s)",
                         )
-                    except Exception as _log_e:
-                        logging.debug("[DEBUG] response logging failed: %s", _log_e)
+                        await sleep_with_interrupt(
+                            wait_time,
+                            cfg.node_cls,
+                            cfg.wait_label if cfg.monitor_progress else None,
+                            start_time if cfg.monitor_progress else None,
+                            cfg.estimated_total,
+                            display_callback=_display_time_progress if cfg.monitor_progress else None,
+                        )
+                        continue
+                    msg = _friendly_http_message(resp.status, body)
+                    request_logger.log_request_response(
+                        operation_id=operation_id,
+                        request_method=method,
+                        request_url=url,
+                        response_status_code=resp.status,
+                        response_headers=dict(resp.headers),
+                        response_content=body,
+                        error_message=msg,
+                    )
                     raise Exception(msg)
 
                 if expect_binary:
@@ -753,17 +771,14 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                     bytes_payload = bytes(buff)
                     operation_succeeded = True
                     final_elapsed_seconds = int(time.monotonic() - start_time)
-                    try:
-                        request_logger.log_request_response(
-                            operation_id=operation_id,
-                            request_method=method,
-                            request_url=url,
-                            response_status_code=resp.status,
-                            response_headers=dict(resp.headers),
-                            response_content=bytes_payload,
-                        )
-                    except Exception as _log_e:
-                        logging.debug("[DEBUG] response logging failed: %s", _log_e)
+                    request_logger.log_request_response(
+                        operation_id=operation_id,
+                        request_method=method,
+                        request_url=url,
+                        response_status_code=resp.status,
+                        response_headers=dict(resp.headers),
+                        response_content=bytes_payload,
+                    )
                     return bytes_payload
                 else:
                     try:
@@ -780,45 +795,39 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         extracted_price = cfg.price_extractor(payload) if cfg.price_extractor else None
                     operation_succeeded = True
                     final_elapsed_seconds = int(time.monotonic() - start_time)
-                    try:
-                        request_logger.log_request_response(
-                            operation_id=operation_id,
-                            request_method=method,
-                            request_url=url,
-                            response_status_code=resp.status,
-                            response_headers=dict(resp.headers),
-                            response_content=response_content_to_log,
-                        )
-                    except Exception as _log_e:
-                        logging.debug("[DEBUG] response logging failed: %s", _log_e)
+                    request_logger.log_request_response(
+                        operation_id=operation_id,
+                        request_method=method,
+                        request_url=url,
+                        response_status_code=resp.status,
+                        response_headers=dict(resp.headers),
+                        response_content=response_content_to_log,
+                    )
                     return payload
 
         except ProcessingInterrupted:
             logging.debug("Polling was interrupted by user")
             raise
         except (ClientError, OSError) as e:
-            if attempt <= cfg.max_retries:
+            if (attempt - rate_limit_attempts) <= cfg.max_retries:
                 logging.warning(
                     "Connection error calling %s %s. Retrying in %.2fs (%d/%d): %s",
                     method,
                     url,
                     delay,
-                    attempt,
+                    attempt - rate_limit_attempts,
                     cfg.max_retries,
                     str(e),
                 )
-                try:
-                    request_logger.log_request_response(
-                        operation_id=operation_id,
-                        request_method=method,
-                        request_url=url,
-                        request_headers=dict(payload_headers) if payload_headers else None,
-                        request_params=dict(params) if params else None,
-                        request_data=request_body_log,
-                        error_message=f"{type(e).__name__}: {str(e)} (will retry)",
-                    )
-                except Exception as _log_e:
-                    logging.debug("[DEBUG] request error logging failed: %s", _log_e)
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method=method,
+                    request_url=url,
+                    request_headers=dict(payload_headers) if payload_headers else None,
+                    request_params=dict(params) if params else None,
+                    request_data=request_body_log,
+                    error_message=f"{type(e).__name__}: {str(e)} (will retry)",
+                )
                 await sleep_with_interrupt(
                     delay,
                     cfg.node_cls,
@@ -831,23 +840,6 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                 continue
             diag = await _diagnose_connectivity()
             if not diag["internet_accessible"]:
-                try:
-                    request_logger.log_request_response(
-                        operation_id=operation_id,
-                        request_method=method,
-                        request_url=url,
-                        request_headers=dict(payload_headers) if payload_headers else None,
-                        request_params=dict(params) if params else None,
-                        request_data=request_body_log,
-                        error_message=f"LocalNetworkError: {str(e)}",
-                    )
-                except Exception as _log_e:
-                    logging.debug("[DEBUG] final error logging failed: %s", _log_e)
-                raise LocalNetworkError(
-                    "Unable to connect to the API server due to local network issues. "
-                    "Please check your internet connection and try again."
-                ) from e
-            try:
                 request_logger.log_request_response(
                     operation_id=operation_id,
                     request_method=method,
@@ -855,10 +847,21 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                     request_headers=dict(payload_headers) if payload_headers else None,
                     request_params=dict(params) if params else None,
                     request_data=request_body_log,
-                    error_message=f"ApiServerError: {str(e)}",
+                    error_message=f"LocalNetworkError: {str(e)}",
                 )
-            except Exception as _log_e:
-                logging.debug("[DEBUG] final error logging failed: %s", _log_e)
+                raise LocalNetworkError(
+                    "Unable to connect to the API server due to local network issues. "
+                    "Please check your internet connection and try again."
+                ) from e
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method=method,
+                request_url=url,
+                request_headers=dict(payload_headers) if payload_headers else None,
+                request_params=dict(params) if params else None,
+                request_data=request_body_log,
+                error_message=f"ApiServerError: {str(e)}",
+            )
             raise ApiServerError(
                 f"The API server at {default_base_url()} is currently unreachable. "
                 f"The service may be experiencing issues."
