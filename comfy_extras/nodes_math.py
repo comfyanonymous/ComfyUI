@@ -50,11 +50,8 @@ class MathExpressionNode(io.ComfyNode):
 
     @classmethod
     def define_schema(cls) -> io.Schema:
-        template = io.MatchType.Template(
-            "num", allowed_types=[io.Float, io.Int]
-        )
         autogrow = io.Autogrow.TemplateNames(
-            input=io.MatchType.Input("value", template=template),
+            input=io.MultiType.Input("value", [io.Float, io.Int]),
             names=[_positional_alias(i) for i in range(26)],
             min=1,
         )
@@ -70,9 +67,8 @@ class MathExpressionNode(io.ComfyNode):
                 io.Autogrow.Input("values", template=autogrow),
             ],
             outputs=[
-                io.MatchType.Output(
-                    template=template, display_name="result"
-                ),
+                io.Float.Output(display_name="FLOAT"),
+                io.Int.Output(display_name="INT"),
             ],
         )
 
@@ -89,7 +85,7 @@ class MathExpressionNode(io.ComfyNode):
                 f"Math Expression '{expression}' must evaluate to a numeric result, "
                 f"got {type(result).__name__}: {result!r}"
             )
-        return io.NodeOutput(result)
+        return io.NodeOutput(float(result), int(result))
 
 
 class MathExtension(ComfyExtension):
