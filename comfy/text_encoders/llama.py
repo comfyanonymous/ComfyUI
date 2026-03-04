@@ -826,7 +826,7 @@ class BaseGenerate:
                                     torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
         return past_key_values
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0):
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0):
         device = embeds.device
 
         if stop_tokens is None:
@@ -854,7 +854,7 @@ class BaseGenerate:
         for step in tqdm(range(max_length), desc="Generating tokens"):
             x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values)
             logits = self.logits(x)[:, -1]
-            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
+            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
             token_id = next_token[0].item()
             generated_token_ids.append(token_id)
 
@@ -866,7 +866,7 @@ class BaseGenerate:
 
         return generated_token_ids
 
-    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
+    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True, presence_penalty=0.0):
 
         if not do_sample or temperature == 0.0:
             return torch.argmax(logits, dim=-1, keepdim=True)
@@ -876,6 +876,11 @@ class BaseGenerate:
             for i in range(logits.shape[0]):
                 for token_id in set(token_history):
                     logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
+
+        if presence_penalty is not None and presence_penalty != 0.0:
+            for i in range(logits.shape[0]):
+                for token_id in set(token_history):
+                    logits[i, token_id] -= presence_penalty
 
         if temperature != 1.0:
             logits = logits / temperature
