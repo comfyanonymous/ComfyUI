@@ -269,8 +269,8 @@ def uncast_bias_weight(s, weight, bias, offload_stream):
         return
     os, weight_a, bias_a = offload_stream
     device=None
-    #FIXME: This is not good RTTI
-    if not isinstance(weight_a, torch.Tensor):
+    #FIXME: This is really bad RTTI
+    if weight_a is not None and not isinstance(weight_a, torch.Tensor):
         comfy_aimdo.model_vbar.vbar_unpin(s._v)
         device = weight_a
     if os is None:
