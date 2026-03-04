@@ -655,6 +655,17 @@ class Llama2_(nn.Module):
         if config.lm_head:
             self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
 
+    def get_past_len(self, past_key_values):
+        return past_key_values[0][2]
+
+    def compute_freqs_cis(self, position_ids, device):
+        return precompute_freqs_cis(self.config.head_dim,
+                                    position_ids,
+                                    self.config.rope_theta,
+                                    self.config.rope_scale,
+                                    self.config.rope_dims,
+                                    device=device)
+
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[], past_key_values=None):
         if embeds is not None:
             x = embeds
@@ -667,17 +678,12 @@ class Llama2_(nn.Module):
         seq_len = x.shape[1]
         past_len = 0
         if past_key_values is not None and len(past_key_values) > 0:
-            past_len = past_key_values[0][2]
+            past_len = self.get_past_len(past_key_values)
 
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
 
-        freqs_cis = precompute_freqs_cis(self.config.head_dim,
-                                         position_ids,
-                                         self.config.rope_theta,
-                                         self.config.rope_scale,
-                                         self.config.rope_dims,
-                                         device=x.device)
+        freqs_cis = self.compute_freqs_cis(position_ids, x.device)
 
         mask = None
         if attention_mask is not None:
@@ -812,9 +818,16 @@ class BaseGenerate:
         comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
         return x
 
+    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
+        model_config = self.model.config
+        past_key_values = []
+        for x in range(model_config.num_hidden_layers):
+            past_key_values.append((torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype),
+                                    torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
+        return past_key_values
+
     def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0):
         device = embeds.device
-        model_config = self.model.config
 
         if stop_tokens is None:
             stop_tokens = self.model.config.stop_tokens
@@ -829,11 +842,8 @@ class BaseGenerate:
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
 
-        past_key_values = [] #kv_cache init
         max_cache_len = embeds.shape[1] + max_length
-        for x in range(model_config.num_hidden_layers):
-            past_key_values.append((torch.empty([embeds.shape[0], model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype),
-                                    torch.empty([embeds.shape[0], model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
+        past_key_values = self.init_kv_cache(embeds.shape[0], max_cache_len, device, execution_dtype)
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
