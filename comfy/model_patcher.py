@@ -307,7 +307,13 @@ class ModelPatcher:
         return self.model.lowvram_patch_counter
 
     def get_free_memory(self, device):
-        return comfy.model_management.get_free_memory(device)
+        #Prioritize batching (incl. CFG/conds etc) over keeping the model resident. In
+        #the vast majority of setups a little bit of offloading on the giant model more
+        #than pays for CFG. So return everything both torch and Aimdo could give us
+        aimdo_mem = 0
+        if comfy.memory_management.aimdo_enabled:
+            aimdo_mem = comfy_aimdo.model_vbar.vbars_analyze()
+        return comfy.model_management.get_free_memory(device) + aimdo_mem
 
     def get_clone_model_override(self):
         return self.model, (self.backup, self.backup_buffers, self.object_patches_backup, self.pinned)
@@ -1459,12 +1465,6 @@ class ModelPatcherDynamic(ModelPatcher):
     def loaded_size(self):
         vbar = self._vbar_get()
         return (vbar.loaded_size() if vbar is not None else 0) + self.model.model_loaded_weight_memory
-
-    def get_free_memory(self, device):
-        #NOTE: on high condition / batch counts, estimate should have already vacated
-        #all non-dynamic models so this is safe even if its not 100% true that this
-        #would all be avaiable for inference use.
-        return comfy.model_management.get_total_memory(device) - self.model_size()
 
     #Pinning is deferred to ops time. Assert against this API to avoid pin leaks.
 
