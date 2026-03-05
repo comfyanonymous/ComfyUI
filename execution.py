@@ -876,12 +876,14 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                 continue
         else:
             try:
-                # Unwraps values wrapped in __value__ key. This is used to pass
-                # list widget value to execution, as by default list value is
-                # reserved to represent the connection between nodes.
-                if isinstance(val, dict) and "__value__" in val:
-                    val = val["__value__"]
-                    inputs[x] = val
+                # Unwraps values wrapped in __value__ key or typed wrapper.
+                # This is used to pass list widget values to execution,
+                # as by default list value is reserved to represent the
+                # connection between nodes.
+                if isinstance(val, dict):
+                    if "__value__" in val:
+                        val = val["__value__"]
+                        inputs[x] = val
 
                 if input_type == "INT":
                     val = int(val)

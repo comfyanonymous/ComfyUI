@@ -1127,7 +1127,7 @@ class ZImagePixelSpace(ZImage):
     latent_format = latent_formats.ZImagePixelSpace
 
     # Much lower memory than latent-space models (no VAE, small patches).
-    memory_usage_factor = 0.05 # TODO: figure out the optimal value for this.
+    memory_usage_factor = 0.03 # TODO: figure out the optimal value for this.
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ZImagePixelSpace(self, device=device)

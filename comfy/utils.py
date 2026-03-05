@@ -869,19 +869,30 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
 
 ATTR_UNSET={}
 
-def set_attr(obj, attr, value):
+def resolve_attr(obj, attr):
     attrs = attr.split(".")
     for name in attrs[:-1]:
         obj = getattr(obj, name)
-    prev = getattr(obj, attrs[-1], ATTR_UNSET)
+    return obj, attrs[-1]
+
+def set_attr(obj, attr, value):
+    obj, name = resolve_attr(obj, attr)
+    prev = getattr(obj, name, ATTR_UNSET)
     if value is ATTR_UNSET:
-        delattr(obj, attrs[-1])
+        delattr(obj, name)
     else:
-        setattr(obj, attrs[-1], value)
+        setattr(obj, name, value)
     return prev
 
 def set_attr_param(obj, attr, value):
     return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
+
+def set_attr_buffer(obj, attr, value):
+    obj, name = resolve_attr(obj, attr)
+    prev = getattr(obj, name, ATTR_UNSET)
+    persistent = name not in getattr(obj, "_non_persistent_buffers_set", set())
+    obj.register_buffer(name, value, persistent=persistent)
+    return prev
 
 def copy_to_param(obj, attr, value):
     # inplace update tensor instead of replacing it
