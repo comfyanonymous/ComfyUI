@@ -464,7 +464,7 @@ def weighting_function(reg_max, up, reg_scale):
     step = (ub1 + 1) ** (2 / (reg_max - 2))
     left  = [-(step ** i) + 1 for i in range(reg_max // 2 - 1, 0, -1)]
     right = [ (step ** i) - 1 for i in range(1, reg_max // 2)]
-    vals  = [-ub2] + left + [torch.zeros_like(up[0][None])] + right + [ub2]
+    vals  = [-ub2] + left + [0] + right + [ub2]
     return torch.tensor(vals, dtype=up.dtype, device=up.device)
 
 
