@@ -483,7 +483,6 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
-
     class ConvTranspose2d(torch.nn.ConvTranspose2d, CastWeightBiasOp):
         def reset_parameters(self):
             return None
