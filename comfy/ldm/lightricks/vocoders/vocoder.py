@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import comfy.ops
+import comfy.model_management
 import numpy as np
 import math
 
