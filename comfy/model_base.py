@@ -1021,7 +1021,7 @@ class LTXAV(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             if hasattr(self.diffusion_model, "preprocess_text_embeds"):
-                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype_inference()))
+                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype_inference()), unprocessed=kwargs.get("unprocessed_ltxav_embeds", False))
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
 
         out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))
