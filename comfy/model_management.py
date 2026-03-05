@@ -1666,12 +1666,16 @@ def lora_compute_dtype(device):
     return dtype
 
 def synchronize():
+    if cpu_mode():
+        return
     if is_intel_xpu():
         torch.xpu.synchronize()
     elif torch.cuda.is_available():
         torch.cuda.synchronize()
 
 def soft_empty_cache(force=False):
+    if cpu_mode():
+        return
     global cpu_state
     if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
