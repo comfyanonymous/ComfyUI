@@ -86,7 +86,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
     #a clone conservatively as we are mmapped and some SFT files are packed misaligned
     #If you are a custom node author reading this, please move your layer to the GPU
     #or declare your ModelPatcher as CPU in the first place.
-    if device is not None and device.type == "cpu":
+    if comfy.model_management.is_device_cpu(device):
         weight = s.weight.to(dtype=dtype, copy=True)
         if isinstance(weight, QuantizedTensor):
             weight = weight.dequantize()
