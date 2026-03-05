@@ -138,3 +138,11 @@ class TestMathExpressionExecute:
     def test_boolean_result_raises(self):
         with pytest.raises(ValueError, match="got bool"):
             self._exec("a > b", a=5, b=3)
+
+    def test_empty_expression_raises(self):
+        with pytest.raises(ValueError, match="Expression cannot be empty"):
+            self._exec("", a=1)
+
+    def test_whitespace_only_expression_raises(self):
+        with pytest.raises(ValueError, match="Expression cannot be empty"):
+            self._exec("   ", a=1)
