@@ -63,7 +63,7 @@ class MathExpressionNode(io.ComfyNode):
                 "expression", "formula", "calculate", "eval", "math"
             ],
             inputs=[
-                io.String.Input("expression", default="a + b"),
+                io.String.Input("expression", default="a + b", multiline=True),
                 io.Autogrow.Input("values", template=autogrow),
             ],
             outputs=[
@@ -76,6 +76,9 @@ class MathExpressionNode(io.ComfyNode):
     def execute(
         cls, expression: str, values: io.Autogrow.Type
     ) -> io.NodeOutput:
+        if not expression.strip():
+            raise ValueError("Expression cannot be empty.")
+
         context: dict = dict(values)
         context["values"] = list(values.values())
 
