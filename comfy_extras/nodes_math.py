@@ -7,11 +7,15 @@ against dynamically-grown numeric inputs.
 from __future__ import annotations
 
 import math
+import string
 
 from simpleeval import simple_eval
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
+
+
+MAX_EXPONENT = 4000
 
 
 def _variadic_sum(*args):
@@ -21,13 +25,24 @@ def _variadic_sum(*args):
     return sum(args)
 
 
+def _safe_pow(base, exp):
+    """Wrap pow() with an exponent cap to prevent DoS via huge exponents.
+
+    The ** operator is already guarded by simpleeval's safe_power, but
+    pow() as a callable bypasses that guard.
+    """
+    if abs(exp) > MAX_EXPONENT:
+        raise ValueError(f"Exponent {exp} exceeds maximum allowed ({MAX_EXPONENT})")
+    return pow(base, exp)
+
+
 MATH_FUNCTIONS = {
     "sum": _variadic_sum,
     "min": min,
     "max": max,
     "abs": abs,
     "round": round,
-    "pow": pow,
+    "pow": _safe_pow,
     "sqrt": math.sqrt,
     "ceil": math.ceil,
     "floor": math.floor,
@@ -37,12 +52,9 @@ MATH_FUNCTIONS = {
     "sin": math.sin,
     "cos": math.cos,
     "tan": math.tan,
+    "int": int,
+    "float": float,
 }
-
-
-def _positional_alias(index: int) -> str:
-    """Convert 0-based index to single letter: 0->a, 1->b, ..., 25->z."""
-    return chr(ord("a") + index)
 
 
 class MathExpressionNode(io.ComfyNode):
@@ -52,7 +64,7 @@ class MathExpressionNode(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         autogrow = io.Autogrow.TemplateNames(
             input=io.MultiType.Input("value", [io.Float, io.Int]),
-            names=[_positional_alias(i) for i in range(26)],
+            names=list(string.ascii_lowercase),
             min=1,
         )
         return io.Schema(
@@ -60,7 +72,8 @@ class MathExpressionNode(io.ComfyNode):
             display_name="Math Expression",
             category="math",
             search_aliases=[
-                "expression", "formula", "calculate", "eval", "math"
+                "expression", "formula", "calculate", "calculator",
+                "eval", "math",
             ],
             inputs=[
                 io.String.Input("expression", default="a + b", multiline=True),
@@ -83,10 +96,15 @@ class MathExpressionNode(io.ComfyNode):
         context["values"] = list(values.values())
 
         result = simple_eval(expression, names=context, functions=MATH_FUNCTIONS)
+        # bool check must come first because bool is a subclass of int in Python
         if isinstance(result, bool) or not isinstance(result, (int, float)):
             raise ValueError(
                 f"Math Expression '{expression}' must evaluate to a numeric result, "
                 f"got {type(result).__name__}: {result!r}"
+            )
+        if not math.isfinite(result):
+            raise ValueError(
+                f"Math Expression '{expression}' produced a non-finite result: {result}"
             )
         return io.NodeOutput(float(result), int(result))
 

@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from collections import OrderedDict
 from unittest.mock import patch, MagicMock
@@ -7,20 +9,7 @@ mock_nodes.MAX_RESOLUTION = 16384
 mock_server = MagicMock()
 
 with patch.dict("sys.modules", {"nodes": mock_nodes, "server": mock_server}):
-    from comfy_extras.nodes_math import _positional_alias, MathExpressionNode
-
-
-class TestPositionalAlias:
-    def test_first_letter(self):
-        assert _positional_alias(0) == "a"
-
-    def test_last_letter(self):
-        assert _positional_alias(25) == "z"
-
-    def test_all_letters(self):
-        expected = list("abcdefghijklmnopqrstuvwxyz")
-        result = [_positional_alias(i) for i in range(26)]
-        assert result == expected
+    from comfy_extras.nodes_math import MathExpressionNode
 
 
 class TestMathExpressionExecute:
@@ -128,7 +117,7 @@ class TestMathExpressionExecute:
         assert isinstance(result[1], int)
 
     def test_non_numeric_result_raises(self):
-        with pytest.raises((ValueError, Exception)):
+        with pytest.raises(ValueError, match="must evaluate to a numeric result"):
             self._exec("'hello'", a=42)
 
     def test_undefined_function_raises(self):
@@ -146,3 +135,63 @@ class TestMathExpressionExecute:
     def test_whitespace_only_expression_raises(self):
         with pytest.raises(ValueError, match="Expression cannot be empty"):
             self._exec("   ", a=1)
+
+    # --- Missing function coverage (round, pow, log, log2, cos, tan) ---
+
+    def test_round(self):
+        result = self._exec("round(a)", a=2.7)
+        assert result[0] == 3.0
+        assert result[1] == 3
+
+    def test_round_with_ndigits(self):
+        result = self._exec("round(a, 2)", a=3.14159)
+        assert result[0] == pytest.approx(3.14)
+
+    def test_pow(self):
+        result = self._exec("pow(a, b)", a=2, b=10)
+        assert result[0] == 1024.0
+        assert result[1] == 1024
+
+    def test_log(self):
+        result = self._exec("log(a)", a=math.e)
+        assert result[0] == pytest.approx(1.0)
+
+    def test_log2(self):
+        result = self._exec("log2(a)", a=8)
+        assert result[0] == pytest.approx(3.0)
+
+    def test_cos(self):
+        result = self._exec("cos(a)", a=0)
+        assert result[0] == 1.0
+
+    def test_tan(self):
+        result = self._exec("tan(a)", a=0)
+        assert result[0] == 0.0
+
+    # --- int/float converter functions ---
+
+    def test_int_converter(self):
+        result = self._exec("int(a / b)", a=7, b=2)
+        assert result[1] == 3
+
+    def test_float_converter(self):
+        result = self._exec("float(a)", a=5)
+        assert result[0] == 5.0
+
+    # --- Error path tests ---
+
+    def test_division_by_zero_raises(self):
+        with pytest.raises(ZeroDivisionError):
+            self._exec("a / b", a=1, b=0)
+
+    def test_sqrt_negative_raises(self):
+        with pytest.raises(ValueError, match="math domain error"):
+            self._exec("sqrt(a)", a=-1)
+
+    def test_overflow_inf_raises(self):
+        with pytest.raises(ValueError, match="non-finite result"):
+            self._exec("a * b", a=1e308, b=10)
+
+    def test_pow_huge_exponent_raises(self):
+        with pytest.raises(ValueError, match="Exponent .* exceeds maximum"):
+            self._exec("pow(a, b)", a=10, b=10000000)
