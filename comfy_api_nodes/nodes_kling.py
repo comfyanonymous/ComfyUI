@@ -2747,6 +2747,7 @@ class MotionControl(IO.ComfyNode):
                     "but the character orientation matches the reference image (camera/other details via prompt).",
                 ),
                 IO.Combo.Input("mode", options=["pro", "std"]),
+                IO.Combo.Input("model", options=["kling-v3", "kling-v2-6"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -2777,6 +2778,7 @@ class MotionControl(IO.ComfyNode):
         keep_original_sound: bool,
         character_orientation: str,
         mode: str,
+        model: str = "kling-v2-6",
     ) -> IO.NodeOutput:
         validate_string(prompt, max_length=2500)
         validate_image_dimensions(reference_image, min_width=340, min_height=340)
@@ -2797,6 +2799,7 @@ class MotionControl(IO.ComfyNode):
                 keep_original_sound="yes" if keep_original_sound else "no",
                 character_orientation=character_orientation,
                 mode=mode,
+                model_name=model,
             ),
         )
         if response.code:
