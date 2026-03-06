@@ -155,6 +155,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.execution_device = options.get("execution_device", self.execution_device)
         if isinstance(self.layer, list) or self.layer == "all":
             pass
+        elif isinstance(layer_idx, list):
+            self.layer = layer_idx
         elif layer_idx is None or abs(layer_idx) > self.num_layers:
             self.layer = "last"
         else:
@@ -169,8 +171,9 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
     def process_tokens(self, tokens, device):
         end_token = self.special_tokens.get("end", None)
+        pad_token = self.special_tokens.get("pad", -1)
         if end_token is None:
-            cmp_token = self.special_tokens.get("pad", -1)
+            cmp_token = pad_token
         else:
             cmp_token = end_token
 
@@ -184,15 +187,21 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             other_embeds = []
             eos = False
             index = 0
+            left_pad = False
             for y in x:
                 if isinstance(y, numbers.Integral):
-                    if eos:
+                    token = int(y)
+                    if index == 0 and token == pad_token:
+                        left_pad = True
+
+                    if eos or (left_pad and token == pad_token):
                         attention_mask.append(0)
                     else:
                         attention_mask.append(1)
-                    token = int(y)
+                        left_pad = False
+
                     tokens_temp += [token]
-                    if not eos and token == cmp_token:
+                    if not eos and token == cmp_token and not left_pad:
                         if end_token is None:
                             attention_mask[-1] = 0
                         eos = True
@@ -297,7 +306,16 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         return self(tokens)
 
     def load_sd(self, sd):
-        return self.transformer.load_state_dict(sd, strict=False)
+        return self.transformer.load_state_dict(sd, strict=False, assign=getattr(self, "can_assign_sd", False))
+
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
+        if isinstance(tokens, dict):
+            tokens_only = next(iter(tokens.values())) # todo: get this better?
+        else:
+            tokens_only = tokens
+        tokens_only = [[t[0] for t in b] for b in tokens_only]
+        embeds = self.process_tokens(tokens_only, device=self.execution_device)[0]
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed)
 
 def parse_parentheses(string):
     result = []
@@ -466,7 +484,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data={}, tokenizer_args={}):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, start_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data={}, tokenizer_args={}):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
@@ -479,8 +497,15 @@ class SDTokenizer:
         empty = self.tokenizer('')["input_ids"]
         self.tokenizer_adds_end_token = has_end_token
         if has_start_token:
-            self.tokens_start = 1
-            self.start_token = empty[0]
+            if len(empty) > 0:
+                self.tokens_start = 1
+                self.start_token = empty[0]
+            else:
+                self.tokens_start = 0
+                self.start_token = start_token
+                if start_token is None:
+                    logging.warning("WARNING: There's something wrong with your tokenizers.'")
+
             if end_token is not None:
                 self.end_token = end_token
             else:
@@ -488,7 +513,7 @@ class SDTokenizer:
                     self.end_token = empty[1]
         else:
             self.tokens_start = 0
-            self.start_token = None
+            self.start_token = start_token
             if end_token is not None:
                 self.end_token = end_token
             else:
@@ -547,6 +572,8 @@ class SDTokenizer:
         '''
         min_length = tokenizer_options.get("{}_min_length".format(self.embedding_key), self.min_length)
         min_padding = tokenizer_options.get("{}_min_padding".format(self.embedding_key), self.min_padding)
+
+        min_length = kwargs.get("min_length", min_length)
 
         text = escape_important(text)
         if kwargs.get("disable_weights", self.disable_weights):
@@ -647,6 +674,9 @@ class SDTokenizer:
     def state_dict(self):
         return {}
 
+    def decode(self, token_ids, skip_special_tokens=True):
+        return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
+
 class SD1Tokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer, name=None):
         if name is not None:
@@ -669,6 +699,9 @@ class SD1Tokenizer:
 
     def state_dict(self):
         return getattr(self, self.clip).state_dict()
+
+    def decode(self, token_ids, skip_special_tokens=True):
+        return getattr(self, self.clip).decode(token_ids, skip_special_tokens=skip_special_tokens)
 
 class SD1CheckpointClipModel(SDClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
@@ -706,3 +739,6 @@ class SD1ClipModel(torch.nn.Module):
 
     def load_sd(self, sd):
         return getattr(self, self.clip).load_sd(sd)
+
+    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, seed=None):
+        return getattr(self, self.clip).generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, repetition_penalty=repetition_penalty, seed=seed)

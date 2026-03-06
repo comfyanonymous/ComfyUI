@@ -134,6 +134,36 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
+def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0):
+    """Append a guide_attention_entry to both positive and negative conditioning.
+
+    Each entry tracks one guide reference for per-reference attention control.
+    Entries are derived independently from each conditioning to avoid cross-contamination.
+    """
+    new_entry = {
+        "pre_filter_count": pre_filter_count,
+        "strength": strength,
+        "pixel_mask": None,
+        "latent_shape": latent_shape,
+    }
+    results = []
+    for cond in (positive, negative):
+        # Read existing entries from this specific conditioning
+        existing = []
+        for t in cond:
+            found = t[1].get("guide_attention_entries", None)
+            if found is not None:
+                existing = found
+                break
+        # Shallow copy and append (no deepcopy needed — entries contain
+        # only scalars and None for pixel_mask at this call site).
+        entries = [*existing, new_entry]
+        results.append(node_helpers.conditioning_set_values(
+            cond, {"guide_attention_entries": entries}
+        ))
+    return results[0], results[1]
+
+
 def conditioning_get_any_value(conditioning, key, default=None):
     for t in conditioning:
         if key in t[1]:
@@ -223,11 +253,26 @@ class LTXVAddGuide(io.ComfyNode):
         return frame_idx, latent_idx
 
     @classmethod
-    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors):
+    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors, latent_downscale_factor=1, causal_fix=None):
         keyframe_idxs, _ = get_keyframe_idxs(cond)
         _, latent_coords = cls.PATCHIFIER.patchify(guiding_latent)
-        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=frame_idx == 0)  # we need the causal fix only if we're placing the new latents at index 0
+        if causal_fix is None:
+            causal_fix = frame_idx == 0 or guiding_latent.shape[2] == 1
+        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=causal_fix)
         pixel_coords[:, 0] += frame_idx
+
+        # The following adjusts keyframe end positions for small grid IC-LoRA.
+        # After dilation, the small grid has the same size and position as the large grid,
+        # but each token encodes a larger image patch. We adjust the end position (not start)
+        # so that RoPE represents the correct middle point of each token.
+        # keyframe_idxs dims: (batch, spatial_dim [t,h,w], token_id, [start, end])
+        # We only adjust h,w (not t) in dim 1, and only end (not start) in dim 3.
+        spatial_end_offset = (latent_downscale_factor - 1) * torch.tensor(
+            scale_factors[1:],
+            device=pixel_coords.device,
+        ).view(1, -1, 1, 1)
+        pixel_coords[:, 1:, :, 1:] += spatial_end_offset.to(pixel_coords.dtype)
+
         if keyframe_idxs is None:
             keyframe_idxs = pixel_coords
         else:
@@ -235,12 +280,12 @@ class LTXVAddGuide(io.ComfyNode):
         return node_helpers.conditioning_set_values(cond, {"keyframe_idxs": keyframe_idxs})
 
     @classmethod
-    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128):
+    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128, latent_downscale_factor=1, causal_fix=None):
         if latent_image.shape[1] != in_channels or guiding_latent.shape[1] != in_channels:
             raise ValueError("Adding guide to a combined AV latent is not supported.")
 
-        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors)
-        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors)
+        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors, latent_downscale_factor, causal_fix=causal_fix)
+        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors, latent_downscale_factor, causal_fix=causal_fix)
 
         if guide_mask is not None:
             target_h = max(noise_mask.shape[3], guide_mask.shape[3])
@@ -311,6 +356,13 @@ class LTXVAddGuide(io.ComfyNode):
             scale_factors,
         )
 
+        # Track this guide for per-reference attention control.
+        pre_filter_count = t.shape[2] * t.shape[3] * t.shape[4]
+        guide_latent_shape = list(t.shape[2:])  # [F, H, W]
+        positive, negative = _append_guide_attention_entry(
+            positive, negative, pre_filter_count, guide_latent_shape, strength=strength,
+        )
+
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
 
     generate = execute  # TODO: remove
@@ -346,8 +398,14 @@ class LTXVCropGuides(io.ComfyNode):
         latent_image = latent_image[:, :, :-num_keyframes]
         noise_mask = noise_mask[:, :, :-num_keyframes]
 
-        positive = node_helpers.conditioning_set_values(positive, {"keyframe_idxs": None})
-        negative = node_helpers.conditioning_set_values(negative, {"keyframe_idxs": None})
+        positive = node_helpers.conditioning_set_values(positive, {
+            "keyframe_idxs": None,
+            "guide_attention_entries": None,
+        })
+        negative = node_helpers.conditioning_set_values(negative, {
+            "keyframe_idxs": None,
+            "guide_attention_entries": None,
+        })
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
 
@@ -437,6 +495,7 @@ class LTXVScheduler(io.ComfyNode):
                     id="stretch",
                     default=True,
                     tooltip="Stretch the sigmas to be in the range [terminal, 1].",
+                    advanced=True,
                 ),
                 io.Float.Input(
                     id="terminal",
@@ -445,6 +504,7 @@ class LTXVScheduler(io.ComfyNode):
                     max=0.99,
                     step=0.01,
                     tooltip="The terminal value of the sigmas after stretching.",
+                    advanced=True,
                 ),
                 io.Latent.Input("latent", optional=True),
             ],

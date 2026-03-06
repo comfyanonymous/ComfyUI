@@ -18,6 +18,8 @@ import comfy.patcher_extension
 import comfy.ops
 ops = comfy.ops.disable_weight_init
 
+from ..sdpose import HeatmapHead
+
 class TimestepBlock(nn.Module):
     """
     Any module where forward() takes timestep embeddings as a second argument.
@@ -441,6 +443,7 @@ class UNetModel(nn.Module):
         disable_temporal_crossattention=False,
         max_ddpm_temb_period=10000,
         attn_precision=None,
+        heatmap_head=False,
         device=None,
         operations=ops,
     ):
@@ -826,6 +829,9 @@ class UNetModel(nn.Module):
             operations.conv_nd(dims, model_channels, n_embed, 1, dtype=self.dtype, device=device),
             #nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
         )
+
+        if heatmap_head:
+            self.heatmap_head = HeatmapHead(device=device, dtype=self.dtype, operations=operations)
 
     def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
