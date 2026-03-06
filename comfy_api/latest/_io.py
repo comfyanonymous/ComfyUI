@@ -1240,6 +1240,19 @@ class BoundingBox(ComfyTypeIO):
             return d
 
 
+@comfytype(io_type="CURVE")
+class Curve(ComfyTypeIO):
+    CurvePoint = tuple[float, float]
+    Type = list[CurvePoint]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[tuple[float, float]]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = [(0.0, 0.0), (1.0, 1.0)]
+
+
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
     DYNAMIC_INPUT_LOOKUP[io_type] = func
@@ -2226,5 +2239,6 @@ __all__ = [
     "PriceBadgeDepends",
     "PriceBadge",
     "BoundingBox",
+    "Curve",
     "NodeReplace",
 ]
