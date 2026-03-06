@@ -16,13 +16,17 @@ from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
-
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
+import comfy_aimdo.control
+
+if enables_dynamic_vram():
+    comfy_aimdo.control.init()
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
@@ -188,13 +192,9 @@ import hook_breaker_ac10a0
 import comfy.memory_management
 import comfy.model_patcher
 
-import comfy_aimdo.control
-import comfy_aimdo.torch
-
-if enables_dynamic_vram():
+if enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl():
     if comfy.model_management.torch_version_numeric < (2, 8):
         logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
-        comfy.memory_management.aimdo_allocator = None
     elif comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
         if args.verbose == 'DEBUG':
             comfy_aimdo.control.set_log_debug()
@@ -208,11 +208,10 @@ if enables_dynamic_vram():
             comfy_aimdo.control.set_log_info()
 
         comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
-        comfy.memory_management.aimdo_allocator = comfy_aimdo.torch.get_torch_allocator()
+        comfy.memory_management.aimdo_enabled = True
         logging.info("DynamicVRAM support detected and enabled")
     else:
         logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
-        comfy.memory_management.aimdo_allocator = None
 
 
 def cuda_malloc_warning():

@@ -63,12 +63,14 @@ class TopazImageEnhance(IO.ComfyNode):
                     "subject_detection",
                     options=["All", "Foreground", "Background"],
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "face_enhancement",
                     default=True,
                     optional=True,
                     tooltip="Enhance faces (if present) during processing.",
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "face_enhancement_creativity",
@@ -79,6 +81,7 @@ class TopazImageEnhance(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     optional=True,
                     tooltip="Set the creativity level for face enhancement.",
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "face_enhancement_strength",
@@ -89,6 +92,7 @@ class TopazImageEnhance(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     optional=True,
                     tooltip="Controls how sharp enhanced faces are relative to the background.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "crop_to_fill",
@@ -96,6 +100,7 @@ class TopazImageEnhance(IO.ComfyNode):
                     optional=True,
                     tooltip="By default, the image is letterboxed when the output aspect ratio differs. "
                     "Enable to crop the image to fill the output dimensions.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "output_width",
@@ -106,6 +111,7 @@ class TopazImageEnhance(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     optional=True,
                     tooltip="Zero value means to calculate automatically (usually it will be original size or output_height if specified).",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "output_height",
@@ -116,6 +122,7 @@ class TopazImageEnhance(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     optional=True,
                     tooltip="Zero value means to output in the same height as original or output width.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "creativity",
@@ -131,12 +138,14 @@ class TopazImageEnhance(IO.ComfyNode):
                     default=True,
                     optional=True,
                     tooltip="Preserve subjects' facial identity.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "color_preservation",
                     default=True,
                     optional=True,
                     tooltip="Preserve the original colors.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -234,9 +243,10 @@ class TopazVideoEnhance(IO.ComfyNode):
                     default="low",
                     tooltip="Creativity level (applies only to Starlight (Astra) Creative).",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input("interpolation_enabled", default=False, optional=True),
-                IO.Combo.Input("interpolation_model", options=["apo-8"], default="apo-8", optional=True),
+                IO.Combo.Input("interpolation_model", options=["apo-8"], default="apo-8", optional=True, advanced=True),
                 IO.Int.Input(
                     "interpolation_slowmo",
                     default=1,
@@ -246,6 +256,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                     tooltip="Slow-motion factor applied to the input video. "
                     "For example, 2 makes the output twice as slow and doubles the duration.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "interpolation_frame_rate",
@@ -261,6 +272,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                     default=False,
                     tooltip="Analyze the input for duplicate frames and remove them.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "interpolation_duplicate_threshold",
@@ -271,6 +283,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     tooltip="Detection sensitivity for duplicate frames.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "dynamic_compression_level",
@@ -278,6 +291,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                     default="Low",
                     tooltip="CQP level.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[

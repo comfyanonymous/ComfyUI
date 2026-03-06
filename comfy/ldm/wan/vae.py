@@ -459,6 +459,7 @@ class WanVAE(nn.Module):
                  attn_scales=[],
                  temperal_downsample=[True, True, False],
                  image_channels=3,
+                 conv_out_channels=3,
                  dropout=0.0):
         super().__init__()
         self.dim = dim
@@ -474,7 +475,7 @@ class WanVAE(nn.Module):
                                  attn_scales, self.temperal_downsample, dropout)
         self.conv1 = CausalConv3d(z_dim * 2, z_dim * 2, 1)
         self.conv2 = CausalConv3d(z_dim, z_dim, 1)
-        self.decoder = Decoder3d(dim, z_dim, image_channels, dim_mult, num_res_blocks,
+        self.decoder = Decoder3d(dim, z_dim, conv_out_channels, dim_mult, num_res_blocks,
                                  attn_scales, self.temperal_upsample, dropout)
 
     def encode(self, x):
@@ -484,7 +485,7 @@ class WanVAE(nn.Module):
         iter_ = 1 + (t - 1) // 4
         feat_map = None
         if iter_ > 1:
-            feat_map = [None] * count_conv3d(self.decoder)
+            feat_map = [None] * count_conv3d(self.encoder)
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
             conv_idx = [0]

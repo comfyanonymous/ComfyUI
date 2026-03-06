@@ -401,6 +401,7 @@ class VideoFromComponents(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
     ):
+        """Save the video to a file path or BytesIO buffer."""
         if format != VideoContainer.AUTO and format != VideoContainer.MP4:
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
@@ -408,6 +409,10 @@ class VideoFromComponents(VideoInput):
         extra_kwargs = {}
         if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
             extra_kwargs["format"] = format.value
+        elif isinstance(path, io.BytesIO):
+            # BytesIO has no file extension, so av.open can't infer the format.
+            # Default to mp4 since that's the only supported format anyway.
+            extra_kwargs["format"] = "mp4"
         with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:
@@ -444,7 +449,7 @@ class VideoFromComponents(VideoInput):
             output.mux(packet)
 
             if audio_stream and self.__components.audio:
-                frame = av.AudioFrame.from_ndarray(waveform.float().cpu().numpy(), format='fltp', layout=layout)
+                frame = av.AudioFrame.from_ndarray(waveform.float().cpu().contiguous().numpy(), format='fltp', layout=layout)
                 frame.sample_rate = audio_sample_rate
                 frame.pts = 0
                 output.mux(audio_stream.encode(frame))

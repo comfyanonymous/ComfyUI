@@ -37,6 +37,12 @@ from comfy_api_nodes.util import (
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
 
+SEEDREAM_MODELS = {
+    "seedream 5.0 lite": "seedream-5-0-260128",
+    "seedream-4-5-251128": "seedream-4-5-251128",
+    "seedream-4-0-250828": "seedream-4-0-250828",
+}
+
 # Long-running tasks endpoints(e.g., video)
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
 BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
@@ -114,6 +120,7 @@ class ByteDanceImageNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -179,14 +186,13 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDanceSeedreamNode",
-            display_name="ByteDance Seedream 4.5",
+            display_name="ByteDance Seedream 4.5 & 5.0",
             category="api node/image/ByteDance",
             description="Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedream-4-5-251128", "seedream-4-0-250828"],
-                    tooltip="Model name",
+                    options=list(SEEDREAM_MODELS.keys()),
                 ),
                 IO.String.Input(
                     "prompt",
@@ -197,7 +203,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Image.Input(
                     "image",
                     tooltip="Input image(s) for image-to-image generation. "
-                    "List of 1-10 images for single or multi-reference generation.",
+                    "Reference image(s) for single or multi-reference generation.",
                     optional=True,
                 ),
                 IO.Combo.Input(
@@ -209,8 +215,8 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "width",
                     default=2048,
                     min=1024,
-                    max=4096,
-                    step=8,
+                    max=6240,
+                    step=2,
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -218,8 +224,8 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "height",
                     default=2048,
                     min=1024,
-                    max=4096,
-                    step=8,
+                    max=4992,
+                    step=2,
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -259,12 +265,14 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "fail_on_partial",
                     default=True,
                     tooltip="If enabled, abort execution if any requested images are missing or return an error.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -280,7 +288,8 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $price := $contains(widgets.model, "seedream-4-5-251128") ? 0.04 : 0.03;
+                  $price := $contains(widgets.model, "5.0 lite") ? 0.035 :
+                            $contains(widgets.model, "4-5") ? 0.04 : 0.03;
                   {
                     "type":"usd",
                     "usd": $price,
@@ -306,6 +315,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         watermark: bool = False,
         fail_on_partial: bool = True,
     ) -> IO.NodeOutput:
+        model = SEEDREAM_MODELS[model]
         validate_string(prompt, strip_whitespace=True, min_length=1)
         w = h = None
         for label, tw, th in RECOMMENDED_PRESETS_SEEDREAM_4:
@@ -315,15 +325,12 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
 
         if w is None or h is None:
             w, h = width, height
-            if not (1024 <= w <= 4096) or not (1024 <= h <= 4096):
-                raise ValueError(
-                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
-                )
+
         out_num_pixels = w * h
         mp_provided = out_num_pixels / 1_000_000.0
-        if "seedream-4-5" in model and out_num_pixels < 3686400:
+        if ("seedream-4-5" in model or "seedream-5-0" in model) and out_num_pixels < 3686400:
             raise ValueError(
-                f"Minimum image resolution that Seedream 4.5 can generate is 3.68MP, "
+                f"Minimum image resolution for the selected model is 3.68MP, "
                 f"but {mp_provided:.2f}MP provided."
             )
         if "seedream-4-0" in model and out_num_pixels < 921600:
@@ -331,9 +338,18 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 f"Minimum image resolution that the selected model can generate is 0.92MP, "
                 f"but {mp_provided:.2f}MP provided."
             )
+        max_pixels = 10_404_496 if "seedream-5-0" in model else 16_777_216
+        if out_num_pixels > max_pixels:
+            raise ValueError(
+                f"Maximum image resolution for the selected model is {max_pixels / 1_000_000:.2f}MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
         n_input_images = get_number_of_images(image) if image is not None else 0
-        if n_input_images > 10:
-            raise ValueError(f"Maximum of 10 reference images are supported, but {n_input_images} received.")
+        max_num_of_images = 14 if model == "seedream-5-0-260128" else 10
+        if n_input_images > max_num_of_images:
+            raise ValueError(
+                f"Maximum of {max_num_of_images} reference images are supported, but {n_input_images} received."
+            )
         if sequential_image_generation == "auto" and n_input_images + max_images > 15:
             raise ValueError(
                 "The maximum number of generated images plus the number of reference images cannot exceed 15."
@@ -361,6 +377,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 sequential_image_generation=sequential_image_generation,
                 sequential_image_generation_options=Seedream4Options(max_images=max_images),
                 watermark=watermark,
+                output_format="png" if model == "seedream-5-0-260128" else None,
             ),
         )
         if len(response.data) == 1:
@@ -432,18 +449,21 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -561,18 +581,21 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -694,18 +717,21 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -834,6 +860,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
