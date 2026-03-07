@@ -9,7 +9,9 @@ import logging
 import comfy.utils
 
 class T5XXLModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=False, model_options={}):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=False, model_options=None):
+        if model_options is None:
+            model_options = {}
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_config_xxl.json")
         t5xxl_quantization_metadata = model_options.get("t5xxl_quantization_metadata", None)
         if t5xxl_quantization_metadata is not None:
@@ -33,13 +35,17 @@ def t5_xxl_detect(state_dict, prefix=""):
     return out
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}, min_length=77, max_length=99999999):
+    def __init__(self, embedding_directory=None, tokenizer_data=None, min_length=77, max_length=99999999):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
         super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=max_length, min_length=min_length, tokenizer_data=tokenizer_data)
 
 
 class SD3Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
@@ -58,7 +64,9 @@ class SD3Tokenizer:
         return {}
 
 class SD3ClipModel(torch.nn.Module):
-    def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, t5_attention_mask=False, device="cpu", dtype=None, model_options={}):
+    def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, t5_attention_mask=False, device="cpu", dtype=None, model_options=None):
+        if model_options is None:
+            model_options = {}
         super().__init__()
         self.dtypes = set()
         if clip_l:
@@ -159,7 +167,9 @@ class SD3ClipModel(torch.nn.Module):
 
 def sd3_clip(clip_l=True, clip_g=True, t5=True, dtype_t5=None, t5_quantization_metadata=None, t5_attention_mask=False):
     class SD3ClipModel_(SD3ClipModel):
-        def __init__(self, device="cpu", dtype=None, model_options={}):
+        def __init__(self, device="cpu", dtype=None, model_options=None):
+            if model_options is None:
+                model_options = {}
             if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
                 model_options["t5xxl_quantization_metadata"] = t5_quantization_metadata

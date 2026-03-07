@@ -204,7 +204,13 @@ def load_bypass_lora_for_models(model, clip, lora, strength_model, strength_clip
 
 
 class CLIP:
-    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}, parameters=0, state_dict=[], model_options={}, disable_dynamic=False):
+    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data=None, parameters=0, state_dict=None, model_options=None, disable_dynamic=False):
+        if tokenizer_data is None:
+            tokenizer_data = {}
+        if state_dict is None:
+            state_dict = []
+        if model_options is None:
+            model_options = {}
         if no_init:
             return
         params = target.params.copy()
@@ -415,7 +421,9 @@ class CLIP:
             sd_clip[k] = sd_tokenizer[k]
         return sd_clip
 
-    def load_model(self, tokens={}):
+    def load_model(self, tokens=None):
+        if tokens is None:
+            tokens = {}
         memory_used = 0
         if hasattr(self.cond_stage_model, "memory_estimation_function"):
             memory_used = self.cond_stage_model.memory_estimation_function(tokens, device=self.patcher.load_device)
@@ -935,7 +943,9 @@ class VAE:
         encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).float()
         return comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.downscale_ratio, out_channels=self.latent_channels, downscale=True, index_formulas=self.downscale_index_formula, output_device=self.output_device)
 
-    def decode(self, samples_in, vae_options={}):
+    def decode(self, samples_in, vae_options=None):
+        if vae_options is None:
+            vae_options = {}
         self.throw_exception_if_invalid()
         pixel_samples = None
         do_tile = False
@@ -1166,11 +1176,15 @@ class CLIPType(Enum):
 
 
 
-def load_clip_model_patcher(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
+def load_clip_model_patcher(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
     clip = load_clip(ckpt_paths, embedding_directory, clip_type, model_options, disable_dynamic)
     return clip.patcher
 
-def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
+def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
     clip_data = []
     for p in ckpt_paths:
         sd, metadata = comfy.utils.load_torch_file(p, safe_load=True, return_metadata=True)
@@ -1284,7 +1298,11 @@ def llama_detect(clip_data):
 
     return {}
 
-def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
+def load_text_encoder_state_dicts(state_dicts=None, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options=None, disable_dynamic=False):
+    if state_dicts is None:
+        state_dicts = []
+    if model_options is None:
+        model_options = {}
     clip_data = state_dicts
 
     class EmptyClass:
@@ -1544,7 +1562,11 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     return (model, clip, vae)
 
-def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, disable_dynamic=False):
+def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options=None, te_model_options=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
+    if te_model_options is None:
+        te_model_options = {}
     sd, metadata = comfy.utils.load_torch_file(ckpt_path, return_metadata=True)
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, metadata=metadata, disable_dynamic=disable_dynamic)
     if out is None:
@@ -1555,7 +1577,11 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         out[1].patcher.cached_patcher_init = (load_checkpoint_guess_config_clip_only, (ckpt_path, embedding_directory, model_options, te_model_options))
     return out
 
-def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
+def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None, model_options=None, te_model_options=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
+    if te_model_options is None:
+        te_model_options = {}
     model, *_ = load_checkpoint_guess_config(ckpt_path, False, False, False,
             embedding_directory=embedding_directory,
             model_options=model_options,
@@ -1563,7 +1589,11 @@ def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None,
             disable_dynamic=disable_dynamic)
     return model
 
-def load_checkpoint_guess_config_clip_only(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
+def load_checkpoint_guess_config_clip_only(ckpt_path, embedding_directory=None, model_options=None, te_model_options=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
+    if te_model_options is None:
+        te_model_options = {}
     _, clip, *_ = load_checkpoint_guess_config(ckpt_path, False, True, False,
             embedding_directory=embedding_directory, output_model=False,
             model_options=model_options,
@@ -1571,7 +1601,11 @@ def load_checkpoint_guess_config_clip_only(ckpt_path, embedding_directory=None, 
             disable_dynamic=disable_dynamic)
     return clip.patcher
 
-def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, metadata=None, disable_dynamic=False):
+def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options=None, te_model_options=None, metadata=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
+    if te_model_options is None:
+        te_model_options = {}
     clip = None
     clipvision = None
     vae = None
@@ -1672,7 +1706,9 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     return (model_patcher, clip, vae, clipvision)
 
 
-def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable_dynamic=False):
+def load_diffusion_model_state_dict(sd, model_options=None, metadata=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
     """
     Loads a UNet diffusion model from a state dictionary, supporting both diffusers and regular formats.
 
@@ -1766,7 +1802,9 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
         logging.info("left over keys in diffusion model: {}".format(left_over))
     return model_patcher
 
-def load_diffusion_model(unet_path, model_options={}, disable_dynamic=False):
+def load_diffusion_model(unet_path, model_options=None, disable_dynamic=False):
+    if model_options is None:
+        model_options = {}
     sd, metadata = comfy.utils.load_torch_file(unet_path, return_metadata=True)
     model = load_diffusion_model_state_dict(sd, model_options=model_options, metadata=metadata, disable_dynamic=disable_dynamic)
     if model is None:
@@ -1783,7 +1821,9 @@ def load_unet_state_dict(sd, dtype=None):
     logging.warning("The load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict")
     return load_diffusion_model_state_dict(sd, model_options={"dtype": dtype})
 
-def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, metadata=None, extra_keys={}):
+def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, metadata=None, extra_keys=None):
+    if extra_keys is None:
+        extra_keys = {}
     clip_sd = None
     load_models = [model]
     if clip is not None:

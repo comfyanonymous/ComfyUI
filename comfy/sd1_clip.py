@@ -484,7 +484,11 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, start_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data={}, tokenizer_args={}):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, start_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data=None, tokenizer_args=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
+        if tokenizer_args is None:
+            tokenizer_args = {}
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
@@ -563,7 +567,9 @@ class SDTokenizer:
         else:
             tokens.extend([(self.pad_token, 1.0, 0)] * amount)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False, tokenizer_options={}, **kwargs):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, tokenizer_options=None, **kwargs):
+        if tokenizer_options is None:
+            tokenizer_options = {}
         '''
         Takes a prompt and converts it to a list of (token, weight, word id) elements.
         Tokens can both be integer tokens and pre computed CLIP tensors.
@@ -678,7 +684,9 @@ class SDTokenizer:
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
 
 class SD1Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer, name=None):
+    def __init__(self, embedding_directory=None, tokenizer_data=None, clip_name="l", tokenizer=SDTokenizer, name=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         if name is not None:
             self.clip_name = name
             self.clip = "{}".format(self.clip_name)
@@ -704,11 +712,15 @@ class SD1Tokenizer:
         return getattr(self, self.clip).decode(token_ids, skip_special_tokens=skip_special_tokens)
 
 class SD1CheckpointClipModel(SDClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}):
+    def __init__(self, device="cpu", dtype=None, model_options=None):
+        if model_options is None:
+            model_options = {}
         super().__init__(device=device, return_projected_pooled=False, dtype=dtype, model_options=model_options)
 
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, model_options={}, clip_name="l", clip_model=SD1CheckpointClipModel, name=None, **kwargs):
+    def __init__(self, device="cpu", dtype=None, model_options=None, clip_name="l", clip_model=SD1CheckpointClipModel, name=None, **kwargs):
+        if model_options is None:
+            model_options = {}
         super().__init__()
 
         if name is not None:
