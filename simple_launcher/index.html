@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComfyLaunch</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #222;
+      --border: #2d2d2d;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --text: #e5e5e5;
+      --muted: #737373;
+      --error: #ef4444;
+      --success: #22c55e;
+      --warn: #f59e0b;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 0 20px;
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .logo { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 20px;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: 12px; color: var(--muted);
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+      transition: background 0.3s;
+    }
+    .dot.ok { background: var(--success); }
+    .dot.err { background: var(--error); }
+    #serverInput {
+      background: transparent; border: none; outline: none;
+      color: var(--muted); font-size: 12px; font-family: monospace;
+      width: 180px; cursor: pointer;
+    }
+    #serverInput:focus { color: var(--text); }
+    .btn-sm {
+      padding: 5px 10px; border-radius: 5px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 12px;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .btn-sm:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Layout ── */
+    main {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Form panel ── */
+    .form-panel {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 11px; color: var(--muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .field textarea, .field select, .field input[type="number"], .field input[type="text"] {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); padding: 8px 10px;
+      font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color 0.15s; width: 100%;
+    }
+    .field textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+    .field textarea:focus, .field select:focus,
+    .field input[type="number"]:focus, .field input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Preset chips */
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+    .chip {
+      padding: 3px 9px; border-radius: 12px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 11px;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Sliders */
+    .slider-field { display: flex; flex-direction: column; gap: 5px; }
+    .slider-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .slider-label {
+      font-size: 11px; color: var(--muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .slider-val { font-size: 13px; font-weight: 600; color: var(--accent); }
+    input[type="range"] {
+      -webkit-appearance: none; width: 100%; height: 3px;
+      border-radius: 2px; background: var(--border); outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 15px; height: 15px;
+      border-radius: 50%; background: var(--accent); cursor: pointer;
+    }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2px 0; }
+
+    /* Seed row */
+    .seed-row { display: flex; gap: 6px; }
+    .seed-row input { flex: 1; }
+    .btn-icon {
+      padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--muted); font-size: 14px;
+      cursor: pointer; transition: all 0.15s; line-height: 1;
+    }
+    .btn-icon:hover { color: var(--text); border-color: var(--muted); }
+
+    /* Generate button */
+    .btn-generate {
+      padding: 12px; border-radius: 7px; border: none;
+      background: var(--accent); color: white; font-size: 14px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.15s; width: 100%; margin-top: 4px;
+    }
+    .btn-generate:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-generate.interrupt {
+      background: #7f1d1d; border: 1px solid #ef4444;
+    }
+    .btn-generate.interrupt:hover { background: #991b1b; }
+
+    /* ── Output panel ── */
+    .output-panel {
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Empty state */
+    .empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; color: var(--muted); text-align: center;
+    }
+    .empty-icon { font-size: 40px; opacity: 0.2; }
+    .empty h3 { font-size: 15px; color: var(--muted); font-weight: 500; }
+    .empty p { font-size: 12px; max-width: 240px; line-height: 1.6; }
+
+    /* Progress card */
+    .progress-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; display: flex;
+      flex-direction: column; gap: 10px;
+    }
+    .progress-top { display: flex; justify-content: space-between; align-items: center; }
+    .progress-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .progress-step { font-size: 12px; color: var(--muted); }
+    .progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.25s ease; width: 0%; }
+    .live-preview { border-radius: 6px; overflow: hidden; display: none; }
+    .live-preview img { width: 100%; display: block; }
+
+    /* Result card */
+    .result-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden;
+    }
+    .result-card img { width: 100%; display: block; }
+    .result-actions {
+      padding: 10px 12px; display: flex; gap: 8px;
+      justify-content: flex-end; align-items: center;
+    }
+    .result-label { flex: 1; font-size: 11px; color: var(--muted); font-family: monospace; }
+    .btn-action {
+      padding: 5px 11px; border-radius: 5px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 12px;
+      cursor: pointer; font-family: inherit; text-decoration: none;
+      display: inline-block; transition: all 0.15s;
+    }
+    .btn-action:hover { color: var(--text); border-color: var(--muted); }
+
+    /* Error */
+    .error-card {
+      background: #1a0808; border: 1px solid #5a1515;
+      border-radius: 10px; padding: 14px;
+      color: #fca5a5; font-size: 13px; line-height: 1.5;
+    }
+    .error-card strong { color: var(--error); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Responsive */
+    @media (max-width: 720px) {
+      main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .form-panel { border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Comfy<span>Launch</span></div>
+  <div class="header-right">
+    <div class="status-pill">
+      <div class="dot" id="dot"></div>
+      <input type="text" id="serverInput" value="http://127.0.0.1:8188" spellcheck="false">
+    </div>
+    <button class="btn-sm" onclick="reconnect()">Connect</button>
+  </div>
+</header>
+
+<main>
+  <!-- ── Form ── -->
+  <div class="form-panel">
+
+    <div class="field">
+      <label>Prompt</label>
+      <textarea id="prompt" rows="4" placeholder="Describe what you want to generate…"></textarea>
+      <div class="chips">
+        <button class="chip" onclick="addChip('masterpiece, best quality, highly detailed')">quality</button>
+        <button class="chip" onclick="addChip('photorealistic, 8k, cinematic lighting')">photo</button>
+        <button class="chip" onclick="addChip('anime style, vibrant colors')">anime</button>
+        <button class="chip" onclick="addChip('oil painting, impressionist style')">painting</button>
+        <button class="chip" onclick="addChip('digital art, trending on artstation')">digital art</button>
+        <button class="chip" onclick="addChip('dark fantasy, dramatic lighting')">dark fantasy</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Negative Prompt</label>
+      <textarea id="negPrompt" rows="2" placeholder="What to avoid…">ugly, blurry, low quality, deformed, watermark, text</textarea>
+    </div>
+
+    <hr class="divider">
+
+    <div class="field">
+      <label>Model</label>
+      <select id="checkpoint">
+        <option value="">Loading models…</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Width</label>
+        <select id="width">
+          <option>512</option><option>640</option><option>768</option>
+          <option selected>1024</option><option>1152</option><option>1216</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Height</label>
+        <select id="height">
+          <option>512</option><option>640</option><option>768</option>
+          <option selected>1024</option><option>1152</option><option>1216</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="slider-field">
+      <div class="slider-header">
+        <span class="slider-label">Steps</span>
+        <span class="slider-val" id="stepsVal">20</span>
+      </div>
+      <input type="range" id="steps" min="1" max="60" value="20"
+             oninput="document.getElementById('stepsVal').textContent=this.value">
+    </div>
+
+    <div class="slider-field">
+      <div class="slider-header">
+        <span class="slider-label">CFG Scale</span>
+        <span class="slider-val" id="cfgVal">7</span>
+      </div>
+      <input type="range" id="cfg" min="1" max="20" step="0.5" value="7"
+             oninput="document.getElementById('cfgVal').textContent=this.value">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Sampler</label>
+        <select id="sampler">
+          <option value="euler">Euler</option>
+          <option value="euler_ancestral">Euler A</option>
+          <option value="dpmpp_2m">DPM++ 2M</option>
+          <option value="dpmpp_2m_sde">DPM++ 2M SDE</option>
+          <option value="dpmpp_sde">DPM++ SDE</option>
+          <option value="ddim">DDIM</option>
+          <option value="uni_pc">UniPC</option>
+          <option value="lcm">LCM</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Scheduler</label>
+        <select id="scheduler">
+          <option value="normal">Normal</option>
+          <option value="karras">Karras</option>
+          <option value="exponential">Exponential</option>
+          <option value="sgm_uniform">SGM Uniform</option>
+          <option value="simple">Simple</option>
+          <option value="beta">Beta</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Seed  <span style="font-weight:400;text-transform:none;letter-spacing:0">(-1 = random)</span></label>
+      <div class="seed-row">
+        <input type="number" id="seed" value="-1">
+        <button class="btn-icon" title="Random seed" onclick="shuffleSeed()">⟳</button>
+        <button class="btn-icon" title="Copy seed" onclick="copySeed()">⎘</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Batch Size</label>
+        <select id="batch">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Output Name</label>
+        <input type="text" id="prefix" value="ComfyLaunch">
+      </div>
+    </div>
+
+    <button class="btn-generate" id="genBtn" onclick="generate()">Generate</button>
+
+  </div>
+
+  <!-- ── Output ── -->
+  <div class="output-panel" id="outputPanel">
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">🖼</div>
+      <h3>Nothing generated yet</h3>
+      <p>Fill in a prompt, pick a model, and hit Generate. Your images will appear here.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+let clientId = crypto.randomUUID();
+let ws = null;
+let wsRetryTimer = null;
+let currentPromptId = null;
+let isGenerating = false;
+let lastWorkflow = null;   // for "download workflow" feature
+let lastSeed = null;       // so user can re-use the seed
+
+function serverBase() {
+  return document.getElementById('serverInput').value.replace(/\/+$/, '');
+}
+
+// ─────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  connectWS();
+  loadCheckpoints();
+});
+
+// ─────────────────────────────────────────────
+// WebSocket
+// ─────────────────────────────────────────────
+function connectWS() {
+  clearTimeout(wsRetryTimer);
+  if (ws) { try { ws.close(); } catch(_) {} }
+
+  const url = serverBase().replace(/^http/, 'ws') + `/ws?clientId=${clientId}`;
+  try {
+    ws = new WebSocket(url);
+  } catch(e) {
+    setStatus('err', 'Bad URL');
+    return;
+  }
+
+  ws.onopen = () => setStatus('ok', 'Connected');
+
+  ws.onclose = () => {
+    setStatus('', 'Disconnected');
+    // Auto-reconnect (back-off: 3 s)
+    wsRetryTimer = setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => setStatus('err', 'Error');
+
+  ws.onmessage = async (ev) => {
+    if (ev.data instanceof Blob) {
+      handleBinaryPreview(ev.data);
+      return;
+    }
+    handleJsonMessage(JSON.parse(ev.data));
+  };
+}
+
+function reconnect() {
+  connectWS();
+  loadCheckpoints();
+}
+
+async function handleBinaryPreview(blob) {
+  const buf = await blob.arrayBuffer();
+  const view = new DataView(buf);
+  const type = view.getUint32(0, false); // big-endian
+  if (type === 1 /* PREVIEW_IMAGE */) {
+    const imgBlob = new Blob([buf.slice(8)]);
+    const url = URL.createObjectURL(imgBlob);
+    showLivePreview(url);
+  }
+}
+
+function handleJsonMessage(msg) {
+  if (msg.data?.prompt_id && msg.data.prompt_id !== currentPromptId) return;
+
+  switch (msg.type) {
+    case 'progress': {
+      const { value, max } = msg.data;
+      setProgress((value / max) * 100, `Step ${value} / ${max}`);
+      break;
+    }
+    case 'executing': {
+      if (msg.data.node === null) {
+        setProgress(100, 'Saving…');
+      } else {
+        setProgressLabel(`Running node ${msg.data.display_node ?? msg.data.node}…`);
+      }
+      break;
+    }
+    case 'executed': {
+      const imgs = msg.data?.output?.images;
+      if (imgs?.length) {
+        imgs.forEach(img => addResult(img));
+      }
+      finishGeneration();
+      break;
+    }
+    case 'execution_error': {
+      showError(msg.data.exception_message || msg.data.exception_type || 'Unknown error');
+      finishGeneration();
+      break;
+    }
+    case 'execution_interrupted': {
+      showError('Generation interrupted.');
+      finishGeneration();
+      break;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// Model loading
+// ─────────────────────────────────────────────
+async function loadCheckpoints() {
+  const sel = document.getElementById('checkpoint');
+  try {
+    const res = await fetch(`${serverBase()}/models/checkpoints`);
+    if (!res.ok) throw new Error(res.statusText);
+    const list = await res.json();
+    sel.innerHTML = '';
+    if (!list.length) {
+      sel.innerHTML = '<option value="">No checkpoints found</option>';
+      return;
+    }
+    list.sort().forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m.replace(/\.[^.]+$/, ''); // strip extension for display
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    sel.innerHTML = '<option value="">Could not load — check server URL</option>';
+  }
+}
+
+// ─────────────────────────────────────────────
+// Generate
+// ─────────────────────────────────────────────
+async function generate() {
+  if (isGenerating) { interrupt(); return; }
+
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) { flash(document.getElementById('prompt'), 'Please enter a prompt'); return; }
+
+  const checkpoint = document.getElementById('checkpoint').value;
+  if (!checkpoint) { flash(document.getElementById('checkpoint'), 'Please select a model'); return; }
+
+  // Resolve seed
+  let seed = parseInt(document.getElementById('seed').value, 10);
+  if (isNaN(seed) || seed < 0) seed = Math.floor(Math.random() * 2 ** 32);
+  lastSeed = seed;
+  document.getElementById('seed').value = seed;
+
+  const workflow = buildWorkflow({
+    prompt,
+    negPrompt: document.getElementById('negPrompt').value,
+    checkpoint,
+    width: parseInt(document.getElementById('width').value),
+    height: parseInt(document.getElementById('height').value),
+    steps: parseInt(document.getElementById('steps').value),
+    cfg: parseFloat(document.getElementById('cfg').value),
+    sampler: document.getElementById('sampler').value,
+    scheduler: document.getElementById('scheduler').value,
+    seed,
+    batch: parseInt(document.getElementById('batch').value),
+    prefix: document.getElementById('prefix').value || 'ComfyLaunch',
+  });
+
+  lastWorkflow = workflow;
+
+  const promptId = crypto.randomUUID();
+  currentPromptId = promptId;
+
+  setGenerating(true);
+  showProgressCard();
+  setProgress(0, 'Queuing…');
+
+  try {
+    const res = await fetch(`${serverBase()}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow, client_id: clientId, prompt_id: promptId }),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      showError(data.error.message ?? JSON.stringify(data.error));
+      finishGeneration();
+      return;
+    }
+    if (data.node_errors && Object.keys(data.node_errors).length) {
+      const details = Object.entries(data.node_errors)
+        .map(([k, v]) => `Node ${k}: ${v.errors?.map(e => e.message).join(', ')}`)
+        .join('\n');
+      showError(details);
+      finishGeneration();
+      return;
+    }
+
+    // Server may return a different prompt_id
+    if (data.prompt_id) currentPromptId = data.prompt_id;
+    setProgressLabel('In queue…');
+
+  } catch(e) {
+    showError(`Cannot reach ComfyUI at ${serverBase()}\n${e.message}`);
+    finishGeneration();
+  }
+}
+
+async function interrupt() {
+  try { await fetch(`${serverBase()}/interrupt`, { method: 'POST' }); } catch(_) {}
+}
+
+// ─────────────────────────────────────────────
+// Workflow builder  (standard txt2img pipeline)
+// ─────────────────────────────────────────────
+function buildWorkflow({ prompt, negPrompt, checkpoint, width, height, steps, cfg, sampler, scheduler, seed, batch, prefix }) {
+  return {
+    "1": {
+      class_type: "CheckpointLoaderSimple",
+      inputs: { ckpt_name: checkpoint }
+    },
+    "2": {
+      class_type: "CLIPTextEncode",
+      inputs: { clip: ["1", 1], text: prompt }
+    },
+    "3": {
+      class_type: "CLIPTextEncode",
+      inputs: { clip: ["1", 1], text: negPrompt }
+    },
+    "4": {
+      class_type: "EmptyLatentImage",
+      inputs: { width, height, batch_size: batch }
+    },
+    "5": {
+      class_type: "KSampler",
+      inputs: {
+        model: ["1", 0],
+        positive: ["2", 0],
+        negative: ["3", 0],
+        latent_image: ["4", 0],
+        seed,
+        steps,
+        cfg,
+        sampler_name: sampler,
+        scheduler,
+        denoise: 1.0,
+      }
+    },
+    "6": {
+      class_type: "VAEDecode",
+      inputs: { samples: ["5", 0], vae: ["1", 2] }
+    },
+    "7": {
+      class_type: "SaveImage",
+      inputs: { images: ["6", 0], filename_prefix: prefix }
+    }
+  };
+}
+
+// ─────────────────────────────────────────────
+// UI – progress
+// ─────────────────────────────────────────────
+let progressCard = null;
+let livePreviewEl = null;
+
+function showProgressCard() {
+  removeEmptyState();
+
+  if (progressCard) {
+    progressCard.style.display = '';
+    return;
+  }
+
+  progressCard = document.createElement('div');
+  progressCard.className = 'progress-card';
+  progressCard.id = 'progressCard';
+  progressCard.innerHTML = `
+    <div class="progress-top">
+      <span class="progress-title">Generating</span>
+      <span class="progress-step" id="progressStep">—</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="live-preview" id="livePreviewWrap">
+      <img id="livePreviewImg" alt="live preview">
+    </div>
+  `;
+
+  const panel = document.getElementById('outputPanel');
+  panel.insertBefore(progressCard, panel.firstChild);
+  livePreviewEl = document.getElementById('livePreviewImg');
+}
+
+function setProgress(pct, label) {
+  const fill = document.getElementById('progressFill');
+  if (fill) fill.style.width = pct + '%';
+  setProgressLabel(label);
+}
+
+function setProgressLabel(label) {
+  const el = document.getElementById('progressStep');
+  if (el && label) el.textContent = label;
+}
+
+function showLivePreview(url) {
+  if (!livePreviewEl) return;
+  livePreviewEl.src = url;
+  const wrap = document.getElementById('livePreviewWrap');
+  if (wrap) wrap.style.display = 'block';
+}
+
+// ─────────────────────────────────────────────
+// UI – results
+// ─────────────────────────────────────────────
+function addResult(imgInfo) {
+  const { filename, type, subfolder } = imgInfo;
+  const url = `${serverBase()}/view?filename=${encodeURIComponent(filename)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder ?? '')}`;
+
+  const card = document.createElement('div');
+  card.className = 'result-card';
+
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = filename;
+  img.loading = 'lazy';
+
+  const actions = document.createElement('div');
+  actions.className = 'result-actions';
+
+  // Seed info
+  const seedLabel = document.createElement('span');
+  seedLabel.className = 'result-label';
+  seedLabel.textContent = `seed: ${lastSeed}`;
+
+  const btnDownload = document.createElement('button');
+  btnDownload.className = 'btn-action';
+  btnDownload.textContent = 'Download';
+  btnDownload.onclick = () => downloadImage(url, filename);
+
+  const btnWorkflow = document.createElement('button');
+  btnWorkflow.className = 'btn-action';
+  btnWorkflow.textContent = 'Workflow JSON';
+  btnWorkflow.title = 'Download workflow — drag into ComfyUI editor to view nodes';
+  btnWorkflow.onclick = () => downloadWorkflow();
+
+  const btnEditor = document.createElement('a');
+  btnEditor.className = 'btn-action';
+  btnEditor.textContent = 'Open Editor ↗';
+  btnEditor.href = serverBase();
+  btnEditor.target = '_blank';
+  btnEditor.rel = 'noopener';
+
+  actions.append(seedLabel, btnDownload, btnWorkflow, btnEditor);
+  card.append(img, actions);
+
+  const panel = document.getElementById('outputPanel');
+  // Insert right after the progress card (or at top)
+  const ref = progressCard ? progressCard.nextSibling : panel.firstChild;
+  panel.insertBefore(card, ref);
+}
+
+function showError(msg) {
+  removeEmptyState();
+  const card = document.createElement('div');
+  card.className = 'error-card';
+  card.innerHTML = `<strong>Error</strong><br><pre style="white-space:pre-wrap;margin-top:6px;font-size:12px">${escHtml(msg)}</pre>`;
+  const panel = document.getElementById('outputPanel');
+  const ref = progressCard ? progressCard.nextSibling : panel.firstChild;
+  panel.insertBefore(card, ref);
+}
+
+// ─────────────────────────────────────────────
+// UI – state helpers
+// ─────────────────────────────────────────────
+function setGenerating(val) {
+  isGenerating = val;
+  const btn = document.getElementById('genBtn');
+  if (val) {
+    btn.textContent = '⬛  Interrupt';
+    btn.classList.add('interrupt');
+    btn.disabled = false;
+  } else {
+    btn.textContent = 'Generate';
+    btn.classList.remove('interrupt');
+    btn.disabled = false;
+  }
+}
+
+function finishGeneration() {
+  setGenerating(false);
+  if (progressCard) progressCard.style.display = 'none';
+}
+
+function removeEmptyState() {
+  const el = document.getElementById('emptyState');
+  if (el) el.remove();
+}
+
+function setStatus(state, label) {
+  const dot = document.getElementById('dot');
+  dot.className = 'dot' + (state ? ` ${state}` : '');
+}
+
+// ─────────────────────────────────────────────
+// Actions
+// ─────────────────────────────────────────────
+function downloadImage(url, filename) {
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+}
+
+function downloadWorkflow() {
+  if (!lastWorkflow) return;
+  const json = JSON.stringify(lastWorkflow, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'workflow.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function addChip(text) {
+  const ta = document.getElementById('prompt');
+  if (ta.value && !ta.value.endsWith(', ')) ta.value += ', ';
+  ta.value += text;
+  ta.focus();
+}
+
+function shuffleSeed() {
+  document.getElementById('seed').value = Math.floor(Math.random() * 2 ** 32);
+}
+
+function copySeed() {
+  if (lastSeed !== null) {
+    navigator.clipboard.writeText(String(lastSeed));
+    document.getElementById('seed').value = lastSeed;
+  }
+}
+
+function flash(el, msg) {
+  el.style.borderColor = 'var(--error)';
+  el.focus();
+  setTimeout(() => el.style.borderColor = '', 1500);
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
