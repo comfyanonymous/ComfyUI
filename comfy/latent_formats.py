@@ -783,3 +783,11 @@ class ZImagePixelSpace(ChromaRadiance):
     No VAE encoding/decoding — the model operates directly on RGB pixels.
     """
     pass
+
+class Helios(Wan21):
+    """Helios video model latent format
+
+    Helios uses the same latent format as Wan21 (same VAE architecture).
+    Inherits latents_mean, latents_std, and processing methods from Wan21.
+    """
+    pass

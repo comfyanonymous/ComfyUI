@@ -489,7 +489,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
-    if '{}condition_embedder.time_proj.weight'.format(key_prefix) in state_dict_keys and '{}patch_embedding.weight'.format(key_prefix) in state_dict_keys:  # Helios
+    helios_required_keys = (
+        '{}patch_mid.weight'.format(key_prefix),
+        '{}patch_long.weight'.format(key_prefix),
+    )
+    if all(k in state_dict_keys for k in helios_required_keys):  # Helios
         dit_config = {}
         dit_config["image_model"] = "helios"
 
@@ -501,8 +505,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["patch_size"] = patch_size
         dit_config["in_channels"] = patch_weight.shape[1]
         dit_config["out_channels"] = out_proj.shape[0] // math.prod(patch_size)
-        dit_config["text_dim"] = state_dict['{}condition_embedder.text_embedder.linear_1.weight'.format(key_prefix)].shape[1]
-        dit_config["freq_dim"] = state_dict['{}condition_embedder.time_embedder.linear_1.weight'.format(key_prefix)].shape[1]
+        text_w = state_dict['{}text_embedding.0.weight'.format(key_prefix)]
+        time_w = state_dict['{}time_embedding.0.weight'.format(key_prefix)]
+        dit_config["text_dim"] = text_w.shape[1]
+        dit_config["freq_dim"] = time_w.shape[1]
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
         dit_config["num_attention_heads"] = inner_dim // 128
         dit_config["attention_head_dim"] = 128

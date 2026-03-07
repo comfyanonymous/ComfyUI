@@ -1143,7 +1143,7 @@ class Helios(supported_models_base.BASE):
     }
 
     unet_extra_config = {}
-    latent_format = latent_formats.Wan21
+    latent_format = latent_formats.Helios
     memory_usage_factor = 1.8
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 

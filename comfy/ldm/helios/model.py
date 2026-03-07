@@ -6,9 +6,10 @@ import torch.nn as nn
 from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.flux.math import apply_rope1
-from comfy.ldm.wan.model import sinusoidal_embedding_1d, repeat_e
+from comfy.ldm.wan.model import sinusoidal_embedding_1d
 import comfy.ldm.common_dit
 import comfy.patcher_extension
+
 
 
 def pad_for_3d_conv(x, kernel_size):
@@ -18,6 +19,10 @@ def pad_for_3d_conv(x, kernel_size):
     pad_h = (ph - (h % ph)) % ph
     pad_w = (pw - (w % pw)) % pw
     return torch.nn.functional.pad(x, (0, pad_w, 0, pad_h, 0, pad_t), mode="replicate")
+
+
+def center_down_sample_3d(x, kernel_size):
+    return torch.nn.functional.avg_pool3d(x, kernel_size, stride=kernel_size)
 
 
 class OutputNorm(nn.Module):
@@ -50,7 +55,8 @@ class OutputNorm(nn.Module):
         shift = shift.squeeze(2).to(hidden_states.device)
         scale = scale.squeeze(2).to(hidden_states.device)
         hidden_states = hidden_states[:, -original_context_length:, :]
-        hidden_states = self.norm(hidden_states) * (1 + scale) + shift
+        # Use float32 for numerical stability like diffusers
+        hidden_states = (self.norm(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
         return hidden_states
 
 
@@ -272,36 +278,69 @@ class HeliosAttentionBlock(nn.Module):
 
     def forward(self, x, context, e, freqs, original_context_length=None, transformer_options={}):
         if e.ndim == 4:
-            e = (self.scale_shift_table.unsqueeze(0) + e.float()).chunk(6, dim=2)
-            e = [v.squeeze(2) for v in e]
+            shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
+                self.scale_shift_table.unsqueeze(0).to(e.device) + e.float()
+            ).chunk(6, dim=2)
+            shift_msa = shift_msa.squeeze(2)
+            scale_msa = scale_msa.squeeze(2)
+            gate_msa = gate_msa.squeeze(2)
+            c_shift_msa = c_shift_msa.squeeze(2)
+            c_scale_msa = c_scale_msa.squeeze(2)
+            c_gate_msa = c_gate_msa.squeeze(2)
         else:
-            e = (self.scale_shift_table + e.float()).chunk(6, dim=1)
+            shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
+                self.scale_shift_table.to(e.device) + e.float()
+            ).chunk(6, dim=1)
 
         # self-attn
+        # Use float32 for numerical stability like diffusers
+        # norm1 has elementwise_affine=False, so we can safely convert to float32
+        norm_x = self.norm1(x.float())
+        norm_x = (norm_x * (1 + scale_msa) + shift_msa).type_as(x)
         y = self.attn1(
-            torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
+            norm_x,
             freqs=freqs,
             original_context_length=original_context_length,
             transformer_options=transformer_options,
         )
-        x = torch.addcmul(x, y, repeat_e(e[2], x))
+        x = (x.float() + y.float() * gate_msa).type_as(x)
 
         # cross-attn
         if self.guidance_cross_attn and original_context_length is not None:
             history_seq_len = x.shape[1] - original_context_length
             history_x, x_main = torch.split(x, [history_seq_len, original_context_length], dim=1)
+            # norm2 has elementwise_affine=True, manually do FP32LayerNorm behavior
+            norm_x_main = torch.nn.functional.layer_norm(
+                x_main.float(),
+                self.norm2.normalized_shape,
+                self.norm2.weight.to(x_main.device).float() if self.norm2.weight is not None else None,
+                self.norm2.bias.to(x_main.device).float() if self.norm2.bias is not None else None,
+                self.norm2.eps,
+            ).type_as(x_main)
             x_main = x_main + self.attn2(
-                self.norm2(x_main),
+                norm_x_main,
                 context=context,
                 transformer_options=transformer_options,
             )
             x = torch.cat([history_x, x_main], dim=1)
         else:
-            x = x + self.attn2(self.norm2(x), context=context, transformer_options=transformer_options)
+            # norm2 has elementwise_affine=True, manually do FP32LayerNorm behavior
+            norm_x = torch.nn.functional.layer_norm(
+                x.float(),
+                self.norm2.normalized_shape,
+                self.norm2.weight.to(x.device).float() if self.norm2.weight is not None else None,
+                self.norm2.bias.to(x.device).float() if self.norm2.bias is not None else None,
+                self.norm2.eps,
+            ).type_as(x)
+            x = x + self.attn2(norm_x, context=context, transformer_options=transformer_options)
 
         # ffn
-        y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm3(x), 1 + repeat_e(e[4], x)))
-        x = torch.addcmul(x, y, repeat_e(e[5], x))
+        # Use float32 for numerical stability like diffusers
+        # norm3 has elementwise_affine=False, so we can safely convert to float32
+        norm_x = self.norm3(x.float())
+        norm_x = (norm_x * (1 + c_scale_msa) + c_shift_msa).type_as(x)
+        y = self.ffn(norm_x)
+        x = (x.float() + y.float() * c_gate_msa).type_as(x)
         return x
 
 
@@ -358,7 +397,7 @@ class HeliosModel(torch.nn.Module):
             kernel_size=patch_size,
             stride=patch_size,
             device=operation_settings.get("device"),
-            dtype=torch.float32,
+            dtype=operation_settings.get("dtype"),
         )
         self.text_embedding = nn.Sequential(
             operations.Linear(
@@ -411,7 +450,7 @@ class HeliosModel(torch.nn.Module):
                 kernel_size=patch_size,
                 stride=patch_size,
                 device=operation_settings.get("device"),
-                dtype=torch.float32,
+                dtype=operation_settings.get("dtype"),
             )
             self.patch_mid = operations.Conv3d(
                 in_channels,
@@ -419,7 +458,7 @@ class HeliosModel(torch.nn.Module):
                 kernel_size=tuple(2 * p for p in patch_size),
                 stride=tuple(2 * p for p in patch_size),
                 device=operation_settings.get("device"),
-                dtype=torch.float32,
+                dtype=operation_settings.get("dtype"),
             )
             self.patch_long = operations.Conv3d(
                 in_channels,
@@ -427,7 +466,7 @@ class HeliosModel(torch.nn.Module):
                 kernel_size=tuple(4 * p for p in patch_size),
                 stride=tuple(4 * p for p in patch_size),
                 device=operation_settings.get("device"),
-                dtype=torch.float32,
+                dtype=operation_settings.get("dtype"),
             )
 
         # blocks
@@ -592,7 +631,7 @@ class HeliosModel(torch.nn.Module):
         p_t, p_h, p_w = self.patch_size
 
         # embeddings
-        hidden_states = self.patch_embedding(hidden_states.float()).to(hidden_states.dtype)
+        hidden_states = self.patch_embedding(hidden_states)
         _, _, post_t, post_h, post_w = hidden_states.shape
         hidden_states = hidden_states.flatten(2).transpose(1, 2)
 
@@ -614,7 +653,7 @@ class HeliosModel(torch.nn.Module):
         original_context_length = hidden_states.shape[1]
 
         if (latents_history_short is not None and indices_latents_history_short is not None and hasattr(self, "patch_short")):
-            x_short = self.patch_short(latents_history_short.float()).to(hidden_states.dtype)
+            x_short = self.patch_short(latents_history_short).to(hidden_states.dtype)
             _, _, ts, hs, ws = x_short.shape
             x_short = x_short.flatten(2).transpose(1, 2)
             f_short = self.rope_encode(
@@ -633,44 +672,70 @@ class HeliosModel(torch.nn.Module):
             freqs = torch.cat([f_short, freqs], dim=1)
 
         if (latents_history_mid is not None and indices_latents_history_mid is not None and hasattr(self, "patch_mid")):
-            x_mid = self.patch_mid(pad_for_3d_conv(latents_history_mid, (2, 4, 4)).float()).to(hidden_states.dtype)
+            x_mid = self.patch_mid(pad_for_3d_conv(latents_history_mid, (2, 4, 4))).to(hidden_states.dtype)
             _, _, tm, hm, wm = x_mid.shape
             x_mid = x_mid.flatten(2).transpose(1, 2)
+            mid_t = indices_latents_history_mid.shape[1]
+            if ("hs" in locals()) and ("ws" in locals()):
+                mid_h, mid_w = hs, ws
+            else:
+                mid_h, mid_w = hm * 2, wm * 2
             f_mid = self.rope_encode(
-                t=tm * self.patch_size[0],
-                h=hm * self.patch_size[1],
-                w=wm * self.patch_size[2],
-                steps_t=tm,
-                steps_h=hm,
-                steps_w=wm,
+                t=mid_t * self.patch_size[0],
+                h=mid_h * self.patch_size[1],
+                w=mid_w * self.patch_size[2],
+                steps_t=mid_t,
+                steps_h=mid_h,
+                steps_w=mid_w,
                 device=x_mid.device,
                 dtype=x_mid.dtype,
                 transformer_options=transformer_options,
                 frame_indices=indices_latents_history_mid,
             )
+            f_mid = self._rope_downsample_3d(f_mid, (mid_t, mid_h, mid_w), (2, 2, 2))
+            if f_mid.shape[1] != x_mid.shape[1]:
+                f_mid = f_mid[:, :x_mid.shape[1]]
             hidden_states = torch.cat([x_mid, hidden_states], dim=1)
             freqs = torch.cat([f_mid, freqs], dim=1)
 
         if (latents_history_long is not None and indices_latents_history_long is not None and hasattr(self, "patch_long")):
-            x_long = self.patch_long(pad_for_3d_conv(latents_history_long, (4, 8, 8)).float()).to(hidden_states.dtype)
+            x_long = self.patch_long(pad_for_3d_conv(latents_history_long, (4, 8, 8))).to(hidden_states.dtype)
             _, _, tl, hl, wl = x_long.shape
             x_long = x_long.flatten(2).transpose(1, 2)
+            long_t = indices_latents_history_long.shape[1]
+            if ("hs" in locals()) and ("ws" in locals()):
+                long_h, long_w = hs, ws
+            else:
+                long_h, long_w = hl * 4, wl * 4
             f_long = self.rope_encode(
-                t=tl * self.patch_size[0],
-                h=hl * self.patch_size[1],
-                w=wl * self.patch_size[2],
-                steps_t=tl,
-                steps_h=hl,
-                steps_w=wl,
+                t=long_t * self.patch_size[0],
+                h=long_h * self.patch_size[1],
+                w=long_w * self.patch_size[2],
+                steps_t=long_t,
+                steps_h=long_h,
+                steps_w=long_w,
                 device=x_long.device,
                 dtype=x_long.dtype,
                 transformer_options=transformer_options,
                 frame_indices=indices_latents_history_long,
             )
+            f_long = self._rope_downsample_3d(f_long, (long_t, long_h, long_w), (4, 4, 4))
+            if f_long.shape[1] != x_long.shape[1]:
+                f_long = f_long[:, :x_long.shape[1]]
             hidden_states = torch.cat([x_long, hidden_states], dim=1)
             freqs = torch.cat([f_long, freqs], dim=1)
 
         history_context_length = hidden_states.shape[1] - original_context_length
+        mismatch = hidden_states.shape[1] != freqs.shape[1]
+        summary_key = (
+            int(post_t),
+            int(post_h),
+            int(post_w),
+            int(original_context_length),
+            int(hidden_states.shape[1]),
+            int(freqs.shape[1]),
+            int(history_context_length),
+        )
 
         if timestep.ndim == 0:
             timestep = timestep.unsqueeze(0)
@@ -682,7 +747,7 @@ class HeliosModel(torch.nn.Module):
         e = self.time_embedding(sinusoidal_embedding_1d(self.freq_dim, timestep.flatten()).to(dtype=hidden_states.dtype))
         e = e.reshape(batch_size, -1, e.shape[-1])
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
-        context = self.text_embedding(context)
+        context = self.text_embedding(context.to(dtype=hidden_states.dtype))
 
         if self.zero_history_timestep and history_context_length > 0:
             timestep_t0 = torch.zeros((1, ), dtype=timestep.dtype, device=timestep.device)
@@ -701,7 +766,7 @@ class HeliosModel(torch.nn.Module):
 
         e0 = e0.permute(0, 2, 1, 3)
 
-        for block in self.blocks:
+        for i_b, block in enumerate(self.blocks):
             hidden_states = block(
                 hidden_states,
                 context,
@@ -710,35 +775,46 @@ class HeliosModel(torch.nn.Module):
                 original_context_length=original_context_length,
                 transformer_options=transformer_options,
             )
-
         hidden_states = self.norm_out(hidden_states, e, original_context_length)
         hidden_states = self.proj_out(hidden_states)
-
         return self.unpatchify(hidden_states, (post_t, post_h, post_w))
 
     def unpatchify(self, x, grid_sizes):
-        c = self.out_dim
+        """
+        Unpatchify the output from proj_out back to video format.
+        
+        Args:
+            x: [batch, num_patches, out_dim * prod(patch_size)]
+            grid_sizes: (num_frames, height, width) in patch space
+        
+        Returns:
+            [batch, out_dim, num_frames, height, width] in pixel space
+        """
         b = x.shape[0]
-        u = x[:, :math.prod(grid_sizes)].view(b, *grid_sizes, *self.patch_size, c)
-        u = torch.einsum("bfhwpqrc->bcfphqwr", u)
-        u = u.reshape(b, c, *[i * j for i, j in zip(grid_sizes, self.patch_size)])
-        return u
-
-    def load_state_dict(self, state_dict, strict=True, assign=False):
-        # Keep compatibility with reference diffusers key names.
-        remapped = {}
-        for k, v in state_dict.items():
-            nk = k
-            nk = nk.replace("condition_embedder.time_embedder.linear_1.", "time_embedding.0.")
-            nk = nk.replace("condition_embedder.time_embedder.linear_2.", "time_embedding.2.")
-            nk = nk.replace("condition_embedder.time_proj.", "time_projection.1.")
-            nk = nk.replace("condition_embedder.text_embedder.linear_1.", "text_embedding.0.")
-            nk = nk.replace("condition_embedder.text_embedder.linear_2.", "text_embedding.2.")
-            nk = nk.replace("blocks.", "blocks.")
-            remapped[nk] = v
-
-        return super().load_state_dict(remapped, strict=strict, assign=assign)
-
+        post_t, post_h, post_w = grid_sizes
+        p_t, p_h, p_w = self.patch_size
+        
+        # Reshape: [B, T*H*W, out_dim*p_t*p_h*p_w] -> [B, T, H, W, p_t, p_h, p_w, out_dim]
+        # Use -1 to let PyTorch infer the channel dimension (out_dim)
+        hidden_states = x.reshape(b, post_t, post_h, post_w, p_t, p_h, p_w, -1)
+        
+        # Permute: [B, T, H, W, p_t, p_h, p_w, C] -> [B, C, T, p_t, H, p_h, W, p_w]
+        hidden_states = hidden_states.permute(0, 7, 1, 4, 2, 5, 3, 6)
+        
+        # Flatten patches: [B, C, T, p_t, H, p_h, W, p_w] -> [B, C, T*p_t, H*p_h, W*p_w]
+        output = hidden_states.flatten(6, 7).flatten(4, 5).flatten(2, 3)
+        
+        return output
+    def _rope_downsample_3d(self, freqs, grid_sizes, kernel_size):
+        b, _, one, d, i2, j2 = freqs.shape
+        gt, gh, gw = grid_sizes
+        c = one * d * i2 * j2
+        freqs_3d = freqs.reshape(b, gt, gh, gw, c).permute(0, 4, 1, 2, 3)
+        freqs_3d = pad_for_3d_conv(freqs_3d, kernel_size)
+        freqs_3d = center_down_sample_3d(freqs_3d, kernel_size)
+        dt, dh, dw = freqs_3d.shape[2:]
+        freqs_3d = freqs_3d.permute(0, 2, 3, 4, 1).reshape(b, dt * dh * dw, one, d, i2, j2)
+        return freqs_3d
 
 # Backward-compatible alias for existing integration points.
 HeliosTransformer3DModel = HeliosModel
