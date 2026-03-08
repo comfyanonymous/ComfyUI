@@ -253,10 +253,12 @@ class LTXVAddGuide(io.ComfyNode):
         return frame_idx, latent_idx
 
     @classmethod
-    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors, latent_downscale_factor=1):
+    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors, latent_downscale_factor=1, causal_fix=None):
         keyframe_idxs, _ = get_keyframe_idxs(cond)
         _, latent_coords = cls.PATCHIFIER.patchify(guiding_latent)
-        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=frame_idx == 0)  # we need the causal fix only if we're placing the new latents at index 0
+        if causal_fix is None:
+            causal_fix = frame_idx == 0 or guiding_latent.shape[2] == 1
+        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=causal_fix)
         pixel_coords[:, 0] += frame_idx
 
         # The following adjusts keyframe end positions for small grid IC-LoRA.
@@ -278,12 +280,12 @@ class LTXVAddGuide(io.ComfyNode):
         return node_helpers.conditioning_set_values(cond, {"keyframe_idxs": keyframe_idxs})
 
     @classmethod
-    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128, latent_downscale_factor=1):
+    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128, latent_downscale_factor=1, causal_fix=None):
         if latent_image.shape[1] != in_channels or guiding_latent.shape[1] != in_channels:
             raise ValueError("Adding guide to a combined AV latent is not supported.")
 
-        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors, latent_downscale_factor)
-        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors, latent_downscale_factor)
+        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors, latent_downscale_factor, causal_fix=causal_fix)
+        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors, latent_downscale_factor, causal_fix=causal_fix)
 
         if guide_mask is not None:
             target_h = max(noise_mask.shape[3], guide_mask.shape[3])

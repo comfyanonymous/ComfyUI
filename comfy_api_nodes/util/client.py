@@ -83,7 +83,7 @@ class _PollUIState:
 _RETRY_STATUS = {408, 500, 502, 503, 504}  # status 429 is handled separately
 COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done", "complete"]
 FAILED_STATUSES = ["cancelled", "canceled", "canceling", "fail", "failed", "error"]
-QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing"]
+QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing", "wait"]
 
 
 async def sync_op(

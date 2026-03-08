@@ -19,7 +19,7 @@ class AssetSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("created_at", "updated_at", "last_access_time")
-    def _ser_dt(self, v: datetime | None, _info):
+    def _serialize_datetime(self, v: datetime | None, _info):
         return v.isoformat() if v else None
 
 
@@ -40,7 +40,7 @@ class AssetUpdated(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("updated_at")
-    def _ser_updated(self, v: datetime | None, _info):
+    def _serialize_updated_at(self, v: datetime | None, _info):
         return v.isoformat() if v else None
 
 
@@ -59,7 +59,7 @@ class AssetDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("created_at", "last_access_time")
-    def _ser_dt(self, v: datetime | None, _info):
+    def _serialize_datetime(self, v: datetime | None, _info):
         return v.isoformat() if v else None
 
 

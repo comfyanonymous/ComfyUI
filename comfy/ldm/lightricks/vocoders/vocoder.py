@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import comfy.ops
+import comfy.model_management
 import numpy as np
 import math
 
@@ -81,7 +82,7 @@ class LowPassFilter1d(nn.Module):
         _, C, _ = x.shape
         if self.padding:
             x = F.pad(x, (self.pad_left, self.pad_right), mode=self.padding_mode)
-        return F.conv1d(x, self.filter.expand(C, -1, -1), stride=self.stride, groups=C)
+        return F.conv1d(x, comfy.model_management.cast_to(self.filter.expand(C, -1, -1), dtype=x.dtype, device=x.device), stride=self.stride, groups=C)
 
 
 class UpSample1d(nn.Module):
@@ -125,7 +126,7 @@ class UpSample1d(nn.Module):
         _, C, _ = x.shape
         x = F.pad(x, (self.pad, self.pad), mode="replicate")
         x = self.ratio * F.conv_transpose1d(
-            x, self.filter.expand(C, -1, -1), stride=self.stride, groups=C
+            x, comfy.model_management.cast_to(self.filter.expand(C, -1, -1), dtype=x.dtype, device=x.device), stride=self.stride, groups=C
         )
         x = x[..., self.pad_left : -self.pad_right]
         return x
@@ -190,7 +191,7 @@ class Snake(nn.Module):
         self.eps = 1e-9
 
     def forward(self, x):
-        a = self.alpha.unsqueeze(0).unsqueeze(-1)
+        a = comfy.model_management.cast_to(self.alpha.unsqueeze(0).unsqueeze(-1), dtype=x.dtype, device=x.device)
         if self.alpha_logscale:
             a = torch.exp(a)
         return x + (1.0 / (a + self.eps)) * torch.sin(x * a).pow(2)
@@ -217,8 +218,8 @@ class SnakeBeta(nn.Module):
         self.eps = 1e-9
 
     def forward(self, x):
-        a = self.alpha.unsqueeze(0).unsqueeze(-1)
-        b = self.beta.unsqueeze(0).unsqueeze(-1)
+        a = comfy.model_management.cast_to(self.alpha.unsqueeze(0).unsqueeze(-1), dtype=x.dtype, device=x.device)
+        b = comfy.model_management.cast_to(self.beta.unsqueeze(0).unsqueeze(-1), dtype=x.dtype, device=x.device)
         if self.alpha_logscale:
             a = torch.exp(a)
             b = torch.exp(b)
@@ -596,7 +597,7 @@ class _STFTFn(nn.Module):
             y = y.unsqueeze(1)                                # (B, 1, T)
         left_pad = max(0, self.win_length - self.hop_length)  # causal: left-only
         y = F.pad(y, (left_pad, 0))
-        spec = F.conv1d(y, self.forward_basis, stride=self.hop_length, padding=0)
+        spec = F.conv1d(y, comfy.model_management.cast_to(self.forward_basis, dtype=y.dtype, device=y.device), stride=self.hop_length, padding=0)
         n_freqs = spec.shape[1] // 2
         real, imag = spec[:, :n_freqs], spec[:, n_freqs:]
         magnitude = torch.sqrt(real ** 2 + imag ** 2)
@@ -647,7 +648,7 @@ class MelSTFT(nn.Module):
         """
         magnitude, phase = self.stft_fn(y)
         energy = torch.norm(magnitude, dim=1)
-        mel = torch.matmul(self.mel_basis.to(magnitude.dtype), magnitude)
+        mel = torch.matmul(comfy.model_management.cast_to(self.mel_basis, dtype=magnitude.dtype, device=y.device), magnitude)
         log_mel = torch.log(torch.clamp(mel, min=1e-5))
         return log_mel, magnitude, phase, energy
 

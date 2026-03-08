@@ -7,14 +7,16 @@ import folder_paths
 import time
 from comfy.cli_args import args, enables_dynamic_vram
 from app.logger import setup_logger
-from app.assets.scanner import seed_assets
+from app.assets.seeder import asset_seeder
 import itertools
 import utils.extra_config
+from utils.mime_types import init_mime_types
 import logging
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
+from app.database.db import init_db, dependencies_available
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -161,6 +163,7 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+init_mime_types()
 
 if args.enable_manager:
     comfyui_manager.prestartup()
@@ -258,6 +261,7 @@ def prompt_worker(q, server_instance):
             for k in sensitive:
                 extra_data[k] = sensitive[k]
 
+            asset_seeder.pause()
             e.execute(item[2], prompt_id, extra_data, item[4])
             need_gc = True
 
@@ -302,6 +306,7 @@ def prompt_worker(q, server_instance):
                 last_gc_collect = current_time
                 need_gc = False
                 hook_breaker_ac10a0.restore_functions()
+                asset_seeder.resume()
 
 
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
@@ -352,12 +357,29 @@ def cleanup_temp():
 
 def setup_database():
     try:
-        from app.database.db import init_db, dependencies_available
         if dependencies_available():
             init_db()
-            if not args.disable_assets_autoscan:
-                seed_assets(["models"], enable_logging=True)
+            if args.enable_assets:
+                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=True):
+                    logging.info("Background asset scan initiated for models, input, output")
     except Exception as e:
+        if "database is locked" in str(e):
+            logging.error(
+                "Database is locked. Another ComfyUI process is already using this database.\n"
+                "To resolve this, specify a separate database file for this instance:\n"
+                "  --database-url sqlite:///path/to/another.db"
+            )
+            sys.exit(1)
+        if args.enable_assets:
+            logging.error(
+                f"Failed to initialize database: {e}\n"
+                "The --enable-assets flag requires a working database connection.\n"
+                "To resolve this, try one of the following:\n"
+                "  1. Install the latest requirements: pip install -r requirements.txt\n"
+                "  2. Specify an alternative database URL: --database-url sqlite:///path/to/your.db\n"
+                "  3. Use an in-memory database: --database-url sqlite:///:memory:"
+            )
+            sys.exit(1)
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
 
@@ -440,5 +462,6 @@ if __name__ == "__main__":
         event_loop.run_until_complete(x)
     except KeyboardInterrupt:
         logging.info("\nStopped server")
-
-    cleanup_temp()
+    finally:
+        asset_seeder.shutdown()
+        cleanup_temp()

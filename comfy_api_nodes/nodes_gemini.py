@@ -72,18 +72,6 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
 )
 
 
-class GeminiModel(str, Enum):
-    """
-    Gemini Model Names allowed by comfy-api
-    """
-
-    gemini_2_5_pro_preview_05_06 = "gemini-2.5-pro-preview-05-06"
-    gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
-    gemini_2_5_pro = "gemini-2.5-pro"
-    gemini_2_5_flash = "gemini-2.5-flash"
-    gemini_3_0_pro = "gemini-3-pro-preview"
-
-
 class GeminiImageModel(str, Enum):
     """
     Gemini Image Model Names allowed by comfy-api
@@ -237,9 +225,13 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 30.0
-    elif response.modelVersion == "gemini-3-pro-preview":
+    elif response.modelVersion in ("gemini-3-pro-preview", "gemini-3.1-pro-preview"):
         input_tokens_price = 2
         output_text_tokens_price = 12.0
+        output_image_tokens_price = 0.0
+    elif response.modelVersion == "gemini-3.1-flash-lite-preview":
+        input_tokens_price = 0.25
+        output_text_tokens_price = 1.50
         output_image_tokens_price = 0.0
     elif response.modelVersion == "gemini-3-pro-image-preview":
         input_tokens_price = 2
@@ -292,8 +284,16 @@ class GeminiNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=GeminiModel,
-                    default=GeminiModel.gemini_2_5_pro,
+                    options=[
+                        "gemini-2.5-pro-preview-05-06",
+                        "gemini-2.5-flash-preview-04-17",
+                        "gemini-2.5-pro",
+                        "gemini-2.5-flash",
+                        "gemini-3-pro-preview",
+                        "gemini-3-1-pro",
+                        "gemini-3-1-flash-lite",
+                    ],
+                    default="gemini-3-1-pro",
                     tooltip="The Gemini model to use for generating responses.",
                 ),
                 IO.Int.Input(
@@ -363,9 +363,14 @@ class GeminiNode(IO.ComfyNode):
                     "usd": [0.00125, 0.01],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
-                  : $contains($m, "gemini-3-pro-preview") ? {
+                  : ($contains($m, "gemini-3-pro-preview") or $contains($m, "gemini-3-1-pro")) ? {
                     "type": "list_usd",
                     "usd": [0.002, 0.012],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gemini-3-1-flash-lite") ? {
+                    "type": "list_usd",
+                    "usd": [0.00025, 0.0015],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : {"type":"text", "text":"Token-based"}
@@ -436,12 +441,14 @@ class GeminiNode(IO.ComfyNode):
         files: list[GeminiPart] | None = None,
         system_prompt: str = "",
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False)
+        if model == "gemini-3-pro-preview":
+            model = "gemini-3.1-pro-preview"  # model "gemini-3-pro-preview" will be soon deprecated by Google
+        elif model == "gemini-3-1-pro":
+            model = "gemini-3.1-pro-preview"
+        elif model == "gemini-3-1-flash-lite":
+            model = "gemini-3.1-flash-lite-preview"
 
-        # Create parts list with text prompt as the first part
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
-
-        # Add other modal parts
         if images is not None:
             parts.extend(await create_image_parts(cls, images))
         if audio is not None:

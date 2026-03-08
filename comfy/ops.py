@@ -80,6 +80,21 @@ def cast_to_input(weight, input, non_blocking=False, copy=True):
 
 
 def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant):
+
+    #vbar doesn't support CPU weights, but some custom nodes have weird paths
+    #that might switch the layer to the CPU and expect it to work. We have to take
+    #a clone conservatively as we are mmapped and some SFT files are packed misaligned
+    #If you are a custom node author reading this, please move your layer to the GPU
+    #or declare your ModelPatcher as CPU in the first place.
+    if comfy.model_management.is_device_cpu(device):
+        weight = s.weight.to(dtype=dtype, copy=True)
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        bias = None
+        if s.bias is not None:
+            bias = s.bias.to(dtype=bias_dtype, copy=True)
+        return weight, bias, (None, None, None)
+
     offload_stream = None
     xfer_dest = None
 
