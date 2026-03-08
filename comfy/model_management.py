@@ -270,6 +270,18 @@ try:
 except:
     OOM_EXCEPTION = Exception
 
+def is_oom(e):
+    if isinstance(e, OOM_EXCEPTION):
+        return True
+    if isinstance(e, torch.AcceleratorError) and getattr(e, 'error_code', None) == 2:
+        discard_cuda_async_error()
+        return True
+    return False
+
+def raise_non_oom(e):
+    if not is_oom(e):
+        raise e
+
 XFORMERS_VERSION = ""
 XFORMERS_ENABLED_VAE = True
 if args.disable_xformers:
