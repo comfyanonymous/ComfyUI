@@ -3,8 +3,12 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import IO, Any, Callable, Iterator
+import logging
 
-from blake3 import blake3
+try:
+    from blake3 import blake3
+except ModuleNotFoundError:
+    logging.warning("WARNING: blake3 package not installed")
 
 DEFAULT_CHUNK = 8 * 1024 * 1024
 
