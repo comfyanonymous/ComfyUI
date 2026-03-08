@@ -58,21 +58,6 @@ def _apply_helios_latent_space_noise(latent, sigma, generator=None):
     return _HELIOS_LATENT_FORMAT.process_out(noised_in).to(device=latent.device, dtype=latent.dtype)
 
 
-def _tensor_stats_str(x):
-    if x is None:
-        return "None"
-    if not torch.is_tensor(x):
-        return f"non-tensor type={type(x)}"
-    if x.numel() == 0:
-        return f"shape={tuple(x.shape)} empty"
-    xf = x.detach().to(torch.float32)
-    return (
-        f"shape={tuple(x.shape)} "
-        f"mean={xf.mean().item():.6f} std={xf.std(unbiased=False).item():.6f} "
-        f"min={xf.min().item():.6f} max={xf.max().item():.6f}"
-    )
-
-
 def _parse_float_list(values, default):
     if values is None:
         return default
@@ -557,7 +542,6 @@ class HeliosImageToVideo(io.ComfyNode):
                 io.Float.Input("image_noise_sigma_max", default=0.135, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, advanced=True),
                 io.Boolean.Input("include_history_in_output", default=False, advanced=True),
-                io.Boolean.Input("debug_latent_stats", default=False, advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -585,7 +569,6 @@ class HeliosImageToVideo(io.ComfyNode):
         image_noise_sigma_max=0.135,
         noise_seed=0,
         include_history_in_output=False,
-        debug_latent_stats=False,
     ) -> io.NodeOutput:
         video_noise_sigma_min = 0.111
         video_noise_sigma_max = 0.135
@@ -643,10 +626,6 @@ class HeliosImageToVideo(io.ComfyNode):
             history_valid_mask[:, -1] = True
             if i2v_noise_gen is not None:
                 noise_gen_state = i2v_noise_gen.get_state().clone()
-            if debug_latent_stats:
-                print(f"[HeliosDebug][I2V] image_latent_prefix: {_tensor_stats_str(image_latent_prefix)}")
-                print(f"[HeliosDebug][I2V] fake_latent: {_tensor_stats_str(fake_latent)}")
-                print(f"[HeliosDebug][I2V] history_latent: {_tensor_stats_str(history_latent)}")
 
         positive, negative = _set_helios_history_values(positive, negative, history_latent, sizes, keep_first_frame, prefix_latent=image_latent_prefix)
         return io.NodeOutput(
@@ -660,7 +639,6 @@ class HeliosImageToVideo(io.ComfyNode):
                 "helios_num_frames": int(length),
                 "helios_noise_gen_state": noise_gen_state,
                 "helios_include_history_in_output": _strict_bool(include_history_in_output, default=False),
-                "helios_debug_latent_stats": bool(debug_latent_stats),
             },
         )
 
@@ -767,7 +745,6 @@ class HeliosVideoToVideo(io.ComfyNode):
                 io.Float.Input("video_noise_sigma_max", default=0.135, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, advanced=True),
                 io.Boolean.Input("include_history_in_output", default=True, advanced=True),
-                io.Boolean.Input("debug_latent_stats", default=False, advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -795,7 +772,6 @@ class HeliosVideoToVideo(io.ComfyNode):
         video_noise_sigma_max=0.135,
         noise_seed=0,
         include_history_in_output=True,
-        debug_latent_stats=False,
     ) -> io.NodeOutput:
         spacial_scale = vae.spacial_compression_encode()
         latent_channels = vae.latent_channels
@@ -869,10 +845,6 @@ class HeliosVideoToVideo(io.ComfyNode):
                 if len(noisy_chunks) > 0:
                     vid_latent = torch.cat(noisy_chunks, dim=2)
                 noise_gen_state = g.get_state().clone()
-            if debug_latent_stats:
-                print(f"[HeliosDebug][V2V] first_frame_latent: {_tensor_stats_str(first_frame_latent)}")
-                print(f"[HeliosDebug][V2V] video_latent: {_tensor_stats_str(vid_latent)}")
-
             vid_latent = comfy.utils.repeat_to_batch_size(vid_latent, batch_size)
             image_latent_prefix = comfy.utils.repeat_to_batch_size(first_frame_latent, batch_size)
             video_frames = vid_latent.shape[2]
@@ -900,7 +872,6 @@ class HeliosVideoToVideo(io.ComfyNode):
                 "helios_noise_gen_state": noise_gen_state,
                 # Keep initial history segment and generated chunks together in sampler output.
                 "helios_include_history_in_output": _strict_bool(include_history_in_output, default=True),
-                "helios_debug_latent_stats": bool(debug_latent_stats),
             },
         )
 
@@ -1042,7 +1013,6 @@ class HeliosPyramidSampler(io.ComfyNode):
                 noise_gen.set_state(noise_gen_state)
             except Exception:
                 pass
-        debug_latent_stats = bool(latent.get("helios_debug_latent_stats", False))
 
         image_latent_prefix = latent.get("helios_image_latent_prefix", None)
         history_valid_mask = latent.get("helios_history_valid_mask", None)
@@ -1207,11 +1177,6 @@ class HeliosPyramidSampler(io.ComfyNode):
             latents_history_short = _extract_condition_value(positive_chunk, "latents_history_short")
             latents_history_mid = _extract_condition_value(positive_chunk, "latents_history_mid")
             latents_history_long = _extract_condition_value(positive_chunk, "latents_history_long")
-            if debug_latent_stats:
-                print(f"[HeliosDebug][Sampler][chunk={chunk_idx}] latents_history_short: {_tensor_stats_str(latents_history_short)}")
-                print(f"[HeliosDebug][Sampler][chunk={chunk_idx}] latents_history_mid: {_tensor_stats_str(latents_history_mid)}")
-                print(f"[HeliosDebug][Sampler][chunk={chunk_idx}] latents_history_long: {_tensor_stats_str(latents_history_long)}")
-
             for stage_idx in range(stage_count):
                 stage_latent = stage_latent.to(comfy.model_management.get_torch_device())
                 sigmas = _helios_stage_sigmas(
