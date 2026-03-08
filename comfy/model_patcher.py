@@ -715,8 +715,8 @@ class ModelPatcher:
                     default = True # default random weights in non leaf modules
                     break
             if default and default_device is not None:
-                for param in params.values():
-                    param.data = param.data.to(device=default_device)
+                for param_name, param in params.items():
+                    param.data = param.data.to(device=default_device, dtype=getattr(m, param_name + "_comfy_model_dtype", None))
             if not default and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
                 module_mem = comfy.model_management.module_size(m)
                 module_offload_mem = module_mem

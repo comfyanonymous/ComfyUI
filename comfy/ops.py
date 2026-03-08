@@ -80,6 +80,21 @@ def cast_to_input(weight, input, non_blocking=False, copy=True):
 
 
 def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant):
+
+    #vbar doesn't support CPU weights, but some custom nodes have weird paths
+    #that might switch the layer to the CPU and expect it to work. We have to take
+    #a clone conservatively as we are mmapped and some SFT files are packed misaligned
+    #If you are a custom node author reading this, please move your layer to the GPU
+    #or declare your ModelPatcher as CPU in the first place.
+    if comfy.model_management.is_device_cpu(device):
+        weight = s.weight.to(dtype=dtype, copy=True)
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        bias = None
+        if s.bias is not None:
+            bias = s.bias.to(dtype=bias_dtype, copy=True)
+        return weight, bias, (None, None, None)
+
     offload_stream = None
     xfer_dest = None
 
@@ -660,23 +675,29 @@ class fp8_ops(manual_cast):
 
 CUBLAS_IS_AVAILABLE = False
 try:
-    from cublas_ops import CublasLinear
+    from cublas_ops import CublasLinear, cublas_half_matmul
     CUBLAS_IS_AVAILABLE = True
 except ImportError:
     pass
 
 if CUBLAS_IS_AVAILABLE:
-    class cublas_ops(disable_weight_init):
-        class Linear(CublasLinear, disable_weight_init.Linear):
+    class cublas_ops(manual_cast):
+        class Linear(CublasLinear, manual_cast.Linear):
             def reset_parameters(self):
                 return None
 
             def forward_comfy_cast_weights(self, input):
-                return super().forward(input)
+                weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
+                x = cublas_half_matmul(input, weight, bias, self._epilogue_str, self.has_bias)
+                uncast_bias_weight(self, weight, bias, offload_stream)
+                return x
 
             def forward(self, *args, **kwargs):
-                return super().forward(*args, **kwargs)
-
+                run_every_op()
+                if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                    return self.forward_comfy_cast_weights(*args, **kwargs)
+                else:
+                    return super().forward(*args, **kwargs)
 
 # ==============================================================================
 # Mixed Precision Operations
