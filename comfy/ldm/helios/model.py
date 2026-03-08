@@ -652,8 +652,8 @@ class HeliosModel(torch.nn.Module):
         )
         original_context_length = hidden_states.shape[1]
 
-        if (latents_history_short is not None and indices_latents_history_short is not None and hasattr(self, "patch_short")):
-            x_short = self.patch_short(latents_history_short).to(hidden_states.dtype)
+        if latents_history_short is not None and indices_latents_history_short is not None:
+            x_short = self.patch_short(latents_history_short)
             _, _, ts, hs, ws = x_short.shape
             x_short = x_short.flatten(2).transpose(1, 2)
             f_short = self.rope_encode(
@@ -671,57 +671,45 @@ class HeliosModel(torch.nn.Module):
             hidden_states = torch.cat([x_short, hidden_states], dim=1)
             freqs = torch.cat([f_short, freqs], dim=1)
 
-        if (latents_history_mid is not None and indices_latents_history_mid is not None and hasattr(self, "patch_mid")):
-            x_mid = self.patch_mid(pad_for_3d_conv(latents_history_mid, (2, 4, 4))).to(hidden_states.dtype)
-            _, _, tm, hm, wm = x_mid.shape
+        if latents_history_mid is not None and indices_latents_history_mid is not None:
+            x_mid = self.patch_mid(pad_for_3d_conv(latents_history_mid, (2, 4, 4)))
+            _, _, tm, _, _ = x_mid.shape
             x_mid = x_mid.flatten(2).transpose(1, 2)
             mid_t = indices_latents_history_mid.shape[1]
-            if ("hs" in locals()) and ("ws" in locals()):
-                mid_h, mid_w = hs, ws
-            else:
-                mid_h, mid_w = hm * 2, wm * 2
             f_mid = self.rope_encode(
                 t=mid_t * self.patch_size[0],
-                h=mid_h * self.patch_size[1],
-                w=mid_w * self.patch_size[2],
+                h=hs * self.patch_size[1],
+                w=ws * self.patch_size[2],
                 steps_t=mid_t,
-                steps_h=mid_h,
-                steps_w=mid_w,
+                steps_h=hs,
+                steps_w=ws,
                 device=x_mid.device,
                 dtype=x_mid.dtype,
                 transformer_options=transformer_options,
                 frame_indices=indices_latents_history_mid,
             )
-            f_mid = self._rope_downsample_3d(f_mid, (mid_t, mid_h, mid_w), (2, 2, 2))
-            if f_mid.shape[1] != x_mid.shape[1]:
-                f_mid = f_mid[:, :x_mid.shape[1]]
+            f_mid = self._rope_downsample_3d(f_mid, (mid_t, hs, ws), (2, 2, 2))
             hidden_states = torch.cat([x_mid, hidden_states], dim=1)
             freqs = torch.cat([f_mid, freqs], dim=1)
 
-        if (latents_history_long is not None and indices_latents_history_long is not None and hasattr(self, "patch_long")):
-            x_long = self.patch_long(pad_for_3d_conv(latents_history_long, (4, 8, 8))).to(hidden_states.dtype)
-            _, _, tl, hl, wl = x_long.shape
+        if latents_history_long is not None and indices_latents_history_long is not None:
+            x_long = self.patch_long(pad_for_3d_conv(latents_history_long, (4, 8, 8)))
+            _, _, tl, _, _ = x_long.shape
             x_long = x_long.flatten(2).transpose(1, 2)
             long_t = indices_latents_history_long.shape[1]
-            if ("hs" in locals()) and ("ws" in locals()):
-                long_h, long_w = hs, ws
-            else:
-                long_h, long_w = hl * 4, wl * 4
             f_long = self.rope_encode(
                 t=long_t * self.patch_size[0],
-                h=long_h * self.patch_size[1],
-                w=long_w * self.patch_size[2],
+                h=hs * self.patch_size[1],
+                w=ws * self.patch_size[2],
                 steps_t=long_t,
-                steps_h=long_h,
-                steps_w=long_w,
+                steps_h=hs,
+                steps_w=ws,
                 device=x_long.device,
                 dtype=x_long.dtype,
                 transformer_options=transformer_options,
                 frame_indices=indices_latents_history_long,
             )
-            f_long = self._rope_downsample_3d(f_long, (long_t, long_h, long_w), (4, 4, 4))
-            if f_long.shape[1] != x_long.shape[1]:
-                f_long = f_long[:, :x_long.shape[1]]
+            f_long = self._rope_downsample_3d(f_long, (long_t, hs, ws), (4, 4, 4))
             hidden_states = torch.cat([x_long, hidden_states], dim=1)
             freqs = torch.cat([f_long, freqs], dim=1)
 
