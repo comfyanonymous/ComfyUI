@@ -247,7 +247,10 @@ def slice_attention(q, k, v):
 
     while True:
         try:
-            slice_size = q.shape[1] // steps if (q.shape[1] % steps) == 0 else q.shape[1]
+            slice_size = max(1, math.ceil(q.shape[1] / steps))
+            if q.device.type == "mps":
+                max_slice_for_mps = max(1, ((2 ** 31) - 1) // max(1, q.shape[0] * k.shape[2]))
+                slice_size = min(slice_size, max_slice_for_mps)
             for i in range(0, q.shape[1], slice_size):
                 end = i + slice_size
                 s1 = torch.bmm(q[:, i:end], k) * scale
@@ -258,6 +261,15 @@ def slice_attention(q, k, v):
                 r1[:, :, i:end] = torch.bmm(v, s2)
                 del s2
             break
+        except RuntimeError as e:
+            if q.device.type == "mps" and ("INT_MAX" in str(e) or "MPSGraph" in str(e) or "MPSGaph" in str(e)):
+                model_management.soft_empty_cache(True)
+                steps *= 2
+                if steps > 4096:
+                    raise e
+                logging.warning("MPS attention limit reached, increasing steps and trying again {}".format(steps))
+                continue
+            raise e
         except model_management.OOM_EXCEPTION as e:
             model_management.soft_empty_cache(True)
             steps *= 2
