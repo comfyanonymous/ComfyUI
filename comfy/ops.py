@@ -80,6 +80,21 @@ def cast_to_input(weight, input, non_blocking=False, copy=True):
 
 
 def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant):
+
+    #vbar doesn't support CPU weights, but some custom nodes have weird paths
+    #that might switch the layer to the CPU and expect it to work. We have to take
+    #a clone conservatively as we are mmapped and some SFT files are packed misaligned
+    #If you are a custom node author reading this, please move your layer to the GPU
+    #or declare your ModelPatcher as CPU in the first place.
+    if comfy.model_management.is_device_cpu(device):
+        weight = s.weight.to(dtype=dtype, copy=True)
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        bias = None
+        if s.bias is not None:
+            bias = s.bias.to(dtype=bias_dtype, copy=True)
+        return weight, bias, (None, None, None)
+
     offload_stream = None
     xfer_dest = None
 
@@ -167,17 +182,15 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             x = to_dequant(x, dtype)
         if not resident and lowvram_fn is not None:
             x = to_dequant(x, dtype if compute_dtype is None else compute_dtype)
-            #FIXME: this is not accurate, we need to be sensitive to the compute dtype
             x = lowvram_fn(x)
-            if (isinstance(orig, QuantizedTensor) and
-                (want_requant and len(fns) == 0 or update_weight)):
+            if (want_requant and len(fns) == 0 or update_weight):
                 seed = comfy.utils.string_to_seed(s.seed_key)
-                y = QuantizedTensor.from_float(x, s.layout_type, scale="recalculate", stochastic_rounding=seed)
-                if want_requant and len(fns) == 0:
-                    #The layer actually wants our freshly saved QT
-                    x = y
-            elif update_weight:
-                y = comfy.float.stochastic_rounding(x, orig.dtype, seed = comfy.utils.string_to_seed(s.seed_key))
+                if isinstance(orig, QuantizedTensor):
+                    y = QuantizedTensor.from_float(x, s.layout_type, scale="recalculate", stochastic_rounding=seed)
+                else:
+                    y = comfy.float.stochastic_rounding(x, orig.dtype, seed=seed)
+            if want_requant and len(fns) == 0:
+                x = y
             if update_weight:
                 orig.copy_(y)
         for f in fns:
@@ -271,8 +284,8 @@ def uncast_bias_weight(s, weight, bias, offload_stream):
         return
     os, weight_a, bias_a = offload_stream
     device=None
-    #FIXME: This is not good RTTI
-    if not isinstance(weight_a, torch.Tensor):
+    #FIXME: This is really bad RTTI
+    if weight_a is not None and not isinstance(weight_a, torch.Tensor):
         comfy_aimdo.model_vbar.vbar_unpin(s._v)
         device = weight_a
     if os is None:
@@ -617,7 +630,8 @@ def fp8_linear(self, input):
 
     if input.ndim != 2:
         return None
-    w, bias, offload_stream = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype, offloadable=True)
+    lora_compute_dtype=comfy.model_management.lora_compute_dtype(input.device)
+    w, bias, offload_stream = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype, offloadable=True, compute_dtype=lora_compute_dtype, want_requant=True)
     scale_weight = torch.ones((), device=input.device, dtype=torch.float32)
 
     scale_input = torch.ones((), device=input.device, dtype=torch.float32)
@@ -661,23 +675,29 @@ class fp8_ops(manual_cast):
 
 CUBLAS_IS_AVAILABLE = False
 try:
-    from cublas_ops import CublasLinear
+    from cublas_ops import CublasLinear, cublas_half_matmul
     CUBLAS_IS_AVAILABLE = True
 except ImportError:
     pass
 
 if CUBLAS_IS_AVAILABLE:
-    class cublas_ops(disable_weight_init):
-        class Linear(CublasLinear, disable_weight_init.Linear):
+    class cublas_ops(manual_cast):
+        class Linear(CublasLinear, manual_cast.Linear):
             def reset_parameters(self):
                 return None
 
             def forward_comfy_cast_weights(self, input):
-                return super().forward(input)
+                weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
+                x = cublas_half_matmul(input, weight, bias, self._epilogue_str, self.has_bias)
+                uncast_bias_weight(self, weight, bias, offload_stream)
+                return x
 
             def forward(self, *args, **kwargs):
-                return super().forward(*args, **kwargs)
-
+                run_every_op()
+                if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                    return self.forward_comfy_cast_weights(*args, **kwargs)
+                else:
+                    return super().forward(*args, **kwargs)
 
 # ==============================================================================
 # Mixed Precision Operations

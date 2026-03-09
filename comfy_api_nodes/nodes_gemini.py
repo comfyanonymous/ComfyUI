@@ -29,6 +29,7 @@ from comfy_api_nodes.apis.gemini import (
     GeminiRole,
     GeminiSystemInstructionContent,
     GeminiTextPart,
+    GeminiThinkingConfig,
     Modality,
 )
 from comfy_api_nodes.util import (
@@ -55,17 +56,20 @@ GEMINI_IMAGE_SYS_PROMPT = (
     "Prioritize generating the visual representation above any text, formatting, or conversational requests."
 )
 
-
-class GeminiModel(str, Enum):
-    """
-    Gemini Model Names allowed by comfy-api
-    """
-
-    gemini_2_5_pro_preview_05_06 = "gemini-2.5-pro-preview-05-06"
-    gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
-    gemini_2_5_pro = "gemini-2.5-pro"
-    gemini_2_5_flash = "gemini-2.5-flash"
-    gemini_3_0_pro = "gemini-3-pro-preview"
+GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
+    depends_on=IO.PriceBadgeDepends(widgets=["model", "resolution"]),
+    expr="""
+    (
+      $m := widgets.model;
+      $r := widgets.resolution;
+      $isFlash := $contains($m, "nano banana 2");
+      $flashPrices := {"1k": 0.0696, "2k": 0.0696, "4k": 0.123};
+      $proPrices := {"1k": 0.134, "2k": 0.134, "4k": 0.24};
+      $prices := $isFlash ? $flashPrices : $proPrices;
+      {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
+    )
+    """,
+)
 
 
 class GeminiImageModel(str, Enum):
@@ -221,14 +225,22 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 30.0
-    elif response.modelVersion == "gemini-3-pro-preview":
+    elif response.modelVersion in ("gemini-3-pro-preview", "gemini-3.1-pro-preview"):
         input_tokens_price = 2
         output_text_tokens_price = 12.0
+        output_image_tokens_price = 0.0
+    elif response.modelVersion == "gemini-3.1-flash-lite-preview":
+        input_tokens_price = 0.25
+        output_text_tokens_price = 1.50
         output_image_tokens_price = 0.0
     elif response.modelVersion == "gemini-3-pro-image-preview":
         input_tokens_price = 2
         output_text_tokens_price = 12.0
         output_image_tokens_price = 120.0
+    elif response.modelVersion == "gemini-3.1-flash-image-preview":
+        input_tokens_price = 0.5
+        output_text_tokens_price = 3.0
+        output_image_tokens_price = 60.0
     else:
         return None
     final_price = response.usageMetadata.promptTokenCount * input_tokens_price
@@ -272,8 +284,16 @@ class GeminiNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=GeminiModel,
-                    default=GeminiModel.gemini_2_5_pro,
+                    options=[
+                        "gemini-2.5-pro-preview-05-06",
+                        "gemini-2.5-flash-preview-04-17",
+                        "gemini-2.5-pro",
+                        "gemini-2.5-flash",
+                        "gemini-3-pro-preview",
+                        "gemini-3-1-pro",
+                        "gemini-3-1-flash-lite",
+                    ],
+                    default="gemini-3-1-pro",
                     tooltip="The Gemini model to use for generating responses.",
                 ),
                 IO.Int.Input(
@@ -343,9 +363,14 @@ class GeminiNode(IO.ComfyNode):
                     "usd": [0.00125, 0.01],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
-                  : $contains($m, "gemini-3-pro-preview") ? {
+                  : ($contains($m, "gemini-3-pro-preview") or $contains($m, "gemini-3-1-pro")) ? {
                     "type": "list_usd",
                     "usd": [0.002, 0.012],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gemini-3-1-flash-lite") ? {
+                    "type": "list_usd",
+                    "usd": [0.00025, 0.0015],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : {"type":"text", "text":"Token-based"}
@@ -416,12 +441,14 @@ class GeminiNode(IO.ComfyNode):
         files: list[GeminiPart] | None = None,
         system_prompt: str = "",
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False)
+        if model == "gemini-3-pro-preview":
+            model = "gemini-3.1-pro-preview"  # model "gemini-3-pro-preview" will be soon deprecated by Google
+        elif model == "gemini-3-1-pro":
+            model = "gemini-3.1-pro-preview"
+        elif model == "gemini-3-1-flash-lite":
+            model = "gemini-3.1-flash-lite-preview"
 
-        # Create parts list with text prompt as the first part
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
-
-        # Add other modal parts
         if images is not None:
             parts.extend(await create_image_parts(cls, images))
         if audio is not None:
@@ -686,7 +713,7 @@ class GeminiImage2(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["gemini-3-pro-image-preview"],
+                    options=["gemini-3-pro-image-preview", "Nano Banana 2 (Gemini 3.1 Flash Image)"],
                 ),
                 IO.Int.Input(
                     "seed",
@@ -750,19 +777,7 @@ class GeminiImage2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
-                expr="""
-                (
-                  $r := widgets.resolution;
-                  ($contains($r,"1k") or $contains($r,"2k"))
-                    ? {"type":"usd","usd":0.134,"format":{"suffix":"/Image","approximate":true}}
-                    : $contains($r,"4k")
-                      ? {"type":"usd","usd":0.24,"format":{"suffix":"/Image","approximate":true}}
-                      : {"type":"text","text":"Token-based"}
-                )
-                """,
-            ),
+            price_badge=GEMINI_IMAGE_2_PRICE_BADGE,
         )
 
     @classmethod
@@ -779,6 +794,8 @@ class GeminiImage2(IO.ComfyNode):
         system_prompt: str = "",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
+        if model == "Nano Banana 2 (Gemini 3.1 Flash Image)":
+            model = "gemini-3.1-flash-image-preview"
 
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
         if images is not None:
@@ -815,6 +832,169 @@ class GeminiImage2(IO.ComfyNode):
         return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
 
+class GeminiNanoBanana2(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GeminiNanoBanana2",
+            display_name="Nano Banana 2",
+            category="api node/image/Gemini",
+            description="Generate or edit images synchronously via Google Vertex API.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="Text prompt describing the image to generate or the edits to apply. "
+                    "Include any constraints, styles, or details the model should follow.",
+                    default="",
+                ),
+                IO.Combo.Input(
+                    "model",
+                    options=["Nano Banana 2 (Gemini 3.1 Flash Image)"],
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="When the seed is fixed to a specific value, the model makes a best effort to provide "
+                    "the same response for repeated requests. Deterministic output isn't guaranteed. "
+                    "Also, changing the model or parameter settings, such as the temperature, "
+                    "can cause variations in the response even when you use the same seed value. "
+                    "By default, a random seed value is used.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=[
+                        "auto",
+                        "1:1",
+                        "2:3",
+                        "3:2",
+                        "3:4",
+                        "4:3",
+                        "4:5",
+                        "5:4",
+                        "9:16",
+                        "16:9",
+                        "21:9",
+                        # "1:4",
+                        # "4:1",
+                        # "8:1",
+                        # "1:8",
+                    ],
+                    default="auto",
+                    tooltip="If set to 'auto', matches your input image's aspect ratio; "
+                    "if no image is provided, a 16:9 square is usually generated.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=[
+                        # "512px",
+                        "1K",
+                        "2K",
+                        "4K",
+                    ],
+                    tooltip="Target output resolution. For 2K/4K the native Gemini upscaler is used.",
+                ),
+                IO.Combo.Input(
+                    "response_modalities",
+                    options=["IMAGE", "IMAGE+TEXT"],
+                    advanced=True,
+                ),
+                IO.Combo.Input(
+                    "thinking_level",
+                    options=["MINIMAL", "HIGH"],
+                ),
+                IO.Image.Input(
+                    "images",
+                    optional=True,
+                    tooltip="Optional reference image(s). "
+                    "To include multiple images, use the Batch Images node (up to 14).",
+                ),
+                IO.Custom("GEMINI_INPUT_FILES").Input(
+                    "files",
+                    optional=True,
+                    tooltip="Optional file(s) to use as context for the model. "
+                    "Accepts inputs from the Gemini Generate Content Input Files node.",
+                ),
+                IO.String.Input(
+                    "system_prompt",
+                    multiline=True,
+                    default=GEMINI_IMAGE_SYS_PROMPT,
+                    optional=True,
+                    tooltip="Foundational instructions that dictate an AI's behavior.",
+                    advanced=True,
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+                IO.String.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=GEMINI_IMAGE_2_PRICE_BADGE,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        model: str,
+        seed: int,
+        aspect_ratio: str,
+        resolution: str,
+        response_modalities: str,
+        thinking_level: str,
+        images: Input.Image | None = None,
+        files: list[GeminiPart] | None = None,
+        system_prompt: str = "",
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        if model == "Nano Banana 2 (Gemini 3.1 Flash Image)":
+            model = "gemini-3.1-flash-image-preview"
+
+        parts: list[GeminiPart] = [GeminiPart(text=prompt)]
+        if images is not None:
+            if get_number_of_images(images) > 14:
+                raise ValueError("The current maximum number of supported images is 14.")
+            parts.extend(await create_image_parts(cls, images))
+        if files is not None:
+            parts.extend(files)
+
+        image_config = GeminiImageConfig(imageSize=resolution)
+        if aspect_ratio != "auto":
+            image_config.aspectRatio = aspect_ratio
+
+        gemini_system_prompt = None
+        if system_prompt:
+            gemini_system_prompt = GeminiSystemInstructionContent(parts=[GeminiTextPart(text=system_prompt)], role=None)
+
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/vertexai/gemini/{model}", method="POST"),
+            data=GeminiImageGenerateContentRequest(
+                contents=[
+                    GeminiContent(role=GeminiRole.user, parts=parts),
+                ],
+                generationConfig=GeminiImageGenerationConfig(
+                    responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
+                    imageConfig=image_config,
+                    thinkingConfig=GeminiThinkingConfig(thinkingLevel=thinking_level),
+                ),
+                systemInstruction=gemini_system_prompt,
+            ),
+            response_model=GeminiGenerateContentResponse,
+            price_extractor=calculate_tokens_price,
+        )
+        return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
+
+
 class GeminiExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -822,6 +1002,7 @@ class GeminiExtension(ComfyExtension):
             GeminiNode,
             GeminiImage,
             GeminiImage2,
+            GeminiNanoBanana2,
             GeminiInputFiles,
         ]
 

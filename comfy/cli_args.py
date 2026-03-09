@@ -146,6 +146,7 @@ parser.add_argument("--reserve-vram", type=float, default=None, help="Set the am
 
 parser.add_argument("--async-offload", nargs='?', const=2, type=int, default=None, metavar="NUM_STREAMS", help="Use async weight offloading. An optional argument controls the amount of offload streams. Default is 2. Enabled by default on Nvidia.")
 parser.add_argument("--disable-async-offload", action="store_true", help="Disable async weight offloading.")
+parser.add_argument("--disable-dynamic-vram", action="store_true", help="Disable dynamic VRAM and use estimate based model loading.")
 
 parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
 
@@ -159,7 +160,6 @@ class PerformanceFeature(enum.Enum):
     Fp8MatrixMultiplication = "fp8_matrix_mult"
     CublasOps = "cublas_ops"
     AutoTune = "autotune"
-    DynamicVRAM = "dynamic_vram"
 
 parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. This is used to test new features so using it might crash your comfyui. --fast with no arguments enables everything. You can pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: {}".format(" ".join(map(lambda c: c.value, PerformanceFeature))))
 
@@ -232,7 +232,7 @@ database_default_path = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
 )
 parser.add_argument("--database-url", type=str, default=f"sqlite:///{database_default_path}", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
-parser.add_argument("--disable-assets-autoscan", action="store_true", help="Disable asset scanning on startup for database synchronization.")
+parser.add_argument("--enable-assets", action="store_true", help="Enable the assets system (API routes, database synchronization, and background scanning).")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
@@ -260,4 +260,4 @@ else:
     args.fast = set(args.fast)
 
 def enables_dynamic_vram():
-    return PerformanceFeature.DynamicVRAM in args.fast and not args.highvram and not args.gpu_only
+    return not args.disable_dynamic_vram and not args.highvram and not args.gpu_only and not args.novram and not args.cpu

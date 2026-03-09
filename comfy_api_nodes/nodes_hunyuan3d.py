@@ -5,18 +5,19 @@ from comfy_api_nodes.apis.hunyuan3d import (
     Hunyuan3DViewImage,
     InputGenerateType,
     ResultFile3D,
+    SmartTopologyRequest,
+    TaskFile3DInput,
     TextureEditTaskRequest,
+    To3DPartTaskRequest,
     To3DProTaskCreateResponse,
     To3DProTaskQueryRequest,
     To3DProTaskRequest,
     To3DProTaskResultResponse,
-    To3DUVFileInput,
     To3DUVTaskRequest,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_file_3d,
-    download_url_to_image_tensor,
     downscale_image_tensor_by_max_side,
     poll_op,
     sync_op,
@@ -344,7 +345,6 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             outputs=[
                 IO.File3DOBJ.Output(display_name="OBJ"),
                 IO.File3DFBX.Output(display_name="FBX"),
-                IO.Image.Output(),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -375,7 +375,7 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/tencent/hunyuan/3d-uv", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=To3DUVTaskRequest(
-                File=To3DUVFileInput(
+                File=TaskFile3DInput(
                     Type=file_format.upper(),
                     Url=await upload_3d_model_to_comfyapi(cls, model_3d, file_format),
                 )
@@ -394,7 +394,6 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
         return IO.NodeOutput(
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
-            await download_url_to_image_tensor(get_file_from_response(result.ResultFile3Ds, "image").Url),
         )
 
 
@@ -463,7 +462,7 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/tencent/hunyuan/3d-texture-edit", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=TextureEditTaskRequest(
-                File3D=To3DUVFileInput(Type=file_format.upper(), Url=model_url),
+                File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
                 Prompt=prompt,
                 EnablePBR=True,
             ),
@@ -538,8 +537,8 @@ class Tencent3DPartNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path="/proxy/tencent/hunyuan/3d-part", method="POST"),
             response_model=To3DProTaskCreateResponse,
-            data=To3DUVTaskRequest(
-                File=To3DUVFileInput(Type=file_format.upper(), Url=model_url),
+            data=To3DPartTaskRequest(
+                File=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
             ),
             is_rate_limited=_is_tencent_rate_limited,
         )
@@ -557,15 +556,107 @@ class Tencent3DPartNode(IO.ComfyNode):
         )
 
 
+class TencentSmartTopologyNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TencentSmartTopologyNode",
+            display_name="Hunyuan3D: Smart Topology",
+            category="api node/3d/Tencent",
+            description="Perform smart retopology on a 3D model. "
+            "Supports GLB/OBJ formats; max 200MB; recommended for high-poly models.",
+            inputs=[
+                IO.MultiType.Input(
+                    "model_3d",
+                    types=[IO.File3DGLB, IO.File3DOBJ, IO.File3DAny],
+                    tooltip="Input 3D model (GLB or OBJ)",
+                ),
+                IO.Combo.Input(
+                    "polygon_type",
+                    options=["triangle", "quadrilateral"],
+                    tooltip="Surface composition type.",
+                ),
+                IO.Combo.Input(
+                    "face_level",
+                    options=["medium", "high", "low"],
+                    tooltip="Polygon reduction level.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[
+                IO.File3DOBJ.Output(display_name="OBJ"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(expr='{"type":"usd","usd":1.0}'),
+        )
+
+    SUPPORTED_FORMATS = {"glb", "obj"}
+
+    @classmethod
+    async def execute(
+        cls,
+        model_3d: Types.File3D,
+        polygon_type: str,
+        face_level: str,
+        seed: int,
+    ) -> IO.NodeOutput:
+        _ = seed
+        file_format = model_3d.format.lower()
+        if file_format not in cls.SUPPORTED_FORMATS:
+            raise ValueError(
+                f"Unsupported file format: '{file_format}'. " f"Supported: {', '.join(sorted(cls.SUPPORTED_FORMATS))}."
+            )
+        model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-smart-topology", method="POST"),
+            response_model=To3DProTaskCreateResponse,
+            data=SmartTopologyRequest(
+                File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
+                PolygonType=polygon_type,
+                FaceLevel=face_level,
+            ),
+            is_rate_limited=_is_tencent_rate_limited,
+        )
+        if response.Error:
+            raise ValueError(f"Task creation failed: [{response.Error.Code}] {response.Error.Message}")
+        result = await poll_op(
+            cls,
+            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-smart-topology/query", method="POST"),
+            data=To3DProTaskQueryRequest(JobId=response.JobId),
+            response_model=To3DProTaskResultResponse,
+            status_extractor=lambda r: r.Status,
+        )
+        return IO.NodeOutput(
+            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
+        )
+
+
 class TencentHunyuan3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             TencentTextToModelNode,
             TencentImageToModelNode,
-            # TencentModelTo3DUVNode,
+            TencentModelTo3DUVNode,
             # Tencent3DTextureEditNode,
             Tencent3DPartNode,
+            TencentSmartTopologyNode,
         ]
 
 

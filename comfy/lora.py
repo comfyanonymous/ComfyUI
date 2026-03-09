@@ -337,6 +337,7 @@ def model_lora_keys_unet(model, key_map={}):
             if k.startswith("diffusion_model.decoder.") and k.endswith(".weight"):
                 key_lora = k[len("diffusion_model.decoder."):-len(".weight")]
                 key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
+                key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # LyCORIS/LoKR format
 
     return key_map
 

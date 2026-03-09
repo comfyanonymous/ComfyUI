@@ -1224,9 +1224,10 @@ class BoundingBox(ComfyTypeIO):
 
     class Input(WidgetInput):
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
-                     socketless: bool=True, default: dict=None, component: str=None):
+                     socketless: bool=True, default: dict=None, component: str=None, force_input: bool=None):
             super().__init__(id, display_name, optional, tooltip, None, default, socketless)
             self.component = component
+            self.force_input = force_input
             if default is None:
                 self.default = {"x": 0, "y": 0, "width": 512, "height": 512}
 
@@ -1234,7 +1235,22 @@ class BoundingBox(ComfyTypeIO):
             d = super().as_dict()
             if self.component:
                 d["component"] = self.component
+            if self.force_input is not None:
+                d["forceInput"] = self.force_input
             return d
+
+
+@comfytype(io_type="CURVE")
+class Curve(ComfyTypeIO):
+    CurvePoint = tuple[float, float]
+    Type = list[CurvePoint]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[tuple[float, float]]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = [(0.0, 0.0), (1.0, 1.0)]
 
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
@@ -2223,5 +2239,6 @@ __all__ = [
     "PriceBadgeDepends",
     "PriceBadge",
     "BoundingBox",
+    "Curve",
     "NodeReplace",
 ]
