@@ -1,178 +1,278 @@
 #!/usr/bin/env python3
 """
 Studio server — film/TV production tool built on ComfyUI.
-Serves the UI and manages projects, characters, and scenes.
 """
 
 import json
 import os
-import sys
-import uuid
+import random
 import shutil
+import time
+import uuid
 import mimetypes
 import urllib.request
 import urllib.error
-import websocket
-import threading
-import time
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
-STUDIO_DIR = Path(__file__).parent
-APP_DIR = STUDIO_DIR / "app"
-DATA_DIR = STUDIO_DIR / "data"
+STUDIO_DIR  = Path(__file__).parent
+APP_DIR     = STUDIO_DIR / "app"
+DATA_DIR    = STUDIO_DIR / "data"
 PROJECTS_DIR = DATA_DIR / "projects"
 WORKFLOWS_DIR = STUDIO_DIR / "workflows"
 
-COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188")
-STUDIO_PORT = int(os.environ.get("STUDIO_PORT", "8189"))
+COMFYUI_URL  = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188")
+STUDIO_PORT  = int(os.environ.get("STUDIO_PORT", "8189"))
 
-# Ensure directories exist
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── Resolution presets ─────────────────────────────────────────────────────────
+# All dimensions are multiples of 8 for diffusion model compatibility.
+
+RESOLUTIONS = {
+    "2.39:1": {
+        "1080p": (1920, 800),
+        "2K":    (2560, 1072),
+        "4K":    (3840, 1608),
+    },
+    "1.85:1": {
+        "1080p": (2000, 1080),
+        "4K":    (3840, 2072),
+    },
+    "16:9": {
+        "720p":  (1280, 720),
+        "1080p": (1920, 1080),
+        "2K":    (2560, 1440),
+        "4K":    (3840, 2160),
+    },
+    "4:3": {
+        "1080p": (1440, 1080),
+        "4K":    (2880, 2160),
+    },
+    "9:16": {
+        "720p":  (720, 1280),
+        "1080p": (1080, 1920),
+    },
+    "1:1": {
+        "1024px": (1024, 1024),
+        "2048px": (2048, 2048),
+    },
+}
+
+# ── Shot / camera prompt additions ────────────────────────────────────────────
+
+SHOT_PROMPTS = {
+    "wide":             "wide shot, establishing shot",
+    "medium":           "medium shot",
+    "close_up":         "close-up shot",
+    "extreme_close_up": "extreme close-up",
+    "over_shoulder":    "over-the-shoulder shot",
+    "pov":              "point of view shot, first person perspective",
+    "aerial":           "aerial shot, drone shot, bird's eye view",
+    "two_shot":         "two-shot",
+}
+
+CAMERA_PROMPTS = {
+    "static":    "",
+    "push_in":   "slow push-in, camera moving forward",
+    "pull_out":  "pull-out, zoom out",
+    "pan":       "camera pan",
+    "handheld":  "handheld camera, verité style",
+    "crane_up":  "crane shot moving upward",
+}
+
+# ── Style presets ──────────────────────────────────────────────────────────────
+
+STYLE_PRESETS = {
+    "cinematic": {
+        "prompt_prefix": "cinematic, 35mm film, anamorphic lens, dramatic lighting, shallow depth of field, professional cinematography",
+        "prompt_suffix": "photorealistic, film grain",
+        "negative_prompt": "blurry, low quality, watermark, text, deformed, anime, cartoon, amateur",
+    },
+    "anime": {
+        "prompt_prefix": "anime style, cel animation, vibrant colors, clean linework",
+        "prompt_suffix": "high quality anime, studio quality",
+        "negative_prompt": "photorealistic, photo, 3d render, blurry, watermark, text, deformed",
+    },
+    "noir": {
+        "prompt_prefix": "film noir, high contrast black and white, dramatic shadows, 1940s atmosphere, chiaroscuro",
+        "prompt_suffix": "moody, atmospheric, brooding",
+        "negative_prompt": "color, bright, cheerful, blurry, low quality, watermark",
+    },
+    "illustration": {
+        "prompt_prefix": "digital illustration, concept art, detailed painting",
+        "prompt_suffix": "high quality illustration, artstation trending",
+        "negative_prompt": "photograph, photo, blurry, low quality, watermark, text",
+    },
+    "documentary": {
+        "prompt_prefix": "documentary photography, natural light, candid, reportage style",
+        "prompt_suffix": "authentic, realistic, unposed",
+        "negative_prompt": "blurry, low quality, watermark, text, studio lighting, artificial",
+    },
+}
 
 # ── Project helpers ────────────────────────────────────────────────────────────
 
 def list_projects():
-    projects = []
+    out = []
     for p in sorted(PROJECTS_DIR.iterdir()):
         if p.is_dir():
             cfg = p / "config.json"
             if cfg.exists():
                 data = json.loads(cfg.read_text())
                 data["id"] = p.name
-                projects.append(data)
-    return projects
+                out.append(data)
+    return out
 
-def get_project(project_id):
-    cfg = PROJECTS_DIR / project_id / "config.json"
+def get_project(pid):
+    cfg = PROJECTS_DIR / pid / "config.json"
     if not cfg.exists():
         return None
     data = json.loads(cfg.read_text())
-    data["id"] = project_id
+    data["id"] = pid
     return data
 
-def save_project(project_id, data):
-    project_dir = PROJECTS_DIR / project_id
-    project_dir.mkdir(parents=True, exist_ok=True)
-    data_to_save = {k: v for k, v in data.items() if k != "id"}
-    (project_dir / "config.json").write_text(json.dumps(data_to_save, indent=2))
+def save_project(pid, data):
+    d = PROJECTS_DIR / pid
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "config.json").write_text(json.dumps(
+        {k: v for k, v in data.items() if k != "id"}, indent=2))
 
-def delete_project(project_id):
-    project_dir = PROJECTS_DIR / project_id
-    if project_dir.exists():
-        shutil.rmtree(project_dir)
+def delete_project(pid):
+    d = PROJECTS_DIR / pid
+    if d.exists():
+        shutil.rmtree(d)
 
 # ── Character helpers ──────────────────────────────────────────────────────────
 
-def list_characters(project_id):
-    chars_dir = PROJECTS_DIR / project_id / "characters"
-    if not chars_dir.exists():
+def _list_assets(project_id, kind):
+    """Generic lister for characters and locations."""
+    base = PROJECTS_DIR / project_id / kind
+    if not base.exists():
         return []
-    chars = []
-    for c in sorted(chars_dir.iterdir()):
-        if c.is_dir():
-            cfg = c / "config.json"
+    out = []
+    for d in sorted(base.iterdir()):
+        if d.is_dir():
+            cfg = d / "config.json"
             if cfg.exists():
                 data = json.loads(cfg.read_text())
-                data["id"] = c.name
-                data["project_id"] = project_id
-                # List reference images
-                refs_dir = c / "refs"
-                if refs_dir.exists():
-                    data["refs"] = [f.name for f in sorted(refs_dir.iterdir())
-                                    if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
-                else:
-                    data["refs"] = []
-                chars.append(data)
-    return chars
+                data["id"] = d.name
+                refs_dir = d / "refs"
+                data["refs"] = (
+                    [f.name for f in sorted(refs_dir.iterdir())
+                     if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
+                    if refs_dir.exists() else []
+                )
+                out.append(data)
+    return out
 
-def get_character(project_id, char_id):
-    cfg = PROJECTS_DIR / project_id / "characters" / char_id / "config.json"
+def _get_asset(project_id, kind, asset_id):
+    cfg = PROJECTS_DIR / project_id / kind / asset_id / "config.json"
     if not cfg.exists():
         return None
     data = json.loads(cfg.read_text())
-    data["id"] = char_id
-    data["project_id"] = project_id
-    refs_dir = PROJECTS_DIR / project_id / "characters" / char_id / "refs"
-    if refs_dir.exists():
-        data["refs"] = [f.name for f in sorted(refs_dir.iterdir())
-                        if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
-    else:
-        data["refs"] = []
+    data["id"] = asset_id
+    refs_dir = PROJECTS_DIR / project_id / kind / asset_id / "refs"
+    data["refs"] = (
+        [f.name for f in sorted(refs_dir.iterdir())
+         if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
+        if refs_dir.exists() else []
+    )
     return data
 
-def save_character(project_id, char_id, data):
-    char_dir = PROJECTS_DIR / project_id / "characters" / char_id
-    char_dir.mkdir(parents=True, exist_ok=True)
-    (char_dir / "refs").mkdir(exist_ok=True)
-    data_to_save = {k: v for k, v in data.items() if k not in ("id", "project_id", "refs")}
-    (char_dir / "config.json").write_text(json.dumps(data_to_save, indent=2))
+def _save_asset(project_id, kind, asset_id, data):
+    d = PROJECTS_DIR / project_id / kind / asset_id
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "refs").mkdir(exist_ok=True)
+    (d / "config.json").write_text(json.dumps(
+        {k: v for k, v in data.items() if k not in ("id", "refs")}, indent=2))
 
-def delete_character(project_id, char_id):
-    char_dir = PROJECTS_DIR / project_id / "characters" / char_id
-    if char_dir.exists():
-        shutil.rmtree(char_dir)
+def _delete_asset(project_id, kind, asset_id):
+    d = PROJECTS_DIR / project_id / kind / asset_id
+    if d.exists():
+        shutil.rmtree(d)
+
+def list_characters(pid):  return _list_assets(pid, "characters")
+def get_character(pid, cid): return _get_asset(pid, "characters", cid)
+def save_character(pid, cid, data): _save_asset(pid, "characters", cid, data)
+def delete_character(pid, cid): _delete_asset(pid, "characters", cid)
+
+def list_locations(pid):  return _list_assets(pid, "locations")
+def get_location(pid, lid): return _get_asset(pid, "locations", lid)
+def save_location(pid, lid, data): _save_asset(pid, "locations", lid, data)
+def delete_location(pid, lid): _delete_asset(pid, "locations", lid)
 
 # ── Scene helpers ──────────────────────────────────────────────────────────────
 
-def list_scenes(project_id):
-    scenes_dir = PROJECTS_DIR / project_id / "scenes"
-    if not scenes_dir.exists():
+def list_scenes(pid):
+    d = PROJECTS_DIR / pid / "scenes"
+    if not d.exists():
         return []
     scenes = []
-    for f in sorted(scenes_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+    for f in d.glob("*.json"):
         data = json.loads(f.read_text())
         data["id"] = f.stem
         scenes.append(data)
+    # Sort by sequence, then created_at
+    scenes.sort(key=lambda s: (s.get("sequence", 9999), s.get("created_at", "")))
     return scenes
 
-def get_scene(project_id, scene_id):
-    f = PROJECTS_DIR / project_id / "scenes" / f"{scene_id}.json"
+def get_scene(pid, sid):
+    f = PROJECTS_DIR / pid / "scenes" / f"{sid}.json"
     if not f.exists():
         return None
     data = json.loads(f.read_text())
-    data["id"] = scene_id
+    data["id"] = sid
     return data
 
-def save_scene(project_id, scene_id, data):
-    scenes_dir = PROJECTS_DIR / project_id / "scenes"
-    scenes_dir.mkdir(parents=True, exist_ok=True)
-    data_to_save = {k: v for k, v in data.items() if k != "id"}
-    (scenes_dir / f"{scene_id}.json").write_text(json.dumps(data_to_save, indent=2))
+def save_scene(pid, sid, data):
+    d = PROJECTS_DIR / pid / "scenes"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{sid}.json").write_text(json.dumps(
+        {k: v for k, v in data.items() if k != "id"}, indent=2))
 
-def delete_scene(project_id, scene_id):
-    f = PROJECTS_DIR / project_id / "scenes" / f"{scene_id}.json"
+def delete_scene(pid, sid):
+    f = PROJECTS_DIR / pid / "scenes" / f"{sid}.json"
     if f.exists():
         f.unlink()
 
-# ── ComfyUI proxy helpers ──────────────────────────────────────────────────────
+# ── ComfyUI helpers ────────────────────────────────────────────────────────────
 
 def comfy_get(path):
     try:
-        url = f"{COMFYUI_URL}{path}"
-        with urllib.request.urlopen(url, timeout=5) as r:
+        with urllib.request.urlopen(f"{COMFYUI_URL}{path}", timeout=5) as r:
             return json.loads(r.read())
     except Exception:
         return None
 
 def comfy_post(path, body):
     try:
-        url = f"{COMFYUI_URL}{path}"
         data = json.dumps(body).encode()
-        req = urllib.request.Request(url, data=data,
-                                     headers={"Content-Type": "application/json"})
+        req = urllib.request.Request(
+            f"{COMFYUI_URL}{path}", data=data,
+            headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
     except Exception as e:
         return {"error": str(e)}
 
 def comfy_status():
-    result = comfy_get("/system_stats")
-    return result is not None
+    return comfy_get("/system_stats") is not None
+
+def comfy_checkpoints():
+    """Return list of checkpoint filenames available in ComfyUI."""
+    result = comfy_get("/models/checkpoints")
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict):
+        for key in ("checkpoints", "models", "files"):
+            if key in result and isinstance(result[key], list):
+                return result[key]
+    return []
 
 # ── Workflow assembly ──────────────────────────────────────────────────────────
 
@@ -182,119 +282,164 @@ def load_workflow_template(name):
         return json.loads(path.read_text())
     return None
 
-def assemble_workflow(scene, project, characters):
-    """
-    Build a ComfyUI workflow JSON from scene config, project style, and characters.
-    Selects the right template based on output_type and character identity types.
-    """
-    output_type = scene.get("output_type", "still")
-    char_ids = scene.get("characters", [])
-    scene_chars = [c for c in characters if c["id"] in char_ids]
+def assemble_workflow(scene, project, characters, locations):
+    output_type  = scene.get("output_type", "still")
+    char_ids     = scene.get("characters", [])
+    loc_id       = scene.get("location_id")
+    scene_chars  = [c for c in characters if c["id"] in char_ids]
+    scene_loc    = next((l for l in locations if l["id"] == loc_id), None) if loc_id else None
 
-    # Determine character identity method
-    has_lora = any(c.get("type") == "lora" for c in scene_chars)
-    has_photomaker = any(c.get("type") == "photomaker" for c in scene_chars)
+    has_lora        = any(c.get("type") == "lora" for c in scene_chars)
+    has_photomaker  = any(c.get("type") == "photomaker" for c in scene_chars)
 
     if output_type == "video":
         template_name = "video_base"
+    elif has_photomaker:
+        template_name = "still_photomaker"
+    elif has_lora:
+        template_name = "still_lora"
     else:
-        if has_photomaker:
-            template_name = "still_photomaker"
-        elif has_lora:
-            template_name = "still_lora"
-        else:
-            template_name = "still_base"
+        template_name = "still_base"
 
-    workflow = load_workflow_template(template_name)
+    workflow = load_workflow_template(template_name) or load_workflow_template("still_base")
     if workflow is None:
-        # Fall back to basic still workflow
-        workflow = load_workflow_template("still_base")
-    if workflow is None:
-        return None, f"Workflow template '{template_name}' not found"
+        return None, None, f"No workflow template found"
 
-    # Inject prompt
-    prompt = build_prompt(scene, project, scene_chars)
-    workflow = inject_prompt(workflow, prompt)
+    # Seed
+    seed_override = scene.get("seed")  # None = random, int = locked
+    seed = int(seed_override) if seed_override is not None else random.randint(1, 2**32 - 1)
 
-    # Inject style (negative prompt / style LoRA)
-    style_prompt = project.get("style", {}).get("negative_prompt", "")
-    workflow = inject_negative_prompt(workflow, style_prompt)
+    # Resolution
+    aspect  = scene.get("aspect_ratio", "16:9")
+    res_key = scene.get("resolution", "1080p")
+    dims    = RESOLUTIONS.get(aspect, {}).get(res_key, (1920, 1080))
+    width, height = dims
 
-    # Inject LoRA if needed
+    # Batch size
+    batch_size = max(1, int(scene.get("batch_size", 1)))
+
+    # Checkpoint from project style
+    checkpoint = project.get("style", {}).get("checkpoint", "")
+
+    # Prompt
+    prompt = build_prompt(scene, project, scene_chars, scene_loc)
+    negative = project.get("style", {}).get("negative_prompt",
+                           "blurry, low quality, watermark, text, deformed")
+
+    # Inject everything
+    workflow = inject_text(workflow, "positive", prompt)
+    workflow = inject_text(workflow, "negative", negative)
+    workflow = inject_resolution(workflow, width, height, batch_size)
+    workflow = inject_seed(workflow, seed)
+    if checkpoint:
+        workflow = inject_checkpoint(workflow, checkpoint)
     if has_lora:
         for char in scene_chars:
             if char.get("type") == "lora" and char.get("lora_file"):
-                workflow = inject_lora(workflow, char["lora_file"], char.get("lora_weight", 0.8))
+                workflow = inject_lora(workflow, char["lora_file"],
+                                       float(char.get("lora_weight", 0.8)))
 
-    return workflow, None
+    return workflow, seed, None
 
-def build_prompt(scene, project, characters):
+def build_prompt(scene, project, characters, location):
     parts = []
-    # Style prefix from project
-    style_prefix = project.get("style", {}).get("prompt_prefix", "")
-    if style_prefix:
-        parts.append(style_prefix)
 
-    # PhotoMaker character tokens
+    style = project.get("style", {})
+    if style.get("prompt_prefix"):
+        parts.append(style["prompt_prefix"])
+
+    # Shot type
+    shot = SHOT_PROMPTS.get(scene.get("shot_type", ""), "")
+    if shot:
+        parts.append(shot)
+
+    # Camera
+    cam = CAMERA_PROMPTS.get(scene.get("camera", ""), "")
+    if cam:
+        parts.append(cam)
+
+    # PhotoMaker tokens
     for char in characters:
         if char.get("type") == "photomaker":
             parts.append(f"{char['name']} img")
 
     # Scene description
-    parts.append(scene.get("description", ""))
+    if scene.get("description"):
+        parts.append(scene["description"])
 
-    # Style suffix
-    style_suffix = project.get("style", {}).get("prompt_suffix", "")
-    if style_suffix:
-        parts.append(style_suffix)
+    # Location
+    if location:
+        loc_text = location.get("name", "")
+        if location.get("description"):
+            loc_text += ", " + location["description"]
+        if location.get("time_of_day"):
+            loc_text += ", " + location["time_of_day"]
+        if location.get("weather"):
+            loc_text += ", " + location["weather"]
+        if loc_text:
+            parts.append(loc_text)
+
+    if style.get("prompt_suffix"):
+        parts.append(style["prompt_suffix"])
 
     return ", ".join(p.strip() for p in parts if p.strip())
 
-def inject_prompt(workflow, prompt):
-    """Find CLIPTextEncode nodes with positive conditioning and inject the prompt."""
-    for node_id, node in workflow.items():
+def inject_text(workflow, role, text):
+    for node in workflow.values():
         if node.get("class_type") == "CLIPTextEncode":
-            inputs = node.get("inputs", {})
-            # Heuristic: positive node has a non-empty text or no tag
-            if inputs.get("_role") == "positive" or (
-                    "text" in inputs and inputs.get("_role") != "negative"):
-                inputs["text"] = prompt
-                break
+            if node["inputs"].get("_role") == role:
+                node["inputs"]["text"] = text
+                return workflow
+    # Fallback: first node without _role tag for positive
+    if role == "positive":
+        for node in workflow.values():
+            if node.get("class_type") == "CLIPTextEncode":
+                if "_role" not in node["inputs"]:
+                    node["inputs"]["text"] = text
+                    return workflow
     return workflow
 
-def inject_negative_prompt(workflow, negative_prompt):
-    for node_id, node in workflow.items():
-        if node.get("class_type") == "CLIPTextEncode":
-            inputs = node.get("inputs", {})
-            if inputs.get("_role") == "negative":
-                inputs["text"] = negative_prompt
-                break
+def inject_resolution(workflow, width, height, batch_size):
+    for node in workflow.values():
+        if node.get("class_type") in (
+            "EmptyLatentImage", "EmptyHunyuanLatentVideo",
+            "EmptyLTXVLatentVideo", "EmptyMochiLatentVideo", "EmptyCosmosLatentVideo",
+        ):
+            node["inputs"]["width"]      = width
+            node["inputs"]["height"]     = height
+            node["inputs"]["batch_size"] = batch_size
+    return workflow
+
+def inject_seed(workflow, seed):
+    for node in workflow.values():
+        if node.get("class_type") == "KSampler":
+            node["inputs"]["seed"] = seed
+    return workflow
+
+def inject_checkpoint(workflow, name):
+    for node in workflow.values():
+        if node.get("class_type") in ("CheckpointLoaderSimple",):
+            node["inputs"]["ckpt_name"] = name
     return workflow
 
 def inject_lora(workflow, lora_file, weight):
-    for node_id, node in workflow.items():
+    for node in workflow.values():
         if node.get("class_type") == "LoraLoader":
-            node["inputs"]["lora_name"] = lora_file
-            node["inputs"]["strength_model"] = weight
-            node["inputs"]["strength_clip"] = weight
+            node["inputs"]["lora_name"]       = lora_file
+            node["inputs"]["strength_model"]  = weight
+            node["inputs"]["strength_clip"]   = weight
             break
     return workflow
 
-# ── Multipart form parser ──────────────────────────────────────────────────────
+# ── Multipart parser ───────────────────────────────────────────────────────────
 
 def parse_multipart(rfile, content_type, content_length):
-    """Minimal multipart/form-data parser returning {field: value} and {field: (filename, bytes)}."""
-    import cgi
-    import io
+    import cgi, io
     body = rfile.read(content_length)
-    environ = {
-        "REQUEST_METHOD": "POST",
-        "CONTENT_TYPE": content_type,
-        "CONTENT_LENGTH": str(content_length),
-    }
-    form = cgi.FieldStorage(fp=io.BytesIO(body), environ=environ)
-    fields = {}
-    files = {}
+    env  = {"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type,
+            "CONTENT_LENGTH": str(content_length)}
+    form = cgi.FieldStorage(fp=io.BytesIO(body), environ=env)
+    fields, files = {}, {}
     for key in form.keys():
         item = form[key]
         if item.filename:
@@ -306,10 +451,9 @@ def parse_multipart(rfile, content_type, content_length):
 # ── HTTP handler ───────────────────────────────────────────────────────────────
 
 class StudioHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        # Quieter logging
+    def log_message(self, fmt, *args):
         if args and str(args[1]) not in ("200", "304"):
-            super().log_message(format, *args)
+            super().log_message(fmt, *args)
 
     def send_json(self, data, status=200):
         body = json.dumps(data).encode()
@@ -320,25 +464,22 @@ class StudioHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def send_error_json(self, message, status=400):
-        self.send_json({"error": message}, status)
+    def send_err(self, msg, status=400):
+        self.send_json({"error": msg}, status)
 
     def send_file(self, path):
         mime, _ = mimetypes.guess_type(str(path))
-        mime = mime or "application/octet-stream"
         data = path.read_bytes()
         self.send_response(200)
-        self.send_header("Content-Type", mime)
+        self.send_header("Content-Type", mime or "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(data)
 
-    def read_json_body(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length == 0:
-            return {}
-        return json.loads(self.rfile.read(length))
+    def read_json(self):
+        n = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(n)) if n else {}
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -347,353 +488,375 @@ class StudioHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
+    # ── GET ────────────────────────────────────────────────────────────────────
 
-        # ── Static files ──
-        if path == "/" or path == "/index.html":
-            f = APP_DIR / "index.html"
-            if f.exists():
-                return self.send_file(f)
+    def do_GET(self):
+        path = urlparse(self.path).path.rstrip("/") or "/"
+        parts = [p for p in path.split("/") if p]
+
+        # Static files
         if not path.startswith("/api/"):
-            # Try to serve from app/
-            candidate = APP_DIR / path.lstrip("/")
+            candidate = APP_DIR / (path.lstrip("/") or "index.html")
             if candidate.exists() and candidate.is_file():
                 return self.send_file(candidate)
+            index = APP_DIR / "index.html"
+            if index.exists():
+                return self.send_file(index)
 
-        # ── API ──
-        parts = [p for p in path.split("/") if p]
-        # parts[0] = "api"
+        def seg(*expected):
+            return parts == list(expected)
 
-        # GET /api/status
-        if parts == ["api", "status"]:
+        def starts(*expected):
+            return parts[:len(expected)] == list(expected)
+
+        # Status
+        if seg("api", "status"):
             return self.send_json({"comfyui": comfy_status(), "studio": True})
 
-        # GET /api/projects
-        if parts == ["api", "projects"]:
-            return self.send_json(list_projects())
+        # Resolution presets
+        if seg("api", "resolutions"):
+            return self.send_json(RESOLUTIONS)
 
-        # GET /api/projects/:id
-        if len(parts) == 3 and parts[:2] == ["api", "projects"]:
-            project = get_project(parts[2])
-            if not project:
-                return self.send_error_json("Project not found", 404)
-            return self.send_json(project)
+        # Style presets
+        if seg("api", "style_presets"):
+            return self.send_json(STYLE_PRESETS)
 
-        # GET /api/projects/:id/characters
-        if len(parts) == 4 and parts[:2] == ["api", "projects"] and parts[3] == "characters":
-            return self.send_json(list_characters(parts[2]))
+        # ComfyUI checkpoints
+        if seg("api", "comfy", "checkpoints"):
+            return self.send_json(comfy_checkpoints())
 
-        # GET /api/projects/:id/characters/:char_id
-        if len(parts) == 5 and parts[:2] == ["api", "projects"] and parts[3] == "characters":
-            char = get_character(parts[2], parts[4])
-            if not char:
-                return self.send_error_json("Character not found", 404)
-            return self.send_json(char)
-
-        # GET /api/projects/:id/characters/:char_id/refs/:filename
-        if (len(parts) == 7 and parts[:2] == ["api", "projects"]
-                and parts[3] == "characters" and parts[5] == "refs"):
-            ref_path = PROJECTS_DIR / parts[2] / "characters" / parts[4] / "refs" / parts[6]
-            if not ref_path.exists():
-                return self.send_error_json("File not found", 404)
-            return self.send_file(ref_path)
-
-        # GET /api/projects/:id/scenes
-        if len(parts) == 4 and parts[:2] == ["api", "projects"] and parts[3] == "scenes":
-            return self.send_json(list_scenes(parts[2]))
-
-        # GET /api/projects/:id/scenes/:scene_id
-        if len(parts) == 5 and parts[:2] == ["api", "projects"] and parts[3] == "scenes":
-            scene = get_scene(parts[2], parts[4])
-            if not scene:
-                return self.send_error_json("Scene not found", 404)
-            return self.send_json(scene)
-
-        # GET /api/comfy/outputs/:filename  — proxy output images/videos from ComfyUI
-        if len(parts) == 4 and parts[:3] == ["api", "comfy", "outputs"]:
-            filename = parts[3]
+        # ComfyUI output proxy
+        if starts("api", "comfy", "outputs") and len(parts) == 4:
             try:
-                url = f"{COMFYUI_URL}/view?filename={filename}&type=output"
+                url = f"{COMFYUI_URL}/view?filename={parts[3]}&type=output"
                 with urllib.request.urlopen(url, timeout=10) as r:
                     data = r.read()
-                    ct = r.headers.get("Content-Type", "application/octet-stream")
+                    ct   = r.headers.get("Content-Type", "application/octet-stream")
                 self.send_response(200)
                 self.send_header("Content-Type", ct)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
             except Exception as e:
-                return self.send_error_json(str(e), 502)
+                self.send_err(str(e), 502)
             return
 
-        # GET /api/comfy/queue/:prompt_id — poll job status
-        if len(parts) == 4 and parts[:3] == ["api", "comfy", "queue"]:
+        # ComfyUI queue poll
+        if starts("api", "comfy", "queue") and len(parts) == 4:
             prompt_id = parts[3]
-            history = comfy_get(f"/history/{prompt_id}")
+            history   = comfy_get(f"/history/{prompt_id}")
             if history and prompt_id in history:
-                entry = history[prompt_id]
+                entry   = history[prompt_id]
                 outputs = entry.get("outputs", {})
-                files = []
-                for node_id, node_out in outputs.items():
-                    for img in node_out.get("images", []):
-                        files.append(img["filename"])
-                    for vid in node_out.get("videos", []):
-                        files.append(vid["filename"])
+                files   = []
+                for node_out in outputs.values():
+                    files += [i["filename"] for i in node_out.get("images", [])]
+                    files += [v["filename"] for v in node_out.get("videos", [])]
                 return self.send_json({"status": "done", "files": files})
-            # Check if still queued
-            queue = comfy_get("/queue")
-            if queue:
-                running = [item[1] for item in queue.get("queue_running", [])]
-                pending = [item[1] for item in queue.get("queue_pending", [])]
-                if prompt_id in running:
-                    return self.send_json({"status": "running"})
-                if prompt_id in pending:
-                    return self.send_json({"status": "pending"})
+            queue = comfy_get("/queue") or {}
+            running = [item[1] for item in queue.get("queue_running", [])]
+            pending = [item[1] for item in queue.get("queue_pending", [])]
+            if prompt_id in running:
+                return self.send_json({"status": "running"})
+            if prompt_id in pending:
+                return self.send_json({"status": "pending"})
             return self.send_json({"status": "unknown"})
 
-        self.send_error_json("Not found", 404)
+        # Projects
+        if seg("api", "projects"):
+            return self.send_json(list_projects())
+        if starts("api", "projects") and len(parts) == 3:
+            p = get_project(parts[2])
+            return self.send_json(p) if p else self.send_err("Not found", 404)
+
+        # Characters + Locations (shared pattern)
+        for kind in ("characters", "locations"):
+            if starts("api", "projects") and len(parts) == 4 and parts[3] == kind:
+                pid = parts[2]
+                fn = list_characters if kind == "characters" else list_locations
+                return self.send_json(fn(pid))
+            if starts("api", "projects") and len(parts) == 5 and parts[3] == kind:
+                pid, aid = parts[2], parts[4]
+                fn = get_character if kind == "characters" else get_location
+                a = fn(pid, aid)
+                return self.send_json(a) if a else self.send_err("Not found", 404)
+            # Ref image
+            if (starts("api", "projects") and len(parts) == 7
+                    and parts[3] == kind and parts[5] == "refs"):
+                pid, aid, fname = parts[2], parts[4], parts[6]
+                ref = PROJECTS_DIR / pid / kind / aid / "refs" / fname
+                return self.send_file(ref) if ref.exists() else self.send_err("Not found", 404)
+
+        # Scenes
+        if starts("api", "projects") and len(parts) == 4 and parts[3] == "scenes":
+            return self.send_json(list_scenes(parts[2]))
+        if starts("api", "projects") and len(parts) == 5 and parts[3] == "scenes":
+            s = get_scene(parts[2], parts[4])
+            return self.send_json(s) if s else self.send_err("Not found", 404)
+
+        self.send_err("Not found", 404)
+
+    # ── POST ───────────────────────────────────────────────────────────────────
 
     def do_POST(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path  = urlparse(self.path).path.rstrip("/")
         parts = [p for p in path.split("/") if p]
-        ct = self.headers.get("Content-Type", "")
+        ct    = self.headers.get("Content-Type", "")
 
-        # POST /api/projects
+        # Projects
         if parts == ["api", "projects"]:
-            body = self.read_json_body()
-            project_id = body.get("id") or str(uuid.uuid4())[:8]
+            body = self.read_json()
             if not body.get("name"):
-                return self.send_error_json("name is required")
-            data = {
-                "name": body["name"],
-                "description": body.get("description", ""),
-                "style": body.get("style", {"prompt_prefix": "", "prompt_suffix": "", "negative_prompt": ""}),
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
-            save_project(project_id, data)
-            data["id"] = project_id
+                return self.send_err("name required")
+            pid = body.get("id") or str(uuid.uuid4())[:8]
+            data = {"name": body["name"], "description": body.get("description", ""),
+                    "style": body.get("style", {}),
+                    "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            save_project(pid, data)
+            data["id"] = pid
             return self.send_json(data, 201)
 
-        # POST /api/projects/:id/characters
-        if (len(parts) == 4 and parts[:2] == ["api", "projects"]
-                and parts[3] == "characters"):
-            project_id = parts[2]
-            if not get_project(project_id):
-                return self.send_error_json("Project not found", 404)
+        # Characters / Locations (shared)
+        for kind in ("characters", "locations"):
+            if (len(parts) == 4 and parts[:2] == ["api", "projects"] and parts[3] == kind):
+                pid = parts[2]
+                if not get_project(pid):
+                    return self.send_err("Project not found", 404)
 
-            if "multipart/form-data" in ct:
-                length = int(self.headers.get("Content-Length", 0))
-                fields, files = parse_multipart(self.rfile, ct, length)
-                name = fields.get("name", "")
-                char_type = fields.get("type", "photomaker")
-                lora_file = fields.get("lora_file", "")
-                lora_weight = float(fields.get("lora_weight", "0.8"))
-            else:
-                body = self.read_json_body()
-                name = body.get("name", "")
-                char_type = body.get("type", "photomaker")
-                lora_file = body.get("lora_file", "")
-                lora_weight = float(body.get("lora_weight", 0.8))
-                files = {}
-
-            if not name:
-                return self.send_error_json("name is required")
-
-            char_id = name.lower().replace(" ", "_")
-            data = {
-                "name": name,
-                "type": char_type,
-                "lora_file": lora_file,
-                "lora_weight": lora_weight,
-                "notes": fields.get("notes", "") if "multipart/form-data" in ct else "",
-            }
-            save_character(project_id, char_id, data)
-
-            # Save any uploaded ref images
-            refs_dir = PROJECTS_DIR / project_id / "characters" / char_id / "refs"
-            refs_dir.mkdir(parents=True, exist_ok=True)
-            for field_name, (filename, file_bytes) in files.items():
-                if field_name.startswith("ref"):
-                    safe_name = Path(filename).name
-                    (refs_dir / safe_name).write_bytes(file_bytes)
-
-            data["id"] = char_id
-            data["refs"] = [f.name for f in sorted(refs_dir.iterdir())
-                            if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
-            return self.send_json(data, 201)
-
-        # POST /api/projects/:id/characters/:char_id/refs  — upload reference photos
-        if (len(parts) == 6 and parts[:2] == ["api", "projects"]
-                and parts[3] == "characters" and parts[5] == "refs"):
-            project_id, char_id = parts[2], parts[4]
-            if not get_character(project_id, char_id):
-                return self.send_error_json("Character not found", 404)
-            if "multipart/form-data" not in ct:
-                return self.send_error_json("Expected multipart/form-data")
-            length = int(self.headers.get("Content-Length", 0))
-            _, files = parse_multipart(self.rfile, ct, length)
-            refs_dir = PROJECTS_DIR / project_id / "characters" / char_id / "refs"
-            refs_dir.mkdir(parents=True, exist_ok=True)
-            saved = []
-            for field_name, (filename, file_bytes) in files.items():
-                safe_name = Path(filename).name
-                (refs_dir / safe_name).write_bytes(file_bytes)
-                saved.append(safe_name)
-            return self.send_json({"saved": saved})
-
-        # POST /api/projects/:id/scenes
-        if (len(parts) == 4 and parts[:2] == ["api", "projects"]
-                and parts[3] == "scenes"):
-            project_id = parts[2]
-            project = get_project(project_id)
-            if not project:
-                return self.send_error_json("Project not found", 404)
-            body = self.read_json_body()
-            if not body.get("description"):
-                return self.send_error_json("description is required")
-            scene_id = str(uuid.uuid4())[:8]
-            scene_data = {
-                "title": body.get("title", ""),
-                "description": body["description"],
-                "characters": body.get("characters", []),
-                "output_type": body.get("output_type", "still"),
-                "status": "pending",
-                "outputs": [],
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
-            save_scene(project_id, scene_id, scene_data)
-
-            # Submit to ComfyUI if requested
-            if body.get("generate", False):
-                characters = list_characters(project_id)
-                workflow, err = assemble_workflow(scene_data, project, characters)
-                if err:
-                    scene_data["status"] = "error"
-                    scene_data["error"] = err
-                    save_scene(project_id, scene_id, scene_data)
-                    scene_data["id"] = scene_id
-                    return self.send_json(scene_data, 201)
-
-                client_id = str(uuid.uuid4())
-                result = comfy_post("/prompt", {"prompt": workflow, "client_id": client_id})
-                prompt_id = result.get("prompt_id")
-                if prompt_id:
-                    scene_data["status"] = "generating"
-                    scene_data["prompt_id"] = prompt_id
+                if "multipart/form-data" in ct:
+                    length = int(self.headers.get("Content-Length", 0))
+                    fields, files = parse_multipart(self.rfile, ct, length)
                 else:
-                    scene_data["status"] = "error"
-                    scene_data["error"] = result.get("error", "ComfyUI submission failed")
-                save_scene(project_id, scene_id, scene_data)
+                    fields = self.read_json()
+                    files  = {}
 
-            scene_data["id"] = scene_id
-            return self.send_json(scene_data, 201)
+                name = fields.get("name", "")
+                if not name:
+                    return self.send_err("name required")
+                aid = name.lower().replace(" ", "_")
 
-        # POST /api/projects/:id/scenes/:scene_id/generate  — trigger generation for existing scene
+                if kind == "characters":
+                    cfg = {"name": name, "type": fields.get("type", "photomaker"),
+                           "lora_file": fields.get("lora_file", ""),
+                           "lora_weight": float(fields.get("lora_weight", 0.8)),
+                           "notes": fields.get("notes", "")}
+                else:
+                    cfg = {"name": name,
+                           "description": fields.get("description", ""),
+                           "time_of_day": fields.get("time_of_day", ""),
+                           "weather":     fields.get("weather", ""),
+                           "notes":       fields.get("notes", "")}
+
+                fn = save_character if kind == "characters" else save_location
+                fn(pid, aid, cfg)
+
+                refs_dir = PROJECTS_DIR / pid / kind / aid / "refs"
+                refs_dir.mkdir(parents=True, exist_ok=True)
+                for field_name, (filename, fbytes) in files.items():
+                    if field_name.startswith("ref"):
+                        (refs_dir / Path(filename).name).write_bytes(fbytes)
+
+                cfg["id"]   = aid
+                cfg["refs"] = [f.name for f in sorted(refs_dir.iterdir())
+                               if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
+                return self.send_json(cfg, 201)
+
+            # Upload refs to existing asset
+            if (len(parts) == 6 and parts[:2] == ["api", "projects"]
+                    and parts[3] == kind and parts[5] == "refs"):
+                pid, aid = parts[2], parts[4]
+                fn_get = get_character if kind == "characters" else get_location
+                if not fn_get(pid, aid):
+                    return self.send_err("Not found", 404)
+                if "multipart/form-data" not in ct:
+                    return self.send_err("Expected multipart/form-data")
+                length = int(self.headers.get("Content-Length", 0))
+                _, files = parse_multipart(self.rfile, ct, length)
+                refs_dir = PROJECTS_DIR / pid / kind / aid / "refs"
+                refs_dir.mkdir(parents=True, exist_ok=True)
+                saved = []
+                for _, (filename, fbytes) in files.items():
+                    name = Path(filename).name
+                    (refs_dir / name).write_bytes(fbytes)
+                    saved.append(name)
+                return self.send_json({"saved": saved})
+
+        # Scenes
+        if (len(parts) == 4 and parts[:2] == ["api", "projects"] and parts[3] == "scenes"):
+            pid = parts[2]
+            project = get_project(pid)
+            if not project:
+                return self.send_err("Project not found", 404)
+            body = self.read_json()
+            if not body.get("description"):
+                return self.send_err("description required")
+
+            existing = list_scenes(pid)
+            sid = str(uuid.uuid4())[:8]
+            scene = {
+                "title":         body.get("title", ""),
+                "description":   body["description"],
+                "characters":    body.get("characters", []),
+                "location_id":   body.get("location_id"),
+                "output_type":   body.get("output_type", "still"),
+                "aspect_ratio":  body.get("aspect_ratio", "16:9"),
+                "resolution":    body.get("resolution", "1080p"),
+                "shot_type":     body.get("shot_type", ""),
+                "camera":        body.get("camera", ""),
+                "batch_size":    body.get("batch_size", 1),
+                "seed":          body.get("seed"),        # None = random
+                "review_status": "draft",
+                "sequence":      len(existing) + 1,
+                "status":        "pending",
+                "outputs":       [],
+                "last_seed":     None,
+                "created_at":    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            save_scene(pid, sid, scene)
+
+            if body.get("generate", False):
+                characters = list_characters(pid)
+                locations  = list_locations(pid)
+                workflow, seed_used, err = assemble_workflow(scene, project, characters, locations)
+                if err:
+                    scene["status"] = "error"
+                    scene["error"]  = err
+                else:
+                    client_id = str(uuid.uuid4())
+                    result    = comfy_post("/prompt", {"prompt": workflow, "client_id": client_id})
+                    prompt_id = result.get("prompt_id")
+                    if prompt_id:
+                        scene["status"]    = "generating"
+                        scene["prompt_id"] = prompt_id
+                        scene["last_seed"] = seed_used
+                    else:
+                        scene["status"] = "error"
+                        scene["error"]  = result.get("error", "ComfyUI submission failed")
+                save_scene(pid, sid, scene)
+
+            scene["id"] = sid
+            return self.send_json(scene, 201)
+
+        # Generate existing scene
         if (len(parts) == 6 and parts[:2] == ["api", "projects"]
                 and parts[3] == "scenes" and parts[5] == "generate"):
-            project_id, scene_id = parts[2], parts[4]
-            project = get_project(project_id)
-            scene = get_scene(project_id, scene_id)
+            pid, sid = parts[2], parts[4]
+            project  = get_project(pid)
+            scene    = get_scene(pid, sid)
             if not project or not scene:
-                return self.send_error_json("Project or scene not found", 404)
-            characters = list_characters(project_id)
-            workflow, err = assemble_workflow(scene, project, characters)
+                return self.send_err("Not found", 404)
+            characters = list_characters(pid)
+            locations  = list_locations(pid)
+            workflow, seed_used, err = assemble_workflow(scene, project, characters, locations)
             if err:
-                return self.send_error_json(err)
+                return self.send_err(err)
             client_id = str(uuid.uuid4())
-            result = comfy_post("/prompt", {"prompt": workflow, "client_id": client_id})
+            result    = comfy_post("/prompt", {"prompt": workflow, "client_id": client_id})
             prompt_id = result.get("prompt_id")
             if prompt_id:
-                scene["status"] = "generating"
+                scene["status"]    = "generating"
                 scene["prompt_id"] = prompt_id
+                scene["last_seed"] = seed_used
             else:
                 scene["status"] = "error"
-                scene["error"] = result.get("error", "ComfyUI submission failed")
-            save_scene(project_id, scene_id, scene)
+                scene["error"]  = result.get("error", "Failed")
+            save_scene(pid, sid, scene)
+            scene["id"] = sid
             return self.send_json(scene)
 
-        self.send_error_json("Not found", 404)
+        self.send_err("Not found", 404)
+
+    # ── PUT ────────────────────────────────────────────────────────────────────
 
     def do_PUT(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path  = urlparse(self.path).path.rstrip("/")
         parts = [p for p in path.split("/") if p]
 
-        # PUT /api/projects/:id
+        # Project
         if len(parts) == 3 and parts[:2] == ["api", "projects"]:
-            project_id = parts[2]
-            existing = get_project(project_id)
+            pid = parts[2]
+            existing = get_project(pid)
             if not existing:
-                return self.send_error_json("Project not found", 404)
-            body = self.read_json_body()
+                return self.send_err("Not found", 404)
+            body = self.read_json()
             existing.update({k: v for k, v in body.items() if k != "id"})
-            save_project(project_id, existing)
+            save_project(pid, existing)
             return self.send_json(existing)
 
-        # PUT /api/projects/:id/characters/:char_id
-        if (len(parts) == 5 and parts[:2] == ["api", "projects"]
-                and parts[3] == "characters"):
-            project_id, char_id = parts[2], parts[4]
-            existing = get_character(project_id, char_id)
-            if not existing:
-                return self.send_error_json("Character not found", 404)
-            body = self.read_json_body()
-            existing.update({k: v for k, v in body.items() if k not in ("id", "project_id", "refs")})
-            save_character(project_id, char_id, existing)
-            return self.send_json(existing)
+        # Characters / Locations
+        for kind in ("characters", "locations"):
+            if (len(parts) == 5 and parts[:2] == ["api", "projects"] and parts[3] == kind):
+                pid, aid = parts[2], parts[4]
+                fn_get  = get_character if kind == "characters" else get_location
+                fn_save = save_character if kind == "characters" else save_location
+                existing = fn_get(pid, aid)
+                if not existing:
+                    return self.send_err("Not found", 404)
+                body = self.read_json()
+                existing.update({k: v for k, v in body.items() if k not in ("id", "refs")})
+                fn_save(pid, aid, existing)
+                return self.send_json(existing)
 
-        # PUT /api/projects/:id/scenes/:scene_id
-        if (len(parts) == 5 and parts[:2] == ["api", "projects"]
-                and parts[3] == "scenes"):
-            project_id, scene_id = parts[2], parts[4]
-            existing = get_scene(project_id, scene_id)
+        # Scenes
+        if (len(parts) == 5 and parts[:2] == ["api", "projects"] and parts[3] == "scenes"):
+            pid, sid = parts[2], parts[4]
+            existing = get_scene(pid, sid)
             if not existing:
-                return self.send_error_json("Scene not found", 404)
-            body = self.read_json_body()
+                return self.send_err("Not found", 404)
+            body = self.read_json()
             existing.update({k: v for k, v in body.items() if k != "id"})
-            save_scene(project_id, scene_id, existing)
+            save_scene(pid, sid, existing)
+            existing["id"] = sid
             return self.send_json(existing)
 
-        self.send_error_json("Not found", 404)
+        # Scene reorder: PUT /api/projects/:id/scenes/reorder  body: [{id, sequence}]
+        if (len(parts) == 5 and parts[:2] == ["api", "projects"]
+                and parts[3] == "scenes" and parts[4] == "reorder"):
+            pid  = parts[2]
+            body = self.read_json()  # list of {id, sequence}
+            for item in body:
+                s = get_scene(pid, item["id"])
+                if s:
+                    s["sequence"] = item["sequence"]
+                    save_scene(pid, item["id"], s)
+            return self.send_json({"ok": True})
+
+        self.send_err("Not found", 404)
+
+    # ── DELETE ─────────────────────────────────────────────────────────────────
 
     def do_DELETE(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path  = urlparse(self.path).path.rstrip("/")
         parts = [p for p in path.split("/") if p]
 
         if len(parts) == 3 and parts[:2] == ["api", "projects"]:
             delete_project(parts[2])
             return self.send_json({"ok": True})
 
-        if (len(parts) == 5 and parts[:2] == ["api", "projects"]
-                and parts[3] == "characters"):
-            delete_character(parts[2], parts[4])
-            return self.send_json({"ok": True})
+        for kind in ("characters", "locations"):
+            if (len(parts) == 5 and parts[:2] == ["api", "projects"] and parts[3] == kind):
+                fn = delete_character if kind == "characters" else delete_location
+                fn(parts[2], parts[4])
+                return self.send_json({"ok": True})
+            if (len(parts) == 7 and parts[:2] == ["api", "projects"]
+                    and parts[3] == kind and parts[5] == "refs"):
+                ref = PROJECTS_DIR / parts[2] / kind / parts[4] / "refs" / parts[6]
+                if ref.exists():
+                    ref.unlink()
+                return self.send_json({"ok": True})
 
-        if (len(parts) == 5 and parts[:2] == ["api", "projects"]
-                and parts[3] == "scenes"):
+        if (len(parts) == 5 and parts[:2] == ["api", "projects"] and parts[3] == "scenes"):
             delete_scene(parts[2], parts[4])
             return self.send_json({"ok": True})
 
-        # DELETE /api/projects/:id/characters/:char_id/refs/:filename
-        if (len(parts) == 7 and parts[:2] == ["api", "projects"]
-                and parts[3] == "characters" and parts[5] == "refs"):
-            ref_path = PROJECTS_DIR / parts[2] / "characters" / parts[4] / "refs" / parts[6]
-            if ref_path.exists():
-                ref_path.unlink()
-            return self.send_json({"ok": True})
-
-        self.send_error_json("Not found", 404)
+        self.send_err("Not found", 404)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print(f"Studio server starting on http://localhost:{STUDIO_PORT}")
-    print(f"ComfyUI expected at {COMFYUI_URL}")
+    print(f"Studio  →  http://localhost:{STUDIO_PORT}")
+    print(f"ComfyUI →  {COMFYUI_URL}")
     server = HTTPServer(("0.0.0.0", STUDIO_PORT), StudioHandler)
     try:
         server.serve_forever()

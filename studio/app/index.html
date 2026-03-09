@@ -378,6 +378,130 @@
     /* ── Style settings ── */
     .style-grid { display: grid; gap: 14px; }
 
+    /* ── Style preset buttons ── */
+    .preset-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+    .preset-btn {
+      padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all .15s;
+    }
+    .preset-btn:hover { border-color: var(--border2); color: var(--text); }
+    .preset-btn.active { border-color: var(--accent); background: #7c6aff22; color: var(--text); }
+
+    /* ── Shot type / camera grid ── */
+    .choice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .choice-btn {
+      padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text2); font-size: 12px;
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .choice-btn:hover { border-color: var(--border2); color: var(--text); }
+    .choice-btn.selected { border-color: var(--accent); background: #7c6aff22; color: var(--text); }
+
+    /* ── Aspect ratio selector ── */
+    .aspect-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .aspect-btn {
+      padding: 8px 6px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text2); font-size: 11px; font-weight: 500;
+      cursor: pointer; transition: all .15s; text-align: center;
+    }
+    .aspect-btn:hover { border-color: var(--border2); color: var(--text); }
+    .aspect-btn.selected { border-color: var(--accent); background: #7c6aff22; color: var(--text); }
+    .aspect-btn .ratio-label { font-size: 13px; font-weight: 700; display: block; margin-bottom: 2px; }
+    .aspect-btn .ratio-sub { font-size: 10px; color: var(--text3); }
+    .aspect-btn.selected .ratio-sub { color: var(--text2); }
+
+    /* ── Review status pills ── */
+    .review-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+    .review-btn {
+      padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all .15s;
+    }
+    .review-btn:hover { border-color: var(--border2); color: var(--text); }
+    .review-btn[data-status="draft"].active        { border-color: var(--text3); color: var(--text2); background: var(--surface3); }
+    .review-btn[data-status="in_review"].active    { border-color: var(--warn); color: var(--warn); background: #f59e0b1a; }
+    .review-btn[data-status="approved"].active     { border-color: var(--success); color: var(--success); background: #22c55e1a; }
+    .review-btn[data-status="needs_revision"].active { border-color: var(--error); color: var(--error); background: #ef44441a; }
+    .tag.approved { background: #22c55e22; color: var(--success); }
+    .tag.in_review { background: #f59e0b22; color: var(--warn); }
+    .tag.needs_revision { background: #ef444422; color: var(--error); }
+
+    /* ── Storyboard grid ── */
+    .storyboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+    }
+    .storyboard-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .storyboard-card:hover { border-color: var(--border2); }
+    .storyboard-card.approved { border-color: #22c55e55; }
+    .storyboard-thumb {
+      height: 120px; background: var(--surface2); overflow: hidden; position: relative;
+    }
+    .storyboard-thumb img, .storyboard-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .storyboard-thumb-placeholder {
+      width: 100%; height: 100%; display: flex; align-items: center;
+      justify-content: center; font-size: 28px; color: var(--text3);
+    }
+    .storyboard-seq {
+      position: absolute; top: 6px; left: 6px;
+      background: rgba(0,0,0,.7); color: #fff; font-size: 11px; font-weight: 700;
+      padding: 2px 7px; border-radius: 4px;
+    }
+    .storyboard-info { padding: 10px 12px; }
+    .storyboard-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .storyboard-status { font-size: 11px; }
+
+    /* ── Scene reorder buttons ── */
+    .reorder-btns { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; }
+    .reorder-btn {
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      font-size: 12px; padding: 2px 4px; border-radius: 3px; line-height: 1;
+      transition: color .1s, background .1s;
+    }
+    .reorder-btn:hover { color: var(--text2); background: var(--surface3); }
+
+    /* ── Model input row ── */
+    .model-row { display: flex; gap: 8px; align-items: flex-start; }
+    .model-row input { flex: 1; }
+
+    /* ── Seed info in detail ── */
+    .seed-bar {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 12px; font-size: 12px; color: var(--text2);
+    }
+    .seed-bar code { color: var(--text); font-family: monospace; font-size: 13px; }
+
+    /* ── Modal section labels ── */
+    .modal-section {
+      font-size: 11px; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text3);
+      margin-bottom: 10px; margin-top: 4px;
+    }
+    .modal-divider {
+      border: none; border-top: 1px solid var(--border);
+      margin: 16px 0;
+    }
+
+    /* ── Collapsible advanced ── */
+    details summary {
+      cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text2);
+      padding: 6px 0; list-style: none; display: flex; align-items: center; gap: 6px;
+    }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::before { content: '▶'; font-size: 9px; transition: transform .15s; }
+    details[open] summary::before { transform: rotate(90deg); }
+    details .details-body { padding-top: 12px; display: flex; flex-direction: column; gap: 14px; }
+
     /* ── Spinner ── */
     .spinner {
       display: inline-block; width: 14px; height: 14px;
@@ -430,6 +554,10 @@
         <span class="nav-icon">👤</span> Characters
         <span class="nav-count" id="chars-count">0</span>
       </div>
+      <div class="nav-item" data-view="locations" onclick="showView('locations')">
+        <span class="nav-icon">📍</span> Locations
+        <span class="nav-count" id="locs-count">0</span>
+      </div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">Settings</div>
@@ -460,7 +588,13 @@
           <div class="view-title">Scenes</div>
           <div class="view-sub">Each scene generates one or more stills or clips</div>
         </div>
-        <button class="btn btn-primary" onclick="openNewSceneModal()">+ New scene</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <button id="view-list-btn" class="btn btn-sm" style="border-radius:0;border:none;background:var(--surface3);color:var(--text)" onclick="setSceneDisplay('list')">☰ List</button>
+            <button id="view-board-btn" class="btn btn-sm" style="border-radius:0;border:none;background:transparent;color:var(--text2)" onclick="setSceneDisplay('storyboard')">⊞ Storyboard</button>
+          </div>
+          <button class="btn btn-primary" onclick="openNewSceneModal()">+ New scene</button>
+        </div>
       </div>
       <div id="scenes-list"></div>
     </div>
@@ -477,6 +611,18 @@
       <div id="chars-grid" class="card-grid"></div>
     </div>
 
+    <!-- Locations view -->
+    <div class="view" id="view-locations">
+      <div class="view-header">
+        <div>
+          <div class="view-title">Locations</div>
+          <div class="view-sub">Settings, environments, time of day — applied to scenes for visual consistency</div>
+        </div>
+        <button class="btn btn-primary" onclick="openNewLocModal()">+ Add location</button>
+      </div>
+      <div id="locs-grid" class="card-grid"></div>
+    </div>
+
     <!-- Style view -->
     <div class="view" id="view-style">
       <div class="view-header">
@@ -487,6 +633,24 @@
         <button class="btn btn-primary" onclick="saveStyle()">Save</button>
       </div>
       <div class="card style-grid">
+        <div class="form-group">
+          <label>Quick presets — click to fill in the fields below</label>
+          <div class="preset-strip" id="style-presets-strip">
+            <button class="preset-btn" data-preset="cinematic" onclick="applyStylePreset('cinematic')">🎬 Cinematic</button>
+            <button class="preset-btn" data-preset="anime" onclick="applyStylePreset('anime')">✨ Anime</button>
+            <button class="preset-btn" data-preset="noir" onclick="applyStylePreset('noir')">🌑 Film Noir</button>
+            <button class="preset-btn" data-preset="illustration" onclick="applyStylePreset('illustration')">🎨 Illustration</button>
+            <button class="preset-btn" data-preset="documentary" onclick="applyStylePreset('documentary')">📽 Documentary</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Base model (checkpoint filename as it appears in ComfyUI)</label>
+          <div class="model-row">
+            <input type="text" id="style-checkpoint" list="checkpoint-list" placeholder="e.g. realistic_vision_v5.safetensors">
+            <datalist id="checkpoint-list"></datalist>
+            <button class="btn btn-ghost btn-sm" onclick="loadCheckpoints()" style="white-space:nowrap">Load from ComfyUI</button>
+          </div>
+        </div>
         <div class="form-group">
           <label>Style prompt prefix — added before every scene description</label>
           <textarea id="style-prefix" rows="3" placeholder="e.g. cinematic, film noir, anamorphic lens, 35mm…"></textarea>
@@ -609,25 +773,98 @@
 
 <!-- New scene -->
 <div class="modal-backdrop" id="scene-modal">
-  <div class="modal" style="max-width:560px">
+  <div class="modal" style="max-width:600px">
     <div class="modal-title">New scene</div>
+
+    <div class="modal-section">Scene</div>
     <div class="form-group">
-      <label>Scene title (optional)</label>
+      <label>Title (optional)</label>
       <input type="text" id="scene-title" placeholder="e.g. Rooftop confrontation">
     </div>
     <div class="form-group">
-      <label>Scene description</label>
-      <textarea id="scene-desc" rows="4" placeholder="Describe what's happening — setting, action, mood, camera angle…"></textarea>
+      <label>Description — what's happening, the mood, the action</label>
+      <textarea id="scene-desc" rows="3" placeholder="e.g. Elena stands at the edge of the rain-soaked rooftop, city lights blurring below her…"></textarea>
     </div>
+
+    <hr class="modal-divider">
+    <div class="modal-section">Cast & Location</div>
     <div class="form-group">
       <label>Characters in this scene</label>
-      <div class="char-chips" id="scene-char-chips"></div>
+      <div class="char-chips" id="scene-char-chips"><span style="color:var(--text3);font-size:12px">No characters yet</span></div>
+    </div>
+    <div class="form-group">
+      <label>Location</label>
+      <div class="char-chips" id="scene-loc-chips"><span style="color:var(--text3);font-size:12px">No locations yet</span></div>
+    </div>
+
+    <hr class="modal-divider">
+    <div class="modal-section">Cinematography</div>
+    <div class="form-group">
+      <label>Shot type</label>
+      <div class="choice-grid" id="shot-type-grid">
+        <div class="choice-btn" data-shot="" onclick="selectShot('')">None</div>
+        <div class="choice-btn" data-shot="wide" onclick="selectShot('wide')">Wide Shot</div>
+        <div class="choice-btn" data-shot="medium" onclick="selectShot('medium')">Medium Shot</div>
+        <div class="choice-btn" data-shot="close_up" onclick="selectShot('close_up')">Close-Up</div>
+        <div class="choice-btn" data-shot="extreme_close_up" onclick="selectShot('extreme_close_up')">Extreme CU</div>
+        <div class="choice-btn" data-shot="over_shoulder" onclick="selectShot('over_shoulder')">Over Shoulder</div>
+        <div class="choice-btn" data-shot="pov" onclick="selectShot('pov')">POV</div>
+        <div class="choice-btn" data-shot="aerial" onclick="selectShot('aerial')">Aerial / Drone</div>
+        <div class="choice-btn" data-shot="two_shot" onclick="selectShot('two_shot')">Two-Shot</div>
+      </div>
+    </div>
+    <div class="form-group" id="camera-group">
+      <label>Camera movement <span style="color:var(--text3);font-weight:400">(mainly for video)</span></label>
+      <div class="choice-grid" id="camera-grid">
+        <div class="choice-btn selected" data-cam="" onclick="selectCamera('')">Static</div>
+        <div class="choice-btn" data-cam="push_in" onclick="selectCamera('push_in')">Push In</div>
+        <div class="choice-btn" data-cam="pull_out" onclick="selectCamera('pull_out')">Pull Out</div>
+        <div class="choice-btn" data-cam="pan" onclick="selectCamera('pan')">Pan</div>
+        <div class="choice-btn" data-cam="handheld" onclick="selectCamera('handheld')">Handheld</div>
+        <div class="choice-btn" data-cam="crane_up" onclick="selectCamera('crane_up')">Crane Up</div>
+      </div>
+    </div>
+
+    <hr class="modal-divider">
+    <div class="modal-section">Format</div>
+    <div class="form-group">
+      <label>Aspect ratio</label>
+      <div class="aspect-grid" id="aspect-grid">
+        <div class="aspect-btn" data-aspect="2.39:1" onclick="selectAspect('2.39:1')">
+          <span class="ratio-label">2.39:1</span>
+          <span class="ratio-sub">Anamorphic</span>
+        </div>
+        <div class="aspect-btn" data-aspect="1.85:1" onclick="selectAspect('1.85:1')">
+          <span class="ratio-label">1.85:1</span>
+          <span class="ratio-sub">Flat Theatrical</span>
+        </div>
+        <div class="aspect-btn selected" data-aspect="16:9" onclick="selectAspect('16:9')">
+          <span class="ratio-label">16:9</span>
+          <span class="ratio-sub">Widescreen HD</span>
+        </div>
+        <div class="aspect-btn" data-aspect="4:3" onclick="selectAspect('4:3')">
+          <span class="ratio-label">4:3</span>
+          <span class="ratio-sub">Classic / TV</span>
+        </div>
+        <div class="aspect-btn" data-aspect="9:16" onclick="selectAspect('9:16')">
+          <span class="ratio-label">9:16</span>
+          <span class="ratio-sub">Vertical</span>
+        </div>
+        <div class="aspect-btn" data-aspect="1:1" onclick="selectAspect('1:1')">
+          <span class="ratio-label">1:1</span>
+          <span class="ratio-sub">Square</span>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Resolution</label>
+      <div class="choice-grid" id="resolution-grid"></div>
     </div>
     <div class="form-group">
       <label>Output</label>
       <div class="output-toggle">
         <div class="output-btn selected" data-type="still" onclick="selectOutput('still')">
-          <span class="output-icon">🖼</span>Still
+          <span class="output-icon">🖼</span>Still image
         </div>
         <div class="output-btn" data-type="video" onclick="selectOutput('video')">
           <span class="output-icon">🎬</span>Video clip
@@ -637,9 +874,28 @@
         </div>
       </div>
     </div>
-    <div class="modal-actions">
+
+    <details>
+      <summary>Advanced</summary>
+      <div class="details-body">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Variations — how many to generate at once</label>
+          <div class="choice-grid">
+            <div class="choice-btn selected" data-batch="1" onclick="selectBatch(1)">1</div>
+            <div class="choice-btn" data-batch="2" onclick="selectBatch(2)">2</div>
+            <div class="choice-btn" data-batch="4" onclick="selectBatch(4)">4</div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Seed <span style="font-weight:400;color:var(--text3)">— leave blank for a different result every time</span></label>
+          <input type="text" id="scene-seed" placeholder="blank = random" style="width:180px" pattern="[0-9]*">
+        </div>
+      </div>
+    </details>
+
+    <div class="modal-actions" style="margin-top:20px">
       <button class="btn btn-ghost" onclick="closeModal('scene-modal')">Cancel</button>
-      <button class="btn btn-ghost" onclick="createScene(false)">Save (don't generate)</button>
+      <button class="btn btn-ghost" onclick="createScene(false)">Save draft</button>
       <button class="btn btn-primary" onclick="createScene(true)">Generate now</button>
     </div>
   </div>
@@ -647,646 +903,809 @@
 
 <!-- Scene detail -->
 <div class="modal-backdrop" id="scene-detail-modal">
-  <div class="modal" style="max-width:600px">
+  <div class="modal" style="max-width:640px">
     <div class="modal-title" id="sd-title"></div>
-    <div id="sd-desc" style="color:var(--text2);margin-bottom:16px;font-size:13px"></div>
-    <div id="sd-meta" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+    <div id="sd-desc" style="color:var(--text2);margin-bottom:12px;font-size:13px"></div>
+    <div id="sd-meta" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+    <div class="modal-section">Review status</div>
+    <div class="review-strip" id="sd-review-strip" style="margin-bottom:20px">
+      <button class="review-btn active" data-status="draft" onclick="setReviewStatus('draft')">Draft</button>
+      <button class="review-btn" data-status="in_review" onclick="setReviewStatus('in_review')">In Review</button>
+      <button class="review-btn" data-status="approved" onclick="setReviewStatus('approved')">✓ Approved</button>
+      <button class="review-btn" data-status="needs_revision" onclick="setReviewStatus('needs_revision')">Needs Revision</button>
+    </div>
+
+    <div id="sd-seed-bar" style="display:none;margin-bottom:16px"></div>
+
+    <div class="modal-section">Outputs</div>
     <div id="sd-outputs"></div>
-    <div class="modal-actions">
-      <button class="btn btn-danger btn-sm" style="margin-right:auto" id="sd-delete-btn" onclick="deleteSceneFromDetail()">Delete scene</button>
-      <button class="btn btn-ghost" id="sd-regen-btn" onclick="regenerateScene()">Regenerate</button>
+
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn btn-danger btn-sm" style="margin-right:auto" onclick="deleteSceneFromDetail()">Delete</button>
+      <button class="btn btn-ghost btn-sm" id="sd-regen-same-btn" style="display:none" onclick="regenerateScene(true)">Regenerate (same seed)</button>
+      <button class="btn btn-ghost" onclick="regenerateScene(false)">Regenerate</button>
       <button class="btn btn-ghost" onclick="closeModal('scene-detail-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Location modal -->
+<div class="modal-backdrop" id="loc-modal">
+  <div class="modal">
+    <div class="modal-title" id="loc-modal-title">Add location</div>
+    <div class="form-group">
+      <label>Location name</label>
+      <input type="text" id="loc-name" placeholder="e.g. Rooftop — downtown Tokyo">
+    </div>
+    <div class="form-group">
+      <label>Description <span style="font-weight:400;color:var(--text3)">— used in the prompt to set the scene</span></label>
+      <textarea id="loc-desc" rows="2" placeholder="e.g. rain-soaked rooftop overlooking neon-lit streets at night"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Time of day</label>
+        <select id="loc-time">
+          <option value="">— Any —</option>
+          <option>Dawn</option>
+          <option>Morning</option>
+          <option>Day</option>
+          <option>Golden Hour</option>
+          <option>Dusk</option>
+          <option>Night</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Weather</label>
+        <select id="loc-weather">
+          <option value="">— Any —</option>
+          <option>Clear</option>
+          <option>Overcast</option>
+          <option>Rain</option>
+          <option>Heavy Rain</option>
+          <option>Snow</option>
+          <option>Fog</option>
+          <option>Storm</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reference photos <span style="font-weight:400;color:var(--text3)">(optional — for visual reference)</span></label>
+      <div class="upload-zone" id="loc-upload-zone" onclick="document.getElementById('loc-ref-input').click()"
+           ondrop="onLocRefDrop(event)" ondragover="onLocRefDragOver(event)" ondragleave="onLocRefDragLeave(event)">
+        <input type="file" id="loc-ref-input" accept="image/*" multiple onchange="onLocRefFilesSelected(this.files)">
+        <div>Drop reference images here or click to browse</div>
+      </div>
+      <div class="upload-previews" id="loc-ref-previews"></div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="loc-notes" placeholder="e.g. used in Act 2 flashbacks">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" id="loc-delete-btn" style="margin-right:auto;display:none" onclick="deleteLocation()">Delete</button>
+      <button class="btn btn-ghost" onclick="closeModal('loc-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLocation()">Save location</button>
     </div>
   </div>
 </div>
 
 
 <script>
-// ── State ───────────────────────────────────────────────────────────────────
-let state = {
-  project: null,
-  projects: [],
-  characters: [],
-  scenes: [],
-  currentView: 'scenes',
-  charRefFiles: [],   // pending upload files
-  editingChar: null,  // char id being edited
-  editingScene: null, // scene id for detail modal
-  selectedOutputType: 'still',
-  selectedChars: new Set(),
-  pollTimers: {},
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  project: null, projects: [], characters: [], locations: [], scenes: [],
+  currentView: 'scenes', scenesDisplayMode: 'list',
+  charRefFiles: [], locRefFiles: [],
+  editingChar: null, editingLoc: null, editingScene: null,
+  selectedOutputType: 'still', selectedAspect: '16:9', selectedResolution: '1080p',
+  selectedChars: new Set(), selectedLocs: new Set(),
+  selectedShotType: '', selectedCamera: '', selectedBatch: 1,
+  pollTimers: {}, resolutions: {}, stylePresets: {},
 };
 
-// ── API helpers ──────────────────────────────────────────────────────────────
+// ── API ───────────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
   const opts = { method, headers: {} };
-  if (body instanceof FormData) {
-    opts.body = body;
-  } else if (body) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(body);
-  }
+  if (body instanceof FormData) { opts.body = body; }
+  else if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const r = await fetch('/api' + path, opts);
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ error: r.statusText }));
-    throw new Error(err.error || r.statusText);
-  }
+  if (!r.ok) { const e = await r.json().catch(() => ({ error: r.statusText })); throw new Error(e.error || r.statusText); }
   return r.json();
 }
 
-// ── Bootstrap ────────────────────────────────────────────────────────────────
+// ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   checkComfyStatus();
   setInterval(checkComfyStatus, 10000);
+  [state.resolutions, state.stylePresets] = await Promise.all([
+    api('GET', '/resolutions').catch(() => {}),
+    api('GET', '/style_presets').catch(() => {}),
+  ]);
+  renderResolutionGrid();
 
-  const projects = await api('GET', '/projects').catch(() => []);
-  state.projects = projects;
-
+  state.projects = await api('GET', '/projects').catch(() => []);
   const lastId = localStorage.getItem('studio_project');
-  const found = projects.find(p => p.id === lastId);
-  if (found) {
-    await selectProject(found.id, false);
-  } else if (projects.length > 0) {
-    await selectProject(projects[0].id, false);
-  }
-
+  const found = state.projects.find(p => p.id === lastId);
+  if (found) await selectProject(found.id, false);
+  else if (state.projects.length > 0) await selectProject(state.projects[0].id, false);
   renderProjects();
   updateNavCounts();
 }
 
 async function checkComfyStatus() {
-  try {
-    const s = await api('GET', '/status');
-    const ok = s.comfyui;
-    document.getElementById('comfy-dot').className = 'dot ' + (ok ? 'ok' : 'err');
-    document.getElementById('comfy-label').textContent = ok ? 'ComfyUI connected' : 'ComfyUI offline';
-  } catch {
-    document.getElementById('comfy-dot').className = 'dot err';
-    document.getElementById('comfy-label').textContent = 'ComfyUI offline';
-  }
+  const s = await api('GET', '/status').catch(() => ({}));
+  document.getElementById('comfy-dot').className = 'dot ' + (s.comfyui ? 'ok' : 'err');
+  document.getElementById('comfy-label').textContent = s.comfyui ? 'ComfyUI connected' : 'ComfyUI offline';
 }
 
-// ── Project management ───────────────────────────────────────────────────────
-async function selectProject(id, navigate = true) {
+// ── Project ───────────────────────────────────────────────────────────────────
+async function selectProject(id, navigate=true) {
   try {
     state.project = await api('GET', `/projects/${id}`);
     localStorage.setItem('studio_project', id);
     document.getElementById('project-name').textContent = state.project.name;
     document.getElementById('project-name').style.color = 'var(--text)';
-
-    state.characters = await api('GET', `/projects/${id}/characters`);
-    state.scenes = await api('GET', `/projects/${id}/scenes`);
-
-    // Start polling for any in-progress scenes
+    [state.characters, state.locations, state.scenes] = await Promise.all([
+      api('GET', `/projects/${id}/characters`),
+      api('GET', `/projects/${id}/locations`),
+      api('GET', `/projects/${id}/scenes`),
+    ]);
     state.scenes.filter(s => s.status === 'generating').forEach(s => startPolling(s.id));
-
-    renderChars();
-    renderScenes();
+    renderChars(); renderLocs(); renderScenes();
     updateNavCounts();
-
-    // Load style
     const style = state.project.style || {};
     document.getElementById('style-prefix').value = style.prompt_prefix || '';
     document.getElementById('style-suffix').value = style.prompt_suffix || '';
     document.getElementById('style-negative').value = style.negative_prompt || '';
-
-    // Show project content
+    document.getElementById('style-checkpoint').value = style.checkpoint || '';
     document.getElementById('no-project').style.display = 'none';
     if (navigate) showView(state.currentView);
-
-  } catch (e) {
-    toast('Could not load project: ' + e.message, 'error');
-  }
+  } catch(e) { toast('Could not load project: ' + e.message, 'error'); }
 }
 
 function openProjectPicker() {
   const el = document.getElementById('picker-projects-list');
-  el.innerHTML = '';
-  if (state.projects.length === 0) {
-    el.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px">No projects yet</div>';
-  } else {
-    state.projects.forEach(p => {
-      const div = document.createElement('div');
-      div.className = 'project-card' + (state.project && state.project.id === p.id ? ' selected' : '');
-      div.innerHTML = `<div class="project-card-name">${p.name}</div>
-        <div class="project-card-desc">${p.description || ''}</div>`;
-      div.onclick = async () => {
-        closeModal('project-picker-modal');
-        await selectProject(p.id);
-      };
-      el.appendChild(div);
-    });
-  }
+  el.innerHTML = state.projects.length === 0
+    ? '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px">No projects yet</div>'
+    : '';
+  state.projects.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'project-card' + (state.project?.id === p.id ? ' selected' : '');
+    div.innerHTML = `<div class="project-card-name">${p.name}</div><div class="project-card-desc">${p.description||''}</div>`;
+    div.onclick = async () => { closeModal('project-picker-modal'); await selectProject(p.id); };
+    el.appendChild(div);
+  });
   openModal('project-picker-modal');
 }
-
 function openNewProjectModal() {
   document.getElementById('np-name').value = '';
   document.getElementById('np-desc').value = '';
   openModal('new-project-modal');
   setTimeout(() => document.getElementById('np-name').focus(), 100);
 }
-
 async function createProject() {
   const name = document.getElementById('np-name').value.trim();
-  if (!name) { toast('Please enter a project name', 'error'); return; }
+  if (!name) return toast('Project name required', 'error');
   try {
     const p = await api('POST', '/projects', { name, description: document.getElementById('np-desc').value });
-    state.projects.push(p);
-    closeModal('new-project-modal');
-    closeModal('project-picker-modal');
-    renderProjects();
-    await selectProject(p.id);
-    showView('scenes');
+    state.projects.push(p); closeModal('new-project-modal'); closeModal('project-picker-modal');
+    renderProjects(); await selectProject(p.id); showView('scenes');
     toast('Project created', 'success');
-  } catch (e) { toast(e.message, 'error'); }
+  } catch(e) { toast(e.message, 'error'); }
 }
-
 function renderProjects() {
   const grid = document.getElementById('projects-grid');
-  if (state.projects.length === 0) {
-    grid.innerHTML = '<div class="empty"><div class="empty-icon">📁</div><div class="empty-title">No projects yet</div><div class="empty-sub">Create your first project to get started</div></div>';
-    return;
-  }
+  if (!state.projects.length) { grid.innerHTML = '<div class="empty"><div class="empty-icon">📁</div><div class="empty-title">No projects yet</div></div>'; return; }
   grid.innerHTML = '';
   state.projects.forEach(p => {
     const div = document.createElement('div');
-    div.className = 'project-card' + (state.project && state.project.id === p.id ? ' selected' : '');
-    div.innerHTML = `
-      <div class="project-card-name">${p.name}</div>
-      <div class="project-card-desc">${p.description || ''}</div>
-      <div class="project-card-meta">Created ${p.created_at ? p.created_at.slice(0,10) : ''}</div>`;
+    div.className = 'project-card' + (state.project?.id === p.id ? ' selected' : '');
+    div.innerHTML = `<div class="project-card-name">${p.name}</div><div class="project-card-desc">${p.description||''}</div><div class="project-card-meta">${p.created_at?.slice(0,10)||''}</div>`;
     div.onclick = () => selectProject(p.id);
     grid.appendChild(div);
   });
 }
 
-// ── Style ────────────────────────────────────────────────────────────────────
+// ── Style ─────────────────────────────────────────────────────────────────────
 async function saveStyle() {
   if (!state.project) return;
-  const style = {
-    prompt_prefix: document.getElementById('style-prefix').value,
-    prompt_suffix: document.getElementById('style-suffix').value,
+  state.project.style = {
+    prompt_prefix:  document.getElementById('style-prefix').value,
+    prompt_suffix:  document.getElementById('style-suffix').value,
     negative_prompt: document.getElementById('style-negative').value,
+    checkpoint:     document.getElementById('style-checkpoint').value,
   };
-  state.project.style = style;
   await api('PUT', `/projects/${state.project.id}`, state.project);
   toast('Style saved', 'success');
 }
+async function applyStylePreset(name) {
+  const preset = state.stylePresets[name];
+  if (!preset) return;
+  document.getElementById('style-prefix').value   = preset.prompt_prefix || '';
+  document.getElementById('style-suffix').value   = preset.prompt_suffix || '';
+  document.getElementById('style-negative').value = preset.negative_prompt || '';
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+}
+async function loadCheckpoints() {
+  const list = await api('GET', '/comfy/checkpoints').catch(() => []);
+  const dl = document.getElementById('checkpoint-list');
+  dl.innerHTML = list.map(c => `<option value="${c}">`).join('');
+  if (list.length > 0) toast(`${list.length} model${list.length!==1?'s':''} loaded`);
+  else toast('No checkpoints found — is ComfyUI running?', 'error');
+}
 
-// ── Characters ───────────────────────────────────────────────────────────────
+// ── Characters ────────────────────────────────────────────────────────────────
 function renderChars() {
   const grid = document.getElementById('chars-grid');
-  if (!state.project) { grid.innerHTML = ''; return; }
-  if (state.characters.length === 0) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
-      <div class="empty-icon">👤</div>
-      <div class="empty-title">No characters yet</div>
-      <div class="empty-sub">Add your cast — reference photos or LoRAs</div>
-    </div>`;
+  if (!state.project) { grid.innerHTML=''; return; }
+  if (!state.characters.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">👤</div><div class="empty-title">No characters yet</div><div class="empty-sub">Add your cast — reference photos or LoRAs</div></div>';
     return;
   }
   grid.innerHTML = '';
   state.characters.forEach(char => {
-    const firstRef = char.refs && char.refs.length > 0 ? char.refs[0] : null;
-    const thumbSrc = firstRef
-      ? `/api/projects/${state.project.id}/characters/${char.id}/refs/${firstRef}`
-      : null;
+    const ref = char.refs?.[0];
+    const src = ref ? `/api/projects/${state.project.id}/characters/${char.id}/refs/${ref}` : null;
     const div = document.createElement('div');
     div.className = 'char-card';
-    div.innerHTML = `
-      <div class="char-thumb">
-        ${thumbSrc
-          ? `<img src="${thumbSrc}" alt="${char.name}">`
-          : `<div class="char-thumb-placeholder">👤</div>`}
-      </div>
-      <div class="char-info">
-        <div class="char-name">${char.name}</div>
-        <div class="char-type">
-          ${char.type === 'lora' ? '🎯 LoRA' : '📷 Photo refs'}
-          ${char.refs ? ` · ${char.refs.length} photo${char.refs.length !== 1 ? 's' : ''}` : ''}
-        </div>
-      </div>`;
+    div.innerHTML = `<div class="char-thumb">${src ? `<img src="${src}">` : '<div class="char-thumb-placeholder">👤</div>'}</div>
+      <div class="char-info"><div class="char-name">${char.name}</div>
+      <div class="char-type">${char.type==='lora'?'🎯 LoRA':'📷 Photo refs'}${char.refs?' · '+char.refs.length+' photo'+(char.refs.length!==1?'s':''):''}</div></div>`;
     div.onclick = () => openEditCharModal(char);
     grid.appendChild(div);
   });
 }
-
 function openNewCharModal() {
-  if (!state.project) { toast('Select a project first', 'error'); return; }
-  state.editingChar = null;
-  state.charRefFiles = [];
-  document.getElementById('char-modal-title').textContent = 'Add character';
-  document.getElementById('char-name').value = '';
-  document.getElementById('char-type').value = 'photomaker';
-  document.getElementById('char-lora-file').value = '';
-  document.getElementById('char-lora-weight').value = '0.8';
-  document.getElementById('char-notes').value = '';
-  document.getElementById('char-ref-previews').innerHTML = '';
-  document.getElementById('char-delete-btn').style.display = 'none';
-  onCharTypeChange();
-  openModal('char-modal');
+  if (!state.project) return toast('Select a project first','error');
+  state.editingChar=null; state.charRefFiles=[];
+  document.getElementById('char-modal-title').textContent='Add character';
+  ['char-name','char-lora-file','char-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('char-type').value='photomaker';
+  document.getElementById('char-lora-weight').value='0.8';
+  document.getElementById('char-ref-previews').innerHTML='';
+  document.getElementById('char-delete-btn').style.display='none';
+  onCharTypeChange(); openModal('char-modal');
 }
-
 function openEditCharModal(char) {
-  state.editingChar = char.id;
-  state.charRefFiles = [];
-  document.getElementById('char-modal-title').textContent = 'Edit character';
-  document.getElementById('char-name').value = char.name;
-  document.getElementById('char-type').value = char.type || 'photomaker';
-  document.getElementById('char-lora-file').value = char.lora_file || '';
-  document.getElementById('char-lora-weight').value = char.lora_weight || 0.8;
-  document.getElementById('char-notes').value = char.notes || '';
-  document.getElementById('char-delete-btn').style.display = 'inline-flex';
-
-  // Show existing refs
-  const previews = document.getElementById('char-ref-previews');
-  previews.innerHTML = '';
-  (char.refs || []).forEach(ref => {
-    const div = document.createElement('div');
-    div.className = 'upload-preview';
-    div.innerHTML = `<img src="/api/projects/${state.project.id}/characters/${char.id}/refs/${ref}">
-      <div class="del" onclick="deleteRef('${char.id}','${ref}',this.parentNode)">✕</div>`;
-    previews.appendChild(div);
+  state.editingChar=char.id; state.charRefFiles=[];
+  document.getElementById('char-modal-title').textContent='Edit character';
+  document.getElementById('char-name').value=char.name;
+  document.getElementById('char-type').value=char.type||'photomaker';
+  document.getElementById('char-lora-file').value=char.lora_file||'';
+  document.getElementById('char-lora-weight').value=char.lora_weight||0.8;
+  document.getElementById('char-notes').value=char.notes||'';
+  document.getElementById('char-delete-btn').style.display='inline-flex';
+  const prev=document.getElementById('char-ref-previews'); prev.innerHTML='';
+  (char.refs||[]).forEach(ref => {
+    const d=document.createElement('div'); d.className='upload-preview';
+    d.innerHTML=`<img src="/api/projects/${state.project.id}/characters/${char.id}/refs/${ref}"><div class="del" onclick="deleteRef('characters','${char.id}','${ref}',this.parentNode)">✕</div>`;
+    prev.appendChild(d);
   });
-
-  onCharTypeChange();
-  openModal('char-modal');
+  onCharTypeChange(); openModal('char-modal');
 }
-
 function onCharTypeChange() {
-  const type = document.getElementById('char-type').value;
-  document.getElementById('char-photomaker-section').style.display = type === 'photomaker' ? '' : 'none';
-  document.getElementById('char-lora-section').style.display = type === 'lora' ? '' : 'none';
+  const t=document.getElementById('char-type').value;
+  document.getElementById('char-photomaker-section').style.display=t==='photomaker'?'':'none';
+  document.getElementById('char-lora-section').style.display=t==='lora'?'':'none';
 }
-
-function onRefFilesSelected(fileList) {
-  const max = 5;
-  for (let i = 0; i < fileList.length && state.charRefFiles.length < max; i++) {
-    state.charRefFiles.push(fileList[i]);
-  }
-  renderRefPreviews();
+function onRefFilesSelected(files) {
+  for(let i=0;i<files.length&&state.charRefFiles.length<5;i++) state.charRefFiles.push(files[i]);
+  renderNewRefPreviews('char-ref-previews', state.charRefFiles, 'charRefFiles');
 }
-
-function renderRefPreviews() {
-  const existing = document.getElementById('char-ref-previews');
-  // Remove new-file previews (ones without data-existing)
-  Array.from(existing.querySelectorAll('[data-new]')).forEach(el => el.remove());
-  state.charRefFiles.forEach((file, i) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const div = document.createElement('div');
-      div.className = 'upload-preview';
-      div.dataset.new = '1';
-      div.innerHTML = `<img src="${e.target.result}">
-        <div class="del" onclick="removeNewRef(${i})">✕</div>`;
-      existing.appendChild(div);
+function renderNewRefPreviews(containerId, fileArr, stateKey) {
+  const c=document.getElementById(containerId);
+  Array.from(c.querySelectorAll('[data-new]')).forEach(el=>el.remove());
+  fileArr.forEach((file,i) => {
+    const reader=new FileReader();
+    reader.onload=e => {
+      const d=document.createElement('div'); d.className='upload-preview'; d.dataset.new='1';
+      d.innerHTML=`<img src="${e.target.result}"><div class="del" onclick="state.${stateKey}.splice(${i},1);renderNewRefPreviews('${containerId}',state.${stateKey},'${stateKey}')">✕</div>`;
+      c.appendChild(d);
     };
     reader.readAsDataURL(file);
   });
 }
-
-function removeNewRef(i) {
-  state.charRefFiles.splice(i, 1);
-  renderRefPreviews();
-}
-
-async function deleteRef(charId, refName, el) {
-  await api('DELETE', `/projects/${state.project.id}/characters/${charId}/refs/${refName}`);
+async function deleteRef(kind, assetId, refName, el) {
+  await api('DELETE', `/projects/${state.project.id}/${kind}/${assetId}/refs/${refName}`);
   el.remove();
 }
-
-function onRefDragOver(e) {
-  e.preventDefault();
-  document.getElementById('char-upload-zone').classList.add('drag');
-}
-function onRefDragLeave(e) {
-  document.getElementById('char-upload-zone').classList.remove('drag');
-}
-function onRefDrop(e) {
-  e.preventDefault();
-  document.getElementById('char-upload-zone').classList.remove('drag');
-  onRefFilesSelected(e.dataTransfer.files);
-}
-
+function onRefDragOver(e) { e.preventDefault(); document.getElementById('char-upload-zone').classList.add('drag'); }
+function onRefDragLeave() { document.getElementById('char-upload-zone').classList.remove('drag'); }
+function onRefDrop(e) { e.preventDefault(); document.getElementById('char-upload-zone').classList.remove('drag'); onRefFilesSelected(e.dataTransfer.files); }
 async function saveCharacter() {
-  const name = document.getElementById('char-name').value.trim();
-  if (!name) { toast('Character name is required', 'error'); return; }
-  const type = document.getElementById('char-type').value;
-  const lora_file = document.getElementById('char-lora-file').value.trim();
-  const lora_weight = parseFloat(document.getElementById('char-lora-weight').value);
-  const notes = document.getElementById('char-notes').value.trim();
-
+  const name=document.getElementById('char-name').value.trim();
+  if (!name) return toast('Name required','error');
   try {
     if (state.editingChar) {
-      // Update config
-      await api('PUT', `/projects/${state.project.id}/characters/${state.editingChar}`,
-        { name, type, lora_file, lora_weight, notes });
-      // Upload new refs if any
-      if (state.charRefFiles.length > 0) {
-        const fd = new FormData();
-        state.charRefFiles.forEach((f, i) => fd.append(`ref${i}`, f));
-        await api('POST', `/projects/${state.project.id}/characters/${state.editingChar}/refs`, fd);
+      await api('PUT',`/projects/${state.project.id}/characters/${state.editingChar}`,
+        {name,type:document.getElementById('char-type').value,lora_file:document.getElementById('char-lora-file').value,lora_weight:parseFloat(document.getElementById('char-lora-weight').value),notes:document.getElementById('char-notes').value});
+      if (state.charRefFiles.length) {
+        const fd=new FormData();
+        state.charRefFiles.forEach((f,i)=>fd.append(`ref${i}`,f));
+        await api('POST',`/projects/${state.project.id}/characters/${state.editingChar}/refs`,fd);
       }
-      toast('Character updated', 'success');
+      toast('Character updated','success');
     } else {
-      // New character via multipart
-      const fd = new FormData();
-      fd.append('name', name);
-      fd.append('type', type);
-      fd.append('lora_file', lora_file);
-      fd.append('lora_weight', lora_weight);
-      fd.append('notes', notes);
-      state.charRefFiles.forEach((f, i) => fd.append(`ref${i}`, f));
-      await api('POST', `/projects/${state.project.id}/characters`, fd);
-      toast('Character added', 'success');
+      const fd=new FormData();
+      fd.append('name',name); fd.append('type',document.getElementById('char-type').value);
+      fd.append('lora_file',document.getElementById('char-lora-file').value);
+      fd.append('lora_weight',document.getElementById('char-lora-weight').value);
+      fd.append('notes',document.getElementById('char-notes').value);
+      state.charRefFiles.forEach((f,i)=>fd.append(`ref${i}`,f));
+      await api('POST',`/projects/${state.project.id}/characters`,fd);
+      toast('Character added','success');
     }
-
     closeModal('char-modal');
-    state.characters = await api('GET', `/projects/${state.project.id}/characters`);
-    renderChars();
-    updateNavCounts();
-  } catch (e) { toast(e.message, 'error'); }
+    state.characters=await api('GET',`/projects/${state.project.id}/characters`);
+    renderChars(); updateNavCounts();
+  } catch(e) { toast(e.message,'error'); }
 }
-
 async function deleteCharacter() {
-  if (!state.editingChar) return;
-  if (!confirm('Delete this character? This cannot be undone.')) return;
-  await api('DELETE', `/projects/${state.project.id}/characters/${state.editingChar}`);
-  state.characters = await api('GET', `/projects/${state.project.id}/characters`);
-  closeModal('char-modal');
-  renderChars();
-  updateNavCounts();
-  toast('Character deleted');
+  if (!state.editingChar||!confirm('Delete this character?')) return;
+  await api('DELETE',`/projects/${state.project.id}/characters/${state.editingChar}`);
+  state.characters=await api('GET',`/projects/${state.project.id}/characters`);
+  closeModal('char-modal'); renderChars(); updateNavCounts(); toast('Character deleted');
 }
 
-// ── Scenes ───────────────────────────────────────────────────────────────────
-function renderScenes() {
-  const el = document.getElementById('scenes-list');
-  if (!state.project) { el.innerHTML = ''; return; }
-  if (state.scenes.length === 0) {
-    el.innerHTML = `<div class="empty">
-      <div class="empty-icon">🎬</div>
-      <div class="empty-title">No scenes yet</div>
-      <div class="empty-sub">Create your first scene to start generating</div>
-      <button class="btn btn-primary" onclick="openNewSceneModal()">+ New scene</button>
-    </div>`;
+// ── Locations ─────────────────────────────────────────────────────────────────
+function renderLocs() {
+  const grid=document.getElementById('locs-grid');
+  if (!state.project) { grid.innerHTML=''; return; }
+  if (!state.locations.length) {
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📍</div><div class="empty-title">No locations yet</div><div class="empty-sub">Add settings and environments to keep scenes visually consistent</div><button class="btn btn-primary" style="margin-top:8px" onclick="openNewLocModal()">+ Add location</button></div>';
     return;
   }
-  el.innerHTML = '';
-  state.scenes.forEach(scene => {
-    const statusTag = scene.status === 'done' ? '<span class="tag done">Done</span>'
-      : scene.status === 'generating' ? '<span class="tag running">⏳ Generating…</span>'
-      : scene.status === 'error' ? `<span class="tag error">Error</span>`
-      : '';
-    const outputTag = scene.output_type === 'video' ? '<span class="tag video">Video</span>'
-      : scene.output_type === 'both' ? '<span class="tag video">Still + Video</span>'
-      : '<span class="tag">Still</span>';
-
-    const charNames = (scene.characters || [])
-      .map(id => state.characters.find(c => c.id === id))
-      .filter(Boolean)
-      .map(c => c.name)
-      .join(', ');
-
-    // Thumbnail
-    let thumbHtml = `<div class="scene-thumb-placeholder">🎬</div>`;
-    const outputs = scene.outputs || [];
-    if (outputs.length > 0) {
-      const f = outputs[0];
-      const isVideo = /\.(mp4|webm|mov)$/i.test(f);
-      thumbHtml = isVideo
-        ? `<video src="/api/comfy/outputs/${f}" muted></video>`
-        : `<img src="/api/comfy/outputs/${f}" alt="output">`;
+  grid.innerHTML='';
+  state.locations.forEach(loc => {
+    const ref=loc.refs?.[0];
+    const src=ref?`/api/projects/${state.project.id}/locations/${loc.id}/refs/${ref}`:null;
+    const div=document.createElement('div'); div.className='char-card';
+    div.innerHTML=`<div class="char-thumb">${src?`<img src="${src}">`:'<div class="char-thumb-placeholder">📍</div>'}</div>
+      <div class="char-info"><div class="char-name">${loc.name}</div>
+      ${loc.description?`<div class="char-type" style="margin-top:4px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${loc.description}</div>`:''}
+      <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${loc.time_of_day?`<span class="tag">${loc.time_of_day}</span>`:''} ${loc.weather?`<span class="tag">${loc.weather}</span>`:''}</div></div>`;
+    div.onclick=()=>openEditLocModal(loc);
+    grid.appendChild(div);
+  });
+}
+function openNewLocModal() {
+  if (!state.project) return toast('Select a project first','error');
+  state.editingLoc=null; state.locRefFiles=[];
+  document.getElementById('loc-modal-title').textContent='Add location';
+  ['loc-name','loc-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('loc-desc').value='';
+  document.getElementById('loc-time').value='';
+  document.getElementById('loc-weather').value='';
+  document.getElementById('loc-ref-previews').innerHTML='';
+  document.getElementById('loc-delete-btn').style.display='none';
+  openModal('loc-modal');
+}
+function openEditLocModal(loc) {
+  state.editingLoc=loc.id; state.locRefFiles=[];
+  document.getElementById('loc-modal-title').textContent='Edit location';
+  document.getElementById('loc-name').value=loc.name;
+  document.getElementById('loc-desc').value=loc.description||'';
+  document.getElementById('loc-time').value=loc.time_of_day||'';
+  document.getElementById('loc-weather').value=loc.weather||'';
+  document.getElementById('loc-notes').value=loc.notes||'';
+  document.getElementById('loc-delete-btn').style.display='inline-flex';
+  const prev=document.getElementById('loc-ref-previews'); prev.innerHTML='';
+  (loc.refs||[]).forEach(ref => {
+    const d=document.createElement('div'); d.className='upload-preview';
+    d.innerHTML=`<img src="/api/projects/${state.project.id}/locations/${loc.id}/refs/${ref}"><div class="del" onclick="deleteRef('locations','${loc.id}','${ref}',this.parentNode)">✕</div>`;
+    prev.appendChild(d);
+  });
+  openModal('loc-modal');
+}
+function onLocRefFilesSelected(files) {
+  for(let i=0;i<files.length&&state.locRefFiles.length<5;i++) state.locRefFiles.push(files[i]);
+  renderNewRefPreviews('loc-ref-previews',state.locRefFiles,'locRefFiles');
+}
+function onLocRefDragOver(e) { e.preventDefault(); document.getElementById('loc-upload-zone').classList.add('drag'); }
+function onLocRefDragLeave() { document.getElementById('loc-upload-zone').classList.remove('drag'); }
+function onLocRefDrop(e) { e.preventDefault(); document.getElementById('loc-upload-zone').classList.remove('drag'); onLocRefFilesSelected(e.dataTransfer.files); }
+async function saveLocation() {
+  const name=document.getElementById('loc-name').value.trim();
+  if (!name) return toast('Name required','error');
+  const cfg={name,description:document.getElementById('loc-desc').value,time_of_day:document.getElementById('loc-time').value,weather:document.getElementById('loc-weather').value,notes:document.getElementById('loc-notes').value};
+  try {
+    if (state.editingLoc) {
+      await api('PUT',`/projects/${state.project.id}/locations/${state.editingLoc}`,cfg);
+      if (state.locRefFiles.length) {
+        const fd=new FormData(); state.locRefFiles.forEach((f,i)=>fd.append(`ref${i}`,f));
+        await api('POST',`/projects/${state.project.id}/locations/${state.editingLoc}/refs`,fd);
+      }
+      toast('Location updated','success');
+    } else {
+      const fd=new FormData();
+      Object.entries(cfg).forEach(([k,v])=>fd.append(k,v));
+      state.locRefFiles.forEach((f,i)=>fd.append(`ref${i}`,f));
+      await api('POST',`/projects/${state.project.id}/locations`,fd);
+      toast('Location added','success');
     }
+    closeModal('loc-modal');
+    state.locations=await api('GET',`/projects/${state.project.id}/locations`);
+    renderLocs(); updateNavCounts();
+  } catch(e) { toast(e.message,'error'); }
+}
+async function deleteLocation() {
+  if (!state.editingLoc||!confirm('Delete this location?')) return;
+  await api('DELETE',`/projects/${state.project.id}/locations/${state.editingLoc}`);
+  state.locations=await api('GET',`/projects/${state.project.id}/locations`);
+  closeModal('loc-modal'); renderLocs(); updateNavCounts(); toast('Location deleted');
+}
 
-    const div = document.createElement('div');
-    div.className = 'scene-item';
-    div.id = `scene-${scene.id}`;
-    div.innerHTML = `
-      <div class="scene-thumb">${thumbHtml}</div>
+// ── Scene modal controls ──────────────────────────────────────────────────────
+function renderResolutionGrid() {
+  const grid=document.getElementById('resolution-grid');
+  if (!grid) return;
+  const opts=state.resolutions[state.selectedAspect]||{'1080p':[1920,1080]};
+  grid.innerHTML='';
+  Object.entries(opts).forEach(([label,[w,h]],i)=>{
+    const d=document.createElement('div');
+    d.className='choice-btn'+(i===0&&!state.selectedResolution||state.selectedResolution===label?' selected':'');
+    d.dataset.res=label;
+    d.textContent=`${label} (${w}×${h})`;
+    d.onclick=()=>{ state.selectedResolution=label; document.querySelectorAll('#resolution-grid .choice-btn').forEach(b=>b.classList.toggle('selected',b.dataset.res===label)); };
+    grid.appendChild(d);
+  });
+  // Auto-select first
+  if (!Object.keys(opts).includes(state.selectedResolution)) {
+    state.selectedResolution=Object.keys(opts)[0];
+    grid.querySelector('.choice-btn')?.classList.add('selected');
+  }
+}
+function selectAspect(ratio) {
+  state.selectedAspect=ratio;
+  document.querySelectorAll('.aspect-btn').forEach(b=>b.classList.toggle('selected',b.dataset.aspect===ratio));
+  renderResolutionGrid();
+}
+function selectOutput(type) {
+  state.selectedOutputType=type;
+  document.querySelectorAll('.output-btn').forEach(b=>b.classList.toggle('selected',b.dataset.type===type));
+}
+function selectShot(shot) {
+  state.selectedShotType=shot;
+  document.querySelectorAll('#shot-type-grid .choice-btn').forEach(b=>b.classList.toggle('selected',b.dataset.shot===shot));
+}
+function selectCamera(cam) {
+  state.selectedCamera=cam;
+  document.querySelectorAll('#camera-grid .choice-btn').forEach(b=>b.classList.toggle('selected',b.dataset.cam===cam));
+}
+function selectBatch(n) {
+  state.selectedBatch=n;
+  document.querySelectorAll('[data-batch]').forEach(b=>b.classList.toggle('selected',+b.dataset.batch===n));
+}
+
+function openNewSceneModal() {
+  if (!state.project) return toast('Select a project first','error');
+  document.getElementById('scene-title').value='';
+  document.getElementById('scene-desc').value='';
+  document.getElementById('scene-seed').value='';
+  state.selectedChars=new Set(); state.selectedLocs=new Set();
+  state.selectedOutputType='still'; state.selectedShotType=''; state.selectedCamera=''; state.selectedBatch=1;
+
+  // Character chips
+  const cc=document.getElementById('scene-char-chips'); cc.innerHTML='';
+  if (!state.characters.length) cc.innerHTML='<span style="color:var(--text3);font-size:12px">No characters added yet</span>';
+  state.characters.forEach(char=>{
+    const ref=char.refs?.[0];
+    const chip=document.createElement('div'); chip.className='char-chip'; chip.dataset.id=char.id;
+    chip.innerHTML=(ref?`<img src="/api/projects/${state.project.id}/characters/${char.id}/refs/${ref}">`:'<div class="char-chip-placeholder">👤</div>')+`<span>${char.name}</span>`;
+    chip.onclick=()=>{ chip.classList.toggle('selected'); if(chip.classList.contains('selected')) state.selectedChars.add(char.id); else state.selectedChars.delete(char.id); };
+    cc.appendChild(chip);
+  });
+
+  // Location chips
+  const lc=document.getElementById('scene-loc-chips'); lc.innerHTML='';
+  if (!state.locations.length) lc.innerHTML='<span style="color:var(--text3);font-size:12px">No locations added yet</span>';
+  state.locations.forEach(loc=>{
+    const ref=loc.refs?.[0];
+    const chip=document.createElement('div'); chip.className='char-chip'; chip.dataset.id=loc.id;
+    chip.innerHTML=(ref?`<img src="/api/projects/${state.project.id}/locations/${loc.id}/refs/${ref}">`:'<div class="char-chip-placeholder">📍</div>')+`<span>${loc.name}</span>`;
+    chip.onclick=()=>{ chip.classList.toggle('selected'); if(chip.classList.contains('selected')) state.selectedLocs.add(loc.id); else state.selectedLocs.delete(loc.id); };
+    lc.appendChild(chip);
+  });
+
+  // Reset toggles
+  document.querySelectorAll('.output-btn').forEach(b=>b.classList.toggle('selected',b.dataset.type==='still'));
+  document.querySelectorAll('#shot-type-grid .choice-btn').forEach(b=>b.classList.remove('selected'));
+  document.querySelector('#shot-type-grid [data-shot=""]')?.classList.add('selected');
+  document.querySelectorAll('#camera-grid .choice-btn').forEach(b=>b.classList.toggle('selected',b.dataset.cam===''));
+  document.querySelectorAll('[data-batch]').forEach(b=>b.classList.toggle('selected',+b.dataset.batch===1));
+  selectAspect('16:9');
+  openModal('scene-modal');
+  setTimeout(()=>document.getElementById('scene-desc').focus(),100);
+}
+
+async function createScene(generate) {
+  const desc=document.getElementById('scene-desc').value.trim();
+  if (!desc) return toast('Please describe the scene','error');
+  const seedVal=document.getElementById('scene-seed').value.trim();
+  const locArr=Array.from(state.selectedLocs);
+  try {
+    const scene=await api('POST',`/projects/${state.project.id}/scenes`,{
+      title:document.getElementById('scene-title').value.trim(),
+      description:desc, characters:Array.from(state.selectedChars),
+      location_id:locArr[0]||null, output_type:state.selectedOutputType,
+      aspect_ratio:state.selectedAspect, resolution:state.selectedResolution,
+      shot_type:state.selectedShotType, camera:state.selectedCamera,
+      batch_size:state.selectedBatch,
+      seed:seedVal?parseInt(seedVal):null, generate,
+    });
+    closeModal('scene-modal');
+    state.scenes.unshift(scene); renderScenes(); updateNavCounts();
+    if (generate&&scene.status==='generating') { startPolling(scene.id); toast('Generating…'); }
+    else if (generate&&scene.status==='error') toast('Generation error: '+scene.error,'error');
+    else toast('Scene saved');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ── Scenes render ─────────────────────────────────────────────────────────────
+function setSceneDisplay(mode) {
+  state.scenesDisplayMode=mode;
+  document.getElementById('view-list-btn').style.background=mode==='list'?'var(--surface3)':'transparent';
+  document.getElementById('view-list-btn').style.color=mode==='list'?'var(--text)':'var(--text2)';
+  document.getElementById('view-board-btn').style.background=mode==='storyboard'?'var(--surface3)':'transparent';
+  document.getElementById('view-board-btn').style.color=mode==='storyboard'?'var(--text)':'var(--text2)';
+  renderScenes();
+}
+
+function renderScenes() {
+  const el=document.getElementById('scenes-list');
+  if (!state.project) { el.innerHTML=''; return; }
+  if (!state.scenes.length) {
+    el.innerHTML='<div class="empty"><div class="empty-icon">🎬</div><div class="empty-title">No scenes yet</div><div class="empty-sub">Create your first scene to start generating</div><button class="btn btn-primary" onclick="openNewSceneModal()">+ New scene</button></div>';
+    return;
+  }
+  state.scenesDisplayMode==='storyboard' ? renderStoryboard(el) : renderSceneList(el);
+}
+
+function sceneThumbHtml(scene) {
+  const f=(scene.outputs||[])[0];
+  if (!f) return '<div class="scene-thumb-placeholder">🎬</div>';
+  return /\.(mp4|webm|mov)$/i.test(f)
+    ? `<video src="/api/comfy/outputs/${f}" muted></video>`
+    : `<img src="/api/comfy/outputs/${f}" alt="output">`;
+}
+
+function reviewStatusTag(s) {
+  if (!s||s==='draft') return '';
+  if (s==='approved') return '<span class="tag approved">✓ Approved</span>';
+  if (s==='in_review') return '<span class="tag in_review">In Review</span>';
+  if (s==='needs_revision') return '<span class="tag needs_revision">Needs Revision</span>';
+  return '';
+}
+
+function renderStoryboard(el) {
+  el.className='storyboard-grid';
+  el.innerHTML='';
+  [...state.scenes].sort((a,b)=>(a.sequence||999)-(b.sequence||999)).forEach(scene=>{
+    const f=(scene.outputs||[])[0];
+    const div=document.createElement('div');
+    div.className='storyboard-card'+(scene.review_status==='approved'?' approved':'');
+    div.innerHTML=`<div class="storyboard-thumb">
+      ${f?(/\.(mp4|webm|mov)$/i.test(f)?`<video src="/api/comfy/outputs/${f}" muted>`:`<img src="/api/comfy/outputs/${f}">`): '<div class="storyboard-thumb-placeholder">🎬</div>'}
+      <div class="storyboard-seq">#${scene.sequence||'?'}</div>
+    </div>
+    <div class="storyboard-info">
+      <div class="storyboard-title">${scene.title||scene.description.slice(0,40)}</div>
+      <div class="storyboard-status">${reviewStatusTag(scene.review_status)||genStatusTag(scene.status)}</div>
+    </div>`;
+    div.onclick=()=>openSceneDetail(scene.id);
+    el.appendChild(div);
+  });
+}
+
+function genStatusTag(status) {
+  if (status==='generating') return '<span class="tag running">⏳ Generating…</span>';
+  if (status==='done') return '<span class="tag done">Done</span>';
+  if (status==='error') return '<span class="tag error">Error</span>';
+  return '';
+}
+
+function renderSceneList(el) {
+  el.className='';
+  el.innerHTML='';
+  const sorted=[...state.scenes].sort((a,b)=>(a.sequence||999)-(b.sequence||999));
+  sorted.forEach((scene,idx)=>{
+    const charNames=(scene.characters||[]).map(id=>state.characters.find(c=>c.id===id)?.name).filter(Boolean).join(', ');
+    const loc=state.locations.find(l=>l.id===scene.location_id);
+    const isGen=scene.status==='generating';
+    const div=document.createElement('div'); div.className='scene-item'; div.id=`scene-${scene.id}`;
+    div.innerHTML=`
+      <div class="reorder-btns">
+        <button class="reorder-btn" onclick="reorderScene('${scene.id}',-1,event)" title="Move up">▲</button>
+        <button class="reorder-btn" onclick="reorderScene('${scene.id}',1,event)" title="Move down">▼</button>
+      </div>
+      <div class="scene-thumb">${sceneThumbHtml(scene)}</div>
       <div class="scene-body">
-        <div class="scene-title">${scene.title || scene.description.slice(0, 50)}</div>
+        <div class="scene-title">${scene.title||scene.description.slice(0,50)}</div>
         <div class="scene-desc">${scene.description}</div>
         <div class="scene-meta">
-          ${outputTag} ${statusTag}
-          ${charNames ? `<span class="tag">👤 ${charNames}</span>` : ''}
+          ${scene.output_type==='video'?'<span class="tag video">Video</span>':scene.output_type==='both'?'<span class="tag video">Still + Video</span>':'<span class="tag">Still</span>'}
+          ${scene.aspect_ratio?`<span class="tag">${scene.aspect_ratio}</span>`:''}
+          ${scene.shot_type?`<span class="tag">${scene.shot_type.replace('_',' ')}</span>`:''}
+          ${genStatusTag(scene.status)} ${reviewStatusTag(scene.review_status)}
+          ${charNames?`<span class="tag">👤 ${charNames}</span>`:''}
+          ${loc?`<span class="tag">📍 ${loc.name}</span>`:''}
         </div>
       </div>
       <div class="scene-actions">
         <button class="btn btn-ghost btn-sm" onclick="openSceneDetail('${scene.id}');event.stopPropagation()">View</button>
-        ${scene.status !== 'generating'
-          ? `<button class="btn btn-primary btn-sm" onclick="triggerGenerate('${scene.id}');event.stopPropagation()">Generate</button>`
-          : `<button class="btn btn-ghost btn-sm" disabled><span class="spinner"></span></button>`}
+        ${isGen
+          ? '<button class="btn btn-ghost btn-sm" disabled><span class="spinner"></span></button>'
+          : `<button class="btn btn-primary btn-sm" onclick="triggerGenerate('${scene.id}');event.stopPropagation()">Generate</button>`}
       </div>`;
     el.appendChild(div);
   });
 }
 
-function openNewSceneModal() {
-  if (!state.project) { toast('Select a project first', 'error'); return; }
-  document.getElementById('scene-title').value = '';
-  document.getElementById('scene-desc').value = '';
-  state.selectedChars = new Set();
-  state.selectedOutputType = 'still';
-
-  // Render char chips
-  const chips = document.getElementById('scene-char-chips');
-  chips.innerHTML = '';
-  if (state.characters.length === 0) {
-    chips.innerHTML = '<span style="color:var(--text2);font-size:12px">No characters added yet</span>';
-  }
-  state.characters.forEach(char => {
-    const chip = document.createElement('div');
-    chip.className = 'char-chip';
-    chip.dataset.id = char.id;
-    const firstRef = char.refs && char.refs.length > 0 ? char.refs[0] : null;
-    chip.innerHTML = firstRef
-      ? `<img src="/api/projects/${state.project.id}/characters/${char.id}/refs/${firstRef}" alt="${char.name}">`
-      : `<div class="char-chip-placeholder">👤</div>`;
-    chip.innerHTML += `<span>${char.name}</span>`;
-    chip.onclick = () => {
-      chip.classList.toggle('selected');
-      if (chip.classList.contains('selected')) state.selectedChars.add(char.id);
-      else state.selectedChars.delete(char.id);
-    };
-    chips.appendChild(chip);
-  });
-
-  // Reset output toggle
-  document.querySelectorAll('.output-btn').forEach(b => b.classList.remove('selected'));
-  document.querySelector('.output-btn[data-type="still"]').classList.add('selected');
-
-  openModal('scene-modal');
-  setTimeout(() => document.getElementById('scene-desc').focus(), 100);
-}
-
-function selectOutput(type) {
-  state.selectedOutputType = type;
-  document.querySelectorAll('.output-btn').forEach(b => {
-    b.classList.toggle('selected', b.dataset.type === type);
-  });
-}
-
-async function createScene(generate) {
-  const desc = document.getElementById('scene-desc').value.trim();
-  if (!desc) { toast('Please describe the scene', 'error'); return; }
-  try {
-    const scene = await api('POST', `/projects/${state.project.id}/scenes`, {
-      title: document.getElementById('scene-title').value.trim(),
-      description: desc,
-      characters: Array.from(state.selectedChars),
-      output_type: state.selectedOutputType,
-      generate,
-    });
-    closeModal('scene-modal');
-    state.scenes.unshift(scene);
-    renderScenes();
-    updateNavCounts();
-    if (generate && scene.status === 'generating') {
-      startPolling(scene.id);
-      toast('Generating…');
-    } else if (generate && scene.status === 'error') {
-      toast('Generation error: ' + scene.error, 'error');
-    } else {
-      toast('Scene saved');
-    }
-  } catch (e) { toast(e.message, 'error'); }
+async function reorderScene(id, direction, e) {
+  e.stopPropagation();
+  const sorted=[...state.scenes].sort((a,b)=>(a.sequence||999)-(b.sequence||999));
+  const idx=sorted.findIndex(s=>s.id===id);
+  const other=sorted[idx+direction];
+  if (!other) return;
+  const aSeq=sorted[idx].sequence||idx+1;
+  const bSeq=other.sequence||(idx+direction+1);
+  sorted[idx].sequence=bSeq; other.sequence=aSeq;
+  await api('PUT',`/projects/${state.project.id}/scenes/reorder`,
+    [{id:sorted[idx].id,sequence:bSeq},{id:other.id,sequence:aSeq}]);
+  state.scenes=await api('GET',`/projects/${state.project.id}/scenes`);
+  renderScenes();
 }
 
 async function triggerGenerate(sceneId) {
   try {
-    const scene = await api('POST', `/projects/${state.project.id}/scenes/${sceneId}/generate`, {});
-    updateSceneInState(scene);
-    renderScenes();
-    if (scene.status === 'generating') {
-      startPolling(sceneId);
-      toast('Generating…');
-    } else {
-      toast('Error: ' + scene.error, 'error');
-    }
-  } catch (e) { toast(e.message, 'error'); }
+    const scene=await api('POST',`/projects/${state.project.id}/scenes/${sceneId}/generate`,{});
+    updateSceneInState(scene); renderScenes();
+    if (scene.status==='generating') { startPolling(sceneId); toast('Generating…'); }
+    else toast('Error: '+(scene.error||'unknown'),'error');
+  } catch(e) { toast(e.message,'error'); }
+}
+function updateSceneInState(scene) {
+  const i=state.scenes.findIndex(s=>s.id===scene.id);
+  if (i>=0) state.scenes[i]=scene; else state.scenes.unshift(scene);
+}
+function startPolling(id) {
+  if (state.pollTimers[id]) return;
+  state.pollTimers[id]=setInterval(()=>pollScene(id),3000);
+}
+async function pollScene(id) {
+  const scene=state.scenes.find(s=>s.id===id);
+  if (!scene?.prompt_id) return;
+  const status=await api('GET',`/comfy/queue/${scene.prompt_id}`).catch(()=>null);
+  if (!status) return;
+  if (status.status==='done') {
+    clearInterval(state.pollTimers[id]); delete state.pollTimers[id];
+    scene.status='done'; scene.outputs=status.files||[];
+    await api('PUT',`/projects/${state.project.id}/scenes/${id}`,scene);
+    renderScenes(); toast('Scene generated!','success');
+  }
 }
 
-function startPolling(sceneId) {
-  if (state.pollTimers[sceneId]) return;
-  state.pollTimers[sceneId] = setInterval(() => pollScene(sceneId), 3000);
-}
-
-async function pollScene(sceneId) {
-  const scene = state.scenes.find(s => s.id === sceneId);
-  if (!scene || !scene.prompt_id) return;
-  try {
-    const status = await api('GET', `/comfy/queue/${scene.prompt_id}`);
-    if (status.status === 'done') {
-      clearInterval(state.pollTimers[sceneId]);
-      delete state.pollTimers[sceneId];
-      scene.status = 'done';
-      scene.outputs = status.files || [];
-      await api('PUT', `/projects/${state.project.id}/scenes/${sceneId}`, scene);
-      renderScenes();
-      updateNavCounts();
-      toast('Scene generated!', 'success');
-    }
-  } catch {}
-}
-
-function updateSceneInState(updatedScene) {
-  const i = state.scenes.findIndex(s => s.id === updatedScene.id);
-  if (i >= 0) state.scenes[i] = updatedScene;
-  else state.scenes.unshift(updatedScene);
-}
-
+// ── Scene detail ──────────────────────────────────────────────────────────────
 async function openSceneDetail(sceneId) {
-  const scene = state.scenes.find(s => s.id === sceneId);
+  const scene=state.scenes.find(s=>s.id===sceneId);
   if (!scene) return;
-  state.editingScene = sceneId;
+  state.editingScene=sceneId;
+  document.getElementById('sd-title').textContent=scene.title||scene.description.slice(0,60);
+  document.getElementById('sd-desc').textContent=scene.description;
+  const chars=(scene.characters||[]).map(id=>state.characters.find(c=>c.id===id)?.name).filter(Boolean).join(', ');
+  const loc=state.locations.find(l=>l.id===scene.location_id);
+  document.getElementById('sd-meta').innerHTML=[
+    scene.output_type==='video'?'<span class="tag video">Video</span>':scene.output_type==='both'?'<span class="tag video">Still + Video</span>':'<span class="tag">Still</span>',
+    scene.aspect_ratio?`<span class="tag">${scene.aspect_ratio} ${scene.resolution||''}</span>`:'',
+    scene.shot_type?`<span class="tag">${scene.shot_type.replace('_',' ')}</span>`:'',
+    chars?`<span class="tag">👤 ${chars}</span>`:'',
+    loc?`<span class="tag">📍 ${loc.name}</span>`:'',
+    genStatusTag(scene.status),
+    scene.error?`<span class="tag error">${scene.error}</span>`:'',
+  ].filter(Boolean).join('');
 
-  document.getElementById('sd-title').textContent = scene.title || scene.description.slice(0, 60);
-  document.getElementById('sd-desc').textContent = scene.description;
+  // Review status
+  const rs=scene.review_status||'draft';
+  document.querySelectorAll('#sd-review-strip .review-btn').forEach(b=>b.classList.toggle('active',b.dataset.status===rs));
 
-  const charNames = (scene.characters || [])
-    .map(id => state.characters.find(c => c.id === id))
-    .filter(Boolean).map(c => c.name).join(', ');
-
-  document.getElementById('sd-meta').innerHTML = `
-    ${scene.output_type === 'video' ? '<span class="tag video">Video</span>' : scene.output_type === 'both' ? '<span class="tag video">Still + Video</span>' : '<span class="tag">Still</span>'}
-    ${charNames ? `<span class="tag">👤 ${charNames}</span>` : ''}
-    ${scene.status === 'error' ? `<span class="tag error">Error: ${scene.error}</span>` : ''}`;
-
-  const outputsEl = document.getElementById('sd-outputs');
-  const files = scene.outputs || [];
-  if (files.length === 0) {
-    outputsEl.innerHTML = '<div style="color:var(--text2);font-size:13px">No outputs yet — click Regenerate to generate</div>';
+  // Seed bar
+  const seedBar=document.getElementById('sd-seed-bar');
+  if (scene.last_seed!=null) {
+    seedBar.style.display='flex';
+    seedBar.innerHTML=`<div class="seed-bar" style="flex:1">🌱 Generated with seed <code>${scene.last_seed}</code>${scene.seed!=null?' <span style="color:var(--success);margin-left:6px">🔒 Locked</span>':''}</div>
+      ${scene.seed==null?`<button class="btn btn-ghost btn-sm" onclick="lockSeed()">Lock seed</button>`:`<button class="btn btn-ghost btn-sm" onclick="clearSeedLock()">Unlock</button>`}`;
+    document.getElementById('sd-regen-same-btn').style.display='inline-flex';
   } else {
-    outputsEl.innerHTML = '<div class="output-gallery">' + files.map(f => {
-      const isVideo = /\.(mp4|webm|mov)$/i.test(f);
+    seedBar.style.display='none';
+    document.getElementById('sd-regen-same-btn').style.display='none';
+  }
+
+  // Outputs
+  const out=document.getElementById('sd-outputs');
+  const files=scene.outputs||[];
+  if (!files.length) {
+    out.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 0">No outputs yet — click Generate to create this scene</div>';
+  } else {
+    out.innerHTML='<div class="output-gallery">'+files.map(f=>{
+      const isVideo=/\.(mp4|webm|mov)$/i.test(f);
       return isVideo
         ? `<div class="output-item"><video src="/api/comfy/outputs/${f}" controls></video></div>`
         : `<div class="output-item" onclick="window.open('/api/comfy/outputs/${f}','_blank')"><img src="/api/comfy/outputs/${f}"></div>`;
-    }).join('') + '</div>';
+    }).join('')+'</div>';
   }
-
   openModal('scene-detail-modal');
 }
-
-async function regenerateScene() {
+async function setReviewStatus(status) {
   if (!state.editingScene) return;
+  const scene=state.scenes.find(s=>s.id===state.editingScene);
+  if (!scene) return;
+  scene.review_status=status;
+  await api('PUT',`/projects/${state.project.id}/scenes/${state.editingScene}`,scene);
+  document.querySelectorAll('#sd-review-strip .review-btn').forEach(b=>b.classList.toggle('active',b.dataset.status===status));
+  renderScenes();
+}
+async function lockSeed() {
+  const scene=state.scenes.find(s=>s.id===state.editingScene);
+  if (!scene||scene.last_seed==null) return;
+  scene.seed=scene.last_seed;
+  await api('PUT',`/projects/${state.project.id}/scenes/${state.editingScene}`,scene);
+  toast('Seed locked — this scene will always regenerate with the same seed','success');
+  openSceneDetail(state.editingScene);
+}
+async function clearSeedLock() {
+  const scene=state.scenes.find(s=>s.id===state.editingScene);
+  if (!scene) return;
+  scene.seed=null;
+  await api('PUT',`/projects/${state.project.id}/scenes/${state.editingScene}`,scene);
+  toast('Seed unlocked — new results each time');
+  openSceneDetail(state.editingScene);
+}
+async function regenerateScene(sameSeed) {
+  if (!state.editingScene) return;
+  if (sameSeed) await lockSeed();
   closeModal('scene-detail-modal');
   await triggerGenerate(state.editingScene);
 }
-
 async function deleteSceneFromDetail() {
-  if (!state.editingScene) return;
-  if (!confirm('Delete this scene?')) return;
-  await api('DELETE', `/projects/${state.project.id}/scenes/${state.editingScene}`);
-  state.scenes = state.scenes.filter(s => s.id !== state.editingScene);
-  closeModal('scene-detail-modal');
-  renderScenes();
-  updateNavCounts();
-  toast('Scene deleted');
+  if (!state.editingScene||!confirm('Delete this scene?')) return;
+  await api('DELETE',`/projects/${state.project.id}/scenes/${state.editingScene}`);
+  state.scenes=state.scenes.filter(s=>s.id!==state.editingScene);
+  closeModal('scene-detail-modal'); renderScenes(); updateNavCounts(); toast('Scene deleted');
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
+// ── Navigation ────────────────────────────────────────────────────────────────
 function showView(name) {
-  state.currentView = name;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('no-project').style.display = state.project ? 'none' : '';
-
-  if (state.project || name === 'projects') {
-    const view = document.getElementById(`view-${name}`);
-    if (view) view.classList.add('active');
+  state.currentView=name;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('no-project').style.display=state.project?'none':'';
+  if (state.project||name==='projects') {
+    document.getElementById(`view-${name}`)?.classList.add('active');
     document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
   }
 }
-
 function updateNavCounts() {
-  document.getElementById('scenes-count').textContent = state.scenes.length;
-  document.getElementById('chars-count').textContent = state.characters.length;
+  document.getElementById('scenes-count').textContent=state.scenes.length;
+  document.getElementById('chars-count').textContent=state.characters.length;
+  document.getElementById('locs-count').textContent=state.locations.length;
 }
 
-// ── Modal helpers ────────────────────────────────────────────────────────────
+// ── Modal helpers ─────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-// Close on backdrop click
-document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-  backdrop.addEventListener('click', e => {
-    if (e.target === backdrop) backdrop.classList.remove('open');
-  });
+document.querySelectorAll('.modal-backdrop').forEach(bd=>{
+  bd.addEventListener('click',e=>{ if(e.target===bd) bd.classList.remove('open'); });
 });
 
-// ── Toast ────────────────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 function toast(msg, type) {
-  const el = document.createElement('div');
-  el.className = 'toast' + (type ? ` ${type}` : '');
-  el.textContent = msg;
+  const el=document.createElement('div');
+  el.className='toast'+(type?' '+type:''); el.textContent=msg;
   document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  setTimeout(()=>el.remove(),3500);
 }
 
-// ── Start ────────────────────────────────────────────────────────────────────
 boot();
 </script>
 </body>
