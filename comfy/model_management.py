@@ -1194,6 +1194,68 @@ def sync_stream(device, stream):
         return
     current_stream(device).wait_stream(stream)
 
+def use_tiled_vae_decode(memory_needed, device=None):
+    try:
+        if device is None:
+            device = get_torch_device()
+
+        # If running everything on CPU, no GPU memory check needed
+        if cpu_state == CPUState.CPU or args.cpu_vae:
+            return False
+
+        inference_memory = minimum_inference_memory()
+        memory_required = max(inference_memory, memory_needed + extra_reserved_memory())
+        
+        gpu_free = get_free_memory(device)
+        cpu_free = psutil.virtual_memory().available
+        
+        # Check if GPU have enough space for full decode (with reserves)?
+        if gpu_free >= memory_required:
+            return False
+        
+        # With --gpu-only, models can't offload to CPU (offload device = GPU)
+        if args.gpu_only:
+            return True
+        
+        # Calculate memory_to_free 
+        memory_to_free = memory_required - gpu_free
+        
+        # Calculate how much we can offload from currently loaded models - only count models whose offload_device is CPU
+        # With --highvram, UNet has offload_device=GPU so it CAN'T be offloaded.
+        loaded_model_memory  = 0
+        cpu_offloadable_memory  = 0
+        
+        for loaded_model in current_loaded_models:
+            if loaded_model.device == device:
+                model_size = loaded_model.model_loaded_memory()
+                loaded_model_memory  += model_size
+                if hasattr(loaded_model.model, 'offload_device'):
+                    offload_dev = loaded_model.model.offload_device
+                    if is_device_cpu(offload_dev):
+                        cpu_offloadable_memory  += model_size
+                else:
+                    cpu_offloadable_memory  += model_size
+        
+        # Check is there enough to offload (to CPU)?
+        if cpu_offloadable_memory  < memory_to_free:
+            return True  # Can't offload enough, must tile
+        
+        # Check if CPU can receive the offload (which prevents 0xC0000005 crash)
+        # Smart Memory ON (default) - partial offload: only memory_to_free bytes move to CPU
+        # Smart Memory OFF (--disable-smart-memory) - full offload: ALL models get fully unloaded
+        if DISABLE_SMART_MEMORY:
+            if cpu_free < loaded_model_memory:
+                return True
+            else:
+                return False
+        else:
+            # With smart memory, only partial offload (memory_to_free bytes) moves to CPU
+            if cpu_free < memory_to_free:
+                return True
+        return False
+        
+    except Exception as e:
+        return True
 
 def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
     wf_context = nullcontext()
