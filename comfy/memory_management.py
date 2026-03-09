@@ -1,8 +1,50 @@
 import math
+import ctypes
+import threading
 import torch
 from typing import NamedTuple
+import logging
 
 from comfy.quant_ops import QuantizedTensor
+
+
+class TensorFileSlice(NamedTuple):
+    file_ref: object
+    thread_id: int
+    offset: int
+    size: int
+
+
+def read_tensor_file_slice_into(tensor, destination):
+
+    info = getattr(tensor.untyped_storage(), "_comfy_tensor_file_slice", None)
+    if info is None:
+        return False
+
+    file_obj = info.file_ref
+    if (destination.device.type != "cpu"
+            or file_obj is None
+            or threading.get_ident() != info.thread_id
+            or destination.numel() * destination.element_size() < info.size):
+        return False
+
+    if info.size == 0:
+        return True
+
+    buf_type = ctypes.c_ubyte * info.size
+    view = memoryview(buf_type.from_address(destination.data_ptr()))
+
+    try:
+        file_obj.seek(info.offset)
+        done = 0
+        while done < info.size:
+            n = file_obj.readinto(view[done:])
+            if n <= 0:
+                return False
+            done += n
+        return True
+    finally:
+        view.release()
 
 class TensorGeometry(NamedTuple):
     shape: any

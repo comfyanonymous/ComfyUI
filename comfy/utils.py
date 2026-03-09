@@ -33,6 +33,7 @@ from comfy.cli_args import args
 import json
 import time
 import mmap
+import threading
 import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
@@ -81,14 +82,14 @@ _TYPES = {
 }
 
 def load_safetensors(ckpt):
-    f = open(ckpt, "rb")
+    f = open(ckpt, "rb", buffering=0)
     mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     mv = memoryview(mapping)
 
     header_size = struct.unpack("<Q", mapping[:8])[0]
     header = json.loads(mapping[8:8+header_size].decode("utf-8"))
 
-    mv = mv[8 + header_size:]
+    mv = mv[(data_base_offset := 8 + header_size):]
 
     sd = {}
     for name, info in header.items():
@@ -102,7 +103,11 @@ def load_safetensors(ckpt):
             with warnings.catch_warnings():
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
-                sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                tensor = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                setattr(tensor.untyped_storage(),
+                        "_comfy_tensor_file_slice",
+                        comfy.memory_management.TensorFileSlice(f, threading.get_ident(), data_base_offset + start, end - start))
+                sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),
 

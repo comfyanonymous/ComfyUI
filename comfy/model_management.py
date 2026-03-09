@@ -1225,6 +1225,8 @@ def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
             dest_view = dest_views.pop(0)
             if tensor is None:
                 continue
+            if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view):
+                continue
             dest_view.copy_(tensor, non_blocking=non_blocking)
 
 
