@@ -1,5 +1,5 @@
 comfyui-frontend-package==1.39.19
-comfyui-workflow-templates==0.9.10
+comfyui-workflow-templates==0.9.18
 comfyui-embedded-docs==0.4.3
 torch
 torchsde
@@ -20,11 +20,13 @@ tqdm
 psutil
 alembic
 SQLAlchemy
+filelock
 av>=14.2.0
 comfy-kitchen>=0.2.7
-comfy-aimdo>=0.2.7
+comfy-aimdo>=0.2.9
 requests
-simpleeval>=1.0
+simpleeval>=1.0.0
+blake3
 
 #non essential dependencies:
 kornia>=0.7.1

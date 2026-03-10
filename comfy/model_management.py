@@ -265,6 +265,18 @@ try:
 except:
     OOM_EXCEPTION = Exception
 
+def is_oom(e):
+    if isinstance(e, OOM_EXCEPTION):
+        return True
+    if isinstance(e, torch.AcceleratorError) and getattr(e, 'error_code', None) == 2:
+        discard_cuda_async_error()
+        return True
+    return False
+
+def raise_non_oom(e):
+    if not is_oom(e):
+        raise e
+
 XFORMERS_VERSION = ""
 XFORMERS_ENABLED_VAE = True
 if args.disable_xformers:
@@ -934,7 +946,7 @@ def text_encoder_offload_device():
 def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
-    elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
+    elif vram_state in (VRAMState.HIGH_VRAM, VRAMState.NORMAL_VRAM) or comfy.memory_management.aimdo_enabled:
         if should_use_fp16(prioritize_performance=False):
             return get_torch_device()
         else:
@@ -1143,6 +1155,7 @@ def reset_cast_buffers():
     LARGEST_CASTED_WEIGHT = (None, 0)
     for offload_stream in STREAM_CAST_BUFFERS:
         offload_stream.synchronize()
+    synchronize()
     STREAM_CAST_BUFFERS.clear()
     soft_empty_cache()
 
