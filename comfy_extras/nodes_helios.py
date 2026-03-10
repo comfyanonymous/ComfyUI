@@ -412,7 +412,6 @@ def _helios_dmd_sample(
 
     for i in range(len(sigmas) - 1):
         sigma = sigmas[i]
-        sigma_next = sigmas[i + 1]
         timestep = all_timesteps[i] if i < len(all_timesteps) else i
         denoised = model(x, sigma * s_in, **extra_args)
 
