@@ -6,7 +6,7 @@ from typing import Optional
 
 import pytest
 import requests
-from conftest import get_asset_filename, trigger_sync_seed_assets
+from helpers import get_asset_filename, trigger_sync_seed_assets
 
 
 def test_download_attachment_and_inline(http: requests.Session, api_base: str, seeded_asset: dict):
@@ -117,7 +117,7 @@ def test_download_missing_file_returns_404(
         assert body["error"]["code"] == "FILE_NOT_FOUND"
     finally:
         # We created asset without the "unit-tests" tag(see `autoclean_unit_test_assets`), we need to clear it manually.
-        dr = http.delete(f"{api_base}/api/assets/{aid}", timeout=120)
+        dr = http.delete(f"{api_base}/api/assets/{aid}?delete_content=true", timeout=120)
         dr.content
 
 
