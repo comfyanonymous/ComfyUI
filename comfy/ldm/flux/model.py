@@ -170,7 +170,7 @@ class Flux(nn.Module):
 
         if "post_input" in patches:
             for p in patches["post_input"]:
-                out = p({"img": img, "txt": txt, "img_ids": img_ids, "txt_ids": txt_ids})
+                out = p({"img": img, "txt": txt, "img_ids": img_ids, "txt_ids": txt_ids, "transformer_options": transformer_options})
                 img = out["img"]
                 txt = out["txt"]
                 img_ids = out["img_ids"]
