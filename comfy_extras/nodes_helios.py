@@ -868,37 +868,6 @@ class HeliosVideoToVideo(io.ComfyNode):
         )
 
 
-class HeliosHistoryConditioning(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="HeliosHistoryConditioning",
-            category="conditioning/video_models",
-            inputs=[
-                io.Conditioning.Input("positive"),
-                io.Conditioning.Input("negative"),
-                io.Latent.Input("history_latent"),
-                io.String.Input("history_sizes", default="16,2,1"),
-                io.Boolean.Input("keep_first_frame", default=True),
-            ],
-            outputs=[
-                io.Conditioning.Output(display_name="positive"),
-                io.Conditioning.Output(display_name="negative"),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, positive, negative, history_latent, history_sizes, keep_first_frame) -> io.NodeOutput:
-        latent = history_latent["samples"]
-        if latent is None or len(latent.shape) != 5:
-            return io.NodeOutput(positive, negative)
-        sizes = _parse_int_list(history_sizes, [16, 2, 1])
-        sizes = sorted([max(0, int(v)) for v in sizes], reverse=True)
-        prefix = history_latent.get("helios_image_latent_prefix", None)
-        positive, negative = _set_helios_history_values(positive, negative, latent, sizes, keep_first_frame, prefix_latent=prefix)
-        return io.NodeOutput(positive, negative)
-
-
 class HeliosPyramidSampler(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -926,7 +895,6 @@ class HeliosPyramidSampler(io.ComfyNode):
             ],
             outputs=[
                 io.Latent.Output(display_name="output"),
-                io.Latent.Output(display_name="denoised_output"),
             ],
         )
 
@@ -1256,14 +1224,7 @@ class HeliosPyramidSampler(io.ComfyNode):
         out["helios_window_num_frames"] = int(window_num_frames)
         out["helios_num_frames"] = int(num_frames)
 
-        if "x0" in x0_output:
-            x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
-            out_denoised = latent.copy()
-            out_denoised["samples"] = x0_out
-        else:
-            out_denoised = out
-
-        return io.NodeOutput(out, out_denoised)
+        return io.NodeOutput(out)
 
 
 class HeliosVAEDecode(io.ComfyNode):
@@ -1321,7 +1282,6 @@ class HeliosExtension(ComfyExtension):
             HeliosTextToVideo,
             HeliosImageToVideo,
             HeliosVideoToVideo,
-            HeliosHistoryConditioning,
             HeliosPyramidSampler,
             HeliosVAEDecode,
         ]
