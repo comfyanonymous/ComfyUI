@@ -1,0 +1,11 @@
+{
+  "name": "The Last Signal",
+  "description": "A near-future noir thriller. A burned-out detective hunts a ghost through a rain-soaked city after a mysterious broadcast goes dark.",
+  "style": {
+    "preset": "noir",
+    "prompt_prefix": "film noir, high contrast black and white, dramatic shadows, chiaroscuro lighting, rain-soaked streets, moody atmosphere",
+    "prompt_suffix": "cinematic, atmospheric, brooding, 35mm film",
+    "negative_prompt": "color, bright, cheerful, blurry, low quality, watermark, text, deformed"
+  },
+  "created_at": "2025-01-15T09:00:00Z"
+}

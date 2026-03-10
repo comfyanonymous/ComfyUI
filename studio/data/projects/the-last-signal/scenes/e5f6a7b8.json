@@ -1,0 +1,19 @@
+{
+  "title": "City aerial — closing shot",
+  "description": "The city from above. A single light goes out somewhere in the grid. The rain keeps falling.",
+  "characters": [],
+  "location_id": "rooftop",
+  "output_type": "still",
+  "aspect_ratio": "2.39:1",
+  "resolution": "1080p",
+  "shot_type": "aerial",
+  "camera": "pull_out",
+  "batch_size": 1,
+  "seed": null,
+  "review_status": "draft",
+  "sequence": 5,
+  "status": "pending",
+  "outputs": [],
+  "last_seed": null,
+  "created_at": "2025-01-15T09:20:00Z"
+}

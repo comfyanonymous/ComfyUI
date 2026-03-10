@@ -1,0 +1,19 @@
+{
+  "title": "The Broadcast — extreme close-up",
+  "description": "Extreme close-up on the monitor screen. Distorted waveforms and a fragmented face briefly appear before dissolving into snow.",
+  "characters": [],
+  "location_id": "precinct",
+  "output_type": "still",
+  "aspect_ratio": "2.39:1",
+  "resolution": "1080p",
+  "shot_type": "extreme_close_up",
+  "camera": "static",
+  "batch_size": 1,
+  "seed": null,
+  "review_status": "draft",
+  "sequence": 2,
+  "status": "pending",
+  "outputs": [],
+  "last_seed": null,
+  "created_at": "2025-01-15T09:12:00Z"
+}

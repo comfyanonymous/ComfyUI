@@ -1,0 +1,19 @@
+{
+  "title": "Rooftop standoff",
+  "description": "Kane and Yara face each other across the rain-lashed rooftop. Neither moves. Lightning cuts between them.",
+  "characters": ["detective_kane", "yara"],
+  "location_id": "rooftop",
+  "output_type": "still",
+  "aspect_ratio": "2.39:1",
+  "resolution": "1080p",
+  "shot_type": "two_shot",
+  "camera": "static",
+  "batch_size": 1,
+  "seed": null,
+  "review_status": "draft",
+  "sequence": 4,
+  "status": "pending",
+  "outputs": [],
+  "last_seed": null,
+  "created_at": "2025-01-15T09:18:00Z"
+}
