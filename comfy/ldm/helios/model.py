@@ -228,13 +228,14 @@ class HeliosAttentionBlock(nn.Module):
             operation_settings=operation_settings,
         )
 
+        self.cross_attn_norm = bool(cross_attn_norm)
         self.norm2 = (operation_settings.get("operations").LayerNorm(
             dim,
             eps,
             elementwise_affine=True,
             device=operation_settings.get("device"),
             dtype=operation_settings.get("dtype"),
-        ) if cross_attn_norm else nn.Identity())
+        ) if self.cross_attn_norm else nn.Identity())
         self.attn2 = HeliosSelfAttention(
             dim,
             num_heads,
@@ -309,14 +310,17 @@ class HeliosAttentionBlock(nn.Module):
         if self.guidance_cross_attn and original_context_length is not None:
             history_seq_len = x.shape[1] - original_context_length
             history_x, x_main = torch.split(x, [history_seq_len, original_context_length], dim=1)
-            # norm2 has elementwise_affine=True, manually do FP32LayerNorm behavior
-            norm_x_main = torch.nn.functional.layer_norm(
-                x_main.float(),
-                self.norm2.normalized_shape,
-                self.norm2.weight.to(x_main.device).float() if self.norm2.weight is not None else None,
-                self.norm2.bias.to(x_main.device).float() if self.norm2.bias is not None else None,
-                self.norm2.eps,
-            ).type_as(x_main)
+            if self.cross_attn_norm:
+                # norm2 has elementwise_affine=True, manually do FP32LayerNorm behavior
+                norm_x_main = torch.nn.functional.layer_norm(
+                    x_main.float(),
+                    self.norm2.normalized_shape,
+                    self.norm2.weight.to(x_main.device).float() if self.norm2.weight is not None else None,
+                    self.norm2.bias.to(x_main.device).float() if self.norm2.bias is not None else None,
+                    self.norm2.eps,
+                ).type_as(x_main)
+            else:
+                norm_x_main = x_main
             x_main = x_main + self.attn2(
                 norm_x_main,
                 context=context,
@@ -324,14 +328,17 @@ class HeliosAttentionBlock(nn.Module):
             )
             x = torch.cat([history_x, x_main], dim=1)
         else:
-            # norm2 has elementwise_affine=True, manually do FP32LayerNorm behavior
-            norm_x = torch.nn.functional.layer_norm(
-                x.float(),
-                self.norm2.normalized_shape,
-                self.norm2.weight.to(x.device).float() if self.norm2.weight is not None else None,
-                self.norm2.bias.to(x.device).float() if self.norm2.bias is not None else None,
-                self.norm2.eps,
-            ).type_as(x)
+            if self.cross_attn_norm:
+                # norm2 has elementwise_affine=True, manually do FP32LayerNorm behavior
+                norm_x = torch.nn.functional.layer_norm(
+                    x.float(),
+                    self.norm2.normalized_shape,
+                    self.norm2.weight.to(x.device).float() if self.norm2.weight is not None else None,
+                    self.norm2.bias.to(x.device).float() if self.norm2.bias is not None else None,
+                    self.norm2.eps,
+                ).type_as(x)
+            else:
+                norm_x = x
             x = x + self.attn2(norm_x, context=context, transformer_options=transformer_options)
 
         # ffn
@@ -673,45 +680,51 @@ class HeliosModel(torch.nn.Module):
 
         if latents_history_mid is not None and indices_latents_history_mid is not None:
             x_mid = self.patch_mid(pad_for_3d_conv(latents_history_mid, (2, 4, 4)))
-            _, _, tm, _, _ = x_mid.shape
+            _, _, tm, hm, wm = x_mid.shape
             x_mid = x_mid.flatten(2).transpose(1, 2)
             mid_t = indices_latents_history_mid.shape[1]
+            # patch_mid downsamples by 2 in (t, h, w); build RoPE on the pre-downsample grid.
+            mid_h = hm * 2
+            mid_w = wm * 2
             f_mid = self.rope_encode(
                 t=mid_t * self.patch_size[0],
-                h=hs * self.patch_size[1],
-                w=ws * self.patch_size[2],
+                h=mid_h * self.patch_size[1],
+                w=mid_w * self.patch_size[2],
                 steps_t=mid_t,
-                steps_h=hs,
-                steps_w=ws,
+                steps_h=mid_h,
+                steps_w=mid_w,
                 device=x_mid.device,
                 dtype=x_mid.dtype,
                 transformer_options=transformer_options,
                 frame_indices=indices_latents_history_mid,
             )
-            f_mid = self._rope_downsample_3d(f_mid, (mid_t, hs, ws), (2, 2, 2))
+            f_mid = self._rope_downsample_3d(f_mid, (mid_t, mid_h, mid_w), (2, 2, 2))
             hidden_states = torch.cat([x_mid, hidden_states], dim=1)
             freqs = torch.cat([f_mid, freqs], dim=1)
 
         if latents_history_long is not None and indices_latents_history_long is not None:
             x_long = self.patch_long(pad_for_3d_conv(latents_history_long, (4, 8, 8)))
-            _, _, tl, _, _ = x_long.shape
+            _, _, tl, hl, wl = x_long.shape
             x_long = x_long.flatten(2).transpose(1, 2)
             long_t = indices_latents_history_long.shape[1]
+            # patch_long downsamples by 4 in (t, h, w); build RoPE on the pre-downsample grid.
+            long_h = hl * 4
+            long_w = wl * 4
             f_long = self.rope_encode(
                 t=long_t * self.patch_size[0],
-                h=hs * self.patch_size[1],
-                w=ws * self.patch_size[2],
+                h=long_h * self.patch_size[1],
+                w=long_w * self.patch_size[2],
                 steps_t=long_t,
-                steps_h=hs,
-                steps_w=ws,
+                steps_h=long_h,
+                steps_w=long_w,
                 device=x_long.device,
                 dtype=x_long.dtype,
                 transformer_options=transformer_options,
                 frame_indices=indices_latents_history_long,
             )
-            f_long = self._rope_downsample_3d(f_long, (long_t, hs, ws), (4, 4, 4))
+            f_long = self._rope_downsample_3d(f_long, (long_t, long_h, long_w), (4, 4, 4))
             hidden_states = torch.cat([x_long, hidden_states], dim=1)
-        freqs = torch.cat([f_long, freqs], dim=1)
+            freqs = torch.cat([f_long, freqs], dim=1)
 
         history_context_length = hidden_states.shape[1] - original_context_length
 

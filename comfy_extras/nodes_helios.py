@@ -914,7 +914,6 @@ class HeliosPyramidSampler(io.ComfyNode):
             category="sampling/video_models",
             inputs=[
                 io.Model.Input("model"),
-                io.Boolean.Input("add_noise", default=True, advanced=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, control_after_generate=True),
                 io.Float.Input("cfg", default=5.0, min=0.0, max=100.0, step=0.1, round=0.01),
                 io.Conditioning.Input("positive"),
@@ -931,7 +930,6 @@ class HeliosPyramidSampler(io.ComfyNode):
                 io.Boolean.Input("cfg_zero_star", default=True, advanced=True),
                 io.Boolean.Input("use_zero_init", default=True, advanced=True),
                 io.Int.Input("zero_steps", default=1, min=0, max=10000, advanced=True),
-                io.Boolean.Input("skip_first_chunk", default=False, advanced=True),
             ],
             outputs=[
                 io.Latent.Output(display_name="output"),
@@ -943,7 +941,6 @@ class HeliosPyramidSampler(io.ComfyNode):
     def execute(
         cls,
         model,
-        add_noise,
         noise_seed,
         cfg,
         positive,
@@ -960,7 +957,6 @@ class HeliosPyramidSampler(io.ComfyNode):
         cfg_zero_star,
         use_zero_init,
         zero_steps,
-        skip_first_chunk,
     ) -> io.NodeOutput:
         # Keep these scheduler knobs internal (not exposed in node UI).
         shift = 1.0
@@ -975,8 +971,6 @@ class HeliosPyramidSampler(io.ComfyNode):
 
         latent = latent_image.copy()
         latent_samples = comfy.sample.fix_empty_latent_channels(model, latent["samples"], latent.get("downscale_ratio_spacial", None))
-        if not add_noise:
-            latent_samples = _process_latent_in_preserve_zero_frames(model, latent_samples)
 
         stage_steps = _parse_int_list(pyramid_steps, [10, 10, 10])
         stage_steps = [max(1, int(s)) for s in stage_steps]
@@ -1069,19 +1063,6 @@ class HeliosPyramidSampler(io.ComfyNode):
             hist_len = max(1, sum(history_sizes_list))
             rolling_history = torch.zeros((b, c, hist_len, h, w), device=latent_samples.device, dtype=latent_samples.dtype)
 
-        # When initial video latents are provided, seed history buffer
-        # with those latents before the first denoising chunk.
-        if not add_noise:
-            hist_len = max(1, sum(history_sizes_list))
-            rolling_history = rolling_history.to(device=latent_samples.device, dtype=latent_samples.dtype)
-            video_latents = latent_samples
-            video_frames = video_latents.shape[2]
-            if video_frames < hist_len:
-                keep_frames = hist_len - video_frames
-                rolling_history = torch.cat([rolling_history[:, :, :keep_frames], video_latents], dim=2)
-            else:
-                rolling_history = video_latents[:, :, -hist_len:]
-
         # Keep history/prefix on the same device/dtype as denoising latents.
         rolling_history = rolling_history.to(device=target_device, dtype=torch.float32)
         if image_latent_prefix is not None:
@@ -1108,41 +1089,15 @@ class HeliosPyramidSampler(io.ComfyNode):
         total_generated_latent_frames = initial_generated_latent_frames
 
         for chunk_idx in range(chunk_count):
-            # Extract chunk from input latents
-            chunk_start = chunk_idx * chunk_t
-            chunk_end = min(chunk_start + chunk_t, t)
-            latent_chunk = latent_samples[:, :, chunk_start:chunk_end, :, :]
-
             # Prepare initial latent for this chunk
-            if add_noise:
-                noise_shape = (
-                    latent_samples.shape[0],
-                    latent_samples.shape[1],
-                    chunk_t,
-                    latent_samples.shape[3],
-                    latent_samples.shape[4],
-                )
-                stage_latent = torch.randn(noise_shape, device=target_device, dtype=torch.float32, generator=noise_gen)
-            else:
-                # Use actual input latents; pad final short chunk to fixed size.
-                stage_latent = latent_chunk.clone()
-                if stage_latent.shape[2] < chunk_t:
-                    if stage_latent.shape[2] == 0:
-                        stage_latent = torch.zeros(
-                            (
-                                latent_samples.shape[0],
-                                latent_samples.shape[1],
-                                chunk_t,
-                                latent_samples.shape[3],
-                                latent_samples.shape[4],
-                            ),
-                            device=latent_samples.device,
-                            dtype=torch.float32,
-                        )
-                    else:
-                        pad = stage_latent[:, :, -1:].repeat(1, 1, chunk_t - stage_latent.shape[2], 1, 1)
-                        stage_latent = torch.cat([stage_latent, pad], dim=2)
-                stage_latent = stage_latent.to(dtype=torch.float32)
+            noise_shape = (
+                latent_samples.shape[0],
+                latent_samples.shape[1],
+                chunk_t,
+                latent_samples.shape[3],
+                latent_samples.shape[4],
+            )
+            stage_latent = torch.randn(noise_shape, device=target_device, dtype=torch.float32, generator=noise_gen)
 
             # Downsample to stage 0 resolution
             for _ in range(max(0, int(stage_count) - 1)):
@@ -1308,7 +1263,7 @@ class HeliosPyramidSampler(io.ComfyNode):
                 stage_latent = stage_latent[:, :, :, :h, :w]
 
             generated_chunks.append(stage_latent)
-            if keep_first_frame and ((chunk_idx == 0 and image_latent_prefix is None) or (skip_first_chunk and chunk_idx == 1)):
+            if keep_first_frame and (chunk_idx == 0 and image_latent_prefix is None):
                 image_latent_prefix = stage_latent[:, :, :1]
             rolling_history = torch.cat([rolling_history, stage_latent.to(rolling_history.device, rolling_history.dtype)], dim=2)
             keep_hist = max(1, sum(history_sizes_list))
