@@ -46,7 +46,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
 
     out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
     if var_length:
-        return out.contiguous().transpose(1, 2).values()
+        return out.transpose(1, 2).values()
     if not skip_output_reshape:
         out = (
             out.transpose(1, 2).reshape(b, -1, heads * dim_head)

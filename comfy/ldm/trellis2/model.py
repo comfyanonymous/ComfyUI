@@ -767,8 +767,6 @@ class Trellis2(nn.Module):
         if embeds is None:
             raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
         is_1024 = self.img2shape.resolution == 1024
-        if is_1024:
-            context = embeds
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
         if coords is not None:
@@ -777,6 +775,8 @@ class Trellis2(nn.Module):
         else:
             mode = "structure_generation"
             not_struct_mode = False
+        if is_1024 and mode == "shape_generation":
+            context = embeds
         sigmas = transformer_options.get("sigmas")[0].item()
         if sigmas < 1.00001:
             timestep *= 1000.0
