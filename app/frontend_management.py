@@ -10,13 +10,14 @@ import importlib
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TypedDict, Optional
+from typing import Dict, TypedDict, Optional
+from aiohttp import web
 from importlib.metadata import version
 
 import requests
 from typing_extensions import NotRequired
 
-from utils.install_util import get_missing_requirements_message, requirements_path
+from utils.install_util import get_missing_requirements_message, get_required_packages_versions
 
 from comfy.cli_args import DEFAULT_VERSION_STRING
 import app.logger
@@ -29,18 +30,32 @@ def frontend_install_warning_message():
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
 """.strip()
 
+def parse_version(version: str) -> tuple[int, int, int]:
+        return tuple(map(int, version.split(".")))
+
+def is_valid_version(version: str) -> bool:
+    """Validate if a string is a valid semantic version (X.Y.Z format)."""
+    pattern = r"^(\d+)\.(\d+)\.(\d+)$"
+    return bool(re.match(pattern, version))
+
+def get_installed_frontend_version():
+    """Get the currently installed frontend package version."""
+    frontend_version_str = version("comfyui-frontend-package")
+    return frontend_version_str
+
+
+def get_required_frontend_version():
+    return get_required_packages_versions().get("comfyui-frontend-package", None)
+
 
 def check_frontend_version():
     """Check if the frontend version is up to date."""
 
-    def parse_version(version: str) -> tuple[int, int, int]:
-        return tuple(map(int, version.split(".")))
-
     try:
-        frontend_version_str = version("comfyui-frontend-package")
+        frontend_version_str = get_installed_frontend_version()
         frontend_version = parse_version(frontend_version_str)
-        with open(requirements_path, "r", encoding="utf-8") as f:
-            required_frontend = parse_version(f.readline().split("=")[-1])
+        required_frontend_str = get_required_frontend_version()
+        required_frontend = parse_version(required_frontend_str)
         if frontend_version < required_frontend:
             app.logger.log_startup_warning(
                 f"""
@@ -169,6 +184,24 @@ class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     @classmethod
+    def get_required_frontend_version(cls) -> str:
+        """Get the required frontend package version."""
+        return get_required_frontend_version()
+
+    @classmethod
+    def get_installed_templates_version(cls) -> str:
+        """Get the currently installed workflow templates package version."""
+        try:
+            templates_version_str = version("comfyui-workflow-templates")
+            return templates_version_str
+        except Exception:
+            return None
+
+    @classmethod
+    def get_required_templates_version(cls) -> str:
+        return get_required_packages_versions().get("comfyui-workflow-templates", None)
+
+    @classmethod
     def default_frontend_path(cls) -> str:
         try:
             import comfyui_frontend_package
@@ -189,7 +222,54 @@ comfyui-frontend-package is not installed.
             sys.exit(-1)
 
     @classmethod
-    def templates_path(cls) -> str:
+    def template_asset_map(cls) -> Optional[Dict[str, str]]:
+        """Return a mapping of template asset names to their absolute paths."""
+        try:
+            from comfyui_workflow_templates import (
+                get_asset_path,
+                iter_templates,
+            )
+        except ImportError:
+            logging.error(
+                f"""
+********** ERROR ***********
+
+comfyui-workflow-templates is not installed.
+
+{frontend_install_warning_message()}
+
+********** ERROR ***********
+""".strip()
+            )
+            return None
+
+        try:
+            template_entries = list(iter_templates())
+        except Exception as exc:
+            logging.error(f"Failed to enumerate workflow templates: {exc}")
+            return None
+
+        asset_map: Dict[str, str] = {}
+        try:
+            for entry in template_entries:
+                for asset in entry.assets:
+                    asset_map[asset.filename] = get_asset_path(
+                        entry.template_id, asset.filename
+                    )
+        except Exception as exc:
+            logging.error(f"Failed to resolve template asset paths: {exc}")
+            return None
+
+        if not asset_map:
+            logging.error("No workflow template assets found. Did the packages install correctly?")
+            return None
+
+        return asset_map
+
+
+    @classmethod
+    def legacy_templates_path(cls) -> Optional[str]:
+        """Return the legacy templates directory shipped inside the meta package."""
         try:
             import comfyui_workflow_templates
 
@@ -208,6 +288,7 @@ comfyui-workflow-templates is not installed.
 ********** ERROR ***********
 """.strip()
             )
+            return None
 
     @classmethod
     def embedded_docs_path(cls) -> str:
@@ -324,3 +405,17 @@ comfyui-workflow-templates is not installed.
             logging.info("Falling back to the default frontend.")
             check_frontend_version()
             return cls.default_frontend_path()
+    @classmethod
+    def template_asset_handler(cls):
+        assets = cls.template_asset_map()
+        if not assets:
+            return None
+
+        async def serve_template(request: web.Request) -> web.StreamResponse:
+            rel_path = request.match_info.get("path", "")
+            target = assets.get(rel_path)
+            if target is None:
+                raise web.HTTPNotFound()
+            return web.FileResponse(target)
+
+        return serve_template

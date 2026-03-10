@@ -5,12 +5,16 @@ import os
 import importlib.util
 import folder_paths
 import time
-from comfy.cli_args import args
+from comfy.cli_args import args, enables_dynamic_vram
 from app.logger import setup_logger
+from app.assets.scanner import seed_assets
 import itertools
 import utils.extra_config
 import logging
 import sys
+from comfy_execution.progress import get_progress_state
+from comfy_execution.utils import get_executing_context
+from comfy_api import feature_flags
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -18,6 +22,60 @@ if __name__ == "__main__":
     os.environ['DO_NOT_TRACK'] = '1'
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
+import comfy_aimdo.control
+
+if enables_dynamic_vram():
+    comfy_aimdo.control.init()
+
+if os.name == "nt":
+    os.environ['MIMALLOC_PURGE_DELAY'] = '0'
+
+if __name__ == "__main__":
+    os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
+    if args.default_device is not None:
+        default_dev = args.default_device
+        devices = list(range(32))
+        devices.remove(default_dev)
+        devices.insert(0, default_dev)
+        devices = ','.join(map(str, devices))
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
+
+    if args.cuda_device is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
+        logging.info("Set cuda device to: {}".format(args.cuda_device))
+
+    if args.oneapi_device_selector is not None:
+        os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
+        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
+
+    if args.deterministic:
+        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
+            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
+    import cuda_malloc
+    if "rocm" in cuda_malloc.get_torch_version_noimport():
+        os.environ['OCL_SET_SVM_SIZE'] = '262144'  # set at the request of AMD
+
+
+def handle_comfyui_manager_unavailable():
+    if not args.windows_standalone_build:
+        logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+    args.enable_manager = False
+
+
+if args.enable_manager:
+    if importlib.util.find_spec("comfyui_manager"):
+        import comfyui_manager
+
+        if not comfyui_manager.__file__ or not comfyui_manager.__file__.endswith('__init__.py'):
+            handle_comfyui_manager_unavailable()
+    else:
+        handle_comfyui_manager_unavailable()
+
 
 def apply_custom_paths():
     # extra model paths
@@ -55,6 +113,9 @@ def apply_custom_paths():
 
 
 def execute_prestartup_script():
+    if args.disable_all_custom_nodes and len(args.whitelist_custom_nodes) == 0:
+        return
+
     def execute_script(script_path):
         module_name = os.path.splitext(script_path)[0]
         try:
@@ -66,9 +127,6 @@ def execute_prestartup_script():
             logging.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
-    if args.disable_all_custom_nodes:
-        return
-
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
@@ -76,11 +134,19 @@ def execute_prestartup_script():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
+
+            if args.enable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    continue
+
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
                 continue
 
             script_path = os.path.join(module_path, "prestartup_script.py")
             if os.path.exists(script_path):
+                if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
+                    logging.info(f"Prestartup Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                    continue
                 time_before = time.perf_counter()
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
@@ -95,6 +161,10 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+
+if args.enable_manager:
+    comfyui_manager.prestartup()
+
 execute_prestartup_script()
 
 
@@ -104,36 +174,45 @@ import shutil
 import threading
 import gc
 
+if 'torch' in sys.modules:
+    logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
-if os.name == "nt":
-    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
-
-if __name__ == "__main__":
-    if args.cuda_device is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
-        logging.info("Set cuda device to: {}".format(args.cuda_device))
-
-    if args.oneapi_device_selector is not None:
-        os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
-        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
-
-    if args.deterministic:
-        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
-            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
-
-    import cuda_malloc
 
 import comfy.utils
 
 import execution
 import server
-from server import BinaryEventTypes
+from protocol import BinaryEventTypes
 import nodes
 import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
+
+import comfy.memory_management
+import comfy.model_patcher
+
+if enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl():
+    if comfy.model_management.torch_version_numeric < (2, 8):
+        logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+    elif comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
+        if args.verbose == 'DEBUG':
+            comfy_aimdo.control.set_log_debug()
+        elif args.verbose == 'CRITICAL':
+            comfy_aimdo.control.set_log_critical()
+        elif args.verbose == 'ERROR':
+            comfy_aimdo.control.set_log_error()
+        elif args.verbose == 'WARNING':
+            comfy_aimdo.control.set_log_warning()
+        else: #INFO
+            comfy_aimdo.control.set_log_info()
+
+        comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
+        comfy.memory_management.aimdo_enabled = True
+        logging.info("DynamicVRAM support detected and enabled")
+    else:
+        logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -152,10 +231,12 @@ def prompt_worker(q, server_instance):
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
+    elif args.cache_ram > 0:
+        cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:
-        cache_type = execution.CacheType.DEPENDENCY_AWARE
+        cache_type = execution.CacheType.NONE
 
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_size=args.cache_lru)
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : args.cache_ram } )
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -172,14 +253,21 @@ def prompt_worker(q, server_instance):
             prompt_id = item[1]
             server_instance.last_prompt_id = prompt_id
 
-            e.execute(item[2], prompt_id, item[3], item[4])
+            sensitive = item[5]
+            extra_data = item[3].copy()
+            for k in sensitive:
+                extra_data[k] = sensitive[k]
+
+            e.execute(item[2], prompt_id, extra_data, item[4])
             need_gc = True
+
+            remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
             q.task_done(item_id,
                         e.history_result,
                         status=execution.PromptQueue.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
-                            messages=e.status_messages))
+                            messages=e.status_messages), process_item=remove_sensitive)
             if server_instance.client_id is not None:
                 server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
 
@@ -224,15 +312,34 @@ async def run(server_instance, address='', port=8188, verbose=True, call_on_star
         server_instance.start_multi_address(addresses, call_on_start, verbose), server_instance.publish_loop()
     )
 
-
 def hijack_progress(server_instance):
-    def hook(value, total, preview_image):
+    def hook(value, total, preview_image, prompt_id=None, node_id=None):
+        executing_context = get_executing_context()
+        if prompt_id is None and executing_context is not None:
+            prompt_id = executing_context.prompt_id
+        if node_id is None and executing_context is not None:
+            node_id = executing_context.node_id
         comfy.model_management.throw_exception_if_processing_interrupted()
-        progress = {"value": value, "max": total, "prompt_id": server_instance.last_prompt_id, "node": server_instance.last_node_id}
+        if prompt_id is None:
+            prompt_id = server_instance.last_prompt_id
+        if node_id is None:
+            node_id = server_instance.last_node_id
+        progress = {"value": value, "max": total, "prompt_id": prompt_id, "node": node_id}
+        get_progress_state().update_progress(node_id, value, total, preview_image)
 
         server_instance.send_sync("progress", progress, server_instance.client_id)
         if preview_image is not None:
-            server_instance.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server_instance.client_id)
+            # Only send old method if client doesn't support preview metadata
+            if not feature_flags.supports_feature(
+                server_instance.sockets_metadata,
+                server_instance.client_id,
+                "supports_preview_metadata",
+            ):
+                server_instance.send_sync(
+                    BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
+                    preview_image,
+                    server_instance.client_id,
+                )
 
     comfy.utils.set_progress_bar_global_hook(hook)
 
@@ -248,6 +355,8 @@ def setup_database():
         from app.database.db import init_db, dependencies_available
         if dependencies_available():
             init_db()
+            if not args.disable_assets_autoscan:
+                seed_assets(["models"], enable_logging=True)
     except Exception as e:
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
@@ -275,8 +384,14 @@ def start_comfyui(asyncio_loop=None):
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
 
+    if args.enable_manager and not args.disable_manager_ui:
+        comfyui_manager.start()
+
     hook_breaker_ac10a0.save_functions()
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
+    asyncio_loop.run_until_complete(nodes.init_extra_nodes(
+        init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
+        init_api_nodes=not args.disable_api_nodes
+    ))
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()

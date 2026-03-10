@@ -4,13 +4,9 @@ import comfy.samplers
 import comfy.utils
 import numpy as np
 import logging
+import comfy.nested_tensor
 
-def prepare_noise(latent_image, seed, noise_inds=None):
-    """
-    creates random noise given a latent image and a seed.
-    optional arg skip can be used to skip and discard x number of noise generations for a given seed
-    """
-    generator = torch.manual_seed(seed)
+def prepare_noise_inner(latent_image, generator, noise_inds=None):
     if noise_inds is None:
         return torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
 
@@ -21,13 +17,38 @@ def prepare_noise(latent_image, seed, noise_inds=None):
         if i in unique_inds:
             noises.append(noise)
     noises = [noises[i] for i in inverse]
-    noises = torch.cat(noises, axis=0)
+    return torch.cat(noises, axis=0)
+
+def prepare_noise(latent_image, seed, noise_inds=None):
+    """
+    creates random noise given a latent image and a seed.
+    optional arg skip can be used to skip and discard x number of noise generations for a given seed
+    """
+    generator = torch.manual_seed(seed)
+
+    if latent_image.is_nested:
+        tensors = latent_image.unbind()
+        noises = []
+        for t in tensors:
+            noises.append(prepare_noise_inner(t, generator, noise_inds))
+        noises = comfy.nested_tensor.NestedTensor(noises)
+    else:
+        noises = prepare_noise_inner(latent_image, generator, noise_inds)
+
     return noises
 
-def fix_empty_latent_channels(model, latent_image):
+def fix_empty_latent_channels(model, latent_image, downscale_ratio_spacial=None):
+    if latent_image.is_nested:
+        return latent_image
     latent_format = model.get_model_object("latent_format") #Resize the empty latent image so it has the right number of channels
-    if latent_format.latent_channels != latent_image.shape[1] and torch.count_nonzero(latent_image) == 0:
-        latent_image = comfy.utils.repeat_to_batch_size(latent_image, latent_format.latent_channels, dim=1)
+    if torch.count_nonzero(latent_image) == 0:
+        if latent_format.latent_channels != latent_image.shape[1]:
+            latent_image = comfy.utils.repeat_to_batch_size(latent_image, latent_format.latent_channels, dim=1)
+        if downscale_ratio_spacial is not None:
+            if downscale_ratio_spacial != latent_format.spacial_downscale_ratio:
+                ratio = downscale_ratio_spacial / latent_format.spacial_downscale_ratio
+                latent_image = comfy.utils.common_upscale(latent_image, round(latent_image.shape[-1] * ratio), round(latent_image.shape[-2] * ratio), "nearest-exact", crop="disabled")
+
     if latent_format.latent_dimensions == 3 and latent_image.ndim == 4:
         latent_image = latent_image.unsqueeze(2)
     return latent_image

@@ -133,6 +133,7 @@ class Attention(nn.Module):
         hidden_states: torch.Tensor,
         encoder_hidden_states: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        transformer_options={},
         **cross_attention_kwargs,
     ) -> torch.Tensor:
         return self.processor(
@@ -140,6 +141,7 @@ class Attention(nn.Module):
             hidden_states,
             encoder_hidden_states=encoder_hidden_states,
             attention_mask=attention_mask,
+            transformer_options=transformer_options,
             **cross_attention_kwargs,
         )
 
@@ -366,6 +368,7 @@ class CustomerAttnProcessor2_0:
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
         rotary_freqs_cis: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
         rotary_freqs_cis_cross: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
+        transformer_options={},
         *args,
         **kwargs,
     ) -> torch.Tensor:
@@ -433,7 +436,7 @@ class CustomerAttnProcessor2_0:
 
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
         hidden_states = optimized_attention(
-            query, key, value, heads=query.shape[1], mask=attention_mask, skip_reshape=True,
+            query, key, value, heads=query.shape[1], mask=attention_mask, skip_reshape=True, transformer_options=transformer_options,
         ).to(query.dtype)
 
         # linear proj
@@ -697,6 +700,7 @@ class LinearTransformerBlock(nn.Module):
         rotary_freqs_cis: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
         rotary_freqs_cis_cross: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
         temb: torch.FloatTensor = None,
+        transformer_options={},
     ):
 
         N = hidden_states.shape[0]
@@ -720,6 +724,7 @@ class LinearTransformerBlock(nn.Module):
                 encoder_attention_mask=encoder_attention_mask,
                 rotary_freqs_cis=rotary_freqs_cis,
                 rotary_freqs_cis_cross=rotary_freqs_cis_cross,
+                transformer_options=transformer_options,
             )
         else:
             attn_output, _ = self.attn(
@@ -729,6 +734,7 @@ class LinearTransformerBlock(nn.Module):
                 encoder_attention_mask=None,
                 rotary_freqs_cis=rotary_freqs_cis,
                 rotary_freqs_cis_cross=None,
+                transformer_options=transformer_options,
             )
 
         if self.use_adaln_single:
@@ -743,6 +749,7 @@ class LinearTransformerBlock(nn.Module):
                 encoder_attention_mask=encoder_attention_mask,
                 rotary_freqs_cis=rotary_freqs_cis,
                 rotary_freqs_cis_cross=rotary_freqs_cis_cross,
+                transformer_options=transformer_options,
             )
             hidden_states = attn_output + hidden_states
 

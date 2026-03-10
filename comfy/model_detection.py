@@ -19,6 +19,12 @@ def count_blocks(state_dict_keys, prefix_string):
         count += 1
     return count
 
+def any_suffix_in(keys, prefix, main, suffix_list=[]):
+    for x in suffix_list:
+        if "{}{}{}".format(prefix, main, x) in keys:
+            return True
+    return False
+
 def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
     context_dim = None
     use_linear_in_transformer = False
@@ -136,47 +142,113 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
     if '{}txt_in.individual_token_refiner.blocks.0.norm1.weight'.format(key_prefix) in state_dict_keys: #Hunyuan Video
         dit_config = {}
+        in_w = state_dict['{}img_in.proj.weight'.format(key_prefix)]
+        out_w = state_dict['{}final_layer.linear.weight'.format(key_prefix)]
         dit_config["image_model"] = "hunyuan_video"
-        dit_config["in_channels"] = state_dict['{}img_in.proj.weight'.format(key_prefix)].shape[1] #SkyReels img2video has 32 input channels
-        dit_config["patch_size"] = [1, 2, 2]
-        dit_config["out_channels"] = 16
-        dit_config["vec_in_dim"] = 768
-        dit_config["context_in_dim"] = 4096
-        dit_config["hidden_size"] = 3072
+        dit_config["in_channels"] = in_w.shape[1] #SkyReels img2video has 32 input channels
+        dit_config["patch_size"] = list(in_w.shape[2:])
+        dit_config["out_channels"] = out_w.shape[0] // math.prod(dit_config["patch_size"])
+        if any(s.startswith('{}vector_in.'.format(key_prefix)) for s in state_dict_keys):
+            dit_config["vec_in_dim"] = 768
+        else:
+            dit_config["vec_in_dim"] = None
+
+        if len(dit_config["patch_size"]) == 2:
+            dit_config["axes_dim"] = [64, 64]
+        else:
+            dit_config["axes_dim"] = [16, 56, 56]
+
+        if any(s.startswith('{}time_r_in.'.format(key_prefix)) for s in state_dict_keys):
+            dit_config["meanflow"] = True
+        else:
+            dit_config["meanflow"] = False
+
+        dit_config["context_in_dim"] = state_dict['{}txt_in.input_embedder.weight'.format(key_prefix)].shape[1]
+        dit_config["hidden_size"] = in_w.shape[0]
         dit_config["mlp_ratio"] = 4.0
-        dit_config["num_heads"] = 24
+        dit_config["num_heads"] = in_w.shape[0] // 128
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
-        dit_config["axes_dim"] = [16, 56, 56]
         dit_config["theta"] = 256
         dit_config["qkv_bias"] = True
+        if '{}byt5_in.fc1.weight'.format(key_prefix) in state_dict:
+            dit_config["byt5"] = True
+        else:
+            dit_config["byt5"] = False
+
         guidance_keys = list(filter(lambda a: a.startswith("{}guidance_in.".format(key_prefix)), state_dict_keys))
         dit_config["guidance_embed"] = len(guidance_keys) > 0
+
+        # HunyuanVideo 1.5
+        if '{}cond_type_embedding.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["use_cond_type_embedding"] = True
+        else:
+            dit_config["use_cond_type_embedding"] = False
+        if '{}vision_in.proj.0.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["vision_in_dim"] = state_dict['{}vision_in.proj.0.weight'.format(key_prefix)].shape[0]
+            dit_config["meanflow_sum"] = True
+        else:
+            dit_config["vision_in_dim"] = None
+            dit_config["meanflow_sum"] = False
         return dit_config
 
-    if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and '{}img_in.weight'.format(key_prefix) in state_dict_keys: #Flux
+    if any_suffix_in(state_dict_keys, key_prefix, 'double_blocks.0.img_attn.norm.key_norm.', ["weight", "scale"]) and ('{}img_in.weight'.format(key_prefix) in state_dict_keys or any_suffix_in(state_dict_keys, key_prefix, 'distilled_guidance_layer.norms.0.', ["weight", "scale"])): #Flux, Chroma or Chroma Radiance (has no img_in.weight)
         dit_config = {}
-        dit_config["image_model"] = "flux"
+        if '{}double_stream_modulation_img.lin.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["image_model"] = "flux2"
+            dit_config["axes_dim"] = [32, 32, 32, 32]
+            dit_config["num_heads"] = 48
+            dit_config["mlp_ratio"] = 3.0
+            dit_config["theta"] = 2000
+            dit_config["out_channels"] = 128
+            dit_config["global_modulation"] = True
+            dit_config["mlp_silu_act"] = True
+            dit_config["qkv_bias"] = False
+            dit_config["ops_bias"] = False
+            dit_config["default_ref_method"] = "index"
+            dit_config["ref_index_scale"] = 10.0
+            dit_config["txt_ids_dims"] = [3]
+            patch_size = 1
+        else:
+            dit_config["image_model"] = "flux"
+            dit_config["axes_dim"] = [16, 56, 56]
+            dit_config["num_heads"] = 24
+            dit_config["mlp_ratio"] = 4.0
+            dit_config["theta"] = 10000
+            dit_config["out_channels"] = 16
+            dit_config["qkv_bias"] = True
+            dit_config["txt_ids_dims"] = []
+            patch_size = 2
+
         dit_config["in_channels"] = 16
-        patch_size = 2
+        dit_config["hidden_size"] = 3072
+        dit_config["context_in_dim"] = 4096
+
         dit_config["patch_size"] = patch_size
         in_key = "{}img_in.weight".format(key_prefix)
         if in_key in state_dict_keys:
-            dit_config["in_channels"] = state_dict[in_key].shape[1] // (patch_size * patch_size)
-        dit_config["out_channels"] = 16
+            w = state_dict[in_key]
+            dit_config["in_channels"] = w.shape[1] // (patch_size * patch_size)
+            dit_config["hidden_size"] = w.shape[0]
+
+        txt_in_key = "{}txt_in.weight".format(key_prefix)
+        if txt_in_key in state_dict_keys:
+            w = state_dict[txt_in_key]
+            dit_config["context_in_dim"] = w.shape[1]
+            dit_config["hidden_size"] = w.shape[0]
+
         vec_in_key = '{}vector_in.in_layer.weight'.format(key_prefix)
         if vec_in_key in state_dict_keys:
             dit_config["vec_in_dim"] = state_dict[vec_in_key].shape[1]
-        dit_config["context_in_dim"] = 4096
-        dit_config["hidden_size"] = 3072
-        dit_config["mlp_ratio"] = 4.0
-        dit_config["num_heads"] = 24
+        else:
+            dit_config["vec_in_dim"] = None
+
+        dit_config["num_heads"] = dit_config["hidden_size"] // sum(dit_config["axes_dim"])
+
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
-        dit_config["axes_dim"] = [16, 56, 56]
-        dit_config["theta"] = 10000
-        dit_config["qkv_bias"] = True
-        if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
+
+        if any_suffix_in(state_dict_keys, key_prefix, 'distilled_guidance_layer.0.norms.0.', ["weight", "scale"]) or any_suffix_in(state_dict_keys, key_prefix, 'distilled_guidance_layer.norms.0.', ["weight", "scale"]): #Chroma
             dit_config["image_model"] = "chroma"
             dit_config["in_channels"] = 64
             dit_config["out_channels"] = 64
@@ -184,8 +256,32 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["out_dim"] = 3072
             dit_config["hidden_dim"] = 5120
             dit_config["n_layers"] = 5
+
+            if any_suffix_in(state_dict_keys, key_prefix, 'nerf_blocks.0.norm.', ["weight", "scale"]): #Chroma Radiance
+                dit_config["image_model"] = "chroma_radiance"
+                dit_config["in_channels"] = 3
+                dit_config["out_channels"] = 3
+                dit_config["patch_size"] = state_dict.get('{}img_in_patch.weight'.format(key_prefix)).size(dim=-1)
+                dit_config["nerf_hidden_size"] = 64
+                dit_config["nerf_mlp_ratio"] = 4
+                dit_config["nerf_depth"] = 4
+                dit_config["nerf_max_freqs"] = 8
+                dit_config["nerf_tile_size"] = 512
+                dit_config["nerf_final_head_type"] = "conv" if any_suffix_in(state_dict_keys, key_prefix, 'nerf_final_layer_conv.norm.', ["weight", "scale"]) else "linear"
+                dit_config["nerf_embedder_dtype"] = torch.float32
+                if "{}__x0__".format(key_prefix) in state_dict_keys: # x0 pred
+                    dit_config["use_x0"] = True
+                else:
+                    dit_config["use_x0"] = False
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+            dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
+            dit_config["txt_norm"] = any_suffix_in(state_dict_keys, key_prefix, 'txt_norm.', ["weight", "scale"])
+            if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
+                dit_config["txt_ids_dims"] = [1, 2]
+            if dit_config.get("context_in_dim") == 3584 and dit_config["vec_in_dim"] is None:  # LongCat-Image
+                dit_config["txt_ids_dims"] = [1, 2]
+
         return dit_config
 
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys: #Genmo mochi preview
@@ -221,7 +317,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
         dit_config = {}
-        dit_config["image_model"] = "ltxv"
+        dit_config["image_model"] = "ltxav" if f'{key_prefix}audio_adaln_single.linear.weight' in state_dict_keys else "ltxv"
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         shape = state_dict['{}transformer_blocks.0.attn2.to_k.weight'.format(key_prefix)].shape
         dit_config["attention_head_dim"] = shape[0] // 32
@@ -327,26 +423,79 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
-    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
+    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
         dit_config["image_model"] = "lumina2"
         dit_config["patch_size"] = 2
         dit_config["in_channels"] = 16
-        dit_config["dim"] = 2304
-        dit_config["cap_feat_dim"] = 2304
-        dit_config["n_layers"] = 26
-        dit_config["n_heads"] = 24
-        dit_config["n_kv_heads"] = 8
+        w = state_dict['{}cap_embedder.1.weight'.format(key_prefix)]
+        dit_config["dim"] = w.shape[0]
+        dit_config["cap_feat_dim"] = w.shape[1]
+        dit_config["n_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
         dit_config["qk_norm"] = True
-        dit_config["axes_dims"] = [32, 32, 32]
-        dit_config["axes_lens"] = [300, 512, 512]
+
+        if dit_config["dim"] == 2304: # Original Lumina 2
+            dit_config["n_heads"] = 24
+            dit_config["n_kv_heads"] = 8
+            dit_config["axes_dims"] = [32, 32, 32]
+            dit_config["axes_lens"] = [300, 512, 512]
+            dit_config["rope_theta"] = 10000.0
+            dit_config["ffn_dim_multiplier"] = 4.0
+            ctd_weight = state_dict.get('{}clip_text_pooled_proj.0.weight'.format(key_prefix), None)
+            if ctd_weight is not None:  # NewBie
+                dit_config["clip_text_dim"] = ctd_weight.shape[0]
+                # NewBie also sets axes_lens = [1024, 512, 512] but it's not used in ComfyUI
+        elif dit_config["dim"] == 3840:  # Z image
+            dit_config["n_heads"] = 30
+            dit_config["n_kv_heads"] = 30
+            dit_config["axes_dims"] = [32, 48, 48]
+            dit_config["axes_lens"] = [1536, 512, 512]
+            dit_config["rope_theta"] = 256.0
+            dit_config["ffn_dim_multiplier"] = (8.0 / 3.0)
+            dit_config["z_image_modulation"] = True
+            dit_config["time_scale"] = 1000.0
+            try:
+                dit_config["allow_fp16"] = torch.std(state_dict['{}layers.{}.ffn_norm1.weight'.format(key_prefix, dit_config["n_layers"] - 2)], unbiased=False).item() < 0.42
+            except Exception:
+                pass
+            if '{}cap_pad_token'.format(key_prefix) in state_dict_keys:
+                dit_config["pad_tokens_multiple"] = 32
+            sig_weight = state_dict.get('{}siglip_embedder.0.weight'.format(key_prefix), None)
+            if sig_weight is not None:
+                dit_config["siglip_feat_dim"] = sig_weight.shape[0]
+
+            dec_cond_key = '{}dec_net.cond_embed.weight'.format(key_prefix)
+            if dec_cond_key in state_dict_keys:  # pixel-space variant
+                dit_config["image_model"] = "zimage_pixel"
+                # patch_size and in_channels are derived from x_embedder:
+                #   x_embedder: Linear(patch_size * patch_size * in_channels, dim)
+                # The decoder also receives the full flat patch, so decoder_in_channels = x_embedder input dim.
+                x_emb_in = state_dict['{}x_embedder.weight'.format(key_prefix)].shape[1]
+                dec_out = state_dict['{}dec_net.final_layer.linear.weight'.format(key_prefix)].shape[0]
+                # patch_size: infer from decoder final layer output matching x_embedder input
+                # in_channels: infer from dec_net input_embedder (in_features = dec_in_ch + max_freqs^2)
+                embedder_w = state_dict['{}dec_net.input_embedder.embedder.0.weight'.format(key_prefix)]
+                dec_in_ch = dec_out  # decoder in == decoder out (same pixel space)
+                dit_config["patch_size"] = round((x_emb_in / 3) ** 0.5)  # assume RGB (in_channels=3)
+                dit_config["in_channels"] = 3
+                dit_config["decoder_in_channels"] = dec_in_ch
+                dit_config["decoder_hidden_size"] = state_dict[dec_cond_key].shape[0]
+                dit_config["decoder_num_res_blocks"] = count_blocks(
+                    state_dict_keys, '{}dec_net.res_blocks.'.format(key_prefix) + '{}.'
+                )
+                dit_config["decoder_max_freqs"] = int((embedder_w.shape[1] - dec_in_ch) ** 0.5)
+                if '{}__x0__'.format(key_prefix) in state_dict_keys:
+                    dit_config["use_x0"] = True
+
         return dit_config
 
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
         dit_config = {}
         dit_config["image_model"] = "wan2.1"
         dim = state_dict['{}head.modulation'.format(key_prefix)].shape[-1]
+        out_dim = state_dict['{}head.head.weight'.format(key_prefix)].shape[0] // 4
         dit_config["dim"] = dim
+        dit_config["out_dim"] = out_dim
         dit_config["num_heads"] = dim // 128
         dit_config["ffn_dim"] = state_dict['{}blocks.0.ffn.0.weight'.format(key_prefix)].shape[0]
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
@@ -362,7 +511,18 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
             dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
         elif '{}control_adapter.conv.weight'.format(key_prefix) in state_dict_keys:
-            dit_config["model_type"] = "camera"
+            if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+                dit_config["model_type"] = "camera"
+            else:
+                dit_config["model_type"] = "camera_2.2"
+        elif '{}casual_audio_encoder.encoder.final_linear.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "s2v"
+        elif '{}audio_proj.audio_proj_glob_1.layer.bias'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "humo"
+        elif '{}face_adapter.fuser_blocks.0.k_norm.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "animate"
+        elif '{}patch_embedding_pose.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "scail"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -371,6 +531,14 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
         if flf_weight is not None:
             dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
+
+        ref_conv_weight = state_dict.get('{}ref_conv.weight'.format(key_prefix))
+        if ref_conv_weight is not None:
+            dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
+
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
@@ -386,6 +554,19 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
         dit_config["qkv_bias"] = True
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        return dit_config
+
+    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys and f"{key_prefix}blocks.0.attn1.k_norm.weight" in state_dict_keys:  # Hunyuan 3D 2.1
+        dit_config = {}
+        dit_config["image_model"] = "hunyuan3d2_1"
+        dit_config["in_channels"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[1]
+        dit_config["context_dim"] = 1024
+        dit_config["hidden_size"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[0]
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = 16
+        dit_config["depth"] = count_blocks(state_dict_keys, f"{key_prefix}blocks.{{}}")
+        dit_config["qkv_bias"] = False
+        dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
 
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
@@ -410,6 +591,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
         dit_config = {}
         dit_config["image_model"] = "cosmos_predict2"
+        if "{}llm_adapter.blocks.0.cross_attn.q_proj.weight".format(key_prefix) in state_dict_keys:
+            dit_config["image_model"] = "anima"
         dit_config["max_img_h"] = 240
         dit_config["max_img_w"] = 240
         dit_config["max_frames"] = 128
@@ -477,6 +660,41 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["patch_size"] = 2
         dit_config["text_feat_dim"] = 2048
         dit_config["timestep_scale"] = 1000.0
+        return dit_config
+
+    if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
+        dit_config = {}
+        dit_config["image_model"] = "qwen_image"
+        dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        if "{}__index_timestep_zero__".format(key_prefix) in state_dict_keys:  # 2511
+            dit_config["default_ref_method"] = "index_timestep_zero"
+        if "{}time_text_embed.addition_t_embedding.weight".format(key_prefix) in state_dict_keys:  # Layered
+            dit_config["use_additional_t_cond"] = True
+            dit_config["default_ref_method"] = "negative_index"
+        return dit_config
+
+    if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
+        dit_config = {}
+        model_dim = state_dict['{}visual_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
+        dit_config["model_dim"] = model_dim
+        if model_dim in [4096, 2560]: # pro video and lite image
+            dit_config["axes_dims"] = (32, 48, 48)
+            if model_dim == 2560: # lite image
+                dit_config["rope_scale_factor"] = (1.0, 1.0, 1.0)
+        elif model_dim == 1792: # lite video
+            dit_config["axes_dims"] = (16, 24, 24)
+        dit_config["time_dim"] = state_dict['{}time_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
+        dit_config["image_model"] = "kandinsky5"
+        dit_config["ff_dim"] = state_dict['{}visual_transformer_blocks.0.feed_forward.in_layer.weight'.format(key_prefix)].shape[0]
+        dit_config["visual_embed_dim"] = state_dict['{}visual_embeddings.in_layer.weight'.format(key_prefix)].shape[1]
+        dit_config["num_text_blocks"] = count_blocks(state_dict_keys, '{}text_transformer_blocks.'.format(key_prefix) + '{}.')
+        dit_config["num_visual_blocks"] = count_blocks(state_dict_keys, '{}visual_transformer_blocks.'.format(key_prefix) + '{}.')
+        return dit_config
+
+    if '{}encoder.lyric_encoder.layers.0.input_layernorm.weight'.format(key_prefix) in state_dict_keys:
+        dit_config = {}
+        dit_config["audio_model"] = "ace1.5"
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
@@ -603,6 +821,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         unet_config["use_temporal_resblock"] = False
         unet_config["use_temporal_attention"] = False
 
+    heatmap_key = '{}heatmap_head.conv_layers.0.weight'.format(key_prefix)
+    if heatmap_key in state_dict_keys:
+        unet_config["heatmap_head"] = True
+
     return unet_config
 
 def model_config_from_unet_config(unet_config, state_dict=None):
@@ -621,16 +843,11 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     if model_config is None and use_base_if_no_match:
         model_config = comfy.supported_models_base.BASE(unet_config)
 
-    scaled_fp8_key = "{}scaled_fp8".format(unet_key_prefix)
-    if scaled_fp8_key in state_dict:
-        scaled_fp8_weight = state_dict.pop(scaled_fp8_key)
-        model_config.scaled_fp8 = scaled_fp8_weight.dtype
-        if model_config.scaled_fp8 == torch.float32:
-            model_config.scaled_fp8 = torch.float8_e4m3fn
-        if scaled_fp8_weight.nelement() == 2:
-            model_config.optimizations["fp8"] = False
-        else:
-            model_config.optimizations["fp8"] = True
+    # Detect per-layer quantization (mixed precision)
+    quant_config = comfy.utils.detect_layer_quantization(state_dict, unet_key_prefix)
+    if quant_config:
+        model_config.quant_config = quant_config
+        logging.info("Detected mixed precision quantization")
 
     return model_config
 
@@ -828,7 +1045,7 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
 
     LotusD = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False, 'adm_in_channels': 4,
             'dtype': dtype, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': [2, 2, 2, 2], 'transformer_depth': [1, 1, 1, 1, 1, 1, 0, 0],
-            'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_heads': 8,
+            'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_head_channels': 64,
             'transformer_depth_output': [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
             'use_temporal_attention': False, 'use_temporal_resblock': False}
 
@@ -860,12 +1077,19 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
     elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict: # PixArt
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         sd_map = comfy.utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
+    elif 'noise_refiner.0.attention.norm_k.weight' in state_dict:
+        n_layers = count_blocks(state_dict, 'layers.{}.')
+        dim = state_dict['noise_refiner.0.attention.to_k.weight'].shape[0]
+        sd_map = comfy.utils.z_image_to_diffusers({"n_layers": n_layers, "dim": dim}, output_prefix=output_prefix)
+        for k in state_dict: # For zeta chroma
+            if k not in sd_map:
+                sd_map[k] = k
     elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         hidden_size = state_dict["x_embedder.bias"].shape[0]
         sd_map = comfy.utils.flux_to_diffusers({"depth": depth, "depth_single_blocks": depth_single_blocks, "hidden_size": hidden_size}, output_prefix=output_prefix)
-    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict: #SD3
+    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict and 'pos_embed.proj.weight' in state_dict: #SD3
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)

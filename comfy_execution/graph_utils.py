@@ -137,3 +137,19 @@ def add_graph_prefix(graph, outputs, prefix):
 
     return new_graph, tuple(new_outputs)
 
+class ExecutionBlocker:
+    """
+    Return this from a node and any users will be blocked with the given error message.
+    If the message is None, execution will be blocked silently instead.
+    Generally, you should avoid using this functionality unless absolutely necessary. Whenever it's
+    possible, a lazy input will be more efficient and have a better user experience.
+    This functionality is useful in two cases:
+    1. You want to conditionally prevent an output node from executing. (Particularly a built-in node
+       like SaveImage. For your own output nodes, I would recommend just adding a BOOL input and using
+       lazy evaluation to let it conditionally disable itself.)
+    2. You have a node with multiple possible outputs, some of which are invalid and should not be used.
+       (I would recommend not making nodes like this in the future -- instead, make multiple nodes with
+       different outputs. Unfortunately, there are several popular existing nodes using this pattern.)
+    """
+    def __init__(self, message):
+        self.message = message

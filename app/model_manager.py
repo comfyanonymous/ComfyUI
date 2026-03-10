@@ -44,7 +44,7 @@ class ModelFileManager:
         @routes.get("/experiment/models/{folder}")
         async def get_all_models(request):
             folder = request.match_info.get("folder", None)
-            if not folder in folder_paths.folder_names_and_paths:
+            if folder not in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
             files = self.get_model_file_list(folder)
             return web.json_response(files)
@@ -55,7 +55,7 @@ class ModelFileManager:
             path_index = int(request.match_info.get("path_index", None))
             filename = request.match_info.get("filename", None)
 
-            if not folder_name in folder_paths.folder_names_and_paths:
+            if folder_name not in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
 
             folders = folder_paths.folder_names_and_paths[folder_name]
@@ -130,10 +130,21 @@ class ModelFileManager:
 
             for file_name in filenames:
                 try:
-                    relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
-                    result.append(relative_path)
-                except:
-                    logging.warning(f"Warning: Unable to access {file_name}. Skipping this file.")
+                    full_path = os.path.join(dirpath, file_name)
+                    relative_path = os.path.relpath(full_path, directory)
+
+                    # Get file metadata
+                    file_info = {
+                        "name": relative_path,
+                        "pathIndex": pathIndex,
+                        "modified": os.path.getmtime(full_path),  # Add modification time
+                        "created": os.path.getctime(full_path),   # Add creation time
+                        "size": os.path.getsize(full_path)        # Add file size
+                    }
+                    result.append(file_info)
+
+                except Exception as e:
+                    logging.warning(f"Warning: Unable to access {file_name}. Error: {e}. Skipping this file.")
                     continue
 
             for d in subdirs:
@@ -144,7 +155,7 @@ class ModelFileManager:
                     logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
                     continue
 
-        return [{"name": f, "pathIndex": pathIndex} for f in result], dirs, time.perf_counter()
+        return result, dirs, time.perf_counter()
 
     def get_model_previews(self, filepath: str) -> list[str | BytesIO]:
         dirname = os.path.dirname(filepath)

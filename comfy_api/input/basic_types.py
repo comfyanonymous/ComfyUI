@@ -1,20 +1,14 @@
-import torch
-from typing import TypedDict
+# This file only exists for backwards compatibility.
+from comfy_api.latest._input.basic_types import (
+    ImageInput,
+    AudioInput,
+    MaskInput,
+    LatentInput,
+)
 
-ImageInput = torch.Tensor
-"""
-An image in format [B, H, W, C] where B is the batch size, C is the number of channels,
-"""
-
-class AudioInput(TypedDict):
-    """
-    TypedDict representing audio input.
-    """
-
-    waveform: torch.Tensor
-    """
-    Tensor in the format [B, C, T] where B is the batch size, C is the number of channels,
-    """
-
-    sample_rate: int
-
+__all__ = [
+    "ImageInput",
+    "AudioInput",
+    "MaskInput",
+    "LatentInput",
+]
