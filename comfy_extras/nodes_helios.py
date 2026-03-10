@@ -540,7 +540,6 @@ class HeliosImageToVideo(io.ComfyNode):
                 io.Float.Input("image_noise_sigma_min", default=0.111, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
                 io.Float.Input("image_noise_sigma_max", default=0.135, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, advanced=True),
-                io.Boolean.Input("include_history_in_output", default=False, advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -567,7 +566,6 @@ class HeliosImageToVideo(io.ComfyNode):
         image_noise_sigma_min=0.111,
         image_noise_sigma_max=0.135,
         noise_seed=0,
-        include_history_in_output=False,
     ) -> io.NodeOutput:
         video_noise_sigma_min = 0.111
         video_noise_sigma_max = 0.135
@@ -637,7 +635,6 @@ class HeliosImageToVideo(io.ComfyNode):
                 "helios_history_valid_mask": history_valid_mask,
                 "helios_num_frames": int(length),
                 "helios_noise_gen_state": noise_gen_state,
-                "helios_include_history_in_output": _strict_bool(include_history_in_output, default=False),
             },
         )
 
@@ -743,7 +740,6 @@ class HeliosVideoToVideo(io.ComfyNode):
                 io.Float.Input("video_noise_sigma_min", default=0.111, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
                 io.Float.Input("video_noise_sigma_max", default=0.135, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, advanced=True),
-                io.Boolean.Input("include_history_in_output", default=True, advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -770,7 +766,6 @@ class HeliosVideoToVideo(io.ComfyNode):
         video_noise_sigma_min=0.111,
         video_noise_sigma_max=0.135,
         noise_seed=0,
-        include_history_in_output=True,
     ) -> io.NodeOutput:
         spacial_scale = vae.spacial_compression_encode()
         latent_channels = vae.latent_channels
@@ -869,8 +864,6 @@ class HeliosVideoToVideo(io.ComfyNode):
                 "helios_history_valid_mask": history_valid_mask,
                 "helios_num_frames": int(length),
                 "helios_noise_gen_state": noise_gen_state,
-                # Keep initial history segment and generated chunks together in sampler output.
-                "helios_include_history_in_output": _strict_bool(include_history_in_output, default=True),
             },
         )
 
@@ -1011,13 +1004,11 @@ class HeliosPyramidSampler(io.ComfyNode):
         history_valid_mask = latent.get("helios_history_valid_mask", None)
         if history_valid_mask is None:
             raise ValueError("Helios sampler requires `helios_history_valid_mask` in latent input.")
-        history_full = None
         history_from_latent_applied = False
         if image_latent_prefix is not None:
             image_latent_prefix = model.model.process_latent_in(image_latent_prefix)
         if "helios_history_latent" in latent:
             history_in = _process_latent_in_preserve_zero_frames(model, latent["helios_history_latent"], valid_mask=history_valid_mask)
-            history_full = history_in
             positive, negative = _set_helios_history_values(
                 positive,
                 negative,
@@ -1068,25 +1059,7 @@ class HeliosPyramidSampler(io.ComfyNode):
         if image_latent_prefix is not None:
             image_latent_prefix = image_latent_prefix.to(device=target_device, dtype=torch.float32)
 
-        history_output = history_full if history_full is not None else rolling_history
-        if "helios_history_latent_output" in latent:
-            history_output = _process_latent_in_preserve_zero_frames(
-                model,
-                latent["helios_history_latent_output"],
-                valid_mask=history_valid_mask,
-            )
-        history_output = history_output.to(device=target_device, dtype=torch.float32)
-        if history_valid_mask is not None:
-            if not torch.is_tensor(history_valid_mask):
-                history_valid_mask = torch.tensor(history_valid_mask, device=target_device)
-            history_valid_mask = history_valid_mask.to(device=target_device)
-            if history_valid_mask.ndim == 2:
-                initial_generated_latent_frames = int(history_valid_mask.any(dim=0).sum().item())
-            else:
-                initial_generated_latent_frames = int(history_valid_mask.reshape(-1).sum().item())
-        else:
-            initial_generated_latent_frames = 0
-        total_generated_latent_frames = initial_generated_latent_frames
+        # Always return only newly generated chunks; input history is used only for conditioning.
 
         for chunk_idx in range(chunk_count):
             # Prepare initial latent for this chunk
@@ -1268,14 +1241,8 @@ class HeliosPyramidSampler(io.ComfyNode):
             rolling_history = torch.cat([rolling_history, stage_latent.to(rolling_history.device, rolling_history.dtype)], dim=2)
             keep_hist = max(1, sum(history_sizes_list))
             rolling_history = rolling_history[:, :, -keep_hist:]
-            total_generated_latent_frames += stage_latent.shape[2]
-            history_output = torch.cat([history_output, stage_latent.to(history_output.device, history_output.dtype)], dim=2)
 
-        include_history_in_output = _strict_bool(latent.get("helios_include_history_in_output", False), default=False)
-        if include_history_in_output and history_output is not None:
-            keep_t = max(0, int(total_generated_latent_frames))
-            stage_latent = history_output[:, :, -keep_t:] if keep_t > 0 else history_output[:, :, :0]
-        elif len(generated_chunks) > 0:
+        if len(generated_chunks) > 0:
             stage_latent = torch.cat(generated_chunks, dim=2)
         else:
             stage_latent = torch.zeros((b, c, 0, h, w), device=target_device, dtype=torch.float32)
@@ -1288,7 +1255,6 @@ class HeliosPyramidSampler(io.ComfyNode):
         out["helios_chunk_count"] = int(len(generated_chunks))
         out["helios_window_num_frames"] = int(window_num_frames)
         out["helios_num_frames"] = int(num_frames)
-        out["helios_prefix_latent_frames"] = int(initial_generated_latent_frames if include_history_in_output else 0)
 
         if "x0" in x0_output:
             x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
@@ -1321,7 +1287,6 @@ class HeliosVAEDecode(io.ComfyNode):
 
         helios_chunk_decode = bool(samples.get("helios_chunk_decode", False))
         helios_chunk_latent_frames = int(samples.get("helios_chunk_latent_frames", 0) or 0)
-        helios_prefix_latent_frames = int(samples.get("helios_prefix_latent_frames", 0) or 0)
 
         if (
             helios_chunk_decode
@@ -1330,12 +1295,7 @@ class HeliosVAEDecode(io.ComfyNode):
             and latent.shape[2] > 0
         ):
             decoded_chunks = []
-            prefix_t = max(0, min(helios_prefix_latent_frames, latent.shape[2]))
-
-            if prefix_t > 0:
-                decoded_chunks.append(vae.decode(latent[:, :, :prefix_t]))
-
-            body = latent[:, :, prefix_t:]
+            body = latent
             for start in range(0, body.shape[2], helios_chunk_latent_frames):
                 chunk = body[:, :, start:start + helios_chunk_latent_frames]
                 if chunk.shape[2] == 0:
