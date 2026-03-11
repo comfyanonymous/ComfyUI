@@ -104,9 +104,11 @@ def load_safetensors(ckpt):
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
                 tensor = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
-                setattr(tensor.untyped_storage(),
+                storage = tensor.untyped_storage()
+                setattr(storage,
                         "_comfy_tensor_file_slice",
                         comfy.memory_management.TensorFileSlice(f, threading.get_ident(), data_base_offset + start, end - start))
+                setattr(storage, "_comfy_tensor_mmap_touched", False)
                 sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),

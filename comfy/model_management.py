@@ -1227,6 +1227,9 @@ def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
                 continue
             if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view):
                 continue
+            storage = tensor.untyped_storage()
+            if hasattr(storage, "_comfy_tensor_mmap_touched"):
+                storage._comfy_tensor_mmap_touched = True
             dest_view.copy_(tensor, non_blocking=non_blocking)
 
 
