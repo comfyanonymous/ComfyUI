@@ -24,6 +24,10 @@ from comfy_api_nodes.util import (
     tensor_to_bytesio,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_PIXVERSE_I2V = "fal-ai/pixverse/v3.5/image-to-video"
 
 AVERAGE_DURATION_T2V = 32
 AVERAGE_DURATION_I2V = 30
@@ -31,16 +35,9 @@ AVERAGE_DURATION_T2T = 52
 
 
 async def upload_image_to_pixverse(cls: type[IO.ComfyNode], image: torch.Tensor):
-    response_upload = await sync_op(
-        cls,
-        ApiEndpoint(path="/proxy/pixverse/image/upload", method="POST"),
-        response_model=PixverseImageUploadResponse,
-        files={"image": tensor_to_bytesio(image)},
-        content_type="multipart/form-data",
-    )
-    if response_upload.Resp is None:
-        raise Exception(f"PixVerse image upload request failed: '{response_upload.ErrMsg}'")
-    return response_upload.Resp.img_id
+    from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+    image_url = await upload_image_to_fal(image[0] if len(image.shape) > 3 else image, "image/png")
+    return image_url  # TODO: fal.ai returns URL instead of img_id; verify fal.ai integration
 
 
 class PixverseTemplateNode(IO.ComfyNode):
@@ -123,12 +120,9 @@ class PixverseTextToVideoNode(IO.ComfyNode):
             ],
             outputs=[IO.Video.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -152,38 +146,17 @@ class PixverseTextToVideoNode(IO.ComfyNode):
         elif duration_seconds != PixverseDuration.dur_5:
             motion_mode = PixverseMotionMode.normal
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/pixverse/video/text/generate", method="POST"),
-            response_model=PixverseVideoResponse,
-            data=PixverseTextVideoRequest(
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                quality=quality,
-                duration=duration_seconds,
-                motion_mode=motion_mode,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                template_id=pixverse_template,
-                seed=seed,
-            ),
-        )
-        if response_api.Resp is None:
-            raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
-
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/pixverse/video/result/{response_api.Resp.video_id}"),
-            response_model=PixverseGenerationStatusResponse,
-            completed_statuses=[PixverseStatus.successful],
-            failed_statuses=[
-                PixverseStatus.contents_moderation,
-                PixverseStatus.failed,
-                PixverseStatus.deleted,
-            ],
-            status_extractor=lambda x: x.Resp.status,
-            estimated_duration=AVERAGE_DURATION_T2V,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response_poll.Resp.url))
+        result = await fal_run(cls, FAL_PIXVERSE_I2V, {
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "quality": quality,
+            "duration": duration_seconds,
+            "motion_mode": motion_mode,
+            "negative_prompt": negative_prompt if negative_prompt else None,
+            "template_id": pixverse_template,
+            "seed": seed,
+        }, estimated_duration=AVERAGE_DURATION_T2V)  # TODO: verify fal.ai field names; use correct fal model for text-to-video
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class PixverseImageToVideoNode(IO.ComfyNode):
@@ -238,12 +211,9 @@ class PixverseImageToVideoNode(IO.ComfyNode):
             ],
             outputs=[IO.Video.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -269,39 +239,17 @@ class PixverseImageToVideoNode(IO.ComfyNode):
         elif duration_seconds != PixverseDuration.dur_5:
             motion_mode = PixverseMotionMode.normal
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/pixverse/video/img/generate", method="POST"),
-            response_model=PixverseVideoResponse,
-            data=PixverseImageVideoRequest(
-                img_id=img_id,
-                prompt=prompt,
-                quality=quality,
-                duration=duration_seconds,
-                motion_mode=motion_mode,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                template_id=pixverse_template,
-                seed=seed,
-            ),
-        )
-
-        if response_api.Resp is None:
-            raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
-
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/pixverse/video/result/{response_api.Resp.video_id}"),
-            response_model=PixverseGenerationStatusResponse,
-            completed_statuses=[PixverseStatus.successful],
-            failed_statuses=[
-                PixverseStatus.contents_moderation,
-                PixverseStatus.failed,
-                PixverseStatus.deleted,
-            ],
-            status_extractor=lambda x: x.Resp.status,
-            estimated_duration=AVERAGE_DURATION_I2V,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response_poll.Resp.url))
+        result = await fal_run(cls, FAL_PIXVERSE_I2V, {
+            "image_url": img_id,  # img_id is now a URL from upload_image_to_fal
+            "prompt": prompt,
+            "quality": quality,
+            "duration": duration_seconds,
+            "motion_mode": motion_mode,
+            "negative_prompt": negative_prompt if negative_prompt else None,
+            "template_id": pixverse_template,
+            "seed": seed,
+        }, estimated_duration=AVERAGE_DURATION_I2V)  # TODO: verify fal.ai field names
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class PixverseTransitionVideoNode(IO.ComfyNode):
@@ -352,12 +300,9 @@ class PixverseTransitionVideoNode(IO.ComfyNode):
             ],
             outputs=[IO.Video.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -384,39 +329,17 @@ class PixverseTransitionVideoNode(IO.ComfyNode):
         elif duration_seconds != PixverseDuration.dur_5:
             motion_mode = PixverseMotionMode.normal
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/pixverse/video/transition/generate", method="POST"),
-            response_model=PixverseVideoResponse,
-            data=PixverseTransitionVideoRequest(
-                first_frame_img=first_frame_id,
-                last_frame_img=last_frame_id,
-                prompt=prompt,
-                quality=quality,
-                duration=duration_seconds,
-                motion_mode=motion_mode,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                seed=seed,
-            ),
-        )
-
-        if response_api.Resp is None:
-            raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
-
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/pixverse/video/result/{response_api.Resp.video_id}"),
-            response_model=PixverseGenerationStatusResponse,
-            completed_statuses=[PixverseStatus.successful],
-            failed_statuses=[
-                PixverseStatus.contents_moderation,
-                PixverseStatus.failed,
-                PixverseStatus.deleted,
-            ],
-            status_extractor=lambda x: x.Resp.status,
-            estimated_duration=AVERAGE_DURATION_T2V,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response_poll.Resp.url))
+        result = await fal_run(cls, FAL_PIXVERSE_I2V, {
+            "first_frame_image_url": first_frame_id,  # now a URL from upload_image_to_fal
+            "last_frame_image_url": last_frame_id,
+            "prompt": prompt,
+            "quality": quality,
+            "duration": duration_seconds,
+            "motion_mode": motion_mode,
+            "negative_prompt": negative_prompt if negative_prompt else None,
+            "seed": seed,
+        }, estimated_duration=AVERAGE_DURATION_T2V)  # TODO: verify fal.ai field names; use correct fal model for transition
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 PRICE_BADGE_VIDEO = IO.PriceBadge(

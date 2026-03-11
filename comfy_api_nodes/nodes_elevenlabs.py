@@ -27,6 +27,10 @@ from comfy_api_nodes.util import (
     upload_audio_to_comfyapi,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_ELEVENLABS_TTS = "fal-ai/elevenlabs/tts/turbo-v2.5"
 
 ELEVENLABS_MUSIC_SECTIONS = "ELEVENLABS_MUSIC_SECTIONS"  # Custom type for music sections
 ELEVENLABS_COMPOSITION_PLAN = "ELEVENLABS_COMPOSITION_PLAN"  # Custom type for composition plan
@@ -152,14 +156,9 @@ class ElevenLabsSpeechToText(IO.ComfyNode):
                 IO.String.Output(display_name="words_json"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.0073,"format":{"approximate":true,"suffix":"/minute"}}""",
-            ),
         )
 
     @classmethod
@@ -192,7 +191,7 @@ class ElevenLabsSpeechToText(IO.ComfyNode):
         )
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/elevenlabs/v1/speech-to-text", method="POST"),
+            ApiEndpoint(path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/speech-to-text", method="POST"),
             response_model=SpeechToTextResponse,
             data=request,
             content_type="multipart/form-data",
@@ -358,14 +357,9 @@ class ElevenLabsTextToSpeech(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.24,"format":{"approximate":true,"suffix":"/1K chars"}}""",
-            ),
         )
 
     @classmethod
@@ -398,7 +392,7 @@ class ElevenLabsTextToSpeech(IO.ComfyNode):
         response = await sync_op_raw(
             cls,
             ApiEndpoint(
-                path=f"/proxy/elevenlabs/v1/text-to-speech/{voice}",
+                path=f"__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/text-to-speech/{voice}",
                 method="POST",
                 query_params={"output_format": output_format},
             ),
@@ -426,14 +420,9 @@ class ElevenLabsAudioIsolation(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.24,"format":{"approximate":true,"suffix":"/minute"}}""",
-            ),
         )
 
     @classmethod
@@ -445,7 +434,7 @@ class ElevenLabsAudioIsolation(IO.ComfyNode):
         audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, audio["sample_rate"], "mp4", "aac")
         response = await sync_op_raw(
             cls,
-            ApiEndpoint(path="/proxy/elevenlabs/v1/audio-isolation", method="POST"),
+            ApiEndpoint(path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/audio-isolation", method="POST"),
             files={"audio": ("audio.mp4", audio_bytes_io, "audio/mp4")},
             content_type="multipart/form-data",
             as_binary=True,
@@ -513,14 +502,9 @@ class ElevenLabsTextToSoundEffects(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"approximate":true,"suffix":"/minute"}}""",
-            ),
         )
 
     @classmethod
@@ -534,7 +518,7 @@ class ElevenLabsTextToSoundEffects(IO.ComfyNode):
         response = await sync_op_raw(
             cls,
             ApiEndpoint(
-                path="/proxy/elevenlabs/v1/sound-generation",
+                path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/sound-generation",
                 method="POST",
                 query_params={"output_format": output_format},
             ),
@@ -579,12 +563,9 @@ class ElevenLabsInstantVoiceClone(IO.ComfyNode):
                 IO.Custom(ELEVENLABS_VOICE).Output(display_name="voice"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(expr="""{"type":"usd","usd":0.15}"""),
         )
 
     @classmethod
@@ -604,7 +585,7 @@ class ElevenLabsInstantVoiceClone(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/elevenlabs/v1/voices/add", method="POST"),
+            ApiEndpoint(path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/voices/add", method="POST"),
             response_model=AddVoiceResponse,
             data=AddVoiceRequest(
                 name=str(uuid.uuid4()),
@@ -716,14 +697,9 @@ class ElevenLabsSpeechToSpeech(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.24,"format":{"approximate":true,"suffix":"/minute"}}""",
-            ),
         )
 
     @classmethod
@@ -749,7 +725,7 @@ class ElevenLabsSpeechToSpeech(IO.ComfyNode):
         response = await sync_op_raw(
             cls,
             ApiEndpoint(
-                path=f"/proxy/elevenlabs/v1/speech-to-speech/{voice}",
+                path=f"__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/speech-to-speech/{voice}",
                 method="POST",
                 query_params={"output_format": output_format},
             ),
@@ -856,14 +832,9 @@ class ElevenLabsTextToDialogue(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.24,"format":{"approximate":true,"suffix":"/1K chars"}}""",
-            ),
         )
 
     @classmethod
@@ -895,7 +866,7 @@ class ElevenLabsTextToDialogue(IO.ComfyNode):
         response = await sync_op_raw(
             cls,
             ApiEndpoint(
-                path="/proxy/elevenlabs/v1/text-to-dialogue",
+                path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/text-to-dialogue",
                 method="POST",
                 query_params={"output_format": output_format},
             ),

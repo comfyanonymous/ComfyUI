@@ -32,7 +32,11 @@ from comfy_api_nodes.util import (
     tensor_to_bytesio,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
 from comfy_extras.nodes_images import SVG
+
+FAL_RECRAFT_V3 = "fal-ai/recraft/v3/text-to-image"
 
 
 async def handle_recraft_file_request(
@@ -355,14 +359,9 @@ class RecraftCreateStyleNode(IO.ComfyNode):
                 IO.String.Output(display_name="style_id"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd": 0.04}""",
-            ),
         )
 
     @classmethod
@@ -383,7 +382,7 @@ class RecraftCreateStyleNode(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path="/proxy/recraft/styles", method="POST"),
+            endpoint=ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/styles", method="POST"),
             response_model=RecraftCreateStyleResponse,
             files=files,
             data=RecraftCreateStyleRequest(style=style),
@@ -444,15 +443,9 @@ class RecraftTextToImageNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.04 * widgets.n, 2)}""",
-            ),
         )
 
     @classmethod
@@ -480,7 +473,7 @@ class RecraftTextToImageNode(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
+            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
@@ -560,15 +553,9 @@ class RecraftImageToImageNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.04 * widgets.n, 2)}""",
-            ),
         )
 
     @classmethod
@@ -614,7 +601,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="/proxy/recraft/images/imageToImage",
+                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/imageToImage",
                 request=request,
             )
             with handle_recraft_image_output():
@@ -665,15 +652,9 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.04 * widgets.n, 2)}""",
-            ),
         )
 
     @classmethod
@@ -716,7 +697,7 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
                 cls,
                 image=image[i],
                 mask=mask[i : i + 1],
-                path="/proxy/recraft/images/inpaint",
+                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/inpaint",
                 request=request,
             )
             with handle_recraft_image_output():
@@ -770,15 +751,9 @@ class RecraftTextToVectorNode(IO.ComfyNode):
                 IO.SVG.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.08 * widgets.n, 2)}""",
-            ),
         )
 
     @classmethod
@@ -805,7 +780,7 @@ class RecraftTextToVectorNode(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
+            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
@@ -841,15 +816,9 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
                 IO.SVG.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(),
-                expr="""{"type":"usd","usd": 0.01}""",
-            ),
         )
 
     @classmethod
@@ -861,7 +830,7 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="/proxy/recraft/images/vectorize",
+                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/vectorize",
             )
             svgs.append(SVG(sub_bytes))
             pbar.update(1)
@@ -903,14 +872,9 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.04}""",
-            ),
         )
 
     @classmethod
@@ -947,7 +911,7 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="/proxy/recraft/images/replaceBackground",
+                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/replaceBackground",
                 request=request,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
@@ -973,14 +937,9 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
                 IO.Mask.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.01}""",
-            ),
         )
 
     @classmethod
@@ -992,7 +951,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="/proxy/recraft/images/removeBackground",
+                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/removeBackground",
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1004,7 +963,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
 
 
 class RecraftCrispUpscaleNode(IO.ComfyNode):
-    RECRAFT_PATH = "/proxy/recraft/images/crispUpscale"
+    RECRAFT_PATH = "__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/crispUpscale"
 
     @classmethod
     def define_schema(cls):
@@ -1022,14 +981,9 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.004}""",
-            ),
         )
 
     @classmethod
@@ -1050,7 +1004,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
 
 
 class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
-    RECRAFT_PATH = "/proxy/recraft/images/creativeUpscale"
+    RECRAFT_PATH = "__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/creativeUpscale"
 
     @classmethod
     def define_schema(cls):
@@ -1068,14 +1022,9 @@ class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
-            ),
         )
 
 
@@ -1152,20 +1101,9 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "n"]),
-                expr="""
-                (
-                    $prices := {"recraftv4": 0.04, "recraftv4_pro": 0.25};
-                    {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1181,7 +1119,7 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
+            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
@@ -1276,20 +1214,9 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
                 IO.SVG.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "n"]),
-                expr="""
-                (
-                    $prices := {"recraftv4": 0.08, "recraftv4_pro": 0.30};
-                    {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1305,7 +1232,7 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
+            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,

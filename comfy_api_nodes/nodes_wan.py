@@ -17,6 +17,10 @@ from comfy_api_nodes.util import (
     validate_audio_duration,
     validate_video_duration,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_WAN_I2V = "fal-ai/wan-pro/image-to-video"
 
 
 class Text2ImageInputField(BaseModel):
@@ -241,14 +245,9 @@ class WanTextToImageApi(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.03}""",
-            ),
         )
 
     @classmethod
@@ -263,32 +262,17 @@ class WanTextToImageApi(IO.ComfyNode):
         prompt_extend: bool = True,
         watermark: bool = False,
     ):
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/wan/api/v1/services/aigc/text2image/image-synthesis", method="POST"),
-            response_model=TaskCreationResponse,
-            data=Text2ImageTaskCreationRequest(
-                model=model,
-                input=Text2ImageInputField(prompt=prompt, negative_prompt=negative_prompt),
-                parameters=Txt2ImageParametersField(
-                    size=f"{width}*{height}",
-                    seed=seed,
-                    prompt_extend=prompt_extend,
-                    watermark=watermark,
-                ),
-            ),
-        )
-        if not initial_response.output:
-            raise Exception(f"An unknown error occurred: {initial_response.code} - {initial_response.message}")
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/wan/api/v1/tasks/{initial_response.output.task_id}"),
-            response_model=ImageTaskStatusResponse,
-            status_extractor=lambda x: x.output.task_status,
-            estimated_duration=9,
-            poll_interval=3,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
+        result = await fal_run(cls, FAL_WAN_I2V, {
+            "model": model,
+            "input": {"prompt": prompt, "negative_prompt": negative_prompt},
+            "parameters": {
+                "size": f"{width}*{height}",
+                "seed": seed,
+                "prompt_extend": prompt_extend,
+                "watermark": watermark,
+            },
+        }, estimated_duration=9)  # TODO: verify fal.ai field names; use correct fal model for wan text-to-image
+        return IO.NodeOutput(await download_url_to_image_tensor(result["images"][0]["url"]))
 
 
 class WanImageToImageApi(IO.ComfyNode):
@@ -364,14 +348,9 @@ class WanImageToImageApi(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.03}""",
-            ),
         )
 
     @classmethod
@@ -392,31 +371,15 @@ class WanImageToImageApi(IO.ComfyNode):
         images = []
         for i in image:
             images.append("data:image/png;base64," + tensor_to_base64_string(i, total_pixels=4096 * 4096))
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/wan/api/v1/services/aigc/image2image/image-synthesis", method="POST"),
-            response_model=TaskCreationResponse,
-            data=Image2ImageTaskCreationRequest(
-                model=model,
-                input=Image2ImageInputField(prompt=prompt, negative_prompt=negative_prompt, images=images),
-                parameters=Image2ImageParametersField(
-                    # size=f"{width}*{height}",
-                    seed=seed,
-                    watermark=watermark,
-                ),
-            ),
-        )
-        if not initial_response.output:
-            raise Exception(f"An unknown error occurred: {initial_response.code} - {initial_response.message}")
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/wan/api/v1/tasks/{initial_response.output.task_id}"),
-            response_model=ImageTaskStatusResponse,
-            status_extractor=lambda x: x.output.task_status,
-            estimated_duration=42,
-            poll_interval=4,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
+        result = await fal_run(cls, FAL_WAN_I2V, {
+            "model": model,
+            "input": {"prompt": prompt, "negative_prompt": negative_prompt, "images": images},
+            "parameters": {
+                "seed": seed,
+                "watermark": watermark,
+            },
+        }, estimated_duration=42)  # TODO: verify fal.ai field names; use correct fal model for wan image-to-image
+        return IO.NodeOutput(await download_url_to_image_tensor(result["images"][0]["url"]))
 
 
 class WanTextToVideoApi(IO.ComfyNode):
@@ -528,22 +491,9 @@ class WanTextToVideoApi(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "size"]),
-                expr="""
-                (
-                  $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
-                  $resKey := $substringBefore(widgets.size, ":");
-                  $pps := $lookup($ppsTable, $resKey);
-                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -571,35 +521,20 @@ class WanTextToVideoApi(IO.ComfyNode):
             validate_audio_duration(audio, 3.0, 29.0)
             audio_url = "data:audio/mp3;base64," + audio_to_base64_string(audio, "mp3", "libmp3lame")
 
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/wan/api/v1/services/aigc/video-generation/video-synthesis", method="POST"),
-            response_model=TaskCreationResponse,
-            data=Text2VideoTaskCreationRequest(
-                model=model,
-                input=Text2VideoInputField(prompt=prompt, negative_prompt=negative_prompt, audio_url=audio_url),
-                parameters=Text2VideoParametersField(
-                    size=f"{width}*{height}",
-                    duration=duration,
-                    seed=seed,
-                    audio=generate_audio,
-                    prompt_extend=prompt_extend,
-                    watermark=watermark,
-                    shot_type=shot_type,
-                ),
-            ),
-        )
-        if not initial_response.output:
-            raise Exception(f"An unknown error occurred: {initial_response.code} - {initial_response.message}")
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/wan/api/v1/tasks/{initial_response.output.task_id}"),
-            response_model=VideoTaskStatusResponse,
-            status_extractor=lambda x: x.output.task_status,
-            estimated_duration=120 * int(duration / 5),
-            poll_interval=6,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response.output.video_url))
+        result = await fal_run(cls, FAL_WAN_I2V, {
+            "model": model,
+            "input": {"prompt": prompt, "negative_prompt": negative_prompt, "audio_url": audio_url},
+            "parameters": {
+                "size": f"{width}*{height}",
+                "duration": duration,
+                "seed": seed,
+                "audio": generate_audio,
+                "prompt_extend": prompt_extend,
+                "watermark": watermark,
+                "shot_type": shot_type,
+            },
+        }, estimated_duration=120 * int(duration / 5))  # TODO: verify fal.ai field names; use correct fal model for wan text-to-video
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class WanImageToVideoApi(IO.ComfyNode):
@@ -704,21 +639,9 @@ class WanImageToVideoApi(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
-                expr="""
-                (
-                  $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
-                  $pps := $lookup($ppsTable, widgets.resolution);
-                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -748,37 +671,20 @@ class WanImageToVideoApi(IO.ComfyNode):
         if audio is not None:
             validate_audio_duration(audio, 3.0, 29.0)
             audio_url = "data:audio/mp3;base64," + audio_to_base64_string(audio, "mp3", "libmp3lame")
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/wan/api/v1/services/aigc/video-generation/video-synthesis", method="POST"),
-            response_model=TaskCreationResponse,
-            data=Image2VideoTaskCreationRequest(
-                model=model,
-                input=Image2VideoInputField(
-                    prompt=prompt, negative_prompt=negative_prompt, img_url=image_url, audio_url=audio_url
-                ),
-                parameters=Image2VideoParametersField(
-                    resolution=resolution,
-                    duration=duration,
-                    seed=seed,
-                    audio=generate_audio,
-                    prompt_extend=prompt_extend,
-                    watermark=watermark,
-                    shot_type=shot_type,
-                ),
-            ),
-        )
-        if not initial_response.output:
-            raise Exception(f"An unknown error occurred: {initial_response.code} - {initial_response.message}")
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/wan/api/v1/tasks/{initial_response.output.task_id}"),
-            response_model=VideoTaskStatusResponse,
-            status_extractor=lambda x: x.output.task_status,
-            estimated_duration=120 * int(duration / 5),
-            poll_interval=6,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response.output.video_url))
+        result = await fal_run(cls, FAL_WAN_I2V, {
+            "model": model,
+            "input": {"prompt": prompt, "negative_prompt": negative_prompt, "img_url": image_url, "audio_url": audio_url},
+            "parameters": {
+                "resolution": resolution,
+                "duration": duration,
+                "seed": seed,
+                "audio": generate_audio,
+                "prompt_extend": prompt_extend,
+                "watermark": watermark,
+                "shot_type": shot_type,
+            },
+        }, estimated_duration=120 * int(duration / 5))  # TODO: verify fal.ai field names
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class WanReferenceVideoApi(IO.ComfyNode):
@@ -863,27 +769,9 @@ class WanReferenceVideoApi(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["size", "duration"]),
-                expr="""
-                (
-                  $rate := $contains(widgets.size, "1080p") ? 0.15 : 0.10;
-                  $inputMin := 2 * $rate;
-                  $inputMax := 5 * $rate;
-                  $outputPrice := widgets.duration * $rate;
-                  {
-                    "type": "range_usd",
-                    "min_usd": $inputMin + $outputPrice,
-                    "max_usd": $inputMax + $outputPrice
-                  }
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -905,35 +793,18 @@ class WanReferenceVideoApi(IO.ComfyNode):
         for i in reference_videos:
             reference_video_urls.append(await upload_video_to_comfyapi(cls, reference_videos[i]))
         width, height = RES_IN_PARENS.search(size).groups()
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/wan/api/v1/services/aigc/video-generation/video-synthesis", method="POST"),
-            response_model=TaskCreationResponse,
-            data=Reference2VideoTaskCreationRequest(
-                model=model,
-                input=Reference2VideoInputField(
-                    prompt=prompt, negative_prompt=negative_prompt, reference_video_urls=reference_video_urls
-                ),
-                parameters=Reference2VideoParametersField(
-                    size=f"{width}*{height}",
-                    duration=duration,
-                    shot_type=shot_type,
-                    watermark=watermark,
-                    seed=seed,
-                ),
-            ),
-        )
-        if not initial_response.output:
-            raise Exception(f"An unknown error occurred: {initial_response.code} - {initial_response.message}")
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/wan/api/v1/tasks/{initial_response.output.task_id}"),
-            response_model=VideoTaskStatusResponse,
-            status_extractor=lambda x: x.output.task_status,
-            poll_interval=6,
-            max_poll_attempts=280,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response.output.video_url))
+        result = await fal_run(cls, FAL_WAN_I2V, {
+            "model": model,
+            "input": {"prompt": prompt, "negative_prompt": negative_prompt, "reference_video_urls": reference_video_urls},
+            "parameters": {
+                "size": f"{width}*{height}",
+                "duration": duration,
+                "shot_type": shot_type,
+                "watermark": watermark,
+                "seed": seed,
+            },
+        })  # TODO: verify fal.ai field names; use correct fal model for wan reference-to-video
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class WanApiExtension(ComfyExtension):

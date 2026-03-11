@@ -29,6 +29,10 @@ from comfy_api_nodes.util import (
     download_url_to_bytesio,
     download_url_to_file_3d,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_RODIN_V2 = "fal-ai/hyper3d/rodin/v2"
 from comfy_api.latest import ComfyExtension, IO, Types
 
 
@@ -134,7 +138,7 @@ async def create_generate_task(
 
     response = await sync_op(
         cls,
-        ApiEndpoint(path="/proxy/rodin/api/v2/rodin", method="POST"),
+        ApiEndpoint(path="__FAL_RODIN__/  # TODO: migrate to fal_run(cls, FAL_RODIN_V2, {...}); original: /proxy/rodin/api/v2/rodin", method="POST"),
         response_model=Rodin3DGenerateResponse,
         data=Rodin3DGenerateRequest(
             seed=seed,
@@ -188,7 +192,7 @@ async def poll_for_task_status(subscription_key: str, cls: type[IO.ComfyNode]) -
     logging.info("[ Rodin3D API - CheckStatus ] Generate Start!")
     return await poll_op(
         cls,
-        ApiEndpoint(path="/proxy/rodin/api/v2/status", method="POST"),
+        ApiEndpoint(path="__FAL_RODIN__/  # TODO: migrate to fal_run(cls, FAL_RODIN_V2, {...}); original: /proxy/rodin/api/v2/status", method="POST"),
         response_model=Rodin3DCheckStatusResponse,
         data=Rodin3DCheckStatusRequest(subscription_key=subscription_key),
         status_extractor=check_rodin_status,
@@ -200,7 +204,7 @@ async def get_rodin_download_list(uuid: str, cls: type[IO.ComfyNode]) -> Rodin3D
     logging.info("[ Rodin3D API - Downloading ] Generate Successfully!")
     return await sync_op(
         cls,
-        ApiEndpoint(path="/proxy/rodin/api/v2/download", method="POST"),
+        ApiEndpoint(path="__FAL_RODIN__/  # TODO: migrate to fal_run(cls, FAL_RODIN_V2, {...}); original: /proxy/rodin/api/v2/download", method="POST"),
         response_model=Rodin3DDownloadResponse,
         data=Rodin3DDownloadRequest(task_uuid=uuid),
         monitor_progress=False,
@@ -247,14 +251,9 @@ class Rodin3D_Regular(IO.ComfyNode):
                 IO.File3DGLB.Output(display_name="GLB"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -306,14 +305,9 @@ class Rodin3D_Detail(IO.ComfyNode):
                 IO.File3DGLB.Output(display_name="GLB"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -365,14 +359,9 @@ class Rodin3D_Smooth(IO.ComfyNode):
                 IO.File3DGLB.Output(display_name="GLB"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -430,14 +419,9 @@ class Rodin3D_Sketch(IO.ComfyNode):
                 IO.File3DGLB.Output(display_name="GLB"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -500,14 +484,9 @@ class Rodin3D_Gen2(IO.ComfyNode):
                 IO.File3DGLB.Output(display_name="GLB"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod

@@ -44,8 +44,9 @@ from comfy_api_nodes.util import (
     validate_string,
     video_to_base64_string,
 )
+from comfy_api_nodes.util._helpers import get_google_auth_header
 
-GEMINI_BASE_ENDPOINT = "/proxy/vertexai/gemini"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 GEMINI_MAX_INPUT_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 GEMINI_IMAGE_SYS_PROMPT = (
     "You are an expert image-generation engine. You must ALWAYS produce an image.\n"
@@ -96,23 +97,9 @@ async def create_image_parts(
     # If image_limit == 0 --> use all images; otherwise clamp to image_limit.
     effective_max = total_images if image_limit == 0 else min(total_images, image_limit)
 
-    # Number of images we'll send as URLs (fileData)
-    num_url_images = min(effective_max, 10)  # Vertex API max number of image links
-    reference_images_urls = await upload_images_to_comfyapi(
-        cls,
-        images,
-        max_images=num_url_images,
-    )
-    for reference_image_url in reference_images_urls:
-        image_parts.append(
-            GeminiPart(
-                fileData=GeminiFileData(
-                    mimeType=GeminiMimeType.image_png,
-                    fileUri=reference_image_url,
-                )
-            )
-        )
-    for idx in range(num_url_images, effective_max):
+    # BYOK: Send all images as inline base64 (Google supports up to 100MB per request).
+    # No need to upload to external storage first.
+    for idx in range(effective_max):
         image_parts.append(
             GeminiPart(
                 inlineData=GeminiInlineData(
@@ -343,40 +330,9 @@ class GeminiNode(IO.ComfyNode):
                 IO.String.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $contains($m, "gemini-2.5-flash") ? {
-                    "type": "list_usd",
-                    "usd": [0.0003, 0.0025],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens"}
-                  }
-                  : $contains($m, "gemini-2.5-pro") ? {
-                    "type": "list_usd",
-                    "usd": [0.00125, 0.01],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : ($contains($m, "gemini-3-pro-preview") or $contains($m, "gemini-3-1-pro")) ? {
-                    "type": "list_usd",
-                    "usd": [0.002, 0.012],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gemini-3-1-flash-lite") ? {
-                    "type": "list_usd",
-                    "usd": [0.00025, 0.0015],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : {"type":"text", "text":"Token-based"}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -464,7 +420,11 @@ class GeminiNode(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path=f"{GEMINI_BASE_ENDPOINT}/{model}", method="POST"),
+            endpoint=ApiEndpoint(
+                path=f"{GEMINI_BASE_URL}/{model}:generateContent",
+                method="POST",
+                headers=get_google_auth_header(),
+            ),
             data=GeminiGenerateContentRequest(
                 contents=[
                     GeminiContent(
@@ -637,14 +597,9 @@ class GeminiImage(IO.ComfyNode):
                 IO.String.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.039,"format":{"suffix":"/Image (1K)","approximate":true}}""",
-            ),
         )
 
     @classmethod
@@ -677,7 +632,7 @@ class GeminiImage(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path=f"/proxy/vertexai/gemini/{model}", method="POST"),
+            ApiEndpoint(path=f"{GEMINI_BASE_URL}/{model}:generateContent", method="POST", headers=get_google_auth_header()),
             data=GeminiImageGenerateContentRequest(
                 contents=[
                     GeminiContent(role=GeminiRole.user, parts=parts),
@@ -772,12 +727,9 @@ class GeminiImage2(IO.ComfyNode):
                 IO.String.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=GEMINI_IMAGE_2_PRICE_BADGE,
         )
 
     @classmethod
@@ -815,7 +767,7 @@ class GeminiImage2(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path=f"/proxy/vertexai/gemini/{model}", method="POST"),
+            ApiEndpoint(path=f"{GEMINI_BASE_URL}/{model}:generateContent", method="POST", headers=get_google_auth_header()),
             data=GeminiImageGenerateContentRequest(
                 contents=[
                     GeminiContent(role=GeminiRole.user, parts=parts),
@@ -933,12 +885,9 @@ class GeminiNanoBanana2(IO.ComfyNode):
                 IO.String.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=GEMINI_IMAGE_2_PRICE_BADGE,
         )
 
     @classmethod
@@ -977,7 +926,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path=f"/proxy/vertexai/gemini/{model}", method="POST"),
+            ApiEndpoint(path=f"{GEMINI_BASE_URL}/{model}:generateContent", method="POST", headers=get_google_auth_header()),
             data=GeminiImageGenerateContentRequest(
                 contents=[
                     GeminiContent(role=GeminiRole.user, parts=parts),

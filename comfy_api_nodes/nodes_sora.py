@@ -13,6 +13,10 @@ from comfy_api_nodes.util import (
     sync_op,
     tensor_to_bytesio,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_SORA_2 = "fal-ai/sora-2/text-to-video"
 
 
 class Sora2GenerationRequest(BaseModel):
@@ -84,29 +88,9 @@ class OpenAIVideoSora2(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "size", "duration"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $size := widgets.size;
-                  $dur := widgets.duration;
-                  $isPro := $contains($m, "sora-2-pro");
-                  $isSora2 := $contains($m, "sora-2");
-                  $isProSize := ($size = "1024x1792" or $size = "1792x1024");
-                  $perSec :=
-                    $isPro ? ($isProSize ? 0.5 : 0.3) :
-                    $isSora2 ? 0.1 :
-                    ($isProSize ? 0.5 : 0.1);
-                  {"type":"usd","usd": $round($perSec * $dur, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -121,38 +105,23 @@ class OpenAIVideoSora2(IO.ComfyNode):
     ):
         if model == "sora-2" and size not in ("720x1280", "1280x720"):
             raise ValueError("Invalid size for sora-2 model, only 720x1280 and 1280x720 are supported.")
-        files_input = None
+        data = {
+            "model": model,
+            "prompt": prompt,
+            "seconds": str(duration),
+            "size": size,
+        }
         if image is not None:
             if get_number_of_images(image) != 1:
                 raise ValueError("Currently only one input image is supported.")
-            files_input = {"input_reference": ("image.png", tensor_to_bytesio(image), "image/png")}
-        initial_response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="/proxy/openai/v1/videos", method="POST"),
-            data=Sora2GenerationRequest(
-                model=model,
-                prompt=prompt,
-                seconds=str(duration),
-                size=size,
-            ),
-            files=files_input,
-            response_model=Sora2GenerationResponse,
-            content_type="multipart/form-data",
-        )
-        if initial_response.error:
-            raise Exception(initial_response.error["message"])
-
-        model_time_multiplier = 1 if model == "sora-2" else 2
-        await poll_op(
-            cls,
-            poll_endpoint=ApiEndpoint(path=f"/proxy/openai/v1/videos/{initial_response.id}"),
-            response_model=Sora2GenerationResponse,
-            status_extractor=lambda x: x.status,
-            poll_interval=8.0,
-            estimated_duration=int(45 * (duration / 4) * model_time_multiplier),
-        )
+            from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+            data["input_reference"] = await upload_image_to_fal(
+                image[0] if len(image.shape) > 3 else image, "image/png"
+            )
+        result = await fal_run(cls, FAL_SORA_2, data)  # TODO: verify fal.ai field names
+        video_url = result["video"]["url"]
         return IO.NodeOutput(
-            await download_url_to_video_output(f"/proxy/openai/v1/videos/{initial_response.id}/content", cls=cls),
+            await download_url_to_video_output(video_url),
         )
 
 

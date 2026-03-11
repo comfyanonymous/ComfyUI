@@ -58,6 +58,26 @@ def _build_log_filepath(log_dir: str, operation_id: str, request_url: str) -> st
     return os.path.join(log_dir, f"{prefix}{slug}{suffix}")
 
 
+_SENSITIVE_HEADER_NAMES = frozenset({
+    "authorization", "x-goog-api-key", "x-api-key",
+})
+_SENSITIVE_HEADER_SUBSTRINGS = ("key", "token", "secret")
+
+
+def _redact_headers(headers: dict) -> dict:
+    """Return a copy of headers with sensitive values replaced by [REDACTED]."""
+    if not headers:
+        return headers
+    redacted = {}
+    for name, value in headers.items():
+        lower = name.lower()
+        if lower in _SENSITIVE_HEADER_NAMES or any(s in lower for s in _SENSITIVE_HEADER_SUBSTRINGS):
+            redacted[name] = "[REDACTED]"
+        else:
+            redacted[name] = value
+    return redacted
+
+
 def _format_data_for_logging(data: Any) -> str:
     """Helper to format data (dict, str, bytes) for logging."""
     if isinstance(data, bytes):
@@ -101,7 +121,7 @@ def log_request_response(
         log_content.append(f"Method: {request_method}")
         log_content.append(f"URL: {request_url}")
         if request_headers:
-            log_content.append(f"Headers:\n{_format_data_for_logging(request_headers)}")
+            log_content.append(f"Headers:\n{_format_data_for_logging(_redact_headers(request_headers))}")
         if request_params:
             log_content.append(f"Params:\n{_format_data_for_logging(request_params)}")
         if request_data is not None:
@@ -111,7 +131,7 @@ def log_request_response(
         if response_status_code is not None:
             log_content.append(f"Status Code: {response_status_code}")
         if response_headers:
-            log_content.append(f"Headers:\n{_format_data_for_logging(response_headers)}")
+            log_content.append(f"Headers:\n{_format_data_for_logging(_redact_headers(response_headers))}")
         if response_content is not None:
             log_content.append(f"Content:\n{_format_data_for_logging(response_content)}")
         if error_message:

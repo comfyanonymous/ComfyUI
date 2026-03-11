@@ -12,3 +12,7 @@ class ApiServerError(NetworkError):
 
 class ProcessingInterrupted(Exception):
     """Operation was interrupted by user/runtime via processing_interrupted()."""
+
+
+class MissingApiKeyError(Exception):
+    """Required API key environment variable is not configured or is empty."""

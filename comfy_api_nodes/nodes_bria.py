@@ -22,6 +22,10 @@ from comfy_api_nodes.util import (
     upload_video_to_comfyapi,
     validate_video_duration,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_BRIA_TEXT_TO_IMAGE = "fal-ai/bria/text-to-image/hd"
 
 
 class BriaImageEditNode(IO.ComfyNode):
@@ -102,14 +106,9 @@ class BriaImageEditNode(IO.ComfyNode):
                 IO.String.Output(display_name="structured_prompt"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.04}""",
-            ),
         )
 
     @classmethod
@@ -128,37 +127,28 @@ class BriaImageEditNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if not prompt and not structured_prompt:
             raise ValueError("One of prompt or structured_prompt is required to be non-empty.")
+        from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
         mask_url = None
         if mask is not None:
-            mask_url = await upload_image_to_comfyapi(cls, convert_mask_to_image(mask), wait_label="Uploading mask")
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="proxy/bria/v2/image/edit", method="POST"),
-            data=BriaEditImageRequest(
-                instruction=prompt if prompt else None,
-                structured_instruction=structured_prompt if structured_prompt else None,
-                images=[await upload_image_to_comfyapi(cls, image, wait_label="Uploading image")],
-                mask=mask_url,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                guidance_scale=guidance_scale,
-                seed=seed,
-                model_version=model,
-                steps_num=steps,
-                prompt_content_moderation=moderation.get("prompt_content_moderation", False),
-                visual_input_content_moderation=moderation.get("visual_input_moderation", False),
-                visual_output_content_moderation=moderation.get("visual_output_moderation", False),
-            ),
-            response_model=BriaStatusResponse,
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
-            status_extractor=lambda r: r.status,
-            response_model=BriaImageEditResponse,
-        )
+            mask_url = await upload_image_to_fal(convert_mask_to_image(mask)[0] if len(convert_mask_to_image(mask).shape) > 3 else convert_mask_to_image(mask), "image/png")
+        image_url = await upload_image_to_fal(image[0] if len(image.shape) > 3 else image, "image/png")
+        result = await fal_run(cls, FAL_BRIA_TEXT_TO_IMAGE, {
+            "instruction": prompt if prompt else None,
+            "structured_instruction": structured_prompt if structured_prompt else None,
+            "images": [image_url],
+            "mask": mask_url,
+            "negative_prompt": negative_prompt if negative_prompt else None,
+            "guidance_scale": guidance_scale,
+            "seed": seed,
+            "model_version": model,
+            "steps_num": steps,
+            "prompt_content_moderation": moderation.get("prompt_content_moderation", False),
+            "visual_input_content_moderation": moderation.get("visual_input_moderation", False),
+            "visual_output_content_moderation": moderation.get("visual_output_moderation", False),
+        })  # TODO: verify fal.ai field names
         return IO.NodeOutput(
-            await download_url_to_image_tensor(response.result.image_url),
-            response.result.structured_prompt,
+            await download_url_to_image_tensor(result["image"]["url"]),
+            result.get("structured_prompt", ""),
         )
 
 
@@ -200,14 +190,9 @@ class BriaRemoveImageBackground(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.018}""",
-            ),
         )
 
     @classmethod
@@ -217,25 +202,16 @@ class BriaRemoveImageBackground(IO.ComfyNode):
         moderation: dict,
         seed: int,
     ) -> IO.NodeOutput:
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/bria/v2/image/edit/remove_background", method="POST"),
-            data=BriaRemoveBackgroundRequest(
-                image=await upload_image_to_comfyapi(cls, image, wait_label="Uploading image"),
-                sync=False,
-                visual_input_content_moderation=moderation.get("visual_input_moderation", False),
-                visual_output_content_moderation=moderation.get("visual_output_moderation", False),
-                seed=seed,
-            ),
-            response_model=BriaStatusResponse,
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
-            status_extractor=lambda r: r.status,
-            response_model=BriaRemoveBackgroundResponse,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response.result.image_url))
+        from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+        image_url = await upload_image_to_fal(image[0] if len(image.shape) > 3 else image, "image/png")
+        result = await fal_run(cls, FAL_BRIA_TEXT_TO_IMAGE, {
+            "image": image_url,
+            "sync": False,
+            "visual_input_content_moderation": moderation.get("visual_input_moderation", False),
+            "visual_output_content_moderation": moderation.get("visual_output_moderation", False),
+            "seed": seed,
+        })  # TODO: verify fal.ai field names and model ID for remove_background
+        return IO.NodeOutput(await download_url_to_image_tensor(result["image"]["url"]))
 
 
 class BriaRemoveVideoBackground(IO.ComfyNode):
@@ -278,14 +254,9 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
             ],
             outputs=[IO.Video.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
-            ),
         )
 
     @classmethod
@@ -296,24 +267,14 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
         seed: int,
     ) -> IO.NodeOutput:
         validate_video_duration(video, max_duration=60.0)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/bria/v2/video/edit/remove_background", method="POST"),
-            data=BriaRemoveVideoBackgroundRequest(
-                video=await upload_video_to_comfyapi(cls, video),
-                background_color=background_color,
-                output_container_and_codec="mp4_h264",
-                seed=seed,
-            ),
-            response_model=BriaStatusResponse,
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
-            status_extractor=lambda r: r.status,
-            response_model=BriaRemoveVideoBackgroundResponse,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response.result.video_url))
+        video_url = await upload_video_to_comfyapi(cls, video)
+        result = await fal_run(cls, FAL_BRIA_TEXT_TO_IMAGE, {
+            "video": video_url,
+            "background_color": background_color,
+            "output_container_and_codec": "mp4_h264",
+            "seed": seed,
+        })  # TODO: verify fal.ai field names and model ID for video remove_background
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class BriaExtension(ComfyExtension):

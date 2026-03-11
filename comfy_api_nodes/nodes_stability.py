@@ -31,6 +31,10 @@ from comfy_api_nodes.util import (
     poll_op,
     ApiEndpoint,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_SD35_MEDIUM = "fal-ai/stable-diffusion-v35-medium"
 
 import torch
 import base64
@@ -124,14 +128,9 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.08}""",
-            ),
         )
 
     @classmethod
@@ -158,31 +157,22 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
         if style_preset == "None":
             style_preset = None
 
-        files = {
-            "image": image_binary
+        data = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "aspect_ratio": aspect_ratio,
+            "seed": seed,
+            "strength": image_denoise,
+            "style_preset": style_preset,
         }
+        if image is not None:
+            from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+            data["image_url"] = await upload_image_to_fal(image, "image/png")
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/generate/ultra", method="POST"),
-            response_model=StabilityStableUltraResponse,
-            data=StabilityStableUltraRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                aspect_ratio=aspect_ratio,
-                seed=seed,
-                strength=image_denoise,
-                style_preset=style_preset,
-            ),
-            files=files,
-            content_type="multipart/form-data",
-        )
-
-        if response_api.finish_reason != "SUCCESS":
-            raise Exception(f"Stable Image Ultra generation failed: {response_api.finish_reason}.")
-
-        image_data = base64.b64decode(response_api.image)
-        returned_image = bytesio_to_image_tensor(BytesIO(image_data))
+        result = await fal_run(cls, FAL_SD35_MEDIUM, data)  # TODO: verify fal.ai field names; use correct fal model for Ultra
+        image_url = result["images"][0]["url"]
+        from comfy_api_nodes.util import download_url_to_image_tensor
+        returned_image = await download_url_to_image_tensor(image_url)
 
         return IO.NodeOutput(returned_image)
 
@@ -266,21 +256,9 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $contains(widgets.model,"large")
-                    ? {"type":"usd","usd":0.065}
-                    : {"type":"usd","usd":0.035}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -312,34 +290,25 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
         if style_preset == "None":
             style_preset = None
 
-        files = {
-            "image": image_binary
+        data = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "aspect_ratio": aspect_ratio,
+            "seed": seed,
+            "strength": image_denoise,
+            "style_preset": style_preset,
+            "cfg_scale": cfg_scale,
+            "model": model,
+            "mode": mode.value if hasattr(mode, 'value') else mode,
         }
+        if image is not None:
+            from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+            data["image_url"] = await upload_image_to_fal(image, "image/png")
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/generate/sd3", method="POST"),
-            response_model=StabilityStableUltraResponse,
-            data=StabilityStable3_5Request(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                aspect_ratio=aspect_ratio,
-                seed=seed,
-                strength=image_denoise,
-                style_preset=style_preset,
-                cfg_scale=cfg_scale,
-                model=model,
-                mode=mode,
-            ),
-            files=files,
-            content_type="multipart/form-data",
-        )
-
-        if response_api.finish_reason != "SUCCESS":
-            raise Exception(f"Stable Diffusion 3.5 Image generation failed: {response_api.finish_reason}.")
-
-        image_data = base64.b64decode(response_api.image)
-        returned_image = bytesio_to_image_tensor(BytesIO(image_data))
+        result = await fal_run(cls, FAL_SD35_MEDIUM, data)  # TODO: verify fal.ai field names
+        image_url = result["images"][0]["url"]
+        from comfy_api_nodes.util import download_url_to_image_tensor
+        returned_image = await download_url_to_image_tensor(image_url)
 
         return IO.NodeOutput(returned_image)
 
@@ -395,14 +364,9 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
-            ),
         )
 
     @classmethod
@@ -420,29 +384,17 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
         if not negative_prompt:
             negative_prompt = None
 
-        files = {
-            "image": image_binary
-        }
-
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/upscale/conservative", method="POST"),
-            response_model=StabilityStableUltraResponse,
-            data=StabilityUpscaleConservativeRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                creativity=round(creativity,2),
-                seed=seed,
-            ),
-            files=files,
-            content_type="multipart/form-data",
-        )
-
-        if response_api.finish_reason != "SUCCESS":
-            raise Exception(f"Stability Upscale Conservative generation failed: {response_api.finish_reason}.")
-
-        image_data = base64.b64decode(response_api.image)
-        returned_image = bytesio_to_image_tensor(BytesIO(image_data))
+        from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+        image_url = await upload_image_to_fal(image, "image/png")
+        result = await fal_run(cls, FAL_SD35_MEDIUM, {
+            "image_url": image_url,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "creativity": round(creativity, 2),
+            "seed": seed,
+        })  # TODO: verify fal.ai field names; use correct fal model for upscale conservative
+        from comfy_api_nodes.util import download_url_to_image_tensor
+        returned_image = await download_url_to_image_tensor(result["images"][0]["url"])
 
         return IO.NodeOutput(returned_image)
 
@@ -504,14 +456,9 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
-            ),
         )
 
     @classmethod
@@ -532,38 +479,18 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
         if style_preset == "None":
             style_preset = None
 
-        files = {
-            "image": image_binary
-        }
-
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/upscale/creative", method="POST"),
-            response_model=StabilityAsyncResponse,
-            data=StabilityUpscaleCreativeRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                creativity=round(creativity,2),
-                style_preset=style_preset,
-                seed=seed,
-            ),
-            files=files,
-            content_type="multipart/form-data",
-        )
-
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/stability/v2beta/results/{response_api.id}"),
-            response_model=StabilityResultsGetResponse,
-            poll_interval=3,
-            status_extractor=lambda x: get_async_dummy_status(x),
-        )
-
-        if response_poll.finish_reason != "SUCCESS":
-            raise Exception(f"Stability Upscale Creative generation failed: {response_poll.finish_reason}.")
-
-        image_data = base64.b64decode(response_poll.result)
-        returned_image = bytesio_to_image_tensor(BytesIO(image_data))
+        from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+        image_url = await upload_image_to_fal(image, "image/png")
+        result = await fal_run(cls, FAL_SD35_MEDIUM, {
+            "image_url": image_url,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "creativity": round(creativity, 2),
+            "style_preset": style_preset,
+            "seed": seed,
+        })  # TODO: verify fal.ai field names; use correct fal model for upscale creative
+        from comfy_api_nodes.util import download_url_to_image_tensor
+        returned_image = await download_url_to_image_tensor(result["images"][0]["url"])
 
         return IO.NodeOutput(returned_image)
 
@@ -587,37 +514,22 @@ class StabilityUpscaleFastNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.01}""",
-            ),
         )
 
     @classmethod
     async def execute(cls, image: torch.Tensor) -> IO.NodeOutput:
         image_binary = tensor_to_bytesio(image, total_pixels=4096*4096).read()
 
-        files = {
-            "image": image_binary
-        }
-
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/upscale/fast", method="POST"),
-            response_model=StabilityStableUltraResponse,
-            files=files,
-            content_type="multipart/form-data",
-        )
-
-        if response_api.finish_reason != "SUCCESS":
-            raise Exception(f"Stability Upscale Fast failed: {response_api.finish_reason}.")
-
-        image_data = base64.b64decode(response_api.image)
-        returned_image = bytesio_to_image_tensor(BytesIO(image_data))
+        from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+        image_url = await upload_image_to_fal(image, "image/png")
+        result = await fal_run(cls, FAL_SD35_MEDIUM, {
+            "image_url": image_url,
+        })  # TODO: verify fal.ai field names; use correct fal model for upscale fast
+        from comfy_api_nodes.util import download_url_to_image_tensor
+        returned_image = await download_url_to_image_tensor(result["images"][0]["url"])
 
         return IO.NodeOutput(returned_image)
 
@@ -674,30 +586,27 @@ class StabilityTextToAudio(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod
     async def execute(cls, model: str, prompt: str, duration: int, seed: int, steps: int) -> IO.NodeOutput:
         validate_string(prompt, max_length=10000)
-        payload = StabilityTextToAudioRequest(prompt=prompt, model=model, duration=duration, seed=seed, steps=steps)
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/audio/stable-audio-2/text-to-audio", method="POST"),
-            response_model=StabilityAudioResponse,
-            data=payload,
-            content_type="multipart/form-data",
-        )
-        if not response_api.audio:
-            raise ValueError("No audio file was received in response.")
-        return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
+        result = await fal_run(cls, FAL_SD35_MEDIUM, {
+            "prompt": prompt,
+            "model": model,
+            "duration": duration,
+            "seed": seed,
+            "steps": steps,
+        })  # TODO: verify fal.ai field names; use correct fal model for text-to-audio
+        audio_url = result["audio"]["url"]
+        from comfy_api_nodes.util import download_url_as_bytesio
+        from io import BytesIO as _BytesIO
+        audio_bio = _BytesIO()
+        await download_url_as_bytesio(audio_url, audio_bio)
+        return IO.NodeOutput(audio_bytes_to_audio_input(audio_bio.getvalue()))
 
 
 class StabilityAudioToAudio(IO.ComfyNode):
@@ -762,14 +671,9 @@ class StabilityAudioToAudio(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod
@@ -778,20 +682,25 @@ class StabilityAudioToAudio(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, max_length=10000)
         validate_audio_duration(audio, 6, 190)
-        payload = StabilityAudioToAudioRequest(
-            prompt=prompt, model=model, duration=duration, seed=seed, steps=steps, strength=strength
-        )
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/stability/v2beta/audio/stable-audio-2/audio-to-audio", method="POST"),
-            response_model=StabilityAudioResponse,
-            data=payload,
-            content_type="multipart/form-data",
-            files={"audio": audio_input_to_mp3(audio)},
-        )
-        if not response_api.audio:
-            raise ValueError("No audio file was received in response.")
-        return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
+        from comfy_api_nodes.util.upload_helpers import upload_file_to_fal
+        audio_bytes = audio_input_to_mp3(audio)
+        from io import BytesIO as _BytesIO
+        audio_bio = _BytesIO(audio_bytes) if isinstance(audio_bytes, bytes) else audio_bytes
+        audio_url = await upload_file_to_fal(audio_bio, "audio/mpeg")
+        result = await fal_run(cls, FAL_SD35_MEDIUM, {
+            "prompt": prompt,
+            "model": model,
+            "duration": duration,
+            "seed": seed,
+            "steps": steps,
+            "strength": strength,
+            "audio_url": audio_url,
+        })  # TODO: verify fal.ai field names; use correct fal model for audio-to-audio
+        result_audio_url = result["audio"]["url"]
+        result_bio = _BytesIO()
+        from comfy_api_nodes.util import download_url_as_bytesio
+        await download_url_as_bytesio(result_audio_url, result_bio)
+        return IO.NodeOutput(audio_bytes_to_audio_input(result_bio.getvalue()))
 
 
 class StabilityAudioInpaint(IO.ComfyNode):
@@ -864,14 +773,9 @@ class StabilityAudioInpaint(IO.ComfyNode):
                 IO.Audio.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod
@@ -891,26 +795,26 @@ class StabilityAudioInpaint(IO.ComfyNode):
             raise ValueError(f"Value of mask_end({mask_end}) should be greater then mask_start({mask_start})")
         validate_audio_duration(audio, 6, 190)
 
-        payload = StabilityAudioInpaintRequest(
-            prompt=prompt,
-            model=model,
-            duration=duration,
-            seed=seed,
-            steps=steps,
-            mask_start=mask_start,
-            mask_end=mask_end,
-        )
-        response_api = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="/proxy/stability/v2beta/audio/stable-audio-2/inpaint", method="POST"),
-            response_model=StabilityAudioResponse,
-            data=payload,
-            content_type="multipart/form-data",
-            files={"audio": audio_input_to_mp3(audio)},
-        )
-        if not response_api.audio:
-            raise ValueError("No audio file was received in response.")
-        return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
+        from comfy_api_nodes.util.upload_helpers import upload_file_to_fal
+        audio_bytes = audio_input_to_mp3(audio)
+        from io import BytesIO as _BytesIO
+        audio_bio = _BytesIO(audio_bytes) if isinstance(audio_bytes, bytes) else audio_bytes
+        audio_url = await upload_file_to_fal(audio_bio, "audio/mpeg")
+        result = await fal_run(cls, FAL_SD35_MEDIUM, {
+            "prompt": prompt,
+            "model": model,
+            "duration": duration,
+            "seed": seed,
+            "steps": steps,
+            "mask_start": mask_start,
+            "mask_end": mask_end,
+            "audio_url": audio_url,
+        })  # TODO: verify fal.ai field names; use correct fal model for audio inpaint
+        result_audio_url = result["audio"]["url"]
+        result_bio = _BytesIO()
+        from comfy_api_nodes.util import download_url_as_bytesio
+        await download_url_as_bytesio(result_audio_url, result_bio)
+        return IO.NodeOutput(audio_bytes_to_audio_input(result_bio.getvalue()))
 
 
 class StabilityExtension(ComfyExtension):

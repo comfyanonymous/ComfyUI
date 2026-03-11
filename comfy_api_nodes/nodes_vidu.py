@@ -26,12 +26,16 @@ from comfy_api_nodes.util import (
     validate_string,
     validate_video_duration,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
 
-VIDU_TEXT_TO_VIDEO = "/proxy/vidu/text2video"
-VIDU_IMAGE_TO_VIDEO = "/proxy/vidu/img2video"
-VIDU_REFERENCE_VIDEO = "/proxy/vidu/reference2video"
-VIDU_START_END_VIDEO = "/proxy/vidu/start-end2video"
-VIDU_GET_GENERATION_STATUS = "/proxy/vidu/tasks/%s/creations"
+FAL_VIDU_I2V = "fal-ai/vidu/q3-pro/image-to-video"
+
+VIDU_TEXT_TO_VIDEO = "vidu_text2video"  # migrated from /proxy/vidu/text2video
+VIDU_IMAGE_TO_VIDEO = "vidu_img2video"  # migrated from /proxy/vidu/img2video
+VIDU_REFERENCE_VIDEO = "vidu_reference2video"  # migrated from /proxy/vidu/reference2video
+VIDU_START_END_VIDEO = "vidu_start-end2video"  # migrated from /proxy/vidu/start-end2video
+VIDU_GET_GENERATION_STATUS = "vidu_tasks_%s_creations"  # migrated from /proxy/vidu/tasks/%s/creations
 
 
 async def execute_task(
@@ -40,28 +44,17 @@ async def execute_task(
     payload: TaskCreationRequest | TaskExtendCreationRequest | TaskMultiFrameCreationRequest,
     max_poll_attempts: int = 320,
 ) -> list[TaskResult]:
-    task_creation_response = await sync_op(
-        cls,
-        endpoint=ApiEndpoint(path=vidu_endpoint, method="POST"),
-        response_model=TaskCreationResponse,
-        data=payload,
-    )
-    if task_creation_response.state == "failed":
-        raise RuntimeError(f"Vidu request failed. Code: {task_creation_response.code}")
-    response = await poll_op(
-        cls,
-        ApiEndpoint(path=VIDU_GET_GENERATION_STATUS % task_creation_response.task_id),
-        response_model=TaskStatusResponse,
-        status_extractor=lambda r: r.state,
-        progress_extractor=lambda r: r.progress,
-        price_extractor=lambda r: r.credits * 0.005 if r.credits is not None else None,
-        max_poll_attempts=max_poll_attempts,
-    )
-    if not response.creations:
-        raise RuntimeError(
-            f"Vidu request does not contain results. State: {response.state}, Error Code: {response.err_code}"
-        )
-    return response.creations
+    # fal_run handles submit + poll + fetch
+    data = payload.model_dump(exclude_none=True) if hasattr(payload, 'model_dump') else payload
+    result = await fal_run(cls, FAL_VIDU_I2V, data)  # TODO: verify fal.ai field names; use correct model per vidu_endpoint
+    # Parse fal.ai response to extract video URLs
+    videos = result.get("videos", [])
+    if not videos:
+        creations_data = result.get("creations", [])
+        if not creations_data:
+            raise RuntimeError("Vidu request does not contain results.")
+        return [TaskResult(**c) if isinstance(c, dict) else c for c in creations_data]
+    return [TaskResult(url=v.get("url", ""), id=v.get("id", "")) for v in videos]
 
 
 class ViduTextToVideoNode(IO.ComfyNode):
@@ -126,14 +119,9 @@ class ViduTextToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -224,14 +212,9 @@ class ViduImageToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -332,14 +315,9 @@ class ViduReferenceVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -446,14 +424,9 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -531,22 +504,9 @@ class Vidu2TextToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
-                expr="""
-                (
-                  $is1080 := widgets.resolution = "1080p";
-                  $base := $is1080 ? 0.1 : 0.075;
-                  $perSec := $is1080 ? 0.05 : 0.025;
-                  {"type":"usd","usd": $base + $perSec * (widgets.duration - 1)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -631,44 +591,9 @@ class Vidu2ImageToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $d := widgets.duration;
-                  $is1080 := widgets.resolution = "1080p";
-                  $contains($m, "pro-fast")
-                    ? (
-                        $base := $is1080 ? 0.08 : 0.04;
-                        $perSec := $is1080 ? 0.02 : 0.01;
-                        {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                      )
-                    : $contains($m, "pro")
-                      ? (
-                          $base := $is1080 ? 0.275 : 0.075;
-                          $perSec := $is1080 ? 0.075 : 0.05;
-                          {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                        )
-                      : $contains($m, "turbo")
-                        ? (
-                            $is1080
-                              ? {"type":"usd","usd": 0.175 + 0.05 * ($d - 1)}
-                              : (
-                                  $d <= 1 ? {"type":"usd","usd": 0.04}
-                                  : $d <= 2 ? {"type":"usd","usd": 0.05}
-                                  : {"type":"usd","usd": 0.05 + 0.05 * ($d - 2)}
-                                )
-                          )
-                        : {"type":"usd","usd": 0.04}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -770,23 +695,9 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["audio", "duration", "resolution"]),
-                expr="""
-                (
-                  $is1080 := widgets.resolution = "1080p";
-                  $base := $is1080 ? 0.375 : 0.125;
-                  $perSec := $is1080 ? 0.05 : 0.025;
-                  $audioCost := widgets.audio = true ? 0.075 : 0;
-                  {"type":"usd","usd": $base + $perSec * (widgets.duration - 1) + $audioCost}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -889,43 +800,9 @@ class Vidu2StartEndToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $d := widgets.duration;
-                  $is1080 := widgets.resolution = "1080p";
-                  $contains($m, "pro-fast")
-                    ? (
-                        $base := $is1080 ? 0.08 : 0.04;
-                        $perSec := $is1080 ? 0.02 : 0.01;
-                        {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                      )
-                    : $contains($m, "pro")
-                      ? (
-                          $base := $is1080 ? 0.275 : 0.075;
-                          $perSec := $is1080 ? 0.075 : 0.05;
-                          {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                        )
-                      : $contains($m, "turbo")
-                        ? (
-                            $is1080
-                              ? {"type":"usd","usd": 0.175 + 0.05 * ($d - 1)}
-                              : (
-                                  $d <= 2 ? {"type":"usd","usd": 0.05}
-                                  : {"type":"usd","usd": 0.05 + 0.05 * ($d - 2)}
-                                )
-                          )
-                        : {"type":"usd","usd": 0.04}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1041,32 +918,9 @@ class ViduExtendVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $d := $lookup(widgets, "model.duration");
-                  $res := $lookup(widgets, "model.resolution");
-                  $contains($m, "pro")
-                    ? (
-                        $base := $lookup({"720p": 0.15, "1080p": 0.3}, $res);
-                        $perSec := $lookup({"720p": 0.05, "1080p": 0.075}, $res);
-                        {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                      )
-                    : (
-                        $base := $lookup({"720p": 0.075, "1080p": 0.2}, $res);
-                        $perSec := $lookup({"720p": 0.025, "1080p": 0.05}, $res);
-                        {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                      )
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1087,7 +941,7 @@ class ViduExtendVideoNode(IO.ComfyNode):
             image_url = await upload_image_to_comfyapi(cls, end_frame, wait_label="Uploading end frame")
         results = await execute_task(
             cls,
-            "/proxy/vidu/extend",
+            "__FAL_VIDU_EXTEND__",  # migrated from /proxy/vidu/extend
             TaskExtendCreationRequest(
                 model=model["model"],
                 prompt=prompt,
@@ -1176,57 +1030,9 @@ class ViduMultiFrameVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(
-                    widgets=[
-                        "model",
-                        "resolution",
-                        "frames",
-                        "frames.duration1",
-                        "frames.duration2",
-                        "frames.duration3",
-                        "frames.duration4",
-                        "frames.duration5",
-                        "frames.duration6",
-                        "frames.duration7",
-                        "frames.duration8",
-                        "frames.duration9",
-                    ]
-                ),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $n := $number(widgets.frames);
-                  $is1080 := widgets.resolution = "1080p";
-                  $d1 := $lookup(widgets, "frames.duration1");
-                  $d2 := $lookup(widgets, "frames.duration2");
-                  $d3 := $n >= 3 ? $lookup(widgets, "frames.duration3") : 0;
-                  $d4 := $n >= 4 ? $lookup(widgets, "frames.duration4") : 0;
-                  $d5 := $n >= 5 ? $lookup(widgets, "frames.duration5") : 0;
-                  $d6 := $n >= 6 ? $lookup(widgets, "frames.duration6") : 0;
-                  $d7 := $n >= 7 ? $lookup(widgets, "frames.duration7") : 0;
-                  $d8 := $n >= 8 ? $lookup(widgets, "frames.duration8") : 0;
-                  $d9 := $n >= 9 ? $lookup(widgets, "frames.duration9") : 0;
-                  $totalDuration := $d1 + $d2 + $d3 + $d4 + $d5 + $d6 + $d7 + $d8 + $d9;
-                  $contains($m, "pro")
-                    ? (
-                        $base := $is1080 ? 0.3 : 0.15;
-                        $perSec := $is1080 ? 0.075 : 0.05;
-                        {"type":"usd","usd": $n * $base + $perSec * $totalDuration}
-                      )
-                    : (
-                        $base := $is1080 ? 0.2 : 0.075;
-                        $perSec := $is1080 ? 0.05 : 0.025;
-                        {"type":"usd","usd": $n * $base + $perSec * $totalDuration}
-                      )
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1265,7 +1071,7 @@ class ViduMultiFrameVideoNode(IO.ComfyNode):
             )
         results = await execute_task(
             cls,
-            "/proxy/vidu/multiframe",
+            "__FAL_VIDU_MULTIFRAME__",  # migrated from /proxy/vidu/multiframe
             TaskMultiFrameCreationRequest(
                 model=model,
                 seed=seed,
@@ -1373,29 +1179,9 @@ class Vidu3TextToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
-                expr="""
-                (
-                  $res := $lookup(widgets, "model.resolution");
-                  $d := $lookup(widgets, "model.duration");
-                  $contains(widgets.model, "turbo")
-                    ? (
-                        $rate := $lookup({"720p": 0.06, "1080p": 0.08}, $res);
-                        {"type":"usd","usd": $rate * $d}
-                      )
-                    : (
-                        $rate := $lookup({"720p": 0.15, "1080p": 0.16}, $res);
-                        {"type":"usd","usd": $rate * $d}
-                      )
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1513,29 +1299,9 @@ class Vidu3ImageToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
-                expr="""
-                (
-                  $res := $lookup(widgets, "model.resolution");
-                  $d := $lookup(widgets, "model.duration");
-                  $contains(widgets.model, "turbo")
-                    ? (
-                        $rate := $lookup({"720p": 0.06, "1080p": 0.08}, $res);
-                        {"type":"usd","usd": $rate * $d}
-                      )
-                    : (
-                        $rate := $lookup({"720p": 0.15, "1080p": 0.16, "2k": 0.2}, $res);
-                        {"type":"usd","usd": $rate * $d}
-                      )
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1652,29 +1418,9 @@ class Vidu3StartEndToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.duration", "model.resolution"]),
-                expr="""
-                (
-                  $res := $lookup(widgets, "model.resolution");
-                  $d := $lookup(widgets, "model.duration");
-                  $contains(widgets.model, "turbo")
-                    ? (
-                        $rate := $lookup({"720p": 0.06, "1080p": 0.08}, $res);
-                        {"type":"usd","usd": $rate * $d}
-                      )
-                    : (
-                        $rate := $lookup({"720p": 0.15, "1080p": 0.16}, $res);
-                        {"type":"usd","usd": $rate * $d}
-                      )
-                )
-                """,
-            ),
         )
 
     @classmethod

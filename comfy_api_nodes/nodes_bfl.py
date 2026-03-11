@@ -24,6 +24,16 @@ from comfy_api_nodes.util import (
     validate_aspect_ratio_string,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_FLUX_PRO_ULTRA = "fal-ai/flux-pro/v1.1-ultra"
+FAL_FLUX_KONTEXT_PRO = "fal-ai/flux-kontext/pro"
+FAL_FLUX_KONTEXT_MAX = "fal-ai/flux-kontext/max"
+FAL_FLUX_PRO_EXPAND = "fal-ai/flux-pro/v1/expand"
+FAL_FLUX_PRO_FILL = "fal-ai/flux-pro/v1/fill"
+FAL_FLUX_2_PRO = "fal-ai/flux-pro/v2"
+FAL_FLUX_2_MAX = "fal-ai/flux-pro/v2/max"
 
 
 def convert_mask_to_image(mask: Input.Image):
@@ -93,14 +103,9 @@ class FluxProUltraImageNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.06}""",
-            ),
         )
 
     @classmethod
@@ -121,36 +126,21 @@ class FluxProUltraImageNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if image_prompt is None:
             validate_string(prompt, strip_whitespace=False)
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/bfl/flux-pro-1.1-ultra/generate", method="POST"),
-            response_model=BFLFluxProGenerateResponse,
-            data=BFLFluxProUltraGenerateRequest(
-                prompt=prompt,
-                prompt_upsampling=prompt_upsampling,
-                seed=seed,
-                aspect_ratio=aspect_ratio,
-                raw=raw,
-                image_prompt=(image_prompt if image_prompt is None else tensor_to_base64_string(image_prompt)),
-                image_prompt_strength=(None if image_prompt is None else round(image_prompt_strength, 2)),
-            ),
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(initial_response.polling_url),
-            response_model=BFLFluxStatusResponse,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-            completed_statuses=[BFLStatus.ready],
-            failed_statuses=[
-                BFLStatus.request_moderated,
-                BFLStatus.content_moderated,
-                BFLStatus.error,
-                BFLStatus.task_not_found,
-            ],
-            queued_statuses=[],
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+        data = {
+            "prompt": prompt,
+            "prompt_upsampling": prompt_upsampling,
+            "seed": seed,
+            "aspect_ratio": aspect_ratio,
+            "raw": raw,
+        }
+        if image_prompt is not None:
+            data["image_prompt"] = tensor_to_base64_string(image_prompt)
+            data["image_prompt_strength"] = round(image_prompt_strength, 2)
+
+        # TODO: Verify fal.ai response schema for Flux Pro Ultra
+        result = await fal_run(cls, FAL_FLUX_PRO_ULTRA, data)
+        image_url = result.get("images", [{}])[0].get("url") or result.get("sample")
+        return IO.NodeOutput(await download_url_to_image_tensor(image_url))
 
 
 class FluxKontextProImageNode(IO.ComfyNode):
@@ -210,14 +200,12 @@ class FluxKontextProImageNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
 
-    BFL_PATH = "/proxy/bfl/flux-kontext-pro/generate"
+    FAL_MODEL = FAL_FLUX_KONTEXT_PRO
     NODE_ID = "FluxKontextProImageNode"
     DISPLAY_NAME = "Flux.1 Kontext [pro] Image"
 
@@ -235,42 +223,27 @@ class FluxKontextProImageNode(IO.ComfyNode):
         validate_aspect_ratio_string(aspect_ratio, (1, 4), (4, 1))
         if input_image is None:
             validate_string(prompt, strip_whitespace=False)
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path=cls.BFL_PATH, method="POST"),
-            response_model=BFLFluxProGenerateResponse,
-            data=BFLFluxKontextProGenerateRequest(
-                prompt=prompt,
-                prompt_upsampling=prompt_upsampling,
-                guidance=round(guidance, 1),
-                steps=steps,
-                seed=seed,
-                aspect_ratio=aspect_ratio,
-                input_image=(input_image if input_image is None else tensor_to_base64_string(input_image)),
-            ),
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(initial_response.polling_url),
-            response_model=BFLFluxStatusResponse,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-            completed_statuses=[BFLStatus.ready],
-            failed_statuses=[
-                BFLStatus.request_moderated,
-                BFLStatus.content_moderated,
-                BFLStatus.error,
-                BFLStatus.task_not_found,
-            ],
-            queued_statuses=[],
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+        data = {
+            "prompt": prompt,
+            "prompt_upsampling": prompt_upsampling,
+            "guidance": round(guidance, 1),
+            "steps": steps,
+            "seed": seed,
+            "aspect_ratio": aspect_ratio,
+        }
+        if input_image is not None:
+            data["input_image"] = tensor_to_base64_string(input_image)
+
+        # TODO: Verify fal.ai response schema for Flux Kontext
+        result = await fal_run(cls, cls.FAL_MODEL, data)
+        image_url = result.get("images", [{}])[0].get("url") or result.get("sample")
+        return IO.NodeOutput(await download_url_to_image_tensor(image_url))
 
 
 class FluxKontextMaxImageNode(FluxKontextProImageNode):
 
     DESCRIPTION = "Edits images using Flux.1 Kontext [max] via api based on prompt and aspect ratio."
-    BFL_PATH = "/proxy/bfl/flux-kontext-max/generate"
+    FAL_MODEL = FAL_FLUX_KONTEXT_MAX
     NODE_ID = "FluxKontextMaxImageNode"
     DISPLAY_NAME = "Flux.1 Kontext [max] Image"
 
@@ -353,14 +326,9 @@ class FluxProExpandNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.05}""",
-            ),
         )
 
     @classmethod
@@ -377,39 +345,22 @@ class FluxProExpandNode(IO.ComfyNode):
         guidance: float,
         seed=0,
     ) -> IO.NodeOutput:
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/bfl/flux-pro-1.0-expand/generate", method="POST"),
-            response_model=BFLFluxProGenerateResponse,
-            data=BFLFluxExpandImageRequest(
-                prompt=prompt,
-                prompt_upsampling=prompt_upsampling,
-                top=top,
-                bottom=bottom,
-                left=left,
-                right=right,
-                steps=steps,
-                guidance=guidance,
-                seed=seed,
-                image=tensor_to_base64_string(image),
-            ),
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(initial_response.polling_url),
-            response_model=BFLFluxStatusResponse,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-            completed_statuses=[BFLStatus.ready],
-            failed_statuses=[
-                BFLStatus.request_moderated,
-                BFLStatus.content_moderated,
-                BFLStatus.error,
-                BFLStatus.task_not_found,
-            ],
-            queued_statuses=[],
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+        data = {
+            "prompt": prompt,
+            "prompt_upsampling": prompt_upsampling,
+            "top": top,
+            "bottom": bottom,
+            "left": left,
+            "right": right,
+            "steps": steps,
+            "guidance": guidance,
+            "seed": seed,
+            "image": tensor_to_base64_string(image),
+        }
+        # TODO: Verify fal.ai response schema for Flux Expand
+        result = await fal_run(cls, FAL_FLUX_PRO_EXPAND, data)
+        image_url = result.get("images", [{}])[0].get("url") or result.get("sample")
+        return IO.NodeOutput(await download_url_to_image_tensor(image_url))
 
 
 class FluxProFillNode(IO.ComfyNode):
@@ -463,14 +414,9 @@ class FluxProFillNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.05}""",
-            ),
         )
 
     @classmethod
@@ -487,43 +433,26 @@ class FluxProFillNode(IO.ComfyNode):
         # prepare mask
         mask = resize_mask_to_image(mask, image)
         mask = tensor_to_base64_string(convert_mask_to_image(mask))
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/bfl/flux-pro-1.0-fill/generate", method="POST"),
-            response_model=BFLFluxProGenerateResponse,
-            data=BFLFluxFillImageRequest(
-                prompt=prompt,
-                prompt_upsampling=prompt_upsampling,
-                steps=steps,
-                guidance=guidance,
-                seed=seed,
-                image=tensor_to_base64_string(image[:, :, :, :3]),  # make sure image will have alpha channel removed
-                mask=mask,
-            ),
-        )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(initial_response.polling_url),
-            response_model=BFLFluxStatusResponse,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-            completed_statuses=[BFLStatus.ready],
-            failed_statuses=[
-                BFLStatus.request_moderated,
-                BFLStatus.content_moderated,
-                BFLStatus.error,
-                BFLStatus.task_not_found,
-            ],
-            queued_statuses=[],
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+        data = {
+            "prompt": prompt,
+            "prompt_upsampling": prompt_upsampling,
+            "steps": steps,
+            "guidance": guidance,
+            "seed": seed,
+            "image": tensor_to_base64_string(image[:, :, :, :3]),
+            "mask": mask,
+        }
+        # TODO: Verify fal.ai response schema for Flux Fill
+        result = await fal_run(cls, FAL_FLUX_PRO_FILL, data)
+        image_url = result.get("images", [{}])[0].get("url") or result.get("sample")
+        return IO.NodeOutput(await download_url_to_image_tensor(image_url))
 
 
 class Flux2ProImageNode(IO.ComfyNode):
 
     NODE_ID = "Flux2ProImageNode"
     DISPLAY_NAME = "Flux.2 [pro] Image"
-    API_ENDPOINT = "/proxy/bfl/flux-2-pro/generate"
+    FAL_MODEL_ID = FAL_FLUX_2_PRO
     PRICE_BADGE_EXPR = """
     (
       $MP := 1024 * 1024;
@@ -587,15 +516,9 @@ class Flux2ProImageNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["width", "height"], inputs=["images"]),
-                expr=cls.PRICE_BADGE_EXPR,
-            ),
         )
 
     @classmethod
@@ -608,54 +531,31 @@ class Flux2ProImageNode(IO.ComfyNode):
         prompt_upsampling: bool,
         images: Input.Image | None = None,
     ) -> IO.NodeOutput:
-        reference_images = {}
+        data = {
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "seed": seed,
+            "prompt_upsampling": prompt_upsampling,
+        }
         if images is not None:
             if get_number_of_images(images) > 9:
                 raise ValueError("The current maximum number of supported images is 9.")
             for image_index in range(images.shape[0]):
                 key_name = f"input_image_{image_index + 1}" if image_index else "input_image"
-                reference_images[key_name] = tensor_to_base64_string(images[image_index], total_pixels=2048 * 2048)
-        initial_response = await sync_op(
-            cls,
-            ApiEndpoint(path=cls.API_ENDPOINT, method="POST"),
-            response_model=BFLFluxProGenerateResponse,
-            data=Flux2ProGenerateRequest(
-                prompt=prompt,
-                width=width,
-                height=height,
-                seed=seed,
-                prompt_upsampling=prompt_upsampling,
-                **reference_images,
-            ),
-        )
+                data[key_name] = tensor_to_base64_string(images[image_index], total_pixels=2048 * 2048)
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
-        response = await poll_op(
-            cls,
-            ApiEndpoint(initial_response.polling_url),
-            response_model=BFLFluxStatusResponse,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
-            completed_statuses=[BFLStatus.ready],
-            failed_statuses=[
-                BFLStatus.request_moderated,
-                BFLStatus.content_moderated,
-                BFLStatus.error,
-                BFLStatus.task_not_found,
-            ],
-            queued_statuses=[],
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+        # TODO: Verify fal.ai response schema for Flux 2 Pro
+        result = await fal_run(cls, cls.FAL_MODEL_ID, data)
+        image_url = result.get("images", [{}])[0].get("url") or result.get("sample")
+        return IO.NodeOutput(await download_url_to_image_tensor(image_url))
 
 
 class Flux2MaxImageNode(Flux2ProImageNode):
 
     NODE_ID = "Flux2MaxImageNode"
     DISPLAY_NAME = "Flux.2 [max] Image"
-    API_ENDPOINT = "/proxy/bfl/flux-2-max/generate"
+    FAL_MODEL_ID = FAL_FLUX_2_MAX
     PRICE_BADGE_EXPR = """
     (
       $MP := 1024 * 1024;

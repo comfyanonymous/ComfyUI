@@ -33,8 +33,12 @@ from comfy_api_nodes.util import (
     text_filepath_to_data_uri,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
 
-RESPONSES_ENDPOINT = "/proxy/openai/v1/responses"
+FAL_GPT_IMAGE_1 = "fal-ai/gpt-image-1/text-to-image"
+
+RESPONSES_ENDPOINT = "__FAL_OPENAI_RESPONSES__"  # migrated from /proxy/openai/v1/responses - now using fal_run
 STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
 
 
@@ -148,28 +152,9 @@ class OpenAIDalle2(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["size", "n"]),
-                expr="""
-                (
-                  $size := widgets.size;
-                  $nRaw := widgets.n;
-                  $n := ($nRaw != null and $nRaw != 0) ? $nRaw : 1;
-
-                  $base :=
-                    $contains($size, "256x256") ? 0.016 :
-                    $contains($size, "512x512") ? 0.018 :
-                    0.02;
-
-                  {"type":"usd","usd": $round($base * $n, 3)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -183,17 +168,16 @@ class OpenAIDalle2(IO.ComfyNode):
         size="1024x1024",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
-        model = "dall-e-2"
-        path = "/proxy/openai/images/generations"
-        content_type = "application/json"
-        request_class = OpenAIImageGenerationRequest
-        img_binary = None
+        data = {
+            "model": "dall-e-2",
+            "prompt": prompt,
+            "n": n,
+            "size": size,
+            "seed": seed,
+        }
 
         if image is not None and mask is not None:
-            path = "/proxy/openai/images/edits"
-            content_type = "multipart/form-data"
-            request_class = OpenAIImageEditRequest
-
+            from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
             input_tensor = image.squeeze().cpu()
             height, width, channels = input_tensor.shape
             rgba_tensor = torch.ones(height, width, 4, device="cpu")
@@ -210,33 +194,22 @@ class OpenAIDalle2(IO.ComfyNode):
             img_byte_arr = BytesIO()
             img.save(img_byte_arr, format="PNG")
             img_byte_arr.seek(0)
-            img_binary = img_byte_arr  # .getvalue()
-            img_binary.name = "image.png"
+            from comfy_api_nodes.util.upload_helpers import upload_file_to_fal
+            data["image_url"] = await upload_file_to_fal(img_byte_arr, "image/png")
         elif image is not None or mask is not None:
             raise Exception("Dall-E 2 image editing requires an image AND a mask")
 
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=path, method="POST"),
-            response_model=OpenAIImageGenerationResponse,
-            data=request_class(
-                model=model,
-                prompt=prompt,
-                n=n,
-                size=size,
-                seed=seed,
-            ),
-            files=(
-                {
-                    "image": ("image.png", img_binary, "image/png"),
-                }
-                if img_binary
-                else None
-            ),
-            content_type=content_type,
-        )
-
-        return IO.NodeOutput(await validate_and_cast_response(response))
+        result = await fal_run(cls, FAL_GPT_IMAGE_1, data)  # TODO: verify fal.ai field names; use correct fal model for DALL-E 2
+        # Parse fal.ai response to match expected format
+        image_tensors = []
+        for img_data in result.get("images", []):
+            img_url = img_data["url"]
+            img_io = BytesIO()
+            await download_url_to_bytesio(img_url, img_io)
+            pil_img = Image.open(img_io).convert("RGBA")
+            arr = np.asarray(pil_img).astype(np.float32) / 255.0
+            image_tensors.append(torch.from_numpy(arr))
+        return IO.NodeOutput(torch.stack(image_tensors, dim=0))
 
 
 class OpenAIDalle3(IO.ComfyNode):
@@ -292,30 +265,9 @@ class OpenAIDalle3(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["size", "quality"]),
-                expr="""
-                (
-                  $size := widgets.size;
-                  $q := widgets.quality;
-                  $hd := $contains($q, "hd");
-
-                  $price :=
-                    $contains($size, "1024x1024")
-                      ? ($hd ? 0.08 : 0.04)
-                      : (($contains($size, "1792x1024") or $contains($size, "1024x1792"))
-                          ? ($hd ? 0.12 : 0.08)
-                          : 0.04);
-
-                  {"type":"usd","usd": $price}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -328,24 +280,23 @@ class OpenAIDalle3(IO.ComfyNode):
         size="1024x1024",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
-        model = "dall-e-3"
-
-        # build the operation
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/openai/images/generations", method="POST"),
-            response_model=OpenAIImageGenerationResponse,
-            data=OpenAIImageGenerationRequest(
-                model=model,
-                prompt=prompt,
-                quality=quality,
-                size=size,
-                style=style,
-                seed=seed,
-            ),
-        )
-
-        return IO.NodeOutput(await validate_and_cast_response(response))
+        result = await fal_run(cls, FAL_GPT_IMAGE_1, {
+            "model": "dall-e-3",
+            "prompt": prompt,
+            "quality": quality,
+            "size": size,
+            "style": style,
+            "seed": seed,
+        })  # TODO: verify fal.ai field names; use correct fal model for DALL-E 3
+        image_tensors = []
+        for img_data in result.get("images", []):
+            img_url = img_data["url"]
+            img_io = BytesIO()
+            await download_url_to_bytesio(img_url, img_io)
+            pil_img = Image.open(img_io).convert("RGBA")
+            arr = np.asarray(pil_img).astype(np.float32) / 255.0
+            image_tensors.append(torch.from_numpy(arr))
+        return IO.NodeOutput(torch.stack(image_tensors, dim=0))
 
 
 def calculate_tokens_price_image_1(response: OpenAIImageGenerationResponse) -> float | None:
@@ -436,33 +387,9 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n"]),
-                expr="""
-                (
-                  $ranges := {
-                    "low":    [0.011, 0.02],
-                    "medium": [0.046, 0.07],
-                    "high":   [0.167, 0.3]
-                  };
-                  $range := $lookup($ranges, widgets.quality);
-                  $n := widgets.n;
-                  ($n = 1)
-                    ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1]}
-                    : {
-                        "type":"range_usd",
-                        "min_usd": $range[0],
-                        "max_usd": $range[1],
-                        "format": { "suffix": " x " & $string($n) & "/Run" }
-                      }
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -490,23 +417,30 @@ class OpenAIGPTImage1(IO.ComfyNode):
         else:
             raise ValueError(f"Unknown model: {model}")
 
+        data = {
+            "model": model,
+            "prompt": prompt,
+            "quality": quality,
+            "background": background,
+            "n": n,
+            "seed": seed,
+            "size": size,
+            "moderation": "low",
+        }
         if image is not None:
-            files = []
+            from comfy_api_nodes.util.upload_helpers import upload_image_to_fal, upload_file_to_fal
+            image_urls = []
             batch_size = image.shape[0]
             for i in range(batch_size):
                 single_image = image[i : i + 1]
                 scaled_image = downscale_image_tensor(single_image, total_pixels=2048 * 2048).squeeze()
-
                 image_np = (scaled_image.numpy() * 255).astype(np.uint8)
                 img = Image.fromarray(image_np)
                 img_byte_arr = BytesIO()
                 img.save(img_byte_arr, format="PNG")
                 img_byte_arr.seek(0)
-
-                if batch_size == 1:
-                    files.append(("image", (f"image_{i}.png", img_byte_arr, "image/png")))
-                else:
-                    files.append(("image[]", (f"image_{i}.png", img_byte_arr, "image/png")))
+                image_urls.append(await upload_file_to_fal(img_byte_arr, "image/png"))
+            data["image_urls"] = image_urls
 
             if mask is not None:
                 if image.shape[0] != 1:
@@ -516,52 +450,24 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 _, height, width = mask.shape
                 rgba_mask = torch.zeros(height, width, 4, device="cpu")
                 rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
-
                 scaled_mask = downscale_image_tensor(rgba_mask.unsqueeze(0), total_pixels=2048 * 2048).squeeze()
-
                 mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
                 mask_img = Image.fromarray(mask_np)
                 mask_img_byte_arr = BytesIO()
                 mask_img.save(mask_img_byte_arr, format="PNG")
                 mask_img_byte_arr.seek(0)
-                files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
+                data["mask_url"] = await upload_file_to_fal(mask_img_byte_arr, "image/png")
 
-            response = await sync_op(
-                cls,
-                ApiEndpoint(path="/proxy/openai/images/edits", method="POST"),
-                response_model=OpenAIImageGenerationResponse,
-                data=OpenAIImageEditRequest(
-                    model=model,
-                    prompt=prompt,
-                    quality=quality,
-                    background=background,
-                    n=n,
-                    seed=seed,
-                    size=size,
-                    moderation="low",
-                ),
-                content_type="multipart/form-data",
-                files=files,
-                price_extractor=price_extractor,
-            )
-        else:
-            response = await sync_op(
-                cls,
-                ApiEndpoint(path="/proxy/openai/images/generations", method="POST"),
-                response_model=OpenAIImageGenerationResponse,
-                data=OpenAIImageGenerationRequest(
-                    model=model,
-                    prompt=prompt,
-                    quality=quality,
-                    background=background,
-                    n=n,
-                    seed=seed,
-                    size=size,
-                    moderation="low",
-                ),
-                price_extractor=price_extractor,
-            )
-        return IO.NodeOutput(await validate_and_cast_response(response))
+        result = await fal_run(cls, FAL_GPT_IMAGE_1, data)  # TODO: verify fal.ai field names
+        image_tensors = []
+        for img_data in result.get("images", []):
+            img_url = img_data["url"]
+            img_io = BytesIO()
+            await download_url_to_bytesio(img_url, img_io)
+            pil_img = Image.open(img_io).convert("RGBA")
+            arr = np.asarray(pil_img).astype(np.float32) / 255.0
+            image_tensors.append(torch.from_numpy(arr))
+        return IO.NodeOutput(torch.stack(image_tensors, dim=0))
 
 
 class OpenAIChatNode(IO.ComfyNode):
@@ -615,75 +521,9 @@ class OpenAIChatNode(IO.ComfyNode):
                 IO.String.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $contains($m, "o4-mini") ? {
-                    "type": "list_usd",
-                    "usd": [0.0011, 0.0044],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "o1-pro") ? {
-                    "type": "list_usd",
-                    "usd": [0.15, 0.6],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "o1") ? {
-                    "type": "list_usd",
-                    "usd": [0.015, 0.06],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "o3-mini") ? {
-                    "type": "list_usd",
-                    "usd": [0.0011, 0.0044],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "o3") ? {
-                    "type": "list_usd",
-                    "usd": [0.01, 0.04],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gpt-4.1-nano") ? {
-                    "type": "list_usd",
-                    "usd": [0.0001, 0.0004],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gpt-4.1-mini") ? {
-                    "type": "list_usd",
-                    "usd": [0.0004, 0.0016],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gpt-4.1") ? {
-                    "type": "list_usd",
-                    "usd": [0.002, 0.008],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gpt-5-nano") ? {
-                    "type": "list_usd",
-                    "usd": [0.00005, 0.0004],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gpt-5-mini") ? {
-                    "type": "list_usd",
-                    "usd": [0.00025, 0.002],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : $contains($m, "gpt-5") ? {
-                    "type": "list_usd",
-                    "usd": [0.00125, 0.01],
-                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  }
-                  : {"type": "text", "text": "Token-based"}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -747,36 +587,30 @@ class OpenAIChatNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
 
-        # Create response
-        create_response = await sync_op(
-            cls,
-            ApiEndpoint(path=RESPONSES_ENDPOINT, method="POST"),
-            response_model=OpenAIResponse,
-            data=OpenAICreateResponse(
-                input=[
-                    InputMessage(
-                        content=cls.create_input_message_contents(prompt, images, files),
-                        role="user",
-                    ),
-                ],
-                store=True,
-                stream=False,
-                model=model,
-                previous_response_id=None,
-                **(advanced_options.model_dump(exclude_none=True) if advanced_options else {}),
-            ),
-        )
-        response_id = create_response.id
-
-        # Get result output
-        result_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{RESPONSES_ENDPOINT}/{response_id}"),
-            response_model=OpenAIResponse,
-            status_extractor=lambda response: response.status,
-            completed_statuses=["incomplete", "completed"],
-        )
-        return IO.NodeOutput(cls.get_text_from_message_content(cls.get_message_content_from_response(result_response)))
+        # Create response via fal_run
+        data = {
+            "input": [
+                {
+                    "content": [c.model_dump() if hasattr(c, 'model_dump') else c for c in cls.create_input_message_contents(prompt, images, files)],
+                    "role": "user",
+                },
+            ],
+            "store": True,
+            "stream": False,
+            "model": model,
+            "previous_response_id": None,
+            **(advanced_options.model_dump(exclude_none=True) if advanced_options else {}),
+        }
+        result = await fal_run(cls, FAL_GPT_IMAGE_1, data)  # TODO: verify fal.ai field names; use correct fal model for ChatGPT
+        # Extract text from fal.ai response
+        text = ""
+        for output in result.get("output", []):
+            if output.get("type") == "message":
+                for content_item in output.get("content", []):
+                    if content_item.get("type") == "output_text":
+                        text = content_item.get("text", "")
+                        break
+        return IO.NodeOutput(text if text else "No text output found in response")
 
 
 class OpenAIInputFiles(IO.ComfyNode):

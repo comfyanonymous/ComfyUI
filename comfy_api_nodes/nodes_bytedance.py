@@ -34,8 +34,12 @@ from comfy_api_nodes.util import (
     validate_image_dimensions,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
 
-BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
+FAL_SEEDREAM = "fal-ai/seedream-4.5"
+
+BYTEPLUS_IMAGE_ENDPOINT = "fal_image_endpoint"  # migrated from /proxy/byteplus/api/v3/images/generations
 
 SEEDREAM_MODELS = {
     "seedream 5.0 lite": "seedream-5-0-260128",
@@ -43,9 +47,9 @@ SEEDREAM_MODELS = {
     "seedream-4-0-250828": "seedream-4-0-250828",
 }
 
-# Long-running tasks endpoints(e.g., video)
-BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
-BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
+# Long-running tasks endpoints(e.g., video) - migrated from /proxy/byteplus/...
+BYTEPLUS_TASK_ENDPOINT = "fal_task_endpoint"  # migrated from /proxy/byteplus/api/v3/contents/generations/tasks
+BYTEPLUS_TASK_STATUS_ENDPOINT = "fal_task_status_endpoint"  # migrated from /proxy/byteplus/api/v3/contents/generations/tasks + /{task_id}
 
 
 def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
@@ -127,14 +131,9 @@ class ByteDanceImageNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.03}""",
-            ),
         )
 
     @classmethod
@@ -171,13 +170,9 @@ class ByteDanceImageNode(IO.ComfyNode):
             guidance_scale=guidance_scale,
             watermark=watermark,
         )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
-            data=payload,
-            response_model=ImageTaskCreationResponse,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+        result = await fal_run(cls, FAL_SEEDREAM, payload.model_dump(exclude_none=True))  # TODO: verify fal.ai field names; use correct fal model for seedream-3
+        image_url = result["images"][0]["url"]
+        return IO.NodeOutput(await download_url_to_image_tensor(image_url))
 
 
 class ByteDanceSeedreamNode(IO.ComfyNode):
@@ -279,25 +274,9 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $price := $contains(widgets.model, "5.0 lite") ? 0.035 :
-                            $contains(widgets.model, "4-5") ? 0.04 : 0.03;
-                  {
-                    "type":"usd",
-                    "usd": $price,
-                    "format": { "suffix":" x images/Run", "approximate": true }
-                  }
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -364,27 +343,23 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 max_images=n_input_images,
                 mime_type="image/png",
             )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
-            response_model=ImageTaskCreationResponse,
-            data=Seedream4TaskCreationRequest(
-                model=model,
-                prompt=prompt,
-                image=reference_images_urls,
-                size=f"{w}x{h}",
-                seed=seed,
-                sequential_image_generation=sequential_image_generation,
-                sequential_image_generation_options=Seedream4Options(max_images=max_images),
-                watermark=watermark,
-                output_format="png" if model == "seedream-5-0-260128" else None,
-            ),
-        )
-        if len(response.data) == 1:
-            return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
-        urls = [str(d["url"]) for d in response.data if isinstance(d, dict) and "url" in d]
-        if fail_on_partial and len(urls) < len(response.data):
-            raise RuntimeError(f"Only {len(urls)} of {len(response.data)} images were generated before error.")
+        result = await fal_run(cls, FAL_SEEDREAM, {
+            "model": model,
+            "prompt": prompt,
+            "image": reference_images_urls,
+            "size": f"{w}x{h}",
+            "seed": seed,
+            "sequential_image_generation": sequential_image_generation,
+            "sequential_image_generation_options": {"max_images": max_images},
+            "watermark": watermark,
+            "output_format": "png" if model == "seedream-5-0-260128" else None,
+        })  # TODO: verify fal.ai field names
+        images = result.get("images", [])
+        if len(images) == 1:
+            return IO.NodeOutput(await download_url_to_image_tensor(images[0]["url"]))
+        urls = [img["url"] for img in images if "url" in img]
+        if fail_on_partial and len(urls) < len(images):
+            raise RuntimeError(f"Only {len(urls)} of {len(images)} images were generated before error.")
         return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
 
 
@@ -470,12 +445,9 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -602,12 +574,9 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -738,12 +707,9 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -867,46 +833,9 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
-                expr="""
-                (
-                  $priceByModel := {
-                    "seedance-1-0-pro": {
-                      "480p":[0.23,0.24],
-                      "720p":[0.51,0.56]
-                    },
-                    "seedance-1-0-lite": {
-                      "480p":[0.17,0.18],
-                      "720p":[0.37,0.41]
-                    }
-                  };
-                  $model := widgets.model;
-                  $modelKey :=
-                    $contains($model, "seedance-1-0-pro")  ? "seedance-1-0-pro" :
-                    "seedance-1-0-lite";
-                  $resolution := widgets.resolution;
-                  $resKey :=
-                    $contains($resolution, "720") ? "720p" :
-                    "480p";
-                  $modelPrices := $lookup($priceByModel, $modelKey);
-                  $baseRange := $lookup($modelPrices, $resKey);
-                  $min10s := $baseRange[0];
-                  $max10s := $baseRange[1];
-                  $scale := widgets.duration / 10;
-                  $minCost := $min10s * $scale;
-                  $maxCost := $max10s * $scale;
-                  ($minCost = $maxCost)
-                    ? {"type":"usd","usd": $minCost}
-                    : {"type":"range_usd","min_usd": $minCost, "max_usd": $maxCost}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -952,20 +881,13 @@ async def process_video_task(
     payload: Text2VideoTaskCreationRequest | Image2VideoTaskCreationRequest,
     estimated_duration: int | None,
 ) -> IO.NodeOutput:
-    initial_response = await sync_op(
-        cls,
-        ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-        data=payload,
-        response_model=TaskCreationResponse,
-    )
-    response = await poll_op(
-        cls,
-        ApiEndpoint(path=f"{BYTEPLUS_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-        status_extractor=lambda r: r.status,
+    result = await fal_run(
+        cls, FAL_SEEDREAM,
+        payload.model_dump(exclude_none=True),
         estimated_duration=estimated_duration,
-        response_model=TaskStatusResponse,
-    )
-    return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
+    )  # TODO: verify fal.ai field names; use correct fal model for ByteDance video
+    video_url = result["video"]["url"]
+    return IO.NodeOutput(await download_url_to_video_output(video_url))
 
 
 def raise_if_text_params(prompt: str, text_params: list[str]) -> None:

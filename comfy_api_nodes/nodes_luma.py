@@ -33,6 +33,10 @@ from comfy_api_nodes.util import (
     upload_images_to_comfyapi,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_LUMA_RAY2 = "fal-ai/luma-dream-machine/ray-2"
 
 LUMA_T2V_AVERAGE_DURATION = 105
 LUMA_I2V_AVERAGE_DURATION = 100
@@ -184,24 +188,9 @@ class LumaImageGenerationNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $contains($m,"photon-flash-1")
-                    ? {"type":"usd","usd":0.0027}
-                    : $contains($m,"photon-1")
-                      ? {"type":"usd","usd":0.0104}
-                      : {"type":"usd","usd":0.0246}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -231,26 +220,16 @@ class LumaImageGenerationNode(IO.ComfyNode):
             download_urls = await upload_images_to_comfyapi(cls, character_image, max_images=4)
             character_ref = LumaCharacterRef(identity0=LumaImageIdentity(images=download_urls))
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/luma/generations/image", method="POST"),
-            response_model=LumaGeneration,
-            data=LumaImageGenerationRequest(
-                prompt=prompt,
-                model=model,
-                aspect_ratio=aspect_ratio,
-                image_ref=api_image_ref,
-                style_ref=api_style_ref,
-                character_ref=character_ref,
-            ),
-        )
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/luma/generations/{response_api.id}"),
-            response_model=LumaGeneration,
-            status_extractor=lambda x: x.state,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response_poll.assets.image))
+        data = {
+            "prompt": prompt,
+            "model": model,
+            "aspect_ratio": aspect_ratio,
+            "image_ref": api_image_ref.model_dump() if api_image_ref and hasattr(api_image_ref, 'model_dump') else api_image_ref,
+            "style_ref": api_style_ref.model_dump() if api_style_ref and hasattr(api_style_ref, 'model_dump') else api_style_ref,
+            "character_ref": character_ref.model_dump() if character_ref and hasattr(character_ref, 'model_dump') else character_ref,
+        }
+        result = await fal_run(cls, FAL_LUMA_RAY2, data)  # TODO: verify fal.ai field names; use correct fal model for luma image
+        return IO.NodeOutput(await download_url_to_image_tensor(result["image"]["url"]))
 
     @classmethod
     async def _convert_luma_refs(cls, luma_ref: LumaReferenceChain, max_refs: int):
@@ -311,24 +290,9 @@ class LumaImageModifyNode(IO.ComfyNode):
             ],
             outputs=[IO.Image.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $contains($m,"photon-flash-1")
-                    ? {"type":"usd","usd":0.0027}
-                    : $contains($m,"photon-1")
-                      ? {"type":"usd","usd":0.0104}
-                      : {"type":"usd","usd":0.0246}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -342,25 +306,15 @@ class LumaImageModifyNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         download_urls = await upload_images_to_comfyapi(cls, image, max_images=1)
         image_url = download_urls[0]
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/luma/generations/image", method="POST"),
-            response_model=LumaGeneration,
-            data=LumaImageGenerationRequest(
-                prompt=prompt,
-                model=model,
-                modify_image_ref=LumaModifyImageRef(
-                    url=image_url, weight=round(max(min(1.0 - image_weight, 0.98), 0.0), 2)
-                ),
-            ),
-        )
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/luma/generations/{response_api.id}"),
-            response_model=LumaGeneration,
-            status_extractor=lambda x: x.state,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(response_poll.assets.image))
+        result = await fal_run(cls, FAL_LUMA_RAY2, {
+            "prompt": prompt,
+            "model": model,
+            "modify_image_ref": {
+                "url": image_url,
+                "weight": round(max(min(1.0 - image_weight, 0.98), 0.0), 2),
+            },
+        })  # TODO: verify fal.ai field names; use correct fal model for luma image modify
+        return IO.NodeOutput(await download_url_to_image_tensor(result["image"]["url"]))
 
 
 class LumaTextToVideoGenerationNode(IO.ComfyNode):
@@ -416,12 +370,9 @@ class LumaTextToVideoGenerationNode(IO.ComfyNode):
             ],
             outputs=[IO.Video.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -440,28 +391,16 @@ class LumaTextToVideoGenerationNode(IO.ComfyNode):
         duration = duration if model != LumaVideoModel.ray_1_6 else None
         resolution = resolution if model != LumaVideoModel.ray_1_6 else None
 
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/luma/generations", method="POST"),
-            response_model=LumaGeneration,
-            data=LumaGenerationRequest(
-                prompt=prompt,
-                model=model,
-                resolution=resolution,
-                aspect_ratio=aspect_ratio,
-                duration=duration,
-                loop=loop,
-                concepts=luma_concepts.create_api_model() if luma_concepts else None,
-            ),
-        )
-        response_poll = await poll_op(
-            cls,
-            ApiEndpoint(path=f"/proxy/luma/generations/{response_api.id}"),
-            response_model=LumaGeneration,
-            status_extractor=lambda x: x.state,
-            estimated_duration=LUMA_T2V_AVERAGE_DURATION,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response_poll.assets.video))
+        result = await fal_run(cls, FAL_LUMA_RAY2, {
+            "prompt": prompt,
+            "model": model,
+            "resolution": resolution,
+            "aspect_ratio": aspect_ratio,
+            "duration": duration,
+            "loop": loop,
+            "concepts": luma_concepts.create_api_model() if luma_concepts else None,
+        }, estimated_duration=LUMA_T2V_AVERAGE_DURATION)  # TODO: verify fal.ai field names
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
 
 class LumaImageToVideoGenerationNode(IO.ComfyNode):
@@ -527,12 +466,9 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
             ],
             outputs=[IO.Video.Output()],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
 
         )
 
@@ -554,29 +490,17 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
         keyframes = await cls._convert_to_keyframes(first_image, last_image)
         duration = duration if model != LumaVideoModel.ray_1_6 else None
         resolution = resolution if model != LumaVideoModel.ray_1_6 else None
-        response_api = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/luma/generations", method="POST"),
-            response_model=LumaGeneration,
-            data=LumaGenerationRequest(
-                prompt=prompt,
-                model=model,
-                aspect_ratio=LumaAspectRatio.ratio_16_9,  # ignored, but still needed by the API for some reason
-                resolution=resolution,
-                duration=duration,
-                loop=loop,
-                keyframes=keyframes,
-                concepts=luma_concepts.create_api_model() if luma_concepts else None,
-            ),
-        )
-        response_poll = await poll_op(
-            cls,
-            poll_endpoint=ApiEndpoint(path=f"/proxy/luma/generations/{response_api.id}"),
-            response_model=LumaGeneration,
-            status_extractor=lambda x: x.state,
-            estimated_duration=LUMA_I2V_AVERAGE_DURATION,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(response_poll.assets.video))
+        result = await fal_run(cls, FAL_LUMA_RAY2, {
+            "prompt": prompt,
+            "model": model,
+            "aspect_ratio": LumaAspectRatio.ratio_16_9.value if hasattr(LumaAspectRatio.ratio_16_9, 'value') else str(LumaAspectRatio.ratio_16_9),
+            "resolution": resolution,
+            "duration": duration,
+            "loop": loop,
+            "keyframes": keyframes.model_dump() if keyframes and hasattr(keyframes, 'model_dump') else keyframes,
+            "concepts": luma_concepts.create_api_model() if luma_concepts else None,
+        }, estimated_duration=LUMA_I2V_AVERAGE_DURATION)  # TODO: verify fal.ai field names
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))
 
     @classmethod
     async def _convert_to_keyframes(

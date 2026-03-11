@@ -82,6 +82,10 @@ from comfy_api_nodes.util import (
     validate_video_dimensions,
     validate_video_duration,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_KLING_T2V = "fal-ai/kling-video/v2/master/text-to-video"
 
 
 def _generate_storyboard_inputs(count: int) -> list:
@@ -109,14 +113,15 @@ def _generate_storyboard_inputs(count: int) -> list:
 
 
 KLING_API_VERSION = "v1"
-PATH_TEXT_TO_VIDEO = f"/proxy/kling/{KLING_API_VERSION}/videos/text2video"
-PATH_IMAGE_TO_VIDEO = f"/proxy/kling/{KLING_API_VERSION}/videos/image2video"
-PATH_VIDEO_EXTEND = f"/proxy/kling/{KLING_API_VERSION}/videos/video-extend"
-PATH_LIP_SYNC = f"/proxy/kling/{KLING_API_VERSION}/videos/lip-sync"
-PATH_VIDEO_EFFECTS = f"/proxy/kling/{KLING_API_VERSION}/videos/effects"
-PATH_CHARACTER_IMAGE = f"/proxy/kling/{KLING_API_VERSION}/images/generations"
-PATH_VIRTUAL_TRY_ON = f"/proxy/kling/{KLING_API_VERSION}/images/kolors-virtual-try-on"
-PATH_IMAGE_GENERATIONS = f"/proxy/kling/{KLING_API_VERSION}/images/generations"
+# Paths migrated from /proxy/kling/... to fal_run placeholders
+PATH_TEXT_TO_VIDEO = "__FAL_KLING_T2V__"  # was: /proxy/kling/v1/videos/text2video
+PATH_IMAGE_TO_VIDEO = "__FAL_KLING_I2V__"  # was: /proxy/kling/v1/videos/image2video
+PATH_VIDEO_EXTEND = "__FAL_KLING_VEXT__"  # was: /proxy/kling/v1/videos/video-extend
+PATH_LIP_SYNC = "__FAL_KLING_LIPSYNC__"  # was: /proxy/kling/v1/videos/lip-sync
+PATH_VIDEO_EFFECTS = "__FAL_KLING_EFFECTS__"  # was: /proxy/kling/v1/videos/effects
+PATH_CHARACTER_IMAGE = "__FAL_KLING_CHARIMG__"  # was: /proxy/kling/v1/images/generations
+PATH_VIRTUAL_TRY_ON = "__FAL_KLING_TRYON__"  # was: /proxy/kling/v1/images/kolors-virtual-try-on
+PATH_IMAGE_GENERATIONS = "__FAL_KLING_IMGEN__"  # was: /proxy/kling/v1/images/generations
 
 MAX_PROMPT_LENGTH_T2V = 2500
 MAX_PROMPT_LENGTH_I2V = 500
@@ -274,7 +279,7 @@ async def finish_omni_video_task(cls: type[IO.ComfyNode], response: TaskStatusRe
         )
     final_response = await poll_op(
         cls,
-        ApiEndpoint(path=f"/proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
+        ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
         response_model=TaskStatusResponse,
         status_extractor=lambda r: (r.data.task_status if r.data else None),
     )
@@ -786,38 +791,9 @@ class KlingTextToVideoNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
-                expr="""
-                (
-                  $m := widgets.mode;
-                  $contains($m,"v2-5-turbo")
-                    ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
-                    : $contains($m,"v2-1-master")
-                      ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
-                      : $contains($m,"v2-master")
-                        ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
-                        : $contains($m,"v1-6")
-                          ? (
-                              $contains($m,"pro")
-                                ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                                : ($contains($m,"10s") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
-                            )
-                          : $contains($m,"v1")
-                            ? (
-                                $contains($m,"pro")
-                                  ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                                  : ($contains($m,"10s") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
-                              )
-                            : {"type":"usd","usd":0.14}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -895,25 +871,9 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution", "model_name", "generate_audio"]),
-                expr="""
-                (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
-                  $isV3 := $contains(widgets.model_name, "v3");
-                  $audio := $isV3 and widgets.generate_audio;
-                  $rates := $audio
-                    ? {"std": 0.112, "pro": 0.14}
-                    : {"std": 0.084, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -965,7 +925,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
 
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
             response_model=TaskStatusResponse,
             data=OmniProText2VideoRequest(
                 model_name=model_name,
@@ -1052,25 +1012,9 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution", "model_name", "generate_audio"]),
-                expr="""
-                (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
-                  $isV3 := $contains(widgets.model_name, "v3");
-                  $audio := $isV3 and widgets.generate_audio;
-                  $rates := $audio
-                    ? {"std": 0.112, "pro": 0.14}
-                    : {"std": 0.084, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1163,7 +1107,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 image_list.append(OmniParamImage(image_url=i))
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
             response_model=TaskStatusResponse,
             data=OmniProFirstLastFrameRequest(
                 model_name=model_name,
@@ -1242,25 +1186,9 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution", "model_name", "generate_audio"]),
-                expr="""
-                (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
-                  $isV3 := $contains(widgets.model_name, "v3");
-                  $audio := $isV3 and widgets.generate_audio;
-                  $rates := $audio
-                    ? {"std": 0.112, "pro": 0.14}
-                    : {"std": 0.084, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1322,7 +1250,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
             image_list.append(OmniParamImage(image_url=i))
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
             response_model=TaskStatusResponse,
             data=OmniProReferences2VideoRequest(
                 model_name=model_name,
@@ -1383,21 +1311,9 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
-                expr="""
-                (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
-                  $rates := {"std": 0.126, "pro": 0.168};
-                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1436,7 +1352,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         ]
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
             response_model=TaskStatusResponse,
             data=OmniProReferences2VideoRequest(
                 model_name=model_name,
@@ -1492,21 +1408,9 @@ class OmniProEditVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
-                expr="""
-                (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
-                  $rates := {"std": 0.126, "pro": 0.168};
-                  {"type":"usd","usd": $lookup($rates, $mode), "format":{"suffix":"/second"}}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1543,7 +1447,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         ]
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
             response_model=TaskStatusResponse,
             data=OmniProReferences2VideoRequest(
                 model_name=model_name,
@@ -1606,23 +1510,9 @@ class OmniProImageNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["resolution", "series_amount", "model_name"]),
-                expr="""
-                (
-                  $prices := {"1k": 0.028, "2k": 0.028, "4k": 0.056};
-                  $base := $lookup($prices, widgets.resolution);
-                  $isO1 := widgets.model_name = "kling-image-o1";
-                  $mult := ($isO1 or widgets.series_amount = "disabled") ? 1 : $number(widgets.series_amount);
-                  {"type":"usd","usd": $base * $mult}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1655,7 +1545,7 @@ class OmniProImageNode(IO.ComfyNode):
             raise ValueError("kling-image-o1 does not support series generation.")
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/images/omni-image", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/images/omni-image", method="POST"),
             response_model=TaskStatusResponse,
             data=OmniProImageRequest(
                 model_name=model_name,
@@ -1673,7 +1563,7 @@ class OmniProImageNode(IO.ComfyNode):
             )
         final_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/kling/v1/images/omni-image/{response.data.task_id}"),
+            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/images/omni-image/{response.data.task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
@@ -1715,14 +1605,9 @@ class KlingCameraControlT2VNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14}""",
-            ),
         )
 
     @classmethod
@@ -1780,38 +1665,9 @@ class KlingImage2VideoNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
-                expr="""
-                (
-                  $mode := widgets.mode;
-                  $model := widgets.model_name;
-                  $dur := widgets.duration;
-                  $contains($model,"v2-5-turbo")
-                    ? ($contains($dur,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
-                    : ($contains($model,"v2-1-master") or $contains($model,"v2-master"))
-                      ? ($contains($dur,"10") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
-                      : ($contains($model,"v2-1") or $contains($model,"v1-6") or $contains($model,"v1-5"))
-                        ? (
-                            $contains($mode,"pro")
-                              ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                              : ($contains($dur,"10") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
-                          )
-                        : $contains($model,"v1")
-                          ? (
-                              $contains($mode,"pro")
-                                ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                                : ($contains($dur,"10") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
-                            )
-                          : {"type":"usd","usd":0.14}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -1880,14 +1736,9 @@ class KlingCameraControlI2VNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.49}""",
-            ),
         )
 
     @classmethod
@@ -1953,38 +1804,9 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
-                expr="""
-                (
-                  $m := widgets.mode;
-                  $contains($m,"v2-5-turbo")
-                    ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
-                    : $contains($m,"v2-1")
-                      ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                      : $contains($m,"v2-master")
-                        ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
-                        : $contains($m,"v1-6")
-                          ? (
-                              $contains($m,"pro")
-                                ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                                : ($contains($m,"10s") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
-                            )
-                          : $contains($m,"v1")
-                            ? (
-                                $contains($m,"pro")
-                                  ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                                  : ($contains($m,"10s") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
-                              )
-                            : {"type":"usd","usd":0.14}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -2045,14 +1867,9 @@ class KlingVideoExtendNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.28}""",
-            ),
         )
 
     @classmethod
@@ -2129,34 +1946,9 @@ class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
-                expr="""
-                (
-                  $mode := widgets.mode;
-                  $model := widgets.model_name;
-                  $dur := widgets.duration;
-                  ($contains($model,"v1-6") or $contains($model,"v1-5"))
-                    ? (
-                        $contains($mode,"pro")
-                          ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                          : ($contains($dur,"10") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
-                      )
-                    : $contains($model,"v1")
-                      ? (
-                          $contains($mode,"pro")
-                            ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
-                            : ($contains($dur,"10") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
-                        )
-                      : {"type":"usd","usd":0.14}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -2216,21 +2008,9 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["effect_scene"]),
-                expr="""
-                (
-                  ($contains(widgets.effect_scene,"dizzydizzy") or $contains(widgets.effect_scene,"bloombloom"))
-                    ? {"type":"usd","usd":0.49}
-                    : {"type":"usd","usd":0.28}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -2281,14 +2061,9 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.1,"format":{"approximate":true}}""",
-            ),
         )
 
     @classmethod
@@ -2345,14 +2120,9 @@ class KlingLipSyncTextToVideoNode(IO.ComfyNode):
                 IO.String.Output(display_name="duration"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.1,"format":{"approximate":true}}""",
-            ),
         )
 
     @classmethod
@@ -2398,14 +2168,9 @@ class KlingVirtualTryOnNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.7}""",
-            ),
         )
 
     @classmethod
@@ -2510,24 +2275,9 @@ class KlingImageGenerationNode(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model_name", "n"], inputs=["image"]),
-                expr="""
-                (
-                  $m := widgets.model_name;
-                  $base :=
-                    $contains($m,"kling-v1-5")
-                      ? (inputs.image.connected ? 0.028 : 0.014)
-                      : $contains($m,"kling-v3") ? 0.028 : 0.014;
-                  {"type":"usd","usd": $base * widgets.n}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -2600,15 +2350,9 @@ class TextToVideoWithAudio(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
-                expr="""{"type":"usd","usd": 0.07 * widgets.duration * (widgets.generate_audio ? 2 : 1)}""",
-            ),
         )
 
     @classmethod
@@ -2624,7 +2368,7 @@ class TextToVideoWithAudio(IO.ComfyNode):
         validate_string(prompt, min_length=1, max_length=2500)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/text2video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video", method="POST"),
             response_model=TaskStatusResponse,
             data=TextToVideoWithAudioRequest(
                 model_name=model_name,
@@ -2641,7 +2385,7 @@ class TextToVideoWithAudio(IO.ComfyNode):
             )
         final_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/kling/v1/videos/text2video/{response.data.task_id}"),
+            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video/{response.data.task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
@@ -2668,15 +2412,9 @@ class ImageToVideoWithAudio(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
-                expr="""{"type":"usd","usd": 0.07 * widgets.duration * (widgets.generate_audio ? 2 : 1)}""",
-            ),
         )
 
     @classmethod
@@ -2694,7 +2432,7 @@ class ImageToVideoWithAudio(IO.ComfyNode):
         validate_image_aspect_ratio(start_frame, (1, 2.5), (2.5, 1))
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/image2video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video", method="POST"),
             response_model=TaskStatusResponse,
             data=ImageToVideoWithAudioRequest(
                 model_name=model_name,
@@ -2711,7 +2449,7 @@ class ImageToVideoWithAudio(IO.ComfyNode):
             )
         final_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/kling/v1/videos/image2video/{response.data.task_id}"),
+            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video/{response.data.task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
@@ -2753,20 +2491,9 @@ class MotionControl(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
-                expr="""
-                (
-                  $prices := {"std": 0.07, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -2790,7 +2517,7 @@ class MotionControl(IO.ComfyNode):
         validate_video_dimensions(reference_video, min_width=340, min_height=340, max_width=3850, max_height=3850)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/motion-control", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/motion-control", method="POST"),
             response_model=TaskStatusResponse,
             data=MotionControlRequest(
                 prompt=prompt,
@@ -2808,7 +2535,7 @@ class MotionControl(IO.ComfyNode):
             )
         final_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/kling/v1/videos/motion-control/{response.data.task_id}"),
+            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/motion-control/{response.data.task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
@@ -2890,46 +2617,9 @@ class KlingVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(
-                    widgets=[
-                        "model.resolution",
-                        "generate_audio",
-                        "multi_shot",
-                        "multi_shot.duration",
-                        "multi_shot.storyboard_1_duration",
-                        "multi_shot.storyboard_2_duration",
-                        "multi_shot.storyboard_3_duration",
-                        "multi_shot.storyboard_4_duration",
-                        "multi_shot.storyboard_5_duration",
-                        "multi_shot.storyboard_6_duration",
-                    ],
-                ),
-                expr="""
-                (
-                  $rates := {"1080p": {"off": 0.112, "on": 0.168}, "720p": {"off": 0.084, "on": 0.126}};
-                  $res := $lookup(widgets, "model.resolution");
-                  $audio := widgets.generate_audio ? "on" : "off";
-                  $rate := $lookup($lookup($rates, $res), $audio);
-                  $ms := widgets.multi_shot;
-                  $isSb := $ms != "disabled";
-                  $n := $isSb ? $number($substring($ms, 0, 1)) : 0;
-                  $d1 := $lookup(widgets, "multi_shot.storyboard_1_duration");
-                  $d2 := $n >= 2 ? $lookup(widgets, "multi_shot.storyboard_2_duration") : 0;
-                  $d3 := $n >= 3 ? $lookup(widgets, "multi_shot.storyboard_3_duration") : 0;
-                  $d4 := $n >= 4 ? $lookup(widgets, "multi_shot.storyboard_4_duration") : 0;
-                  $d5 := $n >= 5 ? $lookup(widgets, "multi_shot.storyboard_5_duration") : 0;
-                  $d6 := $n >= 6 ? $lookup(widgets, "multi_shot.storyboard_6_duration") : 0;
-                  $dur := $isSb ? $d1 + $d2 + $d3 + $d4 + $d5 + $d6 : $lookup(widgets, "multi_shot.duration");
-                  {"type":"usd","usd": $rate * $dur}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -2980,7 +2670,7 @@ class KlingVideoNode(IO.ComfyNode):
             image_url = await upload_image_to_comfyapi(cls, start_frame, wait_label="Uploading start frame")
             response = await sync_op(
                 cls,
-                ApiEndpoint(path="/proxy/kling/v1/videos/image2video", method="POST"),
+                ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video", method="POST"),
                 response_model=TaskStatusResponse,
                 data=ImageToVideoWithAudioRequest(
                     model_name=model["model"],
@@ -2995,11 +2685,11 @@ class KlingVideoNode(IO.ComfyNode):
                     shot_type=shot_type,
                 ),
             )
-            poll_path = f"/proxy/kling/v1/videos/image2video/{response.data.task_id}"
+            poll_path = f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video/{response.data.task_id}"
         else:
             response = await sync_op(
                 cls,
-                ApiEndpoint(path="/proxy/kling/v1/videos/text2video", method="POST"),
+                ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video", method="POST"),
                 response_model=TaskStatusResponse,
                 data=TextToVideoWithAudioRequest(
                     model_name=model["model"],
@@ -3014,7 +2704,7 @@ class KlingVideoNode(IO.ComfyNode):
                     shot_type=shot_type,
                 ),
             )
-            poll_path = f"/proxy/kling/v1/videos/text2video/{response.data.task_id}"
+            poll_path = f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video/{response.data.task_id}"
 
         if response.code:
             raise RuntimeError(
@@ -3077,25 +2767,9 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(
-                    widgets=["model.resolution", "generate_audio", "duration"],
-                ),
-                expr="""
-                (
-                  $rates := {"1080p": {"off": 0.112, "on": 0.168}, "720p": {"off": 0.084, "on": 0.126}};
-                  $res := $lookup(widgets, "model.resolution");
-                  $audio := widgets.generate_audio ? "on" : "off";
-                  $rate := $lookup($lookup($rates, $res), $audio);
-                  {"type":"usd","usd": $rate * widgets.duration}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -3119,7 +2793,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         image_tail_url = await upload_image_to_comfyapi(cls, end_frame, wait_label="Uploading end frame")
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/image2video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video", method="POST"),
             response_model=TaskStatusResponse,
             data=ImageToVideoWithAudioRequest(
                 model_name=model["model"],
@@ -3137,7 +2811,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
             )
         final_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/kling/v1/videos/image2video/{response.data.task_id}"),
+            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video/{response.data.task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
@@ -3186,20 +2860,9 @@ class KlingAvatarNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
-                expr="""
-                (
-                  $prices := {"std": 0.056, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -3216,7 +2879,7 @@ class KlingAvatarNode(IO.ComfyNode):
         validate_audio_duration(sound_file, min_duration=2, max_duration=300)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/kling/v1/videos/avatar/image2video", method="POST"),
+            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/avatar/image2video", method="POST"),
             response_model=TaskStatusResponse,
             data=KlingAvatarRequest(
                 image=await upload_image_to_comfyapi(cls, image),
@@ -3233,7 +2896,7 @@ class KlingAvatarNode(IO.ComfyNode):
             )
         final_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/kling/v1/videos/avatar/image2video/{response.data.task_id}"),
+            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/avatar/image2video/{response.data.task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
             max_poll_attempts=800,

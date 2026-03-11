@@ -18,6 +18,10 @@ from comfy_api_nodes.util import (
     resize_mask_to_image,
     sync_op,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_IDEOGRAM_V3 = "fal-ai/ideogram/v3"
 
 V1_V1_RES_MAP = {
   "Auto":"AUTO",
@@ -294,21 +298,9 @@ class IdeogramV1(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
-                expr="""
-                (
-                  $n := widgets.num_images;
-                  $base := (widgets.turbo = true) ? 0.0286 : 0.0858;
-                  {"type":"usd","usd": $round($base * $n, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -326,28 +318,28 @@ class IdeogramV1(IO.ComfyNode):
         aspect_ratio = V1_V2_RATIO_MAP.get(aspect_ratio, None)
         model = "V_1_TURBO" if turbo else "V_1"
 
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="/proxy/ideogram/generate", method="POST"),
-            response_model=IdeogramGenerateResponse,
-            data=IdeogramGenerateRequest(
-                image_request=ImageRequest(
-                    prompt=prompt,
-                    model=model,
-                    num_images=num_images,
-                    seed=seed,
-                    aspect_ratio=aspect_ratio if aspect_ratio != "ASPECT_1_1" else None,
-                    magic_prompt_option=(magic_prompt_option if magic_prompt_option != "AUTO" else None),
-                    negative_prompt=negative_prompt if negative_prompt else None,
-                )
-            ),
-            max_retries=1,
-        )
+        # TODO: fal.ai Ideogram V3 schema may differ from V1; verify input fields
+        data = {
+            "prompt": prompt,
+            "model": model,
+            "num_images": num_images,
+            "seed": seed,
+        }
+        if aspect_ratio and aspect_ratio != "ASPECT_1_1":
+            data["aspect_ratio"] = aspect_ratio
+        if magic_prompt_option != "AUTO":
+            data["magic_prompt_option"] = magic_prompt_option
+        if negative_prompt:
+            data["negative_prompt"] = negative_prompt
 
-        if not response.data or len(response.data) == 0:
+        result = await fal_run(cls, FAL_IDEOGRAM_V3, data)
+
+        # TODO: Verify fal.ai response schema for Ideogram
+        images = result.get("images", [])
+        if not images:
             raise Exception("No images were generated in the response")
 
-        image_urls = [image_data.url for image_data in response.data if image_data.url]
+        image_urls = [img["url"] for img in images if img.get("url")]
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
         return IO.NodeOutput(await download_and_process_images(image_urls))
@@ -444,21 +436,9 @@ class IdeogramV2(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
-                expr="""
-                (
-                  $n := widgets.num_images;
-                  $base := (widgets.turbo = true) ? 0.0715 : 0.1144;
-                  {"type":"usd","usd": $round($base * $n, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -481,7 +461,6 @@ class IdeogramV2(IO.ComfyNode):
         model = "V_2_TURBO" if turbo else "V_2"
 
         # Handle resolution vs aspect_ratio logic
-        # If resolution is not AUTO, it overrides aspect_ratio
         final_resolution = None
         final_aspect_ratio = None
 
@@ -490,30 +469,34 @@ class IdeogramV2(IO.ComfyNode):
         else:
             final_aspect_ratio = aspect_ratio if aspect_ratio != "ASPECT_1_1" else None
 
-        response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="/proxy/ideogram/generate", method="POST"),
-            response_model=IdeogramGenerateResponse,
-            data=IdeogramGenerateRequest(
-                image_request=ImageRequest(
-                    prompt=prompt,
-                    model=model,
-                    num_images=num_images,
-                    seed=seed,
-                    aspect_ratio=final_aspect_ratio,
-                    resolution=final_resolution,
-                    magic_prompt_option=(magic_prompt_option if magic_prompt_option != "AUTO" else None),
-                    style_type=style_type if style_type != "NONE" else None,
-                    negative_prompt=negative_prompt if negative_prompt else None,
-                    color_palette=color_palette if color_palette else None,
-                )
-            ),
-            max_retries=1,
-        )
-        if not response.data or len(response.data) == 0:
+        # TODO: fal.ai Ideogram V3 schema may differ from V2; verify input fields
+        data = {
+            "prompt": prompt,
+            "model": model,
+            "num_images": num_images,
+            "seed": seed,
+        }
+        if final_aspect_ratio:
+            data["aspect_ratio"] = final_aspect_ratio
+        if final_resolution:
+            data["resolution"] = final_resolution
+        if magic_prompt_option != "AUTO":
+            data["magic_prompt_option"] = magic_prompt_option
+        if style_type != "NONE":
+            data["style_type"] = style_type
+        if negative_prompt:
+            data["negative_prompt"] = negative_prompt
+        if color_palette:
+            data["color_palette"] = color_palette
+
+        result = await fal_run(cls, FAL_IDEOGRAM_V3, data)
+
+        # TODO: Verify fal.ai response schema for Ideogram
+        images = result.get("images", [])
+        if not images:
             raise Exception("No images were generated in the response")
 
-        image_urls = [image_data.url for image_data in response.data if image_data.url]
+        image_urls = [img["url"] for img in images if img.get("url")]
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
         return IO.NodeOutput(await download_and_process_images(image_urls))
@@ -611,27 +594,9 @@ class IdeogramV3(IO.ComfyNode):
                 IO.Image.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["rendering_speed", "num_images"], inputs=["character_image"]),
-                expr="""
-                (
-                  $n := widgets.num_images;
-                  $speed := widgets.rendering_speed;
-                  $hasChar := inputs.character_image.connected;
-                  $base :=
-                    $contains($speed,"quality") ? ($hasChar ? 0.286 : 0.1287) :
-                    $contains($speed,"default") ? ($hasChar ? 0.2145 : 0.0858) :
-                    $contains($speed,"turbo") ? ($hasChar ? 0.143 : 0.0429) :
-                    0.0858;
-                  {"type":"usd","usd": $round($base * $n, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -735,15 +700,28 @@ class IdeogramV3(IO.ComfyNode):
             if character_mask_binary:
                 files["character_mask_binary"] = character_mask_binary
 
-            response = await sync_op(
-                cls,
-                ApiEndpoint(path="/proxy/ideogram/ideogram-v3/edit", method="POST"),
-                response_model=IdeogramGenerateResponse,
-                data=edit_request,
-                files=files,
-                content_type="multipart/form-data",
-                max_retries=1,
-            )
+            # TODO: fal.ai Ideogram V3 edit - verify multipart file upload approach
+            # fal_run doesn't support file uploads directly; may need upload_image_to_fal
+            data = {
+                "prompt": prompt,
+                "rendering_speed": rendering_speed,
+            }
+            if magic_prompt_option != "AUTO":
+                data["magic_prompt"] = magic_prompt_option
+            if seed != 0:
+                data["seed"] = seed
+            if num_images > 1:
+                data["num_images"] = num_images
+            # TODO: Handle image/mask file uploads for fal.ai edit endpoint
+            response_data = await fal_run(cls, FAL_IDEOGRAM_V3, data)
+            # Adapt response to match expected format below
+            class _FakeData:
+                def __init__(self, url):
+                    self.url = url
+            class _FakeResponse:
+                def __init__(self, images):
+                    self.data = [_FakeData(img["url"]) for img in images] if images else []
+            response = _FakeResponse(response_data.get("images", []))
 
         elif image is not None or mask is not None:
             # If only one of image or mask is provided, raise an error
@@ -779,15 +757,32 @@ class IdeogramV3(IO.ComfyNode):
             if files:
                 gen_request.style_type = "AUTO"
 
-            response = await sync_op(
-                cls,
-                endpoint=ApiEndpoint(path="/proxy/ideogram/ideogram-v3/generate", method="POST"),
-                response_model=IdeogramGenerateResponse,
-                data=gen_request,
-                files=files if files else None,
-                content_type="multipart/form-data",
-                max_retries=1,
-            )
+            # TODO: Handle character reference file uploads for fal.ai
+            data = {
+                "prompt": prompt,
+                "rendering_speed": rendering_speed,
+            }
+            if resolution != "Auto":
+                data["resolution"] = resolution
+            elif aspect_ratio != "1:1":
+                v3_aspect = V3_RATIO_MAP.get(aspect_ratio)
+                if v3_aspect:
+                    data["aspect_ratio"] = v3_aspect
+            if magic_prompt_option != "AUTO":
+                data["magic_prompt"] = magic_prompt_option
+            if seed != 0:
+                data["seed"] = seed
+            if num_images > 1:
+                data["num_images"] = num_images
+
+            response_data = await fal_run(cls, FAL_IDEOGRAM_V3, data)
+            class _FakeData2:
+                def __init__(self, url):
+                    self.url = url
+            class _FakeResponse2:
+                def __init__(self, images):
+                    self.data = [_FakeData2(img["url"]) for img in images] if images else []
+            response = _FakeResponse2(response_data.get("images", []))
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")

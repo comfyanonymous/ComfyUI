@@ -11,6 +11,10 @@ from comfy_api_nodes.util import (
     upload_images_to_comfyapi,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_LTX_VIDEO = "fal-ai/ltx-video-v097"
 
 MODELS_MAP = {
     "LTX-2 (Pro)": "ltx-2-pro",
@@ -81,12 +85,9 @@ class TextToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE,
         )
 
     @classmethod
@@ -104,21 +105,17 @@ class TextToVideoNode(IO.ComfyNode):
             raise ValueError(
                 "Durations over 10s are only available for the Fast model at 1920x1080 resolution and 25 FPS."
             )
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint("/proxy/ltx/v1/text-to-video", "POST"),
-            data=ExecuteTaskRequest(
-                prompt=prompt,
-                model=MODELS_MAP[model],
-                duration=duration,
-                resolution=resolution,
-                fps=fps,
-                generate_audio=generate_audio,
-            ),
-            as_binary=True,
-            max_retries=1,
-        )
-        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
+        result = await fal_run(cls, FAL_LTX_VIDEO, {
+            "prompt": prompt,
+            "model": MODELS_MAP[model],
+            "duration": duration,
+            "resolution": resolution,
+            "fps": fps,
+            "generate_audio": generate_audio,
+        })  # TODO: verify fal.ai field names
+        video_url = result["video"]["url"]
+        from comfy_api_nodes.util import download_url_to_video_output
+        return IO.NodeOutput(await download_url_to_video_output(video_url))
 
 
 class ImageToVideoNode(IO.ComfyNode):
@@ -159,12 +156,9 @@ class ImageToVideoNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE,
         )
 
     @classmethod
@@ -185,22 +179,20 @@ class ImageToVideoNode(IO.ComfyNode):
             )
         if get_number_of_images(image) != 1:
             raise ValueError("Currently only one input image is supported.")
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint("/proxy/ltx/v1/image-to-video", "POST"),
-            data=ExecuteTaskRequest(
-                image_uri=(await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0],
-                prompt=prompt,
-                model=MODELS_MAP[model],
-                duration=duration,
-                resolution=resolution,
-                fps=fps,
-                generate_audio=generate_audio,
-            ),
-            as_binary=True,
-            max_retries=1,
-        )
-        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
+        from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
+        image_url = await upload_image_to_fal(image[0] if len(image.shape) > 3 else image, "image/png")
+        result = await fal_run(cls, FAL_LTX_VIDEO, {
+            "image_uri": image_url,
+            "prompt": prompt,
+            "model": MODELS_MAP[model],
+            "duration": duration,
+            "resolution": resolution,
+            "fps": fps,
+            "generate_audio": generate_audio,
+        })  # TODO: verify fal.ai field names
+        video_url = result["video"]["url"]
+        from comfy_api_nodes.util import download_url_to_video_output
+        return IO.NodeOutput(await download_url_to_video_output(video_url))
 
 
 class LtxvApiExtension(ComfyExtension):

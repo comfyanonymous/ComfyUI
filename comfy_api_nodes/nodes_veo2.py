@@ -20,6 +20,9 @@ from comfy_api_nodes.util import (
     sync_op,
     tensor_to_base64_string,
 )
+from comfy_api_nodes.util._helpers import get_google_auth_header
+
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 AVERAGE_DURATION_VIDEO_GEN = 32
 MODELS_MAP = {
@@ -119,15 +122,9 @@ class VeoVideoGenerationNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds"]),
-                expr="""{"type":"usd","usd": 0.5 * widgets.duration_seconds}""",
-            ),
         )
 
     @classmethod
@@ -179,7 +176,11 @@ class VeoVideoGenerationNode(IO.ComfyNode):
 
         initial_response = await sync_op(
             cls,
-            ApiEndpoint(path=f"/proxy/veo/{model}/generate", method="POST"),
+            ApiEndpoint(
+                path=f"{GEMINI_BASE_URL}/{model}:predictLongRunning",
+                method="POST",
+                headers=get_google_auth_header(),
+            ),
             response_model=VeoGenVidResponse,
             data=VeoGenVidRequest(
                 instances=instances,
@@ -192,14 +193,18 @@ class VeoVideoGenerationNode(IO.ComfyNode):
             # We'll check for errors after polling completes
             return "completed" if response.done else "pending"
 
+        # Poll the operation using the name from the submit response.
+        # Direct Google API uses GET /v1beta/{operation_name} instead of POST to a proxy.
+        operation_name = initial_response.name
         poll_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/veo/{model}/poll", method="POST"),
+            ApiEndpoint(
+                path=f"https://generativelanguage.googleapis.com/v1beta/{operation_name}",
+                method="GET",
+                headers=get_google_auth_header(),
+            ),
             response_model=VeoGenVidPollResponse,
             status_extractor=status_extractor,
-            data=VeoGenVidPollRequest(
-                operationName=initial_response.name,
-            ),
             poll_interval=5.0,
             estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
@@ -350,25 +355,9 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "generate_audio"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $a := widgets.generate_audio;
-                  ($contains($m,"veo-3.0-fast-generate-001") or $contains($m,"veo-3.1-fast-generate"))
-                    ? {"type":"usd","usd": ($a ? 1.2 : 0.8)}
-                    : ($contains($m,"veo-3.0-generate-001") or $contains($m,"veo-3.1-generate"))
-                      ? {"type":"usd","usd": ($a ? 3.2 : 1.6)}
-                      : {"type":"range_usd","min_usd":0.8,"max_usd":3.2}
-                )
-                """,
-            ),
         )
 
 
@@ -437,35 +426,9 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
                 IO.Video.Output(),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "generate_audio", "duration"]),
-                expr="""
-                (
-                  $prices := {
-                    "veo-3.1-fast-generate": { "audio": 0.15, "no_audio": 0.10 },
-                    "veo-3.1-generate":      { "audio": 0.40, "no_audio": 0.20 }
-                  };
-                  $m := widgets.model;
-                  $ga := (widgets.generate_audio = "true");
-                  $seconds := widgets.duration;
-                  $modelKey :=
-                    $contains($m, "veo-3.1-fast-generate") ? "veo-3.1-fast-generate" :
-                    $contains($m, "veo-3.1-generate")      ? "veo-3.1-generate" :
-                    "";
-                  $audioKey := $ga ? "audio" : "no_audio";
-                  $modelPrices := $lookup($prices, $modelKey);
-                  $pps := $lookup($modelPrices, $audioKey);
-                  ($pps != null)
-                    ? {"type":"usd","usd": $pps * $seconds}
-                    : {"type":"range_usd","min_usd": 0.4, "max_usd": 3.2}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -485,7 +448,11 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
         model = MODELS_MAP[model]
         initial_response = await sync_op(
             cls,
-            ApiEndpoint(path=f"/proxy/veo/{model}/generate", method="POST"),
+            ApiEndpoint(
+                path=f"{GEMINI_BASE_URL}/{model}:predictLongRunning",
+                method="POST",
+                headers=get_google_auth_header(),
+            ),
             response_model=VeoGenVidResponse,
             data=VeoGenVidRequest(
                 instances=[
@@ -511,14 +478,16 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
                 ),
             ),
         )
+        operation_name = initial_response.name
         poll_response = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/veo/{model}/poll", method="POST"),
+            ApiEndpoint(
+                path=f"https://generativelanguage.googleapis.com/v1beta/{operation_name}",
+                method="GET",
+                headers=get_google_auth_header(),
+            ),
             response_model=VeoGenVidPollResponse,
             status_extractor=lambda r: "completed" if r.done else "pending",
-            data=VeoGenVidPollRequest(
-                operationName=initial_response.name,
-            ),
             poll_interval=5.0,
             estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )

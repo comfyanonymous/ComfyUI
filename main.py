@@ -2,6 +2,8 @@ import comfy.options
 comfy.options.enable_args_parsing()
 
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load GOOGLE_API_KEY, FAL_API_KEY, etc. from .env
 import importlib.util
 import shutil
 import importlib.metadata

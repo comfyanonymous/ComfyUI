@@ -12,7 +12,7 @@ from comfy.cli_args import args
 from comfy.model_management import processing_interrupted
 from comfy_api.latest import IO
 
-from .common_exceptions import ProcessingInterrupted
+from .common_exceptions import MissingApiKeyError, ProcessingInterrupted
 
 _HAS_PCT_ESC = re.compile(r"%[0-9A-Fa-f]{2}")  # any % followed by 2 hex digits
 _HAS_BAD_PCT = re.compile(r"%(?![0-9A-Fa-f]{2})")  # any % not followed by 2 hex digits
@@ -37,6 +37,59 @@ def get_auth_header(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
 
 def default_base_url() -> str:
     return getattr(args, "comfy_api_base", "https://api.comfy.org")
+
+
+def get_google_auth_header() -> dict[str, str]:
+    """Return Google API auth header from GOOGLE_API_KEY env var.
+
+    Raises MissingApiKeyError if the variable is unset or empty.
+    """
+    key = os.environ.get("GOOGLE_API_KEY", "").strip()
+    if not key:
+        raise MissingApiKeyError(
+            "GOOGLE_API_KEY environment variable is not set. "
+            "Set it to your Google AI API key (https://aistudio.google.com/apikey)."
+        )
+    return {"x-goog-api-key": key}
+
+
+def get_fal_auth_header() -> dict[str, str]:
+    """Return fal.ai auth header from FAL_API_KEY env var.
+
+    Raises MissingApiKeyError if the variable is unset or empty.
+    """
+    key = os.environ.get("FAL_API_KEY", "").strip()
+    if not key:
+        raise MissingApiKeyError(
+            "FAL_API_KEY environment variable is not set. "
+            "Set it to your fal.ai API key (https://fal.ai/dashboard/keys)."
+        )
+    return {"Authorization": f"Key {key}"}
+
+
+# Domain allowlists for auth header safety -- prevents sending keys to wrong hosts
+_GOOGLE_DOMAINS = (".googleapis.com",)
+_FAL_DOMAINS = (".fal.run", ".fal.ai", ".fal.media")
+
+
+def validate_auth_header_domain(url: str, headers: dict[str, str]) -> None:
+    """Raise ValueError if auth headers would be sent to a non-allowlisted domain.
+
+    Prevents SSRF-style attacks where a crafted URL could exfiltrate API keys.
+    """
+    from urllib.parse import urlparse
+    hostname = urlparse(url).hostname or ""
+    if "x-goog-api-key" in headers:
+        if not any(hostname.endswith(d) for d in _GOOGLE_DOMAINS):
+            raise ValueError(
+                f"Refusing to send Google API key to non-Google domain: {hostname}"
+            )
+    auth = headers.get("Authorization", "")
+    if auth.startswith("Key "):
+        if not any(hostname.endswith(d) for d in _FAL_DOMAINS):
+            raise ValueError(
+                f"Refusing to send fal.ai API key to non-fal domain: {hostname}"
+            )
 
 
 async def sleep_with_interrupt(

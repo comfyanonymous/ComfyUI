@@ -26,6 +26,10 @@ from comfy_api_nodes.util import (
     validate_image_dimensions,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_HUNYUAN3D_V2 = "fal-ai/hunyuan3d/v2"
 
 
 def _is_tencent_rate_limited(status: int, body: object) -> bool:
@@ -95,23 +99,10 @@ class TencentTextToModelNode(IO.ComfyNode):
                 IO.File3DOBJ.Output(display_name="OBJ"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["generate_type", "generate_type.pbr", "face_count"]),
-                expr="""
-                (
-                  $base := widgets.generate_type = "normal" ? 25 : widgets.generate_type = "lowpoly" ? 30 : 15;
-                  $pbr := $lookup(widgets, "generate_type.pbr") ? 10 : 0;
-                  $face := widgets.face_count != 500000 ? 10 : 0;
-                  {"type":"usd","usd": ($base + $pbr + $face) * 0.02}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -129,7 +120,7 @@ class TencentTextToModelNode(IO.ComfyNode):
             raise ValueError("The LowPoly option is currently unavailable for the 3.1 model.")
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-pro", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=To3DProTaskRequest(
                 Model=model,
@@ -146,7 +137,7 @@ class TencentTextToModelNode(IO.ComfyNode):
         task_id = response.JobId
         result = await poll_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-pro/query", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro/query", method="POST"),
             data=To3DProTaskQueryRequest(JobId=task_id),
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
@@ -213,29 +204,10 @@ class TencentImageToModelNode(IO.ComfyNode):
                 IO.File3DOBJ.Output(display_name="OBJ"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(
-                    widgets=["generate_type", "generate_type.pbr", "face_count"],
-                    inputs=["image_left", "image_right", "image_back"],
-                ),
-                expr="""
-                (
-                  $base := widgets.generate_type = "normal" ? 25 : widgets.generate_type = "lowpoly" ? 30 : 15;
-                  $multiview := (
-                    inputs.image_left.connected or inputs.image_right.connected or inputs.image_back.connected
-                  ) ? 10 : 0;
-                  $pbr := $lookup(widgets, "generate_type.pbr") ? 10 : 0;
-                  $face := widgets.face_count != 500000 ? 10 : 0;
-                  {"type":"usd","usd": ($base + $multiview + $pbr + $face) * 0.02}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -276,7 +248,7 @@ class TencentImageToModelNode(IO.ComfyNode):
             )
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-pro", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=To3DProTaskRequest(
                 Model=model,
@@ -299,7 +271,7 @@ class TencentImageToModelNode(IO.ComfyNode):
         task_id = response.JobId
         result = await poll_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-pro/query", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro/query", method="POST"),
             data=To3DProTaskQueryRequest(JobId=task_id),
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
@@ -347,12 +319,9 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(expr='{"type":"usd","usd":0.2}'),
         )
 
     SUPPORTED_FORMATS = {"glb", "obj", "fbx"}
@@ -372,7 +341,7 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             )
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-uv", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-uv", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=To3DUVTaskRequest(
                 File=TaskFile3DInput(
@@ -386,7 +355,7 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
         result = await poll_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-uv/query", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-uv/query", method="POST"),
             data=To3DProTaskQueryRequest(JobId=response.JobId),
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
@@ -434,14 +403,9 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd": 0.6}""",
-            ),
         )
 
     @classmethod
@@ -459,7 +423,7 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
         model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-texture-edit", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-texture-edit", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=TextureEditTaskRequest(
                 File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
@@ -473,7 +437,7 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
 
         result = await poll_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-texture-edit/query", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-texture-edit/query", method="POST"),
             data=To3DProTaskQueryRequest(JobId=response.JobId),
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
@@ -514,12 +478,9 @@ class Tencent3DPartNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(expr='{"type":"usd","usd":0.6}'),
         )
 
     @classmethod
@@ -535,7 +496,7 @@ class Tencent3DPartNode(IO.ComfyNode):
         model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-part", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-part", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=To3DPartTaskRequest(
                 File=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
@@ -546,7 +507,7 @@ class Tencent3DPartNode(IO.ComfyNode):
             raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
         result = await poll_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-part/query", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-part/query", method="POST"),
             data=To3DProTaskQueryRequest(JobId=response.JobId),
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
@@ -597,12 +558,9 @@ class TencentSmartTopologyNode(IO.ComfyNode):
                 IO.File3DOBJ.Output(display_name="OBJ"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(expr='{"type":"usd","usd":1.0}'),
         )
 
     SUPPORTED_FORMATS = {"glb", "obj"}
@@ -624,7 +582,7 @@ class TencentSmartTopologyNode(IO.ComfyNode):
         model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-smart-topology", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-smart-topology", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=SmartTopologyRequest(
                 File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
@@ -637,7 +595,7 @@ class TencentSmartTopologyNode(IO.ComfyNode):
             raise ValueError(f"Task creation failed: [{response.Error.Code}] {response.Error.Message}")
         result = await poll_op(
             cls,
-            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-smart-topology/query", method="POST"),
+            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-smart-topology/query", method="POST"),
             data=To3DProTaskQueryRequest(JobId=response.JobId),
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,

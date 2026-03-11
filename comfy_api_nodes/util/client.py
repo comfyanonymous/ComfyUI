@@ -26,10 +26,39 @@ from ._helpers import (
     get_node_id,
     is_processing_interrupted,
     sleep_with_interrupt,
+    validate_auth_header_domain,
 )
 from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
 
 M = TypeVar("M", bound=BaseModel)
+
+# --- Connection pooling ---
+# Reuse aiohttp sessions per origin to avoid TLS handshake per request.
+_session_pool: dict[str, aiohttp.ClientSession] = {}
+
+# fal.ai concurrency semaphore (standard tier: 2 concurrent tasks)
+_fal_concurrency = asyncio.Semaphore(2)
+
+
+def _get_pooled_session(url: str, timeout: aiohttp.ClientTimeout) -> aiohttp.ClientSession:
+    """Return a pooled aiohttp session for the given URL's origin.
+
+    Sessions are lazily created and reused across requests to the same host.
+    """
+    parsed = urlparse(url)
+    key = f"{parsed.scheme}://{parsed.netloc}"
+    existing = _session_pool.get(key)
+    if existing is not None and not existing.closed:
+        return existing
+    sess = aiohttp.ClientSession(
+        timeout=timeout,
+        connector=aiohttp.TCPConnector(
+            limit_per_host=10,
+            keepalive_timeout=30,
+        ),
+    )
+    _session_pool[key] = sess
+    return sess
 
 
 class ApiEndpoint:
@@ -429,6 +458,111 @@ async def poll_op_raw(
             await ticker_task
 
 
+# ---------------------------------------------------------------------------
+# fal.ai queue helpers (thin wrappers around sync_op / poll_op)
+# ---------------------------------------------------------------------------
+
+_FAL_MODEL_ID_PATTERN = __import__("re").compile(r"^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.\-]+)*$")
+
+
+def _validate_fal_model_id(model_id: str) -> None:
+    """Validate model_id to prevent SSRF via path traversal."""
+    if not model_id or not _FAL_MODEL_ID_PATTERN.match(model_id):
+        raise ValueError(
+            f"Invalid fal.ai model ID: {model_id!r}. "
+            "Must match pattern: fal-ai/model-name/variant"
+        )
+    if ".." in model_id:
+        raise ValueError(f"Invalid fal.ai model ID (path traversal): {model_id!r}")
+
+
+async def fal_submit(
+    cls: type[IO.ComfyNode],
+    model_id: str,
+    data: dict,
+) -> dict:
+    """Submit a job to fal.ai queue. Returns the submit response dict."""
+    from ._helpers import get_fal_auth_header
+    from ..apis.fal import FalQueueSubmitResponse
+
+    _validate_fal_model_id(model_id)
+    resp = await sync_op(
+        cls,
+        ApiEndpoint(
+            f"https://queue.fal.run/{model_id}",
+            "POST",
+            headers=get_fal_auth_header(),
+        ),
+        response_model=FalQueueSubmitResponse,
+        data=BaseModel.model_construct(**data) if isinstance(data, dict) else data,
+        monitor_progress=False,
+        final_label_on_success=None,
+    )
+    return resp
+
+
+async def fal_poll(
+    cls: type[IO.ComfyNode],
+    status_url: str,
+    *,
+    poll_interval: float = 3.0,
+    estimated_duration: int | None = None,
+) -> dict:
+    """Poll a fal.ai queue status URL until COMPLETED. Returns the status response dict."""
+    from ._helpers import get_fal_auth_header
+
+    resp = await poll_op(
+        cls,
+        ApiEndpoint(status_url, "GET", headers=get_fal_auth_header()),
+        response_model=__import__("comfy_api_nodes.apis.fal", fromlist=["FalQueueStatusResponse"]).FalQueueStatusResponse,
+        status_extractor=lambda r: "completed" if r.status == "COMPLETED" else ("queued" if r.status == "IN_QUEUE" else "processing"),
+        poll_interval=poll_interval,
+        estimated_duration=estimated_duration,
+    )
+    return resp
+
+
+async def fal_fetch_result(
+    cls: type[IO.ComfyNode],
+    response_url: str,
+) -> dict:
+    """Fetch the final result from a completed fal.ai queue job."""
+    from ._helpers import get_fal_auth_header
+
+    result = await sync_op_raw(
+        cls,
+        ApiEndpoint(response_url, "GET", headers=get_fal_auth_header()),
+        monitor_progress=False,
+        final_label_on_success=None,
+    )
+    if not isinstance(result, dict):
+        raise Exception("fal.ai result was not JSON")
+    return result
+
+
+async def fal_run(
+    cls: type[IO.ComfyNode],
+    model_id: str,
+    data: dict,
+    *,
+    poll_interval: float = 3.0,
+    estimated_duration: int | None = None,
+) -> dict:
+    """Combined submit + poll + fetch for fal.ai queue API.
+
+    This is the primary interface for fal.ai-routed nodes.
+    Returns the model-specific result dict.
+    """
+    submit_resp = await fal_submit(cls, model_id, data)
+    await fal_poll(
+        cls,
+        submit_resp.status_url,
+        poll_interval=poll_interval,
+        estimated_duration=estimated_duration,
+    )
+    return await fal_fetch_result(cls, submit_resp.response_url)
+
+
 def _display_text(
     node_cls: type[IO.ComfyNode],
     text: str | None,
@@ -510,24 +644,40 @@ def _merge_params(endpoint_params: dict[str, Any], method: str, data: dict[str, 
 
 def _friendly_http_message(status: int, body: Any) -> str:
     if status == 401:
-        return "Unauthorized: Please login first to use this node."
+        return "Unauthorized: Invalid or missing API key. Check your GOOGLE_API_KEY or FAL_API_KEY environment variable."
     if status == 402:
-        return "Payment Required: Please add credits to your account to use this node."
+        return "Payment Required: Your API key's account needs billing enabled or credits added."
+    if status == 403:
+        return "Forbidden: Your API key does not have permission for this operation. Check that billing is enabled."
     if status == 409:
-        return "There is a problem with your account. Please contact support@comfy.org."
+        return "Conflict: The server could not process this request. The resource may already exist or be in a conflicting state."
     if status == 429:
         return "Rate Limit Exceeded: The server returned 429 after all retry attempts. Please wait and try again."
     try:
         if isinstance(body, dict):
+            # Google API error format: {"error": {"code": N, "message": "...", "status": "..."}}
             err = body.get("error")
             if isinstance(err, dict):
                 msg = err.get("message")
-                typ = err.get("type")
+                typ = err.get("type") or err.get("status")
                 if msg and typ:
                     return f"API Error: {msg} (Type: {typ})"
                 if msg:
                     return f"API Error: {msg}"
-            return f"API Error: {json.dumps(body)}"
+            # fal.ai error format: {"detail": [{"msg": "...", "type": "..."}]}
+            detail = body.get("detail")
+            if isinstance(detail, list) and detail:
+                first = detail[0]
+                if isinstance(first, dict):
+                    fal_msg = first.get("msg", "")
+                    fal_type = first.get("type", "")
+                    if fal_msg:
+                        return f"API Error: {fal_msg}" + (f" ({fal_type})" if fal_type else "")
+            # Fallback -- truncate to avoid leaking sensitive data in raw dumps
+            dumped = json.dumps(body)
+            if len(dumped) <= 300:
+                return f"API Error: {dumped}"
+            return f"API Error (status {status}): Response too large to display"
         else:
             txt = str(body)
             if len(txt) <= 200:
@@ -616,6 +766,9 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
 
+        # Validate auth headers are only sent to allowlisted provider domains
+        validate_auth_header_domain(url, payload_headers)
+
         payload_kw: dict[str, Any] = {"headers": payload_headers}
         if method == "GET":
             payload_headers.pop("Content-Type", None)
@@ -625,7 +778,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                 monitor_task = asyncio.create_task(_monitor(stop_event, start_time))
 
             timeout = aiohttp.ClientTimeout(total=cfg.timeout)
-            sess = aiohttp.ClientSession(timeout=timeout)
+            sess = _get_pooled_session(url, timeout)
 
             if cfg.content_type == "multipart/form-data" and method != "GET":
                 # aiohttp will set Content-Type boundary; remove any fixed Content-Type
@@ -872,9 +1025,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                 monitor_task.cancel()
                 with contextlib.suppress(Exception):
                     await monitor_task
-            if sess:
-                with contextlib.suppress(Exception):
-                    await sess.close()
+            # Session is pooled -- do not close it here
             if operation_succeeded and cfg.monitor_progress and cfg.final_label_on_success:
                 _display_time_progress(
                     cfg.node_cls,

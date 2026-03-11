@@ -2461,6 +2461,11 @@ async def init_builtin_extra_nodes():
 
 
 async def init_builtin_api_nodes():
+    # BYOK: Log API key status at startup
+    for _var in ("GOOGLE_API_KEY", "FAL_API_KEY"):
+        _status = "configured" if os.environ.get(_var, "").strip() else "NOT SET"
+        logging.info("BYOK: %s: %s", _var, _status)
+
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
     api_nodes_files = sorted(glob.glob(os.path.join(api_nodes_dir, "nodes_*.py")))
 

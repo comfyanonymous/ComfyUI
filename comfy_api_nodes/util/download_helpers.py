@@ -38,6 +38,7 @@ async def download_url_to_bytesio(
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
     cls: type[COMFY_IO.ComfyNode] = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> None:
     """Stream-download a URL to `dest`.
 
@@ -48,6 +49,9 @@ async def download_url_to_bytesio(
 
     If `url` starts with `/proxy/`, `cls` must be provided so the URL can be expanded
     to an absolute URL and authentication headers can be applied.
+
+    Pass `extra_headers` for provider-specific auth on absolute URLs (e.g. Google
+    video downloads require `x-goog-api-key`).
 
     Raises:
         ProcessingInterrupted, LocalNetworkError, ApiServerError, Exception (HTTP and other errors)
@@ -65,6 +69,9 @@ async def download_url_to_bytesio(
             raise ValueError("For relative 'cloud' paths, the `cls` parameter is required.")
         url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
         headers = get_auth_header(cls)
+
+    if extra_headers:
+        headers.update(extra_headers)
 
     while True:
         attempt += 1

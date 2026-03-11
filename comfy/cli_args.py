@@ -221,13 +221,6 @@ parser.add_argument("--user-directory", type=is_valid_directory, default=None, h
 
 parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
 
-parser.add_argument(
-    "--comfy-api-base",
-    type=str,
-    default="https://api.comfy.org",
-    help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
-)
-
 database_default_path = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
 )

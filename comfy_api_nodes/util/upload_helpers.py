@@ -385,3 +385,115 @@ def _generate_operation_id(method: str, url: str, attempt: int, op_uuid: str) ->
     except Exception:
         slug = "upload"
     return f"{method}_{slug}_{op_uuid}_try{attempt}"
+
+
+# ---------------------------------------------------------------------------
+# BYOK provider-specific upload helpers
+# ---------------------------------------------------------------------------
+
+_FAL_UPLOAD_DOMAINS = (".fal.ai", ".fal.run", ".fal.media")
+
+
+async def upload_file_to_fal(file_bytes: BytesIO, mime_type: str) -> str:
+    """Upload a file to fal.ai CDN and return the public CDN URL.
+
+    Uses the presigned URL flow: POST to initiate, then PUT the file bytes.
+    """
+    from ._helpers import get_fal_auth_header
+
+    headers = get_fal_auth_header()
+    headers["Content-Type"] = "application/json"
+
+    file_bytes.seek(0)
+    data = file_bytes.read()
+
+    timeout = aiohttp.ClientTimeout(total=120)
+    async with aiohttp.ClientSession(timeout=timeout) as sess:
+        # Step 1: Initiate upload
+        async with sess.post(
+            "https://rest.fal.ai/storage/upload/initiate",
+            params={"storage_type": "fal-cdn-v3"},
+            headers=headers,
+            json={"content_type": mime_type, "file_name": f"{uuid.uuid4().hex[:12]}"},
+        ) as resp:
+            if resp.status >= 400:
+                body = await resp.text()
+                raise Exception(f"fal.ai upload initiate failed ({resp.status}): {body[:300]}")
+            result = await resp.json()
+
+        upload_url = result.get("upload_url", "")
+        file_url = result.get("file_url", "")
+
+        # Validate returned URL domains for safety
+        upload_host = urlparse(upload_url).hostname or ""
+        if not any(upload_host.endswith(d) for d in _FAL_UPLOAD_DOMAINS) and "amazonaws.com" not in upload_host:
+            raise ValueError(f"fal.ai returned unexpected upload domain: {upload_host}")
+
+        # Step 2: PUT the file bytes to presigned URL
+        put_headers = {"Content-Type": mime_type}
+        async with sess.put(upload_url, data=data, headers=put_headers) as resp:
+            if resp.status >= 400:
+                body = await resp.text()
+                raise Exception(f"fal.ai file upload failed ({resp.status}): {body[:300]}")
+
+    return file_url
+
+
+async def upload_file_to_google(file_bytes: BytesIO, mime_type: str, display_name: str) -> str:
+    """Upload a file to Google's Files API and return the file URI (e.g., 'files/abc123').
+
+    Uses the resumable upload protocol.
+    """
+    from ._helpers import get_google_auth_header
+
+    auth = get_google_auth_header()
+    file_bytes.seek(0)
+    data = file_bytes.read()
+    num_bytes = len(data)
+
+    timeout = aiohttp.ClientTimeout(total=300)
+    async with aiohttp.ClientSession(timeout=timeout) as sess:
+        # Step 1: Start resumable upload
+        start_headers = {
+            **auth,
+            "X-Goog-Upload-Protocol": "resumable",
+            "X-Goog-Upload-Command": "start",
+            "X-Goog-Upload-Header-Content-Length": str(num_bytes),
+            "X-Goog-Upload-Header-Content-Type": mime_type,
+            "Content-Type": "application/json",
+        }
+        async with sess.post(
+            "https://generativelanguage.googleapis.com/upload/v1beta/files",
+            headers=start_headers,
+            json={"file": {"display_name": display_name}},
+        ) as resp:
+            if resp.status >= 400:
+                body = await resp.text()
+                raise Exception(f"Google upload initiate failed ({resp.status}): {body[:300]}")
+            upload_url = resp.headers.get("X-Goog-Upload-URL", "")
+            if not upload_url:
+                raise Exception("Google upload initiate did not return an upload URL")
+
+        # Step 2: Upload bytes
+        upload_headers = {
+            "X-Goog-Upload-Command": "upload, finalize",
+            "X-Goog-Upload-Offset": "0",
+            "Content-Length": str(num_bytes),
+        }
+        async with sess.put(upload_url, data=data, headers=upload_headers) as resp:
+            if resp.status >= 400:
+                body = await resp.text()
+                raise Exception(f"Google file upload failed ({resp.status}): {body[:300]}")
+            result = await resp.json()
+
+    # Extract file URI from response
+    file_name = result.get("file", {}).get("name", "")
+    if not file_name:
+        file_name = result.get("name", "")
+    return file_name
+
+
+async def upload_image_to_fal(image_tensor: torch.Tensor, mime_type: str = "image/png") -> str:
+    """Convert an image tensor to bytes and upload to fal.ai CDN. Returns the CDN URL."""
+    bio = tensor_to_bytesio(image_tensor, mime_type=mime_type)
+    return await upload_file_to_fal(bio, mime_type)

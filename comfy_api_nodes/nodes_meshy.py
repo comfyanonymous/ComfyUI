@@ -24,6 +24,10 @@ from comfy_api_nodes.util import (
     upload_images_to_comfyapi,
     validate_string,
 )
+from comfy_api_nodes.util._helpers import get_fal_auth_header
+from comfy_api_nodes.util.client import fal_run
+
+FAL_MESHY_I2_3D = "fal-ai/meshy/v6/image-to-3d"
 
 
 class MeshyTextToModelNode(IO.ComfyNode):
@@ -83,15 +87,10 @@ class MeshyTextToModelNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.8}""",
-            ),
         )
 
     @classmethod
@@ -108,7 +107,7 @@ class MeshyTextToModelNode(IO.ComfyNode):
         validate_string(prompt, field_name="prompt", min_length=1, max_length=600)
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/meshy/openapi/v2/text-to-3d", method="POST"),
+            ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyTextToModelRequest(
                 prompt=prompt,
@@ -125,7 +124,7 @@ class MeshyTextToModelNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
@@ -178,15 +177,10 @@ class MeshyRefineNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -207,7 +201,7 @@ class MeshyRefineNode(IO.ComfyNode):
             texture_image_url = (await upload_images_to_comfyapi(cls, texture_image, wait_label="Uploading texture"))[0]
         response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v2/text-to-3d", method="POST"),
+            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyRefineTask(
                 preview_task_id=meshy_task_id,
@@ -220,7 +214,7 @@ class MeshyRefineNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
@@ -321,21 +315,10 @@ class MeshyImageToModelNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["should_texture"]),
-                expr="""
-                (
-                  $prices := {"true": 1.2, "false": 0.8};
-                  {"type":"usd","usd": $lookup($prices, widgets.should_texture)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -365,7 +348,7 @@ class MeshyImageToModelNode(IO.ComfyNode):
                 )[0]
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/meshy/openapi/v1/image-to-3d", method="POST"),
+            ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/image-to-3d", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyImageToModelRequest(
                 image_url=(await upload_images_to_comfyapi(cls, image, wait_label="Uploading base image"))[0],
@@ -385,7 +368,7 @@ class MeshyImageToModelNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/image-to-3d/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/image-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
@@ -489,21 +472,10 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["should_texture"]),
-                expr="""
-                (
-                  $prices := {"true": 0.6, "false": 0.2};
-                  {"type":"usd","usd": $lookup($prices, widgets.should_texture)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -533,7 +505,7 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                 )[0]
         response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/meshy/openapi/v1/multi-image-to-3d", method="POST"),
+            ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/multi-image-to-3d", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyMultiImageToModelRequest(
                 image_urls=await upload_images_to_comfyapi(
@@ -555,7 +527,7 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/multi-image-to-3d/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/multi-image-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
@@ -602,15 +574,10 @@ class MeshyRigModelNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod
@@ -625,7 +592,7 @@ class MeshyRigModelNode(IO.ComfyNode):
             texture_image_url = (await upload_images_to_comfyapi(cls, texture_image, wait_label="Uploading texture"))[0]
         response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v1/rigging", method="POST"),
+            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/rigging", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyRiggingRequest(
                 input_task_id=meshy_task_id,
@@ -636,7 +603,7 @@ class MeshyRigModelNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/rigging/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/rigging/{task_id}"),
             response_model=MeshyRiggedResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
@@ -674,15 +641,10 @@ class MeshyAnimateModelNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.12}""",
-            ),
         )
 
     @classmethod
@@ -693,7 +655,7 @@ class MeshyAnimateModelNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v1/animations", method="POST"),
+            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/animations", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyAnimationRequest(
                 rig_task_id=rig_task_id,
@@ -703,7 +665,7 @@ class MeshyAnimateModelNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/animations/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/animations/{task_id}"),
             response_model=MeshyAnimationResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
@@ -756,15 +718,10 @@ class MeshyTextureNode(IO.ComfyNode):
                 IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
             is_output_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -786,7 +743,7 @@ class MeshyTextureNode(IO.ComfyNode):
             image_style_url = (await upload_images_to_comfyapi(cls, image_style, wait_label="Uploading style"))[0]
         response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v1/retexture", method="POST"),
+            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/retexture", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyTextureRequest(
                 input_task_id=meshy_task_id,
@@ -800,7 +757,7 @@ class MeshyTextureNode(IO.ComfyNode):
         task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/retexture/{task_id}"),
+            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/retexture/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
