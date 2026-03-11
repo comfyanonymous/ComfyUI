@@ -12,6 +12,7 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 from utils.mime_types import init_mime_types
+import faulthandler
 import logging
 import sys
 from comfy_execution.progress import get_progress_state
@@ -25,6 +26,8 @@ if __name__ == "__main__":
     os.environ['DO_NOT_TRACK'] = '1'
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
+faulthandler.enable(file=sys.stderr, all_threads=False)
 
 import comfy_aimdo.control
 
