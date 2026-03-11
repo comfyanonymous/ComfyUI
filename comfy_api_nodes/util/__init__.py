@@ -35,12 +35,13 @@ from .download_helpers import (
     download_url_to_video_output,
 )
 from .upload_helpers import (
-    upload_3d_model_to_comfyapi,
-    upload_audio_to_comfyapi,
-    upload_file_to_comfyapi,
-    upload_image_to_comfyapi,
-    upload_images_to_comfyapi,
-    upload_video_to_comfyapi,
+    upload_3d_model_to_fal,
+    upload_audio_to_fal,
+    upload_file_to_fal,
+    upload_file_to_google,
+    upload_image_to_fal,
+    upload_images_to_fal,
+    upload_video_to_fal,
 )
 from .validation_utils import (
     get_image_dimensions,
@@ -64,13 +65,14 @@ __all__ = [
     "poll_op_raw",
     "sync_op",
     "sync_op_raw",
-    # Upload helpers
-    "upload_3d_model_to_comfyapi",
-    "upload_audio_to_comfyapi",
-    "upload_file_to_comfyapi",
-    "upload_image_to_comfyapi",
-    "upload_images_to_comfyapi",
-    "upload_video_to_comfyapi",
+    # Upload helpers (fal.ai BYOK)
+    "upload_3d_model_to_fal",
+    "upload_audio_to_fal",
+    "upload_file_to_fal",
+    "upload_file_to_google",
+    "upload_image_to_fal",
+    "upload_images_to_fal",
+    "upload_video_to_fal",
     # Download helpers
     "download_url_as_bytesio",
     "download_url_to_bytesio",

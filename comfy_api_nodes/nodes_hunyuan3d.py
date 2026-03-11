@@ -2,53 +2,43 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.hunyuan3d import (
-    Hunyuan3DViewImage,
     InputGenerateType,
     ResultFile3D,
-    SmartTopologyRequest,
-    TaskFile3DInput,
-    TextureEditTaskRequest,
-    To3DPartTaskRequest,
-    To3DProTaskCreateResponse,
-    To3DProTaskQueryRequest,
-    To3DProTaskRequest,
-    To3DProTaskResultResponse,
-    To3DUVTaskRequest,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     download_url_to_file_3d,
     downscale_image_tensor_by_max_side,
-    poll_op,
-    sync_op,
-    upload_3d_model_to_comfyapi,
-    upload_image_to_comfyapi,
+    upload_3d_model_to_fal,
     validate_image_dimensions,
     validate_string,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
+from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
 
 FAL_HUNYUAN3D_V2 = "fal-ai/hunyuan3d/v2"
 
 
-def _is_tencent_rate_limited(status: int, body: object) -> bool:
-    return (
-        status == 400
-        and isinstance(body, dict)
-        and "RequestLimitExceeded" in str(body.get("Response", {}).get("Error", {}).get("Code", ""))
-    )
-
-
 def get_file_from_response(
-    response_objs: list[ResultFile3D], file_type: str, raise_if_not_found: bool = True
-) -> ResultFile3D | None:
+    response_objs: list, file_type: str, raise_if_not_found: bool = True
+):
+    """Extract file of given type from response list (works with dicts or ResultFile3D objects)."""
     for i in response_objs:
-        if i.Type.lower() == file_type.lower():
-            return i
+        if isinstance(i, dict):
+            if i.get("Type", "").lower() == file_type.lower():
+                return i
+        else:
+            if i.Type.lower() == file_type.lower():
+                return i
     if raise_if_not_found:
         raise ValueError(f"'{file_type}' file type is not found in the response.")
     return None
+
+
+def _get_url(file_obj) -> str:
+    """Get URL from a file object (dict or ResultFile3D)."""
+    if isinstance(file_obj, dict):
+        return file_obj["Url"]
+    return file_obj.Url
 
 
 class TencentTextToModelNode(IO.ComfyNode):
@@ -118,37 +108,26 @@ class TencentTextToModelNode(IO.ComfyNode):
         validate_string(prompt, field_name="prompt", min_length=1, max_length=1024)
         if model == "3.1" and generate_type["generate_type"].lower() == "lowpoly":
             raise ValueError("The LowPoly option is currently unavailable for the 3.1 model.")
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro", method="POST"),
-            response_model=To3DProTaskCreateResponse,
-            data=To3DProTaskRequest(
-                Model=model,
-                Prompt=prompt,
-                FaceCount=face_count,
-                GenerateType=generate_type["generate_type"],
-                EnablePBR=generate_type.get("pbr", None),
-                PolygonType=generate_type.get("polygon_type", None),
-            ),
-            is_rate_limited=_is_tencent_rate_limited,
-        )
-        if response.Error:
-            raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
-        task_id = response.JobId
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro/query", method="POST"),
-            data=To3DProTaskQueryRequest(JobId=task_id),
-            response_model=To3DProTaskResultResponse,
-            status_extractor=lambda r: r.Status,
-        )
+        result = await fal_run(cls, FAL_HUNYUAN3D_V2, {
+            "Model": model,
+            "Prompt": prompt,
+            "FaceCount": face_count,
+            "GenerateType": generate_type["generate_type"],
+            "EnablePBR": generate_type.get("pbr", None),
+            "PolygonType": generate_type.get("polygon_type", None),
+        })
+        # TODO: verify fal.ai field names
+        if result.get("Error"):
+            raise ValueError(f"Task creation failed with code {result['Error']['Code']}: {result['Error']['Message']}")
+        task_id = result.get("JobId", "hunyuan_task")
+        file_3ds = result["ResultFile3Ds"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             await download_url_to_file_3d(
-                get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
+                get_file_from_response(file_3ds, "glb")["Url"], "glb", task_id=task_id
             ),
             await download_url_to_file_3d(
-                get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj", task_id=task_id
+                get_file_from_response(file_3ds, "obj")["Url"], "obj", task_id=task_id
             ),
         )
 
@@ -235,54 +214,37 @@ class TencentImageToModelNode(IO.ComfyNode):
             if v is None:
                 continue
             validate_image_dimensions(v, min_width=128, min_height=128)
-            multiview_images.append(
-                Hunyuan3DViewImage(
-                    ViewType=k,
-                    ViewImageUrl=await upload_image_to_comfyapi(
-                        cls,
-                        downscale_image_tensor_by_max_side(v, max_side=4900),
-                        mime_type="image/webp",
-                        total_pixels=24_010_000,
-                    ),
-                )
+            view_image_url = await upload_image_to_fal(
+                downscale_image_tensor_by_max_side(v, max_side=4900),
             )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro", method="POST"),
-            response_model=To3DProTaskCreateResponse,
-            data=To3DProTaskRequest(
-                Model=model,
-                FaceCount=face_count,
-                GenerateType=generate_type["generate_type"],
-                ImageUrl=await upload_image_to_comfyapi(
-                    cls,
-                    downscale_image_tensor_by_max_side(image, max_side=4900),
-                    mime_type="image/webp",
-                    total_pixels=24_010_000,
-                ),
-                MultiViewImages=multiview_images if multiview_images else None,
-                EnablePBR=generate_type.get("pbr", None),
-                PolygonType=generate_type.get("polygon_type", None),
-            ),
-            is_rate_limited=_is_tencent_rate_limited,
+            multiview_images.append({
+                "ViewType": k,
+                "ViewImageUrl": view_image_url,
+            })
+        image_url = await upload_image_to_fal(
+            downscale_image_tensor_by_max_side(image, max_side=4900),
         )
-        if response.Error:
-            raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
-        task_id = response.JobId
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-pro/query", method="POST"),
-            data=To3DProTaskQueryRequest(JobId=task_id),
-            response_model=To3DProTaskResultResponse,
-            status_extractor=lambda r: r.Status,
-        )
+        result = await fal_run(cls, FAL_HUNYUAN3D_V2, {
+            "Model": model,
+            "FaceCount": face_count,
+            "GenerateType": generate_type["generate_type"],
+            "ImageUrl": image_url,
+            "MultiViewImages": multiview_images if multiview_images else None,
+            "EnablePBR": generate_type.get("pbr", None),
+            "PolygonType": generate_type.get("polygon_type", None),
+        })
+        # TODO: verify fal.ai field names
+        if result.get("Error"):
+            raise ValueError(f"Task creation failed with code {result['Error']['Code']}: {result['Error']['Message']}")
+        task_id = result.get("JobId", "hunyuan_task")
+        file_3ds = result["ResultFile3Ds"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             await download_url_to_file_3d(
-                get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
+                get_file_from_response(file_3ds, "glb")["Url"], "glb", task_id=task_id
             ),
             await download_url_to_file_3d(
-                get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj", task_id=task_id
+                get_file_from_response(file_3ds, "obj")["Url"], "obj", task_id=task_id
             ),
         )
 
@@ -339,30 +301,20 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
                 f"Unsupported file format: '{file_format}'. "
                 f"Supported formats: {', '.join(sorted(cls.SUPPORTED_FORMATS))}."
             )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-uv", method="POST"),
-            response_model=To3DProTaskCreateResponse,
-            data=To3DUVTaskRequest(
-                File=TaskFile3DInput(
-                    Type=file_format.upper(),
-                    Url=await upload_3d_model_to_comfyapi(cls, model_3d, file_format),
-                )
-            ),
-            is_rate_limited=_is_tencent_rate_limited,
-        )
-        if response.Error:
-            raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-uv/query", method="POST"),
-            data=To3DProTaskQueryRequest(JobId=response.JobId),
-            response_model=To3DProTaskResultResponse,
-            status_extractor=lambda r: r.Status,
-        )
+        model_url = await upload_3d_model_to_fal(model_3d, file_format)
+        result = await fal_run(cls, FAL_HUNYUAN3D_V2, {
+            "File": {
+                "Type": file_format.upper(),
+                "Url": model_url,
+            },
+        })
+        # TODO: verify fal.ai field names
+        if result.get("Error"):
+            raise ValueError(f"Task creation failed with code {result['Error']['Code']}: {result['Error']['Message']}")
+        file_3ds = result["ResultFile3Ds"]
         return IO.NodeOutput(
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
+            await download_url_to_file_3d(get_file_from_response(file_3ds, "obj")["Url"], "obj"),
+            await download_url_to_file_3d(get_file_from_response(file_3ds, "fbx")["Url"], "fbx"),
         )
 
 
@@ -420,31 +372,22 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
         if file_format != "fbx":
             raise ValueError(f"Unsupported file format: '{file_format}'. Only FBX format is supported.")
         validate_string(prompt, field_name="prompt", min_length=1, max_length=1024)
-        model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-texture-edit", method="POST"),
-            response_model=To3DProTaskCreateResponse,
-            data=TextureEditTaskRequest(
-                File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
-                Prompt=prompt,
-                EnablePBR=True,
-            ),
-            is_rate_limited=_is_tencent_rate_limited,
-        )
-        if response.Error:
-            raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
-
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-texture-edit/query", method="POST"),
-            data=To3DProTaskQueryRequest(JobId=response.JobId),
-            response_model=To3DProTaskResultResponse,
-            status_extractor=lambda r: r.Status,
-        )
+        model_url = await upload_3d_model_to_fal(model_3d, file_format)
+        result = await fal_run(cls, FAL_HUNYUAN3D_V2, {
+            "File3D": {
+                "Type": file_format.upper(),
+                "Url": model_url,
+            },
+            "Prompt": prompt,
+            "EnablePBR": True,
+        })
+        # TODO: verify fal.ai field names
+        if result.get("Error"):
+            raise ValueError(f"Task creation failed with code {result['Error']['Code']}: {result['Error']['Message']}")
+        file_3ds = result["ResultFile3Ds"]
         return IO.NodeOutput(
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb"),
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
+            await download_url_to_file_3d(get_file_from_response(file_3ds, "glb")["Url"], "glb"),
+            await download_url_to_file_3d(get_file_from_response(file_3ds, "fbx")["Url"], "fbx"),
         )
 
 
@@ -493,27 +436,19 @@ class Tencent3DPartNode(IO.ComfyNode):
         file_format = model_3d.format.lower()
         if file_format != "fbx":
             raise ValueError(f"Unsupported file format: '{file_format}'. Only FBX format is supported.")
-        model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-part", method="POST"),
-            response_model=To3DProTaskCreateResponse,
-            data=To3DPartTaskRequest(
-                File=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
-            ),
-            is_rate_limited=_is_tencent_rate_limited,
-        )
-        if response.Error:
-            raise ValueError(f"Task creation failed with code {response.Error.Code}: {response.Error.Message}")
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-part/query", method="POST"),
-            data=To3DProTaskQueryRequest(JobId=response.JobId),
-            response_model=To3DProTaskResultResponse,
-            status_extractor=lambda r: r.Status,
-        )
+        model_url = await upload_3d_model_to_fal(model_3d, file_format)
+        result = await fal_run(cls, FAL_HUNYUAN3D_V2, {
+            "File": {
+                "Type": file_format.upper(),
+                "Url": model_url,
+            },
+        })
+        # TODO: verify fal.ai field names
+        if result.get("Error"):
+            raise ValueError(f"Task creation failed with code {result['Error']['Code']}: {result['Error']['Message']}")
+        file_3ds = result["ResultFile3Ds"]
         return IO.NodeOutput(
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
+            await download_url_to_file_3d(get_file_from_response(file_3ds, "fbx")["Url"], "fbx"),
         )
 
 
@@ -579,29 +514,21 @@ class TencentSmartTopologyNode(IO.ComfyNode):
             raise ValueError(
                 f"Unsupported file format: '{file_format}'. " f"Supported: {', '.join(sorted(cls.SUPPORTED_FORMATS))}."
             )
-        model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-smart-topology", method="POST"),
-            response_model=To3DProTaskCreateResponse,
-            data=SmartTopologyRequest(
-                File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
-                PolygonType=polygon_type,
-                FaceLevel=face_level,
-            ),
-            is_rate_limited=_is_tencent_rate_limited,
-        )
-        if response.Error:
-            raise ValueError(f"Task creation failed: [{response.Error.Code}] {response.Error.Message}")
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path="__FAL_HUNYUAN3D__/  # TODO: migrate to fal_run(cls, FAL_HUNYUAN3D_V2, {...}); original: /proxy/tencent/hunyuan/3d-smart-topology/query", method="POST"),
-            data=To3DProTaskQueryRequest(JobId=response.JobId),
-            response_model=To3DProTaskResultResponse,
-            status_extractor=lambda r: r.Status,
-        )
+        model_url = await upload_3d_model_to_fal(model_3d, file_format)
+        result = await fal_run(cls, FAL_HUNYUAN3D_V2, {
+            "File3D": {
+                "Type": file_format.upper(),
+                "Url": model_url,
+            },
+            "PolygonType": polygon_type,
+            "FaceLevel": face_level,
+        })
+        # TODO: verify fal.ai field names
+        if result.get("Error"):
+            raise ValueError(f"Task creation failed: [{result['Error']['Code']}] {result['Error']['Message']}")
+        file_3ds = result["ResultFile3Ds"]
         return IO.NodeOutput(
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
+            await download_url_to_file_3d(get_file_from_response(file_3ds, "obj")["Url"], "obj"),
         )
 
 

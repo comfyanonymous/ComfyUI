@@ -2,27 +2,15 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.bria import (
-    BriaEditImageRequest,
-    BriaRemoveBackgroundRequest,
-    BriaRemoveBackgroundResponse,
-    BriaRemoveVideoBackgroundRequest,
-    BriaRemoveVideoBackgroundResponse,
-    BriaImageEditResponse,
-    BriaStatusResponse,
     InputModerationSettings,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     convert_mask_to_image,
     download_url_to_image_tensor,
     download_url_to_video_output,
-    poll_op,
-    sync_op,
-    upload_image_to_comfyapi,
-    upload_video_to_comfyapi,
+    upload_video_to_fal,
     validate_video_duration,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_BRIA_TEXT_TO_IMAGE = "fal-ai/bria/text-to-image/hd"
@@ -267,7 +255,7 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
         seed: int,
     ) -> IO.NodeOutput:
         validate_video_duration(video, max_duration=60.0)
-        video_url = await upload_video_to_comfyapi(cls, video)
+        video_url = await upload_video_to_fal(video)
         result = await fal_run(cls, FAL_BRIA_TEXT_TO_IMAGE, {
             "video": video_url,
             "background_color": background_color,

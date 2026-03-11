@@ -17,9 +17,9 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     poll_op,
     sync_op,
-    upload_image_to_comfyapi,
-    upload_images_to_comfyapi,
-    upload_video_to_comfyapi,
+    upload_image_to_fal,
+    upload_images_to_fal,
+    upload_video_to_fal,
     validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_images_aspect_ratio_closeness,
@@ -30,12 +30,6 @@ from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_VIDU_I2V = "fal-ai/vidu/q3-pro/image-to-video"
-
-VIDU_TEXT_TO_VIDEO = "vidu_text2video"  # migrated from /proxy/vidu/text2video
-VIDU_IMAGE_TO_VIDEO = "vidu_img2video"  # migrated from /proxy/vidu/img2video
-VIDU_REFERENCE_VIDEO = "vidu_reference2video"  # migrated from /proxy/vidu/reference2video
-VIDU_START_END_VIDEO = "vidu_start-end2video"  # migrated from /proxy/vidu/start-end2video
-VIDU_GET_GENERATION_STATUS = "vidu_tasks_%s_creations"  # migrated from /proxy/vidu/tasks/%s/creations
 
 
 async def execute_task(
@@ -146,7 +140,7 @@ class ViduTextToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        results = await execute_task(cls, VIDU_TEXT_TO_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
@@ -239,13 +233,12 @@ class ViduImageToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        payload.images = await upload_images_to_comfyapi(
-            cls,
+        payload.images = await upload_images_to_fal(
             image,
             max_images=1,
             mime_type="image/png",
         )
-        results = await execute_task(cls, VIDU_IMAGE_TO_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
@@ -349,13 +342,12 @@ class ViduReferenceVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        payload.images = await upload_images_to_comfyapi(
-            cls,
+        payload.images = await upload_images_to_fal(
             images,
             max_images=7,
             mime_type="image/png",
         )
-        results = await execute_task(cls, VIDU_REFERENCE_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
@@ -451,10 +443,10 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
             movement_amplitude=movement_amplitude,
         )
         payload.images = [
-            (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
+            (await upload_images_to_fal(frame, max_images=1, mime_type="image/png"))[0]
             for frame in (first_frame, end_frame)
         ]
-        results = await execute_task(cls, VIDU_START_END_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
@@ -523,7 +515,7 @@ class Vidu2TextToVideoNode(IO.ComfyNode):
         validate_string(prompt, min_length=1, max_length=2000)
         results = await execute_task(
             cls,
-            VIDU_TEXT_TO_VIDEO,
+            FAL_VIDU_I2V,
             TaskCreationRequest(
                 model=model,
                 prompt=prompt,
@@ -613,7 +605,7 @@ class Vidu2ImageToVideoNode(IO.ComfyNode):
         validate_string(prompt, max_length=2000)
         results = await execute_task(
             cls,
-            VIDU_IMAGE_TO_VIDEO,
+            FAL_VIDU_I2V,
             TaskCreationRequest(
                 model=model,
                 prompt=prompt,
@@ -621,8 +613,7 @@ class Vidu2ImageToVideoNode(IO.ComfyNode):
                 seed=seed,
                 resolution=resolution,
                 movement_amplitude=movement_amplitude,
-                images=await upload_images_to_comfyapi(
-                    cls,
+                images=await upload_images_to_fal(
                     image,
                     max_images=1,
                     mime_type="image/png",
@@ -729,12 +720,10 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
             subjects_param.append(
                 SubjectReference(
                     id=i,
-                    images=await upload_images_to_comfyapi(
-                        cls,
+                    images=await upload_images_to_fal(
                         subjects[i],
                         max_images=3,
                         mime_type="image/png",
-                        wait_label=f"Uploading reference images for {i}",
                     ),
                 ),
             )
@@ -749,7 +738,7 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
             movement_amplitude=movement_amplitude,
             subjects=subjects_param,
         )
-        results = await execute_task(cls, VIDU_REFERENCE_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
@@ -831,11 +820,11 @@ class Vidu2StartEndToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
             images=[
-                (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
+                (await upload_images_to_fal(frame, max_images=1, mime_type="image/png"))[0]
                 for frame in (first_frame, end_frame)
             ],
         )
-        results = await execute_task(cls, VIDU_START_END_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 
@@ -938,17 +927,17 @@ class ViduExtendVideoNode(IO.ComfyNode):
         if end_frame is not None:
             validate_image_aspect_ratio(end_frame, (1, 4), (4, 1))
             validate_image_dimensions(end_frame, min_width=128, min_height=128)
-            image_url = await upload_image_to_comfyapi(cls, end_frame, wait_label="Uploading end frame")
+            image_url = await upload_image_to_fal(end_frame)
         results = await execute_task(
             cls,
-            "__FAL_VIDU_EXTEND__",  # migrated from /proxy/vidu/extend
+            FAL_VIDU_I2V,
             TaskExtendCreationRequest(
                 model=model["model"],
                 prompt=prompt,
                 duration=model["duration"],
                 seed=seed,
                 resolution=model["resolution"],
-                video_url=await upload_video_to_comfyapi(cls, video, wait_label="Uploading video"),
+                video_url=await upload_video_to_fal(video),
                 images=[image_url] if image_url else None,
             ),
             max_poll_attempts=480,
@@ -1050,28 +1039,24 @@ class ViduMultiFrameVideoNode(IO.ComfyNode):
         for i in range(1, frame_count + 1):
             validate_image_aspect_ratio(frames[f"end_image{i}"], (1, 4), (4, 1))
             validate_string(frames[f"prompt{i}"], max_length=2000)
-        start_image_url = await upload_image_to_comfyapi(
-            cls,
+        start_image_url = await upload_image_to_fal(
             start_image,
             mime_type="image/png",
-            wait_label="Uploading start image",
         )
         for i in range(1, frame_count + 1):
             image_settings.append(
                 FrameSetting(
                     prompt=frames[f"prompt{i}"],
-                    key_image=await upload_image_to_comfyapi(
-                        cls,
+                    key_image=await upload_image_to_fal(
                         frames[f"end_image{i}"],
                         mime_type="image/png",
-                        wait_label=f"Uploading end image({i})",
                     ),
                     duration=frames[f"duration{i}"],
                 )
             )
         results = await execute_task(
             cls,
-            "__FAL_VIDU_MULTIFRAME__",  # migrated from /proxy/vidu/multiframe
+            FAL_VIDU_I2V,
             TaskMultiFrameCreationRequest(
                 model=model,
                 seed=seed,
@@ -1194,7 +1179,7 @@ class Vidu3TextToVideoNode(IO.ComfyNode):
         validate_string(prompt, min_length=1, max_length=2000)
         results = await execute_task(
             cls,
-            VIDU_TEXT_TO_VIDEO,
+            FAL_VIDU_I2V,
             TaskCreationRequest(
                 model=model["model"],
                 prompt=prompt,
@@ -1316,7 +1301,7 @@ class Vidu3ImageToVideoNode(IO.ComfyNode):
         validate_string(prompt, max_length=2000)
         results = await execute_task(
             cls,
-            VIDU_IMAGE_TO_VIDEO,
+            FAL_VIDU_I2V,
             TaskCreationRequest(
                 model=model["model"],
                 prompt=prompt,
@@ -1324,7 +1309,7 @@ class Vidu3ImageToVideoNode(IO.ComfyNode):
                 seed=seed,
                 resolution=model["resolution"],
                 audio=model["audio"],
-                images=[await upload_image_to_comfyapi(cls, image)],
+                images=[await upload_image_to_fal(image)],
             ),
             max_poll_attempts=720,
         )
@@ -1442,11 +1427,11 @@ class Vidu3StartEndToVideoNode(IO.ComfyNode):
             resolution=model["resolution"],
             audio=model["audio"],
             images=[
-                (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
+                (await upload_images_to_fal(frame, max_images=1, mime_type="image/png"))[0]
                 for frame in (first_frame, end_frame)
             ],
         )
-        results = await execute_task(cls, VIDU_START_END_VIDEO, payload)
+        results = await execute_task(cls, FAL_VIDU_I2V, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
 

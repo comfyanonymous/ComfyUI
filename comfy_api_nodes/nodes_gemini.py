@@ -40,7 +40,6 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     sync_op,
     tensor_to_base64_string,
-    upload_images_to_comfyapi,
     validate_string,
     video_to_base64_string,
 )

@@ -8,10 +8,8 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     get_number_of_images,
     sync_op_raw,
-    upload_images_to_comfyapi,
     validate_string,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_LTX_VIDEO = "fal-ai/ltx-video-v097"

@@ -5,30 +5,19 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.elevenlabs import (
-    AddVoiceRequest,
-    AddVoiceResponse,
     DialogueInput,
     DialogueSettings,
-    SpeechToSpeechRequest,
-    SpeechToTextRequest,
-    SpeechToTextResponse,
-    TextToDialogueRequest,
-    TextToSoundEffectsRequest,
-    TextToSpeechRequest,
     TextToSpeechVoiceSettings,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     audio_bytes_to_audio_input,
     audio_ndarray_to_bytesio,
     audio_tensor_to_contiguous_ndarray,
-    sync_op,
-    sync_op_raw,
-    upload_audio_to_comfyapi,
+    download_url_as_bytesio,
     validate_string,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
+from comfy_api_nodes.util.upload_helpers import upload_file_to_fal
 
 FAL_ELEVENLABS_TTS = "fal-ai/elevenlabs/tts/turbo-v2.5"
 
@@ -65,6 +54,13 @@ ELEVENLABS_VOICE_OPTIONS = [f"{name} ({gender}, {accent})" for _, name, gender, 
 ELEVENLABS_VOICE_MAP = {
     f"{name} ({gender}, {accent})": voice_id for voice_id, name, gender, accent in ELEVENLABS_VOICES
 }
+
+
+async def _upload_audio_to_fal(audio: Input.Audio) -> str:
+    """Convert audio input to bytes and upload to fal.ai CDN. Returns the CDN URL."""
+    audio_data_np = audio_tensor_to_contiguous_ndarray(audio["waveform"])
+    audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, audio["sample_rate"], "mp4", "aac")
+    return await upload_file_to_fal(audio_bytes_io, "audio/mp4")
 
 
 class ElevenLabsSpeechToText(IO.ComfyNode):
@@ -175,32 +171,25 @@ class ElevenLabsSpeechToText(IO.ComfyNode):
                 "Number of speakers cannot be specified when diarization is enabled. "
                 "Either disable diarization or set num_speakers to 0."
             )
-        request = SpeechToTextRequest(
-            model_id=model["model"],
-            cloud_storage_url=await upload_audio_to_comfyapi(
-                cls, audio, container_format="mp4", codec_name="aac", mime_type="audio/mp4"
-            ),
-            language_code=language_code if language_code.strip() else None,
-            tag_audio_events=model["tag_audio_events"],
-            num_speakers=num_speakers if num_speakers > 0 else None,
-            timestamps_granularity=model["timestamps_granularity"],
-            diarize=model["diarize"],
-            diarization_threshold=model["diarization_threshold"] if model["diarize"] else None,
-            seed=seed,
-            temperature=model["temperature"],
-        )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/speech-to-text", method="POST"),
-            response_model=SpeechToTextResponse,
-            data=request,
-            content_type="multipart/form-data",
-        )
+        audio_url = await _upload_audio_to_fal(audio)
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "model_id": model["model"],
+            "audio_url": audio_url,
+            "language_code": language_code if language_code.strip() else None,
+            "tag_audio_events": model["tag_audio_events"],
+            "num_speakers": num_speakers if num_speakers > 0 else None,
+            "timestamps_granularity": model["timestamps_granularity"],
+            "diarize": model["diarize"],
+            "diarization_threshold": model["diarization_threshold"] if model["diarize"] else None,
+            "seed": seed,
+            "temperature": model["temperature"],
+        })
+        # TODO: verify fal.ai field names
         words_json = json.dumps(
-            [w.model_dump(exclude_none=True) for w in response.words] if response.words else [],
+            result.get("words", []),
             indent=2,
         )
-        return IO.NodeOutput(response.text, response.language_code, words_json)
+        return IO.NodeOutput(result["text"], result.get("language_code", ""), words_json)
 
 
 class ElevenLabsVoiceSelector(IO.ComfyNode):
@@ -375,31 +364,27 @@ class ElevenLabsTextToSpeech(IO.ComfyNode):
         output_format: str,
     ) -> IO.NodeOutput:
         validate_string(text, min_length=1)
-        request = TextToSpeechRequest(
-            text=text,
-            model_id=model["model"],
-            language_code=language_code if language_code.strip() else None,
-            voice_settings=TextToSpeechVoiceSettings(
-                stability=stability,
-                similarity_boost=model["similarity_boost"],
-                speed=model["speed"],
-                use_speaker_boost=model.get("use_speaker_boost", None),
-                style=model.get("style", None),
-            ),
-            seed=seed,
-            apply_text_normalization=apply_text_normalization,
+        voice_settings = TextToSpeechVoiceSettings(
+            stability=stability,
+            similarity_boost=model["similarity_boost"],
+            speed=model["speed"],
+            use_speaker_boost=model.get("use_speaker_boost", None),
+            style=model.get("style", None),
         )
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint(
-                path=f"__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/text-to-speech/{voice}",
-                method="POST",
-                query_params={"output_format": output_format},
-            ),
-            data=request,
-            as_binary=True,
-        )
-        return IO.NodeOutput(audio_bytes_to_audio_input(response))
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "text": text,
+            "voice_id": voice,
+            "model_id": model["model"],
+            "language_code": language_code if language_code.strip() else None,
+            "voice_settings": voice_settings.model_dump(exclude_none=True),
+            "seed": seed,
+            "apply_text_normalization": apply_text_normalization,
+            "output_format": output_format,
+        })
+        # TODO: verify fal.ai field names
+        audio_url = result["audio"]["url"]
+        audio_bytes_io = await download_url_as_bytesio(audio_url)
+        return IO.NodeOutput(audio_bytes_to_audio_input(audio_bytes_io.read()))
 
 
 class ElevenLabsAudioIsolation(IO.ComfyNode):
@@ -430,16 +415,14 @@ class ElevenLabsAudioIsolation(IO.ComfyNode):
         cls,
         audio: Input.Audio,
     ) -> IO.NodeOutput:
-        audio_data_np = audio_tensor_to_contiguous_ndarray(audio["waveform"])
-        audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, audio["sample_rate"], "mp4", "aac")
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint(path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/audio-isolation", method="POST"),
-            files={"audio": ("audio.mp4", audio_bytes_io, "audio/mp4")},
-            content_type="multipart/form-data",
-            as_binary=True,
-        )
-        return IO.NodeOutput(audio_bytes_to_audio_input(response))
+        audio_url = await _upload_audio_to_fal(audio)
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "audio_url": audio_url,
+        })
+        # TODO: verify fal.ai field names
+        output_url = result["audio"]["url"]
+        audio_bytes_io = await download_url_as_bytesio(output_url)
+        return IO.NodeOutput(audio_bytes_to_audio_input(audio_bytes_io.read()))
 
 
 class ElevenLabsTextToSoundEffects(IO.ComfyNode):
@@ -515,22 +498,17 @@ class ElevenLabsTextToSoundEffects(IO.ComfyNode):
         output_format: str,
     ) -> IO.NodeOutput:
         validate_string(text, min_length=1)
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint(
-                path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/sound-generation",
-                method="POST",
-                query_params={"output_format": output_format},
-            ),
-            data=TextToSoundEffectsRequest(
-                text=text,
-                duration_seconds=model["duration"],
-                prompt_influence=model["prompt_influence"],
-                loop=model.get("loop", None),
-            ),
-            as_binary=True,
-        )
-        return IO.NodeOutput(audio_bytes_to_audio_input(response))
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "text": text,
+            "duration_seconds": model["duration"],
+            "prompt_influence": model["prompt_influence"],
+            "loop": model.get("loop", None),
+            "output_format": output_format,
+        })
+        # TODO: verify fal.ai field names
+        audio_url = result["audio"]["url"]
+        audio_bytes_io = await download_url_as_bytesio(audio_url)
+        return IO.NodeOutput(audio_bytes_to_audio_input(audio_bytes_io.read()))
 
 
 class ElevenLabsInstantVoiceClone(IO.ComfyNode):
@@ -574,27 +552,21 @@ class ElevenLabsInstantVoiceClone(IO.ComfyNode):
         files: IO.Autogrow.Type,
         remove_background_noise: bool,
     ) -> IO.NodeOutput:
-        file_tuples: list[tuple[str, tuple[str, bytes, str]]] = []
+        audio_urls = []
         for key in files:
             audio = files[key]
-            sample_rate: int = audio["sample_rate"]
-            waveform = audio["waveform"]
-            audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
-            audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, sample_rate, "mp4", "aac")
-            file_tuples.append(("files", (f"{key}.mp4", audio_bytes_io.getvalue(), "audio/mp4")))
+            audio_data_np = audio_tensor_to_contiguous_ndarray(audio["waveform"])
+            audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, audio["sample_rate"], "mp4", "aac")
+            url = await upload_file_to_fal(audio_bytes_io, "audio/mp4")
+            audio_urls.append(url)
 
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/voices/add", method="POST"),
-            response_model=AddVoiceResponse,
-            data=AddVoiceRequest(
-                name=str(uuid.uuid4()),
-                remove_background_noise=remove_background_noise,
-            ),
-            files=file_tuples,
-            content_type="multipart/form-data",
-        )
-        return IO.NodeOutput(response.voice_id)
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "name": str(uuid.uuid4()),
+            "remove_background_noise": remove_background_noise,
+            "audio_urls": audio_urls,
+        })
+        # TODO: verify fal.ai field names
+        return IO.NodeOutput(result["voice_id"])
 
 
 ELEVENLABS_STS_VOICE_SETTINGS = [
@@ -713,8 +685,7 @@ class ElevenLabsSpeechToSpeech(IO.ComfyNode):
         seed: int,
         remove_background_noise: bool,
     ) -> IO.NodeOutput:
-        audio_data_np = audio_tensor_to_contiguous_ndarray(audio["waveform"])
-        audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, audio["sample_rate"], "mp4", "aac")
+        audio_url = await _upload_audio_to_fal(audio)
         voice_settings = TextToSpeechVoiceSettings(
             stability=stability,
             similarity_boost=model["similarity_boost"],
@@ -722,24 +693,19 @@ class ElevenLabsSpeechToSpeech(IO.ComfyNode):
             use_speaker_boost=model["use_speaker_boost"],
             speed=model["speed"],
         )
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint(
-                path=f"__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/speech-to-speech/{voice}",
-                method="POST",
-                query_params={"output_format": output_format},
-            ),
-            data=SpeechToSpeechRequest(
-                model_id=model["model"],
-                voice_settings=voice_settings.model_dump_json(exclude_none=True),
-                seed=seed,
-                remove_background_noise=remove_background_noise,
-            ),
-            files={"audio": ("audio.mp4", audio_bytes_io.getvalue(), "audio/mp4")},
-            content_type="multipart/form-data",
-            as_binary=True,
-        )
-        return IO.NodeOutput(audio_bytes_to_audio_input(response))
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "voice_id": voice,
+            "audio_url": audio_url,
+            "model_id": model["model"],
+            "voice_settings": voice_settings.model_dump(exclude_none=True),
+            "seed": seed,
+            "remove_background_noise": remove_background_noise,
+            "output_format": output_format,
+        })
+        # TODO: verify fal.ai field names
+        output_url = result["audio"]["url"]
+        audio_bytes_io = await download_url_as_bytesio(output_url)
+        return IO.NodeOutput(audio_bytes_to_audio_input(audio_bytes_io.read()))
 
 
 def _generate_dialogue_inputs(count: int) -> list:
@@ -849,31 +815,25 @@ class ElevenLabsTextToDialogue(IO.ComfyNode):
         output_format: str,
     ) -> IO.NodeOutput:
         num_entries = int(inputs["inputs"])
-        dialogue_inputs: list[DialogueInput] = []
+        dialogue_inputs = []
         for i in range(1, num_entries + 1):
             text = inputs[f"text{i}"]
             voice_id = inputs[f"voice{i}"]
             validate_string(text, min_length=1)
-            dialogue_inputs.append(DialogueInput(text=text, voice_id=voice_id))
-        request = TextToDialogueRequest(
-            inputs=dialogue_inputs,
-            model_id=model,
-            language_code=language_code if language_code.strip() else None,
-            settings=DialogueSettings(stability=stability),
-            seed=seed,
-            apply_text_normalization=apply_text_normalization,
-        )
-        response = await sync_op_raw(
-            cls,
-            ApiEndpoint(
-                path="__FAL_ELEVENLABS__/  # TODO: migrate to fal_run(cls, FAL_ELEVENLABS_TTS, {...}); original: /proxy/elevenlabs/v1/text-to-dialogue",
-                method="POST",
-                query_params={"output_format": output_format},
-            ),
-            data=request,
-            as_binary=True,
-        )
-        return IO.NodeOutput(audio_bytes_to_audio_input(response))
+            dialogue_inputs.append({"text": text, "voice_id": voice_id})
+        result = await fal_run(cls, FAL_ELEVENLABS_TTS, {
+            "inputs": dialogue_inputs,
+            "model_id": model,
+            "language_code": language_code if language_code.strip() else None,
+            "settings": {"stability": stability},
+            "seed": seed,
+            "apply_text_normalization": apply_text_normalization,
+            "output_format": output_format,
+        })
+        # TODO: verify fal.ai field names
+        audio_url = result["audio"]["url"]
+        audio_bytes_io = await download_url_as_bytesio(audio_url)
+        return IO.NodeOutput(audio_bytes_to_audio_input(audio_bytes_io.read()))
 
 
 class ElevenLabsExtension(ComfyExtension):

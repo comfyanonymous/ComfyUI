@@ -12,13 +12,10 @@ from comfy_api_nodes.apis.ideogram import (
     IdeogramV3EditRequest,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     bytesio_to_image_tensor,
     download_url_as_bytesio,
     resize_mask_to_image,
-    sync_op,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_IDEOGRAM_V3 = "fal-ai/ideogram/v3"

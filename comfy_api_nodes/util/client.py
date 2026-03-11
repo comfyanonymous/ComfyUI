@@ -21,8 +21,6 @@ from server import PromptServer
 
 from . import request_logger
 from ._helpers import (
-    default_base_url,
-    get_auth_header,
     get_node_id,
     is_processing_interrupted,
     sleep_with_interrupt,
@@ -606,21 +604,12 @@ async def _diagnose_connectivity() -> dict[str, bool]:
     """Best-effort connectivity diagnostics to distinguish local vs. server issues."""
     results = {
         "internet_accessible": False,
-        "api_accessible": False,
     }
     timeout = aiohttp.ClientTimeout(total=5.0)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         with contextlib.suppress(ClientError, OSError):
             async with session.get("https://www.google.com") as resp:
                 results["internet_accessible"] = resp.status < 500
-        if not results["internet_accessible"]:
-            return results
-
-        parsed = urlparse(default_base_url())
-        health_url = f"{parsed.scheme}://{parsed.netloc}/health"
-        with contextlib.suppress(ClientError, OSError):
-            async with session.get(health_url) as resp:
-                results["api_accessible"] = resp.status < 500
     return results
 
 
@@ -723,8 +712,11 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     """Core request with retries, per-second interruption monitoring, true cancellation, and friendly errors."""
     url = cfg.endpoint.path
     parsed_url = urlparse(url)
-    if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
-        url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
+    if not parsed_url.scheme and not parsed_url.netloc:
+        raise ValueError(
+            f"Relative URL not supported in BYOK mode: {url!r}. "
+            "All API endpoints must use absolute URLs."
+        )
 
     method = cfg.endpoint.method
     params = _merge_params(cfg.endpoint.query_params, method, cfg.data if method == "GET" else None)
@@ -761,8 +753,6 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         logging.debug("[DEBUG] HTTP %s %s (attempt %d)", method, url, attempt)
 
         payload_headers = {"Accept": "*/*"} if expect_binary else {"Accept": "application/json"}
-        if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
-            payload_headers.update(get_auth_header(cfg.node_cls))
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
 
@@ -1016,7 +1006,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                 error_message=f"ApiServerError: {str(e)}",
             )
             raise ApiServerError(
-                f"The API server at {default_base_url()} is currently unreachable. "
+                f"The API server at {url} is currently unreachable. "
                 f"The service may be experiencing issues."
             ) from e
         finally:

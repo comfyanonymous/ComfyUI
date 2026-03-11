@@ -6,14 +6,10 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     download_url_to_video_output,
     get_number_of_images,
-    poll_op,
-    sync_op,
     tensor_to_bytesio,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_SORA_2 = "fal-ai/sora-2/text-to-video"

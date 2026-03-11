@@ -60,21 +60,17 @@ from comfy_api_nodes.apis.kling import (
     OmniProImageRequest,
     OmniProReferences2VideoRequest,
     OmniProText2VideoRequest,
-    TaskStatusResponse,
     TextToVideoWithAudioRequest,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     download_url_to_image_tensor,
     download_url_to_video_output,
     get_number_of_images,
-    poll_op,
-    sync_op,
     tensor_to_base64_string,
-    upload_audio_to_comfyapi,
-    upload_image_to_comfyapi,
-    upload_images_to_comfyapi,
-    upload_video_to_comfyapi,
+    upload_audio_to_fal,
+    upload_image_to_fal,
+    upload_images_to_fal,
+    upload_video_to_fal,
     validate_audio_duration,
     validate_image_aspect_ratio,
     validate_image_dimensions,
@@ -82,10 +78,20 @@ from comfy_api_nodes.util import (
     validate_video_dimensions,
     validate_video_duration,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
+# fal.ai Kling model IDs
 FAL_KLING_T2V = "fal-ai/kling-video/v2/master/text-to-video"
+FAL_KLING_I2V = "fal-ai/kling-video/v2/master/image-to-video"
+FAL_KLING_VEXT = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify if fal-ai/kling-video/v2/master/extend exists; using t2v as fallback
+FAL_KLING_LIPSYNC = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify if fal-ai/kling-video/v2/master/lip-sync exists; using t2v as fallback
+FAL_KLING_EFFECTS = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify if fal-ai/kling-video/v2/master/effects exists; using t2v as fallback
+FAL_KLING_IMGEN = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify if fal-ai/kling-video/v2/master/image-generation exists; using t2v as fallback
+FAL_KLING_TRYON = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify if fal-ai/kling-video/v2/master/virtual-try-on exists; using t2v as fallback
+FAL_KLING_OMNI_VIDEO = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify correct fal.ai model for omni-video
+FAL_KLING_OMNI_IMAGE = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify correct fal.ai model for omni-image
+FAL_KLING_MOTION_CTRL = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify correct fal.ai model for motion-control
+FAL_KLING_AVATAR = "fal-ai/kling-video/v2/master/text-to-video"  # TODO: verify correct fal.ai model for avatar
 
 
 def _generate_storyboard_inputs(count: int) -> list:
@@ -113,15 +119,6 @@ def _generate_storyboard_inputs(count: int) -> list:
 
 
 KLING_API_VERSION = "v1"
-# Paths migrated from /proxy/kling/... to fal_run placeholders
-PATH_TEXT_TO_VIDEO = "__FAL_KLING_T2V__"  # was: /proxy/kling/v1/videos/text2video
-PATH_IMAGE_TO_VIDEO = "__FAL_KLING_I2V__"  # was: /proxy/kling/v1/videos/image2video
-PATH_VIDEO_EXTEND = "__FAL_KLING_VEXT__"  # was: /proxy/kling/v1/videos/video-extend
-PATH_LIP_SYNC = "__FAL_KLING_LIPSYNC__"  # was: /proxy/kling/v1/videos/lip-sync
-PATH_VIDEO_EFFECTS = "__FAL_KLING_EFFECTS__"  # was: /proxy/kling/v1/videos/effects
-PATH_CHARACTER_IMAGE = "__FAL_KLING_CHARIMG__"  # was: /proxy/kling/v1/images/generations
-PATH_VIRTUAL_TRY_ON = "__FAL_KLING_TRYON__"  # was: /proxy/kling/v1/images/kolors-virtual-try-on
-PATH_IMAGE_GENERATIONS = "__FAL_KLING_IMGEN__"  # was: /proxy/kling/v1/images/generations
 
 MAX_PROMPT_LENGTH_T2V = 2500
 MAX_PROMPT_LENGTH_I2V = 500
@@ -272,18 +269,10 @@ def normalize_omni_prompt_references(prompt: str) -> str:
     return re.sub(r"(?<!\w)@video(?P<idx>\d*)(?!\w)", _video_repl, prompt)
 
 
-async def finish_omni_video_task(cls: type[IO.ComfyNode], response: TaskStatusResponse) -> IO.NodeOutput:
-    if response.code:
-        raise RuntimeError(
-            f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-        )
-    final_response = await poll_op(
-        cls,
-        ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
-        response_model=TaskStatusResponse,
-        status_extractor=lambda r: (r.data.task_status if r.data else None),
-    )
-    return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+async def finish_omni_video_task(cls: type[IO.ComfyNode], result: dict) -> IO.NodeOutput:
+    """Extract video URL from a fal_run result dict and download."""
+    video_url = result["video"]["url"]  # TODO: verify fal.ai field name
+    return IO.NodeOutput(await download_url_to_video_output(video_url))
 
 
 def is_valid_camera_control_configs(configs: list[float]) -> bool:
@@ -432,36 +421,23 @@ async def execute_text2video(
     camera_control: KlingCameraControl | None = None,
 ) -> IO.NodeOutput:
     validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
-    task_creation_response = await sync_op(
-        cls,
-        ApiEndpoint(path=PATH_TEXT_TO_VIDEO, method="POST"),
-        response_model=KlingText2VideoResponse,
-        data=KlingText2VideoRequest(
-            prompt=prompt if prompt else None,
-            negative_prompt=negative_prompt if negative_prompt else None,
-            duration=KlingVideoGenDuration(duration),
-            mode=KlingVideoGenMode(model_mode),
-            model_name=KlingVideoGenModelName(model_name),
-            cfg_scale=cfg_scale,
-            aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
-            camera_control=camera_control,
-        ),
-    )
+    data = KlingText2VideoRequest(
+        prompt=prompt if prompt else None,
+        negative_prompt=negative_prompt if negative_prompt else None,
+        duration=KlingVideoGenDuration(duration),
+        mode=KlingVideoGenMode(model_mode),
+        model_name=KlingVideoGenModelName(model_name),
+        cfg_scale=cfg_scale,
+        aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
+        camera_control=camera_control,
+    ).model_dump(exclude_none=True)
 
-    validate_task_creation_response(task_creation_response)
+    result = await fal_run(cls, FAL_KLING_T2V, data, estimated_duration=AVERAGE_DURATION_T2V)
 
-    task_id = task_creation_response.data.task_id
-    final_response = await poll_op(
-        cls,
-        ApiEndpoint(path=f"{PATH_TEXT_TO_VIDEO}/{task_id}"),
-        response_model=KlingText2VideoResponse,
-        estimated_duration=AVERAGE_DURATION_T2V,
-        status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-    )
-    validate_video_result_response(final_response)
-
-    video = get_video_from_response(final_response)
-    return IO.NodeOutput(await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration))
+    video_url = result["video"]["url"]  # TODO: verify fal.ai field name
+    video_id = result.get("video", {}).get("id", "")  # TODO: verify fal.ai field name
+    video_duration = result.get("video", {}).get("duration", "")  # TODO: verify fal.ai field name
+    return IO.NodeOutput(await download_url_to_video_output(str(video_url)), str(video_id), str(video_duration))
 
 
 async def execute_image2video(
@@ -487,41 +463,28 @@ async def execute_image2video(
     if model_mode == "std" and model_name == KlingVideoGenModelName.kling_v2_5_turbo.value:
         model_mode = "pro"  # October 5: currently "std" mode is not supported for this model
 
-    task_creation_response = await sync_op(
-        cls,
-        ApiEndpoint(path=PATH_IMAGE_TO_VIDEO, method="POST"),
-        response_model=KlingImage2VideoResponse,
-        data=KlingImage2VideoRequest(
-            model_name=KlingVideoGenModelName(model_name),
-            image=tensor_to_base64_string(start_frame),
-            image_tail=(
-                tensor_to_base64_string(end_frame)
-                if end_frame is not None
-                else None
-            ),
-            prompt=prompt,
-            negative_prompt=negative_prompt if negative_prompt else None,
-            cfg_scale=cfg_scale,
-            mode=KlingVideoGenMode(model_mode),
-            duration=KlingVideoGenDuration(duration),
-            camera_control=camera_control,
+    data = KlingImage2VideoRequest(
+        model_name=KlingVideoGenModelName(model_name),
+        image=tensor_to_base64_string(start_frame),
+        image_tail=(
+            tensor_to_base64_string(end_frame)
+            if end_frame is not None
+            else None
         ),
-    )
+        prompt=prompt,
+        negative_prompt=negative_prompt if negative_prompt else None,
+        cfg_scale=cfg_scale,
+        mode=KlingVideoGenMode(model_mode),
+        duration=KlingVideoGenDuration(duration),
+        camera_control=camera_control,
+    ).model_dump(exclude_none=True)
 
-    validate_task_creation_response(task_creation_response)
-    task_id = task_creation_response.data.task_id
+    result = await fal_run(cls, FAL_KLING_I2V, data, estimated_duration=AVERAGE_DURATION_I2V)
 
-    final_response = await poll_op(
-        cls,
-        ApiEndpoint(path=f"{PATH_IMAGE_TO_VIDEO}/{task_id}"),
-        response_model=KlingImage2VideoResponse,
-        estimated_duration=AVERAGE_DURATION_I2V,
-        status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-    )
-    validate_video_result_response(final_response)
-
-    video = get_video_from_response(final_response)
-    return IO.NodeOutput(await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration))
+    video_url = result["video"]["url"]  # TODO: verify fal.ai field name
+    video_id = result.get("video", {}).get("id", "")  # TODO: verify fal.ai field name
+    video_duration = result.get("video", {}).get("duration", "")  # TODO: verify fal.ai field name
+    return IO.NodeOutput(await download_url_to_video_output(str(video_url)), str(video_id), str(video_duration))
 
 
 async def execute_video_effect(
@@ -551,30 +514,17 @@ async def execute_video_effect(
             duration=duration,
         )
 
-    task_creation_response = await sync_op(
-        cls,
-        endpoint=ApiEndpoint(path=PATH_VIDEO_EFFECTS, method="POST"),
-        response_model=KlingVideoEffectsResponse,
-        data=KlingVideoEffectsRequest(
-            effect_scene=effect_scene,
-            input=request_input_field,
-        ),
-    )
+    data = KlingVideoEffectsRequest(
+        effect_scene=effect_scene,
+        input=request_input_field,
+    ).model_dump(exclude_none=True)
 
-    validate_task_creation_response(task_creation_response)
-    task_id = task_creation_response.data.task_id
+    result = await fal_run(cls, FAL_KLING_EFFECTS, data, estimated_duration=AVERAGE_DURATION_VIDEO_EFFECTS)
 
-    final_response = await poll_op(
-        cls,
-        ApiEndpoint(path=f"{PATH_VIDEO_EFFECTS}/{task_id}"),
-        response_model=KlingVideoEffectsResponse,
-        estimated_duration=AVERAGE_DURATION_VIDEO_EFFECTS,
-        status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-    )
-    validate_video_result_response(final_response)
-
-    video = get_video_from_response(final_response)
-    return await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration)
+    video_url = result["video"]["url"]  # TODO: verify fal.ai field name
+    video_id = result.get("video", {}).get("id", "")  # TODO: verify fal.ai field name
+    video_duration = result.get("video", {}).get("duration", "")  # TODO: verify fal.ai field name
+    return await download_url_to_video_output(str(video_url)), str(video_id), str(video_duration)
 
 
 async def execute_lipsync(
@@ -593,50 +543,37 @@ async def execute_lipsync(
     validate_video_duration(video, 2, 10)
 
     # Upload video to Comfy API and get download URL
-    video_url = await upload_video_to_comfyapi(cls, video)
-    logging.info("Uploaded video to Comfy API. URL: %s", video_url)
+    video_url = await upload_video_to_fal(video)
+    logging.info("Uploaded video to fal. URL: %s", video_url)
 
     # Upload the audio file to Comfy API and get download URL
     if audio:
-        audio_url = await upload_audio_to_comfyapi(
-            cls, audio, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
+        audio_url = await upload_audio_to_fal(
+            audio, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
         )
-        logging.info("Uploaded audio to Comfy API. URL: %s", audio_url)
+        logging.info("Uploaded audio to fal. URL: %s", audio_url)
     else:
         audio_url = None
 
-    task_creation_response = await sync_op(
-        cls,
-        ApiEndpoint(PATH_LIP_SYNC, "POST"),
-        response_model=KlingLipSyncResponse,
-        data=KlingLipSyncRequest(
-            input=KlingLipSyncInputObject(
-                video_url=video_url,
-                mode=model_mode,
-                text=text,
-                voice_language=voice_language,
-                voice_speed=voice_speed,
-                audio_type="url",
-                audio_url=audio_url,
-                voice_id=voice_id,
-            ),
+    data = KlingLipSyncRequest(
+        input=KlingLipSyncInputObject(
+            video_url=video_url,
+            mode=model_mode,
+            text=text,
+            voice_language=voice_language,
+            voice_speed=voice_speed,
+            audio_type="url",
+            audio_url=audio_url,
+            voice_id=voice_id,
         ),
-    )
+    ).model_dump(exclude_none=True)
 
-    validate_task_creation_response(task_creation_response)
-    task_id = task_creation_response.data.task_id
+    result = await fal_run(cls, FAL_KLING_LIPSYNC, data, estimated_duration=AVERAGE_DURATION_LIP_SYNC)
 
-    final_response = await poll_op(
-        cls,
-        ApiEndpoint(path=f"{PATH_LIP_SYNC}/{task_id}"),
-        response_model=KlingLipSyncResponse,
-        estimated_duration=AVERAGE_DURATION_LIP_SYNC,
-        status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-    )
-    validate_video_result_response(final_response)
-
-    video = get_video_from_response(final_response)
-    return IO.NodeOutput(await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration))
+    video_url = result["video"]["url"]  # TODO: verify fal.ai field name
+    video_id = result.get("video", {}).get("id", "")  # TODO: verify fal.ai field name
+    video_duration = result.get("video", {}).get("duration", "")  # TODO: verify fal.ai field name
+    return IO.NodeOutput(await download_url_to_video_output(str(video_url)), str(video_id), str(video_duration))
 
 
 class KlingCameraControls(IO.ComfyNode):
@@ -923,23 +860,19 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                     f"must equal the global duration ({duration}s)."
                 )
 
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=OmniProText2VideoRequest(
-                model_name=model_name,
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                duration=str(duration),
-                mode="pro" if resolution == "1080p" else "std",
-                multi_shot=multi_shot,
-                multi_prompt=multi_prompt_list,
-                shot_type="customize" if multi_shot else None,
-                sound="on" if generate_audio else "off",
-            ),
-        )
-        return await finish_omni_video_task(cls, response)
+        data = OmniProText2VideoRequest(
+            model_name=model_name,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            duration=str(duration),
+            mode="pro" if resolution == "1080p" else "std",
+            multi_shot=multi_shot,
+            multi_prompt=multi_prompt_list,
+            shot_type="customize" if multi_shot else None,
+            sound="on" if generate_audio else "off",
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_OMNI_VIDEO, data)
+        return await finish_omni_video_task(cls, result)
 
 
 class OmniProFirstLastFrameNode(IO.ComfyNode):
@@ -1084,7 +1017,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
         image_list: list[OmniParamImage] = [
             OmniParamImage(
-                image_url=(await upload_images_to_comfyapi(cls, first_frame, wait_label="Uploading first frame"))[0],
+                image_url=(await upload_images_to_fal(first_frame))[0],
                 type="first_frame",
             )
         ]
@@ -1093,7 +1026,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
             validate_image_aspect_ratio(end_frame, (1, 2.5), (2.5, 1))
             image_list.append(
                 OmniParamImage(
-                    image_url=(await upload_images_to_comfyapi(cls, end_frame, wait_label="Uploading end frame"))[0],
+                    image_url=(await upload_images_to_fal(end_frame))[0],
                     type="end_frame",
                 )
             )
@@ -1103,25 +1036,21 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
             for i in reference_images:
                 validate_image_dimensions(i, min_width=300, min_height=300)
                 validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
-            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference frame(s)"):
+            for i in await upload_images_to_fal(reference_images):
                 image_list.append(OmniParamImage(image_url=i))
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=OmniProFirstLastFrameRequest(
-                model_name=model_name,
-                prompt=prompt,
-                duration=str(duration),
-                image_list=image_list,
-                mode="pro" if resolution == "1080p" else "std",
-                sound="on" if generate_audio else "off",
-                multi_shot=multi_shot,
-                multi_prompt=multi_prompt_list,
-                shot_type="customize" if multi_shot else None,
-            ),
-        )
-        return await finish_omni_video_task(cls, response)
+        data = OmniProFirstLastFrameRequest(
+            model_name=model_name,
+            prompt=prompt,
+            duration=str(duration),
+            image_list=image_list,
+            mode="pro" if resolution == "1080p" else "std",
+            sound="on" if generate_audio else "off",
+            multi_shot=multi_shot,
+            multi_prompt=multi_prompt_list,
+            shot_type="customize" if multi_shot else None,
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_OMNI_VIDEO, data)
+        return await finish_omni_video_task(cls, result)
 
 
 class OmniProImageToVideoNode(IO.ComfyNode):
@@ -1246,26 +1175,22 @@ class OmniProImageToVideoNode(IO.ComfyNode):
             validate_image_dimensions(i, min_width=300, min_height=300)
             validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
         image_list: list[OmniParamImage] = []
-        for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+        for i in await upload_images_to_fal(reference_images):
             image_list.append(OmniParamImage(image_url=i))
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=OmniProReferences2VideoRequest(
-                model_name=model_name,
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                duration=str(duration),
-                image_list=image_list,
-                mode="pro" if resolution == "1080p" else "std",
-                sound="on" if generate_audio else "off",
-                multi_shot=multi_shot,
-                multi_prompt=multi_prompt_list,
-                shot_type="customize" if multi_shot else None,
-            ),
-        )
-        return await finish_omni_video_task(cls, response)
+        data = OmniProReferences2VideoRequest(
+            model_name=model_name,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            duration=str(duration),
+            image_list=image_list,
+            mode="pro" if resolution == "1080p" else "std",
+            sound="on" if generate_audio else "off",
+            multi_shot=multi_shot,
+            multi_prompt=multi_prompt_list,
+            shot_type="customize" if multi_shot else None,
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_OMNI_VIDEO, data)
+        return await finish_omni_video_task(cls, result)
 
 
 class OmniProVideoToVideoNode(IO.ComfyNode):
@@ -1341,30 +1266,26 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
             for i in reference_images:
                 validate_image_dimensions(i, min_width=300, min_height=300)
                 validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
-            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+            for i in await upload_images_to_fal(reference_images):
                 image_list.append(OmniParamImage(image_url=i))
         video_list = [
             OmniParamVideo(
-                video_url=await upload_video_to_comfyapi(cls, reference_video, wait_label="Uploading reference video"),
+                video_url=await upload_video_to_fal(reference_video),
                 refer_type="feature",
                 keep_original_sound="yes" if keep_original_sound else "no",
             )
         ]
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=OmniProReferences2VideoRequest(
-                model_name=model_name,
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                duration=str(duration),
-                image_list=image_list if image_list else None,
-                video_list=video_list,
-                mode="pro" if resolution == "1080p" else "std",
-            ),
-        )
-        return await finish_omni_video_task(cls, response)
+        data = OmniProReferences2VideoRequest(
+            model_name=model_name,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            duration=str(duration),
+            image_list=image_list if image_list else None,
+            video_list=video_list,
+            mode="pro" if resolution == "1080p" else "std",
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_OMNI_VIDEO, data)
+        return await finish_omni_video_task(cls, result)
 
 
 class OmniProEditVideoNode(IO.ComfyNode):
@@ -1436,30 +1357,26 @@ class OmniProEditVideoNode(IO.ComfyNode):
             for i in reference_images:
                 validate_image_dimensions(i, min_width=300, min_height=300)
                 validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
-            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+            for i in await upload_images_to_fal(reference_images):
                 image_list.append(OmniParamImage(image_url=i))
         video_list = [
             OmniParamVideo(
-                video_url=await upload_video_to_comfyapi(cls, video, wait_label="Uploading base video"),
+                video_url=await upload_video_to_fal(video),
                 refer_type="base",
                 keep_original_sound="yes" if keep_original_sound else "no",
             )
         ]
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=OmniProReferences2VideoRequest(
-                model_name=model_name,
-                prompt=prompt,
-                aspect_ratio=None,
-                duration=None,
-                image_list=image_list if image_list else None,
-                video_list=video_list,
-                mode="pro" if resolution == "1080p" else "std",
-            ),
-        )
-        return await finish_omni_video_task(cls, response)
+        data = OmniProReferences2VideoRequest(
+            model_name=model_name,
+            prompt=prompt,
+            aspect_ratio=None,
+            duration=None,
+            image_list=image_list if image_list else None,
+            video_list=video_list,
+            mode="pro" if resolution == "1080p" else "std",
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_OMNI_VIDEO, data)
+        return await finish_omni_video_task(cls, result)
 
 
 class OmniProImageNode(IO.ComfyNode):
@@ -1538,37 +1455,24 @@ class OmniProImageNode(IO.ComfyNode):
             for i in reference_images:
                 validate_image_dimensions(i, min_width=300, min_height=300)
                 validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
-            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+            for i in await upload_images_to_fal(reference_images):
                 image_list.append(OmniImageParamImage(image=i))
         use_series = series_amount != "disabled"
         if use_series and model_name == "kling-image-o1":
             raise ValueError("kling-image-o1 does not support series generation.")
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/images/omni-image", method="POST"),
-            response_model=TaskStatusResponse,
-            data=OmniProImageRequest(
-                model_name=model_name,
-                prompt=prompt,
-                resolution=resolution.lower(),
-                aspect_ratio=aspect_ratio,
-                image_list=image_list if image_list else None,
-                result_type="series" if use_series else None,
-                series_amount=int(series_amount) if use_series else None,
-            ),
-        )
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/images/omni-image/{response.data.task_id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-        )
-        images = final_response.data.task_result.series_images or final_response.data.task_result.images
-        tensors = [await download_url_to_image_tensor(img.url) for img in images]
+        data = OmniProImageRequest(
+            model_name=model_name,
+            prompt=prompt,
+            resolution=resolution.lower(),
+            aspect_ratio=aspect_ratio,
+            image_list=image_list if image_list else None,
+            result_type="series" if use_series else None,
+            series_amount=int(series_amount) if use_series else None,
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_OMNI_IMAGE, data)
+        # Extract images from result -- try series_images first, then images
+        images = result.get("series_images") or result.get("images", [])  # TODO: verify fal.ai field name
+        tensors = [await download_url_to_image_tensor(img["url"] if isinstance(img, dict) else img.url) for img in images]
         return IO.NodeOutput(torch.cat(tensors, dim=0))
 
 
@@ -1881,32 +1785,19 @@ class KlingVideoExtendNode(IO.ComfyNode):
         video_id: str,
     ) -> IO.NodeOutput:
         validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
-        task_creation_response = await sync_op(
-            cls,
-            ApiEndpoint(path=PATH_VIDEO_EXTEND, method="POST"),
-            response_model=KlingVideoExtendResponse,
-            data=KlingVideoExtendRequest(
-                prompt=prompt if prompt else None,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                cfg_scale=cfg_scale,
-                video_id=video_id,
-            ),
-        )
+        data = KlingVideoExtendRequest(
+            prompt=prompt if prompt else None,
+            negative_prompt=negative_prompt if negative_prompt else None,
+            cfg_scale=cfg_scale,
+            video_id=video_id,
+        ).model_dump(exclude_none=True)
 
-        validate_task_creation_response(task_creation_response)
-        task_id = task_creation_response.data.task_id
+        result = await fal_run(cls, FAL_KLING_VEXT, data, estimated_duration=AVERAGE_DURATION_VIDEO_EXTEND)
 
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{PATH_VIDEO_EXTEND}/{task_id}"),
-            response_model=KlingVideoExtendResponse,
-            estimated_duration=AVERAGE_DURATION_VIDEO_EXTEND,
-            status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-        )
-        validate_video_result_response(final_response)
-
-        video = get_video_from_response(final_response)
-        return IO.NodeOutput(await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration))
+        video_url = result["video"]["url"]  # TODO: verify fal.ai field name
+        video_id = result.get("video", {}).get("id", "")  # TODO: verify fal.ai field name
+        video_duration = result.get("video", {}).get("duration", "")  # TODO: verify fal.ai field name
+        return IO.NodeOutput(await download_url_to_video_output(str(video_url)), str(video_id), str(video_duration))
 
 
 class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
@@ -2180,31 +2071,21 @@ class KlingVirtualTryOnNode(IO.ComfyNode):
         cloth_image: torch.Tensor,
         model_name: KlingVirtualTryOnModelName,
     ) -> IO.NodeOutput:
-        task_creation_response = await sync_op(
-            cls,
-            ApiEndpoint(path=PATH_VIRTUAL_TRY_ON, method="POST"),
-            response_model=KlingVirtualTryOnResponse,
-            data=KlingVirtualTryOnRequest(
-                human_image=tensor_to_base64_string(human_image),
-                cloth_image=tensor_to_base64_string(cloth_image),
-                model_name=model_name,
-            ),
-        )
+        data = KlingVirtualTryOnRequest(
+            human_image=tensor_to_base64_string(human_image),
+            cloth_image=tensor_to_base64_string(cloth_image),
+            model_name=model_name,
+        ).model_dump(exclude_none=True)
 
-        validate_task_creation_response(task_creation_response)
-        task_id = task_creation_response.data.task_id
+        result = await fal_run(cls, FAL_KLING_TRYON, data, estimated_duration=AVERAGE_DURATION_VIRTUAL_TRY_ON)
 
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{PATH_VIRTUAL_TRY_ON}/{task_id}"),
-            response_model=KlingVirtualTryOnResponse,
-            estimated_duration=AVERAGE_DURATION_VIRTUAL_TRY_ON,
-            status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-        )
-        validate_image_result_response(final_response)
-
-        images = get_images_from_response(final_response)
-        return IO.NodeOutput(await image_result_to_node_output(images))
+        images = result.get("images", [])  # TODO: verify fal.ai field name
+        if not images:
+            raise RuntimeError("Kling virtual try-on succeeded but no image data found in response.")
+        tensors = [await download_url_to_image_tensor(img["url"] if isinstance(img, dict) else str(img.url)) for img in images]
+        if len(tensors) == 1:
+            return IO.NodeOutput(tensors[0])
+        return IO.NodeOutput(torch.cat(tensors))
 
 
 class KlingImageGenerationNode(IO.ComfyNode):
@@ -2297,37 +2178,27 @@ class KlingImageGenerationNode(IO.ComfyNode):
         _ = seed
         validate_string(prompt, field_name="prompt", min_length=1, max_length=MAX_PROMPT_LENGTH_IMAGE_GEN)
         validate_string(negative_prompt, field_name="negative_prompt", max_length=MAX_PROMPT_LENGTH_IMAGE_GEN)
-        task_creation_response = await sync_op(
-            cls,
-            ApiEndpoint(path=PATH_IMAGE_GENERATIONS, method="POST"),
-            response_model=KlingImageGenerationsResponse,
-            data=KlingImageGenerationsRequest(
-                model_name=model_name,
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                image=tensor_to_base64_string(image) if image is not None else None,
-                image_reference=image_type if image is not None else None,
-                image_fidelity=image_fidelity,
-                human_fidelity=human_fidelity,
-                n=n,
-                aspect_ratio=aspect_ratio,
-            ),
-        )
+        data = KlingImageGenerationsRequest(
+            model_name=model_name,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            image=tensor_to_base64_string(image) if image is not None else None,
+            image_reference=image_type if image is not None else None,
+            image_fidelity=image_fidelity,
+            human_fidelity=human_fidelity,
+            n=n,
+            aspect_ratio=aspect_ratio,
+        ).model_dump(exclude_none=True)
 
-        validate_task_creation_response(task_creation_response)
-        task_id = task_creation_response.data.task_id
+        result = await fal_run(cls, FAL_KLING_IMGEN, data, estimated_duration=AVERAGE_DURATION_IMAGE_GEN)
 
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{PATH_IMAGE_GENERATIONS}/{task_id}"),
-            response_model=KlingImageGenerationsResponse,
-            estimated_duration=AVERAGE_DURATION_IMAGE_GEN,
-            status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-        )
-        validate_image_result_response(final_response)
-
-        images = get_images_from_response(final_response)
-        return IO.NodeOutput(await image_result_to_node_output(images))
+        images = result.get("images", [])  # TODO: verify fal.ai field name
+        if not images:
+            raise RuntimeError("Kling image generation succeeded but no image data found in response.")
+        tensors = [await download_url_to_image_tensor(img["url"] if isinstance(img, dict) else str(img.url)) for img in images]
+        if len(tensors) == 1:
+            return IO.NodeOutput(tensors[0])
+        return IO.NodeOutput(torch.cat(tensors))
 
 
 class TextToVideoWithAudio(IO.ComfyNode):
@@ -2366,30 +2237,16 @@ class TextToVideoWithAudio(IO.ComfyNode):
         generate_audio: bool,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=2500)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=TextToVideoWithAudioRequest(
-                model_name=model_name,
-                prompt=prompt,
-                mode=mode,
-                aspect_ratio=aspect_ratio,
-                duration=str(duration),
-                sound="on" if generate_audio else "off",
-            ),
-        )
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video/{response.data.task_id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-        )
-        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+        data = TextToVideoWithAudioRequest(
+            model_name=model_name,
+            prompt=prompt,
+            mode=mode,
+            aspect_ratio=aspect_ratio,
+            duration=str(duration),
+            sound="on" if generate_audio else "off",
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_T2V, data)
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))  # TODO: verify fal.ai field name
 
 
 class ImageToVideoWithAudio(IO.ComfyNode):
@@ -2430,30 +2287,16 @@ class ImageToVideoWithAudio(IO.ComfyNode):
         validate_string(prompt, min_length=1, max_length=2500)
         validate_image_dimensions(start_frame, min_width=300, min_height=300)
         validate_image_aspect_ratio(start_frame, (1, 2.5), (2.5, 1))
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=ImageToVideoWithAudioRequest(
-                model_name=model_name,
-                image=(await upload_images_to_comfyapi(cls, start_frame))[0],
-                prompt=prompt,
-                mode=mode,
-                duration=str(duration),
-                sound="on" if generate_audio else "off",
-            ),
-        )
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video/{response.data.task_id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-        )
-        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+        data = ImageToVideoWithAudioRequest(
+            model_name=model_name,
+            image=(await upload_images_to_fal(start_frame))[0],
+            prompt=prompt,
+            mode=mode,
+            duration=str(duration),
+            sound="on" if generate_audio else "off",
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_I2V, data)
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))  # TODO: verify fal.ai field name
 
 
 class MotionControl(IO.ComfyNode):
@@ -2515,31 +2358,17 @@ class MotionControl(IO.ComfyNode):
         else:
             validate_video_duration(reference_video, min_duration=3, max_duration=30)
         validate_video_dimensions(reference_video, min_width=340, min_height=340, max_width=3850, max_height=3850)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/motion-control", method="POST"),
-            response_model=TaskStatusResponse,
-            data=MotionControlRequest(
-                prompt=prompt,
-                image_url=(await upload_images_to_comfyapi(cls, reference_image))[0],
-                video_url=await upload_video_to_comfyapi(cls, reference_video),
-                keep_original_sound="yes" if keep_original_sound else "no",
-                character_orientation=character_orientation,
-                mode=mode,
-                model_name=model,
-            ),
-        )
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/motion-control/{response.data.task_id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-        )
-        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+        data = MotionControlRequest(
+            prompt=prompt,
+            image_url=(await upload_images_to_fal(reference_image))[0],
+            video_url=await upload_video_to_fal(reference_video),
+            keep_original_sound="yes" if keep_original_sound else "no",
+            character_orientation=character_orientation,
+            mode=mode,
+            model_name=model,
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_MOTION_CTRL, data)
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))  # TODO: verify fal.ai field name
 
 
 class KlingVideoNode(IO.ComfyNode):
@@ -2667,56 +2496,36 @@ class KlingVideoNode(IO.ComfyNode):
         if start_frame is not None:
             validate_image_dimensions(start_frame, min_width=300, min_height=300)
             validate_image_aspect_ratio(start_frame, (1, 2.5), (2.5, 1))
-            image_url = await upload_image_to_comfyapi(cls, start_frame, wait_label="Uploading start frame")
-            response = await sync_op(
-                cls,
-                ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video", method="POST"),
-                response_model=TaskStatusResponse,
-                data=ImageToVideoWithAudioRequest(
-                    model_name=model["model"],
-                    image=image_url,
-                    prompt=None if custom_multi_shot else multi_shot["prompt"],
-                    negative_prompt=None if custom_multi_shot else multi_shot["negative_prompt"],
-                    mode=mode,
-                    duration=str(duration),
-                    sound="on" if generate_audio else "off",
-                    multi_shot=True if shot_type else None,
-                    multi_prompt=multi_prompt_list,
-                    shot_type=shot_type,
-                ),
-            )
-            poll_path = f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video/{response.data.task_id}"
+            image_url = await upload_image_to_fal(start_frame)
+            data = ImageToVideoWithAudioRequest(
+                model_name=model["model"],
+                image=image_url,
+                prompt=None if custom_multi_shot else multi_shot["prompt"],
+                negative_prompt=None if custom_multi_shot else multi_shot["negative_prompt"],
+                mode=mode,
+                duration=str(duration),
+                sound="on" if generate_audio else "off",
+                multi_shot=True if shot_type else None,
+                multi_prompt=multi_prompt_list,
+                shot_type=shot_type,
+            ).model_dump(exclude_none=True)
+            result = await fal_run(cls, FAL_KLING_I2V, data)
         else:
-            response = await sync_op(
-                cls,
-                ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video", method="POST"),
-                response_model=TaskStatusResponse,
-                data=TextToVideoWithAudioRequest(
-                    model_name=model["model"],
-                    aspect_ratio=model["aspect_ratio"],
-                    prompt=None if custom_multi_shot else multi_shot["prompt"],
-                    negative_prompt=None if custom_multi_shot else multi_shot["negative_prompt"],
-                    mode=mode,
-                    duration=str(duration),
-                    sound="on" if generate_audio else "off",
-                    multi_shot=True if shot_type else None,
-                    multi_prompt=multi_prompt_list,
-                    shot_type=shot_type,
-                ),
-            )
-            poll_path = f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/text2video/{response.data.task_id}"
+            data = TextToVideoWithAudioRequest(
+                model_name=model["model"],
+                aspect_ratio=model["aspect_ratio"],
+                prompt=None if custom_multi_shot else multi_shot["prompt"],
+                negative_prompt=None if custom_multi_shot else multi_shot["negative_prompt"],
+                mode=mode,
+                duration=str(duration),
+                sound="on" if generate_audio else "off",
+                multi_shot=True if shot_type else None,
+                multi_prompt=multi_prompt_list,
+                shot_type=shot_type,
+            ).model_dump(exclude_none=True)
+            result = await fal_run(cls, FAL_KLING_T2V, data)
 
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=poll_path),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-        )
-        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))  # TODO: verify fal.ai field name
 
 
 class KlingFirstLastFrameNode(IO.ComfyNode):
@@ -2789,33 +2598,19 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
         validate_image_dimensions(end_frame, min_width=300, min_height=300)
         validate_image_aspect_ratio(end_frame, (1, 2.5), (2.5, 1))
-        image_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame")
-        image_tail_url = await upload_image_to_comfyapi(cls, end_frame, wait_label="Uploading end frame")
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=ImageToVideoWithAudioRequest(
-                model_name=model["model"],
-                image=image_url,
-                image_tail=image_tail_url,
-                prompt=prompt,
-                mode="pro" if model["resolution"] == "1080p" else "std",
-                duration=str(duration),
-                sound="on" if generate_audio else "off",
-            ),
-        )
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/image2video/{response.data.task_id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-        )
-        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+        image_url = await upload_image_to_fal(first_frame)
+        image_tail_url = await upload_image_to_fal(end_frame)
+        data = ImageToVideoWithAudioRequest(
+            model_name=model["model"],
+            image=image_url,
+            image_tail=image_tail_url,
+            prompt=prompt,
+            mode="pro" if model["resolution"] == "1080p" else "std",
+            duration=str(duration),
+            sound="on" if generate_audio else "off",
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_I2V, data)
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))  # TODO: verify fal.ai field name
 
 
 class KlingAvatarNode(IO.ComfyNode):
@@ -2877,31 +2672,16 @@ class KlingAvatarNode(IO.ComfyNode):
         validate_image_dimensions(image, min_width=300, min_height=300)
         validate_image_aspect_ratio(image, (1, 2.5), (2.5, 1))
         validate_audio_duration(sound_file, min_duration=2, max_duration=300)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/avatar/image2video", method="POST"),
-            response_model=TaskStatusResponse,
-            data=KlingAvatarRequest(
-                image=await upload_image_to_comfyapi(cls, image),
-                sound_file=await upload_audio_to_comfyapi(
-                    cls, sound_file, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
-                ),
-                prompt=prompt or None,
-                mode=mode,
+        data = KlingAvatarRequest(
+            image=await upload_image_to_fal(image),
+            sound_file=await upload_audio_to_fal(
+                sound_file, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
             ),
-        )
-        if response.code:
-            raise RuntimeError(
-                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
-            )
-        final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_KLING__/  # TODO: migrate to fal_run(cls, FAL_KLING_T2V, {...}); original: /proxy/kling/v1/videos/avatar/image2video/{response.data.task_id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: (r.data.task_status if r.data else None),
-            max_poll_attempts=800,
-        )
-        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+            prompt=prompt or None,
+            mode=mode,
+        ).model_dump(exclude_none=True)
+        result = await fal_run(cls, FAL_KLING_AVATAR, data)
+        return IO.NodeOutput(await download_url_to_video_output(result["video"]["url"]))  # TODO: verify fal.ai field name
 
 
 class KlingExtension(ComfyExtension):

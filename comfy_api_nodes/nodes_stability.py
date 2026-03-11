@@ -27,11 +27,7 @@ from comfy_api_nodes.util import (
     bytesio_to_image_tensor,
     tensor_to_bytesio,
     audio_bytes_to_audio_input,
-    sync_op,
-    poll_op,
-    ApiEndpoint,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_SD35_MEDIUM = "fal-ai/stable-diffusion-v35-medium"

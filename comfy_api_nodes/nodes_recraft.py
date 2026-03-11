@@ -24,16 +24,14 @@ from comfy_api_nodes.apis.recraft import (
     get_v3_substyles,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     bytesio_to_image_tensor,
     download_url_as_bytesio,
     resize_mask_to_image,
-    sync_op,
     tensor_to_bytesio,
     validate_string,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
+from comfy_api_nodes.util.upload_helpers import upload_file_to_fal, upload_image_to_fal
 from comfy_extras.nodes_images import SVG
 
 FAL_RECRAFT_V3 = "fal-ai/recraft/v3/text-to-image"
@@ -42,7 +40,7 @@ FAL_RECRAFT_V3 = "fal-ai/recraft/v3/text-to-image"
 async def handle_recraft_file_request(
     cls: type[IO.ComfyNode],
     image: torch.Tensor,
-    path: str,
+    fal_endpoint: str,
     mask: torch.Tensor | None = None,
     total_pixels: int = 4096 * 4096,
     timeout: int = 1024,
@@ -50,26 +48,31 @@ async def handle_recraft_file_request(
 ) -> list[BytesIO]:
     """Handle sending common Recraft file-only request to get back file bytes."""
 
-    files = {"image": tensor_to_bytesio(image, total_pixels=total_pixels).read()}
+    image_url = await upload_image_to_fal(image)
+    data = {"image_url": image_url}  # TODO: verify fal.ai field names
     if mask is not None:
-        files["mask"] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
+        mask_url = await upload_image_to_fal(mask)
+        data["mask_url"] = mask_url  # TODO: verify fal.ai field names
 
-    response = await sync_op(
-        cls,
-        endpoint=ApiEndpoint(path=path, method="POST"),
-        response_model=RecraftImageGenerationResponse,
-        data=request if request else None,
-        files=files,
-        content_type="multipart/form-data",
-        multipart_parser=recraft_multipart_parser,
-        max_retries=1,
-    )
+    if request is not None:
+        if hasattr(request, "model_dump"):
+            req_dict = request.model_dump(exclude_none=True)
+        else:
+            req_dict = request.__dict__
+        data.update(req_dict)
+
+    result = await fal_run(cls, fal_endpoint, data)
+
     all_bytesio = []
-    if response.image is not None:
-        all_bytesio.append(await download_url_as_bytesio(response.image.url, timeout=timeout))
-    else:
-        for data in response.data:
-            all_bytesio.append(await download_url_as_bytesio(data.url, timeout=timeout))
+    # TODO: verify fal.ai field names
+    if "image" in result and result["image"] is not None:
+        all_bytesio.append(await download_url_as_bytesio(result["image"]["url"], timeout=timeout))
+    elif "data" in result:
+        for item in result["data"]:
+            all_bytesio.append(await download_url_as_bytesio(item["url"], timeout=timeout))
+    elif "images" in result:
+        for item in result["images"]:
+            all_bytesio.append(await download_url_as_bytesio(item["url"], timeout=timeout))
 
     return all_bytesio
 
@@ -370,27 +373,26 @@ class RecraftCreateStyleNode(IO.ComfyNode):
         style: str,
         images: IO.Autogrow.Type,
     ) -> IO.NodeOutput:
-        files = []
+        image_urls = []
         total_size = 0
         max_total_size = 5 * 1024 * 1024  # 5 MB limit
         for i, img in enumerate(list(images.values())):
-            file_bytes = tensor_to_bytesio(img, total_pixels=2048 * 2048, mime_type="image/webp").read()
+            file_bytesio = tensor_to_bytesio(img, total_pixels=2048 * 2048, mime_type="image/webp")
+            file_bytes = file_bytesio.read()
             total_size += len(file_bytes)
             if total_size > max_total_size:
                 raise Exception("Total size of all images exceeds 5 MB limit.")
-            files.append((f"file{i + 1}", file_bytes))
+            file_bytesio.seek(0)
+            url = await upload_file_to_fal(file_bytesio, "image/webp")
+            image_urls.append(url)
 
-        response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/styles", method="POST"),
-            response_model=RecraftCreateStyleResponse,
-            files=files,
-            data=RecraftCreateStyleRequest(style=style),
-            content_type="multipart/form-data",
-            max_retries=1,
-        )
+        # TODO: verify fal.ai field names
+        result = await fal_run(cls, FAL_RECRAFT_V3, {
+            "style": style,
+            "image_urls": image_urls,
+        })
 
-        return IO.NodeOutput(response.id)
+        return IO.NodeOutput(result["id"])
 
 
 class RecraftTextToImageNode(IO.ComfyNode):
@@ -471,27 +473,22 @@ class RecraftTextToImageNode(IO.ComfyNode):
         if not negative_prompt:
             negative_prompt = None
 
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
-            response_model=RecraftImageGenerationResponse,
-            data=RecraftImageGenerationRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                model="recraftv3",
-                size=size,
-                n=n,
-                style=recraft_style.style,
-                substyle=recraft_style.substyle,
-                style_id=recraft_style.style_id,
-                controls=controls_api,
-            ),
-            max_retries=1,
+        request_data = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            model="recraftv3",
+            size=size,
+            n=n,
+            style=recraft_style.style,
+            substyle=recraft_style.substyle,
+            style_id=recraft_style.style_id,
+            controls=controls_api,
         )
+        result = await fal_run(cls, FAL_RECRAFT_V3, request_data.model_dump(exclude_none=True))
         images = []
-        for data in response.data:
+        for item in result["data"]:  # TODO: verify fal.ai field names
             with handle_recraft_image_output():
-                image = bytesio_to_image_tensor(await download_url_as_bytesio(data.url, timeout=1024))
+                image = bytesio_to_image_tensor(await download_url_as_bytesio(item["url"], timeout=1024))
             if len(image.shape) < 4:
                 image = image.unsqueeze(0)
             images.append(image)
@@ -601,7 +598,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/imageToImage",
+                fal_endpoint=FAL_RECRAFT_V3,
                 request=request,
             )
             with handle_recraft_image_output():
@@ -697,7 +694,7 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
                 cls,
                 image=image[i],
                 mask=mask[i : i + 1],
-                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/inpaint",
+                fal_endpoint=FAL_RECRAFT_V3,
                 request=request,
             )
             with handle_recraft_image_output():
@@ -778,25 +775,20 @@ class RecraftTextToVectorNode(IO.ComfyNode):
         if not negative_prompt:
             negative_prompt = None
 
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
-            response_model=RecraftImageGenerationResponse,
-            data=RecraftImageGenerationRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                model="recraftv3",
-                size=size,
-                n=n,
-                style=recraft_style.style,
-                substyle=recraft_style.substyle,
-                controls=controls_api,
-            ),
-            max_retries=1,
+        request_data = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            model="recraftv3",
+            size=size,
+            n=n,
+            style=recraft_style.style,
+            substyle=recraft_style.substyle,
+            controls=controls_api,
         )
+        result = await fal_run(cls, FAL_RECRAFT_V3, request_data.model_dump(exclude_none=True))
         svg_data = []
-        for data in response.data:
-            svg_data.append(await download_url_as_bytesio(data.url, timeout=1024))
+        for item in result["data"]:  # TODO: verify fal.ai field names
+            svg_data.append(await download_url_as_bytesio(item["url"], timeout=1024))
 
         return IO.NodeOutput(SVG(svg_data))
 
@@ -830,7 +822,7 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/vectorize",
+                fal_endpoint=FAL_RECRAFT_V3,
             )
             svgs.append(SVG(sub_bytes))
             pbar.update(1)
@@ -911,7 +903,7 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/replaceBackground",
+                fal_endpoint=FAL_RECRAFT_V3,
                 request=request,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
@@ -951,7 +943,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/removeBackground",
+                fal_endpoint=FAL_RECRAFT_V3,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -963,7 +955,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
 
 
 class RecraftCrispUpscaleNode(IO.ComfyNode):
-    RECRAFT_PATH = "__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/crispUpscale"
+    RECRAFT_ENDPOINT = FAL_RECRAFT_V3
 
     @classmethod
     def define_schema(cls):
@@ -995,7 +987,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
             sub_bytes = await handle_recraft_file_request(
                 cls,
                 image=image[i],
-                path=cls.RECRAFT_PATH,
+                fal_endpoint=cls.RECRAFT_ENDPOINT,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1004,7 +996,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
 
 
 class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
-    RECRAFT_PATH = "__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/images/creativeUpscale"
+    RECRAFT_ENDPOINT = FAL_RECRAFT_V3
 
     @classmethod
     def define_schema(cls):
@@ -1117,24 +1109,19 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
         recraft_controls: RecraftControls | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
-            response_model=RecraftImageGenerationResponse,
-            data=RecraftImageGenerationRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                model=model["model"],
-                size=model["size"],
-                n=n,
-                controls=recraft_controls.create_api_model() if recraft_controls else None,
-            ),
-            max_retries=1,
+        request_data = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt if negative_prompt else None,
+            model=model["model"],
+            size=model["size"],
+            n=n,
+            controls=recraft_controls.create_api_model() if recraft_controls else None,
         )
+        result = await fal_run(cls, FAL_RECRAFT_V3, request_data.model_dump(exclude_none=True))
         images = []
-        for data in response.data:
+        for item in result["data"]:  # TODO: verify fal.ai field names
             with handle_recraft_image_output():
-                image = bytesio_to_image_tensor(await download_url_as_bytesio(data.url, timeout=1024))
+                image = bytesio_to_image_tensor(await download_url_as_bytesio(item["url"], timeout=1024))
             if len(image.shape) < 4:
                 image = image.unsqueeze(0)
             images.append(image)
@@ -1230,25 +1217,20 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
         recraft_controls: RecraftControls | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_RECRAFT__/  # TODO: migrate to fal_run(cls, FAL_RECRAFT_V3, {...}); original: /proxy/recraft/image_generation", method="POST"),
-            response_model=RecraftImageGenerationResponse,
-            data=RecraftImageGenerationRequest(
-                prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                model=model["model"],
-                size=model["size"],
-                n=n,
-                style="vector_illustration",
-                substyle=None,
-                controls=recraft_controls.create_api_model() if recraft_controls else None,
-            ),
-            max_retries=1,
+        request_data = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt if negative_prompt else None,
+            model=model["model"],
+            size=model["size"],
+            n=n,
+            style="vector_illustration",
+            substyle=None,
+            controls=recraft_controls.create_api_model() if recraft_controls else None,
         )
+        result = await fal_run(cls, FAL_RECRAFT_V3, request_data.model_dump(exclude_none=True))
         svg_data = []
-        for data in response.data:
-            svg_data.append(await download_url_as_bytesio(data.url, timeout=1024))
+        for item in result["data"]:  # TODO: verify fal.ai field names
+            svg_data.append(await download_url_as_bytesio(item["url"], timeout=1024))
         return IO.NodeOutput(SVG(svg_data))
 
 

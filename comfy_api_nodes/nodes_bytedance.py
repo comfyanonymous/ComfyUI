@@ -29,7 +29,7 @@ from comfy_api_nodes.util import (
     image_tensor_pair_to_batch,
     poll_op,
     sync_op,
-    upload_images_to_comfyapi,
+    upload_images_to_fal,
     validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_string,
@@ -337,8 +337,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         if n_input_images:
             for i in image:
                 validate_image_aspect_ratio(i, (1, 3), (3, 1))
-            reference_images_urls = await upload_images_to_comfyapi(
-                cls,
+            reference_images_urls = await upload_images_to_fal(
                 image,
                 max_images=n_input_images,
                 mime_type="image/png",
@@ -600,7 +599,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
         validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1))[0]
+        image_url = (await upload_images_to_fal(image, max_images=1))[0]
         prompt = (
             f"{prompt} "
             f"--resolution {resolution} "
@@ -735,8 +734,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
             validate_image_dimensions(i, min_width=300, min_height=300, max_width=6000, max_height=6000)
             validate_image_aspect_ratio(i, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        download_urls = await upload_images_to_comfyapi(
-            cls,
+        download_urls = await upload_images_to_fal(
             image_tensor_pair_to_batch(first_frame, last_frame),
             max_images=2,
             mime_type="image/png",
@@ -856,7 +854,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
             validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
             validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        image_urls = await upload_images_to_comfyapi(cls, images, max_images=4, mime_type="image/png")
+        image_urls = await upload_images_to_fal(images, max_images=4, mime_type="image/png")
         prompt = (
             f"{prompt} "
             f"--resolution {resolution} "

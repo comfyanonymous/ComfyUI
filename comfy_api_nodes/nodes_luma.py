@@ -30,7 +30,7 @@ from comfy_api_nodes.util import (
     download_url_to_video_output,
     poll_op,
     sync_op,
-    upload_images_to_comfyapi,
+    upload_images_to_fal,
     validate_string,
 )
 from comfy_api_nodes.util._helpers import get_fal_auth_header
@@ -217,7 +217,7 @@ class LumaImageGenerationNode(IO.ComfyNode):
         # handle character_ref images
         character_ref = None
         if character_image is not None:
-            download_urls = await upload_images_to_comfyapi(cls, character_image, max_images=4)
+            download_urls = await upload_images_to_fal(character_image, max_images=4)
             character_ref = LumaCharacterRef(identity0=LumaImageIdentity(images=download_urls))
 
         data = {
@@ -236,7 +236,7 @@ class LumaImageGenerationNode(IO.ComfyNode):
         luma_urls = []
         ref_count = 0
         for ref in luma_ref.refs:
-            download_urls = await upload_images_to_comfyapi(cls, ref.image, max_images=1)
+            download_urls = await upload_images_to_fal(ref.image, max_images=1)
             luma_urls.append(download_urls[0])
             ref_count += 1
             if ref_count >= max_refs:
@@ -304,7 +304,7 @@ class LumaImageModifyNode(IO.ComfyNode):
         image_weight: float,
         seed,
     ) -> IO.NodeOutput:
-        download_urls = await upload_images_to_comfyapi(cls, image, max_images=1)
+        download_urls = await upload_images_to_fal(image, max_images=1)
         image_url = download_urls[0]
         result = await fal_run(cls, FAL_LUMA_RAY2, {
             "prompt": prompt,
@@ -513,10 +513,10 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
         frame0 = None
         frame1 = None
         if first_image is not None:
-            download_urls = await upload_images_to_comfyapi(cls, first_image, max_images=1)
+            download_urls = await upload_images_to_fal(first_image, max_images=1)
             frame0 = LumaImageReference(type="image", url=download_urls[0])
         if last_image is not None:
-            download_urls = await upload_images_to_comfyapi(cls, last_image, max_images=1)
+            download_urls = await upload_images_to_fal(last_image, max_images=1)
             frame1 = LumaImageReference(type="image", url=download_urls[0])
         return LumaKeyframes(frame0=frame0, frame1=frame1)
 

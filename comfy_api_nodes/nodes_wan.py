@@ -13,7 +13,7 @@ from comfy_api_nodes.util import (
     poll_op,
     sync_op,
     tensor_to_base64_string,
-    upload_video_to_comfyapi,
+    upload_video_to_fal,
     validate_audio_duration,
     validate_video_duration,
 )
@@ -791,7 +791,7 @@ class WanReferenceVideoApi(IO.ComfyNode):
         for i in reference_videos:
             validate_video_duration(reference_videos[i], min_duration=2, max_duration=30)
         for i in reference_videos:
-            reference_video_urls.append(await upload_video_to_comfyapi(cls, reference_videos[i]))
+            reference_video_urls.append(await upload_video_to_fal(reference_videos[i]))
         width, height = RES_IN_PARENS.search(size).groups()
         result = await fal_run(cls, FAL_WAN_I2V, {
             "model": model,

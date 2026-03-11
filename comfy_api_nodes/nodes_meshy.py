@@ -4,28 +4,13 @@ from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.meshy import (
     InputShouldRemesh,
     InputShouldTexture,
-    MeshyAnimationRequest,
-    MeshyAnimationResult,
-    MeshyImageToModelRequest,
-    MeshyModelResult,
-    MeshyMultiImageToModelRequest,
-    MeshyRefineTask,
-    MeshyRiggedResult,
-    MeshyRiggingRequest,
-    MeshyTaskResponse,
-    MeshyTextToModelRequest,
-    MeshyTextureRequest,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     download_url_to_file_3d,
-    poll_op,
-    sync_op,
-    upload_images_to_comfyapi,
     validate_string,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
+from comfy_api_nodes.util.upload_helpers import upload_image_to_fal
 
 FAL_MESHY_I2_3D = "fal-ai/meshy/v6/image-to-3d"
 
@@ -105,35 +90,25 @@ class MeshyTextToModelNode(IO.ComfyNode):
         seed: int,
     ) -> IO.NodeOutput:
         validate_string(prompt, field_name="prompt", min_length=1, max_length=600)
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyTextToModelRequest(
-                prompt=prompt,
-                art_style=style,
-                ai_model=model,
-                topology=should_remesh.get("topology", None),
-                target_polycount=should_remesh.get("target_polycount", None),
-                should_remesh=should_remesh["should_remesh"] == "true",
-                symmetry_mode=symmetry_mode,
-                pose_mode=pose_mode.lower(),
-                seed=seed,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
-            response_model=MeshyModelResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "prompt": prompt,
+            "art_style": style,
+            "ai_model": model,
+            "topology": should_remesh.get("topology", None),
+            "target_polycount": should_remesh.get("target_polycount", None),
+            "should_remesh": should_remesh["should_remesh"] == "true",
+            "symmetry_mode": symmetry_mode,
+            "pose_mode": pose_mode.lower(),
+            "seed": seed,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        model_urls = result["model_urls"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(model_urls["glb"], "glb", task_id=task_id),
+            await download_url_to_file_3d(model_urls["fbx"], "fbx", task_id=task_id),
         )
 
 
@@ -198,32 +173,22 @@ class MeshyRefineNode(IO.ComfyNode):
         if texture_prompt:
             validate_string(texture_prompt, field_name="texture_prompt", max_length=600)
         if texture_image is not None:
-            texture_image_url = (await upload_images_to_comfyapi(cls, texture_image, wait_label="Uploading texture"))[0]
-        response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyRefineTask(
-                preview_task_id=meshy_task_id,
-                enable_pbr=enable_pbr,
-                texture_prompt=texture_prompt if texture_prompt else None,
-                texture_image_url=texture_image_url,
-                ai_model=model,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
-            response_model=MeshyModelResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+            texture_image_url = await upload_image_to_fal(texture_image)
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "preview_task_id": meshy_task_id,
+            "enable_pbr": enable_pbr,
+            "texture_prompt": texture_prompt if texture_prompt else None,
+            "texture_image_url": texture_image_url,
+            "ai_model": model,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        model_urls = result["model_urls"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(model_urls["glb"], "glb", task_id=task_id),
+            await download_url_to_file_3d(model_urls["fbx"], "fbx", task_id=task_id),
         )
 
 
@@ -341,43 +306,30 @@ class MeshyImageToModelNode(IO.ComfyNode):
                 validate_string(should_texture["texture_prompt"], field_name="texture_prompt", max_length=600)
                 texture_prompt = should_texture["texture_prompt"]
             if should_texture["texture_image"] is not None:
-                texture_image_url = (
-                    await upload_images_to_comfyapi(
-                        cls, should_texture["texture_image"], wait_label="Uploading texture"
-                    )
-                )[0]
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/image-to-3d", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyImageToModelRequest(
-                image_url=(await upload_images_to_comfyapi(cls, image, wait_label="Uploading base image"))[0],
-                ai_model=model,
-                topology=should_remesh.get("topology", None),
-                target_polycount=should_remesh.get("target_polycount", None),
-                symmetry_mode=symmetry_mode,
-                should_remesh=should_remesh["should_remesh"] == "true",
-                should_texture=texture,
-                enable_pbr=should_texture.get("enable_pbr", None),
-                pose_mode=pose_mode.lower(),
-                texture_prompt=texture_prompt,
-                texture_image_url=texture_image_url,
-                seed=seed,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/image-to-3d/{task_id}"),
-            response_model=MeshyModelResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+                texture_image_url = await upload_image_to_fal(should_texture["texture_image"])
+        image_url = await upload_image_to_fal(image)
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "image_url": image_url,
+            "ai_model": model,
+            "topology": should_remesh.get("topology", None),
+            "target_polycount": should_remesh.get("target_polycount", None),
+            "symmetry_mode": symmetry_mode,
+            "should_remesh": should_remesh["should_remesh"] == "true",
+            "should_texture": texture,
+            "enable_pbr": should_texture.get("enable_pbr", None),
+            "pose_mode": pose_mode.lower(),
+            "texture_prompt": texture_prompt,
+            "texture_image_url": texture_image_url,
+            "seed": seed,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        model_urls = result["model_urls"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(model_urls["glb"], "glb", task_id=task_id),
+            await download_url_to_file_3d(model_urls["fbx"], "fbx", task_id=task_id),
         )
 
 
@@ -498,45 +450,32 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                 validate_string(should_texture["texture_prompt"], field_name="texture_prompt", max_length=600)
                 texture_prompt = should_texture["texture_prompt"]
             if should_texture["texture_image"] is not None:
-                texture_image_url = (
-                    await upload_images_to_comfyapi(
-                        cls, should_texture["texture_image"], wait_label="Uploading texture"
-                    )
-                )[0]
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/multi-image-to-3d", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyMultiImageToModelRequest(
-                image_urls=await upload_images_to_comfyapi(
-                    cls, list(images.values()), wait_label="Uploading base images"
-                ),
-                ai_model=model,
-                topology=should_remesh.get("topology", None),
-                target_polycount=should_remesh.get("target_polycount", None),
-                symmetry_mode=symmetry_mode,
-                should_remesh=should_remesh["should_remesh"] == "true",
-                should_texture=texture,
-                enable_pbr=should_texture.get("enable_pbr", None),
-                pose_mode=pose_mode.lower(),
-                texture_prompt=texture_prompt,
-                texture_image_url=texture_image_url,
-                seed=seed,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/multi-image-to-3d/{task_id}"),
-            response_model=MeshyModelResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+                texture_image_url = await upload_image_to_fal(should_texture["texture_image"])
+        image_urls = []
+        for img in list(images.values()):
+            image_urls.append(await upload_image_to_fal(img))
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "image_urls": image_urls,
+            "ai_model": model,
+            "topology": should_remesh.get("topology", None),
+            "target_polycount": should_remesh.get("target_polycount", None),
+            "symmetry_mode": symmetry_mode,
+            "should_remesh": should_remesh["should_remesh"] == "true",
+            "should_texture": texture,
+            "enable_pbr": should_texture.get("enable_pbr", None),
+            "pose_mode": pose_mode.lower(),
+            "texture_prompt": texture_prompt,
+            "texture_image_url": texture_image_url,
+            "seed": seed,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        model_urls = result["model_urls"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(model_urls["glb"], "glb", task_id=task_id),
+            await download_url_to_file_3d(model_urls["fbx"], "fbx", task_id=task_id),
         )
 
 
@@ -589,30 +528,20 @@ class MeshyRigModelNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         texture_image_url = None
         if texture_image is not None:
-            texture_image_url = (await upload_images_to_comfyapi(cls, texture_image, wait_label="Uploading texture"))[0]
-        response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/rigging", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyRiggingRequest(
-                input_task_id=meshy_task_id,
-                height_meters=height_meters,
-                texture_image_url=texture_image_url,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/rigging/{task_id}"),
-            response_model=MeshyRiggedResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+            texture_image_url = await upload_image_to_fal(texture_image)
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "input_task_id": meshy_task_id,
+            "height_meters": height_meters,
+            "texture_image_url": texture_image_url,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        rigged = result["result"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             task_id,
-            await download_url_to_file_3d(result.result.rigged_character_glb_url, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.result.rigged_character_fbx_url, "fbx", task_id=task_id),
+            await download_url_to_file_3d(rigged["rigged_character_glb_url"], "glb", task_id=task_id),
+            await download_url_to_file_3d(rigged["rigged_character_fbx_url"], "fbx", task_id=task_id),
         )
 
 
@@ -653,27 +582,17 @@ class MeshyAnimateModelNode(IO.ComfyNode):
         rig_task_id: str,
         action_id: int,
     ) -> IO.NodeOutput:
-        response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/animations", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyAnimationRequest(
-                rig_task_id=rig_task_id,
-                action_id=action_id,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/animations/{task_id}"),
-            response_model=MeshyAnimationResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "rig_task_id": rig_task_id,
+            "action_id": action_id,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        anim = result["result"]
         return IO.NodeOutput(
             f"{task_id}.glb",
-            await download_url_to_file_3d(result.result.animation_glb_url, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.result.animation_fbx_url, "fbx", task_id=task_id),
+            await download_url_to_file_3d(anim["animation_glb_url"], "glb", task_id=task_id),
+            await download_url_to_file_3d(anim["animation_fbx_url"], "fbx", task_id=task_id),
         )
 
 
@@ -740,33 +659,23 @@ class MeshyTextureNode(IO.ComfyNode):
             raise ValueError("Either text_style_prompt or image_style is required")
         image_style_url = None
         if image_style is not None:
-            image_style_url = (await upload_images_to_comfyapi(cls, image_style, wait_label="Uploading style"))[0]
-        response = await sync_op(
-            cls,
-            endpoint=ApiEndpoint(path="__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/retexture", method="POST"),
-            response_model=MeshyTaskResponse,
-            data=MeshyTextureRequest(
-                input_task_id=meshy_task_id,
-                ai_model=model,
-                enable_original_uv=enable_original_uv,
-                enable_pbr=pbr,
-                text_style_prompt=text_style_prompt if text_style_prompt else None,
-                image_style_url=image_style_url,
-            ),
-        )
-        task_id = response.result
-        result = await poll_op(
-            cls,
-            ApiEndpoint(path=f"__FAL_MESHY__/  # TODO: migrate to fal_run(cls, FAL_MESHY_I2_3D, {...}); original: /proxy/meshy/openapi/v1/retexture/{task_id}"),
-            response_model=MeshyModelResult,
-            status_extractor=lambda r: r.status,
-            progress_extractor=lambda r: r.progress,
-        )
+            image_style_url = await upload_image_to_fal(image_style)
+        result = await fal_run(cls, FAL_MESHY_I2_3D, {
+            "input_task_id": meshy_task_id,
+            "ai_model": model,
+            "enable_original_uv": enable_original_uv,
+            "enable_pbr": pbr,
+            "text_style_prompt": text_style_prompt if text_style_prompt else None,
+            "image_style_url": image_style_url,
+        })
+        # TODO: verify fal.ai field names
+        task_id = result.get("id", "meshy_task")
+        model_urls = result["model_urls"]
         return IO.NodeOutput(
             f"{task_id}.glb",
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(model_urls["glb"], "glb", task_id=task_id),
+            await download_url_to_file_3d(model_urls["fbx"], "fbx", task_id=task_id),
         )
 
 

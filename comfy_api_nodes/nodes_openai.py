@@ -24,21 +24,16 @@ from comfy_api_nodes.apis.openai import (
     OutputContent,
 )
 from comfy_api_nodes.util import (
-    ApiEndpoint,
     download_url_to_bytesio,
     downscale_image_tensor,
-    poll_op,
-    sync_op,
     tensor_to_base64_string,
     text_filepath_to_data_uri,
     validate_string,
 )
-from comfy_api_nodes.util._helpers import get_fal_auth_header
 from comfy_api_nodes.util.client import fal_run
 
 FAL_GPT_IMAGE_1 = "fal-ai/gpt-image-1/text-to-image"
 
-RESPONSES_ENDPOINT = "__FAL_OPENAI_RESPONSES__"  # migrated from /proxy/openai/v1/responses - now using fal_run
 STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
 
 

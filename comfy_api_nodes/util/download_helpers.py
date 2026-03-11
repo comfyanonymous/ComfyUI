@@ -4,7 +4,7 @@ import uuid
 from io import BytesIO
 from pathlib import Path
 from typing import IO
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import aiohttp
 import torch
@@ -16,8 +16,6 @@ from folder_paths import get_output_directory
 
 from . import request_logger
 from ._helpers import (
-    default_base_url,
-    get_auth_header,
     is_processing_interrupted,
     sleep_with_interrupt,
     to_aiohttp_url,
@@ -47,11 +45,8 @@ async def download_url_to_bytesio(
       - a file-like object opened in binary write mode (must implement .write()),
       - a filesystem path (str | pathlib.Path), which will be opened with 'wb'.
 
-    If `url` starts with `/proxy/`, `cls` must be provided so the URL can be expanded
-    to an absolute URL and authentication headers can be applied.
-
-    Pass `extra_headers` for provider-specific auth on absolute URLs (e.g. Google
-    video downloads require `x-goog-api-key`).
+    All URLs must be absolute. Pass `extra_headers` for provider-specific auth
+    (e.g. Google video downloads require `x-goog-api-key`).
 
     Raises:
         ProcessingInterrupted, LocalNetworkError, ApiServerError, Exception (HTTP and other errors)
@@ -64,11 +59,11 @@ async def download_url_to_bytesio(
     headers: dict[str, str] = {}
 
     parsed_url = urlparse(url)
-    if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
-        if cls is None:
-            raise ValueError("For relative 'cloud' paths, the `cls` parameter is required.")
-        url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
-        headers = get_auth_header(cls)
+    if not parsed_url.scheme and not parsed_url.netloc:
+        raise ValueError(
+            f"Relative URL not supported in BYOK mode: {url!r}. "
+            "All download URLs must be absolute."
+        )
 
     if extra_headers:
         headers.update(extra_headers)
