@@ -23,7 +23,7 @@ def include_unique_id_in_input(class_type: str) -> bool:
     return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
 
 class CacheKeySet(ABC):
-    def __init__(self, dynprompt, node_ids, is_changed_cache):
+    def __init__(self, dynprompt, node_ids, is_changed):
         self.keys = {}
         self.subcache_keys = {}
 
@@ -45,6 +45,12 @@ class CacheKeySet(ABC):
 
     def get_subcache_key(self, node_id):
         return self.subcache_keys.get(node_id, None)
+    
+    async def update_cache_key(self, node_id) -> None:
+        pass
+
+    def is_key_updated(self, node_id) -> bool:
+        return True
 
 class Unhashable:
     def __init__(self):
@@ -62,10 +68,21 @@ def to_hashable(obj):
     else:
         # TODO - Support other objects like tensors?
         return Unhashable()
+    
+def throw_on_unhashable(obj):
+    # Same as to_hashable except throwing for unhashables instead.
+    if isinstance(obj, (int, float, str, bool, bytes, type(None))):
+        return obj
+    elif isinstance(obj, Mapping):
+        return frozenset([(throw_on_unhashable(k), throw_on_unhashable(v)) for k, v in sorted(obj.items())])
+    elif isinstance(obj, Sequence):
+        return frozenset(zip(itertools.count(), [throw_on_unhashable(i) for i in obj]))
+    else:
+        raise Exception("Object unhashable.")
 
 class CacheKeySetID(CacheKeySet):
-    def __init__(self, dynprompt, node_ids, is_changed_cache):
-        super().__init__(dynprompt, node_ids, is_changed_cache)
+    def __init__(self, dynprompt, node_ids, is_changed):
+        super().__init__(dynprompt, node_ids, is_changed)
         self.dynprompt = dynprompt
 
     async def add_keys(self, node_ids):
@@ -79,13 +96,25 @@ class CacheKeySetID(CacheKeySet):
             self.subcache_keys[node_id] = (node_id, node["class_type"])
 
 class CacheKeySetInputSignature(CacheKeySet):
-    def __init__(self, dynprompt, node_ids, is_changed_cache):
-        super().__init__(dynprompt, node_ids, is_changed_cache)
+    def __init__(self, dynprompt, node_ids, is_changed):
+        super().__init__(dynprompt, node_ids, is_changed)
         self.dynprompt = dynprompt
-        self.is_changed_cache = is_changed_cache
+        self.is_changed = is_changed
+        self.updated_node_ids = set()
 
     def include_node_id_in_input(self) -> bool:
         return False
+    
+    async def update_cache_key(self, node_id):
+        if node_id in self.updated_node_ids:
+            return
+        if node_id not in self.keys:
+            return
+        self.updated_node_ids.add(node_id)
+        self.keys[node_id] = await self.get_node_signature(node_id)
+
+    def is_key_updated(self, node_id):
+        return node_id in self.updated_node_ids
 
     async def add_keys(self, node_ids):
         for node_id in node_ids:
@@ -94,28 +123,30 @@ class CacheKeySetInputSignature(CacheKeySet):
             if not self.dynprompt.has_node(node_id):
                 continue
             node = self.dynprompt.get_node(node_id)
-            self.keys[node_id] = await self.get_node_signature(self.dynprompt, node_id)
+            self.keys[node_id] = None
             self.subcache_keys[node_id] = (node_id, node["class_type"])
 
-    async def get_node_signature(self, dynprompt, node_id):
-        signature = []
-        ancestors, order_mapping = self.get_ordered_ancestry(dynprompt, node_id)
-        signature.append(await self.get_immediate_node_signature(dynprompt, node_id, order_mapping))
+    async def get_node_signature(self, node_id):
+        signatures = []
+        ancestors, order_mapping, node_inputs = self.get_ordered_ancestry(node_id)
+        node = self.dynprompt.get_node(node_id)
+        node["signature"] = to_hashable(await self.get_immediate_node_signature(node_id, order_mapping, node_inputs))
+        signatures.append(node["signature"])
         for ancestor_id in ancestors:
-            signature.append(await self.get_immediate_node_signature(dynprompt, ancestor_id, order_mapping))
-        return to_hashable(signature)
+            ancestor_node = self.dynprompt.get_node(ancestor_id)
+            assert "signature" in ancestor_node
+            signatures.append(ancestor_node["signature"])
+        signatures = frozenset(zip(itertools.count(), signatures))
+        return signatures
 
-    async def get_immediate_node_signature(self, dynprompt, node_id, ancestor_order_mapping):
-        if not dynprompt.has_node(node_id):
+    async def get_immediate_node_signature(self, node_id, ancestor_order_mapping, inputs):
+        if not self.dynprompt.has_node(node_id):
             # This node doesn't exist -- we can't cache it.
             return [float("NaN")]
-        node = dynprompt.get_node(node_id)
+        node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-        signature = [class_type, await self.is_changed_cache.get(node_id)]
-        if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
-            signature.append(node_id)
-        inputs = node["inputs"]
+        signature = [class_type, await self.is_changed.get(node_id)]
         for key in sorted(inputs.keys()):
             if is_link(inputs[key]):
                 (ancestor_id, ancestor_socket) = inputs[key]
@@ -123,28 +154,69 @@ class CacheKeySetInputSignature(CacheKeySet):
                 signature.append((key,("ANCESTOR", ancestor_index, ancestor_socket)))
             else:
                 signature.append((key, inputs[key]))
+        if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
+            signature.append(node_id)
         return signature
+    
+    def get_ordered_ancestry(self, node_id):
+        def get_ancestors(ancestors, ret: list=[]):
+            for ancestor_id in ancestors:
+                if ancestor_id not in ret:
+                    ret.append(ancestor_id)
+                ancestor_node = self.dynprompt.get_node(ancestor_id)
+                get_ancestors(ancestor_node["ancestors"], ret)
+            return ret
+        
+        ancestors, node_inputs = self.get_ordered_ancestry_internal(node_id)
+        ancestors = get_ancestors(ancestors)
 
-    # This function returns a list of all ancestors of the given node. The order of the list is
-    # deterministic based on which specific inputs the ancestor is connected by.
-    def get_ordered_ancestry(self, dynprompt, node_id):
-        ancestors = []
         order_mapping = {}
-        self.get_ordered_ancestry_internal(dynprompt, node_id, ancestors, order_mapping)
-        return ancestors, order_mapping
+        for i, ancestor_id in enumerate(ancestors):
+            order_mapping[ancestor_id] = i
+        
+        return ancestors, order_mapping, node_inputs
 
-    def get_ordered_ancestry_internal(self, dynprompt, node_id, ancestors, order_mapping):
-        if not dynprompt.has_node(node_id):
-            return
-        inputs = dynprompt.get_node(node_id)["inputs"]
-        input_keys = sorted(inputs.keys())
-        for key in input_keys:
-            if is_link(inputs[key]):
-                ancestor_id = inputs[key][0]
-                if ancestor_id not in order_mapping:
-                    ancestors.append(ancestor_id)
-                    order_mapping[ancestor_id] = len(ancestors) - 1
-                    self.get_ordered_ancestry_internal(dynprompt, ancestor_id, ancestors, order_mapping)
+    def get_ordered_ancestry_internal(self, node_id):
+        def get_hashable(obj):
+            try:
+                return throw_on_unhashable(obj)
+            except:
+                return Unhashable
+        
+        ancestors = []
+        node_inputs = {}
+
+        if not self.dynprompt.has_node(node_id):
+            return ancestors, node_inputs
+        
+        node = self.dynprompt.get_node(node_id)
+        if "ancestors" in node:
+            return node["ancestors"], node_inputs
+        
+        input_data_all, _, _ = self.is_changed.get_input_data(node_id)
+        inputs = self.dynprompt.get_node(node_id)["inputs"]
+        for key in sorted(inputs.keys()):
+            if key in input_data_all:
+                if is_link(inputs[key]):
+                    ancestor_id = inputs[key][0]
+                    hashable = get_hashable(input_data_all[key])
+                    if hashable is Unhashable or (input_data_all[key] and is_link(input_data_all[key][0])):
+                        # Link still needed
+                        node_inputs[key] = inputs[key]
+                        if ancestor_id not in ancestors:
+                            ancestors.append(ancestor_id)
+                    else:
+                        # Replace link
+                        node_inputs[key] = input_data_all[key]
+                else:
+                    hashable = get_hashable(inputs[key])
+                    if hashable is Unhashable:
+                        node_inputs[key] = Unhashable()
+                    else:
+                        node_inputs[key] = [inputs[key]]
+        
+        node["ancestors"] = ancestors
+        return node["ancestors"], node_inputs
 
 class BasicCache:
     def __init__(self, key_class):
@@ -155,11 +227,11 @@ class BasicCache:
         self.cache = {}
         self.subcaches = {}
 
-    async def set_prompt(self, dynprompt, node_ids, is_changed_cache):
+    async def set_prompt(self, dynprompt, node_ids, is_changed):
         self.dynprompt = dynprompt
-        self.cache_key_set = self.key_class(dynprompt, node_ids, is_changed_cache)
+        self.cache_key_set = self.key_class(dynprompt, node_ids, is_changed)
         await self.cache_key_set.add_keys(node_ids)
-        self.is_changed_cache = is_changed_cache
+        self.is_changed = is_changed
         self.initialized = True
 
     def all_node_ids(self):
@@ -185,6 +257,8 @@ class BasicCache:
         for key in self.subcaches:
             if key not in preserve_subcaches:
                 to_remove.append(key)
+            else:
+                self.subcaches[key].clean_unused()
         for key in to_remove:
             del self.subcaches[key]
 
@@ -196,16 +270,23 @@ class BasicCache:
     def poll(self, **kwargs):
         pass
 
+    async def _update_cache_key_immediate(self, node_id):
+        await self.cache_key_set.update_cache_key(node_id)
+    
+    def _is_key_updated_immediate(self, node_id):
+        return self.cache_key_set.is_key_updated(node_id)
+
     def _set_immediate(self, node_id, value):
         assert self.initialized
         cache_key = self.cache_key_set.get_data_key(node_id)
-        self.cache[cache_key] = value
+        if cache_key is not None:
+            self.cache[cache_key] = value
 
     def _get_immediate(self, node_id):
         if not self.initialized:
             return None
         cache_key = self.cache_key_set.get_data_key(node_id)
-        if cache_key in self.cache:
+        if cache_key is not None and cache_key in self.cache:
             return self.cache[cache_key]
         else:
             return None
@@ -216,7 +297,7 @@ class BasicCache:
         if subcache is None:
             subcache = BasicCache(self.key_class)
             self.subcaches[subcache_key] = subcache
-        await subcache.set_prompt(self.dynprompt, children_ids, self.is_changed_cache)
+        await subcache.set_prompt(self.dynprompt, children_ids, self.is_changed)
         return subcache
 
     def _get_subcache(self, node_id):
@@ -272,10 +353,20 @@ class HierarchicalCache(BasicCache):
         cache = self._get_cache_for(node_id)
         assert cache is not None
         return await cache._ensure_subcache(node_id, children_ids)
+    
+    async def update_cache_key(self, node_id):
+        cache = self._get_cache_for(node_id)
+        assert cache is not None
+        await cache._update_cache_key_immediate(node_id)
+        
+    def is_key_updated(self, node_id):
+        cache = self._get_cache_for(node_id)
+        assert cache is not None
+        return cache._is_key_updated_immediate(node_id)
 
 class NullCache:
 
-    async def set_prompt(self, dynprompt, node_ids, is_changed_cache):
+    async def set_prompt(self, dynprompt, node_ids, is_changed):
         pass
 
     def all_node_ids(self):
@@ -295,6 +386,12 @@ class NullCache:
 
     async def ensure_subcache_for(self, node_id, children_ids):
         return self
+    
+    async def update_cache_key(self, node_id):
+        pass
+        
+    def is_key_updated(self, node_id):
+        return True
 
 class LRUCache(BasicCache):
     def __init__(self, key_class, max_size=100):
@@ -305,8 +402,8 @@ class LRUCache(BasicCache):
         self.used_generation = {}
         self.children = {}
 
-    async def set_prompt(self, dynprompt, node_ids, is_changed_cache):
-        await super().set_prompt(dynprompt, node_ids, is_changed_cache)
+    async def set_prompt(self, dynprompt, node_ids, is_changed):
+        await super().set_prompt(dynprompt, node_ids, is_changed)
         self.generation += 1
         for node_id in node_ids:
             self._mark_used(node_id)
@@ -314,7 +411,7 @@ class LRUCache(BasicCache):
     def clean_unused(self):
         while len(self.cache) > self.max_size and self.min_generation < self.generation:
             self.min_generation += 1
-            to_remove = [key for key in self.cache if self.used_generation[key] < self.min_generation]
+            to_remove = [key for key in self.cache if key not in self.used_generation or self.used_generation[key] < self.min_generation]
             for key in to_remove:
                 del self.cache[key]
                 del self.used_generation[key]
@@ -347,6 +444,14 @@ class LRUCache(BasicCache):
             self._mark_used(child_id)
             self.children[cache_key].append(self.cache_key_set.get_data_key(child_id))
         return self
+    
+    async def update_cache_key(self, node_id):
+        await self._update_cache_key_immediate(node_id)
+        self._mark_used(node_id)
+        
+    def is_key_updated(self, node_id):
+        self._mark_used(node_id)
+        return self._is_key_updated_immediate(node_id)
 
 
 #Iterating the cache for usage analysis might be expensive, so if we trigger make sure

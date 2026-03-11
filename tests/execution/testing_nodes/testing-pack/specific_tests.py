@@ -100,7 +100,7 @@ class TestCustomIsChanged:
         else:
             return False
 
-class TestIsChangedWithConstants:
+class TestIsChangedWithAllInputs:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -120,10 +120,29 @@ class TestIsChangedWithConstants:
 
     @classmethod
     def IS_CHANGED(cls, image, value):
-        if image is None:
-            return value
-        else:
-            return image.mean().item() * value
+        # if image is None then an exception is thrown and is_changed becomes float("NaN")
+        return image.mean().item() * value
+    
+class TestDontAlwaysRunDownstream:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "float": ("FLOAT",),
+            },
+        }
+    
+    RETURN_TYPES = ("FLOAT",)
+    FUNCTION = "always_run"
+
+    CATEGORY = "Testing/Nodes"
+
+    def always_run(self, float):
+        return (float,)
+    
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return float("NaN")
 
 class TestCustomValidation1:
     @classmethod
@@ -486,7 +505,8 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
     "TestCustomIsChanged": TestCustomIsChanged,
-    "TestIsChangedWithConstants": TestIsChangedWithConstants,
+    "TestIsChangedWithAllInputs": TestIsChangedWithAllInputs,
+    "TestDontAlwaysRunDownstream": TestDontAlwaysRunDownstream,
     "TestCustomValidation1": TestCustomValidation1,
     "TestCustomValidation2": TestCustomValidation2,
     "TestCustomValidation3": TestCustomValidation3,
@@ -504,7 +524,8 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestLazyMixImages": "Lazy Mix Images",
     "TestVariadicAverage": "Variadic Average",
     "TestCustomIsChanged": "Custom IsChanged",
-    "TestIsChangedWithConstants": "IsChanged With Constants",
+    "TestIsChangedWithAllInputs": "IsChanged With All Inputs",
+    "TestDontAlwaysRunDownstream": "Dont Always Run Downstream",
     "TestCustomValidation1": "Custom Validation 1",
     "TestCustomValidation2": "Custom Validation 2",
     "TestCustomValidation3": "Custom Validation 3",

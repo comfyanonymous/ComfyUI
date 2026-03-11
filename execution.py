@@ -50,49 +50,40 @@ class ExecutionResult(Enum):
 class DuplicateNodeError(Exception):
     pass
 
-class IsChangedCache:
-    def __init__(self, prompt_id: str, dynprompt: DynamicPrompt, outputs_cache: BasicCache):
+class IsChanged:
+    def __init__(self, prompt_id: str, dynprompt: DynamicPrompt, execution_list: ExecutionList|None=None, extra_data: dict={}):
         self.prompt_id = prompt_id
         self.dynprompt = dynprompt
-        self.outputs_cache = outputs_cache
-        self.is_changed = {}
+        self.execution_list = execution_list
+        self.extra_data = extra_data
 
-    async def get(self, node_id):
-        if node_id in self.is_changed:
-            return self.is_changed[node_id]
-
+    def get_input_data(self, node_id):
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-        has_is_changed = False
+        return get_input_data(node["inputs"], class_def, node_id, self.execution_list, self.dynprompt, self.extra_data)
+
+    async def get(self, node_id):
+        node = self.dynprompt.get_node(node_id)
+        class_type = node["class_type"]
+        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         is_changed_name = None
         if issubclass(class_def, _ComfyNodeInternal) and first_real_override(class_def, "fingerprint_inputs") is not None:
-            has_is_changed = True
             is_changed_name = "fingerprint_inputs"
         elif hasattr(class_def, "IS_CHANGED"):
-            has_is_changed = True
             is_changed_name = "IS_CHANGED"
-        if not has_is_changed:
-            self.is_changed[node_id] = False
-            return self.is_changed[node_id]
+        if is_changed_name is None:
+            return False
 
-        if "is_changed" in node:
-            self.is_changed[node_id] = node["is_changed"]
-            return self.is_changed[node_id]
-
-        # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
-        input_data_all, _, v3_data = get_input_data(node["inputs"], class_def, node_id, None)
+        input_data_all, _, v3_data = self.get_input_data(node_id)
         try:
             is_changed = await _async_map_node_over_list(self.prompt_id, node_id, class_def, input_data_all, is_changed_name, v3_data=v3_data)
             is_changed = await resolve_map_node_over_list_results(is_changed)
-            node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
+            is_changed = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
             logging.warning("WARNING: {}".format(e))
-            node["is_changed"] = float("NaN")
-        finally:
-            self.is_changed[node_id] = node["is_changed"]
-        return self.is_changed[node_id]
-
+            is_changed = float("NaN")
+        return is_changed
 
 class CacheEntry(NamedTuple):
     ui: dict
@@ -418,16 +409,19 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-    cached = caches.outputs.get(unique_id)
-    if cached is not None:
-        if server.client_id is not None:
-            cached_ui = cached.ui or {}
-            server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_ui.get("output",None), "prompt_id": prompt_id }, server.client_id)
-            if cached.ui is not None:
-                ui_outputs[unique_id] = cached.ui
-        get_progress_state().finish_progress(unique_id)
-        execution_list.cache_update(unique_id, cached)
-        return (ExecutionResult.SUCCESS, None, None)
+    if caches.outputs.is_key_updated(unique_id):
+        # Key is updated, the cache can be checked.
+        cached = caches.outputs.get(unique_id)
+        if cached is not None:
+            if server.client_id is not None:
+                cached_ui = cached.ui or {}
+                server.send_sync("execution_cached", { "nodes": [unique_id], "prompt_id": prompt_id}, server.client_id)
+                server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_ui.get("output",None), "prompt_id": prompt_id }, server.client_id)
+                if cached.ui is not None:
+                    ui_outputs[unique_id] = cached.ui
+            get_progress_state().finish_progress(unique_id)
+            execution_list.cache_update(unique_id, cached)
+            return (ExecutionResult.SUCCESS, None, None)
 
     input_data_all = None
     try:
@@ -468,11 +462,14 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             del pending_subgraph_results[unique_id]
             has_subgraph = False
         else:
-            get_progress_state().start_progress(unique_id)
+            if caches.outputs.is_key_updated(unique_id):
+                # The key is updated, the node is executing.
+                get_progress_state().start_progress(unique_id)
+                if server.client_id is not None:
+                    server.last_node_id = display_node_id
+                    server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
+
             input_data_all, missing_keys, v3_data = get_input_data(inputs, class_def, unique_id, execution_list, dynprompt, extra_data)
-            if server.client_id is not None:
-                server.last_node_id = display_node_id
-                server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
 
             obj = caches.objects.get(unique_id)
             if obj is None:
@@ -497,6 +494,14 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
                     return (ExecutionResult.PENDING, None, None)
+
+            if not caches.outputs.is_key_updated(unique_id):
+                # Update the cache key after any lazy inputs are evaluated.
+                async def update_cache_key(node_id, unblock):
+                    await caches.outputs.update_cache_key(node_id)
+                    unblock()
+                asyncio.create_task(update_cache_key(unique_id, execution_list.add_external_block(unique_id)))
+                return (ExecutionResult.PENDING, None, None)
 
             def execution_block_cb(block):
                 if block.message is not None:
@@ -576,8 +581,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     cached_outputs.append((True, node_outputs))
             new_node_ids = set(new_node_ids)
             for cache in caches.all:
-                subcache = await cache.ensure_subcache_for(unique_id, new_node_ids)
-                subcache.clean_unused()
+                await cache.ensure_subcache_for(unique_id, new_node_ids)
             for node_id in new_output_ids:
                 execution_list.add_node(node_id)
                 execution_list.cache_link(node_id, unique_id)
@@ -704,25 +708,16 @@ class PromptExecutor:
             dynamic_prompt = DynamicPrompt(prompt)
             reset_progress_state(prompt_id, dynamic_prompt)
             add_progress_handler(WebUIProgressHandler(self.server))
-            is_changed_cache = IsChangedCache(prompt_id, dynamic_prompt, self.caches.outputs)
+            execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
+            is_changed = IsChanged(prompt_id, dynamic_prompt, execution_list, extra_data)
             for cache in self.caches.all:
-                await cache.set_prompt(dynamic_prompt, prompt.keys(), is_changed_cache)
-                cache.clean_unused()
-
-            cached_nodes = []
-            for node_id in prompt:
-                if self.caches.outputs.get(node_id) is not None:
-                    cached_nodes.append(node_id)
+                await cache.set_prompt(dynamic_prompt, prompt.keys(), is_changed)
 
             comfy.model_management.cleanup_models_gc()
-            self.add_message("execution_cached",
-                          { "nodes": cached_nodes, "prompt_id": prompt_id},
-                          broadcast=False)
             pending_subgraph_results = {}
             pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
             ui_node_outputs = {}
             executed = set()
-            execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
             current_outputs = self.caches.outputs.all_node_ids()
             for node_id in list(execute_outputs):
                 execution_list.add_node(node_id)
@@ -760,7 +755,9 @@ class PromptExecutor:
             self.server.last_node_id = None
             if comfy.model_management.DISABLE_SMART_MEMORY:
                 comfy.model_management.unload_all_models()
-
+            
+            for cache in self.caches.all:
+                cache.clean_unused()
 
 async def validate_inputs(prompt_id, prompt, item, validated):
     unique_id = item
