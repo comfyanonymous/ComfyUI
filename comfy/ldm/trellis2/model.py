@@ -810,6 +810,10 @@ class Trellis2(nn.Module):
         elif mode == "texture_generation":
             if self.shape2txt is None:
                 raise ValueError("Checkpoint for Trellis2 doesn't include texture generation!")
+            slat = transformer_options.get("shape_slat")
+            if slat is None:
+                raise ValueError("shape_slat can't be None")
+            x = sparse_cat([x, slat])
             out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
             #timestep = timestep_reshift(timestep)
