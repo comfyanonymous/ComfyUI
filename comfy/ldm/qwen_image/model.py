@@ -170,6 +170,12 @@ class Attention(nn.Module):
         joint_key = torch.cat([txt_key, img_key], dim=2)
         joint_value = torch.cat([txt_value, img_value], dim=2)
 
+        if encoder_hidden_states_mask is not None:
+            attn_mask = torch.zeros((batch_size, 1, seq_txt + seq_img), dtype=hidden_states.dtype, device=hidden_states.device)
+            attn_mask[:, 0, :seq_txt] = encoder_hidden_states_mask
+        else:
+            attn_mask = None
+
         extra_options["img_slice"] = [txt_query.shape[2], joint_query.shape[2]]
         if "attn1_patch" in transformer_patches:
             patch = transformer_patches["attn1_patch"]
@@ -179,12 +185,6 @@ class Attention(nn.Module):
 
         joint_query = apply_rope1(joint_query, image_rotary_emb)
         joint_key = apply_rope1(joint_key, image_rotary_emb)
-
-        if encoder_hidden_states_mask is not None:
-            attn_mask = torch.zeros((batch_size, 1, seq_txt + seq_img), dtype=hidden_states.dtype, device=hidden_states.device)
-            attn_mask[:, 0, :seq_txt] = encoder_hidden_states_mask
-        else:
-            attn_mask = None
 
         joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads,
                                                          attn_mask, transformer_options=transformer_options,
