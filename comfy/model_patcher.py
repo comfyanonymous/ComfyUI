@@ -1063,6 +1063,10 @@ class ModelPatcher:
 
             return self.model.model_loaded_weight_memory - current_used
 
+    def pinned_memory_size(self):
+        # Pinned memory pressure tracking is only implemented for DynamicVram loading
+        return 0
+
     def partially_unload_ram(self, ram_to_unload):
         pass
 
@@ -1652,6 +1656,16 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.model_loaded_weight_memory = 0
 
         return freed
+
+    def pinned_memory_size(self):
+        total = 0
+        loading = self._load_list(for_dynamic=True)
+        for x in loading:
+            _, _, _, _, m, _ = x
+            pin = comfy.pinned_memory.get_pin(m)
+            if pin is not None:
+                total += pin.numel() * pin.element_size()
+        return total
 
     def partially_unload_ram(self, ram_to_unload):
         loading = self._load_list(for_dynamic=True, default_device=self.offload_device)
