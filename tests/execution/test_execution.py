@@ -522,6 +522,38 @@ class TestExecution:
         for i in range(3):
             assert numpy.array(images_literal[i]).min() == 255 and numpy.array(images_literal[i]).max() == 255, "All images should be white"
 
+    # Tests functionality of defining OUTPUT_IS_LIST for expanding nodes.
+    def test_output_is_list_expansion_results(self, client: ComfyClient, builder: GraphBuilder):
+        def assert_image_values(images):
+            if len(images) >= 1:
+                assert numpy.array(images[0]).min() == 25 and numpy.array(images[0]).max() == 25, "First image should be 0.1"
+            if len(images) >= 2:
+                assert numpy.array(images[1]).min() == 51 and numpy.array(images[1]).max() == 51, "Second image should be 0.2"
+            if len(images) >= 3:
+                assert numpy.array(images[2]).min() == 76 and numpy.array(images[2]).max() == 76, "Third image should be 0.3"
+            if len(images) >= 4:
+                assert numpy.array(images[3]).min() == 102 and numpy.array(images[3]).max() == 102, "Fourth image should be 0.4"
+
+        def assert_constant_image(images):
+            assert len(images) == 1, "Should have 1 image"
+            assert numpy.array(images[0]).min() == 255 and numpy.array(images[0]).max() == 255, "Image should be white"
+
+        g = builder
+        list_out = g.node("TestListExpansionResult")
+        output = g.node("SaveImage", images=list_out.out(0))
+        output_constant = g.node("SaveImage", images=list_out.out(1))
+
+        # Run and check results for each new value added as input
+        for i in range(1, 5):
+            # value1 = 0.1, value2 = 0.2, etc.
+            list_out.set_input(f"value{i}", 0.1 * i)
+            result = client.run(g)
+            images = result.get_images(output)
+            assert len(images) == i, f"Should have {i} image(s)"
+            assert_image_values(images)
+            images_constant = result.get_images(output_constant)
+            assert_constant_image(images_constant)
+
     def test_mixed_lazy_results(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         val_list = g.node("TestMakeListNode", value1=0.0, value2=0.5, value3=1.0)
