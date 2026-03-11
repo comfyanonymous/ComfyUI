@@ -1,4 +1,4 @@
-comfyui-frontend-package==1.40.11
+comfyui-frontend-package==1.41.15
 comfyui-workflow-templates==0.9.18
 comfyui-embedded-docs==0.4.3
 torch
