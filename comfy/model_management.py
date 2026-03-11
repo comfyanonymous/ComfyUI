@@ -505,6 +505,28 @@ def module_size(module):
         module_mem += t.nbytes
     return module_mem
 
+def module_mmap_residency(module, free=False):
+    mmap_touched_mem = 0
+    module_mem = 0
+    bounced_mmaps = set()
+    sd = module.state_dict()
+    for k in sd:
+        t = sd[k]
+        module_mem += t.nbytes
+        storage = t.untyped_storage()
+        if not getattr(storage, "_comfy_tensor_mmap_touched", False):
+            continue
+        mmap_touched_mem += t.nbytes
+        if not free:
+            continue
+        storage._comfy_tensor_mmap_touched = False
+        mmap_obj = storage._comfy_tensor_mmap_refs[0]
+        if mmap_obj in bounced_mmaps:
+            continue
+        mmap_obj.bounce()
+        bounced_mmaps.add(mmap_obj)
+    return mmap_touched_mem, module_mem
+
 class LoadedModel:
     def __init__(self, model):
         self._set_model(model)
@@ -531,6 +553,9 @@ class LoadedModel:
 
     def model_memory(self):
         return self.model.model_size()
+
+    def model_mmap_residency(self, free=False):
+        return self.model.model_mmap_residency(free=free)
 
     def model_loaded_memory(self):
         return self.model.loaded_size()
@@ -633,7 +658,7 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
-def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_required=0):
+def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins_required=0, ram_required=0):
     cleanup_models_gc()
     unloaded_model = []
     can_unload = []
