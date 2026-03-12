@@ -38,6 +38,9 @@ except ImportError as e:
     class _CKNvfp4Layout:
         pass
 
+    class _CKMxfp8Layout:
+        pass
+
     def register_layout_class(name, cls):
         pass
 
@@ -138,7 +141,8 @@ register_layout_class("TensorCoreFP8Layout", TensorCoreFP8Layout)
 register_layout_class("TensorCoreFP8E4M3Layout", TensorCoreFP8E4M3Layout)
 register_layout_class("TensorCoreFP8E5M2Layout", TensorCoreFP8E5M2Layout)
 register_layout_class("TensorCoreNVFP4Layout", TensorCoreNVFP4Layout)
-register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
+if _CK_AVAILABLE:
+    register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
 
 QUANT_ALGOS = {
     "float8_e4m3fn": {
