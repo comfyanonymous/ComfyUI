@@ -38,7 +38,7 @@ except ImportError as e:
     class _CKNvfp4Layout:
         pass
 
-    class _CKMxfp8Layout:
+    class TensorCoreMXFP8Layout:
         pass
 
     def register_layout_class(name, cls):
