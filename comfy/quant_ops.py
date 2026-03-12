@@ -181,7 +181,6 @@ __all__ = [
     "TensorCoreFP8E4M3Layout",
     "TensorCoreFP8E5M2Layout",
     "TensorCoreNVFP4Layout",
-    "TensorCoreMXFP8Layout",
     "QUANT_ALGOS",
     "register_layout_op",
 ]
