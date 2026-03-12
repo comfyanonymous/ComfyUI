@@ -248,7 +248,7 @@ class KV_Attn_Input:
             self.set_cache = False
             return {"q": q, "k": torch.cat((k, kk), dim=2), "v": torch.cat((v, vv), dim=2)}
 
-        self.cache[cache_key] = (k[:, :, -ref_toks:], v[:, :, -ref_toks:])
+        self.cache[cache_key] = (k[:, :, -ref_toks:].clone(), v[:, :, -ref_toks:].clone())
         self.set_cache = True
         return {"q": q, "k": k, "v": v}
 
