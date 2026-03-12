@@ -8,7 +8,7 @@ try:
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
-        TensorCoreMXFP8Layout,
+        TensorCoreMXFP8Layout as _CKMxfp8Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
@@ -38,7 +38,7 @@ except ImportError as e:
     class _CKNvfp4Layout:
         pass
 
-    class TensorCoreMXFP8Layout:
+    class _CKMxfp8Layout:
         pass
 
     def register_layout_class(name, cls):
@@ -85,6 +85,31 @@ class _TensorCoreFP8LayoutBase(_CKFp8Layout):
             qdata = ck.quantize_per_tensor_fp8(tensor, scale, cls.FP8_DTYPE)
 
         params = cls.Params(scale=scale.float(), orig_dtype=orig_dtype, orig_shape=orig_shape)
+        return qdata, params
+
+
+class TensorCoreMXFP8Layout(_CKMxfp8Layout):
+    @classmethod
+    def quantize(cls, tensor, scale=None, stochastic_rounding=0, inplace_ops=False):
+        if tensor.dim() != 2:
+            raise ValueError(f"MXFP8 requires 2D tensor, got {tensor.dim()}D")
+
+        orig_dtype = tensor.dtype
+        orig_shape = tuple(tensor.shape)
+
+        padded_shape = cls.get_padded_shape(orig_shape)
+        needs_padding = padded_shape != orig_shape
+
+        if stochastic_rounding > 0:
+            qdata, block_scale = comfy.float.stochastic_round_quantize_mxfp8_by_block(tensor, pad_32x=needs_padding, seed=stochastic_rounding)
+        else:
+            qdata, block_scale = ck.quantize_mxfp8(tensor, pad_32x=needs_padding)
+
+        params = cls.Params(
+            scale=block_scale,
+            orig_dtype=orig_dtype,
+            orig_shape=orig_shape,
+        )
         return qdata, params
 
 
