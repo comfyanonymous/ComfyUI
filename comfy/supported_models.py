@@ -17,7 +17,6 @@ import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
-import comfy.text_encoders.helios
 import comfy.text_encoders.ace
 import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
@@ -1143,7 +1142,7 @@ class Helios(supported_models_base.BASE):
     }
 
     unet_extra_config = {}
-    latent_format = latent_formats.Helios
+    latent_format = latent_formats.Wan21
     memory_usage_factor = 1.8
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
@@ -1159,8 +1158,15 @@ class Helios(supported_models_base.BASE):
 
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
-        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}umt5xxl.transformer.".format(pref))
-        return supported_models_base.ClipTarget(comfy.text_encoders.helios.HeliosT5Tokenizer, comfy.text_encoders.helios.te(**t5_detect))
+        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(
+            state_dict,
+            "{}umt5xxl.transformer.".format(pref),
+        )
+        # Directly reuse WAN text encoder stack; no Helios-specific TE.
+        return supported_models_base.ClipTarget(
+            comfy.text_encoders.wan.WanT5Tokenizer,
+            comfy.text_encoders.wan.te(**t5_detect),
+        )
 
 class WAN21_T2V(supported_models_base.BASE):
     unet_config = {

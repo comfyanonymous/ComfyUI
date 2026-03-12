@@ -42,7 +42,7 @@ def _parse_int_list(values, default):
     return out if len(out) > 0 else default
 
 
-_HELIOS_LATENT_FORMAT = comfy.latent_formats.Helios()
+_HELIOS_LATENT_FORMAT = comfy.latent_formats.Wan21()
 
 
 def _apply_helios_latent_space_noise(latent, sigma, generator=None):
