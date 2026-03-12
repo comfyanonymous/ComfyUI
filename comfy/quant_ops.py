@@ -8,6 +8,7 @@ try:
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
+        TensorCoreMXFP8Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
@@ -137,6 +138,7 @@ register_layout_class("TensorCoreFP8Layout", TensorCoreFP8Layout)
 register_layout_class("TensorCoreFP8E4M3Layout", TensorCoreFP8E4M3Layout)
 register_layout_class("TensorCoreFP8E5M2Layout", TensorCoreFP8E5M2Layout)
 register_layout_class("TensorCoreNVFP4Layout", TensorCoreNVFP4Layout)
+register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
 
 QUANT_ALGOS = {
     "float8_e4m3fn": {
@@ -155,6 +157,12 @@ QUANT_ALGOS = {
         "comfy_tensor_layout": "TensorCoreNVFP4Layout",
         "group_size": 16,
     },
+    "mxfp8": {
+        "storage_t": torch.float8_e4m3fn,
+        "parameters": {"weight_scale", "input_scale"},
+        "comfy_tensor_layout": "TensorCoreMXFP8Layout",
+        "group_size": 32,
+    },
 }
 
 
@@ -169,6 +177,7 @@ __all__ = [
     "TensorCoreFP8E4M3Layout",
     "TensorCoreFP8E5M2Layout",
     "TensorCoreNVFP4Layout",
+    "TensorCoreMXFP8Layout",
     "QUANT_ALGOS",
     "register_layout_op",
 ]
