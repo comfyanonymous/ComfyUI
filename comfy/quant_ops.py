@@ -8,7 +8,6 @@ try:
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
-        TensorCoreMXFP8Layout as _CKMxfp8Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
@@ -38,14 +37,23 @@ except ImportError as e:
     class _CKNvfp4Layout:
         pass
 
-    class _CKMxfp8Layout:
-        pass
-
     def register_layout_class(name, cls):
         pass
 
     def get_layout_class(name):
         return None
+
+_CK_MXFP8_AVAILABLE = False
+if _CK_AVAILABLE:
+    try:
+        from comfy_kitchen.tensor import TensorCoreMXFP8Layout as _CKMxfp8Layout
+        _CK_MXFP8_AVAILABLE = True
+    except ImportError:
+        logging.warning("comfy_kitchen does not support MXFP8, please update comfy_kitchen.")
+
+if not _CK_MXFP8_AVAILABLE:
+    class _CKMxfp8Layout:
+        pass
 
 import comfy.float
 
@@ -166,7 +174,7 @@ register_layout_class("TensorCoreFP8Layout", TensorCoreFP8Layout)
 register_layout_class("TensorCoreFP8E4M3Layout", TensorCoreFP8E4M3Layout)
 register_layout_class("TensorCoreFP8E5M2Layout", TensorCoreFP8E5M2Layout)
 register_layout_class("TensorCoreNVFP4Layout", TensorCoreNVFP4Layout)
-if _CK_AVAILABLE:
+if _CK_MXFP8_AVAILABLE:
     register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
 
 QUANT_ALGOS = {
@@ -186,13 +194,15 @@ QUANT_ALGOS = {
         "comfy_tensor_layout": "TensorCoreNVFP4Layout",
         "group_size": 16,
     },
-    "mxfp8": {
+}
+
+if _CK_MXFP8_AVAILABLE:
+    QUANT_ALGOS["mxfp8"] = {
         "storage_t": torch.float8_e4m3fn,
         "parameters": {"weight_scale", "input_scale"},
         "comfy_tensor_layout": "TensorCoreMXFP8Layout",
         "group_size": 32,
-    },
-}
+    }
 
 
 # ==============================================================================
