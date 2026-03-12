@@ -1338,8 +1338,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.tokenizer = comfy.text_encoders.wan.WanT5Tokenizer
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
             elif clip_type == CLIPType.HELIOS:
-                clip_target.clip = comfy.text_encoders.helios.te(**t5xxl_detect(clip_data))
-                clip_target.tokenizer = comfy.text_encoders.helios.HeliosT5Tokenizer
+                # Helios reuses the WAN UMT5-XXL text encoder stack.
+                clip_target.clip = comfy.text_encoders.wan.te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.wan.WanT5Tokenizer
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
             elif clip_type == CLIPType.HIDREAM:
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data),
