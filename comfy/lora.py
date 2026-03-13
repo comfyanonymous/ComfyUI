@@ -99,6 +99,9 @@ def model_lora_keys_clip(model, key_map={}):
     for k in sdk:
         if k.endswith(".weight"):
             key_map["text_encoders.{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
+            tp = k.find(".transformer.") #also map without wrapper prefix for composite text encoder models
+            if tp > 0 and not k.startswith("clip_"):
+                key_map["text_encoders.{}".format(k[tp + 1:-len(".weight")])] = k
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
