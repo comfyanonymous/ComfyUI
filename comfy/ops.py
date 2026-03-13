@@ -578,7 +578,12 @@ class disable_weight_init:
             self.norm_type = norm_type
             self.scale_grad_by_freq = scale_grad_by_freq
             self.sparse = sparse
-            self.weight = None
+            # Keep shape/dtype visible for module introspection without reserving storage.
+            embedding_dtype = dtype if dtype is not None else torch.get_default_dtype()
+            self.weight = torch.nn.Parameter(
+                torch.empty((num_embeddings, embedding_dim), device="meta", dtype=embedding_dtype),
+                requires_grad=False,
+            )
             self.bias = None
             self.weight_comfy_model_dtype = dtype
 
