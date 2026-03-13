@@ -2,6 +2,7 @@ import comfy.options
 comfy.options.enable_args_parsing()
 
 import os
+import socket
 import importlib.util
 import shutil
 import importlib.metadata
@@ -415,6 +416,32 @@ def start_comfyui(asyncio_loop=None):
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
+    
+    # Check if server port is available before loading custom nodes
+    server_host = args.listen if args.listen else "0.0.0.0"
+    server_port = args.port if args.port else 8188
+    
+    # Check port availability
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(1)
+            result = sock.connect_ex((server_host, server_port))
+            if result == 0:
+                logging.error(f"\n{'='*60}")
+                logging.error(f"PORT CONFLICT DETECTED")
+                logging.error(f"{'='*60}")
+                logging.error(f"Port {server_port} on {server_host} is already in use.")
+                logging.error(f"Please either:")
+                logging.error(f"  1. Stop the other process using port {server_port}")
+                logging.error(f"  2. Start ComfyUI on a different port using: --port <PORT>")
+                logging.error(f"{'='*60}\n")
+                sys.exit(1)
+            else:
+                logging.info(f"Port {server_port} is available.")
+    except socket.error as e:
+        logging.error(f"Error checking port {server_port}: {e}")
+        sys.exit(1)
+    
     prompt_server = server.PromptServer(asyncio_loop)
 
     if args.enable_manager and not args.disable_manager_ui:

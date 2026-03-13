@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/comfyanonymous/ComfyUI/schemas/prompt.json",
+  "title": "ComfyUI Prompt API Format",
+  "description": "JSON Schema for ComfyUI /prompt API endpoint",
+  "type": "object",
+  "required": ["prompt"],
+  "properties": {
+    "prompt": {
+      "type": "object",
+      "description": "The prompt structure containing nodes",
+      "additionalProperties": {
+        "$ref": "#/definitions/node"
+      }
+    },
+    "extra_data": {
+      "type": "object",
+      "description": "Optional extra data for the prompt execution"
+    },
+    "client_id": {
+      "type": "string",
+      "description": "Optional client identifier"
+    }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["class_type", "inputs"],
+      "properties": {
+        "class_type": {
+          "type": "string",
+          "description": "The node class type (e.g., KSampler, CLIPTextEncode, etc.)"
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Input parameters for the node",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "description": "Direct value (string, number, boolean, array, object)"
+              },
+              {
+                "$ref": "#/definitions/nodeLink"
+              }
+            ]
+          }
+        },
+        "_meta": {
+          "type": "object",
+          "description": "Optional metadata for the node"
+        }
+      },
+      "additionalProperties": false
+    },
+    "nodeLink": {
+      "type": "array",
+      "description": "Reference to another node's output",
+      "items": [
+        {
+          "type": "string",
+          "description": "The node_id of the source node"
+        },
+        {
+          "type": "integer",
+          "description": "The output index (0 for first output)"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  },
+  "examples": [
+    {
+      "prompt": {
+        "3": {
+          "class_type": "KSampler",
+          "inputs": {
+            "seed": 123456789,
+            "steps": 20,
+            "cfg": 8.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "denoise": 1.0,
+            "model": ["4", 0],
+            "positive": ["6", 0],
+            "negative": ["7", 0],
+            "latent_image": ["5", 0]
+          }
+        },
+        "4": {
+          "class_type": "CheckpointLoaderSimple",
+          "inputs": {
+            "ckpt_name": "model.safetensors"
+          }
+        },
+        "6": {
+          "class_type": "CLIPTextEncode",
+          "inputs": {
+            "text": "beautiful scenery nature glass bottle landscape, purple galaxy bottle",
+            "clip": ["4", 1]
+          }
+        },
+        "7": {
+          "class_type": "CLIPTextEncode",
+          "inputs": {
+            "text": "text, watermark",
+            "clip": ["4", 1]
+          }
+        }
+      }
+    }
+  ]
+}
