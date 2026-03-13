@@ -144,9 +144,9 @@ def apply_mod(tensor, m_mult, m_add=None, modulation_dims=None):
             return tensor * m_mult
     else:
         for d in modulation_dims:
-            tensor[:, d[0]:d[1]] *= m_mult[:, d[2]]
+            tensor[:, d[0]:d[1]] *= m_mult[:, d[2]:d[2] + 1]
             if m_add is not None:
-                tensor[:, d[0]:d[1]] += m_add[:, d[2]]
+                tensor[:, d[0]:d[1]] += m_add[:, d[2]:d[2] + 1]
         return tensor
 
 
