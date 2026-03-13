@@ -299,8 +299,10 @@ class Attention(nn.Module):
         context_mask = None,
         rotary_pos_emb = None,
         causal = None,
-        transformer_options={},
+        transformer_options=None,
     ):
+        if transformer_options is None:
+            transformer_options = {}
         h, kv_h, has_context = self.num_heads, self.kv_heads, context is not None
 
         kv_input = context if has_context else x
@@ -377,9 +379,11 @@ class ConformerModule(nn.Module):
     def __init__(
         self,
         dim,
-        norm_kwargs = {},
+        norm_kwargs = None,
     ):
 
+        if norm_kwargs is None:
+            norm_kwargs = {}
         super().__init__()
 
         self.dim = dim
@@ -422,14 +426,20 @@ class TransformerBlock(nn.Module):
             conformer = False,
             layer_ix = -1,
             remove_norms = False,
-            attn_kwargs = {},
-            ff_kwargs = {},
-            norm_kwargs = {},
+            attn_kwargs = None,
+            ff_kwargs = None,
+            norm_kwargs = None,
             dtype=None,
             device=None,
             operations=None,
     ):
 
+        if attn_kwargs is None:
+            attn_kwargs = {}
+        if ff_kwargs is None:
+            ff_kwargs = {}
+        if norm_kwargs is None:
+            norm_kwargs = {}
         super().__init__()
         self.dim = dim
         self.dim_heads = dim_heads
@@ -490,8 +500,10 @@ class TransformerBlock(nn.Module):
         mask = None,
         context_mask = None,
         rotary_pos_emb = None,
-        transformer_options={}
+        transformer_options=None
     ):
+        if transformer_options is None:
+            transformer_options = {}
         if self.global_cond_dim is not None and self.global_cond_dim > 0 and global_cond is not None:
 
             scale_self, shift_self, gate_self, scale_ff, shift_ff, gate_ff = self.to_scale_shift_gate(global_cond).unsqueeze(1).chunk(6, dim = -1)

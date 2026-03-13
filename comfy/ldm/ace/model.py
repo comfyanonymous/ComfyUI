@@ -76,7 +76,9 @@ class T2IFinalLayer(nn.Module):
     The final layer of Sana.
     """
 
-    def __init__(self, hidden_size, patch_size=[16, 1], out_channels=256, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size, patch_size=None, out_channels=256, dtype=None, device=None, operations=None):
+        if patch_size is None:
+            patch_size = []
         super().__init__()
         self.norm_final = operations.RMSNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
         self.linear = operations.Linear(hidden_size, patch_size[0] * patch_size[1] * out_channels, bias=True, dtype=dtype, device=device)
@@ -160,18 +162,26 @@ class ACEStepTransformer2DModel(nn.Module):
         rope_theta: float = 1000000.0,
         speaker_embedding_dim: int = 512,
         text_embedding_dim: int = 768,
-        ssl_encoder_depths: List[int] = [9, 9],
-        ssl_names: List[str] = ["mert", "m-hubert"],
-        ssl_latent_dims: List[int] = [1024, 768],
+        ssl_encoder_depths: List[int] = None,
+        ssl_names: List[str] = None,
+        ssl_latent_dims: List[int] = None,
         lyric_encoder_vocab_size: int = 6681,
         lyric_hidden_size: int = 1024,
-        patch_size: List[int] = [16, 1],
+        patch_size: List[int] = None,
         max_height: int = 16,
         max_width: int = 4096,
         audio_model=None,
         dtype=None, device=None, operations=None
 
     ):
+        if ssl_encoder_depths is None:
+            ssl_encoder_depths = []
+        if ssl_names is None:
+            ssl_names = []
+        if ssl_latent_dims is None:
+            ssl_latent_dims = []
+        if patch_size is None:
+            patch_size = []
         super().__init__()
 
         self.dtype = dtype
@@ -314,8 +324,10 @@ class ACEStepTransformer2DModel(nn.Module):
         output_length: int = 0,
         block_controlnet_hidden_states: Optional[Union[List[torch.Tensor], torch.Tensor]] = None,
         controlnet_scale: Union[float, torch.Tensor] = 1.0,
-        transformer_options={},
+        transformer_options=None,
     ):
+        if transformer_options is None:
+            transformer_options = {}
         embedded_timestep = self.timestep_embedder(self.time_proj(timestep).to(dtype=hidden_states.dtype))
         temb = self.t_block(embedded_timestep)
 

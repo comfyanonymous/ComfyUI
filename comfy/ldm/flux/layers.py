@@ -189,7 +189,9 @@ class DoubleStreamBlock(nn.Module):
 
         self.txt_mlp = build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=mlp_silu_act, yak_mlp=yak_mlp, dtype=dtype, device=device, operations=operations)
 
-    def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims_img=None, modulation_dims_txt=None, transformer_options={}):
+    def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims_img=None, modulation_dims_txt=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         if self.modulation:
             img_mod1, img_mod2 = self.img_mod(vec)
             txt_mod1, txt_mod2 = self.txt_mod(vec)
@@ -313,7 +315,9 @@ class SingleStreamBlock(nn.Module):
         else:
             self.modulation = None
 
-    def forward(self, x: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims=None, transformer_options={}) -> Tensor:
+    def forward(self, x: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims=None, transformer_options=None) -> Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         if self.modulation:
             mod, _ = self.modulation(vec)
         else:

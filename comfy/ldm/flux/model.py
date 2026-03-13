@@ -155,10 +155,12 @@ class Flux(nn.Module):
         guidance: Tensor = None,
         control = None,
         timestep_zero_index=None,
-        transformer_options={},
+        transformer_options=None,
         attn_mask: Tensor = None,
     ) -> Tensor:
 
+        if transformer_options is None:
+            transformer_options = {}
         transformer_options = transformer_options.copy()
         patches = transformer_options.get("patches", {})
         patches_replace = transformer_options.get("patches_replace", {})
@@ -311,7 +313,9 @@ class Flux(nn.Module):
         img = self.final_layer(img, vec_orig, **extra_kwargs)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options={}):
+    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h, w = x.shape
         patch_size = self.patch_size
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
@@ -341,14 +345,18 @@ class Flux(nn.Module):
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=steps_w, device=x.device, dtype=torch.float32).unsqueeze(0)
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
-    def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, y, guidance, ref_latents, control, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

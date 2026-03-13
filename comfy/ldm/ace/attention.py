@@ -133,9 +133,11 @@ class Attention(nn.Module):
         hidden_states: torch.Tensor,
         encoder_hidden_states: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        transformer_options={},
+        transformer_options=None,
         **cross_attention_kwargs,
     ) -> torch.Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         return self.processor(
             self,
             hidden_states,
@@ -368,11 +370,13 @@ class CustomerAttnProcessor2_0:
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
         rotary_freqs_cis: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
         rotary_freqs_cis_cross: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
-        transformer_options={},
+        transformer_options=None,
         *args,
         **kwargs,
     ) -> torch.Tensor:
 
+        if transformer_options is None:
+            transformer_options = {}
         residual = hidden_states
         input_ndim = hidden_states.ndim
 
@@ -700,9 +704,11 @@ class LinearTransformerBlock(nn.Module):
         rotary_freqs_cis: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
         rotary_freqs_cis_cross: Union[torch.Tensor, Tuple[torch.Tensor]] = None,
         temb: torch.FloatTensor = None,
-        transformer_options={},
+        transformer_options=None,
     ):
 
+        if transformer_options is None:
+            transformer_options = {}
         N = hidden_states.shape[0]
 
         # step 1: AdaLN single

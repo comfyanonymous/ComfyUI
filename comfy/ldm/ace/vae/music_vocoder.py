@@ -177,12 +177,16 @@ class ConvNeXtEncoder(nn.Module):
     def __init__(
         self,
         input_channels=3,
-        depths=[3, 3, 9, 3],
-        dims=[96, 192, 384, 768],
+        depths=None,
+        dims=None,
         drop_path_rate=0.0,
         layer_scale_init_value=1e-6,
         kernel_sizes: Tuple[int] = (7,),
     ):
+        if depths is None:
+            depths = []
+        if dims is None:
+            dims = []
         super().__init__()
         assert len(depths) == len(dims)
 
@@ -466,8 +470,8 @@ class ADaMoSHiFiGANV1(nn.Module):
     def __init__(
         self,
         input_channels: int = 128,
-        depths: List[int] = [3, 3, 9, 3],
-        dims: List[int] = [128, 256, 384, 512],
+        depths: List[int] = None,
+        dims: List[int] = None,
         drop_path_rate: float = 0.0,
         kernel_sizes: Tuple[int] = (7,),
         upsample_rates: Tuple[int] = (4, 4, 2, 2, 2, 2, 2),
@@ -488,6 +492,10 @@ class ADaMoSHiFiGANV1(nn.Module):
         f_max: int = 16000,
         n_mels: int = 128,
     ):
+        if depths is None:
+            depths = []
+        if dims is None:
+            dims = []
         super().__init__()
 
         self.backbone = ConvNeXtEncoder(

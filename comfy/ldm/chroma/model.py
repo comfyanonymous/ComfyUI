@@ -149,9 +149,11 @@ class Chroma(nn.Module):
         timesteps: Tensor,
         guidance: Tensor = None,
         control = None,
-        transformer_options={},
+        transformer_options=None,
         attn_mask: Tensor = None,
     ) -> Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         transformer_options = transformer_options.copy()
         patches_replace = transformer_options.get("patches_replace", {})
 
@@ -267,14 +269,18 @@ class Chroma(nn.Module):
             img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, guidance, control=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, guidance, control, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, guidance, control=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 

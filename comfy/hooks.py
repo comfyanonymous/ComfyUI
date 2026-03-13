@@ -689,8 +689,10 @@ def _combine_hooks_from_values(c_dict: dict[str, HookGroup], values: dict[str, H
     else:
         c_dict[hooks_key] = cache[hooks_tuple]
 
-def conditioning_set_values_with_hooks(conditioning, values={}, append_hooks=True,
+def conditioning_set_values_with_hooks(conditioning, values=None, append_hooks=True,
                                        cache: dict[tuple[HookGroup, HookGroup], HookGroup]=None):
+    if values is None:
+        values = {}
     c = []
     if cache is None:
         cache = {}

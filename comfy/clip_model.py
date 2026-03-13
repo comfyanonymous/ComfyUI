@@ -3,7 +3,11 @@ from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.ops
 import math
 
-def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True):
+def clip_preprocess(image, size=224, mean=None, std=None, crop=True):
+    if mean is None:
+        mean = []
+    if std is None:
+        std = []
     image = image[:, :, :, :3] if image.shape[3] > 3 else image
     mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
     std = torch.tensor(std, device=image.device, dtype=image.dtype)
@@ -39,7 +43,11 @@ def siglip2_flex_calc_resolution(oh, ow, patch_size, max_num_patches, eps=1e-5):
 
     return scale_dim(oh, lo), scale_dim(ow, lo)
 
-def siglip2_preprocess(image, size, patch_size, num_patches, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], crop=True):
+def siglip2_preprocess(image, size, patch_size, num_patches, mean=None, std=None, crop=True):
+    if mean is None:
+        mean = []
+    if std is None:
+        std = []
     if size > 0:
         return clip_preprocess(image, size=size, mean=mean, std=std, crop=crop)
 
@@ -160,7 +168,9 @@ class CLIPTextModel_(torch.nn.Module):
         self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
         self.final_layer_norm = operations.LayerNorm(embed_dim, dtype=dtype, device=device)
 
-    def forward(self, input_tokens=None, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=torch.float32, embeds_info=[]):
+    def forward(self, input_tokens=None, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=torch.float32, embeds_info=None):
+        if embeds_info is None:
+            embeds_info = []
         if embeds is not None:
             x = embeds + comfy.ops.cast_to(self.embeddings.position_embedding.weight, dtype=dtype, device=embeds.device)
         else:

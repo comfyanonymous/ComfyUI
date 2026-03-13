@@ -38,11 +38,27 @@ class UpDownBlock2d(nn.Module):
 
 
 class StageC(nn.Module):
-    def __init__(self, c_in=16, c_out=16, c_r=64, patch_size=1, c_cond=2048, c_hidden=[2048, 2048], nhead=[32, 32],
-                 blocks=[[8, 24], [24, 8]], block_repeat=[[1, 1], [1, 1]], level_config=['CTA', 'CTA'],
+    def __init__(self, c_in=16, c_out=16, c_r=64, patch_size=1, c_cond=2048, c_hidden=None, nhead=None,
+                 blocks=None, block_repeat=None, level_config=None,
                  c_clip_text=1280, c_clip_text_pooled=1280, c_clip_img=768, c_clip_seq=4, kernel_size=3,
-                 dropout=[0.0, 0.0], self_attn=True, t_conds=['sca', 'crp'], switch_level=[False], stable_cascade_stage=None,
+                 dropout=None, self_attn=True, t_conds=None, switch_level=None, stable_cascade_stage=None,
                  dtype=None, device=None, operations=None):
+        if c_hidden is None:
+            c_hidden = []
+        if nhead is None:
+            nhead = []
+        if blocks is None:
+            blocks = []
+        if block_repeat is None:
+            block_repeat = []
+        if level_config is None:
+            level_config = []
+        if dropout is None:
+            dropout = []
+        if t_conds is None:
+            t_conds = []
+        if switch_level is None:
+            switch_level = []
         super().__init__()
         self.dtype = dtype
         self.c_r = c_r
@@ -182,7 +198,9 @@ class StageC(nn.Module):
         clip = self.clip_norm(clip)
         return clip
 
-    def _down_encode(self, x, r_embed, clip, cnet=None, transformer_options={}):
+    def _down_encode(self, x, r_embed, clip, cnet=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         level_outputs = []
         block_group = zip(self.down_blocks, self.down_downscalers, self.down_repeat_mappers)
         for down_block, downscaler, repmap in block_group:
@@ -213,7 +231,9 @@ class StageC(nn.Module):
             level_outputs.insert(0, x)
         return level_outputs
 
-    def _up_decode(self, level_outputs, r_embed, clip, cnet=None, transformer_options={}):
+    def _up_decode(self, level_outputs, r_embed, clip, cnet=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         x = level_outputs[0]
         block_group = zip(self.up_blocks, self.up_upscalers, self.up_repeat_mappers)
         for i, (up_block, upscaler, repmap) in enumerate(block_group):
@@ -247,8 +267,10 @@ class StageC(nn.Module):
             x = upscaler(x)
         return x
 
-    def forward(self, x, r, clip_text, clip_text_pooled, clip_img, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, r, clip_text, clip_text_pooled, clip_img, control=None, transformer_options=None, **kwargs):
         # Process the conditioning embeddings
+        if transformer_options is None:
+            transformer_options = {}
         r_embed = self.gen_r_embedding(r).to(dtype=x.dtype)
         for c in self.t_conds:
             t_cond = kwargs.get(c, torch.zeros_like(r))

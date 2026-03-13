@@ -7,7 +7,9 @@ import comfy.model_management
 import logging
 
 
-def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transformer_options={}) -> Tensor:
+def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transformer_options=None) -> Tensor:
+    if transformer_options is None:
+        transformer_options = {}
     if pe is not None:
         q, k = apply_rope(q, k, pe)
     heads = q.shape[1]

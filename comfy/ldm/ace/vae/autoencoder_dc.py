@@ -584,8 +584,8 @@ class AutoencoderDC(nn.Module):
         in_channels: int = 2,
         latent_channels: int = 8,
         attention_head_dim: int = 32,
-        encoder_block_types: Union[str, Tuple[str]] = ["ResBlock", "ResBlock", "ResBlock", "EfficientViTBlock"],
-        decoder_block_types: Union[str, Tuple[str]] = ["ResBlock", "ResBlock", "ResBlock", "EfficientViTBlock"],
+        encoder_block_types: Union[str, Tuple[str]] = None,
+        decoder_block_types: Union[str, Tuple[str]] = None,
         encoder_block_out_channels: Tuple[int, ...] = (128, 256, 512, 1024),
         decoder_block_out_channels: Tuple[int, ...] = (128, 256, 512, 1024),
         encoder_layers_per_block: Tuple[int] = (2, 2, 3, 3),
@@ -598,6 +598,10 @@ class AutoencoderDC(nn.Module):
         decoder_act_fns: Union[str, Tuple[str]] = "silu",
         scaling_factor: float = 0.41407,
     ) -> None:
+        if encoder_block_types is None:
+            encoder_block_types = []
+        if decoder_block_types is None:
+            decoder_block_types = []
         super().__init__()
 
         self.encoder = Encoder(

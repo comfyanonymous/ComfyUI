@@ -12,7 +12,11 @@ from .music_vocoder import ADaMoSHiFiGANV1
 
 
 class MusicDCAE(torch.nn.Module):
-    def __init__(self, source_sample_rate=None, dcae_config={}, vocoder_config={}):
+    def __init__(self, source_sample_rate=None, dcae_config=None, vocoder_config=None):
+        if dcae_config is None:
+            dcae_config = {}
+        if vocoder_config is None:
+            vocoder_config = {}
         super(MusicDCAE, self).__init__()
 
         self.dcae = AutoencoderDC(**dcae_config)

@@ -58,7 +58,9 @@ class IndexListContextWindow(ContextWindowABC):
         self.total_frames = total_frames
         self.center_ratio = (min(index_list) + max(index_list)) / (2 * total_frames)
 
-    def get_tensor(self, full: torch.Tensor, device=None, dim=None, retain_index_list=[]) -> torch.Tensor:
+    def get_tensor(self, full: torch.Tensor, device=None, dim=None, retain_index_list=None) -> torch.Tensor:
+        if retain_index_list is None:
+            retain_index_list = []
         if dim is None:
             dim = self.dim
         if dim == 0 and full.shape[dim] == 1:
@@ -106,7 +108,9 @@ class ContextFuseMethod:
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
-                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False):
+                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=None, split_conds_to_windows: bool=False):
+        if cond_retain_index_list is None:
+            cond_retain_index_list = []
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length

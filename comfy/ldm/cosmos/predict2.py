@@ -45,7 +45,7 @@ class GPT2FeedForward(nn.Module):
         return x
 
 
-def torch_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H_D: torch.Tensor, transformer_options: Optional[dict] = {}) -> torch.Tensor:
+def torch_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H_D: torch.Tensor, transformer_options: Optional[dict] = None) -> torch.Tensor:
     """Computes multi-head attention using PyTorch's native implementation.
 
     This function provides a PyTorch backend alternative to Transformer Engine's attention operation.
@@ -67,6 +67,8 @@ def torch_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H
     Returns:
         Attention output tensor with shape (batch, seq_len, n_heads * head_dim)
     """
+    if transformer_options is None:
+        transformer_options = {}
     in_q_shape = q_B_S_H_D.shape
     in_k_shape = k_B_S_H_D.shape
     q_B_H_S_D = rearrange(q_B_S_H_D, "b ... h k -> b h ... k").view(in_q_shape[0], in_q_shape[-2], -1, in_q_shape[-1])
@@ -181,7 +183,9 @@ class Attention(nn.Module):
 
         return q, k, v
 
-    def compute_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, transformer_options: Optional[dict] = {}) -> torch.Tensor:
+    def compute_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, transformer_options: Optional[dict] = None) -> torch.Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         result = self.attn_op(q, k, v, transformer_options=transformer_options)  # [B, S, H, D]
         return self.output_dropout(self.output_proj(result))
 
@@ -190,13 +194,15 @@ class Attention(nn.Module):
         x: torch.Tensor,
         context: Optional[torch.Tensor] = None,
         rope_emb: Optional[torch.Tensor] = None,
-        transformer_options: Optional[dict] = {},
+        transformer_options: Optional[dict] = None,
     ) -> torch.Tensor:
         """
         Args:
             x (Tensor): The query tensor of shape [B, Mq, K]
             context (Optional[Tensor]): The key tensor of shape [B, Mk, K] or use x as context [self attention] if None
         """
+        if transformer_options is None:
+            transformer_options = {}
         q, k, v = self.compute_qkv(x, context, rope_emb=rope_emb)
         return self.compute_attention(q, k, v, transformer_options=transformer_options)
 
@@ -461,8 +467,10 @@ class Block(nn.Module):
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
         adaln_lora_B_T_3D: Optional[torch.Tensor] = None,
         extra_per_block_pos_emb: Optional[torch.Tensor] = None,
-        transformer_options: Optional[dict] = {},
+        transformer_options: Optional[dict] = None,
     ) -> torch.Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         residual_dtype = x_B_T_H_W_D.dtype
         compute_dtype = emb_B_T_D.dtype
         if extra_per_block_pos_emb is not None:
@@ -531,8 +539,10 @@ class Block(nn.Module):
             layer_norm_cross_attn: Callable,
             _scale_cross_attn_B_T_1_1_D: torch.Tensor,
             _shift_cross_attn_B_T_1_1_D: torch.Tensor,
-            transformer_options: Optional[dict] = {},
+            transformer_options: Optional[dict] = None,
         ) -> torch.Tensor:
+            if transformer_options is None:
+                transformer_options = {}
             _normalized_x_B_T_H_W_D = _fn(
                 _x_B_T_H_W_D, layer_norm_cross_attn, _scale_cross_attn_B_T_1_1_D, _shift_cross_attn_B_T_1_1_D
             )
