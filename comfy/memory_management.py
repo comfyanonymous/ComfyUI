@@ -1,6 +1,7 @@
 import math
 import ctypes
 import threading
+import dataclasses
 import torch
 from typing import NamedTuple
 import logging
@@ -16,6 +17,20 @@ class TensorFileSlice(NamedTuple):
 
 
 def read_tensor_file_slice_into(tensor, destination):
+
+    if isinstance(tensor, QuantizedTensor):
+        if not isinstance(destination, QuantizedTensor):
+            return False
+        if tensor._layout_cls != destination._layout_cls:
+            return False
+
+        if not read_tensor_file_slice_into(tensor._qdata, destination._qdata):
+            return False
+
+        dst_orig_dtype = destination._params.orig_dtype
+        destination._params.copy_from(tensor._params, non_blocking=False)
+        destination._params = dataclasses.replace(destination._params, orig_dtype=dst_orig_dtype)
+        return True
 
     info = getattr(tensor.untyped_storage(), "_comfy_tensor_file_slice", None)
     if info is None:
