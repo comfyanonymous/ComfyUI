@@ -38,7 +38,10 @@ def read_tensor_file_slice_into(tensor, destination):
         file_obj.seek(info.offset)
         done = 0
         while done < info.size:
-            n = file_obj.readinto(view[done:])
+            try:
+                n = file_obj.readinto(view[done:])
+            except OSError:
+                return False
             if n <= 0:
                 return False
             done += n
