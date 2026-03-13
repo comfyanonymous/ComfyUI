@@ -4,7 +4,6 @@ import threading
 import dataclasses
 import torch
 from typing import NamedTuple
-import logging
 
 from comfy.quant_ops import QuantizedTensor
 
