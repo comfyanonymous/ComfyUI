@@ -292,9 +292,11 @@ class ChromaRadiance(Chroma):
         context: Tensor,
         guidance: Optional[Tensor],
         control: Optional[dict]=None,
-        transformer_options: dict={},
+        transformer_options: dict=None,
         **kwargs: dict,
     ) -> Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h, w = x.shape
         img = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 

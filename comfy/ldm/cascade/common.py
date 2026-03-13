@@ -32,7 +32,9 @@ class OptimizedAttention(nn.Module):
 
         self.out_proj = operations.Linear(c, c, bias=True, dtype=dtype, device=device)
 
-    def forward(self, q, k, v, transformer_options={}):
+    def forward(self, q, k, v, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         q = self.to_q(q)
         k = self.to_k(k)
         v = self.to_v(v)
@@ -47,7 +49,9 @@ class Attention2D(nn.Module):
         self.attn = OptimizedAttention(c, nhead, dtype=dtype, device=device, operations=operations)
         # self.attn = nn.MultiheadAttention(c, nhead, dropout=dropout, bias=True, batch_first=True, dtype=dtype, device=device)
 
-    def forward(self, x, kv, self_attn=False, transformer_options={}):
+    def forward(self, x, kv, self_attn=False, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         orig_shape = x.shape
         x = x.view(x.size(0), x.size(1), -1).permute(0, 2, 1)  # Bx4xHxW -> Bx(HxW)x4
         if self_attn:
@@ -114,7 +118,9 @@ class AttnBlock(nn.Module):
             operations.Linear(c_cond, c, dtype=dtype, device=device)
         )
 
-    def forward(self, x, kv, transformer_options={}):
+    def forward(self, x, kv, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         kv = self.kv_mapper(kv)
         x = x + self.attention(self.norm(x), kv, self_attn=self.self_attn, transformer_options=transformer_options)
         return x
@@ -138,7 +144,9 @@ class FeedForwardBlock(nn.Module):
 
 
 class TimestepBlock(nn.Module):
-    def __init__(self, c, c_timestep, conds=['sca'], dtype=None, device=None, operations=None):
+    def __init__(self, c, c_timestep, conds=None, dtype=None, device=None, operations=None):
+        if conds is None:
+            conds = []
         super().__init__()
         self.mapper = operations.Linear(c_timestep, c * 2, dtype=dtype, device=device)
         self.conds = conds

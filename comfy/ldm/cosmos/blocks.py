@@ -26,7 +26,9 @@ from torch import nn
 from comfy.ldm.modules.attention import optimized_attention
 
 
-def get_normalization(name: str, channels: int, weight_args={}, operations=None):
+def get_normalization(name: str, channels: int, weight_args=None, operations=None):
+    if weight_args is None:
+        weight_args = {}
     if name == "I":
         return nn.Identity()
     elif name == "R":
@@ -85,9 +87,11 @@ class Attention(nn.Module):
         qkv_norm_mode: str = "per_head",
         backend: str = "transformer_engine",
         qkv_format: str = "bshd",
-        weight_args={},
+        weight_args=None,
         operations=None,
     ) -> None:
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
 
         self.is_selfattn = context_dim is None  # self attention
@@ -176,7 +180,7 @@ class Attention(nn.Module):
         context=None,
         mask=None,
         rope_emb=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs,
     ):
         """
@@ -184,6 +188,8 @@ class Attention(nn.Module):
             x (Tensor): The query tensor of shape [B, Mq, K]
             context (Optional[Tensor]): The key tensor of shape [B, Mk, K] or use x as context [self attention] if None
         """
+        if transformer_options is None:
+            transformer_options = {}
         q, k, v = self.cal_qkv(x, context, mask, rope_emb=rope_emb, **kwargs)
         out = optimized_attention(q, k, v, self.heads, skip_reshape=True, mask=mask, skip_output_reshape=True, transformer_options=transformer_options)
         del q, k, v
@@ -220,9 +226,11 @@ class FeedForward(nn.Module):
         activation=nn.ReLU(),
         is_gated: bool = False,
         bias: bool = False,
-        weight_args={},
+        weight_args=None,
         operations=None,
     ) -> None:
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
 
         self.layer1 = operations.Linear(d_model, d_ff, bias=bias, **weight_args)
@@ -245,7 +253,9 @@ class FeedForward(nn.Module):
 
 
 class GPT2FeedForward(FeedForward):
-    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1, bias: bool = False, weight_args={}, operations=None):
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1, bias: bool = False, weight_args=None, operations=None):
+        if weight_args is None:
+            weight_args = {}
         super().__init__(
             d_model=d_model,
             d_ff=d_ff,
@@ -292,7 +302,9 @@ class Timesteps(nn.Module):
 
 
 class TimestepEmbedding(nn.Module):
-    def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False, weight_args={}, operations=None):
+    def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False, weight_args=None, operations=None):
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
         logging.debug(
             f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
@@ -385,9 +397,11 @@ class PatchEmbed(nn.Module):
         in_channels=3,
         out_channels=768,
         bias=True,
-        weight_args={},
+        weight_args=None,
         operations=None,
     ):
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
         self.spatial_patch_size = spatial_patch_size
         self.temporal_patch_size = temporal_patch_size
@@ -441,9 +455,11 @@ class FinalLayer(nn.Module):
         out_channels,
         use_adaln_lora: bool = False,
         adaln_lora_dim: int = 256,
-        weight_args={},
+        weight_args=None,
         operations=None,
     ):
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
         self.norm_final = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, **weight_args)
         self.linear = operations.Linear(
@@ -521,9 +537,11 @@ class VideoAttn(nn.Module):
         bias: bool = False,
         qkv_norm_mode: str = "per_head",
         x_format: str = "BTHWD",
-        weight_args={},
+        weight_args=None,
         operations=None,
     ) -> None:
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
         self.x_format = x_format
 
@@ -547,7 +565,7 @@ class VideoAttn(nn.Module):
         context: Optional[torch.Tensor] = None,
         crossattn_mask: Optional[torch.Tensor] = None,
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
-        transformer_options: Optional[dict] = {},
+        transformer_options: Optional[dict] = None,
     ) -> torch.Tensor:
         """
         Forward pass for video attention.
@@ -563,6 +581,8 @@ class VideoAttn(nn.Module):
         Returns:
             Tensor: The output tensor with applied attention, maintaining the input shape.
         """
+        if transformer_options is None:
+            transformer_options = {}
 
         x_T_H_W_B_D = x
         context_M_B_D = context
@@ -619,9 +639,11 @@ class DITBuildingBlock(nn.Module):
         x_format: str = "BTHWD",
         use_adaln_lora: bool = False,
         adaln_lora_dim: int = 256,
-        weight_args={},
+        weight_args=None,
         operations=None
     ) -> None:
+        if weight_args is None:
+            weight_args = {}
         block_type = block_type.lower()
 
         super().__init__()
@@ -668,7 +690,7 @@ class DITBuildingBlock(nn.Module):
         crossattn_mask: Optional[torch.Tensor] = None,
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
         adaln_lora_B_3D: Optional[torch.Tensor] = None,
-        transformer_options: Optional[dict] = {},
+        transformer_options: Optional[dict] = None,
     ) -> torch.Tensor:
         """
         Forward pass for dynamically configured blocks with adaptive normalization.
@@ -684,6 +706,8 @@ class DITBuildingBlock(nn.Module):
         Returns:
             Tensor: The output tensor after processing through the configured block and adaptive normalization.
         """
+        if transformer_options is None:
+            transformer_options = {}
         if self.use_adaln_lora:
             shift_B_D, scale_B_D, gate_B_D = (self.adaLN_modulation(emb_B_D) + adaln_lora_B_3D).chunk(
                 self.n_adaln_chunks, dim=1
@@ -760,9 +784,11 @@ class GeneralDITTransformerBlock(nn.Module):
         x_format: str = "BTHWD",
         use_adaln_lora: bool = False,
         adaln_lora_dim: int = 256,
-        weight_args={},
+        weight_args=None,
         operations=None
     ):
+        if weight_args is None:
+            weight_args = {}
         super().__init__()
         self.blocks = nn.ModuleList()
         self.x_format = x_format
@@ -790,8 +816,10 @@ class GeneralDITTransformerBlock(nn.Module):
         crossattn_mask: Optional[torch.Tensor] = None,
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
         adaln_lora_B_3D: Optional[torch.Tensor] = None,
-        transformer_options: Optional[dict] = {},
+        transformer_options: Optional[dict] = None,
     ) -> torch.Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         for block in self.blocks:
             x = block(
                 x,

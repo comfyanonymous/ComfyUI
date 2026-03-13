@@ -1033,13 +1033,15 @@ class AceStepConditionGenerationModel(nn.Module):
         sliding_window=128,
         layer_types=None,
         fsq_dim=2048,
-        fsq_levels=[8, 8, 8, 5, 5, 5],
+        fsq_levels=None,
         fsq_input_num_quantizers=1,
         audio_model=None,
         dtype=None,
         device=None,
         operations=None
     ):
+        if fsq_levels is None:
+            fsq_levels = []
         super().__init__()
         self.dtype = dtype
         self.timestep_mu = timestep_mu

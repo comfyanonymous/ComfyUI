@@ -85,8 +85,10 @@ class SingleAttention(nn.Module):
         )
 
     #@torch.compile()
-    def forward(self, c, transformer_options={}):
+    def forward(self, c, transformer_options=None):
 
+        if transformer_options is None:
+            transformer_options = {}
         bsz, seqlen1, _ = c.shape
 
         q, k, v = self.w1q(c), self.w1k(c), self.w1v(c)
@@ -144,8 +146,10 @@ class DoubleAttention(nn.Module):
 
 
     #@torch.compile()
-    def forward(self, c, x, transformer_options={}):
+    def forward(self, c, x, transformer_options=None):
 
+        if transformer_options is None:
+            transformer_options = {}
         bsz, seqlen1, _ = c.shape
         bsz, seqlen2, _ = x.shape
 
@@ -207,8 +211,10 @@ class MMDiTBlock(nn.Module):
         self.is_last = is_last
 
     #@torch.compile()
-    def forward(self, c, x, global_cond, transformer_options={}, **kwargs):
+    def forward(self, c, x, global_cond, transformer_options=None, **kwargs):
 
+        if transformer_options is None:
+            transformer_options = {}
         cres, xres = c, x
 
         cshift_msa, cscale_msa, cgate_msa, cshift_mlp, cscale_mlp, cgate_mlp = (
@@ -255,7 +261,9 @@ class DiTBlock(nn.Module):
         self.mlp = MLP(dim, hidden_dim=dim * 4, dtype=dtype, device=device, operations=operations)
 
     #@torch.compile()
-    def forward(self, cx, global_cond, transformer_options={}, **kwargs):
+    def forward(self, cx, global_cond, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         cxres = cx
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.modCX(
             global_cond
@@ -436,14 +444,18 @@ class MMDiT(nn.Module):
         pos_encoding = pos_encoding[:,from_h:from_h+h,from_w:from_w+w]
         return x + pos_encoding.reshape(1, -1, self.positional_encoding.shape[-1])
 
-    def forward(self, x, timestep, context, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         patches_replace = transformer_options.get("patches_replace", {})
         # patchify x, add PE
         b, c, h, w = x.shape

@@ -22,11 +22,25 @@ from torch import nn
 from .common import AttnBlock, LayerNorm2d_op, ResBlock, FeedForwardBlock, TimestepBlock
 
 class StageB(nn.Module):
-    def __init__(self, c_in=4, c_out=4, c_r=64, patch_size=2, c_cond=1280, c_hidden=[320, 640, 1280, 1280],
-                 nhead=[-1, -1, 20, 20], blocks=[[2, 6, 28, 6], [6, 28, 6, 2]],
-                 block_repeat=[[1, 1, 1, 1], [3, 3, 2, 2]], level_config=['CT', 'CT', 'CTA', 'CTA'], c_clip=1280,
-                 c_clip_seq=4, c_effnet=16, c_pixels=3, kernel_size=3, dropout=[0, 0, 0.0, 0.0], self_attn=True,
-                 t_conds=['sca'], stable_cascade_stage=None, dtype=None, device=None, operations=None):
+    def __init__(self, c_in=4, c_out=4, c_r=64, patch_size=2, c_cond=1280, c_hidden=None,
+                 nhead=None, blocks=None,
+                 block_repeat=None, level_config=None, c_clip=1280,
+                 c_clip_seq=4, c_effnet=16, c_pixels=3, kernel_size=3, dropout=None, self_attn=True,
+                 t_conds=None, stable_cascade_stage=None, dtype=None, device=None, operations=None):
+        if c_hidden is None:
+            c_hidden = []
+        if nhead is None:
+            nhead = []
+        if blocks is None:
+            blocks = []
+        if block_repeat is None:
+            block_repeat = []
+        if level_config is None:
+            level_config = []
+        if dropout is None:
+            dropout = []
+        if t_conds is None:
+            t_conds = []
         super().__init__()
         self.dtype = dtype
         self.c_r = c_r
@@ -173,7 +187,9 @@ class StageB(nn.Module):
         clip = self.clip_norm(clip)
         return clip
 
-    def _down_encode(self, x, r_embed, clip, transformer_options={}):
+    def _down_encode(self, x, r_embed, clip, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         level_outputs = []
         block_group = zip(self.down_blocks, self.down_downscalers, self.down_repeat_mappers)
         for down_block, downscaler, repmap in block_group:
@@ -199,7 +215,9 @@ class StageB(nn.Module):
             level_outputs.insert(0, x)
         return level_outputs
 
-    def _up_decode(self, level_outputs, r_embed, clip, transformer_options={}):
+    def _up_decode(self, level_outputs, r_embed, clip, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         x = level_outputs[0]
         block_group = zip(self.up_blocks, self.up_upscalers, self.up_repeat_mappers)
         for i, (up_block, upscaler, repmap) in enumerate(block_group):
@@ -228,7 +246,9 @@ class StageB(nn.Module):
             x = upscaler(x)
         return x
 
-    def forward(self, x, r, effnet, clip, pixels=None, transformer_options={}, **kwargs):
+    def forward(self, x, r, effnet, clip, pixels=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         if pixels is None:
             pixels = x.new_zeros(x.size(0), 3, 8, 8)
 

@@ -109,9 +109,11 @@ class AsymmetricAttention(nn.Module):
         scale_x: torch.Tensor,  # (B, dim_x), modulation for pre-RMSNorm.
         scale_y: torch.Tensor,  # (B, dim_y), modulation for pre-RMSNorm.
         crop_y,
-        transformer_options={},
+        transformer_options=None,
         **rope_rotation,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if transformer_options is None:
+            transformer_options = {}
         rope_cos = rope_rotation.get("rope_cos")
         rope_sin = rope_rotation.get("rope_sin")
         # Pre-norm for visual features
@@ -225,7 +227,7 @@ class AsymmetricJointBlock(nn.Module):
         x: torch.Tensor,
         c: torch.Tensor,
         y: torch.Tensor,
-        transformer_options={},
+        transformer_options=None,
         **attn_kwargs,
     ):
         """Forward pass of a block.
@@ -240,6 +242,8 @@ class AsymmetricJointBlock(nn.Module):
             x: (B, N, dim) tensor of visual tokens after block
             y: (B, L, dim) tensor of text tokens after block
         """
+        if transformer_options is None:
+            transformer_options = {}
         N = x.size(1)
 
         c = F.silu(c)
@@ -494,8 +498,10 @@ class AsymmDiTJoint(nn.Module):
         packed_indices: Dict[str, torch.Tensor] = None,
         rope_cos: torch.Tensor = None,
         rope_sin: torch.Tensor = None,
-        control=None, transformer_options={}, **kwargs
+        control=None, transformer_options=None, **kwargs
     ):
+        if transformer_options is None:
+            transformer_options = {}
         patches_replace = transformer_options.get("patches_replace", {})
         y_feat = context
         y_mask = attention_mask

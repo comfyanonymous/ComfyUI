@@ -72,7 +72,9 @@ class TimestepEmbed(nn.Module):
         return t_emb
 
 
-def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, transformer_options={}):
+def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, transformer_options=None):
+    if transformer_options is None:
+        transformer_options = {}
     return optimized_attention(query.view(query.shape[0], -1, query.shape[-1] * query.shape[-2]), key.view(key.shape[0], -1, key.shape[-1] * key.shape[-2]), value.view(value.shape[0], -1, value.shape[-1] * value.shape[-2]), query.shape[2], transformer_options=transformer_options)
 
 
@@ -86,10 +88,12 @@ class HiDreamAttnProcessor_flashattn:
         image_tokens_masks: Optional[torch.FloatTensor] = None,
         text_tokens: Optional[torch.FloatTensor] = None,
         rope: torch.FloatTensor = None,
-        transformer_options={},
+        transformer_options=None,
         *args,
         **kwargs,
     ) -> torch.FloatTensor:
+        if transformer_options is None:
+            transformer_options = {}
         dtype = image_tokens.dtype
         batch_size = image_tokens.shape[0]
 
