@@ -20,6 +20,8 @@
 import torch
 import math
 import struct
+import ctypes
+import os
 import comfy.memory_management
 import safetensors.torch
 import numpy as np
@@ -32,7 +34,7 @@ from einops import rearrange
 from comfy.cli_args import args
 import json
 import time
-import mmap
+import threading
 import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
@@ -81,14 +83,17 @@ _TYPES = {
 }
 
 def load_safetensors(ckpt):
-    f = open(ckpt, "rb")
-    mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    mv = memoryview(mapping)
+    import comfy_aimdo.model_mmap
 
-    header_size = struct.unpack("<Q", mapping[:8])[0]
-    header = json.loads(mapping[8:8+header_size].decode("utf-8"))
+    f = open(ckpt, "rb", buffering=0)
+    model_mmap = comfy_aimdo.model_mmap.ModelMMAP(ckpt)
+    file_size = os.path.getsize(ckpt)
+    mv = memoryview((ctypes.c_uint8 * file_size).from_address(model_mmap.get()))
 
-    mv = mv[8 + header_size:]
+    header_size = struct.unpack("<Q", mv[:8])[0]
+    header = json.loads(mv[8:8 + header_size].tobytes().decode("utf-8"))
+
+    mv = mv[(data_base_offset := 8 + header_size):]
 
     sd = {}
     for name, info in header.items():
@@ -102,7 +107,14 @@ def load_safetensors(ckpt):
             with warnings.catch_warnings():
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
-                sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                tensor = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                storage = tensor.untyped_storage()
+                setattr(storage,
+                        "_comfy_tensor_file_slice",
+                        comfy.memory_management.TensorFileSlice(f, threading.get_ident(), data_base_offset + start, end - start))
+                setattr(storage, "_comfy_tensor_mmap_refs", (model_mmap, mv))
+                setattr(storage, "_comfy_tensor_mmap_touched", False)
+                sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),
 
