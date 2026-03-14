@@ -1050,6 +1050,12 @@ def intermediate_device():
     else:
         return torch.device("cpu")
 
+def intermediate_dtype():
+    if args.fp16_intermediates:
+        return torch.float16
+    else:
+        return torch.float32
+
 def vae_device():
     if args.cpu_vae:
         return torch.device("cpu")

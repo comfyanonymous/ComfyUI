@@ -1724,6 +1724,8 @@ class LoadImage:
         output_masks = []
         w, h = None, None
 
+        dtype = comfy.model_management.intermediate_dtype()
+
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
@@ -1748,8 +1750,8 @@ class LoadImage:
                 mask = 1. - torch.from_numpy(mask)
             else:
                 mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-            output_images.append(image)
-            output_masks.append(mask.unsqueeze(0))
+            output_images.append(image.to(dtype=dtype))
+            output_masks.append(mask.unsqueeze(0).to(dtype=dtype))
 
             if img.format == "MPO":
                 break  # ignore all frames except the first one for MPO format
