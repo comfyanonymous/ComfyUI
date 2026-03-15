@@ -272,7 +272,7 @@ class VideoFromFile(VideoInput):
             has_first_frame = False
             for frame in frames:
                 offset_seconds = start_time - frame.pts * audio_stream.time_base
-                to_skip = int(offset_seconds * audio_stream.sample_rate)
+                to_skip = max(0, int(offset_seconds * audio_stream.sample_rate))
                 if to_skip < frame.samples:
                     has_first_frame = True
                     break
@@ -280,7 +280,7 @@ class VideoFromFile(VideoInput):
                 audio_frames.append(frame.to_ndarray()[..., to_skip:])
 
             for frame in frames:
-                if frame.time > start_time + self.__duration:
+                if self.__duration and frame.time > start_time + self.__duration:
                     break
                 audio_frames.append(frame.to_ndarray())  # shape: (channels, samples)
             if len(audio_frames) > 0:

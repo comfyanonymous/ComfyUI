@@ -69,8 +69,8 @@ def test_tags_empty_usage(http: requests.Session, api_base: str, asset_factory, 
     used_names = [t["name"] for t in body2["tags"]]
     assert custom_tag in used_names
 
-    # Delete the asset so the tag usage drops to zero
-    rd = http.delete(f"{api_base}/api/assets/{_asset['id']}", timeout=120)
+    # Hard-delete the asset so the tag usage drops to zero
+    rd = http.delete(f"{api_base}/api/assets/{_asset['id']}?delete_content=true", timeout=120)
     assert rd.status_code == 204
 
     # Now the custom tag must not be returned when include_zero=false
