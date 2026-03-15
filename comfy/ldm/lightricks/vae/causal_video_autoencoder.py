@@ -11,6 +11,7 @@ from .causal_conv3d import CausalConv3d
 from .pixel_norm import PixelNorm
 from ..model import PixArtAlphaCombinedTimestepSizeEmbeddings
 import comfy.ops
+import comfy.model_management
 from comfy.ldm.modules.diffusionmodules.model import torch_cat_if_needed
 
 ops = comfy.ops.disable_weight_init
@@ -536,7 +537,7 @@ class Decoder(nn.Module):
                     mark_conv3d_ended(self.conv_out)
                 sample = self.conv_out(sample, causal=self.causal)
                 if sample is not None and sample.shape[2] > 0:
-                    output.append(sample)
+                    output.append(sample.to(comfy.model_management.intermediate_device()))
                 return
 
             up_block = self.up_blocks[idx]
