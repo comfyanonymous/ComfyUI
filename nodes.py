@@ -1211,9 +1211,6 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
-
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -1232,7 +1229,7 @@ class EmptyLatentImage:
     SEARCH_ALIASES = ["empty", "empty latent", "new latent", "create latent", "blank latent", "blank"]
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
+        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
         return ({"samples": latent, "downscale_ratio_spacial": 8}, )
 
 
