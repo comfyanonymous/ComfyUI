@@ -1,0 +1,288 @@
+{
+  "last_node_id": 12,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [-800, 200],
+      "size": [400, 98],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [1]},
+        {"name": "CLIP", "type": "CLIP", "links": [3, 4]},
+        {"name": "VAE", "type": "VAE", "links": [10]}
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["fantasyAnime_v27.safetensors"]
+    },
+    {
+      "id": 2,
+      "type": "LoraLoader",
+      "pos": [-340, 200],
+      "size": [400, 130],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 1},
+        {"name": "clip", "type": "CLIP", "link": 3}
+      ],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [14]},
+        {"name": "CLIP", "type": "CLIP", "links": [5]}
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "LoraLoader"
+      },
+      "widgets_values": ["None", 1.0, 1.0]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [120, 100],
+      "size": [400, 200],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {"name": "clip", "type": "CLIP", "link": 5}
+      ],
+      "outputs": [
+        {"name": "CONDITIONING", "type": "CONDITIONING", "links": [6]}
+      ],
+      "title": "Positive Prompt",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": ["1girl, anime, beautiful, masterpiece, best quality, dynamic motion"],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [120, 360],
+      "size": [400, 200],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {"name": "clip", "type": "CLIP", "link": 4}
+      ],
+      "outputs": [
+        {"name": "CONDITIONING", "type": "CONDITIONING", "links": [7]}
+      ],
+      "title": "Negative Prompt",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": ["low quality, worst quality, blurry, deformed, ugly, bad anatomy, watermark, text"],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [580, 400],
+      "size": [270, 106],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "LATENT", "type": "LATENT", "links": [8]}
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [512, 768, 16]
+    },
+    {
+      "id": 6,
+      "type": "ADE_LoadAnimateDiffModel",
+      "pos": [-340, 620],
+      "size": [340, 58],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "MOTION_MODEL", "type": "MOTION_MODEL_ADE", "links": [12]}
+      ],
+      "properties": {
+        "Node name for S&R": "ADE_LoadAnimateDiffModel"
+      },
+      "widgets_values": ["mm_sdxl_v10_beta.ckpt"]
+    },
+    {
+      "id": 7,
+      "type": "ADE_ApplyAnimateDiffModelSimple",
+      "pos": [-340, 740],
+      "size": [340, 58],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {"name": "motion_model", "type": "MOTION_MODEL_ADE", "link": 12}
+      ],
+      "outputs": [
+        {"name": "M_MODELS", "type": "M_MODELS", "links": [13]}
+      ],
+      "properties": {
+        "Node name for S&R": "ADE_ApplyAnimateDiffModelSimple"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 11,
+      "type": "ADE_UseEvolvedSampling",
+      "pos": [120, 620],
+      "size": [400, 100],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 14},
+        {"name": "m_models", "type": "M_MODELS", "link": 13}
+      ],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [9]}
+      ],
+      "properties": {
+        "Node name for S&R": "ADE_UseEvolvedSampling"
+      },
+      "widgets_values": ["sqrt_linear (AnimateDiff)"]
+    },
+    {
+      "id": 8,
+      "type": "KSampler",
+      "pos": [580, 100],
+      "size": [300, 262],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 9},
+        {"name": "positive", "type": "CONDITIONING", "link": 6},
+        {"name": "negative", "type": "CONDITIONING", "link": 7},
+        {"name": "latent_image", "type": "LATENT", "link": 8}
+      ],
+      "outputs": [
+        {"name": "LATENT", "type": "LATENT", "links": [11]}
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [0, "randomize", 20, 6.0, "euler_ancestral", "normal", 1.0]
+    },
+    {
+      "id": 9,
+      "type": "VAEDecode",
+      "pos": [940, 100],
+      "size": [240, 50],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {"name": "samples", "type": "LATENT", "link": 11},
+        {"name": "vae", "type": "VAE", "link": 10}
+      ],
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [15]}
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "SaveAnimatedWEBP",
+      "pos": [940, 220],
+      "size": [340, 140],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {"name": "images", "type": "IMAGE", "link": 15}
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "SaveAnimatedWEBP"
+      },
+      "widgets_values": ["AnimateDiff", 8, true, 80, "default"]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "MODEL"],
+    [3, 1, 1, 2, 1, "CLIP"],
+    [4, 1, 1, 4, 0, "CLIP"],
+    [5, 2, 1, 3, 0, "CLIP"],
+    [6, 3, 0, 8, 1, "CONDITIONING"],
+    [7, 4, 0, 8, 2, "CONDITIONING"],
+    [8, 5, 0, 8, 3, "LATENT"],
+    [9, 11, 0, 8, 0, "MODEL"],
+    [10, 1, 2, 9, 1, "VAE"],
+    [11, 8, 0, 9, 0, "LATENT"],
+    [12, 6, 0, 7, 0, "MOTION_MODEL_ADE"],
+    [13, 7, 0, 11, 1, "M_MODELS"],
+    [14, 2, 0, 11, 0, "MODEL"],
+    [15, 9, 0, 10, 0, "IMAGE"]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Model & LoRA",
+      "bounding": [-820, 100, 860, 250],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Prompts",
+      "bounding": [100, 40, 420, 540],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "AnimateDiff",
+      "bounding": [-360, 560, 880, 280],
+      "color": "#8e6f3f",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Sampling & Output",
+      "bounding": [560, 40, 740, 380],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8,
+      "offset": [400, -50]
+    }
+  },
+  "version": 0.4
+}
