@@ -170,9 +170,9 @@ class MonotoneCubicCurve(CurveInput):
         xs, ys, slopes = self._xs, self._ys, self._slopes
         n = len(xs)
         if n == 0:
-            return np.zeros_like(xs_in)
+            return np.zeros_like(xs_in, dtype=np.float64)
         if n == 1:
-            return np.full_like(xs_in, ys[0])
+            return np.full_like(xs_in, ys[0], dtype=np.float64)
 
         hi = np.searchsorted(xs, xs_in, side='right').clip(1, n - 1)
         lo = hi - 1
@@ -195,3 +195,40 @@ class MonotoneCubicCurve(CurveInput):
 
     def __repr__(self) -> str:
         return f"MonotoneCubicCurve(points={self._points})"
+
+
+class LinearCurve(CurveInput):
+    """Piecewise linear interpolation over control points.
+
+    Mirrors the frontend ``createLinearInterpolator`` in
+    ``ComfyUI_frontend/src/components/curve/curveUtils.ts``.
+    """
+
+    def __init__(self, control_points: list[CurvePoint]):
+        sorted_pts = sorted(control_points, key=lambda p: p[0])
+        self._points = [(float(x), float(y)) for x, y in sorted_pts]
+        self._xs = np.array([p[0] for p in self._points], dtype=np.float64)
+        self._ys = np.array([p[1] for p in self._points], dtype=np.float64)
+
+    @property
+    def points(self) -> list[CurvePoint]:
+        return list(self._points)
+
+    def interp(self, x: float) -> float:
+        xs, ys = self._xs, self._ys
+        n = len(xs)
+        if n == 0:
+            return 0.0
+        if n == 1:
+            return float(ys[0])
+        return float(np.interp(x, xs, ys))
+
+    def interp_array(self, xs_in: np.ndarray) -> np.ndarray:
+        if len(self._xs) == 0:
+            return np.zeros_like(xs_in, dtype=np.float64)
+        if len(self._xs) == 1:
+            return np.full_like(xs_in, self._ys[0], dtype=np.float64)
+        return np.interp(xs_in, self._xs, self._ys)
+
+    def __repr__(self) -> str:
+        return f"LinearCurve(points={self._points})"

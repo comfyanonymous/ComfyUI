@@ -2043,7 +2043,7 @@ class CurveEditor:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "curve": ("CURVE", {"default": [[0, 0], [1, 1]]}),
+                "curve": ("CURVE", {"default": {"points": [[0, 0], [1, 1]], "interpolation": "monotone_cubic"}}),
             }
         }
 
@@ -2053,10 +2053,15 @@ class CurveEditor:
     CATEGORY = "utils"
 
     def execute(self, curve):
-        from comfy_api.input import CurveInput, MonotoneCubicCurve
+        from comfy_api.input import CurveInput, MonotoneCubicCurve, LinearCurve
         if isinstance(curve, CurveInput):
             return (curve,)
-        return (MonotoneCubicCurve([(float(x), float(y)) for x, y in curve]),)
+        raw_points = curve["points"] if isinstance(curve, dict) else curve
+        points = [(float(x), float(y)) for x, y in raw_points]
+        interpolation = curve.get("interpolation", "monotone_cubic") if isinstance(curve, dict) else "monotone_cubic"
+        if interpolation == "linear":
+            return (LinearCurve(points),)
+        return (MonotoneCubicCurve(points),)
 
 
 NODE_CLASS_MAPPINGS = {

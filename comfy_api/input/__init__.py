@@ -7,6 +7,7 @@ from comfy_api.latest._input import (
     VideoInput,
     CurveInput,
     MonotoneCubicCurve,
+    LinearCurve,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "VideoInput",
     "CurveInput",
     "MonotoneCubicCurve",
+    "LinearCurve",
 ]
