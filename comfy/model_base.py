@@ -930,9 +930,10 @@ class LongCatImage(Flux):
         transformer_options = transformer_options.copy()
         rope_opts = transformer_options.get("rope_options", {})
         rope_opts = dict(rope_opts)
+        pe_len = float(c_crossattn.shape[1]) if c_crossattn is not None else 512.0
         rope_opts.setdefault("shift_t", 1.0)
-        rope_opts.setdefault("shift_y", 512.0)
-        rope_opts.setdefault("shift_x", 512.0)
+        rope_opts.setdefault("shift_y", pe_len)
+        rope_opts.setdefault("shift_x", pe_len)
         transformer_options["rope_options"] = rope_opts
         return super()._apply_model(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
 
