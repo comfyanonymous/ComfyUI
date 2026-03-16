@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from comfy.samplers import CFGGuider, Sampler
     from comfy.sd import CLIP, VAE
     from comfy.sd import StyleModel as StyleModel_
-    from comfy_api.input import VideoInput
+    from comfy_api.input import VideoInput, CurveInput as CurveInput_
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_execution.graph_utils import ExecutionBlocker
@@ -1243,7 +1243,8 @@ class BoundingBox(ComfyTypeIO):
 @comfytype(io_type="CURVE")
 class Curve(ComfyTypeIO):
     CurvePoint = tuple[float, float]
-    Type = list[CurvePoint]
+    if TYPE_CHECKING:
+        Type = CurveInput_
 
     class Input(WidgetInput):
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,

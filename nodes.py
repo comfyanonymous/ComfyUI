@@ -2053,7 +2053,10 @@ class CurveEditor:
     CATEGORY = "utils"
 
     def execute(self, curve):
-        return (curve,)
+        from comfy_api.input import CurveInput, MonotoneCubicCurve
+        if isinstance(curve, CurveInput):
+            return (curve,)
+        return (MonotoneCubicCurve([(float(x), float(y)) for x, y in curve]),)
 
 
 NODE_CLASS_MAPPINGS = {
