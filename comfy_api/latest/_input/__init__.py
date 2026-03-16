@@ -1,4 +1,4 @@
-from .basic_types import ImageInput, AudioInput, MaskInput, LatentInput
+from .basic_types import ImageInput, AudioInput, MaskInput, LatentInput, CurveInput, MonotoneCubicCurve
 from .video_types import VideoInput
 
 __all__ = [
@@ -7,4 +7,6 @@ __all__ = [
     "VideoInput",
     "MaskInput",
     "LatentInput",
+    "CurveInput",
+    "MonotoneCubicCurve",
 ]
