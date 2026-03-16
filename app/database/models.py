@@ -1,5 +1,5 @@
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import DeclarativeBase
 
 class Base(DeclarativeBase):
@@ -13,6 +13,8 @@ def to_dict(obj: Any, include_none: bool = False) -> dict[str, Any]:
         if val is None and not include_none:
             continue
         if isinstance(val, datetime):
+            if val.tzinfo is None:
+                val = val.replace(tzinfo=timezone.utc)
             out[field] = val.isoformat()
         else:
             out[field] = val

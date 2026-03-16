@@ -34,7 +34,7 @@ def escape_sql_like_string(s: str, escape: str = "!") -> tuple[str, str]:
 
 
 def get_utc_now() -> datetime:
-    """Naive UTC timestamp (no tzinfo). We always treat DB datetimes as UTC."""
+    """Naive UTC timestamp (no tzinfo) for DB columns declared with timezone=False."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 

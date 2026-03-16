@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
@@ -20,7 +20,11 @@ class AssetSummary(BaseModel):
 
     @field_serializer("created_at", "updated_at", "last_access_time")
     def _serialize_datetime(self, v: datetime | None, _info):
-        return v.isoformat() if v else None
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 class AssetsList(BaseModel):
@@ -41,7 +45,11 @@ class AssetUpdated(BaseModel):
 
     @field_serializer("updated_at")
     def _serialize_updated_at(self, v: datetime | None, _info):
-        return v.isoformat() if v else None
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 class AssetDetail(BaseModel):
@@ -60,7 +68,11 @@ class AssetDetail(BaseModel):
 
     @field_serializer("created_at", "last_access_time")
     def _serialize_datetime(self, v: datetime | None, _info):
-        return v.isoformat() if v else None
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 class AssetCreated(AssetDetail):
