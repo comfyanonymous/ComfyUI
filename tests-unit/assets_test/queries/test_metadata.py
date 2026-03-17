@@ -20,6 +20,7 @@ def _make_reference(
     asset: Asset,
     name: str,
     metadata: dict | None = None,
+    system_metadata: dict | None = None,
 ) -> AssetReference:
     now = get_utc_now()
     ref = AssetReference(
@@ -27,6 +28,7 @@ def _make_reference(
         name=name,
         asset_id=asset.id,
         user_metadata=metadata,
+        system_metadata=system_metadata,
         created_at=now,
         updated_at=now,
         last_access_time=now,
@@ -34,8 +36,10 @@ def _make_reference(
     session.add(ref)
     session.flush()
 
-    if metadata:
-        for key, val in metadata.items():
+    # Build merged projection: {**system_metadata, **user_metadata}
+    merged = {**(system_metadata or {}), **(metadata or {})}
+    if merged:
+        for key, val in merged.items():
             for row in convert_metadata_to_rows(key, val):
                 meta_row = AssetReferenceMeta(
                     asset_reference_id=ref.id,
@@ -182,3 +186,46 @@ class TestMetadataFilterEmptyDict:
 
         refs, _, total = list_references_page(session, metadata_filter={})
         assert total == 2
+
+
+class TestSystemMetadataProjection:
+    """Tests for system_metadata merging into the filter projection."""
+
+    def test_system_metadata_keys_are_filterable(self, session: Session):
+        """system_metadata keys should appear in the merged projection."""
+        asset = _make_asset(session, "hash1")
+        _make_reference(
+            session, asset, "with_sys",
+            system_metadata={"source": "scanner"},
+        )
+        _make_reference(session, asset, "without_sys")
+        session.commit()
+
+        refs, _, total = list_references_page(
+            session, metadata_filter={"source": "scanner"}
+        )
+        assert total == 1
+        assert refs[0].name == "with_sys"
+
+    def test_user_metadata_overrides_system_metadata(self, session: Session):
+        """user_metadata should win when both have the same key."""
+        asset = _make_asset(session, "hash1")
+        _make_reference(
+            session, asset, "overridden",
+            metadata={"origin": "user_upload"},
+            system_metadata={"origin": "auto_scan"},
+        )
+        session.commit()
+
+        # Should match the user value, not the system value
+        refs, _, total = list_references_page(
+            session, metadata_filter={"origin": "user_upload"}
+        )
+        assert total == 1
+        assert refs[0].name == "overridden"
+
+        # Should NOT match the system value (it was overridden)
+        refs, _, total = list_references_page(
+            session, metadata_filter={"origin": "auto_scan"}
+        )
+        assert total == 0

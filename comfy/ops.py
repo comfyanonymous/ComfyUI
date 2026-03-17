@@ -336,7 +336,10 @@ class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):
 
         def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
-            if not comfy.model_management.WINDOWS or not comfy.memory_management.aimdo_enabled:
+            # don't trust subclasses that BYO state dict loader to call us.
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 super().__init__(in_features, out_features, bias, device, dtype)
                 return
 
@@ -357,7 +360,9 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if not comfy.model_management.WINDOWS or not comfy.memory_management.aimdo_enabled:
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
             disable_weight_init._lazy_load_from_state_dict(
@@ -564,7 +569,10 @@ class disable_weight_init:
         def __init__(self, num_embeddings, embedding_dim, padding_idx=None, max_norm=None,
                      norm_type=2.0, scale_grad_by_freq=False, sparse=False, _weight=None,
                      _freeze=False, device=None, dtype=None):
-            if not comfy.model_management.WINDOWS or not comfy.memory_management.aimdo_enabled:
+            # don't trust subclasses that BYO state dict loader to call us.
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
                 super().__init__(num_embeddings, embedding_dim, padding_idx, max_norm,
                                  norm_type, scale_grad_by_freq, sparse, _weight,
                                  _freeze, device, dtype)
@@ -590,7 +598,9 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if not comfy.model_management.WINDOWS or not comfy.memory_management.aimdo_enabled:
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
             disable_weight_init._lazy_load_from_state_dict(
@@ -764,6 +774,71 @@ from .quant_ops import (
     TensorCoreFP8Layout,
     get_layout_class,
 )
+
+
+class QuantLinearFunc(torch.autograd.Function):
+    """Custom autograd function for quantized linear: quantized forward, compute_dtype backward.
+    Handles any input rank by flattening to 2D for matmul and restoring shape after.
+    """
+
+    @staticmethod
+    def forward(ctx, input_float, weight, bias, layout_type, input_scale, compute_dtype):
+        input_shape = input_float.shape
+        inp = input_float.detach().flatten(0, -2)  # zero-cost view to 2D
+
+        # Quantize input (same as inference path)
+        if layout_type is not None:
+            q_input = QuantizedTensor.from_float(inp, layout_type, scale=input_scale)
+        else:
+            q_input = inp
+
+        w = weight.detach() if weight.requires_grad else weight
+        b = bias.detach() if bias is not None and bias.requires_grad else bias
+
+        output = torch.nn.functional.linear(q_input, w, b)
+
+        # Restore original input shape
+        if len(input_shape) > 2:
+            output = output.unflatten(0, input_shape[:-1])
+
+        ctx.save_for_backward(input_float, weight)
+        ctx.input_shape = input_shape
+        ctx.has_bias = bias is not None
+        ctx.compute_dtype = compute_dtype
+        ctx.weight_requires_grad = weight.requires_grad
+
+        return output
+
+    @staticmethod
+    @torch.autograd.function.once_differentiable
+    def backward(ctx, grad_output):
+        input_float, weight = ctx.saved_tensors
+        compute_dtype = ctx.compute_dtype
+        grad_2d = grad_output.flatten(0, -2).to(compute_dtype)
+
+        # Dequantize weight to compute dtype for backward matmul
+        if isinstance(weight, QuantizedTensor):
+            weight_f = weight.dequantize().to(compute_dtype)
+        else:
+            weight_f = weight.to(compute_dtype)
+
+        # grad_input = grad_output @ weight
+        grad_input = torch.mm(grad_2d, weight_f)
+        if len(ctx.input_shape) > 2:
+            grad_input = grad_input.unflatten(0, ctx.input_shape[:-1])
+
+        # grad_weight (only if weight requires grad, typically frozen for quantized training)
+        grad_weight = None
+        if ctx.weight_requires_grad:
+            input_f = input_float.flatten(0, -2).to(compute_dtype)
+            grad_weight = torch.mm(grad_2d.t(), input_f)
+
+        # grad_bias
+        grad_bias = None
+        if ctx.has_bias:
+            grad_bias = grad_2d.sum(dim=0)
+
+        return grad_input, grad_weight, grad_bias, None, None, None
 
 
 def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_precision_mm=False, disabled=[]):
@@ -960,10 +1035,37 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 #If cast needs to apply lora, it should be done in the compute dtype
                 compute_dtype = input.dtype
 
-                if (getattr(self, 'layout_type', None) is not None and
+                _use_quantized = (
+                    getattr(self, 'layout_type', None) is not None and
                     not isinstance(input, QuantizedTensor) and not self._full_precision_mm and
                     not getattr(self, 'comfy_force_cast_weights', False) and
-                    len(self.weight_function) == 0 and len(self.bias_function) == 0):
+                    len(self.weight_function) == 0 and len(self.bias_function) == 0
+                )
+
+                # Training path: quantized forward with compute_dtype backward via autograd function
+                if (input.requires_grad and _use_quantized):
+
+                    weight, bias, offload_stream = cast_bias_weight(
+                        self,
+                        input,
+                        offloadable=True,
+                        compute_dtype=compute_dtype,
+                        want_requant=True
+                    )
+
+                    scale = getattr(self, 'input_scale', None)
+                    if scale is not None:
+                        scale = comfy.model_management.cast_to_device(scale, input.device, None)
+
+                    output = QuantLinearFunc.apply(
+                        input, weight, bias, self.layout_type, scale, compute_dtype
+                    )
+
+                    uncast_bias_weight(self, weight, bias, offload_stream)
+                    return output
+
+                # Inference path (unchanged)
+                if _use_quantized:
 
                     # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
                     input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
@@ -1011,7 +1113,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 for key, param in self._parameters.items():
                     if param is None:
                         continue
-                    self.register_parameter(key, torch.nn.Parameter(fn(param), requires_grad=False))
+                    p = fn(param)
+                    if p.is_inference():
+                        p = p.clone()
+                    self.register_parameter(key, torch.nn.Parameter(p, requires_grad=False))
                 for key, buf in self._buffers.items():
                     if buf is not None:
                         self._buffers[key] = fn(buf)

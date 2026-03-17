@@ -11,13 +11,14 @@ from app.assets.database.queries import (
     add_tags_to_reference,
     fetch_reference_and_asset,
     get_asset_by_hash,
-    get_existing_asset_ids,
     get_reference_by_file_path,
     get_reference_tags,
     get_or_create_reference,
+    reference_exists,
     remove_missing_tag_for_asset_id,
     set_reference_metadata,
     set_reference_tags,
+    update_asset_hash_and_mime,
     upsert_asset,
     upsert_reference,
     validate_tags_exist,
@@ -26,6 +27,7 @@ from app.assets.helpers import normalize_tags
 from app.assets.services.file_utils import get_size_and_mtime_ns
 from app.assets.services.path_utils import (
     compute_relative_filename,
+    get_name_and_tags_from_asset_path,
     resolve_destination_from_tags,
     validate_path_within_base,
 )
@@ -65,7 +67,7 @@ def _ingest_file_from_path(
 
     with create_session() as session:
         if preview_id:
-            if preview_id not in get_existing_asset_ids(session, [preview_id]):
+            if not reference_exists(session, preview_id):
                 preview_id = None
 
         asset, asset_created, asset_updated = upsert_asset(
@@ -135,6 +137,8 @@ def _register_existing_asset(
     tags: list[str] | None = None,
     tag_origin: str = "manual",
     owner_id: str = "",
+    mime_type: str | None = None,
+    preview_id: str | None = None,
 ) -> RegisterAssetResult:
     user_metadata = user_metadata or {}
 
@@ -143,14 +147,25 @@ def _register_existing_asset(
         if not asset:
             raise ValueError(f"No asset with hash {asset_hash}")
 
+        if mime_type and not asset.mime_type:
+            update_asset_hash_and_mime(session, asset_id=asset.id, mime_type=mime_type)
+
+        if preview_id:
+            if not reference_exists(session, preview_id):
+                preview_id = None
+
         ref, ref_created = get_or_create_reference(
             session,
             asset_id=asset.id,
             owner_id=owner_id,
             name=name,
+            preview_id=preview_id,
         )
 
         if not ref_created:
+            if preview_id and ref.preview_id != preview_id:
+                ref.preview_id = preview_id
+
             tag_names = get_reference_tags(session, reference_id=ref.id)
             result = RegisterAssetResult(
                 ref=extract_reference_data(ref),
@@ -242,6 +257,8 @@ def upload_from_temp_path(
     client_filename: str | None = None,
     owner_id: str = "",
     expected_hash: str | None = None,
+    mime_type: str | None = None,
+    preview_id: str | None = None,
 ) -> UploadResult:
     try:
         digest, _ = hashing.compute_blake3_hash(temp_path)
@@ -270,6 +287,8 @@ def upload_from_temp_path(
             tags=tags or [],
             tag_origin="manual",
             owner_id=owner_id,
+            mime_type=mime_type,
+            preview_id=preview_id,
         )
         return UploadResult(
             ref=result.ref,
@@ -291,7 +310,7 @@ def upload_from_temp_path(
     dest_abs = os.path.abspath(os.path.join(dest_dir, hashed_basename))
     validate_path_within_base(dest_abs, base_dir)
 
-    content_type = (
+    content_type = mime_type or (
         mimetypes.guess_type(os.path.basename(src_for_ext), strict=False)[0]
         or mimetypes.guess_type(hashed_basename, strict=False)[0]
         or "application/octet-stream"
@@ -315,10 +334,76 @@ def upload_from_temp_path(
         mime_type=content_type,
         info_name=_sanitize_filename(name or client_filename, fallback=digest),
         owner_id=owner_id,
-        preview_id=None,
+        preview_id=preview_id,
         user_metadata=user_metadata or {},
         tags=tags,
         tag_origin="manual",
+        require_existing_tags=False,
+    )
+    reference_id = ingest_result.reference_id
+    if not reference_id:
+        raise RuntimeError("failed to create asset reference")
+
+    with create_session() as session:
+        pair = fetch_reference_and_asset(
+            session, reference_id=reference_id, owner_id=owner_id
+        )
+        if not pair:
+            raise RuntimeError("inconsistent DB state after ingest")
+        ref, asset = pair
+        tag_names = get_reference_tags(session, reference_id=ref.id)
+
+    return UploadResult(
+        ref=extract_reference_data(ref),
+        asset=extract_asset_data(asset),
+        tags=tag_names,
+        created_new=ingest_result.asset_created,
+    )
+
+
+def register_file_in_place(
+    abs_path: str,
+    name: str,
+    tags: list[str],
+    owner_id: str = "",
+    mime_type: str | None = None,
+) -> UploadResult:
+    """Register an already-saved file in the asset database without moving it.
+
+    Tags are derived from the filesystem path (root category + subfolder names),
+    merged with any caller-provided tags, matching the behavior of the scanner.
+    If the path is not under a known root, only the caller-provided tags are used.
+    """
+    try:
+        _, path_tags = get_name_and_tags_from_asset_path(abs_path)
+    except ValueError:
+        path_tags = []
+    merged_tags = normalize_tags([*path_tags, *tags])
+
+    try:
+        digest, _ = hashing.compute_blake3_hash(abs_path)
+    except ImportError as e:
+        raise DependencyMissingError(str(e))
+    except Exception as e:
+        raise RuntimeError(f"failed to hash file: {e}")
+    asset_hash = "blake3:" + digest
+
+    size_bytes, mtime_ns = get_size_and_mtime_ns(abs_path)
+    content_type = mime_type or (
+        mimetypes.guess_type(abs_path, strict=False)[0]
+        or "application/octet-stream"
+    )
+
+    ingest_result = _ingest_file_from_path(
+        abs_path=abs_path,
+        asset_hash=asset_hash,
+        size_bytes=size_bytes,
+        mtime_ns=mtime_ns,
+        mime_type=content_type,
+        info_name=_sanitize_filename(name, fallback=digest),
+        owner_id=owner_id,
+        tags=merged_tags,
+        tag_origin="upload",
         require_existing_tags=False,
     )
     reference_id = ingest_result.reference_id
@@ -348,24 +433,27 @@ def create_from_hash(
     tags: list[str] | None = None,
     user_metadata: dict | None = None,
     owner_id: str = "",
+    mime_type: str | None = None,
+    preview_id: str | None = None,
 ) -> UploadResult | None:
     canonical = hash_str.strip().lower()
 
-    with create_session() as session:
-        asset = get_asset_by_hash(session, asset_hash=canonical)
-        if not asset:
-            return None
-
-    result = _register_existing_asset(
-        asset_hash=canonical,
-        name=_sanitize_filename(
-            name, fallback=canonical.split(":", 1)[1] if ":" in canonical else canonical
-        ),
-        user_metadata=user_metadata or {},
-        tags=tags or [],
-        tag_origin="manual",
-        owner_id=owner_id,
-    )
+    try:
+        result = _register_existing_asset(
+            asset_hash=canonical,
+            name=_sanitize_filename(
+                name, fallback=canonical.split(":", 1)[1] if ":" in canonical else canonical
+            ),
+            user_metadata=user_metadata or {},
+            tags=tags or [],
+            tag_origin="manual",
+            owner_id=owner_id,
+            mime_type=mime_type,
+            preview_id=preview_id,
+        )
+    except ValueError:
+        logging.warning("create_from_hash: no asset found for hash %s", canonical)
+        return None
 
     return UploadResult(
         ref=result.ref,

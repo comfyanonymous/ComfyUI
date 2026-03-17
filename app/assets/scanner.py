@@ -18,7 +18,7 @@ from app.assets.database.queries import (
     mark_references_missing_outside_prefixes,
     reassign_asset_references,
     remove_missing_tag_for_asset_id,
-    set_reference_metadata,
+    set_reference_system_metadata,
     update_asset_hash_and_mime,
 )
 from app.assets.services.bulk_ingest import (
@@ -490,8 +490,8 @@ def enrich_asset(
             logging.warning("Failed to hash %s: %s", file_path, e)
 
     if extract_metadata and metadata:
-        user_metadata = metadata.to_user_metadata()
-        set_reference_metadata(session, reference_id, user_metadata)
+        system_metadata = metadata.to_user_metadata()
+        set_reference_system_metadata(session, reference_id, system_metadata)
 
     if full_hash:
         existing = get_asset_by_hash(session, full_hash)

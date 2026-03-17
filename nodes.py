@@ -81,6 +81,7 @@ class CLIPTextEncode(ComfyNodeABC):
 
 
 class ConditioningCombine:
+    ESSENTIALS_CATEGORY = "Image Generation"
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", )}}
@@ -951,7 +952,7 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (folder_paths.get_filename_list("diffusion_models"), ),
-                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],)
+                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"], {"advanced": True})
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
@@ -1211,9 +1212,6 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
-
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -1232,7 +1230,7 @@ class EmptyLatentImage:
     SEARCH_ALIASES = ["empty", "empty latent", "new latent", "create latent", "blank latent", "blank"]
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
+        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
         return ({"samples": latent, "downscale_ratio_spacial": 8}, )
 
 
@@ -1781,6 +1779,7 @@ class LoadImage:
         return True
 
 class LoadImageMask:
+    ESSENTIALS_CATEGORY = "Image Tools"
     SEARCH_ALIASES = ["import mask", "alpha mask", "channel mask"]
 
     _color_channels = ["alpha", "red", "green", "blue"]
@@ -1889,6 +1888,7 @@ class ImageScale:
         return (s,)
 
 class ImageScaleBy:
+    ESSENTIALS_CATEGORY = "Image Tools"
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
 
     @classmethod

@@ -149,6 +149,7 @@ parser.add_argument("--reserve-vram", type=float, default=None, help="Set the am
 parser.add_argument("--async-offload", nargs='?', const=2, type=int, default=None, metavar="NUM_STREAMS", help="Use async weight offloading. An optional argument controls the amount of offload streams. Default is 2. Enabled by default on Nvidia.")
 parser.add_argument("--disable-async-offload", action="store_true", help="Disable async weight offloading.")
 parser.add_argument("--disable-dynamic-vram", action="store_true", help="Disable dynamic VRAM and use estimate based model loading.")
+parser.add_argument("--enable-dynamic-vram", action="store_true", help="Enable dynamic VRAM on systems where it's not enabled by default.")
 
 parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
 
@@ -262,4 +263,6 @@ else:
     args.fast = set(args.fast)
 
 def enables_dynamic_vram():
+    if args.enable_dynamic_vram:
+        return True
     return not args.disable_dynamic_vram and not args.highvram and not args.gpu_only and not args.novram and not args.cpu
