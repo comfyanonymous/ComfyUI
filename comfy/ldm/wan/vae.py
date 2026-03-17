@@ -98,8 +98,10 @@ class Resample(nn.Module):
 
         else:
             self.resample = nn.Identity()
-
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    # Fix: mutable default argument feat_idx=[0] would persist between calls
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         b, c, t, h, w = x.size()
         if self.mode == 'upsample3d':
             if feat_cache is not None:
@@ -176,8 +178,10 @@ class ResidualBlock(nn.Module):
             CausalConv3d(out_dim, out_dim, 3, padding=1))
         self.shortcut = CausalConv3d(in_dim, out_dim, 1) \
             if in_dim != out_dim else nn.Identity()
-
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    # Fix: mutable default argument feat_idx=[0] would persist between calls
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         old_x = x
         for layer in self.residual:
             if isinstance(layer, CausalConv3d) and feat_cache is not None:
@@ -282,8 +286,10 @@ class Encoder3d(nn.Module):
         self.head = nn.Sequential(
             RMS_norm(out_dim, images=False), nn.SiLU(),
             CausalConv3d(out_dim, z_dim, 3, padding=1))
-
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    # Fix: mutable default argument feat_idx=[0] would persist between calls
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         if feat_cache is not None:
             idx = feat_idx[0]
             cache_x = x[:, :, -CACHE_T:, :, :].clone()
@@ -388,8 +394,10 @@ class Decoder3d(nn.Module):
         self.head = nn.Sequential(
             RMS_norm(out_dim, images=False), nn.SiLU(),
             CausalConv3d(out_dim, output_channels, 3, padding=1))
-
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    # Fix: mutable default argument feat_idx=[0] would persist between calls
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         ## conv1
         if feat_cache is not None:
             idx = feat_idx[0]
