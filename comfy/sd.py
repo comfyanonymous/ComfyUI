@@ -455,7 +455,7 @@ class VAE:
         self.output_channels = 3
         self.pad_channel_value = None
         self.process_input = lambda image: image * 2.0 - 1.0
-        self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
+        self.process_output = lambda image: image.add_(1.0).div_(2.0).clamp_(0.0, 1.0)
         self.working_dtypes = [torch.bfloat16, torch.float32]
         self.disable_offload = False
         self.not_video = False
