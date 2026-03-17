@@ -2038,32 +2038,6 @@ class ImagePadForOutpaint:
         return (new_image, mask.unsqueeze(0))
 
 
-class CurveEditor:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "curve": ("CURVE", {"default": {"points": [[0, 0], [1, 1]], "interpolation": "monotone_cubic"}}),
-            }
-        }
-
-    RETURN_TYPES = ("CURVE",)
-    RETURN_NAMES = ("curve",)
-    FUNCTION = "execute"
-    CATEGORY = "utils"
-
-    def execute(self, curve):
-        from comfy_api.input import CurveInput, MonotoneCubicCurve, LinearCurve
-        if isinstance(curve, CurveInput):
-            return (curve,)
-        raw_points = curve["points"] if isinstance(curve, dict) else curve
-        points = [(float(x), float(y)) for x, y in raw_points]
-        interpolation = curve.get("interpolation", "monotone_cubic") if isinstance(curve, dict) else "monotone_cubic"
-        if interpolation == "linear":
-            return (LinearCurve(points),)
-        return (MonotoneCubicCurve(points),)
-
-
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
@@ -2132,7 +2106,6 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
-    "CurveEditor": CurveEditor,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -2201,7 +2174,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
-    "CurveEditor": "Curve Editor",
 }
 
 EXTENSION_WEB_DIRS = {}
@@ -2483,6 +2455,7 @@ async def init_builtin_extra_nodes():
         "nodes_sdpose.py",
         "nodes_math.py",
         "nodes_painter.py",
+        "nodes_curve.py",
     ]
 
     import_failed = []

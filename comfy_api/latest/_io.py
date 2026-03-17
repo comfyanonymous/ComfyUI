@@ -1253,6 +1253,12 @@ class Curve(ComfyTypeIO):
             if default is None:
                 self.default = [(0.0, 0.0), (1.0, 1.0)]
 
+        def as_dict(self):
+            d = super().as_dict()
+            if self.default is not None:
+                d["default"] = {"points": [list(p) for p in self.default], "interpolation": "monotone_cubic"}
+            return d
+
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
