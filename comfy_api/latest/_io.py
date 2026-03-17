@@ -297,7 +297,7 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, gradient_stops: list[list[float]]=None,
+                    display_mode: NumberDisplay=None, gradient_stops: list[dict]=None,
                     socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None, advanced: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link, advanced)
             self.min = min

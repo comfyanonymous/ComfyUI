@@ -6,6 +6,7 @@ import uuid
 import glob
 import shutil
 import logging
+import tempfile
 from aiohttp import web
 from urllib import parse
 from comfy.cli_args import args
@@ -377,8 +378,15 @@ class UserManager():
             try:
                 body = await request.read()
 
-                with open(path, "wb") as f:
-                    f.write(body)
+                dir_name = os.path.dirname(path)
+                fd, tmp_path = tempfile.mkstemp(dir=dir_name)
+                try:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(body)
+                    os.replace(tmp_path, path)
+                except:
+                    os.unlink(tmp_path)
+                    raise
             except OSError as e:
                 logging.warning(f"Error saving file '{path}': {e}")
                 return web.Response(

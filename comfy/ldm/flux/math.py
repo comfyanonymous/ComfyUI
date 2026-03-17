@@ -31,6 +31,8 @@ def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
 
 def _apply_rope1(x: Tensor, freqs_cis: Tensor):
     x_ = x.to(dtype=freqs_cis.dtype).reshape(*x.shape[:-1], -1, 1, 2)
+    if x_.shape[2] != 1 and freqs_cis.shape[2] != 1 and x_.shape[2] != freqs_cis.shape[2]:
+        freqs_cis = freqs_cis[:, :, :x_.shape[2]]
 
     x_out = freqs_cis[..., 0] * x_[..., 0]
     x_out.addcmul_(freqs_cis[..., 1], x_[..., 1])

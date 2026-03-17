@@ -1459,6 +1459,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
             node_id="KlingOmniProEditVideoNode",
             display_name="Kling 3.0 Omni Edit Video",
             category="api node/video/Kling",
+            essentials_category="Video Generation",
             description="Edit an existing video with the latest model from Kling.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
