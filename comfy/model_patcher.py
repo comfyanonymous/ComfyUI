@@ -736,8 +736,9 @@ class ModelPatcher:
             params = { name: param for name, param in m.named_parameters(recurse=False) }
             for name, param in m.named_parameters(recurse=True):
                 if name not in params:
-                    if not name.startswith("parametrizations."):
-                        default = True # default random weights in non leaf modules
+                    if name.startswith("parametrizations."):
+                        continue
+                    default = True # default random weights in non leaf modules
                     break
             if default and default_device is not None:
                 for param_name, param in params.items():
