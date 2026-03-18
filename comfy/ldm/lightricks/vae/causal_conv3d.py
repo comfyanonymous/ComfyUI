@@ -65,9 +65,13 @@ class CausalConv3d(nn.Module):
             self.temporal_cache_state[tid] = (x[:, :, -(self.time_kernel_size - 1):, :, :], False)
 
         x = torch.cat(pieces, dim=2)
+        del pieces
+        del cached
 
         if needs_caching:
             self.temporal_cache_state[tid] = (x[:, :, -(self.time_kernel_size - 1):, :, :], False)
+        elif is_end:
+            self.temporal_cache_state[tid] = (None, True)
 
         return self.conv(x) if x.shape[2] >= self.time_kernel_size else x[:, :, :0, :, :]
 

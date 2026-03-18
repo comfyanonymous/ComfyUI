@@ -69,7 +69,7 @@ def upsert_asset(
         if asset.size_bytes != int(size_bytes) and int(size_bytes) > 0:
             asset.size_bytes = int(size_bytes)
             changed = True
-        if mime_type and asset.mime_type != mime_type:
+        if mime_type and not asset.mime_type:
             asset.mime_type = mime_type
             changed = True
         if changed:
@@ -118,7 +118,7 @@ def update_asset_hash_and_mime(
         return False
     if asset_hash is not None:
         asset.hash = asset_hash
-    if mime_type is not None:
+    if mime_type is not None and not asset.mime_type:
         asset.mime_type = mime_type
     return True
 

@@ -113,11 +113,19 @@ class TestIngestFileFromPath:
         file_path = temp_dir / "with_preview.bin"
         file_path.write_bytes(b"data")
 
-        # Create a preview asset first
+        # Create a preview asset and reference
         preview_asset = Asset(hash="blake3:preview", size_bytes=100)
         session.add(preview_asset)
+        session.flush()
+        from app.assets.helpers import get_utc_now
+        now = get_utc_now()
+        preview_ref = AssetReference(
+            asset_id=preview_asset.id, name="preview.png", owner_id="",
+            created_at=now, updated_at=now, last_access_time=now,
+        )
+        session.add(preview_ref)
         session.commit()
-        preview_id = preview_asset.id
+        preview_id = preview_ref.id
 
         result = _ingest_file_from_path(
             abs_path=str(file_path),
