@@ -46,7 +46,7 @@ class ClipTokenWeightEncoder:
         out, pooled = o[:2]
 
         if pooled is not None:
-            first_pooled = pooled[0:1].to(device=model_management.intermediate_device(), dtype=model_management.intermediate_dtype())
+            first_pooled = pooled[0:1].to(device=model_management.intermediate_device())
         else:
             first_pooled = pooled
 
@@ -63,9 +63,9 @@ class ClipTokenWeightEncoder:
             output.append(z)
 
         if (len(output) == 0):
-            r = (out[-1:].to(device=model_management.intermediate_device(), dtype=model_management.intermediate_dtype()), first_pooled)
+            r = (out[-1:].to(device=model_management.intermediate_device()), first_pooled)
         else:
-            r = (torch.cat(output, dim=-2).to(device=model_management.intermediate_device(), dtype=model_management.intermediate_dtype()), first_pooled)
+            r = (torch.cat(output, dim=-2).to(device=model_management.intermediate_device()), first_pooled)
 
         if len(o) > 2:
             extra = {}
