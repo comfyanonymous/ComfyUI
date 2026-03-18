@@ -205,7 +205,7 @@ class LoRAAdapter(WeightAdapterBase):
                 try:
                     reshape = lora[reshape_name].tolist()
                     loaded_keys.add(reshape_name)
-                except:
+                except (AttributeError, TypeError):
                     pass
             weights = (lora[A_name], lora[B_name], alpha, mid, dora_scale, reshape)
             loaded_keys.add(A_name)
