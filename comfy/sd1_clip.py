@@ -72,7 +72,7 @@ class ClipTokenWeightEncoder:
             for k in o[2]:
                 v = o[2][k]
                 if k == "attention_mask":
-                    v = v[:sections].flatten().unsqueeze(dim=0).to(device=model_management.intermediate_device(), dtype=model_management.intermediate_dtype())
+                    v = v[:sections].flatten().unsqueeze(dim=0).to(device=model_management.intermediate_device())
                 extra[k] = v
 
             r = r + (extra,)
