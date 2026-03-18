@@ -67,6 +67,7 @@ class GeminiPart(BaseModel):
     inlineData: GeminiInlineData | None = Field(None)
     fileData: GeminiFileData | None = Field(None)
     text: str | None = Field(None)
+    thought: bool | None = Field(None)
 
 
 class GeminiTextPart(BaseModel):
