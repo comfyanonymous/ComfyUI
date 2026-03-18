@@ -38,6 +38,8 @@ ComfyUI lets you design and execute advanced stable diffusion pipelines using a 
 
 ## Get Started
 
+### Local
+
 #### [Desktop Application](https://www.comfy.org/download)
 - The easiest way to get started.
 - Available on Windows & macOS.
@@ -49,8 +51,13 @@ ComfyUI lets you design and execute advanced stable diffusion pipelines using a 
 #### [Manual Install](#manual-install-windows-linux)
 Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
 
-## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
-See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
+### Cloud
+
+#### [Comfy Cloud](https://www.comfy.org/cloud)
+- Our official paid cloud version for those who can't afford local hardware.
+
+## Examples
+See what ComfyUI can do with the [newer template workflows](https://comfy.org/workflows) or old [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
@@ -189,8 +196,6 @@ The portable above currently comes with python 3.13 and pytorch cuda 13.0. Updat
 
 [Experimental portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
 
-[Portable with pytorch cuda 12.8 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu128.7z).
-
 [Portable with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
 
 #### How do I share models between another UI and ComfyUI?
@@ -227,11 +232,11 @@ Put your VAE in: models/vae
 
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.4```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.1```
 
-This is the command to install the nightly with ROCm 7.1 which might have some performance improvements:
+This is the command to install the nightly with ROCm 7.2 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.1```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2```
 
 
 ### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.

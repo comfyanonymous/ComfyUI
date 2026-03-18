@@ -30,6 +30,30 @@ from comfy_api_nodes.util import (
     validate_image_dimensions,
 )
 
+_EUR_TO_USD = 1.19
+
+
+def _tier_price_eur(megapixels: float) -> float:
+    """Price in EUR for a single Magnific upscaling step based on input megapixels."""
+    if megapixels <= 1.3:
+        return 0.143
+    if megapixels <= 3.0:
+        return 0.286
+    if megapixels <= 6.4:
+        return 0.429
+    return 1.716
+
+
+def _calculate_magnific_upscale_price_usd(width: int, height: int, scale: int) -> float:
+    """Calculate total Magnific upscale price in USD for given input dimensions and scale factor."""
+    num_steps = int(math.log2(scale))
+    total_eur = 0.0
+    pixels = width * height
+    for _ in range(num_steps):
+        total_eur += _tier_price_eur(pixels / 1_000_000)
+        pixels *= 4
+    return round(total_eur * _EUR_TO_USD, 2)
+
 
 class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
     @classmethod
@@ -86,11 +110,13 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "engine",
                     options=["automatic", "magnific_illusio", "magnific_sharpy", "magnific_sparkle"],
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "auto_downscale",
                     default=False,
                     tooltip="Automatically downscale input image if output would exceed maximum pixel limit.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -103,11 +129,20 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["scale_factor"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["scale_factor", "auto_downscale"]),
                 expr="""
                 (
-                  $max := widgets.scale_factor = "2x" ? 1.326 : 1.657;
-                  {"type": "range_usd", "min_usd": 0.11, "max_usd": $max}
+                  $ad := widgets.auto_downscale;
+                  $mins := $ad
+                    ? {"2x": 0.172, "4x": 0.343, "8x": 0.515, "16x": 0.515}
+                    : {"2x": 0.172, "4x": 0.343, "8x": 0.515, "16x": 0.844};
+                  $maxs := {"2x": 0.515, "4x": 0.844, "8x": 1.015, "16x": 1.187};
+                  {
+                    "type": "range_usd",
+                    "min_usd": $lookup($mins, widgets.scale_factor),
+                    "max_usd": $lookup($maxs, widgets.scale_factor),
+                    "format": { "approximate": true }
+                  }
                 )
                 """,
             ),
@@ -168,6 +203,10 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
                     f"Use a smaller input image or lower scale factor."
                 )
 
+        final_height, final_width = get_image_dimensions(image)
+        actual_scale = int(scale_factor.rstrip("x"))
+        price_usd = _calculate_magnific_upscale_price_usd(final_width, final_height, actual_scale)
+
         initial_res = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/freepik/v1/ai/image-upscaler", method="POST"),
@@ -189,6 +228,7 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/freepik/v1/ai/image-upscaler/{initial_res.task_id}"),
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
+            price_extractor=lambda _: price_usd,
             poll_interval=10.0,
             max_poll_attempts=480,
         )
@@ -242,6 +282,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
                     "auto_downscale",
                     default=False,
                     tooltip="Automatically downscale input image if output would exceed maximum resolution.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -257,8 +298,14 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["scale_factor"]),
                 expr="""
                 (
-                  $max := widgets.scale_factor = "2x" ? 1.326 : 1.657;
-                  {"type": "range_usd", "min_usd": 0.11, "max_usd": $max}
+                  $mins := {"2x": 0.172, "4x": 0.343, "8x": 0.515, "16x": 0.844};
+                  $maxs := {"2x": 2.045, "4x": 2.545, "8x": 2.889, "16x": 3.06};
+                  {
+                    "type": "range_usd",
+                    "min_usd": $lookup($mins, widgets.scale_factor),
+                    "max_usd": $lookup($maxs, widgets.scale_factor),
+                    "format": { "approximate": true }
+                  }
                 )
                 """,
             ),
@@ -321,6 +368,9 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
                     f"Use a smaller input image or lower scale factor."
                 )
 
+        final_height, final_width = get_image_dimensions(image)
+        price_usd = _calculate_magnific_upscale_price_usd(final_width, final_height, requested_scale)
+
         initial_res = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/freepik/v1/ai/image-upscaler-precision-v2", method="POST"),
@@ -339,6 +389,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/freepik/v1/ai/image-upscaler-precision-v2/{initial_res.task_id}"),
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
+            price_extractor=lambda _: price_usd,
             poll_interval=10.0,
             max_poll_attempts=480,
         )
@@ -392,6 +443,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
                         "softy",
                     ],
                     tooltip="Processing engine selection.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "portrait_mode",
@@ -420,6 +472,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
                     default=True,
                     tooltip="When disabled, expect each generation to introduce a degree of randomness, "
                     "leading to more diverse outcomes.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -534,16 +587,19 @@ class MagnificImageRelightNode(IO.ComfyNode):
                     "interpolate_from_original",
                     default=False,
                     tooltip="Restricts generation freedom to match original more closely.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "change_background",
                     default=True,
                     tooltip="Modifies background based on prompt/reference.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "preserve_details",
                     default=True,
                     tooltip="Maintains texture and fine details from original.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "advanced_settings",
@@ -877,8 +933,8 @@ class MagnificExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            # MagnificImageUpscalerCreativeNode,
-            # MagnificImageUpscalerPreciseV2Node,
+            MagnificImageUpscalerCreativeNode,
+            MagnificImageUpscalerPreciseV2Node,
             MagnificImageStyleTransferNode,
             MagnificImageRelightNode,
             MagnificImageSkinEnhancerNode,

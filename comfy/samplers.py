@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 import torch
 from functools import partial
 import collections
-from comfy import model_management
 import math
 import logging
 import comfy.sampler_helpers
@@ -260,7 +259,7 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
             to_batch_temp.reverse()
             to_batch = to_batch_temp[:1]
 
-            free_memory = model_management.get_free_memory(x_in.device)
+            free_memory = model.current_patcher.get_free_memory(x_in.device)
             for i in range(1, len(to_batch_temp) + 1):
                 batch_amount = to_batch_temp[:len(to_batch_temp)//i]
                 input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
@@ -947,6 +946,8 @@ class CFGGuider:
 
     def inner_set_conds(self, conds):
         for k in conds:
+            if self.model_patcher.is_dynamic() and comfy.sampler_helpers.cond_has_hooks(conds[k]):
+                self.model_patcher = self.model_patcher.get_non_dynamic_delegate()
             self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):

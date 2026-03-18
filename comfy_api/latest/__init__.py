@@ -7,7 +7,7 @@ from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
 from ._input import ImageInput, AudioInput, MaskInput, LatentInput, VideoInput
 from ._input_impl import VideoFromFile, VideoFromComponents
-from ._util import VideoCodec, VideoContainer, VideoComponents, MESH, VOXEL
+from ._util import VideoCodec, VideoContainer, VideoComponents, MESH, VOXEL, File3D
 from . import _io_public as io
 from . import _ui_public as ui
 from comfy_execution.utils import get_executing_context
@@ -20,6 +20,18 @@ import numpy as np
 class ComfyAPI_latest(ComfyAPIBase):
     VERSION = "latest"
     STABLE = False
+
+    def __init__(self):
+        super().__init__()
+        self.node_replacement = self.NodeReplacement()
+        self.execution = self.Execution()
+        self.caching = self.Caching()
+
+    class NodeReplacement(ProxiedSingleton):
+        async def register(self, node_replace: io.NodeReplace) -> None:
+            """Register a node replacement mapping."""
+            from server import PromptServer
+            PromptServer.instance.node_replace_manager.register(node_replace)
 
     class Execution(ProxiedSingleton):
         async def set_progress(
@@ -73,7 +85,35 @@ class ComfyAPI_latest(ComfyAPIBase):
                 image=to_display,
             )
 
-    execution: Execution
+    class Caching(ProxiedSingleton):
+        """
+        External cache provider API for sharing cached node outputs
+        across ComfyUI instances.
+
+        Example::
+
+            from comfy_api.latest import Caching
+
+            class MyCacheProvider(Caching.CacheProvider):
+                async def on_lookup(self, context):
+                    ...  # check external storage
+
+                async def on_store(self, context, value):
+                    ...  # store to external storage
+
+            Caching.register_provider(MyCacheProvider())
+        """
+        from ._caching import CacheProvider, CacheContext, CacheValue
+
+        async def register_provider(self, provider: "ComfyAPI_latest.Caching.CacheProvider") -> None:
+            """Register an external cache provider. Providers are called in registration order."""
+            from comfy_execution.cache_provider import register_cache_provider
+            register_cache_provider(provider)
+
+        async def unregister_provider(self, provider: "ComfyAPI_latest.Caching.CacheProvider") -> None:
+            """Unregister a previously registered cache provider."""
+            from comfy_execution.cache_provider import unregister_cache_provider
+            unregister_cache_provider(provider)
 
 class ComfyExtension(ABC):
     async def on_load(self) -> None:
@@ -105,6 +145,10 @@ class Types:
     VideoComponents = VideoComponents
     MESH = MESH
     VOXEL = VOXEL
+    File3D = File3D
+
+
+Caching = ComfyAPI_latest.Caching
 
 ComfyAPI = ComfyAPI_latest
 
@@ -125,6 +169,7 @@ __all__ = [
     "Input",
     "InputImpl",
     "Types",
+    "Caching",
     "ComfyExtension",
     "io",
     "IO",

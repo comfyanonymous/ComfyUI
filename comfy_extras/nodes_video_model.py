@@ -32,9 +32,9 @@ class SVD_img2vid_Conditioning:
                               "width": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 576, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
                               "video_frames": ("INT", {"default": 14, "min": 1, "max": 4096}),
-                              "motion_bucket_id": ("INT", {"default": 127, "min": 1, "max": 1023}),
+                              "motion_bucket_id": ("INT", {"default": 127, "min": 1, "max": 1023, "advanced": True}),
                               "fps": ("INT", {"default": 6, "min": 1, "max": 1024}),
-                              "augmentation_level": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.01})
+                              "augmentation_level": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.01, "advanced": True})
                              }}
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
     RETURN_NAMES = ("positive", "negative", "latent")
@@ -60,7 +60,7 @@ class VideoLinearCFGGuidance:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "min_cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                              "min_cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01, "advanced": True}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
@@ -84,7 +84,7 @@ class VideoTriangleCFGGuidance:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "min_cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                              "min_cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01, "advanced": True}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"

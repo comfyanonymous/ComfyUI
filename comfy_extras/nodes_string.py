@@ -169,7 +169,7 @@ class StringContains(io.ComfyNode):
             inputs=[
                 io.String.Input("string", multiline=True),
                 io.String.Input("substring", multiline=True),
-                io.Boolean.Input("case_sensitive", default=True),
+                io.Boolean.Input("case_sensitive", default=True, advanced=True),
             ],
             outputs=[
                 io.Boolean.Output(display_name="contains"),
@@ -198,7 +198,7 @@ class StringCompare(io.ComfyNode):
                 io.String.Input("string_a", multiline=True),
                 io.String.Input("string_b", multiline=True),
                 io.Combo.Input("mode", options=["Starts With", "Ends With", "Equal"]),
-                io.Boolean.Input("case_sensitive", default=True),
+                io.Boolean.Input("case_sensitive", default=True, advanced=True),
             ],
             outputs=[
                 io.Boolean.Output(),
@@ -233,9 +233,9 @@ class RegexMatch(io.ComfyNode):
             inputs=[
                 io.String.Input("string", multiline=True),
                 io.String.Input("regex_pattern", multiline=True),
-                io.Boolean.Input("case_insensitive", default=True),
-                io.Boolean.Input("multiline", default=False),
-                io.Boolean.Input("dotall", default=False),
+                io.Boolean.Input("case_insensitive", default=True, advanced=True),
+                io.Boolean.Input("multiline", default=False, advanced=True),
+                io.Boolean.Input("dotall", default=False, advanced=True),
             ],
             outputs=[
                 io.Boolean.Output(display_name="matches"),
@@ -275,10 +275,10 @@ class RegexExtract(io.ComfyNode):
                 io.String.Input("string", multiline=True),
                 io.String.Input("regex_pattern", multiline=True),
                 io.Combo.Input("mode", options=["First Match", "All Matches", "First Group", "All Groups"]),
-                io.Boolean.Input("case_insensitive", default=True),
-                io.Boolean.Input("multiline", default=False),
-                io.Boolean.Input("dotall", default=False),
-                io.Int.Input("group_index", default=1, min=0, max=100),
+                io.Boolean.Input("case_insensitive", default=True, advanced=True),
+                io.Boolean.Input("multiline", default=False, advanced=True),
+                io.Boolean.Input("dotall", default=False, advanced=True),
+                io.Int.Input("group_index", default=1, min=0, max=100, advanced=True),
             ],
             outputs=[
                 io.String.Output(),
@@ -351,10 +351,10 @@ class RegexReplace(io.ComfyNode):
                 io.String.Input("string", multiline=True),
                 io.String.Input("regex_pattern", multiline=True),
                 io.String.Input("replace", multiline=True),
-                io.Boolean.Input("case_insensitive", default=True, optional=True),
-                io.Boolean.Input("multiline", default=False, optional=True),
-                io.Boolean.Input("dotall", default=False, optional=True, tooltip="When enabled, the dot (.) character will match any character including newline characters. When disabled, dots won't match newlines."),
-                io.Int.Input("count", default=0, min=0, max=100, optional=True, tooltip="Maximum number of replacements to make. Set to 0 to replace all occurrences (default). Set to 1 to replace only the first match, 2 for the first two matches, etc."),
+                io.Boolean.Input("case_insensitive", default=True, optional=True, advanced=True),
+                io.Boolean.Input("multiline", default=False, optional=True, advanced=True),
+                io.Boolean.Input("dotall", default=False, optional=True, advanced=True, tooltip="When enabled, the dot (.) character will match any character including newline characters. When disabled, dots won't match newlines."),
+                io.Int.Input("count", default=0, min=0, max=100, optional=True, advanced=True, tooltip="Maximum number of replacements to make. Set to 0 to replace all occurrences (default). Set to 1 to replace only the first match, 2 for the first two matches, etc."),
             ],
             outputs=[
                 io.String.Output(),

@@ -50,9 +50,9 @@ class KarrasScheduler(io.ComfyNode):
             category="sampling/custom_sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
-                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("rho", default=7.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("rho", default=7.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sigmas.Output()]
         )
@@ -72,8 +72,8 @@ class ExponentialScheduler(io.ComfyNode):
             category="sampling/custom_sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
-                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sigmas.Output()]
         )
@@ -93,9 +93,9 @@ class PolyexponentialScheduler(io.ComfyNode):
             category="sampling/custom_sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
-                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("rho", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("rho", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sigmas.Output()]
         )
@@ -115,10 +115,10 @@ class LaplaceScheduler(io.ComfyNode):
             category="sampling/custom_sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
-                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("mu", default=0.0, min=-10.0, max=10.0, step=0.1, round=False),
-                io.Float.Input("beta", default=0.5, min=0.0, max=10.0, step=0.1, round=False),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("mu", default=0.0, min=-10.0, max=10.0, step=0.1, round=False, advanced=True),
+                io.Float.Input("beta", default=0.5, min=0.0, max=10.0, step=0.1, round=False, advanced=True),
             ],
             outputs=[io.Sigmas.Output()]
         )
@@ -164,8 +164,8 @@ class BetaSamplingScheduler(io.ComfyNode):
             inputs=[
                 io.Model.Input("model"),
                 io.Int.Input("steps", default=20, min=1, max=10000),
-                io.Float.Input("alpha", default=0.6, min=0.0, max=50.0, step=0.01, round=False),
-                io.Float.Input("beta", default=0.6, min=0.0, max=50.0, step=0.01, round=False),
+                io.Float.Input("alpha", default=0.6, min=0.0, max=50.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("beta", default=0.6, min=0.0, max=50.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sigmas.Output()]
         )
@@ -185,9 +185,9 @@ class VPScheduler(io.ComfyNode):
             category="sampling/custom_sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
-                io.Float.Input("beta_d", default=19.9, min=0.0, max=5000.0, step=0.01, round=False), #TODO: fix default values
-                io.Float.Input("beta_min", default=0.1, min=0.0, max=5000.0, step=0.01, round=False),
-                io.Float.Input("eps_s", default=0.001, min=0.0, max=1.0, step=0.0001, round=False),
+                io.Float.Input("beta_d", default=19.9, min=0.0, max=5000.0, step=0.01, round=False, advanced=True), #TODO: fix default values
+                io.Float.Input("beta_min", default=0.1, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("eps_s", default=0.001, min=0.0, max=1.0, step=0.0001, round=False, advanced=True),
             ],
             outputs=[io.Sigmas.Output()]
         )
@@ -398,9 +398,9 @@ class SamplerDPMPP_3M_SDE(io.ComfyNode):
             node_id="SamplerDPMPP_3M_SDE",
             category="sampling/custom_sampling/samplers",
             inputs=[
-                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Combo.Input("noise_device", options=['gpu', 'cpu']),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Combo.Input("noise_device", options=['gpu', 'cpu'], advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -424,9 +424,9 @@ class SamplerDPMPP_2M_SDE(io.ComfyNode):
             category="sampling/custom_sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=['midpoint', 'heun']),
-                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Combo.Input("noise_device", options=['gpu', 'cpu']),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Combo.Input("noise_device", options=['gpu', 'cpu'], advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -450,10 +450,10 @@ class SamplerDPMPP_SDE(io.ComfyNode):
             node_id="SamplerDPMPP_SDE",
             category="sampling/custom_sampling/samplers",
             inputs=[
-                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("r", default=0.5, min=0.0, max=100.0, step=0.01, round=False),
-                io.Combo.Input("noise_device", options=['gpu', 'cpu']),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("r", default=0.5, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Combo.Input("noise_device", options=['gpu', 'cpu'], advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -496,8 +496,8 @@ class SamplerEulerAncestral(io.ComfyNode):
             node_id="SamplerEulerAncestral",
             category="sampling/custom_sampling/samplers",
             inputs=[
-                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -538,7 +538,7 @@ class SamplerLMS(io.ComfyNode):
         return io.Schema(
             node_id="SamplerLMS",
             category="sampling/custom_sampling/samplers",
-            inputs=[io.Int.Input("order", default=4, min=1, max=100)],
+            inputs=[io.Int.Input("order", default=4, min=1, max=100, advanced=True)],
             outputs=[io.Sampler.Output()]
         )
 
@@ -556,16 +556,16 @@ class SamplerDPMAdaptative(io.ComfyNode):
             node_id="SamplerDPMAdaptative",
             category="sampling/custom_sampling/samplers",
             inputs=[
-                io.Int.Input("order", default=3, min=2, max=3),
-                io.Float.Input("rtol", default=0.05, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("atol", default=0.0078, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("h_init", default=0.05, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("pcoeff", default=0.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("icoeff", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("dcoeff", default=0.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("accept_safety", default=0.81, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("eta", default=0.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Int.Input("order", default=3, min=2, max=3, advanced=True),
+                io.Float.Input("rtol", default=0.05, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("atol", default=0.0078, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("h_init", default=0.05, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("pcoeff", default=0.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("icoeff", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("dcoeff", default=0.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("accept_safety", default=0.81, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("eta", default=0.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -588,9 +588,9 @@ class SamplerER_SDE(io.ComfyNode):
             category="sampling/custom_sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=["ER-SDE", "Reverse-time SDE", "ODE"]),
-                io.Int.Input("max_stage", default=3, min=1, max=3),
-                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength of reverse-time SDE.\nWhen eta=0, it reduces to deterministic ODE. This setting doesn't apply to ER-SDE solver type."),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Int.Input("max_stage", default=3, min=1, max=3, advanced=True),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength of reverse-time SDE.\nWhen eta=0, it reduces to deterministic ODE. This setting doesn't apply to ER-SDE solver type.", advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -622,17 +622,18 @@ class SamplerSASolver(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerSASolver",
+            search_aliases=["sde"],
             category="sampling/custom_sampling/samplers",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("eta", default=1.0, min=0.0, max=10.0, step=0.01, round=False),
-                io.Float.Input("sde_start_percent", default=0.2, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("sde_end_percent", default=0.8, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
-                io.Int.Input("predictor_order", default=3, min=1, max=6),
-                io.Int.Input("corrector_order", default=4, min=0, max=6),
-                io.Boolean.Input("use_pece"),
-                io.Boolean.Input("simple_order_2"),
+                io.Float.Input("eta", default=1.0, min=0.0, max=10.0, step=0.01, round=False, advanced=True),
+                io.Float.Input("sde_start_percent", default=0.2, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("sde_end_percent", default=0.8, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
+                io.Int.Input("predictor_order", default=3, min=1, max=6, advanced=True),
+                io.Int.Input("corrector_order", default=4, min=0, max=6, advanced=True),
+                io.Boolean.Input("use_pece", advanced=True),
+                io.Boolean.Input("simple_order_2", advanced=True),
             ],
             outputs=[io.Sampler.Output()]
         )
@@ -666,12 +667,13 @@ class SamplerSEEDS2(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerSEEDS2",
+            search_aliases=["sde", "exp heun"],
             category="sampling/custom_sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=["phi_1", "phi_2"]),
-                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength"),
-                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="SDE noise multiplier"),
-                io.Float.Input("r", default=0.5, min=0.01, max=1.0, step=0.01, round=False, tooltip="Relative step size for the intermediate stage (c2 node)"),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength", advanced=True),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="SDE noise multiplier", advanced=True),
+                io.Float.Input("r", default=0.5, min=0.01, max=1.0, step=0.01, round=False, tooltip="Relative step size for the intermediate stage (c2 node)", advanced=True),
             ],
             outputs=[io.Sampler.Output()],
             description=(
@@ -728,7 +730,7 @@ class SamplerCustom(io.ComfyNode):
             category="sampling/custom_sampling",
             inputs=[
                 io.Model.Input("model"),
-                io.Boolean.Input("add_noise", default=True),
+                io.Boolean.Input("add_noise", default=True, advanced=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True),
                 io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
                 io.Conditioning.Input("positive"),

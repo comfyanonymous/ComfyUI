@@ -64,3 +64,33 @@ class To3DProTaskResultResponse(BaseModel):
 
 class To3DProTaskQueryRequest(BaseModel):
     JobId: str = Field(...)
+
+
+class TaskFile3DInput(BaseModel):
+    Type: str = Field(..., description="File type: GLB, OBJ, or FBX")
+    Url: str = Field(...)
+
+
+class To3DUVTaskRequest(BaseModel):
+    File: TaskFile3DInput = Field(...)
+
+
+class To3DPartTaskRequest(BaseModel):
+    File: TaskFile3DInput = Field(...)
+
+
+class TextureEditImageInfo(BaseModel):
+    Url: str = Field(...)
+
+
+class TextureEditTaskRequest(BaseModel):
+    File3D: TaskFile3DInput = Field(...)
+    Image: TextureEditImageInfo | None = Field(None)
+    Prompt: str | None = Field(None)
+    EnablePBR: bool | None = Field(None)
+
+
+class SmartTopologyRequest(BaseModel):
+    File3D: TaskFile3DInput = Field(...)
+    PolygonType: str | None = Field(...)
+    FaceLevel: str | None = Field(...)

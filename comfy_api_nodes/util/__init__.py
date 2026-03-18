@@ -9,6 +9,8 @@ from .client import (
 from .conversions import (
     audio_bytes_to_audio_input,
     audio_input_to_mp3,
+    audio_ndarray_to_bytesio,
+    audio_tensor_to_contiguous_ndarray,
     audio_to_base64_string,
     bytesio_to_image_tensor,
     convert_mask_to_image,
@@ -28,10 +30,12 @@ from .conversions import (
 from .download_helpers import (
     download_url_as_bytesio,
     download_url_to_bytesio,
+    download_url_to_file_3d,
     download_url_to_image_tensor,
     download_url_to_video_output,
 )
 from .upload_helpers import (
+    upload_3d_model_to_comfyapi,
     upload_audio_to_comfyapi,
     upload_file_to_comfyapi,
     upload_image_to_comfyapi,
@@ -61,6 +65,7 @@ __all__ = [
     "sync_op",
     "sync_op_raw",
     # Upload helpers
+    "upload_3d_model_to_comfyapi",
     "upload_audio_to_comfyapi",
     "upload_file_to_comfyapi",
     "upload_image_to_comfyapi",
@@ -69,11 +74,14 @@ __all__ = [
     # Download helpers
     "download_url_as_bytesio",
     "download_url_to_bytesio",
+    "download_url_to_file_3d",
     "download_url_to_image_tensor",
     "download_url_to_video_output",
     # Conversions
     "audio_bytes_to_audio_input",
     "audio_input_to_mp3",
+    "audio_ndarray_to_bytesio",
+    "audio_tensor_to_contiguous_ndarray",
     "audio_to_base64_string",
     "bytesio_to_image_tensor",
     "convert_mask_to_image",

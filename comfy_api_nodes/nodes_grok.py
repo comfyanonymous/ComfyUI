@@ -27,6 +27,12 @@ from comfy_api_nodes.util import (
 )
 
 
+def _extract_grok_price(response) -> float | None:
+    if response.usage and response.usage.cost_in_usd_ticks is not None:
+        return response.usage.cost_in_usd_ticks / 10_000_000_000
+    return None
+
+
 class GrokImageNode(IO.ComfyNode):
 
     @classmethod
@@ -37,7 +43,10 @@ class GrokImageNode(IO.ComfyNode):
             category="api node/image/Grok",
             description="Generate images using Grok based on a text prompt",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-image-beta"]),
+                IO.Combo.Input(
+                    "model",
+                    options=["grok-imagine-image-pro", "grok-imagine-image", "grok-imagine-image-beta"],
+                ),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -81,6 +90,7 @@ class GrokImageNode(IO.ComfyNode):
                     tooltip="Seed to determine if node should re-run; "
                     "actual results are nondeterministic regardless of seed.",
                 ),
+                IO.Combo.Input("resolution", options=["1K", "2K"], optional=True),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -92,8 +102,13 @@ class GrokImageNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["number_of_images"]),
-                expr="""{"type":"usd","usd":0.033 * widgets.number_of_images}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images"]),
+                expr="""
+                (
+                  $rate := $contains(widgets.model, "pro") ? 0.07 : 0.02;
+                  {"type":"usd","usd": $rate * widgets.number_of_images}
+                )
+                """,
             ),
         )
 
@@ -105,6 +120,7 @@ class GrokImageNode(IO.ComfyNode):
         aspect_ratio: str,
         number_of_images: int,
         seed: int,
+        resolution: str = "1K",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         response = await sync_op(
@@ -116,8 +132,10 @@ class GrokImageNode(IO.ComfyNode):
                 aspect_ratio=aspect_ratio,
                 n=number_of_images,
                 seed=seed,
+                resolution=resolution.lower(),
             ),
             response_model=ImageGenerationResponse,
+            price_extractor=_extract_grok_price,
         )
         if len(response.data) == 1:
             return IO.NodeOutput(await download_url_to_image_tensor(response.data[0].url))
@@ -138,14 +156,17 @@ class GrokImageEditNode(IO.ComfyNode):
             category="api node/image/Grok",
             description="Modify an existing image based on a text prompt",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-image-beta"]),
-                IO.Image.Input("image"),
+                IO.Combo.Input(
+                    "model",
+                    options=["grok-imagine-image-pro", "grok-imagine-image", "grok-imagine-image-beta"],
+                ),
+                IO.Image.Input("image", display_name="images"),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="The text prompt used to generate the image",
                 ),
-                IO.Combo.Input("resolution", options=["1K"]),
+                IO.Combo.Input("resolution", options=["1K", "2K"]),
                 IO.Int.Input(
                     "number_of_images",
                     default=1,
@@ -166,6 +187,27 @@ class GrokImageEditNode(IO.ComfyNode):
                     tooltip="Seed to determine if node should re-run; "
                     "actual results are nondeterministic regardless of seed.",
                 ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=[
+                        "auto",
+                        "1:1",
+                        "2:3",
+                        "3:2",
+                        "3:4",
+                        "4:3",
+                        "9:16",
+                        "16:9",
+                        "9:19.5",
+                        "19.5:9",
+                        "9:20",
+                        "20:9",
+                        "1:2",
+                        "2:1",
+                    ],
+                    optional=True,
+                    tooltip="Only allowed when multiple images are connected to the image input.",
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -177,8 +219,13 @@ class GrokImageEditNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["number_of_images"]),
-                expr="""{"type":"usd","usd":0.002 + 0.033 * widgets.number_of_images}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images"]),
+                expr="""
+                (
+                  $rate := $contains(widgets.model, "pro") ? 0.07 : 0.02;
+                  {"type":"usd","usd": 0.002 + $rate * widgets.number_of_images}
+                )
+                """,
             ),
         )
 
@@ -191,22 +238,32 @@ class GrokImageEditNode(IO.ComfyNode):
         resolution: str,
         number_of_images: int,
         seed: int,
+        aspect_ratio: str = "auto",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
-        if get_number_of_images(image) != 1:
-            raise ValueError("Only one input image is supported.")
+        if model == "grok-imagine-image-pro":
+            if get_number_of_images(image) > 1:
+                raise ValueError("The pro model supports only 1 input image.")
+        elif get_number_of_images(image) > 3:
+            raise ValueError("A maximum of 3 input images is supported.")
+        if aspect_ratio != "auto" and get_number_of_images(image) == 1:
+            raise ValueError(
+                "Custom aspect ratio is only allowed when multiple images are connected to the image input."
+            )
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/xai/v1/images/edits", method="POST"),
             data=ImageEditRequest(
                 model=model,
-                image=InputUrlObject(url=f"data:image/png;base64,{tensor_to_base64_string(image)}"),
+                images=[InputUrlObject(url=f"data:image/png;base64,{tensor_to_base64_string(i)}") for i in image],
                 prompt=prompt,
                 resolution=resolution.lower(),
                 n=number_of_images,
                 seed=seed,
+                aspect_ratio=None if aspect_ratio == "auto" else aspect_ratio,
             ),
             response_model=ImageGenerationResponse,
+            price_extractor=_extract_grok_price,
         )
         if len(response.data) == 1:
             return IO.NodeOutput(await download_url_to_image_tensor(response.data[0].url))
@@ -227,7 +284,7 @@ class GrokVideoNode(IO.ComfyNode):
             category="api node/video/Grok",
             description="Generate video from a prompt or an image",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-video-beta"]),
+                IO.Combo.Input("model", options=["grok-imagine-video", "grok-imagine-video-beta"]),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -275,10 +332,11 @@ class GrokVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration"], inputs=["image"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"], inputs=["image"]),
                 expr="""
                 (
-                  $base := 0.181 * widgets.duration;
+                  $rate := widgets.resolution = "720p" ? 0.07 : 0.05;
+                  $base := $rate * widgets.duration;
                   {"type":"usd","usd": inputs.image.connected ? $base + 0.002 : $base}
                 )
                 """,
@@ -321,6 +379,7 @@ class GrokVideoNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
+            price_extractor=_extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -335,7 +394,7 @@ class GrokVideoEditNode(IO.ComfyNode):
             category="api node/video/Grok",
             description="Edit an existing video based on a text prompt.",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-video-beta"]),
+                IO.Combo.Input("model", options=["grok-imagine-video", "grok-imagine-video-beta"]),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -364,7 +423,7 @@ class GrokVideoEditNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd": 0.191, "format": {"suffix": "/sec", "approximate": true}}""",
+                expr="""{"type":"usd","usd": 0.06, "format": {"suffix": "/sec", "approximate": true}}""",
             ),
         )
 
@@ -398,6 +457,7 @@ class GrokVideoEditNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
+            price_extractor=_extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 

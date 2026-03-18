@@ -20,12 +20,17 @@ import psutil
 import logging
 from enum import Enum
 from comfy.cli_args import args, PerformanceFeature
+import threading
 import torch
 import sys
 import platform
 import weakref
 import gc
 import os
+from contextlib import nullcontext
+import comfy.memory_management
+import comfy.utils
+import comfy.quant_ops
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -46,6 +51,11 @@ set_vram_to = VRAMState.NORMAL_VRAM
 cpu_state = CPUState.GPU
 
 total_vram = 0
+
+
+# Training Related State
+in_training = False
+
 
 def get_supported_float8_types():
     float8_types = []
@@ -167,6 +177,14 @@ def is_ixuca():
         return True
     return False
 
+def is_wsl():
+    version = platform.uname().release
+    if version.endswith("-Microsoft"):
+        return True
+    elif version.endswith("microsoft-standard-WSL2"):
+        return True
+    return False
+
 def get_torch_device():
     global directml_enabled
     global cpu_state
@@ -251,6 +269,23 @@ try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
 except:
     OOM_EXCEPTION = Exception
+
+try:
+    ACCELERATOR_ERROR = torch.AcceleratorError
+except AttributeError:
+    ACCELERATOR_ERROR = RuntimeError
+
+def is_oom(e):
+    if isinstance(e, OOM_EXCEPTION):
+        return True
+    if isinstance(e, ACCELERATOR_ERROR) and (getattr(e, 'error_code', None) == 2 or "out of memory" in str(e).lower()):
+        discard_cuda_async_error()
+        return True
+    return False
+
+def raise_non_oom(e):
+    if not is_oom(e):
+        raise e
 
 XFORMERS_VERSION = ""
 XFORMERS_ENABLED_VAE = True
@@ -337,7 +372,7 @@ AMD_ENABLE_MIOPEN_ENV = 'COMFYUI_ENABLE_MIOPEN'
 
 try:
     if is_amd():
-        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName.split(':')[0]
         if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
             if os.getenv(AMD_ENABLE_MIOPEN_ENV) != '1':
                 torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
@@ -365,7 +400,7 @@ try:
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if aotriton_supported(arch):  # AMD efficient attention implementation depends on aotriton.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx950", "gfx1100", "gfx1101", "gfx1150", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
                 if rocm_version >= (7, 0):
                    if any((a in arch) for a in ["gfx1200", "gfx1201"]):
@@ -470,6 +505,28 @@ def module_size(module):
         module_mem += t.nbytes
     return module_mem
 
+def module_mmap_residency(module, free=False):
+    mmap_touched_mem = 0
+    module_mem = 0
+    bounced_mmaps = set()
+    sd = module.state_dict()
+    for k in sd:
+        t = sd[k]
+        module_mem += t.nbytes
+        storage = t._qdata.untyped_storage() if isinstance(t, comfy.quant_ops.QuantizedTensor) else t.untyped_storage()
+        if not getattr(storage, "_comfy_tensor_mmap_touched", False):
+            continue
+        mmap_touched_mem += t.nbytes
+        if not free:
+            continue
+        storage._comfy_tensor_mmap_touched = False
+        mmap_obj = storage._comfy_tensor_mmap_refs[0]
+        if mmap_obj in bounced_mmaps:
+            continue
+        mmap_obj.bounce()
+        bounced_mmaps.add(mmap_obj)
+    return mmap_touched_mem, module_mem
+
 class LoadedModel:
     def __init__(self, model):
         self._set_model(model)
@@ -484,6 +541,7 @@ class LoadedModel:
         if model.parent is not None:
             self._parent_model = weakref.ref(model.parent)
             self._patcher_finalizer = weakref.finalize(model, self._switch_parent)
+            self._patcher_finalizer.atexit = False
 
     def _switch_parent(self):
         model = self._parent_model()
@@ -496,6 +554,9 @@ class LoadedModel:
 
     def model_memory(self):
         return self.model.model_size()
+
+    def model_mmap_residency(self, free=False):
+        return self.model.model_mmap_residency(free=free)
 
     def model_loaded_memory(self):
         return self.model.loaded_size()
@@ -527,6 +588,7 @@ class LoadedModel:
 
         self.real_model = weakref.ref(real_model)
         self.model_finalizer = weakref.finalize(real_model, cleanup_models)
+        self.model_finalizer.atexit = False
         return real_model
 
     def should_reload_model(self, force_patch_weights=False):
@@ -578,9 +640,15 @@ WINDOWS = any(platform.win32_ver())
 
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
+    import comfy.windows
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
     if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
         EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
+    def get_free_ram():
+        return comfy.windows.get_free_ram()
+else:
+    def get_free_ram():
+        return psutil.virtual_memory().available
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -592,7 +660,7 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
-def free_memory(memory_required, device, keep_loaded=[]):
+def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins_required=0, ram_required=0):
     cleanup_models_gc()
     unloaded_model = []
     can_unload = []
@@ -605,17 +673,34 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
                 shift_model.currently_used = False
 
-    for x in sorted(can_unload):
+    can_unload_sorted = sorted(can_unload)
+    for x in can_unload_sorted:
         i = x[-1]
-        memory_to_free = None
+        memory_to_free = 1e32
+        pins_to_free = 1e32
         if not DISABLE_SMART_MEMORY:
-            free_mem = get_free_memory(device)
-            if free_mem > memory_required:
-                break
-            memory_to_free = memory_required - free_mem
-        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-        if current_loaded_models[i].model_unload(memory_to_free):
+            memory_to_free = memory_required - get_free_memory(device)
+            pins_to_free = pins_required - get_free_ram()
+            if current_loaded_models[i].model.is_dynamic() and for_dynamic:
+                #don't actually unload dynamic models for the sake of other dynamic models
+                #as that works on-demand.
+                memory_required -= current_loaded_models[i].model.loaded_size()
+                memory_to_free = 0
+        if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
+            logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
             unloaded_model.append(i)
+        if pins_to_free > 0:
+            logging.debug(f"PIN Unloading {current_loaded_models[i].model.model.__class__.__name__}")
+            current_loaded_models[i].model.partially_unload_ram(pins_to_free)
+
+    for x in can_unload_sorted:
+        i = x[-1]
+        ram_to_free = ram_required - psutil.virtual_memory().available
+        if ram_to_free <= 0 and i not in unloaded_model:
+            continue
+        resident_memory, _ = current_loaded_models[i].model_mmap_residency(free=True)
+        if resident_memory > 0:
+            logging.debug(f"RAM Unloading {current_loaded_models[i].model.model.__class__.__name__}")
 
     for i in sorted(unloaded_model, reverse=True):
         unloaded_models.append(current_loaded_models.pop(i))
@@ -650,7 +735,10 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
 
     models_to_load = []
 
+    free_for_dynamic=True
     for x in models:
+        if not x.is_dynamic():
+            free_for_dynamic = False
         loaded_model = LoadedModel(x)
         try:
             loaded_model_index = current_loaded_models.index(loaded_model)
@@ -676,19 +764,35 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             model_to_unload.model.detach(unpatch_all=False)
             model_to_unload.model_finalizer.detach()
 
+
     total_memory_required = {}
+    total_pins_required = {}
+    total_ram_required = {}
     for loaded_model in models_to_load:
-        total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+        device = loaded_model.device
+        total_memory_required[device] = total_memory_required.get(device, 0) + loaded_model.model_memory_required(device)
+        resident_memory, model_memory = loaded_model.model_mmap_residency()
+        pinned_memory = loaded_model.model.pinned_memory_size()
+        #FIXME: This can over-free the pins as it budgets to pin the entire model. We should
+        #make this JIT to keep as much pinned as possible.
+        pins_required = model_memory - pinned_memory
+        ram_required = model_memory - resident_memory
+        total_pins_required[device] = total_pins_required.get(device, 0) + pins_required
+        total_ram_required[device] = total_ram_required.get(device, 0) + ram_required
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
-            free_memory(total_memory_required[device] * 1.1 + extra_mem, device)
+            free_memory(total_memory_required[device] * 1.1 + extra_mem,
+                        device,
+                        for_dynamic=free_for_dynamic,
+                        pins_required=total_pins_required[device],
+                        ram_required=total_ram_required[device])
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_mem = get_free_memory(device)
             if free_mem < minimum_memory_required:
-                models_l = free_memory(minimum_memory_required, device)
+                models_l = free_memory(minimum_memory_required, device, for_dynamic=free_for_dynamic)
                 logging.info("{} models unloaded.".format(len(models_l)))
 
     for loaded_model in models_to_load:
@@ -732,6 +836,9 @@ def loaded_models(only_currently_used=False):
 
 def cleanup_models_gc():
     do_gc = False
+
+    reset_cast_buffers()
+
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
         if cur.is_dead():
@@ -748,6 +855,13 @@ def cleanup_models_gc():
             if cur.is_dead():
                 logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
 
+
+def archive_model_dtypes(model):
+    for name, module in model.named_modules():
+        for param_name, param in module.named_parameters(recurse=False):
+            setattr(module, f"{param_name}_comfy_model_dtype", param.dtype)
+        for buf_name, buf in module.named_buffers(recurse=False):
+            setattr(module, f"{buf_name}_comfy_model_dtype", buf.dtype)
 
 
 def cleanup_models():
@@ -780,11 +894,14 @@ def unet_offload_device():
         return torch.device("cpu")
 
 def unet_inital_load_device(parameters, dtype):
+    cpu_dev = torch.device("cpu")
+    if comfy.memory_management.aimdo_enabled:
+        return cpu_dev
+
     torch_dev = get_torch_device()
     if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED:
         return torch_dev
 
-    cpu_dev = torch.device("cpu")
     if DISABLE_SMART_MEMORY or vram_state == VRAMState.NO_VRAM:
         return cpu_dev
 
@@ -886,7 +1003,7 @@ def text_encoder_offload_device():
 def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
-    elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
+    elif vram_state in (VRAMState.HIGH_VRAM, VRAMState.NORMAL_VRAM, VRAMState.SHARED) or comfy.memory_management.aimdo_enabled:
         if should_use_fp16(prioritize_performance=False):
             return get_torch_device()
         else:
@@ -895,6 +1012,9 @@ def text_encoder_device():
         return torch.device("cpu")
 
 def text_encoder_initial_device(load_device, offload_device, model_size=0):
+    if comfy.memory_management.aimdo_enabled:
+        return offload_device
+
     if load_device == offload_device or model_size <= 1024 * 1024 * 1024:
         return offload_device
 
@@ -931,6 +1051,12 @@ def intermediate_device():
         return get_torch_device()
     else:
         return torch.device("cpu")
+
+def intermediate_dtype():
+    if args.fp16_intermediates:
+        return torch.float16
+    else:
+        return torch.float32
 
 def vae_device():
     if args.cpu_vae:
@@ -1051,6 +1177,51 @@ def current_stream(device):
         return None
 
 stream_counters = {}
+
+STREAM_CAST_BUFFERS = {}
+LARGEST_CASTED_WEIGHT = (None, 0)
+
+def get_cast_buffer(offload_stream, device, size, ref):
+    global LARGEST_CASTED_WEIGHT
+
+    if offload_stream is not None:
+        wf_context = offload_stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(offload_stream)
+    else:
+        wf_context = nullcontext()
+
+    cast_buffer = STREAM_CAST_BUFFERS.get(offload_stream, None)
+    if cast_buffer is None or cast_buffer.numel() < size:
+        if ref is LARGEST_CASTED_WEIGHT[0]:
+            #If there is one giant weight we do not want both streams to
+            #allocate a buffer for it. It's up to the caster to get the other
+            #offload stream in this corner case
+            return None
+        if cast_buffer is not None and cast_buffer.numel() > 50 * (1024 ** 2):
+            #I want my wrongly sized 50MB+ of VRAM back from the caching allocator right now
+            synchronize()
+            del STREAM_CAST_BUFFERS[offload_stream]
+            del cast_buffer
+            soft_empty_cache()
+        with wf_context:
+            cast_buffer = torch.empty((size), dtype=torch.int8, device=device)
+            STREAM_CAST_BUFFERS[offload_stream] = cast_buffer
+
+        if  size > LARGEST_CASTED_WEIGHT[1]:
+            LARGEST_CASTED_WEIGHT = (ref, size)
+
+    return cast_buffer
+
+def reset_cast_buffers():
+    global LARGEST_CASTED_WEIGHT
+    LARGEST_CASTED_WEIGHT = (None, 0)
+    for offload_stream in STREAM_CAST_BUFFERS:
+        offload_stream.synchronize()
+    synchronize()
+    STREAM_CAST_BUFFERS.clear()
+    soft_empty_cache()
+
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
     if NUM_STREAMS == 0:
@@ -1093,7 +1264,29 @@ def sync_stream(device, stream):
         return
     current_stream(device).wait_stream(stream)
 
-def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None):
+
+def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
+    wf_context = nullcontext()
+    if stream is not None:
+       wf_context = stream
+       if hasattr(wf_context, "as_context"):
+           wf_context = wf_context.as_context(stream)
+
+    dest_views = comfy.memory_management.interpret_gathered_like(tensors, r)
+    with wf_context:
+        for tensor in tensors:
+            dest_view = dest_views.pop(0)
+            if tensor is None:
+                continue
+            if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view):
+                continue
+            storage = tensor._qdata.untyped_storage() if isinstance(tensor, comfy.quant_ops.QuantizedTensor) else tensor.untyped_storage()
+            if hasattr(storage, "_comfy_tensor_mmap_touched"):
+                storage._comfy_tensor_mmap_touched = True
+            dest_view.copy_(tensor, non_blocking=non_blocking)
+
+
+def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None, r=None):
     if device is None or weight.device == device:
         if not copy:
             if dtype is None or weight.dtype == dtype:
@@ -1112,10 +1305,12 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         if hasattr(wf_context, "as_context"):
             wf_context = wf_context.as_context(stream)
         with wf_context:
-            r = torch.empty_like(weight, dtype=dtype, device=device)
+            if r is None:
+                r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
     else:
-        r = torch.empty_like(weight, dtype=dtype, device=device)
+        if r is None:
+            r = torch.empty_like(weight, dtype=dtype, device=device)
         r.copy_(weight, non_blocking=non_blocking)
     return r
 
@@ -1135,15 +1330,15 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
-PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
+PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
 
 def discard_cuda_async_error():
     try:
         a = torch.tensor([1], dtype=torch.uint8, device=get_torch_device())
         b = torch.tensor([1], dtype=torch.uint8, device=get_torch_device())
         _ = a + b
-        torch.cuda.synchronize()
-    except torch.AcceleratorError:
+        synchronize()
+    except RuntimeError:
         #Dump it! We already know about it from the synchronous return
         pass
 
@@ -1525,6 +1720,19 @@ def supports_nvfp4_compute(device=None):
 
     return True
 
+def supports_mxfp8_compute(device=None):
+    if not is_nvidia():
+        return False
+
+    if torch_version_numeric < (2, 10):
+        return False
+
+    props = torch.cuda.get_device_properties(device)
+    if props.major < 10:
+        return False
+
+    return True
+
 def extended_fp16_support():
     # TODO: check why some models work with fp16 on newer torch versions but not on older
     if torch_version_numeric < (2, 7):
@@ -1546,7 +1754,17 @@ def lora_compute_dtype(device):
     LORA_COMPUTE_DTYPES[device] = dtype
     return dtype
 
+def synchronize():
+    if cpu_mode():
+        return
+    if is_intel_xpu():
+        torch.xpu.synchronize()
+    elif torch.cuda.is_available():
+        torch.cuda.synchronize()
+
 def soft_empty_cache(force=False):
+    if cpu_mode():
+        return
     global cpu_state
     if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
@@ -1557,6 +1775,7 @@ def soft_empty_cache(force=False):
     elif is_mlu():
         torch.mlu.empty_cache()
     elif torch.cuda.is_available():
+        torch.cuda.synchronize()
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
 
@@ -1567,9 +1786,6 @@ def debug_memory_summary():
     if is_amd() or is_nvidia():
         return torch.cuda.memory.memory_summary()
     return ""
-
-#TODO: might be cleaner to put this somewhere else
-import threading
 
 class InterruptProcessingException(Exception):
     pass

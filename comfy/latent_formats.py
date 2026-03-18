@@ -755,6 +755,10 @@ class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
 
+class ACEAudio15(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 1
+
 class ChromaRadiance(LatentFormat):
     latent_channels = 3
     spacial_downscale_ratio = 1
@@ -772,3 +776,10 @@ class ChromaRadiance(LatentFormat):
 
     def process_out(self, latent):
         return latent
+
+
+class ZImagePixelSpace(ChromaRadiance):
+    """Pixel-space latent format for ZImage DCT variant.
+    No VAE encoding/decoding — the model operates directly on RGB pixels.
+    """
+    pass
