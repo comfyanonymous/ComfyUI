@@ -2452,6 +2452,7 @@ async def init_builtin_extra_nodes():
         "nodes_nag.py",
         "nodes_sdpose.py",
         "nodes_math.py",
+        "nodes_number_convert.py",
         "nodes_painter.py",
     ]
 
