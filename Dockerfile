@@ -11,7 +11,9 @@
 # supported at a time.
 FROM python:3.12.12-trixie
 
-# Install cmake, which is an indirect installation dependencies
+# Install cmake, which is an indirect installation dependencies. We also keep
+# the apt cache following the update so the image can be quickly rebuilt with
+# additional, user-defined system dependencies required by custom node packs.
 RUN apt-get update && apt-get install -y --no-install-recommends cmake
 
 # Create a regular user whose UID and GID will match the host user's at runtime.
@@ -53,7 +55,7 @@ ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
 #
 # Since this step takes a long time to complete, it's performed early to take
 # advantage of Docker's build cache, thereby accelerating subsequent builds.
-COPY requirements.txt manager_requirements.txt ./
+COPY requirements.txt ./
 RUN pip install                                \
     --no-cache-dir                             \
     --disable-pip-version-check                \
@@ -80,7 +82,8 @@ VOLUME /comfyui/user
 VOLUME /home/comfyui
 
 # Switch back to root to run the entrypoint and to install additional system
-# dependencies
+# dependencies. The entrypoint will drop privileges and run the application as
+# the comfyui user after performing initial setup.
 USER root
 
 # Configure entrypoint
@@ -88,7 +91,8 @@ RUN chmod +x entrypoint.sh
 ENTRYPOINT [ "./entrypoint.sh" ]
 CMD [ "python", "./main.py" ]
 
-# Install additional system dependencies
+# Install additional system dependencies. Users can use this to install
+# dependencies required by custom node packs.
 ARG APT_EXTRA_PACKAGES
 RUN apt-get install -y --no-install-recommends $APT_EXTRA_PACKAGES \
 	&& apt-get clean                                               \

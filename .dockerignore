@@ -1,6 +1,7 @@
 # This file should remain in sync with .gitignore. If you need to make changes,
 # please add a comment explaining why. For items that must be removed, comment
 # them out instead of deleting them.
+
 __pycache__/
 *.py[cod]
 /output/
@@ -16,7 +17,7 @@ extra_model_paths.yaml
 /.vs
 .vscode/
 .idea/
-venv/
+venv*/
 .venv/
 /web/extensions/*
 !/web/extensions/logging.js.example

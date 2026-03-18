@@ -39,6 +39,7 @@ chown -R "$user:$user_group" \
 # address this issue.
 echo "[entrypoint] Adding user to GPU device groups..."
 for dev in /dev/nvidia*; do
+    [ -e "$dev" ] || continue
     group=$(ls -ld "$dev" | awk '{print $4}')
     usermod -aG "$group" "$user"
 done
