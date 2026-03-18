@@ -452,7 +452,7 @@ class MinimaxChatNode(IO.ComfyNode):
             node_id="MinimaxChatNode",
             display_name="MiniMax Chat",
             category="api node/text/MiniMax",
-            description="Generate text responses using MiniMax language models (MiniMax-M2.5).",
+            description="Generate text responses using MiniMax language models (MiniMax-M2.7).",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -463,7 +463,7 @@ class MinimaxChatNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model",
                     options=MiniMaxChatModel,
-                    default=MiniMaxChatModel.M2_5.value,
+                    default=MiniMaxChatModel.M2_7.value,
                     tooltip="The MiniMax model to use for text generation.",
                 ),
                 IO.String.Input(
@@ -524,7 +524,7 @@ class MinimaxChatNode(IO.ComfyNode):
     async def execute(
         cls,
         prompt: str,
-        model: str = MiniMaxChatModel.M2_5.value,
+        model: str = MiniMaxChatModel.M2_7.value,
         system_prompt: Optional[str] = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,

@@ -121,6 +121,8 @@ class MinimaxVideoGenerationResponse(BaseModel):
 
 
 class MiniMaxChatModel(str, Enum):
+    M2_7 = 'MiniMax-M2.7'
+    M2_7_highspeed = 'MiniMax-M2.7-highspeed'
     M2_5 = 'MiniMax-M2.5'
     M2_5_highspeed = 'MiniMax-M2.5-highspeed'
 
