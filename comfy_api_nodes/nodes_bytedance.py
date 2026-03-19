@@ -947,7 +947,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         ]
         return await process_video_task(
             cls,
-            payload=Image2VideoTaskCreationRequest(model=model, content=x),
+            payload=Image2VideoTaskCreationRequest(model=model, content=x, generate_audio=None),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
