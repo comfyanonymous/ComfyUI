@@ -6,6 +6,8 @@ inputs into FLOAT and INT outputs.
 
 from __future__ import annotations
 
+import math
+
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
@@ -53,10 +55,15 @@ class NumberConvertNode(io.ComfyNode):
             except ValueError:
                 raise ValueError(
                     f"Cannot convert string to number: {value!r}"
-                )
+                ) from None
         else:
             raise TypeError(
                 f"Unsupported input type: {type(value).__name__}"
+            )
+
+        if not math.isfinite(float_val):
+            raise ValueError(
+                f"Cannot convert non-finite value to number: {float_val}"
             )
 
         return io.NodeOutput(float_val, int(float_val))
