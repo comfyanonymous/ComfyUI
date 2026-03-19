@@ -233,10 +233,7 @@ class Encoder(nn.Module):
 
         self.gradient_checkpointing = False
 
-    def forward_orig(self, sample: torch.FloatTensor) -> torch.FloatTensor:
-        r"""The forward method of the `Encoder` class."""
-
-        sample = patchify(sample, patch_size_hw=self.patch_size, patch_size_t=1)
+    def _forward_chunk(self, sample: torch.FloatTensor) -> Optional[torch.FloatTensor]:
         sample = self.conv_in(sample)
 
         checkpoint_fn = (
@@ -247,10 +244,14 @@ class Encoder(nn.Module):
 
         for down_block in self.down_blocks:
             sample = checkpoint_fn(down_block)(sample)
+            if sample is None or sample.shape[2] == 0:
+                return None
 
         sample = self.conv_norm_out(sample)
         sample = self.conv_act(sample)
         sample = self.conv_out(sample)
+        if sample is None or sample.shape[2] == 0:
+            return None
 
         if self.latent_log_var == "uniform":
             last_channel = sample[:, -1:, ...]
@@ -282,9 +283,29 @@ class Encoder(nn.Module):
 
         return sample
 
+    def forward_orig(self, sample: torch.FloatTensor, device=None) -> torch.FloatTensor:
+        r"""The forward method of the `Encoder` class."""
+
+        max_chunk_size = get_max_chunk_size(sample.device if device is None else device) * 2  # encoder is more memory-efficient than decoder
+        frame_size = sample[:, :, :1, :, :].numel() * sample.element_size()
+        frame_size = int(frame_size * (self.conv_in.out_channels / self.conv_in.in_channels))
+
+        outputs = []
+        samples = [sample[:, :, :1, :, :]]
+        if sample.shape[2] > 1:
+            n = max(1, max_chunk_size // (2 * frame_size))
+            samples += list(torch.split(sample[:, :, 1:, :, :], 2 * n, dim=2))
+        for chunk_idx, chunk in enumerate(samples):
+            if chunk_idx == len(samples) - 1:
+                mark_conv3d_ended(self)
+            chunk = patchify(chunk, patch_size_hw=self.patch_size, patch_size_t=1).to(device=device)
+            output = self._forward_chunk(chunk)
+            if output is not None:
+                outputs.append(output)
+
+        return torch_cat_if_needed(outputs, dim=2)
+
     def forward(self, *args, **kwargs):
-        #No encoder support so just flag the end so it doesnt use the cache.
-        mark_conv3d_ended(self)
         try:
             return self.forward_orig(*args, **kwargs)
         finally:
@@ -1266,9 +1287,9 @@ class VideoVAE(nn.Module):
             }
         return config
 
-    def encode(self, x):
+    def encode(self, x, device=None):
         x = x[:, :, :max(1, 1 + ((x.shape[2] - 1) // 8) * 8), :, :]
-        means, logvar = torch.chunk(self.encoder(x), 2, dim=1)
+        means, logvar = torch.chunk(self.encoder(x, device=device), 2, dim=1)
         return self.per_channel_statistics.normalize(means)
 
     def decode_output_shape(self, input_shape):
