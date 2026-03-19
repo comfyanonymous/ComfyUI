@@ -1122,6 +1122,8 @@ class processor(nn.Module):
         return (x - self.get_buffer("mean-of-means").view(1, -1, 1, 1, 1).to(x)) / self.get_buffer("std-of-means").view(1, -1, 1, 1, 1).to(x)
 
 class VideoVAE(nn.Module):
+    comfy_has_chunked_io = True
+
     def __init__(self, version=0, config=None):
         super().__init__()
 

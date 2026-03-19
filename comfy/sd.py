@@ -953,7 +953,7 @@ class VAE:
 
             # Pre-allocate output for VAEs that support direct buffer writes
             preallocated = False
-            if hasattr(self.first_stage_model, 'decode_output_shape'):
+            if getattr(self.first_stage_model, 'comfy_has_chunked_io', False):
                 pixel_samples = torch.empty(self.first_stage_model.decode_output_shape(samples_in.shape), device=self.output_device, dtype=self.vae_output_dtype())
                 preallocated = True
 
