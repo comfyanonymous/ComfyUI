@@ -75,8 +75,8 @@ def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd, lora
                     out = extract_lora(weight_diff, rank)
                     output_sd["{}{}.lora_up.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[0].contiguous().half().cpu()
                     output_sd["{}{}.lora_down.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[1].contiguous().half().cpu()
-                except:
-                    logging.warning("Could not generate lora weights for key {}, is the weight difference a zero?".format(k))
+                except (RuntimeError, ValueError, TypeError, torch.linalg.LinAlgError) as e:
+                    logging.warning("Could not generate lora weights for key {}, is the weight difference a zero? Error: {}".format(k, e))
             elif lora_type == LORAType.FULL_DIFF:
                 output_sd["{}{}.diff".format(prefix_lora, k[len(prefix_model):-7])] = weight_diff.contiguous().half().cpu()
 
