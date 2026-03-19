@@ -39,7 +39,10 @@ def read_tensor_file_slice_into(tensor, destination):
     if (destination.device.type != "cpu"
             or file_obj is None
             or threading.get_ident() != info.thread_id
-            or destination.numel() * destination.element_size() < info.size):
+            or destination.numel() * destination.element_size() < info.size
+            or tensor.numel() * tensor.element_size() != info.size
+            or tensor.storage_offset() != 0
+            or not tensor.is_contiguous()):
         return False
 
     if info.size == 0:
