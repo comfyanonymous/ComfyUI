@@ -18,7 +18,6 @@ from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.flux.math import apply_rope1
 from comfy.ldm.wan.model import (
     sinusoidal_embedding_1d,
-    WanT2VCrossAttention,
     WAN_CROSSATTENTION_CLASSES,
     Head,
     MLPProj,
