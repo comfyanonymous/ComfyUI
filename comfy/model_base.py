@@ -1053,6 +1053,10 @@ class LTXAV(BaseModel):
         if guide_attention_entries is not None:
             out['guide_attention_entries'] = comfy.conds.CONDConstant(guide_attention_entries)
 
+        ref_audio = kwargs.get("ref_audio", None)
+        if ref_audio is not None:
+            out['ref_audio'] = comfy.conds.CONDConstant(ref_audio)
+
         return out
 
     def process_timestep(self, timestep, x, denoise_mask=None, audio_denoise_mask=None, **kwargs):
