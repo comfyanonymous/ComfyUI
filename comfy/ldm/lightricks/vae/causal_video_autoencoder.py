@@ -602,6 +602,7 @@ class Decoder(nn.Module):
         )
 
         timestep_shift_scale = None
+        scaled_timestep = None
         if self.timestep_conditioning:
             assert (
                 timestep is not None
