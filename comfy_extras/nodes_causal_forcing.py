@@ -246,11 +246,10 @@ class CausalForcingSampler(io.ComfyNode):
             pbar.update(1)
             current_start_frame += block_frames
 
-        # Apply latent format scaling
+        # Denormalize latents because VAEDecode expects raw latents.
         latent_format = comfy.latent_formats.Wan21()
-        output_scaled = latent_format.process_in(output.float().cpu())
-
-        return io.NodeOutput({"samples": output_scaled})
+        output_denorm = latent_format.process_out(output.float().cpu())
+        return io.NodeOutput({"samples": output_denorm})
 
 
 def _lookup_sigma(sigmas, timesteps, t_val):
