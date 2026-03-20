@@ -54,7 +54,7 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
-                IO.Combo.Input("resolution", options=["512", "1024"], default="512")
+                IO.Combo.Input("resolution", options=["512", "1024"], default="1024")
             ],
             outputs=[
                 IO.Mesh.Output("mesh"),
@@ -116,7 +116,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         samples = SparseTensor(feats = samples, coords=coords)
         samples = samples * std + mean
 
-        mesh = vae.decode_tex_slat(samples, shape_subs)
+        mesh = vae.decode_tex_slat(samples, shape_subs) * 0.5 + 0.5
         faces = torch.stack([m.faces for m in mesh])
         verts = torch.stack([m.vertices for m in mesh])
         mesh = Types.MESH(vertices=verts, faces=faces)
@@ -541,7 +541,7 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
             new_verts.append(loop_v.mean(dim=0))
 
             for i in range(len(loop)):
-                new_faces.append([loop[i], loop[(i + 1) % len(loop)], v_idx])
+                new_faces.append([loop[(i + 1) % len(loop)], loop[i], v_idx])
             v_idx += 1
 
     if new_verts:

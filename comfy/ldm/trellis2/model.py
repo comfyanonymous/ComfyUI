@@ -756,6 +756,7 @@ class Trellis2(nn.Module):
         self.img2shape = SLatFlowModel(resolution=resolution, in_channels=in_channels, **args)
         if init_txt_model:
             self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
+        self.img2shape_512 = SLatFlowModel(resolution=32, in_channels=in_channels, **args)
         args.pop("out_channels")
         self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
         self.guidance_interval = [0.6, 1.0]
