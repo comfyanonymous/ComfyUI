@@ -285,6 +285,12 @@ class BaseModel(torch.nn.Module):
             return data
         return None
 
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        """Override in subclasses to handle model-specific cond slicing for context windows.
+        Return a sliced cond object, or None to fall through to default handling.
+        Use comfy.context_windows.slice_cond() for common cases."""
+        return None
+
     def extra_conds(self, **kwargs):
         out = {}
         concat_cond = self.concat_cond(**kwargs)
@@ -1375,6 +1381,12 @@ class WAN21_Vace(WAN21):
         out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
         return out
 
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "vace_context":
+            import comfy.context_windows
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=3, retain_index_list=retain_index_list)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
 class WAN21_Camera(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.CameraWanModel)
@@ -1427,6 +1439,12 @@ class WAN21_HuMo(WAN21):
 
         return out
 
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "audio_embed":
+            import comfy.context_windows
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=1)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
 class WAN22_Animate(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model_animate.AnimateWanModel)
@@ -1443,6 +1461,14 @@ class WAN22_Animate(WAN21):
         if pose_latents is not None:
             out['pose_latents'] = comfy.conds.CONDRegular(self.process_latent_in(pose_latents))
         return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        import comfy.context_windows
+        if cond_key == "face_pixel_values":
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_scale=4, temporal_offset=1)
+        if cond_key == "pose_latents":
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=1)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
 
 class WAN22_S2V(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1479,6 +1505,12 @@ class WAN22_S2V(WAN21):
         if reference_motion is not None:
             out['reference_motion'] = reference_motion.shape
         return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "audio_embed":
+            import comfy.context_windows
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=1)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
 
 class WAN22(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
