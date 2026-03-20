@@ -63,25 +63,13 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
       $m := widgets.model;
       $r := widgets.resolution;
       $isFlash := $contains($m, "nano banana 2");
-      $flashPrices := {"1k": 0.0696, "2k": 0.0696, "4k": 0.123};
+      $flashPrices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
       $proPrices := {"1k": 0.134, "2k": 0.134, "4k": 0.24};
       $prices := $isFlash ? $flashPrices : $proPrices;
       {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
     )
     """,
 )
-
-
-class GeminiModel(str, Enum):
-    """
-    Gemini Model Names allowed by comfy-api
-    """
-
-    gemini_2_5_pro_preview_05_06 = "gemini-2.5-pro-preview-05-06"
-    gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
-    gemini_2_5_pro = "gemini-2.5-pro"
-    gemini_2_5_flash = "gemini-2.5-flash"
-    gemini_3_0_pro = "gemini-3-pro-preview"
 
 
 class GeminiImageModel(str, Enum):
@@ -200,10 +188,12 @@ def get_text_from_response(response: GeminiGenerateContentResponse) -> str:
     return "\n".join([part.text for part in parts])
 
 
-async def get_image_from_response(response: GeminiGenerateContentResponse) -> Input.Image:
+async def get_image_from_response(response: GeminiGenerateContentResponse, thought: bool = False) -> Input.Image:
     image_tensors: list[Input.Image] = []
     parts = get_parts_by_type(response, "image/*")
     for part in parts:
+        if (part.thought is True) != thought:
+            continue
         if part.inlineData:
             image_data = base64.b64decode(part.inlineData.data)
             returned_image = bytesio_to_image_tensor(BytesIO(image_data))
@@ -237,9 +227,13 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 30.0
-    elif response.modelVersion == "gemini-3-pro-preview":
+    elif response.modelVersion in ("gemini-3-pro-preview", "gemini-3.1-pro-preview"):
         input_tokens_price = 2
         output_text_tokens_price = 12.0
+        output_image_tokens_price = 0.0
+    elif response.modelVersion == "gemini-3.1-flash-lite-preview":
+        input_tokens_price = 0.25
+        output_text_tokens_price = 1.50
         output_image_tokens_price = 0.0
     elif response.modelVersion == "gemini-3-pro-image-preview":
         input_tokens_price = 2
@@ -292,8 +286,16 @@ class GeminiNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=GeminiModel,
-                    default=GeminiModel.gemini_2_5_pro,
+                    options=[
+                        "gemini-2.5-pro-preview-05-06",
+                        "gemini-2.5-flash-preview-04-17",
+                        "gemini-2.5-pro",
+                        "gemini-2.5-flash",
+                        "gemini-3-pro-preview",
+                        "gemini-3-1-pro",
+                        "gemini-3-1-flash-lite",
+                    ],
+                    default="gemini-3-1-pro",
                     tooltip="The Gemini model to use for generating responses.",
                 ),
                 IO.Int.Input(
@@ -363,9 +365,14 @@ class GeminiNode(IO.ComfyNode):
                     "usd": [0.00125, 0.01],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
-                  : $contains($m, "gemini-3-pro-preview") ? {
+                  : ($contains($m, "gemini-3-pro-preview") or $contains($m, "gemini-3-1-pro")) ? {
                     "type": "list_usd",
                     "usd": [0.002, 0.012],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gemini-3-1-flash-lite") ? {
+                    "type": "list_usd",
+                    "usd": [0.00025, 0.0015],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : {"type":"text", "text":"Token-based"}
@@ -436,12 +443,14 @@ class GeminiNode(IO.ComfyNode):
         files: list[GeminiPart] | None = None,
         system_prompt: str = "",
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False)
+        if model == "gemini-3-pro-preview":
+            model = "gemini-3.1-pro-preview"  # model "gemini-3-pro-preview" will be soon deprecated by Google
+        elif model == "gemini-3-1-pro":
+            model = "gemini-3.1-pro-preview"
+        elif model == "gemini-3-1-flash-lite":
+            model = "gemini-3.1-flash-lite-preview"
 
-        # Create parts list with text prompt as the first part
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
-
-        # Add other modal parts
         if images is not None:
             parts.extend(await create_image_parts(cls, images))
         if audio is not None:
@@ -924,6 +933,11 @@ class GeminiNanoBanana2(IO.ComfyNode):
             outputs=[
                 IO.Image.Output(),
                 IO.String.Output(),
+                IO.Image.Output(
+                    display_name="thought_image",
+                    tooltip="First image from the model's thinking process. "
+                    "Only available with thinking_level HIGH and IMAGE+TEXT modality.",
+                ),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -985,7 +999,11 @@ class GeminiNanoBanana2(IO.ComfyNode):
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
         )
-        return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
+        return IO.NodeOutput(
+            await get_image_from_response(response),
+            get_text_from_response(response),
+            await get_image_from_response(response, thought=True),
+        )
 
 
 class GeminiExtension(ComfyExtension):

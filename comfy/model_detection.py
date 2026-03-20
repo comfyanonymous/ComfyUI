@@ -1,4 +1,5 @@
 import json
+import comfy.memory_management
 import comfy.supported_models
 import comfy.supported_models_base
 import comfy.utils
@@ -423,7 +424,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
-    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
+    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
         dit_config["image_model"] = "lumina2"
         dit_config["patch_size"] = 2
@@ -463,6 +464,29 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             sig_weight = state_dict.get('{}siglip_embedder.0.weight'.format(key_prefix), None)
             if sig_weight is not None:
                 dit_config["siglip_feat_dim"] = sig_weight.shape[0]
+
+            dec_cond_key = '{}dec_net.cond_embed.weight'.format(key_prefix)
+            if dec_cond_key in state_dict_keys:  # pixel-space variant
+                dit_config["image_model"] = "zimage_pixel"
+                # patch_size and in_channels are derived from x_embedder:
+                #   x_embedder: Linear(patch_size * patch_size * in_channels, dim)
+                # The decoder also receives the full flat patch, so decoder_in_channels = x_embedder input dim.
+                x_emb_in = state_dict['{}x_embedder.weight'.format(key_prefix)].shape[1]
+                dec_out = state_dict['{}dec_net.final_layer.linear.weight'.format(key_prefix)].shape[0]
+                # patch_size: infer from decoder final layer output matching x_embedder input
+                # in_channels: infer from dec_net input_embedder (in_features = dec_in_ch + max_freqs^2)
+                embedder_w = state_dict['{}dec_net.input_embedder.embedder.0.weight'.format(key_prefix)]
+                dec_in_ch = dec_out  # decoder in == decoder out (same pixel space)
+                dit_config["patch_size"] = round((x_emb_in / 3) ** 0.5)  # assume RGB (in_channels=3)
+                dit_config["in_channels"] = 3
+                dit_config["decoder_in_channels"] = dec_in_ch
+                dit_config["decoder_hidden_size"] = state_dict[dec_cond_key].shape[0]
+                dit_config["decoder_num_res_blocks"] = count_blocks(
+                    state_dict_keys, '{}dec_net.res_blocks.'.format(key_prefix) + '{}.'
+                )
+                dit_config["decoder_max_freqs"] = int((embedder_w.shape[1] - dec_in_ch) ** 0.5)
+                if '{}__x0__'.format(key_prefix) in state_dict_keys:
+                    dit_config["use_x0"] = True
 
         return dit_config
 
@@ -533,8 +557,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config
 
-    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys:  # Hunyuan 3D 2.1
-
+    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys and f"{key_prefix}blocks.0.attn1.k_norm.weight" in state_dict_keys:  # Hunyuan 3D 2.1
         dit_config = {}
         dit_config["image_model"] = "hunyuan3d2_1"
         dit_config["in_channels"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[1]
@@ -1055,6 +1078,13 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
     elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict: # PixArt
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         sd_map = comfy.utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
+    elif 'noise_refiner.0.attention.norm_k.weight' in state_dict:
+        n_layers = count_blocks(state_dict, 'layers.{}.')
+        dim = state_dict['noise_refiner.0.attention.to_k.weight'].shape[0]
+        sd_map = comfy.utils.z_image_to_diffusers({"n_layers": n_layers, "dim": dim}, output_prefix=output_prefix)
+        for k in state_dict: # For zeta chroma
+            if k not in sd_map:
+                sd_map[k] = k
     elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
@@ -1089,8 +1119,13 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
                         new[:old_weight.shape[0]] = old_weight
                         old_weight = new
 
+                    if old_weight is out_sd.get(t[0], None) and comfy.memory_management.aimdo_enabled:
+                        old_weight = old_weight.clone()
+
                     w = old_weight.narrow(offset[0], offset[1], offset[2])
                 else:
+                    if comfy.memory_management.aimdo_enabled:
+                        weight = weight.clone()
                     old_weight = weight
                     w = weight
                 w[:] = fun(weight)

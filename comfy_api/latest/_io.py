@@ -297,7 +297,7 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, gradient_stops: list[list[float]]=None,
+                    display_mode: NumberDisplay=None, gradient_stops: list[dict]=None,
                     socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None, advanced: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link, advanced)
             self.min = min
@@ -1238,6 +1238,19 @@ class BoundingBox(ComfyTypeIO):
             if self.force_input is not None:
                 d["forceInput"] = self.force_input
             return d
+
+
+@comfytype(io_type="CURVE")
+class Curve(ComfyTypeIO):
+    CurvePoint = tuple[float, float]
+    Type = list[CurvePoint]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[tuple[float, float]]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = [(0.0, 0.0), (1.0, 1.0)]
 
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
@@ -2226,5 +2239,6 @@ __all__ = [
     "PriceBadgeDepends",
     "PriceBadge",
     "BoundingBox",
+    "Curve",
     "NodeReplace",
 ]
