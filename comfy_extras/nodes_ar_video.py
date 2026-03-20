@@ -1,8 +1,8 @@
 """
-ComfyUI nodes for Causal Forcing autoregressive video generation.
-  - LoadCausalForcingModel: load original HF/training or pre-converted checkpoints
+ComfyUI nodes for autoregressive video generation (Causal Forcing, Self-Forcing, etc.).
+  - LoadARVideoModel: load original HF/training or pre-converted checkpoints
     (auto-detects format and converts state dict at runtime)
-  - CausalForcingSampler: autoregressive frame-by-frame sampling with KV cache
+  - ARVideoSampler: autoregressive frame-by-frame sampling with KV cache
 """
 
 import torch
@@ -15,8 +15,8 @@ import comfy.utils
 import comfy.ops
 import comfy.latent_formats
 from comfy.model_patcher import ModelPatcher
-from comfy.ldm.wan.causal_model import CausalWanModel
-from comfy.ldm.wan.causal_convert import extract_state_dict
+from comfy.ldm.wan.ar_model import CausalWanModel
+from comfy.ldm.wan.ar_convert import extract_state_dict
 from comfy_api.latest import ComfyExtension, io
 
 # ── Model size presets derived from Wan 2.1 configs ──────────────────────────
@@ -28,11 +28,11 @@ WAN_CONFIGS = {
 }
 
 
-class LoadCausalForcingModel(io.ComfyNode):
+class LoadARVideoModel(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="LoadCausalForcingModel",
+            node_id="LoadARVideoModel",
             category="loaders/video_models",
             inputs=[
                 io.Combo.Input("ckpt_name", options=folder_paths.get_filename_list("diffusion_models")),
@@ -62,7 +62,7 @@ class LoadCausalForcingModel(io.ComfyNode):
             num_heads = dim // 128
             ffn_dim = sd["blocks.0.ffn.0.weight"].shape[0]
             text_dim = 4096
-            logging.warning(f"CausalForcing: unknown dim={dim}, inferring num_heads={num_heads}, ffn_dim={ffn_dim}")
+            logging.warning(f"ARVideo: unknown dim={dim}, inferring num_heads={num_heads}, ffn_dim={ffn_dim}")
 
         cross_attn_norm = "blocks.0.norm3.weight" in sd
 
@@ -101,11 +101,11 @@ class LoadCausalForcingModel(io.ComfyNode):
         return io.NodeOutput(patcher)
 
 
-class CausalForcingSampler(io.ComfyNode):
+class ARVideoSampler(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="CausalForcingSampler",
+            node_id="ARVideoSampler",
             category="sampling",
             inputs=[
                 io.Model.Input("model"),
@@ -258,14 +258,14 @@ def _lookup_sigma(sigmas, timesteps, t_val):
     return sigmas[idx]
 
 
-class CausalForcingExtension(ComfyExtension):
+class ARVideoExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
-            LoadCausalForcingModel,
-            CausalForcingSampler,
+            LoadARVideoModel,
+            ARVideoSampler,
         ]
 
 
-async def comfy_entrypoint() -> CausalForcingExtension:
-    return CausalForcingExtension()
+async def comfy_entrypoint() -> ARVideoExtension:
+    return ARVideoExtension()
