@@ -178,6 +178,7 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
     @classmethod
     def execute(cls, shape_latent_512, vae, target_resolution, max_tokens):
         device = comfy.model_management.get_torch_device()
+        comfy.model_management.load_model_gpu(vae.patcher)
 
         feats = shape_latent_512["samples"].squeeze(-1).transpose(1, 2).reshape(-1, 32).to(device)
         coords_512 = shape_latent_512["coords"].to(device)
@@ -185,11 +186,9 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
         slat = shape_norm(feats, coords_512)
 
         decoder = vae.first_stage_model.shape_dec
-        decoder.to(device)
 
         slat.feats = slat.feats.to(next(decoder.parameters()).dtype)
         hr_coords = decoder.upsample(slat, upsample_times=4)
-        decoder.cpu()
 
         lr_resolution = 512
         hr_resolution = int(target_resolution)
@@ -206,7 +205,7 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
                 break
             hr_resolution -= 128
 
-        return IO.NodeOutput(final_coords.cpu())
+        return IO.NodeOutput(final_coords,)
 
 dino_mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
 dino_std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
@@ -341,11 +340,19 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
     @classmethod
     def execute(cls, structure_or_coords, model):
         # to accept the upscaled coords
-        if hasattr(structure_or_coords, "data"):
+        is_512_pass = False
+
+        if hasattr(structure_or_coords, "data") and structure_or_coords.data.ndim == 4:
             decoded = structure_or_coords.data.unsqueeze(1)
             coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
+            is_512_pass = True
+
+        elif isinstance(structure_or_coords, torch.Tensor) and structure_or_coords.ndim == 2:
+            coords = structure_or_coords.int()
+            is_512_pass = False
+
         else:
-            coords = structure_or_coords
+            raise ValueError(f"Invalid input to EmptyShapeLatent: {type(structure_or_coords)}")
         in_channels = 32
         # image like format
         latent = torch.randn(1, in_channels, coords.shape[0], 1)
@@ -357,7 +364,10 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
             model.model_options["transformer_options"] = {}
 
         model.model_options["transformer_options"]["coords"] = coords
-        model.model_options["transformer_options"]["generation_mode"] = "shape_generation"
+        if is_512_pass:
+            model.model_options["transformer_options"]["generation_mode"] = "shape_generation_512"
+        else:
+            model.model_options["transformer_options"]["generation_mode"] = "shape_generation"
         return IO.NodeOutput({"samples": latent, "coords": coords, "type": "trellis2"}, model)
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):

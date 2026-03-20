@@ -770,14 +770,20 @@ class Trellis2(nn.Module):
         is_1024 = self.img2shape.resolution == 1024
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
+        is_512_run = False
+        if mode == "shape_generation_512":
+            is_512_run = True
+            mode = "shape_generation"
         if coords is not None:
             x = x.squeeze(-1).transpose(1, 2)
             not_struct_mode = True
         else:
             mode = "structure_generation"
             not_struct_mode = False
-        if is_1024 and mode == "shape_generation":
+
+        if is_1024 and mode == "shape_generation" and not is_512_run:
             context = embeds
+
         sigmas = transformer_options.get("sigmas")[0].item()
         if sigmas < 1.00001:
             timestep *= 1000.0
@@ -786,12 +792,24 @@ class Trellis2(nn.Module):
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
 
         if not_struct_mode:
-            B, N, C = x.shape
+            orig_bsz = x.shape[0]
+            rule = txt_rule if mode == "texture_generation" else shape_rule
 
-            if mode == "shape_generation":
-                feats_flat = x.reshape(-1, C)
+            if rule and orig_bsz > 1:
+                x_eval = x[1].unsqueeze(0)
+                t_eval = timestep[1].unsqueeze(0) if timestep.shape[0] > 1 else timestep
+                c_eval = cond
+            else:
+                x_eval = x
+                t_eval = timestep
+                c_eval = context
 
-                # 3. inflate coords [N, 4] -> [B*N, 4]
+            B, N, C = x_eval.shape
+
+            if mode in ["shape_generation", "texture_generation"]:
+                feats_flat = x_eval.reshape(-1, C)
+
+                # inflate coords [N, 4] -> [B*N, 4]
                 coords_list = []
                 for i in range(B):
                     c = coords.clone()
@@ -799,23 +817,27 @@ class Trellis2(nn.Module):
                     coords_list.append(c)
 
                 batched_coords = torch.cat(coords_list, dim=0)
-            else: # TODO: texture
-                # may remove the else if texture doesn't require special handling
+            else:
                 batched_coords = coords
-                feats_flat = x
-            x = SparseTensor(feats=feats_flat, coords=batched_coords.to(torch.int32))
+                feats_flat = x_eval
+
+            x_st = SparseTensor(feats=feats_flat, coords=batched_coords.to(torch.int32))
 
         if mode == "shape_generation":
             # TODO
-            out = self.img2shape(x, timestep, context)
+            if is_512_run:
+                out = self.img2shape_512(x_st, t_eval, c_eval)
+            else:
+                out = self.img2shape(x_st, t_eval, c_eval)
         elif mode == "texture_generation":
             if self.shape2txt is None:
                 raise ValueError("Checkpoint for Trellis2 doesn't include texture generation!")
             slat = transformer_options.get("shape_slat")
             if slat is None:
                 raise ValueError("shape_slat can't be None")
-            x = sparse_cat([x, slat])
-            out = self.shape2txt(x, timestep, context if not txt_rule else cond)
+            slat.feats = slat.feats.repeat(B, 1)
+            x_st = sparse_cat([x_st, slat])
+            out = self.shape2txt(x_st, t_eval, c_eval)
         else: # structure
             #timestep = timestep_reshift(timestep)
             orig_bsz = x.shape[0]
@@ -828,6 +850,8 @@ class Trellis2(nn.Module):
 
         if not_struct_mode:
             out = out.feats
-            if mode == "shape_generation":
+            if not_struct_mode:
                 out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
+                if rule and orig_bsz > 1:
+                    out = out.repeat(orig_bsz, 1, 1, 1)
         return out
