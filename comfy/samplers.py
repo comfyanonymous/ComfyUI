@@ -1028,6 +1028,7 @@ class CFGGuider:
                 denoise_mask, _ = comfy.utils.pack_latents(denoise_masks)
             else:
                 denoise_mask = denoise_masks[0]
+            denoise_mask = denoise_mask.float()
 
         self.conds = {}
         for k in self.original_conds:
@@ -1048,7 +1049,7 @@ class CFGGuider:
                 self,
                 comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
-            output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
+            output = executor.execute(noise.float(), latent_image.float(), sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
         finally:
             cast_to_load_options(self.model_options, device=self.model_patcher.offload_device)
             self.model_options = orig_model_options
