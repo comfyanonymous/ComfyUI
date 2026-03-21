@@ -1253,7 +1253,22 @@ class PromptQueue:
                     return True
         return False
 
+    def _sanitize_history_item(self, item: dict) -> dict:
+        """Remove sensitive keys from prompt inputs in history items.
+        Prevents tokens from being exposed if history is ever persisted to disk."""
+        item = copy.deepcopy(item)
+        prompt = item.get("prompt", {})
+        if isinstance(prompt, dict):
+            for node_id, node_data in prompt.items():
+                if isinstance(node_data, dict):
+                    inputs = node_data.get("inputs", {})
+                    if isinstance(inputs, dict):
+                        inputs.pop("auth_token_comfy_org", None)
+                        inputs.pop("api_key_comfy_org", None)
+        return item
+
     def get_history(self, prompt_id=None, max_items=None, offset=-1, map_function=None):
+        sanitize = self._sanitize_history_item
         with self.mutex:
             if prompt_id is None:
                 out = {}
@@ -1265,6 +1280,8 @@ class PromptQueue:
                         p = self.history[k]
                         if map_function is not None:
                             p = map_function(p)
+                        else:
+                            p = sanitize(p)
                         out[k] = p
                         if max_items is not None and len(out) >= max_items:
                             break
@@ -1273,7 +1290,7 @@ class PromptQueue:
             elif prompt_id in self.history:
                 p = self.history[prompt_id]
                 if map_function is None:
-                    p = copy.deepcopy(p)
+                    p = sanitize(p)
                 else:
                     p = map_function(p)
                 return {prompt_id: p}
