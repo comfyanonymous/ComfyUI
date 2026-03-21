@@ -58,6 +58,7 @@ class ImageCropV2(IO.ComfyNode):
             search_aliases=["trim"],
             display_name="Image Crop",
             category="image/transform",
+            essentials_category="Image Tools",
             inputs=[
                 IO.Image.Input("image"),
                 IO.BoundingBox.Input("crop_region", component="ImageCrop"),

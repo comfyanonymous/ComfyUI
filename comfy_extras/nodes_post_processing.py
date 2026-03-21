@@ -21,6 +21,7 @@ class Blend(io.ComfyNode):
             node_id="ImageBlend",
             display_name="Image Blend",
             category="image/postprocessing",
+            essentials_category="Image Tools",
             inputs=[
                 io.Image.Input("image1"),
                 io.Image.Input("image2"),
