@@ -1260,6 +1260,12 @@ class Curve(ComfyTypeIO):
             return d
 
 
+@comfytype(io_type="HISTOGRAM")
+class Histogram(ComfyTypeIO):
+    """A histogram represented as a list of bin counts."""
+    Type = list[int]
+
+
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
     DYNAMIC_INPUT_LOOKUP[io_type] = func
@@ -2247,5 +2253,6 @@ __all__ = [
     "PriceBadge",
     "BoundingBox",
     "Curve",
+    "Histogram",
     "NodeReplace",
 ]

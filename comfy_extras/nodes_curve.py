@@ -14,6 +14,7 @@ class CurveEditor(io.ComfyNode):
             category="utils",
             inputs=[
                 io.Curve.Input("curve"),
+                io.Histogram.Input("histogram", optional=True),
             ],
             outputs=[
                 io.Curve.Output("curve"),
@@ -21,15 +22,23 @@ class CurveEditor(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, curve) -> io.NodeOutput:
+    def execute(cls, curve, histogram=None) -> io.NodeOutput:
         if isinstance(curve, CurveInput):
-            return io.NodeOutput(curve)
-        raw_points = curve["points"] if isinstance(curve, dict) else curve
-        points = [(float(x), float(y)) for x, y in raw_points]
-        interpolation = curve.get("interpolation", "monotone_cubic") if isinstance(curve, dict) else "monotone_cubic"
-        if interpolation == "linear":
-            return io.NodeOutput(LinearCurve(points))
-        return io.NodeOutput(MonotoneCubicCurve(points))
+            result = curve
+        else:
+            raw_points = curve["points"] if isinstance(curve, dict) else curve
+            points = [(float(x), float(y)) for x, y in raw_points]
+            interpolation = curve.get("interpolation", "monotone_cubic") if isinstance(curve, dict) else "monotone_cubic"
+            if interpolation == "linear":
+                result = LinearCurve(points)
+            else:
+                result = MonotoneCubicCurve(points)
+
+        ui = {}
+        if histogram is not None:
+            ui["histogram"] = histogram if isinstance(histogram, list) else list(histogram)
+
+        return io.NodeOutput(result, ui=ui) if ui else io.NodeOutput(result)
 
 
 class CurveExtension(ComfyExtension):
