@@ -985,8 +985,8 @@ class CFGGuider:
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
-        noise = noise.to(device)
-        latent_image = latent_image.to(device)
+        noise = noise.to(device=device, dtype=torch.float32)
+        latent_image = latent_image.to(device=device, dtype=torch.float32)
         sigmas = sigmas.to(device)
         cast_to_load_options(self.model_options, device=device, dtype=self.model_patcher.model_dtype())
 
@@ -1049,7 +1049,7 @@ class CFGGuider:
                 self,
                 comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
-            output = executor.execute(noise.float(), latent_image.float(), sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
+            output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
         finally:
             cast_to_load_options(self.model_options, device=self.model_patcher.offload_device)
             self.model_options = orig_model_options
