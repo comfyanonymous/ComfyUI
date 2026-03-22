@@ -4,12 +4,9 @@
   "title": "ComfyUI Prompt Format",
   "description": "JSON Schema for the ComfyUI /prompt endpoint. Each key is a unique node ID, and each value describes a node with its class_type, inputs, and optional metadata.",
   "type": "object",
-  "patternProperties": {
-    "^[a-zA-Z0-9_-]+$": {
-      "$ref": "#/definitions/node"
-    }
+  "additionalProperties": {
+    "$ref": "#/definitions/node"
   },
-  "additionalProperties": false,
   "definitions": {
     "node": {
       "type": "object",
@@ -33,7 +30,7 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "inputs": {
       "type": "object",
