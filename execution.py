@@ -984,12 +984,15 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                         folder_path = None
                         try:
                             import folder_paths as fp
-                            for folder_name in fp.folder_names_and_paths:
-                                if x.endswith("_name") or x.endswith("_dir"):
-                                    paths = fp.folder_names_and_paths[folder_name]
-                                    if paths and paths[0]:
-                                        folder_path = paths[0]
-                                        break
+                            if x.endswith("_name") or x.endswith("_dir"):
+                                folder_key = x.removesuffix("_name").removesuffix("_dir")
+                                folder_entry = fp.folder_names_and_paths.get(folder_key)
+                                if folder_entry and folder_entry[0]:
+                                    paths = folder_entry[0]
+                                    if isinstance(paths, (list, tuple)):
+                                        folder_path = ", ".join(str(p) for p in paths)
+                                    else:
+                                        folder_path = str(paths)
                         except Exception:
                             pass
 
