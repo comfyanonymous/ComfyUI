@@ -293,6 +293,11 @@ class BaseModel(torch.nn.Module):
         Use comfy.context_windows.slice_cond() for common cases."""
         return None
 
+    def map_context_window_to_modalities(self, primary_indices, latent_shapes, dim):
+        """Map primary modality's window indices to all modalities.
+        Returns list of index lists, one per modality."""
+        return [primary_indices]
+
     def extra_conds(self, **kwargs):
         out = {}
         concat_cond = self.concat_cond(**kwargs)
@@ -1081,6 +1086,34 @@ class LTXAV(BaseModel):
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
+
+    def map_context_window_to_modalities(self, primary_indices, latent_shapes, dim):
+        result = [primary_indices]
+        if len(latent_shapes) < 2:
+            return result
+
+        video_total = latent_shapes[0][dim]
+        audio_total = latent_shapes[1][dim]
+
+        # Proportional mapping — video and audio cover same real-time duration
+        v_start, v_end = min(primary_indices), max(primary_indices) + 1
+        a_start = round(v_start * audio_total / video_total)
+        a_end = round(v_end * audio_total / video_total)
+        audio_indices = list(range(a_start, min(a_end, audio_total)))
+        if not audio_indices:
+            audio_indices = [min(a_start, audio_total - 1)]
+
+        result.append(audio_indices)
+        return result
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "audio_denoise_mask" and hasattr(window, 'modality_windows') and window.modality_windows:
+            audio_window = window.modality_windows.get(1)
+            if audio_window is not None:
+                import comfy.context_windows
+                return comfy.context_windows.slice_cond(
+                    cond_value, audio_window, x_in, device, temporal_dim=2)
+        return None
 
 class HunyuanVideo(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
