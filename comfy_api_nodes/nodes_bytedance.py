@@ -47,6 +47,10 @@ SEEDREAM_MODELS = {
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
 BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
 
+DEPRECATED_MODELS = {"seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-i2v-250428"}
+
+logger = logging.getLogger(__name__)
+
 
 def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
     if response.error:
@@ -135,6 +139,7 @@ class ByteDanceImageNode(IO.ComfyNode):
             price_badge=IO.PriceBadge(
                 expr="""{"type":"usd","usd":0.03}""",
             ),
+            is_deprecated=True,
         )
 
     @classmethod
@@ -942,7 +947,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         ]
         return await process_video_task(
             cls,
-            payload=Image2VideoTaskCreationRequest(model=model, content=x),
+            payload=Image2VideoTaskCreationRequest(model=model, content=x, generate_audio=None),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
@@ -952,6 +957,12 @@ async def process_video_task(
     payload: Text2VideoTaskCreationRequest | Image2VideoTaskCreationRequest,
     estimated_duration: int | None,
 ) -> IO.NodeOutput:
+    if payload.model in DEPRECATED_MODELS:
+        logger.warning(
+            "Model '%s' is deprecated and will be deactivated on May 13, 2026. "
+            "Please switch to a newer model. Recommended: seedance-1-0-pro-fast-251015.",
+            payload.model,
+        )
     initial_response = await sync_op(
         cls,
         ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),

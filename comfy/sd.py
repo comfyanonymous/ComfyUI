@@ -953,7 +953,7 @@ class VAE:
 
             # Pre-allocate output for VAEs that support direct buffer writes
             preallocated = False
-            if hasattr(self.first_stage_model, 'decode_output_shape'):
+            if getattr(self.first_stage_model, 'comfy_has_chunked_io', False):
                 pixel_samples = torch.empty(self.first_stage_model.decode_output_shape(samples_in.shape), device=self.output_device, dtype=self.vae_output_dtype())
                 preallocated = True
 
@@ -978,6 +978,7 @@ class VAE:
             do_tile = True
 
         if do_tile:
+            comfy.model_management.soft_empty_cache()
             dims = samples_in.ndim - 2
             if dims == 1 or self.extra_1d_channel is not None:
                 pixel_samples = self.decode_tiled_1d(samples_in)
@@ -1038,8 +1039,13 @@ class VAE:
             batch_number = max(1, batch_number)
             samples = None
             for x in range(0, pixel_samples.shape[0], batch_number):
-                pixels_in = self.process_input(pixel_samples[x:x + batch_number]).to(self.vae_dtype).to(self.device)
-                out = self.first_stage_model.encode(pixels_in).to(self.output_device).to(dtype=self.vae_output_dtype())
+                pixels_in = self.process_input(pixel_samples[x:x + batch_number]).to(self.vae_dtype)
+                if getattr(self.first_stage_model, 'comfy_has_chunked_io', False):
+                    out = self.first_stage_model.encode(pixels_in, device=self.device)
+                else:
+                    pixels_in = pixels_in.to(self.device)
+                    out = self.first_stage_model.encode(pixels_in)
+                out = out.to(self.output_device).to(dtype=self.vae_output_dtype())
                 if samples is None:
                     samples = torch.empty((pixel_samples.shape[0],) + tuple(out.shape[1:]), device=self.output_device, dtype=self.vae_output_dtype())
                 samples[x:x + batch_number] = out
@@ -1054,6 +1060,7 @@ class VAE:
             do_tile = True
 
         if do_tile:
+            comfy.model_management.soft_empty_cache()
             if self.latent_dim == 3:
                 tile = 256
                 overlap = tile // 4
