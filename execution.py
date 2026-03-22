@@ -1257,14 +1257,23 @@ class PromptQueue:
         """Remove sensitive keys from prompt inputs in history items.
         Prevents tokens from being exposed if history is ever persisted to disk."""
         item = copy.deepcopy(item)
-        prompt = item.get("prompt", {})
-        if isinstance(prompt, dict):
-            for node_id, node_data in prompt.items():
+        prompt_item = item.get("prompt")
+        if isinstance(prompt_item, dict):
+            for node_id, node_data in prompt_item.items():
                 if isinstance(node_data, dict):
                     inputs = node_data.get("inputs", {})
                     if isinstance(inputs, dict):
-                        inputs.pop("auth_token_comfy_org", None)
-                        inputs.pop("api_key_comfy_org", None)
+                        for key in SENSITIVE_EXTRA_DATA_KEYS:
+                            inputs.pop(key, None)
+        elif isinstance(prompt_item, (list, tuple)) and len(prompt_item) > 2:
+            prompt_graph = prompt_item[2] if isinstance(prompt_item[2], dict) else None
+            if isinstance(prompt_graph, dict):
+                for node_data in prompt_graph.values():
+                    if isinstance(node_data, dict):
+                        inputs = node_data.get("inputs")
+                        if isinstance(inputs, dict):
+                            for key in SENSITIVE_EXTRA_DATA_KEYS:
+                                inputs.pop(key, None)
         return item
 
     def get_history(self, prompt_id=None, max_items=None, offset=-1, map_function=None):
