@@ -1242,7 +1242,7 @@ class BoundingBox(ComfyTypeIO):
 
 @comfytype(io_type="CURVE")
 class Curve(ComfyTypeIO):
-    CurvePoint = tuple[float, float]
+    from comfy_api.input import CurvePoint
     if TYPE_CHECKING:
         Type = CurveInput_
 

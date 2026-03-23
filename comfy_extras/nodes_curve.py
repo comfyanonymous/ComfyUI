@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from comfy_api.latest import ComfyExtension, io
-from comfy_api.input import CurveInput, MonotoneCubicCurve, LinearCurve
+from comfy_api.input import CurveInput
 from typing_extensions import override
 
 
@@ -23,16 +23,7 @@ class CurveEditor(io.ComfyNode):
 
     @classmethod
     def execute(cls, curve, histogram=None) -> io.NodeOutput:
-        if isinstance(curve, CurveInput):
-            result = curve
-        else:
-            raw_points = curve["points"] if isinstance(curve, dict) else curve
-            points = [(float(x), float(y)) for x, y in raw_points]
-            interpolation = curve.get("interpolation", "monotone_cubic") if isinstance(curve, dict) else "monotone_cubic"
-            if interpolation == "linear":
-                result = LinearCurve(points)
-            else:
-                result = MonotoneCubicCurve(points)
+        result = CurveInput.from_raw(curve)
 
         ui = {}
         if histogram is not None:
