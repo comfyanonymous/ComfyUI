@@ -298,6 +298,11 @@ class BaseModel(torch.nn.Module):
         Returns list of index lists, one per modality."""
         return [primary_indices]
 
+    def get_guide_frame_count(self, x, conds):
+        """Return the number of trailing guide frames appended to x along the temporal dim.
+        Override in subclasses that concatenate guide reference frames to the latent."""
+        return 0
+
     def extra_conds(self, **kwargs):
         out = {}
         concat_cond = self.concat_cond(**kwargs)
@@ -1021,12 +1026,64 @@ class LTXV(BaseModel):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
 
+    def get_guide_frame_count(self, x, conds):
+        for cond_list in conds:
+            if cond_list is None:
+                continue
+            for cond_dict in cond_list:
+                model_conds = cond_dict.get('model_conds', {})
+                gae = model_conds.get('guide_attention_entries')
+                if gae is not None and hasattr(gae, 'cond') and gae.cond:
+                    return sum(e["latent_shape"][0] for e in gae.cond)
+        return 0
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        guide_count = getattr(window, 'guide_count', 0)
+
+        if cond_key == "denoise_mask" and guide_count > 0:
+            # Slice both video and guide halves with same window indices
+            cond_tensor = cond_value.cond
+            T_video = cond_tensor.size(window.dim) - guide_count
+            video_mask = cond_tensor.narrow(window.dim, 0, T_video)
+            guide_mask = cond_tensor.narrow(window.dim, T_video, guide_count)
+            sliced_video = window.get_tensor(video_mask, device, retain_index_list=retain_index_list)
+            sliced_guide = window.get_tensor(guide_mask, device)
+            return cond_value._copy_with(torch.cat([sliced_video, sliced_guide], dim=window.dim))
+
+        if cond_key == "keyframe_idxs" and guide_count > 0:
+            # Recompute coords for window_len frames so guide tokens are co-located
+            # with noise tokens in RoPE space (identical to a standalone short video)
+            window_len = len(window.index_list)
+            H, W = window.guide_spatial
+            patchifier = self.diffusion_model.patchifier
+            latent_coords = patchifier.get_latent_coords(window_len, H, W, 1, cond_value.cond.device)
+            from comfy.ldm.lightricks.symmetric_patchifier import latent_to_pixel_coords
+            pixel_coords = latent_to_pixel_coords(
+                latent_coords,
+                self.diffusion_model.vae_scale_factors,
+                causal_fix=self.diffusion_model.causal_temporal_positioning)
+            B = cond_value.cond.shape[0]
+            if B > 1:
+                pixel_coords = pixel_coords.expand(B, -1, -1, -1)
+            return cond_value._copy_with(pixel_coords)
+
+        if cond_key == "guide_attention_entries" and guide_count > 0:
+            # Adjust token counts for window size
+            window_len = len(window.index_list)
+            H, W = window.guide_spatial
+            new_entries = [{**e, "pre_filter_count": window_len * H * W,
+                            "latent_shape": [window_len, H, W]} for e in cond_value.cond]
+            return cond_value._copy_with(new_entries)
+
+        return None
+
 class LTXAV(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.av_model.LTXAVModel) #TODO
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
+        logging.info(f"LTXAV.extra_conds: guide_attention_entries={'guide_attention_entries' in kwargs}, keyframe_idxs={'keyframe_idxs' in kwargs}")
         attention_mask = kwargs.get("attention_mask", None)
         device = kwargs["device"]
 
@@ -1106,13 +1163,65 @@ class LTXAV(BaseModel):
         result.append(audio_indices)
         return result
 
+    def get_guide_frame_count(self, x, conds):
+        for cond_list in conds:
+            if cond_list is None:
+                continue
+            for cond_dict in cond_list:
+                model_conds = cond_dict.get('model_conds', {})
+                gae = model_conds.get('guide_attention_entries')
+                logging.info(f"LTXAV.get_guide_frame_count: keys={list(model_conds.keys())}, gae={gae is not None}")
+                if gae is not None and hasattr(gae, 'cond') and gae.cond:
+                    count = sum(e["latent_shape"][0] for e in gae.cond)
+                    logging.info(f"LTXAV.get_guide_frame_count: found {count} guide frames")
+                    return count
+        logging.info("LTXAV.get_guide_frame_count: no guide frames found")
+        return 0
+
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        # Audio-specific handling
         if cond_key == "audio_denoise_mask" and hasattr(window, 'modality_windows') and window.modality_windows:
             audio_window = window.modality_windows.get(1)
-            if audio_window is not None:
-                import comfy.context_windows
-                return comfy.context_windows.slice_cond(
-                    cond_value, audio_window, x_in, device, temporal_dim=2)
+            if audio_window is not None and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
+                sliced = audio_window.get_tensor(cond_value.cond, device, dim=2)
+                return cond_value._copy_with(sliced)
+
+        # Guide handling (same as LTXV — shared guide mechanism)
+        guide_count = getattr(window, 'guide_count', 0)
+        if cond_key in ("keyframe_idxs", "guide_attention_entries", "denoise_mask"):
+            logging.info(f"LTXAV resize_cond: {cond_key}, guide_count={guide_count}, has_spatial={hasattr(window, 'guide_spatial')}")
+
+        if cond_key == "denoise_mask" and guide_count > 0:
+            cond_tensor = cond_value.cond
+            T_video = cond_tensor.size(window.dim) - guide_count
+            video_mask = cond_tensor.narrow(window.dim, 0, T_video)
+            guide_mask = cond_tensor.narrow(window.dim, T_video, guide_count)
+            sliced_video = window.get_tensor(video_mask, device, retain_index_list=retain_index_list)
+            sliced_guide = window.get_tensor(guide_mask, device)
+            return cond_value._copy_with(torch.cat([sliced_video, sliced_guide], dim=window.dim))
+
+        if cond_key == "keyframe_idxs" and guide_count > 0:
+            window_len = len(window.index_list)
+            H, W = window.guide_spatial
+            patchifier = self.diffusion_model.patchifier
+            latent_coords = patchifier.get_latent_coords(window_len, H, W, 1, cond_value.cond.device)
+            from comfy.ldm.lightricks.symmetric_patchifier import latent_to_pixel_coords
+            pixel_coords = latent_to_pixel_coords(
+                latent_coords,
+                self.diffusion_model.vae_scale_factors,
+                causal_fix=self.diffusion_model.causal_temporal_positioning)
+            B = cond_value.cond.shape[0]
+            if B > 1:
+                pixel_coords = pixel_coords.expand(B, -1, -1, -1)
+            return cond_value._copy_with(pixel_coords)
+
+        if cond_key == "guide_attention_entries" and guide_count > 0:
+            window_len = len(window.index_list)
+            H, W = window.guide_spatial
+            new_entries = [{**e, "pre_filter_count": window_len * H * W,
+                            "latent_shape": [window_len, H, W]} for e in cond_value.cond]
+            return cond_value._copy_with(new_entries)
+
         return None
 
 class HunyuanVideo(BaseModel):
