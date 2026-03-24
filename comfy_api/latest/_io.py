@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from comfy.samplers import CFGGuider, Sampler
     from comfy.sd import CLIP, VAE
     from comfy.sd import StyleModel as StyleModel_
-    from comfy_api.input import VideoInput
+    from comfy_api.input import VideoInput, CurveInput as CurveInput_
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_execution.graph_utils import ExecutionBlocker
@@ -1242,8 +1242,9 @@ class BoundingBox(ComfyTypeIO):
 
 @comfytype(io_type="CURVE")
 class Curve(ComfyTypeIO):
-    CurvePoint = tuple[float, float]
-    Type = list[CurvePoint]
+    from comfy_api.input import CurvePoint
+    if TYPE_CHECKING:
+        Type = CurveInput_
 
     class Input(WidgetInput):
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
@@ -1251,6 +1252,18 @@ class Curve(ComfyTypeIO):
             super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
             if default is None:
                 self.default = [(0.0, 0.0), (1.0, 1.0)]
+
+        def as_dict(self):
+            d = super().as_dict()
+            if self.default is not None:
+                d["default"] = {"points": [list(p) for p in self.default], "interpolation": "monotone_cubic"}
+            return d
+
+
+@comfytype(io_type="HISTOGRAM")
+class Histogram(ComfyTypeIO):
+    """A histogram represented as a list of bin counts."""
+    Type = list[int]
 
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
@@ -2240,5 +2253,6 @@ __all__ = [
     "PriceBadge",
     "BoundingBox",
     "Curve",
+    "Histogram",
     "NodeReplace",
 ]
