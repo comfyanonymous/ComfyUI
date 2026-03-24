@@ -55,6 +55,12 @@ def stochastic_rounding(value, dtype, seed=0):
     if dtype == torch.bfloat16:
         return value.to(dtype=torch.bfloat16)
     if dtype == torch.float8_e4m3fn or dtype == torch.float8_e5m2:
+        # MPS workaround: if we're on MPS and trying to create float8, force CPU
+        if value.device.type == "mps":
+             cpu_value = value.to("cpu")
+             # Recursive call on CPU
+             return stochastic_rounding(cpu_value, dtype, seed)
+
         generator = torch.Generator(device=value.device)
         generator.manual_seed(seed)
         output = torch.empty_like(value, dtype=dtype)
