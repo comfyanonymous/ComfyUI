@@ -358,11 +358,9 @@ class IndexListContextHandler(ContextHandlerABC):
 
         for window_idx, window in enumerated_context_windows:
             comfy.model_management.throw_exception_if_processing_interrupted()
-
-            # Attach guide info to window for resize_cond_for_context_window
-            window.guide_count = guide_count
-            if guide_suffix is not None:
-                window.guide_spatial = (guide_suffix.shape[3], guide_suffix.shape[4])
+            logging.info(f"Context window {window_idx + 1}/{total_windows}: frames {window.index_list[0]}-{window.index_list[-1]} of {video_primary.shape[self.dim]}"
+                         + (f" (+{guide_count} guide)" if guide_count > 0 else "")
+                         + (f" [{len(modalities)} modalities]" if is_multimodal else ""))
 
             # Per-modality window indices
             if is_multimodal:
@@ -384,9 +382,6 @@ class IndexListContextHandler(ContextHandlerABC):
                 window = IndexListContextWindow(
                     window.index_list, dim=self.dim, total_frames=video_primary.shape[self.dim],
                     modality_windows=modality_windows)
-                window.guide_count = guide_count
-                if guide_suffix is not None:
-                    window.guide_spatial = (guide_suffix.shape[3], guide_suffix.shape[4])
             else:
                 per_mod_indices = [window.index_list]
 
