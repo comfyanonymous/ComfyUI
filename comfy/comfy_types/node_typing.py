@@ -176,8 +176,8 @@ class InputTypeOptions(TypedDict):
     """COMBO type only. Specifies the configuration for a multi-select widget.
     Available after ComfyUI frontend v1.13.4
     https://github.com/Comfy-Org/ComfyUI_frontend/pull/2987"""
-    gradient_stops: NotRequired[list[list[float]]]
-    """Gradient color stops for gradientslider display mode. Each stop is [offset, r, g, b] (``FLOAT``)."""
+    gradient_stops: NotRequired[list[dict]]
+    """Gradient color stops for gradientslider display mode. Each stop is {"offset": float, "color": [r, g, b]}."""
 
 
 class HiddenInputTypeDict(TypedDict):

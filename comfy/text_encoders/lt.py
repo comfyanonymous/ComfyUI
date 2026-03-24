@@ -97,18 +97,39 @@ class Gemma3_12BModel(sd1_clip.SDClipModel):
         comfy.utils.normalize_image_embeddings(embeds, embeds_info, self.transformer.model.config.hidden_size ** 0.5)
         return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106])  # 106 is <end_of_turn>
 
+class DualLinearProjection(torch.nn.Module):
+    def __init__(self, in_dim, out_dim_video, out_dim_audio, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.audio_aggregate_embed = operations.Linear(in_dim, out_dim_audio, bias=True, dtype=dtype, device=device)
+        self.video_aggregate_embed = operations.Linear(in_dim, out_dim_video, bias=True, dtype=dtype, device=device)
+
+    def forward(self, x):
+        source_dim = x.shape[-1]
+        x = x.movedim(1, -1)
+        x = (x * torch.rsqrt(torch.mean(x**2, dim=2, keepdim=True) + 1e-6)).flatten(start_dim=2)
+
+        video = self.video_aggregate_embed(x * math.sqrt(self.video_aggregate_embed.out_features / source_dim))
+        audio = self.audio_aggregate_embed(x * math.sqrt(self.audio_aggregate_embed.out_features / source_dim))
+        return torch.cat((video, audio), dim=-1)
+
 class LTXAVTEModel(torch.nn.Module):
-    def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
+    def __init__(self, dtype_llama=None, device="cpu", dtype=None, text_projection_type="single_linear", model_options={}):
         super().__init__()
         self.dtypes = set()
         self.dtypes.add(dtype)
         self.compat_mode = False
+        self.text_projection_type = text_projection_type
 
         self.gemma3_12b = Gemma3_12BModel(device=device, dtype=dtype_llama, model_options=model_options, layer="all", layer_idx=None)
         self.dtypes.add(dtype_llama)
 
         operations = self.gemma3_12b.operations # TODO
-        self.text_embedding_projection = operations.Linear(3840 * 49, 3840, bias=False, dtype=dtype, device=device)
+
+        if self.text_projection_type == "single_linear":
+            self.text_embedding_projection = operations.Linear(3840 * 49, 3840, bias=False, dtype=dtype, device=device)
+        elif self.text_projection_type == "dual_linear":
+            self.text_embedding_projection = DualLinearProjection(3840 * 49, 4096, 2048, dtype=dtype, device=device, operations=operations)
+
 
     def enable_compat_mode(self):  # TODO: remove
         from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
@@ -148,18 +169,25 @@ class LTXAVTEModel(torch.nn.Module):
         out_device = out.device
         if comfy.model_management.should_use_bf16(self.execution_device):
             out = out.to(device=self.execution_device, dtype=torch.bfloat16)
-        out = out.movedim(1, -1).to(self.execution_device)
-        out = 8.0 * (out - out.mean(dim=(1, 2), keepdim=True)) / (out.amax(dim=(1, 2), keepdim=True) - out.amin(dim=(1, 2), keepdim=True) + 1e-6)
-        out = out.reshape((out.shape[0], out.shape[1], -1))
-        out = self.text_embedding_projection(out)
-        out = out.float()
 
-        if self.compat_mode:
-            out_vid = self.video_embeddings_connector(out)[0]
-            out_audio = self.audio_embeddings_connector(out)[0]
-            out = torch.concat((out_vid, out_audio), dim=-1)
+        if self.text_projection_type == "single_linear":
+            out = out.movedim(1, -1).to(self.execution_device)
+            out = 8.0 * (out - out.mean(dim=(1, 2), keepdim=True)) / (out.amax(dim=(1, 2), keepdim=True) - out.amin(dim=(1, 2), keepdim=True) + 1e-6)
+            out = out.reshape((out.shape[0], out.shape[1], -1))
+            out = self.text_embedding_projection(out)
 
-        return out.to(out_device), pooled
+            if self.compat_mode:
+                out_vid = self.video_embeddings_connector(out)[0]
+                out_audio = self.audio_embeddings_connector(out)[0]
+                out = torch.concat((out_vid, out_audio), dim=-1)
+                extra = {}
+            else:
+                extra = {"unprocessed_ltxav_embeds": True}
+        elif self.text_projection_type == "dual_linear":
+            out = self.text_embedding_projection(out)
+            extra = {"unprocessed_ltxav_embeds": True}
+
+        return out.to(device=out_device, dtype=torch.float), pooled, extra
 
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
         return self.gemma3_12b.generate(tokens["gemma3_12b"], do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed)
@@ -168,7 +196,7 @@ class LTXAVTEModel(torch.nn.Module):
         if "model.layers.47.self_attn.q_norm.weight" in sd:
             return self.gemma3_12b.load_sd(sd)
         else:
-            sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.weight": "text_embedding_projection.weight"}, filter_keys=True)
+            sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.weight": "text_embedding_projection.weight", "text_embedding_projection.": "text_embedding_projection."}, filter_keys=True)
             if len(sdo) == 0:
                 sdo = sd
 
@@ -206,7 +234,7 @@ class LTXAVTEModel(torch.nn.Module):
         num_tokens = max(num_tokens, 642)
         return num_tokens * constant * 1024 * 1024
 
-def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
+def ltxav_te(dtype_llama=None, llama_quantization_metadata=None, text_projection_type="single_linear"):
     class LTXAVTEModel_(LTXAVTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             if llama_quantization_metadata is not None:
@@ -214,8 +242,18 @@ def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
                 model_options["llama_quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
-            super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
+            super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, text_projection_type=text_projection_type, model_options=model_options)
     return LTXAVTEModel_
+
+
+def sd_detect(state_dict_list, prefix=""):
+    for sd in state_dict_list:
+        if "{}text_embedding_projection.audio_aggregate_embed.bias".format(prefix) in sd:
+            return {"text_projection_type": "dual_linear"}
+        if "{}text_embedding_projection.weight".format(prefix) in sd or "{}text_embedding_projection.aggregate_embed.weight".format(prefix) in sd:
+            return {"text_projection_type": "single_linear"}
+    return {}
+
 
 def gemma3_te(dtype_llama=None, llama_quantization_metadata=None):
     class Gemma3_12BModel_(Gemma3_12BModel):
