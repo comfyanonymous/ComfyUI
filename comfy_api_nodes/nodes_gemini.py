@@ -644,6 +644,7 @@ class GeminiImage(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
             price_badge=IO.PriceBadge(
                 expr="""{"type":"usd","usd":0.039,"format":{"suffix":"/Image (1K)","approximate":true}}""",
             ),
