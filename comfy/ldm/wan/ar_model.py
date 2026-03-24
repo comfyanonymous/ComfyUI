@@ -281,7 +281,7 @@ class CausalWanModel(torch.nn.Module):
 
         # Per-frame time embedding → [B, block_frames, 6, dim]
         e = self.time_embedding(
-            sinusoidal_embedding_1d(self.freq_dim, timestep.flatten()))
+            sinusoidal_embedding_1d(self.freq_dim, timestep.flatten()).to(dtype=x.dtype))
         e = e.reshape(timestep.shape[0], -1, e.shape[-1])
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
 
@@ -351,8 +351,20 @@ class CausalWanModel(torch.nn.Module):
     def head_dim(self):
         return self.dim // self.num_heads
 
-    # Standard forward for non-causal use (compatibility with ComfyUI infrastructure)
     def forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
+        ar_state = transformer_options.get("ar_state")
+        if ar_state is not None:
+            bs = x.shape[0]
+            block_frames = x.shape[2]
+            t_per_frame = timestep.unsqueeze(1).expand(bs, block_frames)
+            return self.forward_block(
+                x=x, timestep=t_per_frame, context=context,
+                start_frame=ar_state["start_frame"],
+                kv_caches=ar_state["kv_caches"],
+                crossattn_caches=ar_state["crossattn_caches"],
+                clip_fea=clip_fea,
+            )
+
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
 
@@ -369,7 +381,7 @@ class CausalWanModel(torch.nn.Module):
         freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype)
 
         e = self.time_embedding(
-            sinusoidal_embedding_1d(self.freq_dim, timestep.flatten()))
+            sinusoidal_embedding_1d(self.freq_dim, timestep.flatten()).to(dtype=x.dtype))
         e = e.reshape(timestep.shape[0], -1, e.shape[-1])
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
 

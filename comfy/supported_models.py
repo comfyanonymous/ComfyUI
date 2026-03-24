@@ -1167,6 +1167,15 @@ class WAN21_T2V(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}umt5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.wan.WanT5Tokenizer, comfy.text_encoders.wan.te(**t5_detect))
 
+class WAN21_CausalAR_T2V(WAN21_T2V):
+    sampling_settings = {
+        "shift": 5.0,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.WAN21_CausalAR(self, device=device)
+
+
 class WAN21_I2V(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
