@@ -754,6 +754,7 @@ class Trellis2(nn.Module):
             "qk_rms_norm": qk_rms_norm, "qk_rms_norm_cross": qk_rms_norm_cross, "device": device, "dtype": dtype, "operations": operations
         }
         self.img2shape = SLatFlowModel(resolution=resolution, in_channels=in_channels, **args)
+        self.shape2txt = None
         if init_txt_model:
             self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
         self.img2shape_512 = SLatFlowModel(resolution=32, in_channels=in_channels, **args)
@@ -835,11 +836,12 @@ class Trellis2(nn.Module):
             slat = transformer_options.get("shape_slat")
             if slat is None:
                 raise ValueError("shape_slat can't be None")
-            slat.feats = slat.feats.repeat(B, 1)
-            x_st = sparse_cat([x_st, slat])
+
+            base_slat_feats = slat.feats[:N]
+            slat_feats_batched = base_slat_feats.repeat(B, 1).to(x_st.device)
+            x_st = x_st.replace(feats=torch.cat([x_st.feats, slat_feats_batched], dim=-1))
             out = self.shape2txt(x_st, t_eval, c_eval)
         else: # structure
-            #timestep = timestep_reshift(timestep)
             orig_bsz = x.shape[0]
             if shape_rule:
                 x = x[0].unsqueeze(0)
@@ -850,8 +852,7 @@ class Trellis2(nn.Module):
 
         if not_struct_mode:
             out = out.feats
-            if not_struct_mode:
-                out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
-                if rule and orig_bsz > 1:
-                    out = out.repeat(orig_bsz, 1, 1, 1)
+            out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
+            if rule and orig_bsz > 1:
+                out = out.repeat(orig_bsz, 1, 1, 1)
         return out
