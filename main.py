@@ -471,6 +471,9 @@ if __name__ == "__main__":
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
 
+    if args.disable_dynamic_vram:
+        logging.warning("Dynamic vram disabled with argument. If you have any issues with dynamic vram enabled please give us a detailed reports as this argument will be removed soon.")
+
     event_loop, _, start_all_func = start_comfyui()
     try:
         x = start_all_func()
