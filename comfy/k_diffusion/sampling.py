@@ -1875,14 +1875,14 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
                     noisy_input = (1.0 - sigma_next) * denoised + sigma_next * fresh_noise
 
                     for cache in kv_caches:
-                        cache["end"].fill_(cache["end"].item() - bf * frame_seq_len)
+                        cache["end"] -= bf * frame_seq_len
 
                 step_count += 1
 
             output[:, :, fs:fe] = noisy_input
 
             for cache in kv_caches:
-                cache["end"].fill_(cache["end"].item() - bf * frame_seq_len)
+                cache["end"] -= bf * frame_seq_len
             zero_sigma = sigmas.new_zeros([1])
             _ = model(noisy_input, zero_sigma * s_in, **extra_args)
 

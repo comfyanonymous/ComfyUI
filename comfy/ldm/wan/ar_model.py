@@ -64,13 +64,13 @@ class CausalWanSelfAttention(nn.Module):
                 transformer_options=transformer_options,
             )
         else:
-            end = kv_cache["end"].item()
+            end = kv_cache["end"]
             new_end = end + s
 
             # Roped K and plain V go into cache
             kv_cache["k"][:, end:new_end] = k
             kv_cache["v"][:, end:new_end] = v
-            kv_cache["end"].fill_(new_end)
+            kv_cache["end"] = new_end
 
             x = optimized_attention(
                 q.view(b, s, n * d),
@@ -232,7 +232,7 @@ class CausalWanModel(WanModel):
             caches.append({
                 "k": torch.zeros(batch_size, max_seq_len, self.num_heads, self.head_dim, device=device, dtype=dtype),
                 "v": torch.zeros(batch_size, max_seq_len, self.num_heads, self.head_dim, device=device, dtype=dtype),
-                "end": torch.tensor([0], dtype=torch.long, device=device),
+                "end": 0,
             })
         return caches
 
@@ -246,7 +246,7 @@ class CausalWanModel(WanModel):
     def reset_kv_caches(self, kv_caches):
         """Reset KV caches to empty (reuse allocated memory)."""
         for cache in kv_caches:
-            cache["end"].fill_(0)
+            cache["end"] = 0
 
     def reset_crossattn_caches(self, crossattn_caches):
         """Reset cross-attention caches."""
