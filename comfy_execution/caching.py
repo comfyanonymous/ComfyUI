@@ -475,6 +475,10 @@ class LRUCache(BasicCache):
         self._mark_used(node_id)
         return await self._set_immediate(node_id, value)
 
+    def set_local(self, node_id, value):
+        self._mark_used(node_id)
+        BasicCache.set_local(self, node_id, value)
+
     async def ensure_subcache_for(self, node_id, children_ids):
         # Just uses subcaches for tracking 'live' nodes
         await super()._ensure_subcache(node_id, children_ids)
@@ -520,6 +524,10 @@ class RAMPressureCache(LRUCache):
     async def get(self, node_id):
         self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
         return await super().get(node_id)
+
+    def set_local(self, node_id, value):
+        self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
+        super().set_local(node_id, value)
 
     def poll(self, ram_headroom):
         def _ram_gb():
