@@ -669,7 +669,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
 
     for i in range(len(current_loaded_models) -1, -1, -1):
         shift_model = current_loaded_models[i]
-        if shift_model.device == device:
+        if device is None or shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():
                 can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
                 shift_model.currently_used = False
@@ -679,8 +679,8 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
         i = x[-1]
         memory_to_free = 1e32
         pins_to_free = 1e32
-        if not DISABLE_SMART_MEMORY:
-            memory_to_free = memory_required - get_free_memory(device)
+        if not DISABLE_SMART_MEMORY or device is None:
+            memory_to_free = 0 if device is None else memory_required - get_free_memory(device)
             pins_to_free = pins_required - get_free_ram()
             if current_loaded_models[i].model.is_dynamic() and for_dynamic:
                 #don't actually unload dynamic models for the sake of other dynamic models
@@ -708,7 +708,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
 
     if len(unloaded_model) > 0:
         soft_empty_cache()
-    else:
+    elif device is not None:
         if vram_state != VRAMState.HIGH_VRAM:
             mem_free_total, mem_free_torch = get_free_memory(device, torch_free_too=True)
             if mem_free_torch > mem_free_total * 0.25:
