@@ -1,7 +1,7 @@
 import os
 import sys
 import asyncio
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 import traceback
 import time
 
@@ -464,7 +464,8 @@ class PromptServer():
                 # Normalize backslashes and use standard library to parse path components
                 normalized = filename.replace('\\', '/')
                 path = PurePosixPath(normalized)
-                if path.is_absolute() or '..' in path.parts:
+                win_path = PureWindowsPath(normalized)
+                if path.is_absolute() or win_path.is_absolute() or win_path.drive or '..' in path.parts:
                     return web.Response(status=400)
 
                 if output_dir is None:
