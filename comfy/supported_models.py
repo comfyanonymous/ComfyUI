@@ -1168,9 +1168,19 @@ class WAN21_T2V(supported_models_base.BASE):
         return supported_models_base.ClipTarget(comfy.text_encoders.wan.WanT5Tokenizer, comfy.text_encoders.wan.te(**t5_detect))
 
 class WAN21_CausalAR_T2V(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "t2v",
+        "causal_ar": True,
+    }
+
     sampling_settings = {
         "shift": 5.0,
     }
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.unet_config.pop("causal_ar", None)
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.WAN21_CausalAR(self, device=device)
@@ -1938,6 +1948,7 @@ models = [
     ZImage,
     Lumina2,
     WAN22_T2V,
+    WAN21_CausalAR_T2V,
     WAN21_T2V,
     WAN21_I2V,
     WAN21_FunControl2V,
