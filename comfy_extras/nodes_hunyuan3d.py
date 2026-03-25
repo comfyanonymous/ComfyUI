@@ -591,6 +591,9 @@ def save_glb(vertices, faces, filepath, metadata=None, colors=None):
         gltf["bufferViews"].append({"buffer": 0, "byteOffset": colors_byte_offset, "byteLength": colors_byte_length, "target": 34962})
         gltf["accessors"].append({"bufferView": 2, "byteOffset": 0, "componentType": 5126, "count": len(colors_np), "type": "VEC3"})
         gltf["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = 2
+        # Define a base material so Three.js actually activates vertex coloring
+        gltf["materials"] =[{"pbrMetallicRoughness": {"baseColorFactor": [1.0, 1.0, 1.0, 1.0]}}]
+        gltf["meshes"][0]["primitives"][0]["material"] = 0
 
     if metadata is not None:
         gltf["asset"]["extras"] = metadata

@@ -53,6 +53,7 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     device = comfy.model_management.vae_offload_device()
 
     origin = torch.tensor([-0.5, -0.5, -0.5], device=device)
+    # TODO: generic independent node? if so: figure how pass the resolution parameter
     voxel_size = 1.0 / resolution
 
     # map voxels

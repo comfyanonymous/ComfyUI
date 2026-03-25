@@ -782,7 +782,7 @@ class Trellis2(nn.Module):
             mode = "structure_generation"
             not_struct_mode = False
 
-        if is_1024 and mode == "shape_generation" and not is_512_run:
+        if is_1024 and not_struct_mode and not is_512_run:
             context = embeds
 
         sigmas = transformer_options.get("sigmas")[0].item()
@@ -825,7 +825,6 @@ class Trellis2(nn.Module):
             x_st = SparseTensor(feats=feats_flat, coords=batched_coords.to(torch.int32))
 
         if mode == "shape_generation":
-            # TODO
             if is_512_run:
                 out = self.img2shape_512(x_st, t_eval, c_eval)
             else:
