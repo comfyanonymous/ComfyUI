@@ -90,6 +90,63 @@ class TestNumberConvertExecute:
         assert result[0] == 1000.0
         assert result[1] == 1000
 
+    # --- Large number precision (string input) ---
+
+    def test_string_large_int_above_2_53(self):
+        """Text-to-int must not lose precision for integers beyond 2^53."""
+        big = 2**53 + 1  # 9007199254740993
+        result = self._exec(str(big))
+        assert result[1] == big
+
+    def test_string_large_negative_int_above_2_53(self):
+        big = -(2**53 + 1)
+        result = self._exec(str(big))
+        assert result[1] == big
+
+    def test_string_very_large_int(self):
+        big = 2**63 + 42
+        result = self._exec(str(big))
+        assert result[1] == big
+
+    def test_string_large_int_float_output_is_float(self):
+        """FLOAT output is still a float (may lose precision, but must be float type)."""
+        result = self._exec(str(2**53 + 1))
+        assert isinstance(result[0], float)
+
+    # --- Large number precision (int input) ---
+
+    def test_int_large_above_2_53(self):
+        """Native int input must preserve its value in the INT output."""
+        big = 2**53 + 1
+        result = self._exec(big)
+        assert result[1] == big
+
+    def test_int_large_negative_above_2_53(self):
+        big = -(2**53 + 1)
+        result = self._exec(big)
+        assert result[1] == big
+
+    def test_int_very_large(self):
+        big = 2**100
+        result = self._exec(big)
+        assert result[1] == big
+
+    # --- String decimal / scientific notation fallback ---
+
+    def test_string_decimal_still_truncates(self):
+        """Strings with decimal points fall back to int(float(...)) truncation."""
+        result = self._exec("3.7")
+        assert result[1] == 3
+
+    def test_string_negative_decimal_truncates(self):
+        result = self._exec("-2.9")
+        assert result[1] == -2
+
+    def test_string_scientific_large(self):
+        result = self._exec("1e18")
+        assert result[0] == 1e18
+        assert result[1] == 10**18
+
     # --- STRING error paths ---
 
     def test_empty_string_raises(self):
