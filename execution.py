@@ -109,6 +109,7 @@ class CacheType(Enum):
 
 class CacheSet:
     def __init__(self, cache_type=None, cache_args={}):
+        self.ram_release_callback = None
         if cache_type == CacheType.NONE:
             self.init_null_cache()
             logging.info("Disabling intermediate node cache.")
@@ -137,6 +138,7 @@ class CacheSet:
     def init_ram_cache(self, min_headroom):
         self.outputs = RAMPressureCache(CacheKeySetInputSignature, enable_providers=True)
         self.objects = HierarchicalCache(CacheKeySetID)
+        self.ram_release_callback = self.outputs.ram_release
 
     def init_null_cache(self):
         self.outputs = NullCache()
@@ -715,6 +717,7 @@ class PromptExecutor:
         self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         self._notify_prompt_lifecycle("start", prompt_id)
+        comfy.model_management.register_extra_ram_release_callback(self.caches.ram_release_callback)
 
         try:
             with torch.inference_mode():
@@ -764,7 +767,6 @@ class PromptExecutor:
                         execution_list.unstage_node_execution()
                     else: # result == ExecutionResult.SUCCESS:
                         execution_list.complete_node_execution()
-                    self.caches.outputs.poll(ram_headroom=self.cache_args["ram"])
                 else:
                     # Only execute when the while-loop ends without break
                     self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
@@ -782,6 +784,7 @@ class PromptExecutor:
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
+            comfy.model_management.register_extra_ram_release_callback(None)
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
