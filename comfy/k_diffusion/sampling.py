@@ -1817,11 +1817,30 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
     """
     Autoregressive video sampler: block-by-block denoising with KV cache
     and flow-match re-noising for Causal Forcing / Self-Forcing models.
+
+    Requires a Causal-WAN compatible model (diffusion_model must expose
+    init_kv_caches / init_crossattn_caches) and 5-D latents [B,C,T,H,W].
     """
     extra_args = {} if extra_args is None else extra_args
     model_options = extra_args.get("model_options", {})
     transformer_options = model_options.get("transformer_options", {})
     ar_config = transformer_options.get("ar_config", {})
+
+    if x.ndim != 5:
+        raise ValueError(
+            f"ar_video sampler requires 5-D video latents [B,C,T,H,W], got {x.ndim}-D tensor with shape {x.shape}. "
+            "This sampler is only compatible with autoregressive video models (e.g. Causal-WAN)."
+        )
+
+    inner_model = model.inner_model.inner_model
+    causal_model = inner_model.diffusion_model
+
+    if not (hasattr(causal_model, "init_kv_caches") and hasattr(causal_model, "init_crossattn_caches")):
+        raise TypeError(
+            "ar_video sampler requires a Causal-WAN compatible model whose diffusion_model "
+            "exposes init_kv_caches() and init_crossattn_caches(). The loaded checkpoint "
+            "does not support this interface — choose a different sampler."
+        )
 
     num_frame_per_block = ar_config.get("num_frame_per_block", 1)
     seed = extra_args.get("seed", 0)
@@ -1829,9 +1848,6 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
     bs, c, lat_t, lat_h, lat_w = x.shape
     frame_seq_len = -(-lat_h // 2) * -(-lat_w // 2) # ceiling division
     num_blocks = -(-lat_t // num_frame_per_block)   # ceiling division
-
-    inner_model = model.inner_model.inner_model
-    causal_model = inner_model.diffusion_model
     device = x.device
     model_dtype = inner_model.get_dtype()
 
