@@ -494,10 +494,10 @@ class LRUCache(BasicCache):
 
 RAM_CACHE_HYSTERESIS = 1.1
 
-#This is kinda in GB but not really. It needs to be non-zero for the below heuristic
-#and as long as Multi GB models dwarf this it will approximate OOM scoring OK
+#Small baseline weight used when a cache entry has no measurable CPU tensors.
+#Keeps unknown-sized entries in eviction scoring without dominating tensor-backed entries.
 
-RAM_CACHE_DEFAULT_RAM_USAGE = 0.1
+RAM_CACHE_DEFAULT_RAM_USAGE = 0.05
 
 #Exponential bias towards evicting older workflows so garbage will be taken out
 #in constantly changing setups.
@@ -545,11 +545,7 @@ class RAMPressureCache(LRUCache):
                     if isinstance(output, list):
                         scan_list_for_ram_usage(output)
                     elif isinstance(output, torch.Tensor) and output.device.type == 'cpu':
-                        #score Tensors at a 50% discount for RAM usage as they are likely to
-                        #be high value intermediates
-                        ram_usage += (output.numel() * output.element_size()) * 0.5
-                    elif hasattr(output, "get_ram_usage"):
-                        ram_usage += output.get_ram_usage()
+                        ram_usage += output.numel() * output.element_size()
             scan_list_for_ram_usage(outputs)
 
             oom_score *= ram_usage
