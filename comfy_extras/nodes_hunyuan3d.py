@@ -484,7 +484,7 @@ class VoxelToMesh(IO.ComfyNode):
     decode = execute  # TODO: remove
 
 
-def save_glb(vertices, faces, filepath, metadata=None):
+def save_glb(vertices, faces, filepath, metadata=None, colors=None):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -514,6 +514,13 @@ def save_glb(vertices, faces, filepath, metadata=None):
     vertices_byte_offset = 0
     indices_byte_length = len(indices_buffer)
     indices_byte_offset = len(vertices_buffer_padded)
+
+    if colors is not None:
+        colors_np = colors.cpu().numpy().astype(np.float32)
+        colors_buffer = colors_np.tobytes()
+        colors_byte_length = len(colors_buffer)
+        colors_byte_offset = len(buffer_data)
+        buffer_data += pad_to_4_bytes(colors_buffer)
 
     gltf = {
         "asset": {"version": "2.0", "generator": "ComfyUI"},
@@ -579,6 +586,11 @@ def save_glb(vertices, faces, filepath, metadata=None):
         ],
         "scene": 0
     }
+
+    if colors is not None:
+        gltf["bufferViews"].append({"buffer": 0, "byteOffset": colors_byte_offset, "byteLength": colors_byte_length, "target": 34962})
+        gltf["accessors"].append({"bufferView": 2, "byteOffset": 0, "componentType": 5126, "count": len(colors_np), "type": "VEC3"})
+        gltf["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = 2
 
     if metadata is not None:
         gltf["asset"]["extras"] = metadata
@@ -669,7 +681,8 @@ class SaveGLB(IO.ComfyNode):
             # Handle Mesh input - save vertices and faces as GLB
             for i in range(mesh.vertices.shape[0]):
                 f = f"{filename}_{counter:05}_.glb"
-                save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata)
+                v_colors = mesh.colors[i] if hasattr(mesh, "colors") and mesh.colors is not None else None
+                save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata, v_colors)
                 results.append({
                     "filename": f,
                     "subfolder": subfolder,

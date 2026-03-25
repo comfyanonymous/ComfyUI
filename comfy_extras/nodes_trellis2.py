@@ -45,6 +45,34 @@ def shape_norm(shape_latent, coords):
     samples = samples * std + mean
     return samples
 
+def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution, chunk_size=4096):
+    """
+    Generic function to paint a mesh using nearest-neighbor colors from a sparse voxel field.
+    Keeps chunking internal to prevent OOM crashes on large matrices.
+    """
+    device = voxel_coords.device
+
+    # Map Voxel Grid to Real 3D Space
+    origin = torch.tensor([-0.5, -0.5, -0.5], device=device)
+    voxel_size = 1.0 / resolution
+    voxel_pos = voxel_coords.float() * voxel_size + origin
+
+    verts = mesh.vertices.to(device).squeeze(0)
+    v_colors = torch.zeros((verts.shape[0], 3), device=device)
+
+    for i in range(0, verts.shape[0], chunk_size):
+        v_chunk = verts[i : i + chunk_size]
+        dists = torch.cdist(v_chunk, voxel_pos)
+        nearest_idx = torch.argmin(dists, dim=1)
+        v_colors[i : i + chunk_size] = voxel_colors[nearest_idx]
+
+    final_colors = (v_colors * 0.5 + 0.5).clamp(0, 1).unsqueeze(0)
+
+    out_mesh = copy.deepcopy(mesh)
+    out_mesh.colors = final_colors
+
+    return out_mesh
+
 class VaeDecodeShapeTrellis(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -90,18 +118,20 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
             node_id="VaeDecodeTextureTrellis",
             category="latent/3d",
             inputs=[
+                IO.Mesh.Input("shape_mesh"),
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
                 IO.AnyType.Input("shape_subs"),
             ],
             outputs=[
-                IO.Voxel.Output("voxel"),
+                IO.Mesh.Output("mesh"),
             ]
         )
 
     @classmethod
-    def execute(cls, samples, vae, shape_subs):
+    def execute(cls, shape_mesh, samples, vae, shape_subs):
 
+        resolution = 1024
         patcher = vae.patcher
         device = comfy.model_management.get_torch_device()
         comfy.model_management.load_model_gpu(patcher)
@@ -116,9 +146,12 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         samples = SparseTensor(feats = samples, coords=coords)
         samples = samples * std + mean
 
-        voxel = vae.decode_tex_slat(samples, shape_subs) * 0.5 + 0.5
-        voxel = Types.VOXEL(voxel)
-        return IO.NodeOutput(voxel)
+        voxel = vae.decode_tex_slat(samples, shape_subs)
+        color_feats = voxel.feats[:, :3]
+        voxel_coords = voxel.coords[:, 1:]
+
+        out_mesh = paint_mesh_with_voxels(shape_mesh, voxel_coords, color_feats, resolution=resolution)
+        return IO.NodeOutput(out_mesh)
 
 class VaeDecodeStructureTrellis2(IO.ComfyNode):
     @classmethod
