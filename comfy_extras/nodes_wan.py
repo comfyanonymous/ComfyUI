@@ -1327,6 +1327,7 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
                 io.Int.Input("motion_frame_count", default=9, min=1, max=33, step=1, tooltip="Number of previous frames to use as motion context.", advanced=True),
                 io.Float.Input("audio_scale", default=1.0, min=-10.0, max=10.0, step=0.01),
                 io.Image.Input("previous_frames", optional=True),
+                io.Int.Input("video_frame_offset", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1, tooltip="The amount of frames to seek in the previous_frames input.")
             ],
             outputs=[
                 io.Model.Output(display_name="model"),
@@ -1339,7 +1340,7 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, mode: DCValues, model, model_patch, positive, negative, vae, width, height, length, audio_encoder_output_1, motion_frame_count,
-                start_image=None, previous_frames=None, audio_scale=None, clip_vision_output=None, audio_encoder_output_2=None, mask_1=None, mask_2=None) -> io.NodeOutput:
+                start_image=None, previous_frames=None, audio_scale=None, clip_vision_output=None, audio_encoder_output_2=None, mask_1=None, mask_2=None, video_frame_offset=0) -> io.NodeOutput:
 
         if previous_frames is not None and previous_frames.shape[0] < motion_frame_count:
             raise ValueError("Not enough previous frames provided.")
@@ -1422,11 +1423,13 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
         # when extending from previous frames
         if previous_frames is not None:
             motion_frames = comfy.utils.common_upscale(previous_frames[-motion_frame_count:].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-            frame_offset = previous_frames.shape[0] - motion_frame_count
+            if video_frame_offset is not None and video_frame_offset > 0:
+                frame_offset = video_frame_offset - motion_frame_count
+            else:
+                frame_offset = previous_frames.shape[0] - motion_frame_count
 
             audio_start = frame_offset
             audio_end = audio_start + length
-            logging.info(f"InfiniteTalk: Processing audio frames {audio_start} - {audio_end}")
 
             motion_frames_latent = vae.encode(motion_frames[:, :, :, :3])
             trim_image = motion_frame_count
@@ -1434,6 +1437,8 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
             audio_start = trim_image = 0
             audio_end = length
             motion_frames_latent = concat_latent_image[:, :, :1]
+
+        logging.info(f"InfiniteTalk: Processing audio frames {audio_start} - {audio_end}")
 
         audio_embed = project_audio_features(model_patch.model.audio_proj, encoded_audio_list, audio_start, audio_end).to(model_patched.model_dtype())
         model_patched.model_options["transformer_options"]["audio_embeds"] = audio_embed
