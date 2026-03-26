@@ -77,7 +77,9 @@ class _AssetSeeder:
     """
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        # RLock is required because _run_scan() drains pending work while
+        # holding _lock and re-enters start() which also acquires _lock.
+        self._lock = threading.RLock()
         self._state = State.IDLE
         self._progress: Progress | None = None
         self._last_progress: Progress | None = None
@@ -92,6 +94,7 @@ class _AssetSeeder:
         self._prune_first: bool = False
         self._progress_callback: ProgressCallback | None = None
         self._disabled: bool = False
+        self._pending_enrich: dict | None = None
 
     def disable(self) -> None:
         """Disable the asset seeder, preventing any scans from starting."""
@@ -195,6 +198,42 @@ class _AssetSeeder:
             prune_first=False,
             compute_hashes=compute_hashes,
         )
+
+    def enqueue_enrich(
+        self,
+        roots: tuple[RootType, ...] = ("models", "input", "output"),
+        compute_hashes: bool = False,
+    ) -> bool:
+        """Start an enrichment scan now, or queue it for after the current scan.
+
+        If the seeder is idle, starts immediately. Otherwise, the enrich
+        request is stored and will run automatically when the current scan
+        finishes.
+
+        Args:
+            roots: Tuple of root types to scan
+            compute_hashes: If True, compute blake3 hashes
+
+        Returns:
+            True if started immediately, False if queued for later
+        """
+        with self._lock:
+            if self.start_enrich(roots=roots, compute_hashes=compute_hashes):
+                return True
+            if self._pending_enrich is not None:
+                existing_roots = set(self._pending_enrich["roots"])
+                existing_roots.update(roots)
+                self._pending_enrich["roots"] = tuple(existing_roots)
+                self._pending_enrich["compute_hashes"] = (
+                    self._pending_enrich["compute_hashes"] or compute_hashes
+                )
+            else:
+                self._pending_enrich = {
+                    "roots": roots,
+                    "compute_hashes": compute_hashes,
+                }
+            logging.info("Enrich scan queued (roots=%s)", self._pending_enrich["roots"])
+        return False
 
     def cancel(self) -> bool:
         """Request cancellation of the current scan.
@@ -381,9 +420,13 @@ class _AssetSeeder:
             return marked
         finally:
             with self._lock:
-                self._last_progress = self._progress
-                self._state = State.IDLE
-                self._progress = None
+                self._reset_to_idle()
+
+    def _reset_to_idle(self) -> None:
+        """Reset state to IDLE, preserving last progress. Caller must hold _lock."""
+        self._last_progress = self._progress
+        self._state = State.IDLE
+        self._progress = None
 
     def _is_cancelled(self) -> bool:
         """Check if cancellation has been requested."""
@@ -594,9 +637,18 @@ class _AssetSeeder:
                     },
                 )
             with self._lock:
-                self._last_progress = self._progress
-                self._state = State.IDLE
-                self._progress = None
+                self._reset_to_idle()
+                pending = self._pending_enrich
+                if pending is not None:
+                    self._pending_enrich = None
+                    if not self.start_enrich(
+                        roots=pending["roots"],
+                        compute_hashes=pending["compute_hashes"],
+                    ):
+                        logging.warning(
+                            "Pending enrich scan could not start (roots=%s)",
+                            pending["roots"],
+                        )
 
     def _run_fast_phase(self, roots: tuple[RootType, ...]) -> tuple[int, int, int]:
         """Run phase 1: fast scan to create stub records.

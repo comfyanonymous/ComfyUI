@@ -23,6 +23,8 @@ from app.assets.services.ingest import (
     DependencyMissingError,
     HashMismatchError,
     create_from_hash,
+    ingest_existing_file,
+    register_output_files,
     upload_from_temp_path,
 )
 from app.assets.database.queries import (
@@ -72,6 +74,8 @@ __all__ = [
     "delete_asset_reference",
     "get_asset_by_hash",
     "get_asset_detail",
+    "ingest_existing_file",
+    "register_output_files",
     "get_mtime_ns",
     "get_size_and_mtime_ns",
     "list_assets_page",

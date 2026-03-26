@@ -224,7 +224,7 @@ class Qwen3_8BConfig:
     k_norm = "gemma3"
     rope_scale = None
     final_norm: bool = True
-    lm_head: bool = False
+    lm_head: bool = True
     stop_tokens = [151643, 151645]
 
 @dataclass
@@ -912,6 +912,9 @@ class BaseGenerate:
 class BaseQwen3:
     def logits(self, x):
         input = x[:, -1:]
+        if self.model.config.lm_head:
+            return self.model.lm_head(input)
+
         module = self.model.embed_tokens
 
         offload_stream = None
@@ -1043,12 +1046,19 @@ class Qwen25_7BVLI(BaseLlama, BaseGenerate, torch.nn.Module):
                 grid = e.get("extra", None)
                 start = e.get("index")
                 if position_ids is None:
-                    position_ids = torch.zeros((3, embeds.shape[1]), device=embeds.device)
+                    position_ids = torch.ones((3, embeds.shape[1]), device=embeds.device, dtype=torch.long)
                     position_ids[:, :start] = torch.arange(0, start, device=embeds.device)
                 end = e.get("size") + start
                 len_max = int(grid.max()) // 2
                 start_next = len_max + start
-                position_ids[:, end:] = torch.arange(start_next + offset, start_next + (embeds.shape[1] - end) + offset, device=embeds.device)
+                if attention_mask is not None:
+                    # Assign compact sequential positions to attended tokens only,
+                    # skipping over padding so post-padding tokens aren't inflated.
+                    after_mask = attention_mask[0, end:]
+                    text_positions = after_mask.cumsum(0) - 1 + start_next + offset
+                    position_ids[:, end:] = torch.where(after_mask.bool(), text_positions, position_ids[0, end:])
+                else:
+                    position_ids[:, end:] = torch.arange(start_next + offset, start_next + (embeds.shape[1] - end) + offset, device=embeds.device)
                 position_ids[0, start:end] = start + offset
                 max_d = int(grid[0][1]) // 2
                 position_ids[1, start:end] = torch.arange(start + offset, start + max_d + offset, device=embeds.device).unsqueeze(1).repeat(1, math.ceil((end - start) / max_d)).flatten(0)[:end - start]
