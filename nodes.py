@@ -2507,6 +2507,7 @@ async def init_builtin_extra_nodes():
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
         "nodes_text.py",
+        "nodes_looping.py",
     ]
 
     import_failed = []
