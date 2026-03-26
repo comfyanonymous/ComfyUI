@@ -516,7 +516,7 @@ def _render_shader_batch(
         floats: List of float uniforms
         ints: List of int uniforms
         bools: List of bool uniforms (passed as int 0/1 to GLSL bool uniforms)
-        curves: List of 1D LUT arrays (256 float32 values each) for u_curve0-N
+        curves: List of 1D LUT arrays (float32) of arbitrary size for u_curve0-N
 
     Returns:
         List of batch outputs, each is a list of output images (H, W, 4) float32 [0,1]
@@ -848,7 +848,7 @@ class GLSLShader(io.ComfyNode):
                 io.Autogrow.Input("floats", template=float_template, tooltip=f"Floats are available as u_float0-{MAX_UNIFORMS-1} in the shader code"),
                 io.Autogrow.Input("ints", template=int_template, tooltip=f"Ints are available as u_int0-{MAX_UNIFORMS-1} in the shader code"),
                 io.Autogrow.Input("bools", template=bool_template, tooltip=f"Booleans are available as u_bool0-{MAX_BOOLS-1} (bool) in the shader code"),
-                io.Autogrow.Input("curves", template=curve_template, tooltip=f"Curves are available as u_curve0-{MAX_CURVES-1} (sampler2D, 256x1 LUT) in the shader code. Sample with texture(u_curve0, vec2(x, 0.5)).r"),
+                io.Autogrow.Input("curves", template=curve_template, tooltip=f"Curves are available as u_curve0-{MAX_CURVES-1} (sampler2D, 1D LUT) in the shader code. Sample with texture(u_curve0, vec2(x, 0.5)).r"),
             ],
             outputs=[
                 io.Image.Output(display_name="IMAGE0", tooltip="Available via layout(location = 0) out vec4 fragColor0 in the shader code"),
@@ -878,7 +878,7 @@ class GLSLShader(io.ComfyNode):
         int_list = [v if v is not None else 0 for v in ints.values()] if ints else []
         bool_list = [v if v is not None else False for v in bools.values()] if bools else []
 
-        curve_luts = [v.to_lut(256).astype(np.float32) for v in curves.values() if v is not None] if curves else []
+        curve_luts = [v.to_lut().astype(np.float32) for v in curves.values() if v is not None] if curves else []
 
         if not image_list:
             raise ValueError("At least one input image is required")
