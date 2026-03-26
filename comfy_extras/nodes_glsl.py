@@ -813,6 +813,7 @@ class GLSLShader(io.ComfyNode):
                 "u_resolution (vec2) is always available."
             ),
             is_experimental=True,
+            has_intermediate_output=True,
             inputs=[
                 io.String.Input(
                     "fragment_shader",
