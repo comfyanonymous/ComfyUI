@@ -168,10 +168,15 @@ def save_images_to_folder(image_list, output_dir, prefix="image"):
     saved_files = []
 
     if isinstance(image_list, torch.Tensor):
-        if image_list.dim() == 4:
-            image_list = [image_list[i] for i in range(image_list.shape[0])]
+        image_list = [image_list]
+
+    normalized_images = []
+    for img in image_list:
+        if isinstance(img, torch.Tensor) and img.dim() == 4:
+            normalized_images.extend([img[i] for i in range(img.shape[0])])
         else:
-            image_list = [image_list]
+            normalized_images.append(img)
+    image_list = normalized_images
 
     for idx, img_tensor in enumerate(image_list):
         # Handle different tensor shapes
