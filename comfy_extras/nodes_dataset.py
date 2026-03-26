@@ -194,9 +194,12 @@ def save_images_to_folder(image_list, output_dir, prefix="image"):
             img_array = np.clip(img_array * 255.0, 0, 255).astype(np.uint8)
 
             # Convert to PIL Image
-            while img_array.ndim > 3:
+            while img_array.ndim > 3 and img_array.shape[0] == 1:
                 img_array = img_array[0]
-
+            if img_array.ndim > 3:
+                raise ValueError(
+                    f"Unsupported image tensor shape after normalization: {tuple(img_array.shape)}"
+                )
             img = Image.fromarray(img_array)
         else:
             raise ValueError(f"Expected torch.Tensor, got {type(img_tensor)}")
