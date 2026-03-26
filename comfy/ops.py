@@ -928,6 +928,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 weight = state_dict.pop(weight_key, None)
                 if weight is None:
                     logging.warning(f"Missing weight for layer {layer_name}")
+                    self.weight = None
                     return
 
                 manually_loaded_keys = [weight_key]
@@ -1033,6 +1034,9 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                 if self.bias is not None:
                     sd["{}bias".format(prefix)] = self.bias
+
+                if self.weight is None:
+                    return sd
 
                 if isinstance(self.weight, QuantizedTensor):
                     sd_out = self.weight.state_dict("{}weight".format(prefix))
