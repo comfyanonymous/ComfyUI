@@ -17,7 +17,7 @@ jobs:
       - name: Check for Windows line endings (CRLF)
         run: |
           # Get the list of changed files in the PR
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${PR_HEAD_SHA})
 
           # Flag to track if CRLF is found
           CRLF_FOUND=false
@@ -38,3 +38,6 @@ jobs:
           if [ "$CRLF_FOUND" = true ]; then
             exit 1
           fi
+
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
