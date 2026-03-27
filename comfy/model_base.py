@@ -1197,17 +1197,18 @@ class LTXAV(BaseModel):
             return result
 
         video_total = latent_shapes[0][dim]
-        audio_total = latent_shapes[1][dim]
+        video_window_len = len(primary_indices)
 
-        # Proportional mapping — video and audio cover same real-time duration
-        v_start, v_end = min(primary_indices), max(primary_indices) + 1
-        a_start = round(v_start * audio_total / video_total)
-        a_end = round(v_end * audio_total / video_total)
-        audio_indices = list(range(a_start, min(a_end, audio_total)))
-        if not audio_indices:
-            audio_indices = [min(a_start, audio_total - 1)]
+        for i in range(1, len(latent_shapes)):
+            mod_total = latent_shapes[i][dim]
+            # Length proportional to video window frame count (not index span)
+            mod_window_len = max(round(video_window_len * mod_total / video_total), 1)
+            # Anchor to end of video range
+            v_end = max(primary_indices) + 1
+            mod_end = min(round(v_end * mod_total / video_total), mod_total)
+            mod_start = max(mod_end - mod_window_len, 0)
+            result.append(list(range(mod_start, min(mod_start + mod_window_len, mod_total))))
 
-        result.append(audio_indices)
         return result
 
     def get_guide_frame_count(self, x, conds):

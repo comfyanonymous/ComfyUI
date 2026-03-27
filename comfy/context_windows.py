@@ -619,7 +619,28 @@ def _sampler_sample_wrapper(executor, guider, sigmas, extra_args, callback, nois
         raise Exception("context_handler not found in sampler_sample_wrapper; this should never happen, something went wrong.")
     if not handler.freenoise:
         return executor(guider, sigmas, extra_args, callback, noise, *args, **kwargs)
-    noise = apply_freenoise(noise, handler.dim, handler.context_length, handler.context_overlap, extra_args["seed"])
+
+    # For packed multimodal tensors (e.g. LTXAV), noise is [B, 1, flat] and FreeNoise
+    # must only shuffle the video portion. Unpack, apply to video, repack.
+    latent_shapes = None
+    try:
+        latent_shapes = guider.conds['positive'][0]['model_conds']['latent_shapes'].cond
+    except (KeyError, IndexError, AttributeError):
+        pass
+
+    if latent_shapes is not None and len(latent_shapes) > 1:
+        modalities = comfy.utils.unpack_latents(noise, latent_shapes)
+        video_total = latent_shapes[0][handler.dim]
+        modalities[0] = apply_freenoise(modalities[0], handler.dim, handler.context_length, handler.context_overlap, extra_args["seed"])
+        for i in range(1, len(modalities)):
+            mod_total = latent_shapes[i][handler.dim]
+            ratio = mod_total / video_total if video_total > 0 else 1
+            mod_ctx_len = max(round(handler.context_length * ratio), 1)
+            mod_ctx_overlap = max(round(handler.context_overlap * ratio), 0)
+            modalities[i] = apply_freenoise(modalities[i], handler.dim, mod_ctx_len, mod_ctx_overlap, extra_args["seed"])
+        noise, _ = comfy.utils.pack_latents(modalities)
+    else:
+        noise = apply_freenoise(noise, handler.dim, handler.context_length, handler.context_overlap, extra_args["seed"])
 
     return executor(guider, sigmas, extra_args, callback, noise, *args, **kwargs)
 
