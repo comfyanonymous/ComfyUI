@@ -843,8 +843,8 @@ class Trellis2(nn.Module):
         else: # structure
             orig_bsz = x.shape[0]
             if shape_rule:
-                x = x[0].unsqueeze(0)
-                timestep = timestep[0].unsqueeze(0)
+                x = x[1].unsqueeze(0)
+                timestep = timestep[1].unsqueeze(0)
             out = self.structure_model(x, timestep, context if not shape_rule else cond)
             if shape_rule:
                 out = out.repeat(orig_bsz, 1, 1, 1, 1)
