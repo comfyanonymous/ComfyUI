@@ -16,10 +16,12 @@ from app.assets.database.queries import (
     get_reference_by_id,
     get_reference_with_owner_check,
     list_references_page,
+    list_all_file_paths_by_asset_id,
     list_references_by_asset_id,
     set_reference_metadata,
     set_reference_preview,
     set_reference_tags,
+    update_asset_hash_and_mime,
     update_reference_access_time,
     update_reference_name,
     update_reference_updated_at,
@@ -67,6 +69,8 @@ def update_asset_metadata(
     user_metadata: UserMetadata = None,
     tag_origin: str = "manual",
     owner_id: str = "",
+    mime_type: str | None = None,
+    preview_id: str | None = None,
 ) -> AssetDetailResult:
     with create_session() as session:
         ref = get_reference_with_owner_check(session, reference_id, owner_id)
@@ -100,6 +104,21 @@ def update_asset_metadata(
                 reference_id=reference_id,
                 tags=tags,
                 origin=tag_origin,
+            )
+            touched = True
+
+        if mime_type is not None:
+            updated = update_asset_hash_and_mime(
+                session, asset_id=ref.asset_id, mime_type=mime_type
+            )
+            if updated:
+                touched = True
+
+        if preview_id is not None:
+            set_reference_preview(
+                session,
+                reference_id=reference_id,
+                preview_reference_id=preview_id,
             )
             touched = True
 
@@ -159,11 +178,9 @@ def delete_asset_reference(
             session.commit()
             return True
 
-        # Orphaned asset - delete it and its files
-        refs = list_references_by_asset_id(session, asset_id=asset_id)
-        file_paths = [
-            r.file_path for r in (refs or []) if getattr(r, "file_path", None)
-        ]
+        # Orphaned asset - gather ALL file paths (including
+        # soft-deleted / missing refs) so their on-disk files get cleaned up.
+        file_paths = list_all_file_paths_by_asset_id(session, asset_id=asset_id)
         # Also include the just-deleted file path
         if file_path:
             file_paths.append(file_path)
@@ -185,7 +202,7 @@ def delete_asset_reference(
 
 def set_asset_preview(
     reference_id: str,
-    preview_asset_id: str | None = None,
+    preview_reference_id: str | None = None,
     owner_id: str = "",
 ) -> AssetDetailResult:
     with create_session() as session:
@@ -194,7 +211,7 @@ def set_asset_preview(
         set_reference_preview(
             session,
             reference_id=reference_id,
-            preview_asset_id=preview_asset_id,
+            preview_reference_id=preview_reference_id,
         )
 
         result = fetch_reference_asset_and_tags(
@@ -261,6 +278,47 @@ def list_assets_page(
             )
 
         return ListAssetsResult(items=items, total=total)
+
+
+def resolve_hash_to_path(
+    asset_hash: str,
+    owner_id: str = "",
+) -> DownloadResolutionResult | None:
+    """Resolve a blake3 hash to an on-disk file path.
+
+    Only references visible to *owner_id* are considered (owner-less
+    references are always visible).
+
+    Returns a DownloadResolutionResult with abs_path, content_type, and
+    download_name, or None if no asset or live path is found.
+    """
+    with create_session() as session:
+        asset = queries_get_asset_by_hash(session, asset_hash)
+        if not asset:
+            return None
+        refs = list_references_by_asset_id(session, asset_id=asset.id)
+        visible = [
+            r for r in refs
+            if r.owner_id == "" or r.owner_id == owner_id
+        ]
+        abs_path = select_best_live_path(visible)
+        if not abs_path:
+            return None
+        display_name = os.path.basename(abs_path)
+        for ref in visible:
+            if ref.file_path == abs_path and ref.name:
+                display_name = ref.name
+                break
+        ctype = (
+            asset.mime_type
+            or mimetypes.guess_type(display_name)[0]
+            or "application/octet-stream"
+        )
+    return DownloadResolutionResult(
+        abs_path=abs_path,
+        content_type=ctype,
+        download_name=display_name,
+    )
 
 
 def resolve_asset_for_download(

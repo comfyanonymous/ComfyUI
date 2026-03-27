@@ -11,6 +11,7 @@ from app.assets.services import (
     delete_asset_reference,
     set_asset_preview,
 )
+from app.assets.services.asset_management import resolve_hash_to_path
 
 
 def _make_asset(session: Session, hash_val: str = "blake3:test", size: int = 1024) -> Asset:
@@ -219,31 +220,33 @@ class TestSetAssetPreview:
         asset = _make_asset(session, hash_val="blake3:main")
         preview_asset = _make_asset(session, hash_val="blake3:preview")
         ref = _make_reference(session, asset)
+        preview_ref = _make_reference(session, preview_asset, name="preview.png")
         ref_id = ref.id
-        preview_id = preview_asset.id
+        preview_ref_id = preview_ref.id
         session.commit()
 
         set_asset_preview(
             reference_id=ref_id,
-            preview_asset_id=preview_id,
+            preview_reference_id=preview_ref_id,
         )
 
         # Verify by re-fetching from DB
         session.expire_all()
         updated_ref = session.get(AssetReference, ref_id)
-        assert updated_ref.preview_id == preview_id
+        assert updated_ref.preview_id == preview_ref_id
 
     def test_clears_preview(self, mock_create_session, session: Session):
         asset = _make_asset(session)
         preview_asset = _make_asset(session, hash_val="blake3:preview")
         ref = _make_reference(session, asset)
-        ref.preview_id = preview_asset.id
+        preview_ref = _make_reference(session, preview_asset, name="preview.png")
+        ref.preview_id = preview_ref.id
         ref_id = ref.id
         session.commit()
 
         set_asset_preview(
             reference_id=ref_id,
-            preview_asset_id=None,
+            preview_reference_id=None,
         )
 
         # Verify by re-fetching from DB
@@ -263,6 +266,45 @@ class TestSetAssetPreview:
         with pytest.raises(PermissionError, match="not owner"):
             set_asset_preview(
                 reference_id=ref.id,
-                preview_asset_id=None,
+                preview_reference_id=None,
                 owner_id="user2",
             )
+
+
+class TestResolveHashToPath:
+    def test_returns_none_for_unknown_hash(self, mock_create_session):
+        result = resolve_hash_to_path("blake3:" + "a" * 64)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "ref_owner, query_owner, expect_found",
+        [
+            ("user1", "user1", True),
+            ("user1", "user2", False),
+            ("", "anyone", True),
+            ("", "", True),
+        ],
+        ids=[
+            "owner_sees_own_ref",
+            "other_owner_blocked",
+            "ownerless_visible_to_anyone",
+            "ownerless_visible_to_empty",
+        ],
+    )
+    def test_owner_visibility(
+        self, ref_owner, query_owner, expect_found,
+        mock_create_session, session: Session, temp_dir,
+    ):
+        f = temp_dir / "file.bin"
+        f.write_bytes(b"data")
+        asset = _make_asset(session, hash_val="blake3:" + "b" * 64)
+        ref = _make_reference(session, asset, name="file.bin", owner_id=ref_owner)
+        ref.file_path = str(f)
+        session.commit()
+
+        result = resolve_hash_to_path(asset.hash, owner_id=query_owner)
+        if expect_found:
+            assert result is not None
+            assert result.abs_path == str(f)
+        else:
+            assert result is None

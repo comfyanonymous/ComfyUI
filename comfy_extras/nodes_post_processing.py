@@ -21,6 +21,7 @@ class Blend(io.ComfyNode):
             node_id="ImageBlend",
             display_name="Image Blend",
             category="image/postprocessing",
+            essentials_category="Image Tools",
             inputs=[
                 io.Image.Input("image1"),
                 io.Image.Input("image2"),
@@ -66,11 +67,11 @@ class Blend(io.ComfyNode):
     def g(cls, x):
         return torch.where(x <= 0.25, ((16 * x - 12) * x + 4) * x, torch.sqrt(x))
 
-def gaussian_kernel(kernel_size: int, sigma: float, device=None):
+def gaussian_kernel(kernel_size: int, sigma: float, device=None, dtype=torch.float32):
     x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size, device=device), torch.linspace(-1, 1, kernel_size, device=device), indexing="ij")
     d = torch.sqrt(x * x + y * y)
     g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
-    return g / g.sum()
+    return (g / g.sum()).to(dtype)
 
 class Blur(io.ComfyNode):
     @classmethod
@@ -98,7 +99,7 @@ class Blur(io.ComfyNode):
         batch_size, height, width, channels = image.shape
 
         kernel_size = blur_radius * 2 + 1
-        kernel = gaussian_kernel(kernel_size, sigma, device=image.device).repeat(channels, 1, 1).unsqueeze(1)
+        kernel = gaussian_kernel(kernel_size, sigma, device=image.device, dtype=image.dtype).repeat(channels, 1, 1).unsqueeze(1)
 
         image = image.permute(0, 3, 1, 2) # Torch wants (B, C, H, W) we use (B, H, W, C)
         padded_image = F.pad(image, (blur_radius,blur_radius,blur_radius,blur_radius), 'reflect')
@@ -199,7 +200,7 @@ class Sharpen(io.ComfyNode):
         image = image.to(comfy.model_management.get_torch_device())
 
         kernel_size = sharpen_radius * 2 + 1
-        kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
+        kernel = gaussian_kernel(kernel_size, sigma, device=image.device, dtype=image.dtype) * -(alpha*10)
         kernel = kernel.to(dtype=image.dtype)
         center = kernel_size // 2
         kernel[center, center] = kernel[center, center] - kernel.sum() + 1.0

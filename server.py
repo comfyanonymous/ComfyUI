@@ -35,6 +35,8 @@ from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 from app.assets.seeder import asset_seeder
 from app.assets.api.routes import register_assets_routes
+from app.assets.services.ingest import register_file_in_place
+from app.assets.services.asset_management import resolve_hash_to_path
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -419,7 +421,24 @@ class PromptServer():
                         with open(filepath, "wb") as f:
                             f.write(image.file.read())
 
-                return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
+                resp = {"name" : filename, "subfolder": subfolder, "type": image_upload_type}
+
+                if args.enable_assets:
+                    try:
+                        tag = image_upload_type if image_upload_type in ("input", "output") else "input"
+                        result = register_file_in_place(abs_path=filepath, name=filename, tags=[tag])
+                        resp["asset"] = {
+                            "id": result.ref.id,
+                            "name": result.ref.name,
+                            "asset_hash": result.asset.hash,
+                            "size": result.asset.size_bytes,
+                            "mime_type": result.asset.mime_type,
+                            "tags": result.tags,
+                        }
+                    except Exception:
+                        logging.warning("Failed to register uploaded image as asset", exc_info=True)
+
+                return web.json_response(resp)
             else:
                 return web.Response(status=400)
 
@@ -479,30 +498,43 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
-                filename, output_dir = folder_paths.annotated_filepath(filename)
 
-                if not filename:
-                    return web.Response(status=400)
+                # The frontend's LoadImage combo widget uses asset_hash values
+                # (e.g. "blake3:...") as widget values. When litegraph renders the
+                # node preview, it constructs /view?filename=<asset_hash>, so this
+                # endpoint must resolve blake3 hashes to their on-disk file paths.
+                if filename.startswith("blake3:"):
+                    owner_id = self.user_manager.get_request_user_id(request)
+                    result = resolve_hash_to_path(filename, owner_id=owner_id)
+                    if result is None:
+                        return web.Response(status=404)
+                    file, filename, resolved_content_type = result.abs_path, result.download_name, result.content_type
+                else:
+                    resolved_content_type = None
+                    filename, output_dir = folder_paths.annotated_filepath(filename)
 
-                # validation for security: prevent accessing arbitrary path
-                if filename[0] == '/' or '..' in filename:
-                    return web.Response(status=400)
+                    if not filename:
+                        return web.Response(status=400)
 
-                if output_dir is None:
-                    type = request.rel_url.query.get("type", "output")
-                    output_dir = folder_paths.get_directory_by_type(type)
+                    # validation for security: prevent accessing arbitrary path
+                    if filename[0] == '/' or '..' in filename:
+                        return web.Response(status=400)
 
-                if output_dir is None:
-                    return web.Response(status=400)
+                    if output_dir is None:
+                        type = request.rel_url.query.get("type", "output")
+                        output_dir = folder_paths.get_directory_by_type(type)
 
-                if "subfolder" in request.rel_url.query:
-                    full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                        return web.Response(status=403)
-                    output_dir = full_output_dir
+                    if output_dir is None:
+                        return web.Response(status=400)
 
-                filename = os.path.basename(filename)
-                file = os.path.join(output_dir, filename)
+                    if "subfolder" in request.rel_url.query:
+                        full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+                        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                            return web.Response(status=403)
+                        output_dir = full_output_dir
+
+                    filename = os.path.basename(filename)
+                    file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
@@ -562,8 +594,13 @@ class PromptServer():
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
-                        # Get content type from mimetype, defaulting to 'application/octet-stream'
-                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                        # Use the content type from asset resolution if available,
+                        # otherwise guess from the filename.
+                        content_type = (
+                            resolved_content_type
+                            or mimetypes.guess_type(filename)[0]
+                            or 'application/octet-stream'
+                        )
 
                         # For security, force certain mimetypes to download instead of display
                         if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:

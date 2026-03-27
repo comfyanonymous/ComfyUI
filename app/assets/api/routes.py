@@ -13,6 +13,7 @@ from pydantic import ValidationError
 import folder_paths
 from app import user_manager
 from app.assets.api import schemas_in, schemas_out
+from app.assets.services import schemas
 from app.assets.api.schemas_in import (
     AssetValidationError,
     UploadError,
@@ -38,6 +39,7 @@ from app.assets.services import (
     update_asset_metadata,
     upload_from_temp_path,
 )
+from app.assets.services.tagging import list_tag_histogram
 
 ROUTES = web.RouteTableDef()
 USER_MANAGER: user_manager.UserManager | None = None
@@ -122,6 +124,61 @@ def _validate_sort_field(requested: str | None) -> str:
     return "created_at"
 
 
+def _build_preview_url_from_view(tags: list[str], user_metadata: dict[str, Any] | None) -> str | None:
+    """Build a /api/view preview URL from asset tags and user_metadata filename."""
+    if not user_metadata:
+        return None
+    filename = user_metadata.get("filename")
+    if not filename:
+        return None
+
+    if "input" in tags:
+        view_type = "input"
+    elif "output" in tags:
+        view_type = "output"
+    else:
+        return None
+
+    subfolder = ""
+    if "/" in filename:
+        subfolder, filename = filename.rsplit("/", 1)
+
+    encoded_filename = urllib.parse.quote(filename, safe="")
+    url = f"/api/view?type={view_type}&filename={encoded_filename}"
+    if subfolder:
+        url += f"&subfolder={urllib.parse.quote(subfolder, safe='')}"
+    return url
+
+
+def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResult) -> schemas_out.Asset:
+    """Build an Asset response from a service result."""
+    if result.ref.preview_id:
+        preview_detail = get_asset_detail(result.ref.preview_id)
+        if preview_detail:
+            preview_url = _build_preview_url_from_view(preview_detail.tags, preview_detail.ref.user_metadata)
+        else:
+            preview_url = None
+    else:
+        preview_url = _build_preview_url_from_view(result.tags, result.ref.user_metadata)
+    return schemas_out.Asset(
+        id=result.ref.id,
+        name=result.ref.name,
+        asset_hash=result.asset.hash if result.asset else None,
+        size=int(result.asset.size_bytes) if result.asset else None,
+        mime_type=result.asset.mime_type if result.asset else None,
+        tags=result.tags,
+        preview_url=preview_url,
+        preview_id=result.ref.preview_id,
+        user_metadata=result.ref.user_metadata or {},
+        metadata=result.ref.system_metadata,
+        job_id=result.ref.job_id,
+        prompt_id=result.ref.job_id,  # deprecated: mirrors job_id for cloud compat
+        created_at=result.ref.created_at,
+        updated_at=result.ref.updated_at,
+        last_access_time=result.ref.last_access_time,
+    )
+
+
 @ROUTES.head("/api/assets/hash/{hash}")
 @_require_assets_feature_enabled
 async def head_asset_by_hash(request: web.Request) -> web.Response:
@@ -164,20 +221,7 @@ async def list_assets_route(request: web.Request) -> web.Response:
         order=order,
     )
 
-    summaries = [
-        schemas_out.AssetSummary(
-            id=item.ref.id,
-            name=item.ref.name,
-            asset_hash=item.asset.hash if item.asset else None,
-            size=int(item.asset.size_bytes) if item.asset else None,
-            mime_type=item.asset.mime_type if item.asset else None,
-            tags=item.tags,
-            created_at=item.ref.created_at,
-            updated_at=item.ref.updated_at,
-            last_access_time=item.ref.last_access_time,
-        )
-        for item in result.items
-    ]
+    summaries = [_build_asset_response(item) for item in result.items]
 
     payload = schemas_out.AssetsList(
         assets=summaries,
@@ -207,18 +251,7 @@ async def get_asset_route(request: web.Request) -> web.Response:
                 {"id": reference_id},
             )
 
-        payload = schemas_out.AssetDetail(
-            id=result.ref.id,
-            name=result.ref.name,
-            asset_hash=result.asset.hash if result.asset else None,
-            size=int(result.asset.size_bytes) if result.asset else None,
-            mime_type=result.asset.mime_type if result.asset else None,
-            tags=result.tags,
-            user_metadata=result.ref.user_metadata or {},
-            preview_id=result.ref.preview_id,
-            created_at=result.ref.created_at,
-            last_access_time=result.ref.last_access_time,
-        )
+        payload = _build_asset_response(result)
     except ValueError as e:
         return _build_error_response(
             404, "ASSET_NOT_FOUND", str(e), {"id": reference_id}
@@ -230,7 +263,7 @@ async def get_asset_route(request: web.Request) -> web.Response:
             USER_MANAGER.get_request_user_id(request),
         )
         return _build_error_response(500, "INTERNAL", "Unexpected server error.")
-    return web.json_response(payload.model_dump(mode="json"), status=200)
+    return web.json_response(payload.model_dump(mode="json", exclude_none=True), status=200)
 
 
 @ROUTES.get(f"/api/assets/{{id:{UUID_RE}}}/content")
@@ -312,32 +345,31 @@ async def create_asset_from_hash_route(request: web.Request) -> web.Response:
             400, "INVALID_JSON", "Request body must be valid JSON."
         )
 
+    # Derive name from hash if not provided
+    name = body.name
+    if name is None:
+        name = body.hash.split(":", 1)[1] if ":" in body.hash else body.hash
+
     result = create_from_hash(
         hash_str=body.hash,
-        name=body.name,
+        name=name,
         tags=body.tags,
         user_metadata=body.user_metadata,
         owner_id=USER_MANAGER.get_request_user_id(request),
+        mime_type=body.mime_type,
+        preview_id=body.preview_id,
     )
     if result is None:
         return _build_error_response(
             404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist"
         )
 
+    asset = _build_asset_response(result)
     payload_out = schemas_out.AssetCreated(
-        id=result.ref.id,
-        name=result.ref.name,
-        asset_hash=result.asset.hash,
-        size=int(result.asset.size_bytes),
-        mime_type=result.asset.mime_type,
-        tags=result.tags,
-        user_metadata=result.ref.user_metadata or {},
-        preview_id=result.ref.preview_id,
-        created_at=result.ref.created_at,
-        last_access_time=result.ref.last_access_time,
+        **asset.model_dump(),
         created_new=result.created_new,
     )
-    return web.json_response(payload_out.model_dump(mode="json"), status=201)
+    return web.json_response(payload_out.model_dump(mode="json", exclude_none=True), status=201)
 
 
 @ROUTES.post("/api/assets")
@@ -358,6 +390,8 @@ async def upload_asset(request: web.Request) -> web.Response:
                 "name": parsed.provided_name,
                 "user_metadata": parsed.user_metadata_raw,
                 "hash": parsed.provided_hash,
+                "mime_type": parsed.provided_mime_type,
+                "preview_id": parsed.provided_preview_id,
             }
         )
     except ValidationError as ve:
@@ -386,6 +420,8 @@ async def upload_asset(request: web.Request) -> web.Response:
                 tags=spec.tags,
                 user_metadata=spec.user_metadata or {},
                 owner_id=owner_id,
+                mime_type=spec.mime_type,
+                preview_id=spec.preview_id,
             )
             if result is None:
                 delete_temp_file_if_exists(parsed.tmp_path)
@@ -410,6 +446,8 @@ async def upload_asset(request: web.Request) -> web.Response:
                 client_filename=parsed.file_client_name,
                 owner_id=owner_id,
                 expected_hash=spec.hash,
+                mime_type=spec.mime_type,
+                preview_id=spec.preview_id,
             )
     except AssetValidationError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
@@ -428,21 +466,13 @@ async def upload_asset(request: web.Request) -> web.Response:
         logging.exception("upload_asset failed for owner_id=%s", owner_id)
         return _build_error_response(500, "INTERNAL", "Unexpected server error.")
 
-    payload = schemas_out.AssetCreated(
-        id=result.ref.id,
-        name=result.ref.name,
-        asset_hash=result.asset.hash,
-        size=int(result.asset.size_bytes),
-        mime_type=result.asset.mime_type,
-        tags=result.tags,
-        user_metadata=result.ref.user_metadata or {},
-        preview_id=result.ref.preview_id,
-        created_at=result.ref.created_at,
-        last_access_time=result.ref.last_access_time,
+    asset = _build_asset_response(result)
+    payload_out = schemas_out.AssetCreated(
+        **asset.model_dump(),
         created_new=result.created_new,
     )
     status = 201 if result.created_new else 200
-    return web.json_response(payload.model_dump(mode="json"), status=status)
+    return web.json_response(payload_out.model_dump(mode="json", exclude_none=True), status=status)
 
 
 @ROUTES.put(f"/api/assets/{{id:{UUID_RE}}}")
@@ -464,15 +494,9 @@ async def update_asset_route(request: web.Request) -> web.Response:
             name=body.name,
             user_metadata=body.user_metadata,
             owner_id=USER_MANAGER.get_request_user_id(request),
+            preview_id=body.preview_id,
         )
-        payload = schemas_out.AssetUpdated(
-            id=result.ref.id,
-            name=result.ref.name,
-            asset_hash=result.asset.hash if result.asset else None,
-            tags=result.tags,
-            user_metadata=result.ref.user_metadata or {},
-            updated_at=result.ref.updated_at,
-        )
+        payload = _build_asset_response(result)
     except PermissionError as pe:
         return _build_error_response(403, "FORBIDDEN", str(pe), {"id": reference_id})
     except ValueError as ve:
@@ -486,7 +510,7 @@ async def update_asset_route(request: web.Request) -> web.Response:
             USER_MANAGER.get_request_user_id(request),
         )
         return _build_error_response(500, "INTERNAL", "Unexpected server error.")
-    return web.json_response(payload.model_dump(mode="json"), status=200)
+    return web.json_response(payload.model_dump(mode="json", exclude_none=True), status=200)
 
 
 @ROUTES.delete(f"/api/assets/{{id:{UUID_RE}}}")
@@ -555,7 +579,7 @@ async def get_tags(request: web.Request) -> web.Response:
     payload = schemas_out.TagsList(
         tags=tags, total=total, has_more=(query.offset + len(tags)) < total
     )
-    return web.json_response(payload.model_dump(mode="json"))
+    return web.json_response(payload.model_dump(mode="json", exclude_none=True))
 
 
 @ROUTES.post(f"/api/assets/{{id:{UUID_RE}}}/tags")
@@ -603,7 +627,7 @@ async def add_asset_tags(request: web.Request) -> web.Response:
         )
         return _build_error_response(500, "INTERNAL", "Unexpected server error.")
 
-    return web.json_response(payload.model_dump(mode="json"), status=200)
+    return web.json_response(payload.model_dump(mode="json", exclude_none=True), status=200)
 
 
 @ROUTES.delete(f"/api/assets/{{id:{UUID_RE}}}/tags")
@@ -650,7 +674,29 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         )
         return _build_error_response(500, "INTERNAL", "Unexpected server error.")
 
-    return web.json_response(payload.model_dump(mode="json"), status=200)
+    return web.json_response(payload.model_dump(mode="json", exclude_none=True), status=200)
+
+
+@ROUTES.get("/api/assets/tags/refine")
+@_require_assets_feature_enabled
+async def get_tags_refine(request: web.Request) -> web.Response:
+    """GET request to get tag histogram for filtered assets."""
+    query_dict = get_query_dict(request)
+    try:
+        q = schemas_in.TagsRefineQuery.model_validate(query_dict)
+    except ValidationError as ve:
+        return _build_validation_error_response("INVALID_QUERY", ve)
+
+    tag_counts = list_tag_histogram(
+        owner_id=USER_MANAGER.get_request_user_id(request),
+        include_tags=q.include_tags,
+        exclude_tags=q.exclude_tags,
+        name_contains=q.name_contains,
+        metadata_filter=q.metadata_filter,
+        limit=q.limit,
+    )
+    payload = schemas_out.TagHistogram(tag_counts=tag_counts)
+    return web.json_response(payload.model_dump(mode="json", exclude_none=True), status=200)
 
 
 @ROUTES.post("/api/assets/seed")

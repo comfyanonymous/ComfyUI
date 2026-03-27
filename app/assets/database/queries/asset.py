@@ -69,13 +69,25 @@ def upsert_asset(
         if asset.size_bytes != int(size_bytes) and int(size_bytes) > 0:
             asset.size_bytes = int(size_bytes)
             changed = True
-        if mime_type and asset.mime_type != mime_type:
+        if mime_type and not asset.mime_type:
             asset.mime_type = mime_type
             changed = True
         if changed:
             updated = True
 
     return asset, created, updated
+
+
+def create_stub_asset(
+    session: Session,
+    size_bytes: int,
+    mime_type: str | None = None,
+) -> Asset:
+    """Create a new asset with no hash (stub for later enrichment)."""
+    asset = Asset(size_bytes=size_bytes, mime_type=mime_type, hash=None)
+    session.add(asset)
+    session.flush()
+    return asset
 
 
 def bulk_insert_assets(
@@ -118,7 +130,7 @@ def update_asset_hash_and_mime(
         return False
     if asset_hash is not None:
         asset.hash = asset_hash
-    if mime_type is not None:
+    if mime_type is not None and not asset.mime_type:
         asset.mime_type = mime_type
     return True
 

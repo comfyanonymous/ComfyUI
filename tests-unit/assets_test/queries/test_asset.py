@@ -10,6 +10,7 @@ from app.assets.database.queries import (
     get_asset_by_hash,
     upsert_asset,
     bulk_insert_assets,
+    update_asset_hash_and_mime,
 )
 
 
@@ -142,3 +143,45 @@ class TestBulkInsertAssets:
         session.commit()
 
         assert session.query(Asset).count() == 200
+
+
+class TestMimeTypeImmutability:
+    """mime_type on Asset is write-once: set on first ingest, never overwritten."""
+
+    @pytest.mark.parametrize(
+        "initial_mime,second_mime,expected_mime",
+        [
+            ("image/png", "image/jpeg", "image/png"),
+            (None, "image/png", "image/png"),
+        ],
+        ids=["preserves_existing", "fills_null"],
+    )
+    def test_upsert_mime_immutability(self, session: Session, initial_mime, second_mime, expected_mime):
+        h = f"blake3:upsert_{initial_mime}_{second_mime}"
+        upsert_asset(session, asset_hash=h, size_bytes=100, mime_type=initial_mime)
+        session.commit()
+
+        asset, created, _ = upsert_asset(session, asset_hash=h, size_bytes=100, mime_type=second_mime)
+        assert created is False
+        assert asset.mime_type == expected_mime
+
+    @pytest.mark.parametrize(
+        "initial_mime,update_mime,update_hash,expected_mime,expected_hash",
+        [
+            (None, "image/png", None, "image/png", "blake3:upd0"),
+            ("image/png", "image/jpeg", None, "image/png", "blake3:upd1"),
+            ("image/png", "image/jpeg", "blake3:upd2_new", "image/png", "blake3:upd2_new"),
+        ],
+        ids=["fills_null", "preserves_existing", "hash_updates_mime_locked"],
+    )
+    def test_update_asset_hash_and_mime_immutability(
+        self, session: Session, initial_mime, update_mime, update_hash, expected_mime, expected_hash,
+    ):
+        h = expected_hash.removesuffix("_new")
+        asset = Asset(hash=h, size_bytes=100, mime_type=initial_mime)
+        session.add(asset)
+        session.flush()
+
+        update_asset_hash_and_mime(session, asset_id=asset.id, mime_type=update_mime, asset_hash=update_hash)
+        assert asset.mime_type == expected_mime
+        assert asset.hash == expected_hash
