@@ -140,6 +140,48 @@ def slice_cond(cond_value, window: IndexListContextWindow, x_in: torch.Tensor, d
     return cond_value._copy_with(sliced)
 
 
+def _compute_guide_overlap(guide_entries, window_index_list):
+    """Compute which guide frames overlap with a context window.
+
+    Args:
+        guide_entries: list of guide_attention_entry dicts (must have 'latent_start' and 'latent_shape')
+        window_index_list: the window's frame indices into the video portion
+
+    Returns None if any entry lacks 'latent_start' (backward compat → legacy path).
+    Otherwise returns (suffix_indices, overlap_info, kf_local_positions, total_overlap):
+        suffix_indices: indices into the guide_suffix tensor for frame selection
+        overlap_info: list of (entry_idx, overlap_count) for guide_attention_entries adjustment
+        kf_local_positions: window-local frame positions for keyframe_idxs regeneration
+        total_overlap: total number of overlapping guide frames
+    """
+    window_set = set(window_index_list)
+    window_list = list(window_index_list)
+    suffix_indices = []
+    overlap_info = []
+    kf_local_positions = []
+    suffix_base = 0
+
+    for entry_idx, entry in enumerate(guide_entries):
+        latent_start = entry.get("latent_start", None)
+        if latent_start is None:
+            return None
+        guide_len = entry["latent_shape"][0]
+        entry_overlap = 0
+
+        for local_offset in range(guide_len):
+            video_pos = latent_start + local_offset
+            if video_pos in window_set:
+                suffix_indices.append(suffix_base + local_offset)
+                kf_local_positions.append(window_list.index(video_pos))
+                entry_overlap += 1
+
+        if entry_overlap > 0:
+            overlap_info.append((entry_idx, entry_overlap))
+        suffix_base += guide_len
+
+    return suffix_indices, overlap_info, kf_local_positions, len(suffix_indices)
+
+
 @dataclass
 class ContextSchedule:
     name: str
@@ -200,6 +242,18 @@ class IndexListContextHandler(ContextHandlerABC):
                 model_conds = cond_dict.get('model_conds', {})
                 if 'latent_shapes' in model_conds:
                     model_conds['latent_shapes'] = comfy.conds.CONDConstant(new_shapes)
+
+    def _get_guide_entries(self, conds):
+        """Extract guide_attention_entries list from conditioning. Returns None if absent."""
+        for cond_list in conds:
+            if cond_list is None:
+                continue
+            for cond_dict in cond_list:
+                model_conds = cond_dict.get('model_conds', {})
+                gae = model_conds.get('guide_attention_entries')
+                if gae is not None and hasattr(gae, 'cond') and gae.cond:
+                    return gae.cond
+        return None
 
     def should_use_context(self, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]) -> bool:
         latent_shapes = self._get_latent_shapes(conds)
@@ -353,6 +407,8 @@ class IndexListContextHandler(ContextHandlerABC):
             counts = [[torch.zeros(get_shape_for_dim(m, self.dim), device=m.device) for _ in conds] for m in accum_modalities]
         biases = [[([0.0] * m.shape[self.dim]) for _ in conds] for m in accum_modalities]
 
+        guide_entries = self._get_guide_entries(conds) if guide_count > 0 else None
+
         for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EXECUTE_START, self.callbacks):
             callback(self, model, x_in, conds, timestep, model_options)
 
@@ -391,10 +447,30 @@ class IndexListContextHandler(ContextHandlerABC):
                 for mod_idx in range(1, len(modalities)):
                     mod_windows.append(modality_windows[mod_idx])
 
-            # Slice video and guide with same window indices, concatenate
+            # Slice video, then select overlapping guide frames
             sliced_video = mod_windows[0].get_tensor(video_primary)
-            if guide_suffix is not None:
-                sliced_guide = mod_windows[0].get_tensor(guide_suffix)
+            num_guide_in_window = 0
+            if guide_suffix is not None and guide_entries is not None:
+                overlap = _compute_guide_overlap(guide_entries, window.index_list)
+                if overlap is None:
+                    # Legacy: no latent_start → equal-size assumption
+                    sliced_guide = mod_windows[0].get_tensor(guide_suffix)
+                    num_guide_in_window = sliced_guide.shape[self.dim]
+                elif overlap[3] > 0:
+                    suffix_idx, overlap_info, kf_local_pos, num_guide_in_window = overlap
+                    idx = tuple([slice(None)] * self.dim + [suffix_idx])
+                    sliced_guide = guide_suffix[idx]
+                    window.guide_suffix_indices = suffix_idx
+                    window.guide_overlap_info = overlap_info
+                    window.guide_kf_local_positions = kf_local_pos
+                else:
+                    sliced_guide = None
+                    window.guide_overlap_info = []
+                    window.guide_kf_local_positions = []
+            else:
+                sliced_guide = None
+
+            if sliced_guide is not None:
                 sliced_primary = torch.cat([sliced_video, sliced_guide], dim=self.dim)
             else:
                 sliced_primary = sliced_video
@@ -421,7 +497,7 @@ class IndexListContextHandler(ContextHandlerABC):
             # out_per_mod[cond_idx][mod_idx] = tensor
 
             # Strip guide frames from primary output before accumulation
-            if guide_count > 0:
+            if num_guide_in_window > 0:
                 window_len = len(window.index_list)
                 for ci in range(len(sub_conds_out)):
                     primary_out = out_per_mod[ci][0]
