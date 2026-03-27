@@ -464,6 +464,8 @@ class VideoFromComponents(VideoInput):
             output.mux(packet)
 
             if audio_stream and self.__components.audio:
+                encoded_audio_packets = None
+                flush_audio_packets = None
                 try:
                     audio_np = waveform.float().cpu().contiguous().numpy()
                     if not np.isfinite(audio_np).all():
@@ -472,14 +474,16 @@ class VideoFromComponents(VideoInput):
                     frame = av.AudioFrame.from_ndarray(audio_np, format='fltp', layout=layout)
                     frame.sample_rate = audio_sample_rate
                     frame.pts = 0
-                    mux_packets(output, audio_stream.encode(frame))
-
-                    # Flush encoder
-                    mux_packets(output, audio_stream.encode(None))
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to encode audio track, saving video-only output: %s", exc
+                    encoded_audio_packets = audio_stream.encode(frame)
+                    flush_audio_packets = audio_stream.encode(None)
+                except (av.error.ArgumentError, ValueError, TypeError) as exc:
+                    logger.error(
+                        "Audio encode failed due to invalid audio data; skipping audio track and saving video-only output: %s",
+                        exc,
                     )
+                else:
+                    mux_packets(output, encoded_audio_packets)
+                    mux_packets(output, flush_audio_packets)
 
     def as_trimmed(
         self,
