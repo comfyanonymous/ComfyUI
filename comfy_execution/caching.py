@@ -528,8 +528,6 @@ class RAMPressureCache(LRUCache):
         if psutil.virtual_memory().available >= target:
             return
 
-        gc.collect()
-
         clean_list = []
 
         for key, cache_entry in self.cache.items():
@@ -558,4 +556,3 @@ class RAMPressureCache(LRUCache):
             self.used_generation.pop(key, None)
             self.timestamps.pop(key, None)
             self.children.pop(key, None)
-            gc.collect()
