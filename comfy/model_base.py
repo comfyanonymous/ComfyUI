@@ -890,7 +890,7 @@ class Flux(BaseModel):
         return torch.cat((image, mask), dim=1)
 
     def encode_adm(self, **kwargs):
-        return kwargs["pooled_output"]
+        return kwargs.get("pooled_output", None)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
