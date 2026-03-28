@@ -6,6 +6,7 @@ import folder_paths
 import json
 import os
 import re
+import math
 import torch
 import comfy.utils
 
@@ -22,8 +23,11 @@ class ImageCrop(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageCrop",
-            display_name="Image Crop",
+            search_aliases=["trim"],
+            display_name="Image Crop (Deprecated)",
             category="image/transform",
+            is_deprecated=True,
+            essentials_category="Image Tools",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Int.Input("width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
@@ -46,11 +50,65 @@ class ImageCrop(IO.ComfyNode):
     crop = execute  # TODO: remove
 
 
+class ImageCropV2(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageCropV2",
+            search_aliases=["trim"],
+            display_name="Image Crop",
+            category="image/transform",
+            essentials_category="Image Tools",
+            has_intermediate_output=True,
+            inputs=[
+                IO.Image.Input("image"),
+                IO.BoundingBox.Input("crop_region", component="ImageCrop"),
+            ],
+            outputs=[IO.Image.Output()],
+        )
+
+    @classmethod
+    def execute(cls, image, crop_region) -> IO.NodeOutput:
+        x = crop_region.get("x", 0)
+        y = crop_region.get("y", 0)
+        width = crop_region.get("width", 512)
+        height = crop_region.get("height", 512)
+
+        x = min(x, image.shape[2] - 1)
+        y = min(y, image.shape[1] - 1)
+        to_x = width + x
+        to_y = height + y
+        img = image[:,y:to_y, x:to_x, :]
+        return IO.NodeOutput(img, ui=UI.PreviewImage(img))
+
+
+class BoundingBox(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="PrimitiveBoundingBox",
+            display_name="Bounding Box",
+            category="utils/primitive",
+            inputs=[
+                IO.Int.Input("x", default=0, min=0, max=MAX_RESOLUTION),
+                IO.Int.Input("y", default=0, min=0, max=MAX_RESOLUTION),
+                IO.Int.Input("width", default=512, min=1, max=MAX_RESOLUTION),
+                IO.Int.Input("height", default=512, min=1, max=MAX_RESOLUTION),
+            ],
+            outputs=[IO.BoundingBox.Output()],
+        )
+
+    @classmethod
+    def execute(cls, x, y, width, height) -> IO.NodeOutput:
+        return IO.NodeOutput({"x": x, "y": y, "width": width, "height": height})
+
+
 class RepeatImageBatch(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="RepeatImageBatch",
+            search_aliases=["duplicate image", "clone image"],
             category="image/batch",
             inputs=[
                 IO.Image.Input("image"),
@@ -72,6 +130,7 @@ class ImageFromBatch(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageFromBatch",
+            search_aliases=["select image", "pick from batch", "extract image"],
             category="image/batch",
             inputs=[
                 IO.Image.Input("image"),
@@ -97,6 +156,7 @@ class ImageAddNoise(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageAddNoise",
+            search_aliases=["film grain"],
             category="image",
             inputs=[
                 IO.Image.Input("image"),
@@ -171,7 +231,7 @@ class SaveAnimatedPNG(IO.ComfyNode):
                 IO.Image.Input("images"),
                 IO.String.Input("filename_prefix", default="ComfyUI"),
                 IO.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
-                IO.Int.Input("compress_level", default=4, min=0, max=9),
+                IO.Int.Input("compress_level", default=4, min=0, max=9, advanced=True),
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
@@ -194,11 +254,11 @@ class SaveAnimatedPNG(IO.ComfyNode):
 
 class ImageStitch(IO.ComfyNode):
     """Upstreamed from https://github.com/kijai/ComfyUI-KJNodes"""
-
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageStitch",
+            search_aliases=["combine images", "join images", "concatenate images", "side by side"],
             display_name="Image Stitch",
             description="Stitches image2 to image1 in the specified direction.\n"
             "If image2 is not provided, returns image1 unchanged.\n"
@@ -208,8 +268,8 @@ class ImageStitch(IO.ComfyNode):
                 IO.Image.Input("image1"),
                 IO.Combo.Input("direction", options=["right", "down", "left", "up"], default="right"),
                 IO.Boolean.Input("match_image_size", default=True),
-                IO.Int.Input("spacing_width", default=0, min=0, max=1024, step=2),
-                IO.Combo.Input("spacing_color", options=["white", "black", "red", "green", "blue"], default="white"),
+                IO.Int.Input("spacing_width", default=0, min=0, max=1024, step=2, advanced=True),
+                IO.Combo.Input("spacing_color", options=["white", "black", "red", "green", "blue"], default="white", advanced=True),
                 IO.Image.Input("image2", optional=True),
             ],
             outputs=[IO.Image.Output()],
@@ -369,18 +429,18 @@ class ImageStitch(IO.ComfyNode):
 
 
 class ResizeAndPadImage(IO.ComfyNode):
-
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ResizeAndPadImage",
+            search_aliases=["fit to size"],
             category="image/transform",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Int.Input("target_width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
                 IO.Int.Input("target_height", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
-                IO.Combo.Input("padding_color", options=["white", "black"]),
-                IO.Combo.Input("interpolation", options=["area", "bicubic", "nearest-exact", "bilinear", "lanczos"]),
+                IO.Combo.Input("padding_color", options=["white", "black"], advanced=True),
+                IO.Combo.Input("interpolation", options=["area", "bicubic", "nearest-exact", "bilinear", "lanczos"], advanced=True),
             ],
             outputs=[IO.Image.Output()],
         )
@@ -420,11 +480,11 @@ class ResizeAndPadImage(IO.ComfyNode):
 
 
 class SaveSVGNode(IO.ComfyNode):
-
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveSVGNode",
+            search_aliases=["export vector", "save vector graphics"],
             description="Save SVG files on disk.",
             category="image/save",
             inputs=[
@@ -492,11 +552,11 @@ class SaveSVGNode(IO.ComfyNode):
 
 
 class GetImageSize(IO.ComfyNode):
-
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="GetImageSize",
+            search_aliases=["dimensions", "resolution", "image info"],
             display_name="Get Image Size",
             description="Returns width and height of the image, and passes it through unchanged.",
             category="image",
@@ -527,12 +587,14 @@ class GetImageSize(IO.ComfyNode):
 
 
 class ImageRotate(IO.ComfyNode):
-
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageRotate",
+            display_name="Image Rotate",
+            search_aliases=["turn", "flip orientation"],
             category="image/transform",
+            essentials_category="Image Tools",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Combo.Input("rotation", options=["none", "90 degrees", "180 degrees", "270 degrees"]),
@@ -557,11 +619,11 @@ class ImageRotate(IO.ComfyNode):
 
 
 class ImageFlip(IO.ComfyNode):
-
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageFlip",
+            search_aliases=["mirror", "reflect"],
             category="image/transform",
             inputs=[
                 IO.Image.Input("image"),
@@ -623,11 +685,151 @@ class ImageScaleToMaxDimension(IO.ComfyNode):
     upscale = execute    # TODO: remove
 
 
+class SplitImageToTileList(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SplitImageToTileList",
+            category="image/batch",
+            search_aliases=["split image", "tile image", "slice image"],
+            display_name="Split Image into List of Tiles",
+            description="Splits an image into a batched list of tiles with a specified overlap.",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Int.Input("tile_width", default=1024, min=64, max=MAX_RESOLUTION),
+                IO.Int.Input("tile_height", default=1024, min=64, max=MAX_RESOLUTION),
+                IO.Int.Input("overlap", default=128, min=0, max=4096),
+            ],
+            outputs=[
+                IO.Image.Output(is_output_list=True),
+            ],
+        )
+
+    @staticmethod
+    def get_grid_coords(width, height, tile_width, tile_height, overlap):
+        coords = []
+        stride_x = round(max(tile_width * 0.25, tile_width - overlap))
+        stride_y = round(max(tile_width * 0.25, tile_height - overlap))
+
+        y = 0
+        while y < height:
+            x = 0
+            y_end = min(y + tile_height, height)
+            y_start = max(0, y_end - tile_height)
+
+            while x < width:
+                x_end = min(x + tile_width, width)
+                x_start = max(0, x_end - tile_width)
+
+                coords.append((x_start, y_start, x_end, y_end))
+
+                if x_end >= width:
+                    break
+                x += stride_x
+
+            if y_end >= height:
+                break
+            y += stride_y
+
+        return coords
+
+    @classmethod
+    def execute(cls, image, tile_width, tile_height, overlap):
+        b, h, w, c = image.shape
+        coords = cls.get_grid_coords(w, h, tile_width, tile_height, overlap)
+
+        output_list = []
+        for (x_start, y_start, x_end, y_end) in coords:
+            tile = image[:, y_start:y_end, x_start:x_end, :]
+            output_list.append(tile)
+
+        return IO.NodeOutput(output_list)
+
+
+class ImageMergeTileList(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageMergeTileList",
+            display_name="Merge List of Tiles to Image",
+            category="image/batch",
+            search_aliases=["split image", "tile image", "slice image"],
+            is_input_list=True,
+            inputs=[
+                IO.Image.Input("image_list"),
+                IO.Int.Input("final_width", default=1024, min=64, max=32768),
+                IO.Int.Input("final_height", default=1024, min=64, max=32768),
+                IO.Int.Input("overlap", default=128, min=0, max=4096),
+            ],
+            outputs=[
+                IO.Image.Output(is_output_list=False),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, image_list, final_width, final_height, overlap):
+        w = final_width[0]
+        h = final_height[0]
+        ovlp = overlap[0]
+        feather_str = 1.0
+
+        first_tile = image_list[0]
+        b, t_h, t_w, c = first_tile.shape
+        device = first_tile.device
+        dtype = first_tile.dtype
+
+        coords = SplitImageToTileList.get_grid_coords(w, h, t_w, t_h, ovlp)
+
+        canvas = torch.zeros((b, h, w, c), device=device, dtype=dtype)
+        weights = torch.zeros((b, h, w, 1), device=device, dtype=dtype)
+
+        if ovlp > 0:
+            y_w = torch.sin(math.pi * torch.linspace(0, 1, t_h, device=device, dtype=dtype))
+            x_w = torch.sin(math.pi * torch.linspace(0, 1, t_w, device=device, dtype=dtype))
+            y_w = torch.clamp(y_w, min=1e-5)
+            x_w = torch.clamp(x_w, min=1e-5)
+
+            sine_mask = (y_w.unsqueeze(1) * x_w.unsqueeze(0)).unsqueeze(0).unsqueeze(-1)
+            flat_mask = torch.ones_like(sine_mask)
+
+            weight_mask = torch.lerp(flat_mask, sine_mask, feather_str)
+        else:
+            weight_mask = torch.ones((1, t_h, t_w, 1), device=device, dtype=dtype)
+
+        for i, (x_start, y_start, x_end, y_end) in enumerate(coords):
+            if i >= len(image_list):
+                break
+
+            tile = image_list[i]
+
+            region_h = y_end - y_start
+            region_w = x_end - x_start
+
+            real_h = min(region_h, tile.shape[1])
+            real_w = min(region_w, tile.shape[2])
+
+            y_end_actual = y_start + real_h
+            x_end_actual = x_start + real_w
+
+            tile_crop = tile[:, :real_h, :real_w, :]
+            mask_crop = weight_mask[:, :real_h, :real_w, :]
+
+            canvas[:, y_start:y_end_actual, x_start:x_end_actual, :] += tile_crop * mask_crop
+            weights[:, y_start:y_end_actual, x_start:x_end_actual, :] += mask_crop
+
+        weights[weights == 0] = 1.0
+        merged_image = canvas / weights
+
+        return IO.NodeOutput(merged_image)
+
+
 class ImagesExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ImageCrop,
+            ImageCropV2,
+            BoundingBox,
             RepeatImageBatch,
             ImageFromBatch,
             ImageAddNoise,
@@ -640,6 +842,8 @@ class ImagesExtension(ComfyExtension):
             ImageRotate,
             ImageFlip,
             ImageScaleToMaxDimension,
+            SplitImageToTileList,
+            ImageMergeTileList,
         ]
 
 

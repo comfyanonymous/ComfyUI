@@ -19,10 +19,11 @@ class EmptyLatentAudio(IO.ComfyNode):
             node_id="EmptyLatentAudio",
             display_name="Empty Latent Audio",
             category="latent/audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
                 IO.Int.Input(
-                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
+                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch.",
                 ),
             ],
             outputs=[IO.Latent.Output()],
@@ -69,6 +70,7 @@ class VAEEncodeAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VAEEncodeAudio",
+            search_aliases=["audio to latent"],
             display_name="VAE Encode Audio",
             category="latent/audio",
             inputs=[
@@ -81,15 +83,29 @@ class VAEEncodeAudio(IO.ComfyNode):
     @classmethod
     def execute(cls, vae, audio) -> IO.NodeOutput:
         sample_rate = audio["sample_rate"]
-        if 44100 != sample_rate:
-            waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
+        vae_sample_rate = getattr(vae, "audio_sample_rate", 44100)
+        if vae_sample_rate != sample_rate:
+            waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, vae_sample_rate)
         else:
             waveform = audio["waveform"]
 
         t = vae.encode(waveform.movedim(1, -1))
-        return IO.NodeOutput({"samples":t})
+        return IO.NodeOutput({"samples": t})
 
     encode = execute  # TODO: remove
+
+
+def vae_decode_audio(vae, samples, tile=None, overlap=None):
+    if tile is not None:
+        audio = vae.decode_tiled(samples["samples"], tile_x=tile, tile_y=tile, overlap=overlap).movedim(-1, 1)
+    else:
+        audio = vae.decode(samples["samples"]).movedim(-1, 1)
+
+    std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
+    std[std < 1.0] = 1.0
+    audio /= std
+    vae_sample_rate = getattr(vae, "audio_sample_rate", 44100)
+    return {"waveform": audio, "sample_rate": vae_sample_rate if "sample_rate" not in samples else samples["sample_rate"]}
 
 
 class VAEDecodeAudio(IO.ComfyNode):
@@ -97,6 +113,7 @@ class VAEDecodeAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VAEDecodeAudio",
+            search_aliases=["latent to audio"],
             display_name="VAE Decode Audio",
             category="latent/audio",
             inputs=[
@@ -108,13 +125,31 @@ class VAEDecodeAudio(IO.ComfyNode):
 
     @classmethod
     def execute(cls, vae, samples) -> IO.NodeOutput:
-        audio = vae.decode(samples["samples"]).movedim(-1, 1)
-        std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
-        std[std < 1.0] = 1.0
-        audio /= std
-        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100 if "sample_rate" not in samples else samples["sample_rate"]})
+        return IO.NodeOutput(vae_decode_audio(vae, samples))
 
     decode = execute  # TODO: remove
+
+
+class VAEDecodeAudioTiled(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VAEDecodeAudioTiled",
+            search_aliases=["latent to audio"],
+            display_name="VAE Decode Audio (Tiled)",
+            category="latent/audio",
+            inputs=[
+                IO.Latent.Input("samples"),
+                IO.Vae.Input("vae"),
+                IO.Int.Input("tile_size", default=512, min=32, max=8192, step=8),
+                IO.Int.Input("overlap", default=64, min=0, max=1024, step=8),
+            ],
+            outputs=[IO.Audio.Output()],
+        )
+
+    @classmethod
+    def execute(cls, vae, samples, tile_size, overlap) -> IO.NodeOutput:
+        return IO.NodeOutput(vae_decode_audio(vae, samples, tile_size, overlap))
 
 
 class SaveAudio(IO.ComfyNode):
@@ -122,8 +157,10 @@ class SaveAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAudio",
+            search_aliases=["export flac"],
             display_name="Save Audio (FLAC)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -146,8 +183,10 @@ class SaveAudioMP3(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAudioMP3",
+            search_aliases=["export mp3"],
             display_name="Save Audio (MP3)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -173,6 +212,7 @@ class SaveAudioOpus(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAudioOpus",
+            search_aliases=["export opus"],
             display_name="Save Audio (Opus)",
             category="audio",
             inputs=[
@@ -200,6 +240,7 @@ class PreviewAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="PreviewAudio",
+            search_aliases=["play audio"],
             display_name="Preview Audio",
             category="audio",
             inputs=[
@@ -259,8 +300,10 @@ class LoadAudio(IO.ComfyNode):
         files = folder_paths.filter_files_content_types(os.listdir(input_dir), ["audio", "video"])
         return IO.Schema(
             node_id="LoadAudio",
+            search_aliases=["import audio", "open audio", "audio file"],
             display_name="Load Audio",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Combo.Input("audio", upload=IO.UploadType.audio, options=sorted(files)),
             ],
@@ -296,6 +339,7 @@ class RecordAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecordAudio",
+            search_aliases=["microphone input", "audio capture", "voice input"],
             display_name="Record Audio",
             category="audio",
             inputs=[
@@ -320,6 +364,7 @@ class TrimAudioDuration(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="TrimAudioDuration",
+            search_aliases=["cut audio", "audio clip", "shorten audio"],
             display_name="Trim Audio Duration",
             description="Trim audio tensor into chosen time range.",
             category="audio",
@@ -372,6 +417,7 @@ class SplitAudioChannels(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SplitAudioChannels",
+            search_aliases=["stereo to mono"],
             display_name="Split Audio Channels",
             description="Separates the audio into left and right channels.",
             category="audio",
@@ -472,6 +518,7 @@ class AudioConcat(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="AudioConcat",
+            search_aliases=["join audio", "combine audio", "append audio"],
             display_name="Audio Concat",
             description="Concatenates the audio1 to audio2 in the specified direction.",
             category="audio",
@@ -519,6 +566,7 @@ class AudioMerge(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="AudioMerge",
+            search_aliases=["mix audio", "overlay audio", "layer audio"],
             display_name="Audio Merge",
             description="Combine two audio tracks by overlaying their waveforms.",
             category="audio",
@@ -579,6 +627,7 @@ class AudioAdjustVolume(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="AudioAdjustVolume",
+            search_aliases=["audio gain", "loudness", "audio level"],
             display_name="Audio Adjust Volume",
             category="audio",
             inputs=[
@@ -614,6 +663,7 @@ class EmptyAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="EmptyAudio",
+            search_aliases=["blank audio"],
             display_name="Empty Audio",
             category="audio",
             inputs=[
@@ -631,6 +681,7 @@ class EmptyAudio(IO.ComfyNode):
                     tooltip="Sample rate of the empty audio clip.",
                     min=1,
                     max=192000,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "channels",
@@ -638,6 +689,7 @@ class EmptyAudio(IO.ComfyNode):
                     min=1,
                     max=2,
                     tooltip="Number of audio channels (1 for mono, 2 for stereo).",
+                    advanced=True,
                 ),
             ],
             outputs=[IO.Audio.Output()],
@@ -652,6 +704,67 @@ class EmptyAudio(IO.ComfyNode):
     create_empty_audio = execute  # TODO: remove
 
 
+class AudioEqualizer3Band(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="AudioEqualizer3Band",
+            search_aliases=["eq", "bass boost", "treble boost", "equalizer"],
+            display_name="Audio Equalizer (3-Band)",
+            category="audio",
+            is_experimental=True,
+            inputs=[
+                IO.Audio.Input("audio"),
+                IO.Float.Input("low_gain_dB", default=0.0, min=-24.0, max=24.0, step=0.1, tooltip="Gain for Low frequencies (Bass)"),
+                IO.Int.Input("low_freq", default=100, min=20, max=500, tooltip="Cutoff frequency for Low shelf"),
+                IO.Float.Input("mid_gain_dB", default=0.0, min=-24.0, max=24.0, step=0.1, tooltip="Gain for Mid frequencies"),
+                IO.Int.Input("mid_freq", default=1000, min=200, max=4000, tooltip="Center frequency for Mids"),
+                IO.Float.Input("mid_q", default=0.707, min=0.1, max=10.0, step=0.1, tooltip="Q factor (bandwidth) for Mids"),
+                IO.Float.Input("high_gain_dB", default=0.0, min=-24.0, max=24.0, step=0.1, tooltip="Gain for High frequencies (Treble)"),
+                IO.Int.Input("high_freq", default=5000, min=1000, max=15000, tooltip="Cutoff frequency for High shelf"),
+            ],
+            outputs=[IO.Audio.Output()],
+        )
+
+    @classmethod
+    def execute(cls, audio, low_gain_dB, low_freq, mid_gain_dB, mid_freq, mid_q, high_gain_dB, high_freq) -> IO.NodeOutput:
+        waveform = audio["waveform"]
+        sample_rate = audio["sample_rate"]
+        eq_waveform = waveform.clone()
+
+        # 1. Apply Low Shelf (Bass)
+        if low_gain_dB != 0:
+            eq_waveform = torchaudio.functional.bass_biquad(
+                eq_waveform,
+                sample_rate,
+                gain=low_gain_dB,
+                central_freq=float(low_freq),
+                Q=0.707
+            )
+
+        # 2. Apply Peaking EQ (Mids)
+        if mid_gain_dB != 0:
+            eq_waveform = torchaudio.functional.equalizer_biquad(
+                eq_waveform,
+                sample_rate,
+                center_freq=float(mid_freq),
+                gain=mid_gain_dB,
+                Q=mid_q
+            )
+
+        # 3. Apply High Shelf (Treble)
+        if high_gain_dB != 0:
+            eq_waveform = torchaudio.functional.treble_biquad(
+                eq_waveform,
+                sample_rate,
+                gain=high_gain_dB,
+                central_freq=float(high_freq),
+                Q=0.707
+            )
+
+        return IO.NodeOutput({"waveform": eq_waveform, "sample_rate": sample_rate})
+
+
 class AudioExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -659,6 +772,7 @@ class AudioExtension(ComfyExtension):
             EmptyLatentAudio,
             VAEEncodeAudio,
             VAEDecodeAudio,
+            VAEDecodeAudioTiled,
             SaveAudio,
             SaveAudioMP3,
             SaveAudioOpus,
@@ -673,6 +787,7 @@ class AudioExtension(ComfyExtension):
             AudioMerge,
             AudioAdjustVolume,
             EmptyAudio,
+            AudioEqualizer3Band,
         ]
 
 async def comfy_entrypoint() -> AudioExtension:

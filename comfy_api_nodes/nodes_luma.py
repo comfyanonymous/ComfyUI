@@ -4,7 +4,7 @@ import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apis.luma_api import (
+from comfy_api_nodes.apis.luma import (
     LumaAspectRatio,
     LumaCharacterRef,
     LumaConceptChain,
@@ -189,6 +189,19 @@ class LumaImageGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m,"photon-flash-1")
+                    ? {"type":"usd","usd":0.0027}
+                    : $contains($m,"photon-1")
+                      ? {"type":"usd","usd":0.0104}
+                      : {"type":"usd","usd":0.0246}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -303,6 +316,19 @@ class LumaImageModifyNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m,"photon-flash-1")
+                    ? {"type":"usd","usd":0.0027}
+                    : $contains($m,"photon-1")
+                      ? {"type":"usd","usd":0.0104}
+                      : {"type":"usd","usd":0.0246}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -395,6 +421,7 @@ class LumaTextToVideoGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -505,6 +532,8 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
+
         )
 
     @classmethod
@@ -566,6 +595,53 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
             download_urls = await upload_images_to_comfyapi(cls, last_image, max_images=1)
             frame1 = LumaImageReference(type="image", url=download_urls[0])
         return LumaKeyframes(frame0=frame0, frame1=frame1)
+
+
+PRICE_BADGE_VIDEO = IO.PriceBadge(
+    depends_on=IO.PriceBadgeDepends(widgets=["model", "resolution", "duration"]),
+    expr="""
+    (
+      $p := {
+        "ray-flash-2": {
+          "5s": {"4k":3.13,"1080p":0.79,"720p":0.34,"540p":0.2},
+          "9s": {"4k":5.65,"1080p":1.42,"720p":0.61,"540p":0.36}
+        },
+        "ray-2": {
+          "5s": {"4k":9.11,"1080p":2.27,"720p":1.02,"540p":0.57},
+          "9s": {"4k":16.4,"1080p":4.1,"720p":1.83,"540p":1.03}
+        }
+      };
+
+      $m := widgets.model;
+      $d := widgets.duration;
+      $r := widgets.resolution;
+
+      $modelKey :=
+        $contains($m,"ray-flash-2") ? "ray-flash-2" :
+        $contains($m,"ray-2") ? "ray-2" :
+        $contains($m,"ray-1-6") ? "ray-1-6" :
+        "other";
+
+      $durKey := $contains($d,"5s") ? "5s" : $contains($d,"9s") ? "9s" : "";
+      $resKey :=
+        $contains($r,"4k") ? "4k" :
+        $contains($r,"1080p") ? "1080p" :
+        $contains($r,"720p") ? "720p" :
+        $contains($r,"540p") ? "540p" : "";
+
+      $modelPrices := $lookup($p, $modelKey);
+      $durPrices := $lookup($modelPrices, $durKey);
+      $v := $lookup($durPrices, $resKey);
+
+      $price :=
+        ($modelKey = "ray-1-6") ? 0.5 :
+        ($modelKey = "other") ? 0.79 :
+        ($exists($v) ? $v : 0.79);
+
+      {"type":"usd","usd": $price}
+    )
+    """,
+)
 
 
 class LumaExtension(ComfyExtension):

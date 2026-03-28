@@ -14,10 +14,13 @@ if model_management.xformers_enabled_vae():
     import xformers.ops
 
 def torch_cat_if_needed(xl, dim):
+    xl = [x for x in xl if x is not None and x.shape[dim] > 0]
     if len(xl) > 1:
         return torch.cat(xl, dim)
-    else:
+    elif len(xl) == 1:
         return xl[0]
+    else:
+        return None
 
 def get_timestep_embedding(timesteps, embedding_dim):
     """
@@ -99,19 +102,7 @@ class VideoConv3d(nn.Module):
         return self.conv(x)
 
 def interpolate_up(x, scale_factor):
-    try:
-        return torch.nn.functional.interpolate(x, scale_factor=scale_factor, mode="nearest")
-    except: #operation not implemented for bf16
-        orig_shape = list(x.shape)
-        out_shape = orig_shape[:2]
-        for i in range(len(orig_shape) - 2):
-            out_shape.append(round(orig_shape[i + 2] * scale_factor[i]))
-        out = torch.empty(out_shape, dtype=x.dtype, layout=x.layout, device=x.device)
-        split = 8
-        l = out.shape[1] // split
-        for i in range(0, out.shape[1], l):
-            out[:,i:i+l] = torch.nn.functional.interpolate(x[:,i:i+l].to(torch.float32), scale_factor=scale_factor, mode="nearest").to(x.dtype)
-        return out
+    return torch.nn.functional.interpolate(x, scale_factor=scale_factor, mode="nearest")
 
 class Upsample(nn.Module):
     def __init__(self, in_channels, with_conv, conv_op=ops.Conv2d, scale_factor=2.0):
@@ -267,7 +258,8 @@ def slice_attention(q, k, v):
                 r1[:, :, i:end] = torch.bmm(v, s2)
                 del s2
             break
-        except model_management.OOM_EXCEPTION as e:
+        except Exception as e:
+            model_management.raise_non_oom(e)
             model_management.soft_empty_cache(True)
             steps *= 2
             if steps > 128:
@@ -323,7 +315,8 @@ def pytorch_attention(q, k, v):
     try:
         out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
-    except model_management.OOM_EXCEPTION:
+    except Exception as e:
+        model_management.raise_non_oom(e)
         logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         oom_fallback = True
     if oom_fallback:

@@ -227,12 +227,14 @@ class WanTextToImageApi(IO.ComfyNode):
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -244,6 +246,9 @@ class WanTextToImageApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.03}""",
+            ),
         )
 
     @classmethod
@@ -352,6 +357,7 @@ class WanImageToImageApi(IO.ComfyNode):
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -363,6 +369,9 @@ class WanImageToImageApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.03}""",
+            ),
         )
 
     @classmethod
@@ -489,18 +498,21 @@ class WanTextToVideoApi(IO.ComfyNode):
                     default=False,
                     optional=True,
                     tooltip="If no audio input is provided, generate audio automatically.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "shot_type",
@@ -509,6 +521,7 @@ class WanTextToVideoApi(IO.ComfyNode):
                     "single continuous shot or multiple shots with cuts. "
                     "This parameter takes effect only when prompt_extend is True.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -520,6 +533,17 @@ class WanTextToVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "size"]),
+                expr="""
+                (
+                  $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
+                  $resKey := $substringBefore(widgets.size, ":");
+                  $pps := $lookup($ppsTable, $resKey);
+                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -650,18 +674,21 @@ class WanImageToVideoApi(IO.ComfyNode):
                     default=False,
                     optional=True,
                     tooltip="If no audio input is provided, generate audio automatically.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "shot_type",
@@ -670,6 +697,7 @@ class WanImageToVideoApi(IO.ComfyNode):
                     "single continuous shot or multiple shots with cuts. "
                     "This parameter takes effect only when prompt_extend is True.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -681,6 +709,16 @@ class WanImageToVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
+                  $pps := $lookup($ppsTable, widgets.resolution);
+                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -812,11 +850,13 @@ class WanReferenceVideoApi(IO.ComfyNode):
                     options=["single", "multi"],
                     tooltip="Specifies the shot type for the generated video, that is, whether the video is a "
                     "single continuous shot or multiple shots with cuts.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -828,6 +868,22 @@ class WanReferenceVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "duration"]),
+                expr="""
+                (
+                  $rate := $contains(widgets.size, "1080p") ? 0.15 : 0.10;
+                  $inputMin := 2 * $rate;
+                  $inputMax := 5 * $rate;
+                  $outputPrice := widgets.duration * $rate;
+                  {
+                    "type": "range_usd",
+                    "min_usd": $inputMin + $outputPrice,
+                    "max_usd": $inputMax + $outputPrice
+                  }
+                )
+                """,
+            ),
         )
 
     @classmethod

@@ -5,11 +5,10 @@ import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
-from comfy_api_nodes.apis.bytedance_api import (
+from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS,
     RECOMMENDED_PRESETS_SEEDREAM_4,
     VIDEO_TASKS_EXECUTION_TIME,
-    Image2ImageTaskCreationRequest,
     Image2VideoTaskCreationRequest,
     ImageTaskCreationResponse,
     Seedream4Options,
@@ -38,9 +37,19 @@ from comfy_api_nodes.util import (
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
 
+SEEDREAM_MODELS = {
+    "seedream 5.0 lite": "seedream-5-0-260128",
+    "seedream-4-5-251128": "seedream-4-5-251128",
+    "seedream-4-0-250828": "seedream-4-0-250828",
+}
+
 # Long-running tasks endpoints(e.g., video)
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
 BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
+
+DEPRECATED_MODELS = {"seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-i2v-250428"}
+
+logger = logging.getLogger(__name__)
 
 
 def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
@@ -115,6 +124,7 @@ class ByteDanceImageNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -126,6 +136,10 @@ class ByteDanceImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.03}""",
+            ),
+            is_deprecated=True,
         )
 
     @classmethod
@@ -171,113 +185,19 @@ class ByteDanceImageNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
 
 
-class ByteDanceImageEditNode(IO.ComfyNode):
-
-    @classmethod
-    def define_schema(cls):
-        return IO.Schema(
-            node_id="ByteDanceImageEditNode",
-            display_name="ByteDance Image Edit",
-            category="api node/image/ByteDance",
-            description="Edit images using ByteDance models via api based on prompt",
-            inputs=[
-                IO.Combo.Input("model", options=["seededit-3-0-i2i-250628"]),
-                IO.Image.Input(
-                    "image",
-                    tooltip="The base image to edit",
-                ),
-                IO.String.Input(
-                    "prompt",
-                    multiline=True,
-                    default="",
-                    tooltip="Instruction to edit image",
-                ),
-                IO.Int.Input(
-                    "seed",
-                    default=0,
-                    min=0,
-                    max=2147483647,
-                    step=1,
-                    display_mode=IO.NumberDisplay.number,
-                    control_after_generate=True,
-                    tooltip="Seed to use for generation",
-                    optional=True,
-                ),
-                IO.Float.Input(
-                    "guidance_scale",
-                    default=5.5,
-                    min=1.0,
-                    max=10.0,
-                    step=0.01,
-                    display_mode=IO.NumberDisplay.number,
-                    tooltip="Higher value makes the image follow the prompt more closely",
-                    optional=True,
-                ),
-                IO.Boolean.Input(
-                    "watermark",
-                    default=False,
-                    tooltip='Whether to add an "AI generated" watermark to the image',
-                    optional=True,
-                ),
-            ],
-            outputs=[
-                IO.Image.Output(),
-            ],
-            hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
-                IO.Hidden.unique_id,
-            ],
-            is_api_node=True,
-            is_deprecated=True,
-        )
-
-    @classmethod
-    async def execute(
-        cls,
-        model: str,
-        image: Input.Image,
-        prompt: str,
-        seed: int,
-        guidance_scale: float,
-        watermark: bool,
-    ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=True, min_length=1)
-        if get_number_of_images(image) != 1:
-            raise ValueError("Exactly one input image is required.")
-        validate_image_aspect_ratio(image, (1, 3), (3, 1))
-        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
-        payload = Image2ImageTaskCreationRequest(
-            model=model,
-            prompt=prompt,
-            image=source_url,
-            seed=seed,
-            guidance_scale=guidance_scale,
-            watermark=watermark,
-        )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
-            data=payload,
-            response_model=ImageTaskCreationResponse,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
-
-
 class ByteDanceSeedreamNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDanceSeedreamNode",
-            display_name="ByteDance Seedream 4.5",
+            display_name="ByteDance Seedream 4.5 & 5.0",
             category="api node/image/ByteDance",
             description="Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedream-4-5-251128", "seedream-4-0-250828"],
-                    tooltip="Model name",
+                    options=list(SEEDREAM_MODELS.keys()),
                 ),
                 IO.String.Input(
                     "prompt",
@@ -288,7 +208,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Image.Input(
                     "image",
                     tooltip="Input image(s) for image-to-image generation. "
-                    "List of 1-10 images for single or multi-reference generation.",
+                    "Reference image(s) for single or multi-reference generation.",
                     optional=True,
                 ),
                 IO.Combo.Input(
@@ -300,8 +220,8 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "width",
                     default=2048,
                     min=1024,
-                    max=4096,
-                    step=8,
+                    max=6240,
+                    step=2,
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -309,8 +229,8 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "height",
                     default=2048,
                     min=1024,
-                    max=4096,
-                    step=8,
+                    max=4992,
+                    step=2,
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -350,12 +270,14 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "fail_on_partial",
                     default=True,
                     tooltip="If enabled, abort execution if any requested images are missing or return an error.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -367,6 +289,20 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $price := $contains(widgets.model, "5.0 lite") ? 0.035 :
+                            $contains(widgets.model, "4-5") ? 0.04 : 0.03;
+                  {
+                    "type":"usd",
+                    "usd": $price,
+                    "format": { "suffix":" x images/Run", "approximate": true }
+                  }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -384,6 +320,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         watermark: bool = False,
         fail_on_partial: bool = True,
     ) -> IO.NodeOutput:
+        model = SEEDREAM_MODELS[model]
         validate_string(prompt, strip_whitespace=True, min_length=1)
         w = h = None
         for label, tw, th in RECOMMENDED_PRESETS_SEEDREAM_4:
@@ -393,15 +330,12 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
 
         if w is None or h is None:
             w, h = width, height
-            if not (1024 <= w <= 4096) or not (1024 <= h <= 4096):
-                raise ValueError(
-                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
-                )
+
         out_num_pixels = w * h
         mp_provided = out_num_pixels / 1_000_000.0
-        if "seedream-4-5" in model and out_num_pixels < 3686400:
+        if ("seedream-4-5" in model or "seedream-5-0" in model) and out_num_pixels < 3686400:
             raise ValueError(
-                f"Minimum image resolution that Seedream 4.5 can generate is 3.68MP, "
+                f"Minimum image resolution for the selected model is 3.68MP, "
                 f"but {mp_provided:.2f}MP provided."
             )
         if "seedream-4-0" in model and out_num_pixels < 921600:
@@ -409,9 +343,18 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 f"Minimum image resolution that the selected model can generate is 0.92MP, "
                 f"but {mp_provided:.2f}MP provided."
             )
+        max_pixels = 10_404_496 if "seedream-5-0" in model else 16_777_216
+        if out_num_pixels > max_pixels:
+            raise ValueError(
+                f"Maximum image resolution for the selected model is {max_pixels / 1_000_000:.2f}MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
         n_input_images = get_number_of_images(image) if image is not None else 0
-        if n_input_images > 10:
-            raise ValueError(f"Maximum of 10 reference images are supported, but {n_input_images} received.")
+        max_num_of_images = 14 if model == "seedream-5-0-260128" else 10
+        if n_input_images > max_num_of_images:
+            raise ValueError(
+                f"Maximum of {max_num_of_images} reference images are supported, but {n_input_images} received."
+            )
         if sequential_image_generation == "auto" and n_input_images + max_images > 15:
             raise ValueError(
                 "The maximum number of generated images plus the number of reference images cannot exceed 15."
@@ -439,6 +382,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 sequential_image_generation=sequential_image_generation,
                 sequential_image_generation_options=Seedream4Options(max_images=max_images),
                 watermark=watermark,
+                output_format="png" if model == "seedream-5-0-260128" else None,
             ),
         )
         if len(response.data) == 1:
@@ -461,7 +405,12 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-t2v-250428", "seedance-1-0-pro-fast-251015"],
+                    options=[
+                        "seedance-1-5-pro-251215",
+                        "seedance-1-0-pro-250528",
+                        "seedance-1-0-lite-t2v-250428",
+                        "seedance-1-0-pro-fast-251015",
+                    ],
                     default="seedance-1-0-pro-fast-251015",
                 ),
                 IO.String.Input(
@@ -505,12 +454,21 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
+                ),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=False,
+                    tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
+                    optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -522,6 +480,7 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -535,7 +494,10 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
         seed: int,
         camera_fixed: bool,
         watermark: bool,
+        generate_audio: bool = False,
     ) -> IO.NodeOutput:
+        if model == "seedance-1-5-pro-251215" and duration < 4:
+            raise ValueError("Minimum supported duration for Seedance 1.5 Pro is 4 seconds.")
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
 
@@ -550,7 +512,11 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
         )
         return await process_video_task(
             cls,
-            payload=Text2VideoTaskCreationRequest(model=model, content=[TaskTextContent(text=prompt)]),
+            payload=Text2VideoTaskCreationRequest(
+                model=model,
+                content=[TaskTextContent(text=prompt)],
+                generate_audio=generate_audio if model == "seedance-1-5-pro-251215" else None,
+            ),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
@@ -567,7 +533,12 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-t2v-250428", "seedance-1-0-pro-fast-251015"],
+                    options=[
+                        "seedance-1-5-pro-251215",
+                        "seedance-1-0-pro-250528",
+                        "seedance-1-0-lite-i2v-250428",
+                        "seedance-1-0-pro-fast-251015",
+                    ],
                     default="seedance-1-0-pro-fast-251015",
                 ),
                 IO.String.Input(
@@ -615,12 +586,21 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
+                ),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=False,
+                    tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
+                    optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -632,6 +612,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -646,7 +627,10 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         seed: int,
         camera_fixed: bool,
         watermark: bool,
+        generate_audio: bool = False,
     ) -> IO.NodeOutput:
+        if model == "seedance-1-5-pro-251215" and duration < 4:
+            raise ValueError("Minimum supported duration for Seedance 1.5 Pro is 4 seconds.")
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
         validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
@@ -668,6 +652,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
             payload=Image2VideoTaskCreationRequest(
                 model=model,
                 content=[TaskTextContent(text=prompt), TaskImageContent(image_url=TaskImageContentUrl(url=image_url))],
+                generate_audio=generate_audio if model == "seedance-1-5-pro-251215" else None,
             ),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
@@ -685,7 +670,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428"],
+                    options=["seedance-1-5-pro-251215", "seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428"],
                     default="seedance-1-0-lite-i2v-250428",
                 ),
                 IO.String.Input(
@@ -737,12 +722,21 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
+                ),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=False,
+                    tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
+                    optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -754,6 +748,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -769,7 +764,10 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
         seed: int,
         camera_fixed: bool,
         watermark: bool,
+        generate_audio: bool = False,
     ) -> IO.NodeOutput:
+        if model == "seedance-1-5-pro-251215" and duration < 4:
+            raise ValueError("Minimum supported duration for Seedance 1.5 Pro is 4 seconds.")
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
         for i in (first_frame, last_frame):
@@ -802,6 +800,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                     TaskImageContent(image_url=TaskImageContentUrl(url=str(download_urls[0])), role="first_frame"),
                     TaskImageContent(image_url=TaskImageContentUrl(url=str(download_urls[1])), role="last_frame"),
                 ],
+                generate_audio=generate_audio if model == "seedance-1-5-pro-251215" else None,
             ),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
@@ -866,6 +865,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -877,6 +877,41 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
+                expr="""
+                (
+                  $priceByModel := {
+                    "seedance-1-0-pro": {
+                      "480p":[0.23,0.24],
+                      "720p":[0.51,0.56]
+                    },
+                    "seedance-1-0-lite": {
+                      "480p":[0.17,0.18],
+                      "720p":[0.37,0.41]
+                    }
+                  };
+                  $model := widgets.model;
+                  $modelKey :=
+                    $contains($model, "seedance-1-0-pro")  ? "seedance-1-0-pro" :
+                    "seedance-1-0-lite";
+                  $resolution := widgets.resolution;
+                  $resKey :=
+                    $contains($resolution, "720") ? "720p" :
+                    "480p";
+                  $modelPrices := $lookup($priceByModel, $modelKey);
+                  $baseRange := $lookup($modelPrices, $resKey);
+                  $min10s := $baseRange[0];
+                  $max10s := $baseRange[1];
+                  $scale := widgets.duration / 10;
+                  $minCost := $min10s * $scale;
+                  $maxCost := $max10s * $scale;
+                  ($minCost = $maxCost)
+                    ? {"type":"usd","usd": $minCost}
+                    : {"type":"range_usd","min_usd": $minCost, "max_usd": $maxCost}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -912,7 +947,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         ]
         return await process_video_task(
             cls,
-            payload=Image2VideoTaskCreationRequest(model=model, content=x),
+            payload=Image2VideoTaskCreationRequest(model=model, content=x, generate_audio=None),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
@@ -922,6 +957,12 @@ async def process_video_task(
     payload: Text2VideoTaskCreationRequest | Image2VideoTaskCreationRequest,
     estimated_duration: int | None,
 ) -> IO.NodeOutput:
+    if payload.model in DEPRECATED_MODELS:
+        logger.warning(
+            "Model '%s' is deprecated and will be deactivated on May 13, 2026. "
+            "Please switch to a newer model. Recommended: seedance-1-0-pro-fast-251015.",
+            payload.model,
+        )
     initial_response = await sync_op(
         cls,
         ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
@@ -946,12 +987,64 @@ def raise_if_text_params(prompt: str, text_params: list[str]) -> None:
             )
 
 
+PRICE_BADGE_VIDEO = IO.PriceBadge(
+    depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution", "generate_audio"]),
+    expr="""
+    (
+      $priceByModel := {
+        "seedance-1-5-pro": {
+          "480p":[0.12,0.12],
+          "720p":[0.26,0.26],
+          "1080p":[0.58,0.59]
+        },
+        "seedance-1-0-pro": {
+          "480p":[0.23,0.24],
+          "720p":[0.51,0.56],
+          "1080p":[1.18,1.22]
+        },
+        "seedance-1-0-pro-fast": {
+          "480p":[0.09,0.1],
+          "720p":[0.21,0.23],
+          "1080p":[0.47,0.49]
+        },
+        "seedance-1-0-lite": {
+          "480p":[0.17,0.18],
+          "720p":[0.37,0.41],
+          "1080p":[0.85,0.88]
+        }
+      };
+      $model := widgets.model;
+      $modelKey :=
+        $contains($model, "seedance-1-5-pro")      ? "seedance-1-5-pro" :
+        $contains($model, "seedance-1-0-pro-fast") ? "seedance-1-0-pro-fast" :
+        $contains($model, "seedance-1-0-pro")      ? "seedance-1-0-pro" :
+        "seedance-1-0-lite";
+      $resolution := widgets.resolution;
+      $resKey :=
+        $contains($resolution, "1080") ? "1080p" :
+        $contains($resolution, "720")  ? "720p" :
+        "480p";
+      $modelPrices := $lookup($priceByModel, $modelKey);
+      $baseRange := $lookup($modelPrices, $resKey);
+      $min10s := $baseRange[0];
+      $max10s := $baseRange[1];
+      $scale := widgets.duration / 10;
+      $audioMultiplier := ($modelKey = "seedance-1-5-pro" and widgets.generate_audio) ? 2 : 1;
+      $minCost := $min10s * $scale * $audioMultiplier;
+      $maxCost := $max10s * $scale * $audioMultiplier;
+      ($minCost = $maxCost)
+        ? {"type":"usd","usd": $minCost, "format": { "approximate": true }}
+        : {"type":"range_usd","min_usd": $minCost, "max_usd": $maxCost, "format": { "approximate": true }}
+    )
+    """,
+)
+
+
 class ByteDanceExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ByteDanceImageNode,
-            ByteDanceImageEditNode,
             ByteDanceSeedreamNode,
             ByteDanceTextToVideoNode,
             ByteDanceImageToVideoNode,

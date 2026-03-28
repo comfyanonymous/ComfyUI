@@ -11,6 +11,7 @@ class StringConcatenate(io.ComfyNode):
             node_id="StringConcatenate",
             display_name="Concatenate",
             category="utils/string",
+            search_aliases=["text concat", "join text", "merge text", "combine strings", "concat", "concatenate", "append text", "combine text", "string"],
             inputs=[
                 io.String.Input("string_a", multiline=True),
                 io.String.Input("string_b", multiline=True),
@@ -31,6 +32,7 @@ class StringSubstring(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringSubstring",
+            search_aliases=["extract text", "text portion"],
             display_name="Substring",
             category="utils/string",
             inputs=[
@@ -53,6 +55,7 @@ class StringLength(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringLength",
+            search_aliases=["character count", "text size"],
             display_name="Length",
             category="utils/string",
             inputs=[
@@ -73,6 +76,7 @@ class CaseConverter(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CaseConverter",
+            search_aliases=["text case", "uppercase", "lowercase", "capitalize"],
             display_name="Case Converter",
             category="utils/string",
             inputs=[
@@ -105,6 +109,7 @@ class StringTrim(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringTrim",
+            search_aliases=["clean whitespace", "remove whitespace"],
             display_name="Trim",
             category="utils/string",
             inputs=[
@@ -135,6 +140,7 @@ class StringReplace(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringReplace",
+            search_aliases=["find and replace", "substitute", "swap text"],
             display_name="Replace",
             category="utils/string",
             inputs=[
@@ -157,12 +163,13 @@ class StringContains(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringContains",
+            search_aliases=["text includes", "string includes"],
             display_name="Contains",
             category="utils/string",
             inputs=[
                 io.String.Input("string", multiline=True),
                 io.String.Input("substring", multiline=True),
-                io.Boolean.Input("case_sensitive", default=True),
+                io.Boolean.Input("case_sensitive", default=True, advanced=True),
             ],
             outputs=[
                 io.Boolean.Output(display_name="contains"),
@@ -184,13 +191,14 @@ class StringCompare(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringCompare",
+            search_aliases=["text match", "string equals", "starts with", "ends with"],
             display_name="Compare",
             category="utils/string",
             inputs=[
                 io.String.Input("string_a", multiline=True),
                 io.String.Input("string_b", multiline=True),
                 io.Combo.Input("mode", options=["Starts With", "Ends With", "Equal"]),
-                io.Boolean.Input("case_sensitive", default=True),
+                io.Boolean.Input("case_sensitive", default=True, advanced=True),
             ],
             outputs=[
                 io.Boolean.Output(),
@@ -219,14 +227,15 @@ class RegexMatch(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="RegexMatch",
+            search_aliases=["pattern match", "text contains", "string match"],
             display_name="Regex Match",
             category="utils/string",
             inputs=[
                 io.String.Input("string", multiline=True),
                 io.String.Input("regex_pattern", multiline=True),
-                io.Boolean.Input("case_insensitive", default=True),
-                io.Boolean.Input("multiline", default=False),
-                io.Boolean.Input("dotall", default=False),
+                io.Boolean.Input("case_insensitive", default=True, advanced=True),
+                io.Boolean.Input("multiline", default=False, advanced=True),
+                io.Boolean.Input("dotall", default=False, advanced=True),
             ],
             outputs=[
                 io.Boolean.Output(display_name="matches"),
@@ -259,16 +268,17 @@ class RegexExtract(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="RegexExtract",
+            search_aliases=["pattern extract", "text parser", "parse text"],
             display_name="Regex Extract",
             category="utils/string",
             inputs=[
                 io.String.Input("string", multiline=True),
                 io.String.Input("regex_pattern", multiline=True),
                 io.Combo.Input("mode", options=["First Match", "All Matches", "First Group", "All Groups"]),
-                io.Boolean.Input("case_insensitive", default=True),
-                io.Boolean.Input("multiline", default=False),
-                io.Boolean.Input("dotall", default=False),
-                io.Int.Input("group_index", default=1, min=0, max=100),
+                io.Boolean.Input("case_insensitive", default=True, advanced=True),
+                io.Boolean.Input("multiline", default=False, advanced=True),
+                io.Boolean.Input("dotall", default=False, advanced=True),
+                io.Int.Input("group_index", default=1, min=0, max=100, advanced=True),
             ],
             outputs=[
                 io.String.Output(),
@@ -333,6 +343,7 @@ class RegexReplace(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="RegexReplace",
+            search_aliases=["pattern replace", "find and replace", "substitution"],
             display_name="Regex Replace",
             category="utils/string",
             description="Find and replace text using regex patterns.",
@@ -340,10 +351,10 @@ class RegexReplace(io.ComfyNode):
                 io.String.Input("string", multiline=True),
                 io.String.Input("regex_pattern", multiline=True),
                 io.String.Input("replace", multiline=True),
-                io.Boolean.Input("case_insensitive", default=True, optional=True),
-                io.Boolean.Input("multiline", default=False, optional=True),
-                io.Boolean.Input("dotall", default=False, optional=True, tooltip="When enabled, the dot (.) character will match any character including newline characters. When disabled, dots won't match newlines."),
-                io.Int.Input("count", default=0, min=0, max=100, optional=True, tooltip="Maximum number of replacements to make. Set to 0 to replace all occurrences (default). Set to 1 to replace only the first match, 2 for the first two matches, etc."),
+                io.Boolean.Input("case_insensitive", default=True, optional=True, advanced=True),
+                io.Boolean.Input("multiline", default=False, optional=True, advanced=True),
+                io.Boolean.Input("dotall", default=False, optional=True, advanced=True, tooltip="When enabled, the dot (.) character will match any character including newline characters. When disabled, dots won't match newlines."),
+                io.Int.Input("count", default=0, min=0, max=100, optional=True, advanced=True, tooltip="Maximum number of replacements to make. Set to 0 to replace all occurrences (default). Set to 1 to replace only the first match, 2 for the first two matches, etc."),
             ],
             outputs=[
                 io.String.Output(),
