@@ -42,6 +42,7 @@ import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
+import comfy.ldm.helios.model
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -1279,6 +1280,70 @@ class ZImagePixelSpace(Lumina2):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiTPixelSpace)
         self.memory_usage_factor_conds = ("ref_latents",)
+
+class Helios(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.helios.model.HeliosTransformer3DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out["c_crossattn"] = comfy.conds.CONDRegular(cross_attn)
+
+        cond_keys = (
+            "indices_hidden_states",
+            "indices_latents_history_short",
+            "indices_latents_history_mid",
+            "indices_latents_history_long",
+            "latents_history_short",
+            "latents_history_mid",
+            "latents_history_long",
+            "helios_stage_sigmas",
+            "helios_stage_timesteps",
+        )
+
+        for key in cond_keys:
+            value = kwargs.get(key, None)
+            if value is None:
+                continue
+            # Diffusers forwards Helios history latents without latent-format re-normalization.
+            # Keep raw history tensors to match transformer inputs across frameworks.
+            if key in ("helios_stage_sigmas", "helios_stage_timesteps"):
+                out[key] = comfy.conds.CONDConstant(value)
+            else:
+                out[key] = comfy.conds.CONDRegular(value)
+        return out
+
+    def process_timestep(self, timestep, **kwargs):
+        stage_sigmas = kwargs.get("helios_stage_sigmas", None)
+        stage_timesteps = kwargs.get("helios_stage_timesteps", None)
+        if stage_sigmas is None or stage_timesteps is None:
+            return timestep
+
+        if stage_sigmas.ndim > 1:
+            stage_sigmas = stage_sigmas[0]
+        if stage_timesteps.ndim > 1:
+            stage_timesteps = stage_timesteps[0]
+
+        if stage_timesteps.numel() == 0 or stage_sigmas.numel() == 0:
+            return timestep
+
+        if stage_sigmas.numel() == stage_timesteps.numel() + 1:
+            sigma_candidates = stage_sigmas[:-1]
+        else:
+            sigma_candidates = stage_sigmas[: stage_timesteps.numel()]
+
+        if sigma_candidates.numel() == 0:
+            return timestep
+
+        multiplier = float(getattr(self.model_sampling, "multiplier", 1000.0))
+        sigma_in = timestep / multiplier
+        idx = torch.argmin(torch.abs(sigma_in.unsqueeze(-1) - sigma_candidates.unsqueeze(0)), dim=-1)
+        mapped = stage_timesteps[idx].to(dtype=timestep.dtype)
+        if mapped.dtype.is_floating_point:
+            mapped = torch.floor(mapped)
+        return mapped
 
 class WAN21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
