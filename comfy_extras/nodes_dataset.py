@@ -196,8 +196,8 @@ def save_images_to_folder(image_list, output_dir, prefix="image", overwrite=True
         if overwrite:
             filename = f"{prefix}_{idx:05d}.png"
         else:
-            full_output_folder, filename, counter, subfolder, prefix = folder_paths.get_save_image_path(prefix, output_dir, img_tensor[0].shape[1], img_tensor[0].shape[0])
-            filename = f"{prefix}_{counter:05}_{idx:05d}.png"
+            _, _, counter, _, resolved_prefix = folder_paths.get_save_image_path(prefix, output_dir)
+            filename = f"{resolved_prefix}_{counter:05}_{idx:05d}.png"
         filepath = os.path.join(output_dir, filename)
         img.save(filepath)
         saved_files.append(filename)
@@ -230,7 +230,8 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
                 ),
                 io.Combo.Input(
                     "mode",
-                    options=['overwrite', 'increment'],
+                    default="overwrite",
+                    options=["overwrite", "increment"],
                     tooltip="Whether to overwrite existing files or increment filenames to avoid overwriting."
                 ),
             ],
@@ -277,7 +278,8 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
                 ),
                 io.Combo.Input(
                     "mode",
-                    options=['overwrite', 'increment'],
+                    default="overwrite",
+                    options=["overwrite", "increment"],
                     tooltip="Whether to overwrite existing files or increment filenames to avoid overwriting."
                 ),
             ],
