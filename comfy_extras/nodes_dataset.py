@@ -153,7 +153,7 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
         return io.NodeOutput(output_tensor, captions)
 
 
-def save_images_to_folder(image_list, output_dir, prefix="image"):
+def save_images_to_folder(image_list, output_dir, prefix="image", overwrite=True):
     """Utility function to save a list of image tensors to disk.
 
     Args:
@@ -193,7 +193,11 @@ def save_images_to_folder(image_list, output_dir, prefix="image"):
             raise ValueError(f"Expected torch.Tensor, got {type(img_tensor)}")
 
         # Save image
-        filename = f"{prefix}_{idx:05d}.png"
+        if overwrite:
+            filename = f"{prefix}_{idx:05d}.png"
+        else:
+            full_output_folder, filename, counter, subfolder, prefix = folder_paths.get_save_image_path(prefix, output_dir, img_tensor[0].shape[1], img_tensor[0].shape[0])
+            filename = f"{prefix}_{counter:05}_{idx:05d}.png"
         filepath = os.path.join(output_dir, filename)
         img.save(filepath)
         saved_files.append(filename)
@@ -224,18 +228,24 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
                     tooltip="Prefix for saved image filenames.",
                     advanced=True,
                 ),
+                io.Combo.Input(
+                    "mode",
+                    options=['overwrite', 'increment'],
+                    tooltip="Whether to overwrite existing files or increment filenames to avoid overwriting."
+                ),
             ],
             outputs=[],
         )
 
     @classmethod
-    def execute(cls, images, folder_name, filename_prefix):
+    def execute(cls, images, folder_name, filename_prefix, mode):
         # Extract scalar values
         folder_name = folder_name[0]
         filename_prefix = filename_prefix[0]
+        mode = mode[0]
 
         output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
-        saved_files = save_images_to_folder(images, output_dir, filename_prefix)
+        saved_files = save_images_to_folder(images, output_dir, filename_prefix, mode=='overwrite')
 
         logging.info(f"Saved {len(saved_files)} images to {output_dir}.")
         return io.NodeOutput()
@@ -265,18 +275,24 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
                     tooltip="Prefix for saved image filenames.",
                     advanced=True,
                 ),
+                io.Combo.Input(
+                    "mode",
+                    options=['overwrite', 'increment'],
+                    tooltip="Whether to overwrite existing files or increment filenames to avoid overwriting."
+                ),
             ],
             outputs=[],
         )
 
     @classmethod
-    def execute(cls, images, texts, folder_name, filename_prefix):
+    def execute(cls, images, texts, folder_name, filename_prefix, mode):
         # Extract scalar values
         folder_name = folder_name[0]
         filename_prefix = filename_prefix[0]
+        mode = mode[0]
 
         output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
-        saved_files = save_images_to_folder(images, output_dir, filename_prefix)
+        saved_files = save_images_to_folder(images, output_dir, filename_prefix, mode=='overwrite')
 
         # Save captions
         for idx, (filename, caption) in enumerate(zip(saved_files, texts)):
