@@ -1403,8 +1403,6 @@ def unpin_memory(tensor):
 
     if torch.cuda.cudart().cudaHostUnregister(ptr) == 0:
         TOTAL_PINNED_MEMORY -= PINNED_MEMORY.pop(ptr)
-        if len(PINNED_MEMORY) == 0:
-            TOTAL_PINNED_MEMORY = 0
         return True
     else:
         logging.warning("Unpin error.")
