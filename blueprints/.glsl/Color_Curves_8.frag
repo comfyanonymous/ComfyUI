@@ -38,9 +38,12 @@ void main() {
     // GIMP order: per-channel curves first, then RGB master curve.
     // See gimp_curve_map_pixels() default case in gimpcurve-map.c:
     //   dest = colors_curve( channel_curve( src ) )
-    color.r = applyCurve(u_curve0, applyCurve(u_curve1, color.r));
-    color.g = applyCurve(u_curve0, applyCurve(u_curve2, color.g));
-    color.b = applyCurve(u_curve0, applyCurve(u_curve3, color.b));
+    float tmp_r = applyCurve(u_curve1, color.r);
+    float tmp_g = applyCurve(u_curve2, color.g);
+    float tmp_b = applyCurve(u_curve3, color.b);
+    color.r = applyCurve(u_curve0, tmp_r);
+    color.g = applyCurve(u_curve0, tmp_g);
+    color.b = applyCurve(u_curve0, tmp_b);
 
     fragColor0 = vec4(color.rgb, color.a);
 }
