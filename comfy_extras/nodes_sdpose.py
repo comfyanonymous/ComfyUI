@@ -661,6 +661,7 @@ class CropByBBoxes(io.ComfyNode):
                 io.Int.Input("output_width",  default=512, min=64, max=4096, step=8, tooltip="Width each crop is resized to."),
                 io.Int.Input("output_height", default=512, min=64, max=4096, step=8, tooltip="Height each crop is resized to."),
                 io.Int.Input("padding", default=0, min=0, max=1024, step=1, tooltip="Extra padding in pixels added on each side of the bbox before cropping."),
+                io.Combo.Input("keep_aspect", options=["stretch", "pad"], default="stretch", tooltip="Whether to stretch the crop to fit the output size, or pad with black pixels to preserve aspect ratio."),
             ],
             outputs=[
                 io.Image.Output(tooltip="All crops stacked into a single image batch."),
@@ -668,7 +669,7 @@ class CropByBBoxes(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, bboxes, output_width, output_height, padding) -> io.NodeOutput:
+    def execute(cls, image, bboxes, output_width, output_height, padding, keep_aspect="stretch") -> io.NodeOutput:
         total_frames = image.shape[0]
         img_h = image.shape[1]
         img_w = image.shape[2]
@@ -716,7 +717,19 @@ class CropByBBoxes(io.ComfyNode):
                 x1, y1, x2, y2 = fb_x1, fb_y1, fb_x2, fb_y2
 
             crop_chw = frame_chw[:, :, y1:y2, x1:x2]  # (1, C, crop_h, crop_w)
-            resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="bilinear", crop="disabled")
+
+            if keep_aspect == "pad":
+                crop_h, crop_w = y2 - y1, x2 - x1
+                scale = min(output_width / crop_w, output_height / crop_h)
+                scaled_w = int(round(crop_w * scale))
+                scaled_h = int(round(crop_h * scale))
+                scaled = comfy.utils.common_upscale(crop_chw, scaled_w, scaled_h, upscale_method="bilinear", crop="disabled")
+                pad_left = (output_width  - scaled_w) // 2
+                pad_top  = (output_height - scaled_h) // 2
+                resized = torch.zeros(1, num_ch, output_height, output_width, dtype=image.dtype, device=image.device)
+                resized[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
+            else:  # "stretch"
+                resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="bilinear", crop="disabled")
             crops.append(resized)
 
         if not crops:

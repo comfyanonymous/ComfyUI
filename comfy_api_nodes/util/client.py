@@ -67,6 +67,7 @@ class _RequestConfig:
     progress_origin_ts: float | None = None
     price_extractor: Callable[[dict[str, Any]], float | None] | None = None
     is_rate_limited: Callable[[int, Any], bool] | None = None
+    response_header_validator: Callable[[dict[str, str]], None] | None = None
 
 
 @dataclass
@@ -202,11 +203,13 @@ async def sync_op_raw(
     monitor_progress: bool = True,
     max_retries_on_rate_limit: int = 16,
     is_rate_limited: Callable[[int, Any], bool] | None = None,
+    response_header_validator: Callable[[dict[str, str]], None] | None = None,
 ) -> dict[str, Any] | bytes:
     """
     Make a single network request.
       - If as_binary=False (default): returns JSON dict (or {'_raw': '<text>'} if non-JSON).
       - If as_binary=True: returns bytes.
+      - response_header_validator: optional callback receiving response headers dict
     """
     if isinstance(data, BaseModel):
         data = data.model_dump(exclude_none=True)
@@ -232,6 +235,7 @@ async def sync_op_raw(
         price_extractor=price_extractor,
         max_retries_on_rate_limit=max_retries_on_rate_limit,
         is_rate_limited=is_rate_limited,
+        response_header_validator=response_header_validator,
     )
     return await _request_base(cfg, expect_binary=as_binary)
 
@@ -769,6 +773,12 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                                     cfg.node_cls, cfg.wait_label, int(now - start_time), cfg.estimated_total
                                 )
                     bytes_payload = bytes(buff)
+                    resp_headers = {k.lower(): v for k, v in resp.headers.items()}
+                    if cfg.price_extractor:
+                        with contextlib.suppress(Exception):
+                            extracted_price = cfg.price_extractor(resp_headers)
+                    if cfg.response_header_validator:
+                        cfg.response_header_validator(resp_headers)
                     operation_succeeded = True
                     final_elapsed_seconds = int(time.monotonic() - start_time)
                     request_logger.log_request_response(
@@ -776,7 +786,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         request_method=method,
                         request_url=url,
                         response_status_code=resp.status,
-                        response_headers=dict(resp.headers),
+                        response_headers=resp_headers,
                         response_content=bytes_payload,
                     )
                     return bytes_payload
