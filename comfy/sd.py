@@ -477,7 +477,10 @@ class VAE:
                                                             decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
             elif "taesd_decoder.1.weight" in sd:
                 self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
-                self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels, use_midblock_gn = True if "taesd_decoder.3.pool.0.weight" in sd else False)
+                use_midblock_gn = "taesd_decoder.3.pool.0.weight" in sd
+                self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels, use_midblock_gn=use_midblock_gn)
+                if self.latent_channels == 32 and use_midblock_gn:
+                    self.downscale_ratio = self.upscale_ratio = 16
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
                 self.downscale_ratio = 4
