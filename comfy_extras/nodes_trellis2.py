@@ -442,11 +442,6 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         if shape_latent.ndim == 4:
             shape_latent = shape_latent.squeeze(-1).transpose(1, 2).reshape(-1, channels)
 
-        std = shape_slat_normalization["std"].to(shape_latent)
-        mean = shape_slat_normalization["mean"].to(shape_latent)
-        shape_latent = SparseTensor(feats = shape_latent, coords=coords)
-        shape_latent = (shape_latent - mean) / std
-
         latent = torch.randn(1, channels, coords.shape[0], 1)
         model = model.clone()
         model.model_options = model.model_options.copy()
