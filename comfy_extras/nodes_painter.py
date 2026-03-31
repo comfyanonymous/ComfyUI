@@ -30,6 +30,7 @@ class PainterNode(io.ComfyNode):
             node_id="Painter",
             display_name="Painter",
             category="image",
+            has_intermediate_output=True,
             inputs=[
                 io.Image.Input(
                     "image",

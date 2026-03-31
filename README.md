@@ -61,6 +61,7 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
+- NOTE: There are many more models supported than the list below, if you want to see what is supported see our templates list inside ComfyUI.
 - Image Models
    - SD1.x, SD2.x ([unCLIP](https://comfyanonymous.github.io/ComfyUI_examples/unclip/))
    - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
@@ -232,7 +233,7 @@ Put your VAE in: models/vae
 
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.1```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.2```
 
 This is the command to install the nightly with ROCm 7.2 which might have some performance improvements:
 

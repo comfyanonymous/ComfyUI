@@ -709,6 +709,11 @@ class PromptServer():
             else:
                 info['output_node'] = False
 
+            if hasattr(obj_class, 'HAS_INTERMEDIATE_OUTPUT') and obj_class.HAS_INTERMEDIATE_OUTPUT == True:
+                info['has_intermediate_output'] = True
+            else:
+                info['has_intermediate_output'] = False
+
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
 

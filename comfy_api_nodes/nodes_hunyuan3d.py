@@ -132,7 +132,7 @@ class TencentTextToModelNode(IO.ComfyNode):
                     tooltip="The LowPoly option is unavailable for the `3.1` model.",
                 ),
                 IO.String.Input("prompt", multiline=True, default="", tooltip="Supports up to 1024 characters."),
-                IO.Int.Input("face_count", default=500000, min=40000, max=1500000),
+                IO.Int.Input("face_count", default=500000, min=3000, max=1500000),
                 IO.DynamicCombo.Input(
                     "generate_type",
                     options=[
@@ -251,7 +251,7 @@ class TencentImageToModelNode(IO.ComfyNode):
                 IO.Image.Input("image_left", optional=True),
                 IO.Image.Input("image_right", optional=True),
                 IO.Image.Input("image_back", optional=True),
-                IO.Int.Input("face_count", default=500000, min=40000, max=1500000),
+                IO.Int.Input("face_count", default=500000, min=3000, max=1500000),
                 IO.DynamicCombo.Input(
                     "generate_type",
                     options=[
@@ -422,6 +422,7 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             outputs=[
                 IO.File3DOBJ.Output(display_name="OBJ"),
                 IO.File3DFBX.Output(display_name="FBX"),
+                IO.Image.Output(display_name="uv_image"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -468,9 +469,16 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
         )
+        uv_image_file = get_file_from_response(result.ResultFile3Ds, "uv_image", raise_if_not_found=False)
+        uv_image = (
+            await download_url_to_image_tensor(uv_image_file.Url)
+            if uv_image_file is not None
+            else torch.zeros(1, 1, 1, 3)
+        )
         return IO.NodeOutput(
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
+            uv_image,
         )
 
 
