@@ -1,5 +1,4 @@
 import torch
-import comfy.model_management
 from comfy.ldm.modules.diffusionmodules.openaimodel import Upsample
 
 
@@ -29,7 +28,6 @@ class SUPIRPatch:
             return
         x = kwargs["x"]
         batch_size = x.shape[0]
-        comfy.model_management.load_models_gpu([self.model_patch])
         hint = self.hint_latent.to(device=x.device, dtype=x.dtype)
         if hint.shape[0] < batch_size:
             hint = hint.repeat(batch_size // hint.shape[0], 1, 1, 1)[:batch_size]

@@ -33,7 +33,7 @@ class ZeroSFT(nn.Module):
         else:
             h_raw = h
 
-        h = h.add_(self.zero_conv(c))
+        h = h + self.zero_conv(c)
         if h_ori is not None and self.pre_concat:
             h = torch.cat([h_ori, h], dim=1)
         actv = self.mlp_shared(c)
