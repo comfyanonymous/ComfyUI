@@ -9,7 +9,7 @@ import comfy.latent_formats
 import comfy.ldm.lumina.controlnet
 import comfy.ldm.supir.supir_modules
 from comfy.ldm.wan.model_multitalk import WanMultiTalkAttentionBlock, MultiTalkAudioProjModel
-from comfy_api.latest import ComfyExtension, io
+from comfy_api.latest import io
 from comfy.ldm.supir.supir_patch import SUPIRPatch
 
 
