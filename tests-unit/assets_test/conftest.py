@@ -102,6 +102,24 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest)
     if not (comfy_root / "main.py").is_file():
         raise FileNotFoundError(f"main.py not found under {comfy_root}")
 
+    # Sanitize environment variables to prevent injection attacks via env var manipulation.
+    # Strip known-dangerous variables that can redirect code execution or hijack the runtime.
+    _DANGEROUS_ENV_VARS = {
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+        "PYTHONSTARTUP",
+        "PYTHONINSPECT",
+        "PYTHONPATH",
+        "PYTHONEXECUTABLE",
+        "BROWSER",
+        "CDPATH",
+        "ENV",
+        "BASH_ENV",
+    }
+    safe_env = {k: v for k, v in os.environ.items() if k not in _DANGEROUS_ENV_VARS}
+
     proc = subprocess.Popen(
         args=[
             sys.executable,
@@ -118,7 +136,7 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest)
         stdout=out_log,
         stderr=err_log,
         cwd=str(comfy_root),
-        env={**os.environ},
+        env=safe_env,
     )
 
     for _ in range(50):
