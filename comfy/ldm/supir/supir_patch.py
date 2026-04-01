@@ -27,10 +27,10 @@ class SUPIRPatch:
         if self.cached_features is not None:
             return
         x = kwargs["x"]
-        batch_size = x.shape[0]
+        b = x.shape[0]
         hint = self.hint_latent.to(device=x.device, dtype=x.dtype)
-        if hint.shape[0] < batch_size:
-            hint = hint.repeat(batch_size // hint.shape[0], 1, 1, 1)[:batch_size]
+        if hint.shape[0] != b:
+            hint = hint.expand(b, -1, -1, -1) if hint.shape[0] == 1 else hint.repeat((b + hint.shape[0] - 1) // hint.shape[0], 1, 1, 1)[:b]
         self.cached_features = self.model_patch.model.control_model(
             hint, kwargs["timesteps"], x,
             kwargs["context"], kwargs["y"]
