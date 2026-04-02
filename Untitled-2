@@ -1,0 +1,7 @@
+cd "/Volumes/Macbook Air Ext/web app test"
+git clone https://github.com/invoke-ai/InvokeAI.git
+cd InvokeAI
+../venv/bin/pip install -r requirements.txt
+# Download SDXL model to InvokeAI/models/checkpoints/
+../venv/bin/python scripts/invoke.py --web
+# Open http://localhost:9090
