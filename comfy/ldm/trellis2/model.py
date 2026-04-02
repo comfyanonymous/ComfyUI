@@ -788,7 +788,10 @@ class Trellis2(nn.Module):
         sigmas = transformer_options.get("sigmas")[0].item()
         if sigmas < 1.00001:
             timestep *= 1000.0
-        cond = context.chunk(2)[1]
+        if context.size(0) > 1:
+            cond = context.chunk(2)[1]
+        else:
+            cond = context
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
 
@@ -836,7 +839,7 @@ class Trellis2(nn.Module):
             if slat is None:
                 raise ValueError("shape_slat can't be None")
 
-            base_slat_feats = slat.feats[:N]
+            base_slat_feats = slat[:N]
             slat_feats_batched = base_slat_feats.repeat(B, 1).to(x_st.device)
             x_st = x_st.replace(feats=torch.cat([x_st.feats, slat_feats_batched], dim=-1))
             out = self.shape2txt(x_st, t_eval, c_eval)

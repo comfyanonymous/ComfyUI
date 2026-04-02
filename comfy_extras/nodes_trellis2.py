@@ -72,7 +72,13 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     nearest_idx = torch.from_numpy(nearest_idx_np).long()
     v_colors = voxel_colors[nearest_idx]
 
-    final_colors = (v_colors * 0.5 + 0.5).clamp(0, 1).unsqueeze(0)
+    # to [0, 1]
+    srgb_colors = (v_colors * 0.5 + 0.5).clamp(0, 1)
+
+    # to Linear RGB (required for GLTF)
+    linear_colors = torch.pow(srgb_colors, 2.2)
+
+    final_colors = linear_colors.unsqueeze(0)
 
     out_mesh = copy.deepcopy(mesh)
     out_mesh.colors = final_colors

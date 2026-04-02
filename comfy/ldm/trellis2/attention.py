@@ -53,57 +53,37 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
         )
     return out
 
-
-# TODO repalce with optimized attention
 def scaled_dot_product_attention(*args, **kwargs):
     num_all_args = len(args) + len(kwargs)
 
     q = None
     if num_all_args == 1:
-        qkv = args[0] if len(args) > 0 else kwargs['qkv']
-
+        qkv = args[0] if len(args) > 0 else kwargs.get('qkv')
     elif num_all_args == 2:
-        q = args[0] if len(args) > 0 else kwargs['q']
-        kv = args[1] if len(args) > 1 else kwargs['kv']
-
+        q = args[0] if len(args) > 0 else kwargs.get('q')
+        kv = args[1] if len(args) > 1 else kwargs.get('kv')
     elif num_all_args == 3:
-        q = args[0] if len(args) > 0 else kwargs['q']
-        k = args[1] if len(args) > 1 else kwargs['k']
-        v = args[2] if len(args) > 2 else kwargs['v']
+        q = args[0] if len(args) > 0 else kwargs.get('q')
+        k = args[1] if len(args) > 1 else kwargs.get('k')
+        v = args[2] if len(args) > 2 else kwargs.get('v')
 
     if q is not None:
-        heads = q
+        heads = q.shape[2]
     else:
-        heads = qkv
-    heads = heads.shape[2]
+        heads = qkv.shape[3]
 
-    if optimized_attention.__name__ == 'attention_xformers':
-        if num_all_args == 1:
-            q, k, v = qkv.unbind(dim=2)
-        elif num_all_args == 2:
-            k, v = kv.unbind(dim=2)
-        #out = xops.memory_efficient_attention(q, k, v)
-        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
-    elif optimized_attention.__name__ == 'attention_flash':
-        if num_all_args == 2:
-            k, v = kv.unbind(dim=2)
-        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
-    elif optimized_attention.__name__ == 'attention_pytorch':
-        if num_all_args == 1:
-            q, k, v = qkv.unbind(dim=2)
-        elif num_all_args == 2:
-            k, v = kv.unbind(dim=2)
-        q = q.permute(0, 2, 1, 3)   # [N, H, L, C]
-        k = k.permute(0, 2, 1, 3)   # [N, H, L, C]
-        v = v.permute(0, 2, 1, 3)   # [N, H, L, C]
-        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
-        out = out.permute(0, 2, 1, 3)   # [N, L, H, C]
-    elif optimized_attention.__name__ == 'attention_basic':
-        if num_all_args == 1:
-            q, k, v = qkv.unbind(dim=2)
-        elif num_all_args == 2:
-            k, v = kv.unbind(dim=2)
-        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
+    if num_all_args == 1:
+        q, k, v = qkv.unbind(dim=2)
+    elif num_all_args == 2:
+        k, v = kv.unbind(dim=2)
+
+    q = q.permute(0, 2, 1, 3)
+    k = k.permute(0, 2, 1, 3)
+    v = v.permute(0, 2, 1, 3)
+
+    out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True, **kwargs)
+
+    out = out.permute(0, 2, 1, 3)
 
     return out
 
