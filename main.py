@@ -31,8 +31,19 @@ if __name__ == "__main__":
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 
+def is_rocm_torch_build():
+    try:
+        torch_version = importlib.metadata.version("torch").lower()
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    return "rocm" in torch_version
+
+
 def configure_windows_rocm_sdk_env():
     if os.name != "nt":
+        return None
+
+    if not is_rocm_torch_build():
         return None
 
     if any(os.environ.get(var) for var in ("ROCM_HOME", "ROCM_PATH", "HIP_PATH")):
