@@ -32,6 +32,7 @@ class TextGenerate(io.ComfyNode):
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True, default=""),
                 io.Image.Input("image", optional=True),
+                io.Audio.Input("audio", optional=True),
                 io.Int.Input("max_length", default=256, min=1, max=2048),
                 io.DynamicCombo.Input("sampling_mode", options=sampling_options, display_name="Sampling Mode"),
                 io.Boolean.Input("thinking", optional=True, default=False, tooltip="Operate in thinking mode if the model supports it."),
@@ -42,9 +43,9 @@ class TextGenerate(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False) -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, audio=None, thinking=False) -> io.NodeOutput:
 
-        tokens = clip.tokenize(prompt, image=image, skip_template=False, min_length=1, thinking=thinking)
+        tokens = clip.tokenize(prompt, image=image, audio=audio, skip_template=False, min_length=1, thinking=thinking)
 
         # Get sampling parameters from dynamic combo
         do_sample = sampling_mode.get("sampling_mode") == "on"
