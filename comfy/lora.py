@@ -333,7 +333,9 @@ def model_lora_keys_unet(model, key_map={}):
     if isinstance(model, comfy.model_base.TwinFlow_Z_Image):
         for key in list(key_map.keys()):
             if "t_embedder." in key and "t_embedder_2." not in key:
-                key_map[key.replace("t_embedder.", "t_embedder_2.", 1)] = key_map[key]
+                key_2 = key.replace("t_embedder.", "t_embedder_2.", 1)
+                if key_2 not in key_map:
+                    key_map[key_2] = key_map[key]
                 
     if isinstance(model, comfy.model_base.Kandinsky5):
         for k in sdk:
