@@ -780,6 +780,11 @@ class PromptExecutor:
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         comfy.model_management.free_memory(0, None, pins_required=ram_headroom, ram_required=ram_headroom)
                         comfy.memory_management.extra_ram_release(ram_headroom)
+                    elif comfy.model_management.mps_mode():
+                        mem_free_total, mem_free_torch = comfy.model_management.get_free_memory(
+                            comfy.model_management.get_torch_device(), torch_free_too=True)
+                        if mem_free_torch < mem_free_total * 0.25:
+                            comfy.model_management.soft_empty_cache()
                 else:
                     # Only execute when the while-loop ends without break
                     # Send cached UI for intermediate output nodes that weren't executed
