@@ -105,6 +105,9 @@ class FeatureExtractor(nn.Module):
                 if j <= i:
                     features = torch.cat([features, sub_pyramids[i - j][j]], dim=1)
             feature_pyramid.append(features)
+            # Free sub-pyramids no longer needed by future levels
+            if i >= self.sub_levels - 1:
+                sub_pyramids[i - self.sub_levels + 1] = None
         return feature_pyramid
 
 
@@ -233,9 +236,11 @@ class FILMNet(nn.Module):
         fwd_flow = flow_pyramid_synthesis(self.predict_flow(feat_pyr0, feat_pyr1, self.warp))[:self.fusion_pyramid_levels]
         bwd_flow = flow_pyramid_synthesis(self.predict_flow(feat_pyr1, feat_pyr0, self.warp))[:self.fusion_pyramid_levels]
 
+        # Build warp targets and free full pyramids (only first fpl levels needed from here)
         fpl = self.fusion_pyramid_levels
         p2w = [concatenate_pyramids(image_pyr0[:fpl], feat_pyr0[:fpl]),
                concatenate_pyramids(image_pyr1[:fpl], feat_pyr1[:fpl])]
+        del image_pyr0, image_pyr1, feat_pyr0, feat_pyr1
 
         results = []
         dt_tensors = torch.tensor(timesteps, device=img0.device, dtype=img0.dtype)
@@ -247,5 +252,7 @@ class FILMNet(nn.Module):
             bwd_warped = pyramid_warp(p2w[1], fwd_scaled, self.warp)
             aligned = [torch.cat([fw, bw, bf, ff], dim=1)
                        for fw, bw, bf, ff in zip(fwd_warped, bwd_warped, bwd_scaled, fwd_scaled)]
+            del fwd_warped, bwd_warped, bwd_scaled, fwd_scaled
             results.append(self.fuse(aligned))
+            del aligned
         return torch.cat(results, dim=0)
