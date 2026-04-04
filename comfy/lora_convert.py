@@ -37,7 +37,8 @@ def twinflow_z_image_lora_to_diffusers(state_dict):
     for key in list(state_dict.keys()):
         if "t_embedder_2" not in key and key.startswith("t_embedder."):
             new_key = key.replace("t_embedder.", "t_embedder_2.", 1)
-            state_dict[new_key] = state_dict.pop(key)
+            if new_key not in state_dict:
+                state_dict[new_key] = state_dict.pop(key)
     return state_dict
     
 def convert_lora(sd):
