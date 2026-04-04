@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 from tqdm import tqdm
 from typing_extensions import override
 
@@ -7,7 +6,8 @@ import comfy.model_patcher
 import comfy.utils
 import folder_paths
 from comfy import model_management
-from comfy_extras.rife_model.ifnet import IFNet, detect_rife_config, clear_warp_cache
+from comfy_extras.frame_interpolation_models.ifnet import IFNet, detect_rife_config
+from comfy_extras.frame_interpolation_models.film_net import FILMNet
 from comfy_api.latest import ComfyExtension, io
 
 FrameInterpolationModel = io.Custom("FRAME_INTERPOLATION_MODEL")
@@ -33,32 +33,8 @@ class FrameInterpolationModelLoader(io.ComfyNode):
         model_path = folder_paths.get_full_path_or_raise("frame_interpolation", model_name)
         sd = comfy.utils.load_torch_file(model_path, safe_load=True)
 
-        # Strip common prefixes (DataParallel, RIFE model wrapper)
-        sd = comfy.utils.state_dict_prefix_replace(sd, {"module.": "", "flownet.": ""})
-
-        # Convert blockN.xxx keys to blocks.N.xxx if needed
-        key_map = {}
-        for k in sd:
-            for i in range(5):
-                prefix = f"block{i}."
-                if k.startswith(prefix):
-                    key_map[k] = f"blocks.{i}.{k[len(prefix):]}"
-        if key_map:
-            new_sd = {}
-            for k, v in sd.items():
-                new_sd[key_map.get(k, k)] = v
-            sd = new_sd
-
-        # Filter out training-only keys (teacher distillation, timestamp calibration)
-        sd = {k: v for k, v in sd.items()
-              if not k.startswith(("teacher.", "caltime."))}
-
-        head_ch, channels = detect_rife_config(sd)
-        model = IFNet(head_ch=head_ch, channels=channels)
-        model.load_state_dict(sd)
-        # RIFE is a small pixel-space model similar to VAE, bf16 produces artifacts due to low mantissa precision
-        dtype = model_management.vae_dtype(device=model_management.get_torch_device(),
-                                            allowed_dtypes=[torch.float16, torch.float32])
+        model = cls._detect_and_load(sd)
+        dtype = torch.float16 if model_management.should_use_fp16(model_management.get_torch_device()) else torch.float32
         model.eval().to(dtype)
         patcher = comfy.model_patcher.ModelPatcher(
             model,
@@ -66,6 +42,33 @@ class FrameInterpolationModelLoader(io.ComfyNode):
             offload_device=model_management.unet_offload_device(),
         )
         return io.NodeOutput(patcher)
+
+    @classmethod
+    def _detect_and_load(cls, sd):
+        # Try FILM
+        if "extract.extract_sublevels.convs.0.0.conv.weight" in sd:
+            model = FILMNet()
+            model.load_state_dict(sd)
+            return model
+
+        # Try RIFE (needs key remapping for raw checkpoints)
+        sd = comfy.utils.state_dict_prefix_replace(sd, {"module.": "", "flownet.": ""})
+        key_map = {}
+        for k in sd:
+            for i in range(5):
+                if k.startswith(f"block{i}."):
+                    key_map[k] = f"blocks.{i}.{k[len(f'block{i}.'):]}"
+        if key_map:
+            sd = {key_map.get(k, k): v for k, v in sd.items()}
+        sd = {k: v for k, v in sd.items() if not k.startswith(("teacher.", "caltime."))}
+
+        try:
+            head_ch, channels = detect_rife_config(sd)
+        except (KeyError, ValueError):
+            raise ValueError("Unrecognized frame interpolation model format")
+        model = IFNet(head_ch=head_ch, channels=channels)
+        model.load_state_dict(sd)
+        return model
 
 
 class FrameInterpolate(io.ComfyNode):
@@ -75,11 +78,13 @@ class FrameInterpolate(io.ComfyNode):
             node_id="FrameInterpolate",
             display_name="Frame Interpolate",
             category="image/video",
-            search_aliases=["rife", "frame interpolation", "slow motion", "interpolate frames"],
+            search_aliases=["rife", "film", "frame interpolation", "slow motion", "interpolate frames", "vfi"],
             inputs=[
                 FrameInterpolationModel.Input("model"),
                 io.Image.Input("images"),
                 io.Int.Input("multiplier", default=2, min=2, max=16),
+                io.Boolean.Input("torch_compile", default=False, optional=True, advanced=True,
+                                 tooltip="Requires triton. Compile model submodules for potential speed increase. Adds warmup on first run, recompiles on resolution change."),
             ],
             outputs=[
                 io.Image.Output(),
@@ -87,7 +92,7 @@ class FrameInterpolate(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, images, multiplier) -> io.NodeOutput:
+    def execute(cls, model, images, multiplier, torch_compile=False) -> io.NodeOutput:
         offload_device = model_management.intermediate_device()
 
         num_frames = images.shape[0]
@@ -96,18 +101,27 @@ class FrameInterpolate(io.ComfyNode):
 
         model_management.load_model_gpu(model)
         device = model.load_device
-        inference_model = model.model
         dtype = model.model_dtype()
+        inference_model = model.model
 
         # BHWC -> BCHW
         frames = images.movedim(-1, 1).to(dtype=dtype, device=offload_device)
         _, C, H, W = frames.shape
 
-        # Pad to multiple of 64
-        pad_h = (64 - H % 64) % 64
-        pad_w = (64 - W % 64) % 64
-        if pad_h > 0 or pad_w > 0:
-            frames = F.pad(frames, (0, pad_w, 0, pad_h), mode="reflect")
+        # Pad to model's required alignment (RIFE needs 64, FILM handles any size)
+        align = getattr(inference_model, "pad_align", 1)
+        if align > 1:
+            from comfy.ldm.common_dit import pad_to_patch_size
+            frames = pad_to_patch_size(frames, (align, align), padding_mode="reflect")
+
+        if torch_compile:
+            for name, child in inference_model.named_children():
+                if isinstance(child, (torch.nn.ModuleList, torch.nn.ModuleDict)):
+                    continue
+                if not hasattr(child, "_compiled"):
+                    compiled = torch.compile(child)
+                    compiled._compiled = True
+                    setattr(inference_model, name, compiled)
 
         # Count total interpolation passes for progress bar
         total_pairs = num_frames - 1
@@ -116,7 +130,7 @@ class FrameInterpolate(io.ComfyNode):
         pbar = comfy.utils.ProgressBar(total_steps)
         tqdm_bar = tqdm(total=total_steps, desc="Frame interpolation")
 
-        batch = num_interp
+        batch = num_interp  # reduced on OOM and persists across pairs (same resolution = same limit)
         t_values = [t / multiplier for t in range(1, multiplier)]
         _, _, pH, pW = frames.shape
 
@@ -131,42 +145,55 @@ class FrameInterpolate(io.ComfyNode):
         ts_full = torch.tensor(t_values, device=device, dtype=dtype).reshape(num_interp, 1, 1, 1)
         ts_full = ts_full.expand(-1, 1, pH, pW)
 
+        multi_fn = getattr(inference_model, "forward_multi_timestep", None)
+        feat_cache = {}
+
         try:
             for i in range(total_pairs):
                 img0_single = frames[i:i + 1].to(device)
                 img1_single = frames[i + 1:i + 2].to(device)
 
-                j = 0
-                while j < num_interp:
-                    b = min(batch, num_interp - j)
-                    try:
-                        img0 = img0_single.expand(b, -1, -1, -1)
-                        img1 = img1_single.expand(b, -1, -1, -1)
-                        mids = inference_model(img0, img1, timestep=ts_full[j:j + b])
-                        result[out_idx:out_idx + b].copy_(mids.to(dtype=dtype), non_blocking=use_pin)
-                        out_idx += b
-                        pbar.update(b)
-                        tqdm_bar.update(b)
-                        j += b
-                    except model_management.OOM_EXCEPTION:
-                        if batch <= 1:
-                            raise
-                        batch = max(1, batch // 2)
-                        model_management.soft_empty_cache()
+                # Cache features: img1 of pair N becomes img0 of pair N+1
+                feat_cache["img0"] = feat_cache.pop("next") if "next" in feat_cache else inference_model.extract_features(img0_single)
+                feat_cache["img1"] = inference_model.extract_features(img1_single)
+                feat_cache["next"] = feat_cache["img1"]
+
+                if multi_fn is not None:
+                    # Models with timestep-independent flow can compute it once for all timesteps
+                    mids = multi_fn(img0_single, img1_single, t_values, cache=feat_cache)
+                    result[out_idx:out_idx + num_interp].copy_(mids.to(dtype=dtype), non_blocking=use_pin)
+                    out_idx += num_interp
+                    pbar.update(num_interp)
+                    tqdm_bar.update(num_interp)
+                else:
+                    j = 0
+                    while j < num_interp:
+                        b = min(batch, num_interp - j)
+                        try:
+                            img0 = img0_single.expand(b, -1, -1, -1)
+                            img1 = img1_single.expand(b, -1, -1, -1)
+                            mids = inference_model(img0, img1, timestep=ts_full[j:j + b], cache=feat_cache)
+                            result[out_idx:out_idx + b].copy_(mids.to(dtype=dtype), non_blocking=use_pin)
+                            out_idx += b
+                            pbar.update(b)
+                            tqdm_bar.update(b)
+                            j += b
+                        except model_management.OOM_EXCEPTION:
+                            if batch <= 1:
+                                raise
+                            batch = max(1, batch // 2)
+                            model_management.soft_empty_cache()
 
                 result[out_idx].copy_(frames[i + 1])
                 out_idx += 1
         finally:
             tqdm_bar.close()
-            clear_warp_cache()
             if use_pin:
                 model_management.synchronize()
                 model_management.unpin_memory(result)
 
         # Crop padding and BCHW -> BHWC
-        if pad_h > 0 or pad_w > 0:
-            result = result[:, :, :H, :W]
-        result = result.movedim(1, -1).clamp_(0.0, 1.0).to(dtype=model_management.intermediate_dtype())
+        result = result[:, :, :H, :W].movedim(1, -1).clamp_(0.0, 1.0).to(dtype=model_management.intermediate_dtype())
         return io.NodeOutput(result)
 
 
