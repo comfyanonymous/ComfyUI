@@ -40,6 +40,7 @@ import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
 import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
+import comfy.ldm.twinflow.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
 import comfy.ldm.hunyuan3d.model
@@ -1281,6 +1282,11 @@ class ZImagePixelSpace(Lumina2):
         BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiTPixelSpace)
         self.memory_usage_factor_conds = ("ref_latents",)
 
+class TwinFlow_Z_Image(Lumina2):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.twinflow.model.TwinFlowZImageTransformer)
+        self.memory_usage_factor_conds = ("ref_latents",)
+        
 class WAN21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel)
