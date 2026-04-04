@@ -825,8 +825,9 @@ def twinflow_z_image_key_mapping(state_dict, key):
     """
     if key.startswith("t_embedder_2."):
         new_key = key.replace("t_embedder_2.", "t_embedder.", 1)
-        state_dict[new_key] = state_dict.pop(key)
-    return state_dict
+        if new_key not in state_dict:
+            state_dict[new_key] = state_dict.pop(key)
+    return state_dic
 
 def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
