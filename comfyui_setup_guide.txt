@@ -1,0 +1,135 @@
+COMFYUI LOCAL VIDEO GENERATION SETUP GUIDE (NILAY)
+
+---------------------------------------
+1. SYSTEM REQUIREMENTS
+---------------------------------------
+GPU: NVIDIA RTX 4070 (8GB VRAM)
+Drivers: Installed (nvidia-smi working)
+Python: 3.10+
+OS: Windows
+
+---------------------------------------
+2. INSTALLATION STEPS
+---------------------------------------
+
+Step 1: Clone ComfyUI
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI
+
+Step 2: Create Virtual Environment
+python -m venv comfy-env
+comfy-env\Scripts\activate
+
+Step 3: Install Dependencies
+pip install -r requirements.txt
+
+Step 4: Install CUDA-enabled PyTorch
+pip uninstall torch torchvision torchaudio -y
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+Step 5: Verify GPU
+python
+import torch
+print(torch.cuda.is_available())
+print(torch.cuda.get_device_name(0))
+
+---------------------------------------
+3. RUN COMFYUI
+---------------------------------------
+python main.py
+
+Open in browser:
+http://127.0.0.1:8188
+
+---------------------------------------
+4. MODELS SETUP
+---------------------------------------
+
+IMPORTANT:
+Do NOT use SVD model for text prompts.
+
+Use:
+
+A. Text-to-Image Model (REQUIRED)
+Download:
+v1-5-pruned-emaonly.safetensors
+Place in:
+ComfyUI/models/checkpoints/
+
+B. Video Model (OPTIONAL)
+svd_xt.safetensors
+(Used ONLY for image-to-video)
+
+---------------------------------------
+5. BASIC WORKFLOW (TEXT → IMAGE)
+---------------------------------------
+
+Nodes:
+- Load Checkpoint (SD model)
+- CLIP Text Encode (positive)
+- CLIP Text Encode (negative)
+- Empty Latent Image
+- KSampler
+- VAE Decode
+- Save Image
+
+Connections:
+
+Checkpoint.CLIP → CLIP Encode (both +ve & -ve)
+Checkpoint.MODEL → KSampler.model
+Checkpoint.VAE → VAE Decode.vae
+
+Positive → KSampler.positive
+Negative → KSampler.negative
+Latent → KSampler.latent_image
+
+KSampler → VAE Decode
+VAE Decode → Save
+
+---------------------------------------
+6. IMPORTANT SETTINGS
+---------------------------------------
+
+Resolution: 512 x 512
+Batch size (frames): 16
+Steps: 20
+CFG: 7.5
+Sampler: euler
+Scheduler: normal
+Denoise: 1.0
+
+---------------------------------------
+7. COMMON ERRORS & FIXES
+---------------------------------------
+
+Error: Torch not compiled with CUDA
+→ Install CUDA version of PyTorch
+
+Error: steps = NaN
+→ Delete and re-add KSampler
+
+Error: clip input is invalid
+→ Wrong model (SVD used instead of SD)
+
+Error: CUDA out of memory
+→ Reduce resolution or batch size
+
+---------------------------------------
+8. VIDEO GENERATION PIPELINE (CORRECT)
+---------------------------------------
+
+Text → Image (SD model)
+Image → Video (SVD / AnimateDiff)
+
+NOT:
+Text → Video directly (will fail)
+
+---------------------------------------
+9. OUTPUT LOCATION
+---------------------------------------
+
+Generated files:
+ComfyUI/output/
+
+---------------------------------------
+END
