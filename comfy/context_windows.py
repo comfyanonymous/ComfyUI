@@ -448,7 +448,7 @@ class IndexListContextHandler(ContextHandlerABC):
                     mod_windows.append(modality_windows[mod_idx])
 
             # Slice video, then select overlapping guide frames
-            sliced_video = mod_windows[0].get_tensor(video_primary)
+            sliced_video = mod_windows[0].get_tensor(video_primary, retain_index_list=self.cond_retain_index_list)
             num_guide_in_window = 0
             if guide_suffix is not None and guide_entries is not None:
                 overlap = _compute_guide_overlap(guide_entries, window.index_list)
