@@ -465,6 +465,7 @@ class IndexListContextHandler(ContextHandlerABC):
                     window.guide_kf_local_positions = kf_local_pos
                 else:
                     sliced_guide = None
+                    window.guide_suffix_indices = []
                     window.guide_overlap_info = []
                     window.guide_kf_local_positions = []
             else:
