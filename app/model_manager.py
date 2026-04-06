@@ -88,11 +88,11 @@ class ModelFileManager:
             url = json_data.get("url", None)
             if url is None:
                 logging.error("URL is not provided")
-                return web.Response(status=401)
+                return web.Response(status=400)
             save_dir = json_data.get("save_dir", None)
             if save_dir not in folder_paths.folder_names_and_paths:
                 logging.error("Save directory is not valid")
-                return web.Response(status=401)
+                return web.Response(status=400)
             filename = json_data.get("filename", url.split("/")[-1])
             token = json_data.get("token", None)
 
