@@ -93,7 +93,10 @@ class ModelFileManager:
             if save_dir not in folder_paths.folder_names_and_paths:
                 logging.error("Save directory is not valid")
                 return web.Response(status=400)
-            filename = json_data.get("filename", url.split("/")[-1])
+from urllib.parse import urlparse, unquote
+
+            default_filename = unquote(urlparse(url).path.split("/")[-1])
+            filename = json_data.get("filename", default_filename)
             token = json_data.get("token", None)
 
             save_path = os.path.join(folder_paths.folder_names_and_paths[save_dir][0][0], filename)
