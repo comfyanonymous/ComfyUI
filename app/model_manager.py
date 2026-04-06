@@ -110,7 +110,7 @@ class ModelFileManager:
                                     break
                                 size = f.write(chunk)
                                 pbar.update(size)
-                os.rename(tmp_path, save_path)
+                os.replace(tmp_path, save_path)
                 return web.Response(status=200)
             except Exception as e:
                 logging.error(f"Failed to download model: {e}")
