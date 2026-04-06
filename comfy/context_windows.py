@@ -257,7 +257,7 @@ class IndexListContextHandler(ContextHandlerABC):
     def should_use_context(self, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]) -> bool:
         latent_shapes = self._get_latent_shapes(conds)
         primary = self._decompose(x_in, latent_shapes)[0]
-        guide_count = model.get_guide_frame_count(primary, conds) if model is not None else 0
+        guide_count = model.get_guide_frame_count(primary, conds) if hasattr(model, 'get_guide_frame_count') else 0
         video_frames = primary.size(self.dim) - guide_count
         if video_frames > self.context_length:
             if guide_count > 0:
@@ -380,7 +380,7 @@ class IndexListContextHandler(ContextHandlerABC):
         primary = modalities[0]
 
         # Separate guide frames from primary modality (guides are appended at the end)
-        guide_count = model.get_guide_frame_count(primary, conds) if model is not None else 0
+        guide_count = model.get_guide_frame_count(primary, conds) if hasattr(model, 'get_guide_frame_count') else 0
         if guide_count > 0:
             video_len = primary.size(self.dim) - guide_count
             video_primary = primary.narrow(self.dim, 0, video_len)
@@ -427,7 +427,7 @@ class IndexListContextHandler(ContextHandlerABC):
                     video_shape[self.dim] = video_shape[self.dim] - guide_count
                     map_shapes[0] = torch.Size(video_shape)
                 per_mod_indices = model.map_context_window_to_modalities(
-                    window.index_list, map_shapes, self.dim)
+                    window.index_list, map_shapes, self.dim) if hasattr(model, 'map_context_window_to_modalities') else [window.index_list]
                 # Build per-modality windows and attach to primary window
                 modality_windows = {}
                 for mod_idx in range(1, len(modalities)):
