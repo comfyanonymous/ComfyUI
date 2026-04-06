@@ -147,8 +147,7 @@ def _compute_guide_overlap(guide_entries, window_index_list):
         guide_entries: list of guide_attention_entry dicts (must have 'latent_start' and 'latent_shape')
         window_index_list: the window's frame indices into the video portion
 
-    Returns None if any entry lacks 'latent_start' (backward compat → legacy path).
-    Otherwise returns (suffix_indices, overlap_info, kf_local_positions, total_overlap):
+    Returns (suffix_indices, overlap_info, kf_local_positions, total_overlap):
         suffix_indices: indices into the guide_suffix tensor for frame selection
         overlap_info: list of (entry_idx, overlap_count) for guide_attention_entries adjustment
         kf_local_positions: window-local frame positions for keyframe_idxs regeneration
@@ -164,7 +163,7 @@ def _compute_guide_overlap(guide_entries, window_index_list):
     for entry_idx, entry in enumerate(guide_entries):
         latent_start = entry.get("latent_start", None)
         if latent_start is None:
-            return None
+            raise ValueError("guide_attention_entry missing required 'latent_start'.")
         guide_len = entry["latent_shape"][0]
         entry_overlap = 0
 
@@ -452,11 +451,7 @@ class IndexListContextHandler(ContextHandlerABC):
             num_guide_in_window = 0
             if guide_suffix is not None and guide_entries is not None:
                 overlap = _compute_guide_overlap(guide_entries, window.index_list)
-                if overlap is None:
-                    # Legacy: no latent_start → equal-size assumption
-                    sliced_guide = mod_windows[0].get_tensor(guide_suffix)
-                    num_guide_in_window = sliced_guide.shape[self.dim]
-                elif overlap[3] > 0:
+                if overlap[3] > 0:
                     suffix_idx, overlap_info, kf_local_pos, num_guide_in_window = overlap
                     idx = tuple([slice(None)] * self.dim + [suffix_idx])
                     sliced_guide = guide_suffix[idx]
