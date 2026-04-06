@@ -93,8 +93,7 @@ class Gemma3_12BModel(sd1_clip.SDClipModel):
 
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty):
         tokens_only = [[t[0] for t in b] for b in tokens]
-        embeds, _, _, embeds_info = self.process_tokens(tokens_only, self.execution_device)
-        comfy.utils.normalize_image_embeddings(embeds, embeds_info, self.transformer.model.config.hidden_size ** 0.5)
+        embeds, _, _, _ = self.process_tokens(tokens_only, self.execution_device)
         return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106], presence_penalty=presence_penalty)  # 106 is <end_of_turn>
 
 class DualLinearProjection(torch.nn.Module):

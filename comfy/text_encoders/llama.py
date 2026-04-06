@@ -358,18 +358,19 @@ class Gemma3_12B_Config:
     stop_tokens = [1, 106]
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
+    def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None, fused=True):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.empty(dim, device=device, dtype=dtype))
         self.add = add
+        self.fused = fused
 
     def forward(self, x: torch.Tensor):
         w = self.weight
         if self.add:
             w = w + 1.0
 
-        return comfy.ldm.common_dit.rms_norm(x, w, self.eps)
+        return comfy.ldm.common_dit.rms_norm(x, w, self.eps, fused=self.fused)
 
 
 
@@ -497,7 +498,7 @@ class Attention(nn.Module):
             else:
                 present_key_value = (xk, xv, index + num_tokens)
 
-            if sliding_window is not None and xk.shape[2] > sliding_window:
+            if sliding_window is not None and xk.shape[2] > sliding_window and seq_length == 1:
                 xk = xk[:, :, -sliding_window:]
                 xv = xv[:, :, -sliding_window:]
                 attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
@@ -509,12 +510,12 @@ class Attention(nn.Module):
         return self.o_proj(output), present_key_value
 
 class MLP(nn.Module):
-    def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):
+    def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None, intermediate_size=None):
         super().__init__()
-        ops = ops or nn
-        self.gate_proj = ops.Linear(config.hidden_size, config.intermediate_size, bias=False, device=device, dtype=dtype)
-        self.up_proj = ops.Linear(config.hidden_size, config.intermediate_size, bias=False, device=device, dtype=dtype)
-        self.down_proj = ops.Linear(config.intermediate_size, config.hidden_size, bias=False, device=device, dtype=dtype)
+        intermediate_size = intermediate_size or config.intermediate_size
+        self.gate_proj = ops.Linear(config.hidden_size, intermediate_size, bias=False, device=device, dtype=dtype)
+        self.up_proj = ops.Linear(config.hidden_size, intermediate_size, bias=False, device=device, dtype=dtype)
+        self.down_proj = ops.Linear(intermediate_size, config.hidden_size, bias=False, device=device, dtype=dtype)
         if config.mlp_activation == "silu":
             self.activation = torch.nn.functional.silu
         elif config.mlp_activation == "gelu_pytorch_tanh":
@@ -623,6 +624,10 @@ class TransformerBlockGemma2(nn.Module):
 
         return x, present_key_value
 
+def _gemma_embed_scale_hook(module, input, output):
+    return (output.to(module._embed_scale.dtype) * module._embed_scale).to(output.dtype)
+
+
 class Llama2_(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
@@ -637,10 +642,10 @@ class Llama2_(nn.Module):
         )
         if self.config.transformer_type == "gemma2" or self.config.transformer_type == "gemma3":
             transformer = TransformerBlockGemma2
-            self.normalize_in = True
+            self.embed_tokens.register_buffer("_embed_scale", torch.tensor(config.hidden_size ** 0.5, dtype=dtype or self.embed_tokens.weight.dtype), persistent=False)
+            self.embed_tokens.register_forward_hook(_gemma_embed_scale_hook)
         else:
             transformer = TransformerBlock
-            self.normalize_in = False
 
         self.layers = nn.ModuleList([
             transformer(config, index=i, device=device, dtype=dtype, ops=ops)
@@ -671,9 +676,6 @@ class Llama2_(nn.Module):
             x = embeds
         else:
             x = self.embed_tokens(x, out_dtype=dtype)
-
-        if self.normalize_in:
-            x *= self.config.hidden_size ** 0.5
 
         seq_len = x.shape[1]
         past_len = 0
