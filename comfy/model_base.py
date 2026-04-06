@@ -287,6 +287,12 @@ class BaseModel(torch.nn.Module):
             return data
         return None
 
+    def prepare_for_windowing(self, primary, conds, dim):
+        return comfy.context_windows.WindowingContext(tensor=primary, suffix=None, aux_data=None)
+
+    def prepare_window_input(self, video_slice, window, aux_data, dim):
+        return video_slice, 0
+
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         """Override in subclasses to handle model-specific cond slicing for context windows.
         Return a sliced cond object, or None to fall through to default handling.
@@ -1112,6 +1118,51 @@ class LTXAV(BaseModel):
                 if gae is not None and hasattr(gae, 'cond') and gae.cond:
                     return sum(e["latent_shape"][0] for e in gae.cond)
         return 0
+
+    @staticmethod
+    def _get_guide_entries(conds):
+        for cond_list in conds:
+            if cond_list is None:
+                continue
+            for cond_dict in cond_list:
+                model_conds = cond_dict.get('model_conds', {})
+                gae = model_conds.get('guide_attention_entries')
+                if gae is not None and hasattr(gae, 'cond') and gae.cond:
+                    return gae.cond
+        return None
+
+    def prepare_for_windowing(self, primary, conds, dim):
+        guide_count = self.get_guide_frame_count(primary, conds)
+        if guide_count <= 0:
+            return comfy.context_windows.WindowingContext(tensor=primary, suffix=None, aux_data=None)
+        video_len = primary.size(dim) - guide_count
+        video_primary = primary.narrow(dim, 0, video_len)
+        guide_suffix = primary.narrow(dim, video_len, guide_count)
+        guide_entries = self._get_guide_entries(conds)
+        return comfy.context_windows.WindowingContext(
+            tensor=video_primary, suffix=guide_suffix,
+            aux_data={"guide_entries": guide_entries, "guide_suffix": guide_suffix})
+
+    def prepare_window_input(self, video_slice, window, aux_data, dim):
+        if aux_data is None:
+            return video_slice, 0
+        guide_entries = aux_data["guide_entries"]
+        guide_suffix = aux_data["guide_suffix"]
+        if guide_entries is None:
+            window.guide_suffix_indices = []
+            window.guide_overlap_info = []
+            window.guide_kf_local_positions = []
+            return video_slice, 0
+        overlap = comfy.context_windows._compute_guide_overlap(guide_entries, window.index_list)
+        suffix_idx, overlap_info, kf_local_pos, num_guide = overlap
+        window.guide_suffix_indices = suffix_idx
+        window.guide_overlap_info = overlap_info
+        window.guide_kf_local_positions = kf_local_pos
+        if num_guide > 0:
+            idx = tuple([slice(None)] * dim + [suffix_idx])
+            sliced_guide = guide_suffix[idx]
+            return torch.cat([video_slice, sliced_guide], dim=dim), num_guide
+        return video_slice, 0
 
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         # Audio denoise mask — slice using audio modality window
