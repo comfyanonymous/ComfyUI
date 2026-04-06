@@ -61,6 +61,7 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
+- NOTE: There are many more models supported than the list below, if you want to see what is supported see our templates list inside ComfyUI.
 - Image Models
    - SD1.x, SD2.x ([unCLIP](https://comfyanonymous.github.io/ComfyUI_examples/unclip/))
    - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
@@ -136,7 +137,7 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
    - Builds a new release using the latest stable core version
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
-   - Weekly frontend updates are merged into the core repository
+   - Every 2+ weeks frontend updates are merged into the core repository
    - Features are frozen for the upcoming core release
    - Development continues for the next release cycle
 
@@ -275,7 +276,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements.
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu130```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu132```
 
 #### Troubleshooting
 
