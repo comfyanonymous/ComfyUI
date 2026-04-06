@@ -37,6 +37,7 @@ class SeedAssetSpec(TypedDict):
     metadata: ExtractedMetadata | None
     hash: str | None
     mime_type: str | None
+    job_id: str | None
 
 
 class AssetRow(TypedDict):
@@ -60,6 +61,7 @@ class ReferenceRow(TypedDict):
     name: str
     preview_id: str | None
     user_metadata: dict[str, Any] | None
+    job_id: str | None
     created_at: datetime
     updated_at: datetime
     last_access_time: datetime
@@ -167,6 +169,7 @@ def batch_insert_seed_assets(
                 "name": spec["info_name"],
                 "preview_id": None,
                 "user_metadata": user_metadata,
+                "job_id": spec.get("job_id"),
                 "created_at": current_time,
                 "updated_at": current_time,
                 "last_access_time": current_time,

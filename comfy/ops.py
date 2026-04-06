@@ -777,8 +777,16 @@ from .quant_ops import (
 
 
 class QuantLinearFunc(torch.autograd.Function):
-    """Custom autograd function for quantized linear: quantized forward, compute_dtype backward.
-    Handles any input rank by flattening to 2D for matmul and restoring shape after.
+    """Custom autograd function for quantized linear: quantized forward, optionally FP8 backward.
+
+    When training_fp8_bwd is enabled:
+      - Forward: quantize input per layout (FP8/NVFP4), use quantized matmul
+      - Backward: all matmuls use FP8 tensor cores via torch.mm dispatch
+      - Cached input is FP8 (half the memory of bf16)
+
+    When training_fp8_bwd is disabled:
+      - Forward: quantize input per layout, use quantized matmul
+      - Backward: dequantize weight to compute_dtype, use standard matmul
     """
 
     @staticmethod
@@ -786,7 +794,7 @@ class QuantLinearFunc(torch.autograd.Function):
         input_shape = input_float.shape
         inp = input_float.detach().flatten(0, -2)  # zero-cost view to 2D
 
-        # Quantize input (same as inference path)
+        # Quantize input for forward (same layout as weight)
         if layout_type is not None:
             q_input = QuantizedTensor.from_float(inp, layout_type, scale=input_scale)
         else:
@@ -797,43 +805,68 @@ class QuantLinearFunc(torch.autograd.Function):
 
         output = torch.nn.functional.linear(q_input, w, b)
 
-        # Restore original input shape
+        # Unflatten output to match original input shape
         if len(input_shape) > 2:
             output = output.unflatten(0, input_shape[:-1])
 
-        ctx.save_for_backward(input_float, weight)
+        # Save for backward
         ctx.input_shape = input_shape
         ctx.has_bias = bias is not None
         ctx.compute_dtype = compute_dtype
         ctx.weight_requires_grad = weight.requires_grad
+        ctx.fp8_bwd = comfy.model_management.training_fp8_bwd
+
+        if ctx.fp8_bwd:
+            # Cache FP8 quantized input — half the memory of bf16
+            if isinstance(q_input, QuantizedTensor) and layout_type.startswith('TensorCoreFP8'):
+                ctx.q_input = q_input  # already FP8, reuse
+            else:
+                # NVFP4 or other layout — quantize input to FP8 for backward
+                ctx.q_input = QuantizedTensor.from_float(inp, "TensorCoreFP8E4M3Layout")
+            ctx.save_for_backward(weight)
+        else:
+            ctx.q_input = None
+            ctx.save_for_backward(input_float, weight)
 
         return output
 
     @staticmethod
     @torch.autograd.function.once_differentiable
     def backward(ctx, grad_output):
-        input_float, weight = ctx.saved_tensors
         compute_dtype = ctx.compute_dtype
         grad_2d = grad_output.flatten(0, -2).to(compute_dtype)
 
-        # Dequantize weight to compute dtype for backward matmul
-        if isinstance(weight, QuantizedTensor):
-            weight_f = weight.dequantize().to(compute_dtype)
+        # Value casting — only difference between fp8 and non-fp8 paths
+        if ctx.fp8_bwd:
+            weight, = ctx.saved_tensors
+            # Wrap as FP8 QuantizedTensors → torch.mm dispatches to _scaled_mm
+            grad_mm = QuantizedTensor.from_float(grad_2d, "TensorCoreFP8E5M2Layout")
+            if isinstance(weight, QuantizedTensor) and weight._layout_cls.startswith("TensorCoreFP8"):
+                weight_mm = weight
+            elif isinstance(weight, QuantizedTensor):
+                weight_mm = QuantizedTensor.from_float(weight.dequantize().to(compute_dtype), "TensorCoreFP8E4M3Layout")
+            else:
+                weight_mm = QuantizedTensor.from_float(weight.to(compute_dtype), "TensorCoreFP8E4M3Layout")
+            input_mm = ctx.q_input
         else:
-            weight_f = weight.to(compute_dtype)
+            input_float, weight = ctx.saved_tensors
+            # Standard tensors → torch.mm does regular matmul
+            grad_mm = grad_2d
+            if isinstance(weight, QuantizedTensor):
+                weight_mm = weight.dequantize().to(compute_dtype)
+            else:
+                weight_mm = weight.to(compute_dtype)
+            input_mm = input_float.flatten(0, -2).to(compute_dtype) if ctx.weight_requires_grad else None
 
-        # grad_input = grad_output @ weight
-        grad_input = torch.mm(grad_2d, weight_f)
+        # Computation — same for both paths, dispatch handles the rest
+        grad_input = torch.mm(grad_mm, weight_mm)
         if len(ctx.input_shape) > 2:
             grad_input = grad_input.unflatten(0, ctx.input_shape[:-1])
 
-        # grad_weight (only if weight requires grad, typically frozen for quantized training)
         grad_weight = None
         if ctx.weight_requires_grad:
-            input_f = input_float.flatten(0, -2).to(compute_dtype)
-            grad_weight = torch.mm(grad_2d.t(), input_f)
+            grad_weight = torch.mm(grad_mm.t(), input_mm)
 
-        # grad_bias
         grad_bias = None
         if ctx.has_bias:
             grad_bias = grad_2d.sum(dim=0)
@@ -895,6 +928,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 weight = state_dict.pop(weight_key, None)
                 if weight is None:
                     logging.warning(f"Missing weight for layer {layer_name}")
+                    self.weight = None
                     return
 
                 manually_loaded_keys = [weight_key]
@@ -1000,6 +1034,9 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                 if self.bias is not None:
                     sd["{}bias".format(prefix)] = self.bias
+
+                if self.weight is None:
+                    return sd
 
                 if isinstance(self.weight, QuantizedTensor):
                     sd_out = self.weight.state_dict("{}weight".format(prefix))

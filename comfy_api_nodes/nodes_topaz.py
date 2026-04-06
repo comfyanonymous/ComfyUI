@@ -38,6 +38,7 @@ from comfy_api_nodes.util import (
 UPSCALER_MODELS_MAP = {
     "Starlight (Astra) Fast": "slf-1",
     "Starlight (Astra) Creative": "slc-1",
+    "Starlight Precise 2.5": "slp-2.5",
 }
 
 
