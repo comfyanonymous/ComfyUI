@@ -197,7 +197,7 @@ def inject_guide_frames_into_window(video_slice: torch.Tensor, window: ContextWi
     window.guide_frames_indices = suffix_idx
     window.guide_overlap_info = overlap_info
     window.guide_kf_local_positions = kf_local_pos
-    
+
     # Derive per-overlap-entry latent_downscale_factor from guide entry latent_shape vs guide frame spatial dims.
     # guide_frames has full (post-dilation) spatial dims; entry["latent_shape"] has pre-dilation dims.
     guide_downscale_factors = []
