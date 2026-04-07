@@ -1,0 +1,22 @@
+{
+  "1": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {}
+  },
+  "2": {
+    "class_type": "ProxyTestSealedWorker",
+    "inputs": {}
+  },
+  "3": {
+    "class_type": "UVSealedBoltonsSlugify",
+    "inputs": {}
+  },
+  "4": {
+    "class_type": "UVSealedLatentEcho",
+    "inputs": {}
+  },
+  "5": {
+    "class_type": "UVSealedRuntimeProbe",
+    "inputs": {}
+  }
+}

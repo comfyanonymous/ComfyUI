@@ -1,7 +1,21 @@
+import os
+import sys
+
+IS_PYISOLATE_CHILD = os.environ.get("PYISOLATE_CHILD") == "1"
+
+if __name__ == "__main__" and IS_PYISOLATE_CHILD:
+    del os.environ["PYISOLATE_CHILD"]
+    IS_PYISOLATE_CHILD = False
+
+CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+
+IS_PRIMARY_PROCESS = (not IS_PYISOLATE_CHILD) and __name__ == "__main__"
+
 import comfy.options
 comfy.options.enable_args_parsing()
 
-import os
 import importlib.util
 import shutil
 import importlib.metadata
@@ -12,7 +26,7 @@ from app.logger import setup_logger
 from app.assets.seeder import asset_seeder
 from app.assets.services import register_output_files
 import itertools
-import utils.extra_config
+import utils.extra_config  # noqa: F401
 from utils.mime_types import init_mime_types
 import faulthandler
 import logging
@@ -22,12 +36,45 @@ from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 from app.database.db import init_db, dependencies_available
 
-if __name__ == "__main__":
-    #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
+import comfy_aimdo.control
+
+if enables_dynamic_vram():
+    if not comfy_aimdo.control.init():
+        logging.warning(
+            "DynamicVRAM requested, but comfy-aimdo failed to initialize early. "
+            "Will fall back to legacy model loading if device init fails."
+        )
+
+if '--use-process-isolation' in sys.argv:
+    from comfy.isolation import initialize_proxies
+    initialize_proxies()
+
+    # Explicitly register the ComfyUI adapter for pyisolate (v1.0 architecture)
+    try:
+        import pyisolate
+        from comfy.isolation.adapter import ComfyUIAdapter
+        pyisolate.register_adapter(ComfyUIAdapter())
+        logging.info("PyIsolate adapter registered: comfyui")
+    except ImportError:
+        logging.warning("PyIsolate not installed or version too old for explicit registration")
+    except Exception as e:
+        logging.error(f"Failed to register PyIsolate adapter: {e}")
+
+    if not IS_PYISOLATE_CHILD:
+        if 'PYTORCH_CUDA_ALLOC_CONF' not in os.environ:
+            os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'backend:native'
+
+if not IS_PYISOLATE_CHILD:
+    from comfy_execution.progress import get_progress_state
+    from comfy_execution.utils import get_executing_context
+    from comfy_api import feature_flags
+
+if IS_PRIMARY_PROCESS:
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+if not IS_PYISOLATE_CHILD:
+    setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 faulthandler.enable(file=sys.stderr, all_threads=False)
 
@@ -93,14 +140,15 @@ if args.enable_manager:
 
 
 def apply_custom_paths():
+    from utils import extra_config  # Deferred import - spawn re-runs main.py
     # extra model paths
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
-        utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
+        extra_config.load_extra_path_config(extra_model_paths_config_path)
 
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
-            utils.extra_config.load_extra_path_config(config_path)
+            extra_config.load_extra_path_config(config_path)
 
     # --output-directory, --input-directory, --user-directory
     if args.output_directory:
@@ -173,15 +221,17 @@ def execute_prestartup_script():
             else:
                 import_message = " (PRESTARTUP FAILED)"
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
-        logging.info("")
+    logging.info("")
 
-apply_custom_paths()
-init_mime_types()
+if not IS_PYISOLATE_CHILD:
+    apply_custom_paths()
+    init_mime_types()
 
-if args.enable_manager:
+if args.enable_manager and not IS_PYISOLATE_CHILD:
     comfyui_manager.prestartup()
 
-execute_prestartup_script()
+if not IS_PYISOLATE_CHILD:
+    execute_prestartup_script()
 
 
 # Main code
@@ -192,17 +242,17 @@ import gc
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
-
 import comfy.utils
 
-import execution
-import server
-from protocol import BinaryEventTypes
-import nodes
-import comfy.model_management
-import comfyui_version
-import app.logger
-import hook_breaker_ac10a0
+if not IS_PYISOLATE_CHILD:
+    import execution
+    import server
+    from protocol import BinaryEventTypes
+    import nodes
+    import comfy.model_management
+    import comfyui_version
+    import app.logger
+    import hook_breaker_ac10a0
 
 import comfy.memory_management
 import comfy.model_patcher
@@ -462,6 +512,10 @@ def start_comfyui(asyncio_loop=None):
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
 
+    if args.use_process_isolation:
+        from comfy.isolation import start_isolation_loading_early
+        start_isolation_loading_early(asyncio_loop)
+
     if args.enable_manager and not args.disable_manager_ui:
         comfyui_manager.start()
 
@@ -506,12 +560,13 @@ def start_comfyui(asyncio_loop=None):
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
     logging.info("Python version: {}".format(sys.version))
-    logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
-    for package in ("comfy-aimdo", "comfy-kitchen"):
-        try:
-            logging.info("{} version: {}".format(package, importlib.metadata.version(package)))
-        except:
-            pass
+    if not IS_PYISOLATE_CHILD:
+        logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
+        for package in ("comfy-aimdo", "comfy-kitchen"):
+            try:
+                logging.info("{} version: {}".format(package, importlib.metadata.version(package)))
+            except:
+                pass
 
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")

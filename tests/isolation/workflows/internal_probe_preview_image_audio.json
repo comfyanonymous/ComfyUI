@@ -1,0 +1,10 @@
+{
+  "1": {
+    "class_type": "InternalIsolationProbeImage",
+    "inputs": {}
+  },
+  "2": {
+    "class_type": "InternalIsolationProbeAudio",
+    "inputs": {}
+  }
+}

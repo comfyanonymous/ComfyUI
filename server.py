@@ -3,7 +3,6 @@ import sys
 import asyncio
 import traceback
 import time
-
 import nodes
 import folder_paths
 import execution
@@ -202,6 +201,8 @@ def create_block_external_middleware():
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
+        if loop is None:
+            loop = asyncio.get_event_loop()
 
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
@@ -351,6 +352,17 @@ class PromptServer():
                 files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
+
+            # Include JS files from proxied web directories (isolated nodes)
+            if args.use_process_isolation:
+                from comfy.isolation.proxies.web_directory_proxy import get_web_directory_cache
+                cache = get_web_directory_cache()
+                for ext_name in cache.extension_names:
+                    for entry in cache.list_files(ext_name):
+                        if entry["relative_path"].endswith(".js"):
+                            extensions.append(
+                                "/extensions/" + urllib.parse.quote(ext_name) + "/" + entry["relative_path"]
+                            )
 
             return web.json_response(extensions)
 
@@ -1066,6 +1078,40 @@ class PromptServer():
         # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
+
+        # Add dynamic handler for proxied web directories (isolated nodes)
+        if args.use_process_isolation:
+            from comfy.isolation.proxies.web_directory_proxy import (
+                get_web_directory_cache,
+                ALLOWED_EXTENSIONS,
+            )
+
+            async def proxied_web_handler(request):
+                ext_name = request.match_info["ext_name"]
+                file_path = request.match_info["file_path"]
+
+                suffix = os.path.splitext(file_path)[1].lower()
+                if suffix not in ALLOWED_EXTENSIONS:
+                    return web.Response(status=403, text="Forbidden file type")
+
+                cache = get_web_directory_cache()
+                result = cache.get_file(ext_name, file_path)
+                if result is None:
+                    return web.Response(status=404, text="Not found")
+
+                content_type = {
+                    ".js": "application/javascript",
+                    ".css": "text/css",
+                    ".html": "text/html",
+                    ".json": "application/json",
+                }.get(suffix, "application/octet-stream")
+
+                return web.Response(body=result, content_type=content_type)
+
+            self.app.router.add_get(
+                "/extensions/{ext_name}/{file_path:.*}",
+                proxied_web_handler,
+            )
 
         installed_templates_version = FrontendManager.get_installed_templates_version()
         use_legacy_templates = True

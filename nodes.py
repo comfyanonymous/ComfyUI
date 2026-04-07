@@ -1927,6 +1927,7 @@ class ImageInvert:
 
 class ImageBatch:
     SEARCH_ALIASES = ["combine images", "merge images", "stack images"]
+    ESSENTIALS_CATEGORY = "Image Tools"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -2310,6 +2311,27 @@ async def init_external_custom_nodes():
     Returns:
         None
     """
+    whitelist = set()
+    isolated_module_paths = set()
+    if args.use_process_isolation:
+        from pathlib import Path
+        from comfy.isolation import await_isolation_loading, get_claimed_paths
+        from comfy.isolation.host_policy import load_host_policy
+
+        # Load Global Host Policy
+        host_policy = load_host_policy(Path(folder_paths.base_path))
+        whitelist_dict = host_policy.get("whitelist", {})
+        # Normalize whitelist keys to lowercase for case-insensitive matching
+        # (matches ComfyUI-Manager's normalization: project.name.strip().lower())
+        whitelist = set(k.strip().lower() for k in whitelist_dict.keys())
+        logging.info(f"][ Loaded Whitelist: {len(whitelist)} nodes allowed.")
+
+        isolated_specs = await await_isolation_loading()
+        for spec in isolated_specs:
+            NODE_CLASS_MAPPINGS.setdefault(spec.node_name, spec.stub_class)
+            NODE_DISPLAY_NAME_MAPPINGS.setdefault(spec.node_name, spec.display_name)
+        isolated_module_paths = get_claimed_paths()
+
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -2333,6 +2355,16 @@ async def init_external_custom_nodes():
                     logging.info(f"Blocked by policy: {module_path}")
                     continue
 
+            if args.use_process_isolation:
+                if Path(module_path).resolve() in isolated_module_paths:
+                    continue
+
+                # Tri-State Enforcement: If not Isolated (checked above), MUST be Whitelisted.
+                # Normalize to lowercase for case-insensitive matching (matches ComfyUI-Manager)
+                if possible_module.strip().lower() not in whitelist:
+                    logging.warning(f"][ REJECTED: Node '{possible_module}' is blocked by security policy (not whitelisted/isolated).")
+                    continue
+
             time_before = time.perf_counter()
             success = await load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
@@ -2346,6 +2378,14 @@ async def init_external_custom_nodes():
                 import_message = " (IMPORT FAILED)"
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
+
+    if args.use_process_isolation:
+        from comfy.isolation import isolated_node_timings
+        if isolated_node_timings:
+            logging.info("\nImport times for isolated custom nodes:")
+            for timing, path, count in sorted(isolated_node_timings):
+                logging.info("{:6.1f} seconds: {} ({})".format(timing, path, count))
+            logging.info("")
 
 async def init_builtin_extra_nodes():
     """
@@ -2419,6 +2459,8 @@ async def init_builtin_extra_nodes():
         "nodes_wan.py",
         "nodes_lotus.py",
         "nodes_hunyuan3d.py",
+        "nodes_save_ply.py",
+        "nodes_save_npz.py",
         "nodes_primitive.py",
         "nodes_cfg.py",
         "nodes_optimalsteps.py",
@@ -2439,7 +2481,6 @@ async def init_builtin_extra_nodes():
         "nodes_audio_encoder.py",
         "nodes_rope.py",
         "nodes_logic.py",
-        "nodes_resolution.py",
         "nodes_nop.py",
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
@@ -2447,7 +2488,6 @@ async def init_builtin_extra_nodes():
         "nodes_zimage.py",
         "nodes_glsl.py",
         "nodes_lora_debug.py",
-        "nodes_textgen.py",
         "nodes_color.py",
         "nodes_toolkit.py",
         "nodes_replacements.py",

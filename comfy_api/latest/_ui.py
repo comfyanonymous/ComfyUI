@@ -65,6 +65,22 @@ class SavedAudios(_UIOutput):
         return {"audio": self.results}
 
 
+def _is_isolated_child() -> bool:
+    return os.environ.get("PYISOLATE_CHILD") == "1"
+
+
+def _get_preview_folder_type() -> FolderType:
+    if _is_isolated_child():
+        return FolderType.output
+    return FolderType.temp
+
+
+def _get_preview_route_prefix(folder_type: FolderType) -> str:
+    if folder_type == FolderType.output:
+        return "output"
+    return "temp"
+
+
 def _get_directory_by_folder_type(folder_type: FolderType) -> str:
     if folder_type == FolderType.input:
         return folder_paths.get_input_directory()
@@ -388,10 +404,11 @@ class AudioSaveHelper:
 
 class PreviewImage(_UIOutput):
     def __init__(self, image: Image.Type, animated: bool = False, cls: type[ComfyNode] = None, **kwargs):
+        folder_type = _get_preview_folder_type()
         self.values = ImageSaveHelper.save_images(
             image,
             filename_prefix="ComfyUI_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for _ in range(5)),
-            folder_type=FolderType.temp,
+            folder_type=folder_type,
             cls=cls,
             compress_level=1,
         )
@@ -412,10 +429,11 @@ class PreviewMask(PreviewImage):
 
 class PreviewAudio(_UIOutput):
     def __init__(self, audio: dict, cls: type[ComfyNode] = None, **kwargs):
+        folder_type = _get_preview_folder_type()
         self.values = AudioSaveHelper.save_audio(
             audio,
             filename_prefix="ComfyUI_temp_" + "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(5)),
-            folder_type=FolderType.temp,
+            folder_type=folder_type,
             cls=cls,
             format="flac",
             quality="128k",
@@ -438,15 +456,16 @@ class PreviewUI3D(_UIOutput):
         self.model_file = model_file
         self.camera_info = camera_info
         self.bg_image_path = None
+        folder_type = _get_preview_folder_type()
         bg_image = kwargs.get("bg_image", None)
         if bg_image is not None:
             img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
             img = PILImage.fromarray(img_array)
-            temp_dir = folder_paths.get_temp_directory()
+            preview_dir = _get_directory_by_folder_type(folder_type)
             filename = f"bg_{uuid.uuid4().hex}.png"
-            bg_image_path = os.path.join(temp_dir, filename)
+            bg_image_path = os.path.join(preview_dir, filename)
             img.save(bg_image_path, compress_level=1)
-            self.bg_image_path = f"temp/{filename}"
+            self.bg_image_path = f"{_get_preview_route_prefix(folder_type)}/{filename}"
 
     def as_dict(self):
         return {"result": [self.model_file, self.camera_info, self.bg_image_path]}

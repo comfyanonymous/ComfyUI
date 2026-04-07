@@ -184,6 +184,8 @@ parser.add_argument("--disable-api-nodes", action="store_true", help="Disable lo
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
+parser.add_argument("--use-process-isolation", action="store_true", help="Enable process isolation for custom nodes with pyisolate.yaml manifests.")
+
 parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
 parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
 
