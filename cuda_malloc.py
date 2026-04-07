@@ -92,7 +92,7 @@ if args.cuda_malloc:
     env_var = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', None)
     if env_var is None:
         env_var = "backend:cudaMallocAsync"
-    else:
+    elif not args.use_process_isolation:
         env_var += ",backend:cudaMallocAsync"
 
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var

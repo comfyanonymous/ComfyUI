@@ -1,4 +1,5 @@
 import math
+import os
 from functools import partial
 
 from scipy import integrate
@@ -12,8 +13,8 @@ from . import deis
 from . import sa_solver
 import comfy.model_patcher
 import comfy.model_sampling
-
 import comfy.memory_management
+from comfy.cli_args import args
 from comfy.utils import model_trange as trange
 
 def append_zero(x):
@@ -191,6 +192,13 @@ def sample_euler(model, x, sigmas, extra_args=None, callback=None, disable=None,
     """Implements Algorithm 2 (Euler steps) from Karras et al. (2022)."""
     extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
+    isolation_active = args.use_process_isolation or os.environ.get("PYISOLATE_CHILD") == "1"
+    if isolation_active:
+        target_device = sigmas.device
+        if x.device != target_device:
+            x = x.to(target_device)
+        s_in = s_in.to(target_device)
+
     for i in trange(len(sigmas) - 1, disable=disable):
         if s_churn > 0:
             gamma = min(s_churn / (len(sigmas) - 1), 2 ** 0.5 - 1) if s_tmin <= sigmas[i] <= s_tmax else 0.

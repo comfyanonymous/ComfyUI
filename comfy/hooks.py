@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 import comfy.lora
 import comfy.model_management
 import comfy.patcher_extension
+from comfy.cli_args import args
+import uuid
+import os
 from node_helpers import conditioning_set_values
 
 # #######################################################################################################
@@ -61,8 +64,37 @@ class EnumHookScope(enum.Enum):
     HookedOnly = "hooked_only"
 
 
+_ISOLATION_HOOKREF_MODE = args.use_process_isolation or os.environ.get("PYISOLATE_CHILD") == "1"
+
+
 class _HookRef:
-    pass
+    def __init__(self):
+        if _ISOLATION_HOOKREF_MODE:
+            self._pyisolate_id = str(uuid.uuid4())
+
+    def _ensure_pyisolate_id(self):
+        pyisolate_id = getattr(self, "_pyisolate_id", None)
+        if pyisolate_id is None:
+            pyisolate_id = str(uuid.uuid4())
+            self._pyisolate_id = pyisolate_id
+        return pyisolate_id
+
+    def __eq__(self, other):
+        if not _ISOLATION_HOOKREF_MODE:
+            return self is other
+        if not isinstance(other, _HookRef):
+            return False
+        return self._ensure_pyisolate_id() == other._ensure_pyisolate_id()
+
+    def __hash__(self):
+        if not _ISOLATION_HOOKREF_MODE:
+            return id(self)
+        return hash(self._ensure_pyisolate_id())
+
+    def __str__(self):
+        if not _ISOLATION_HOOKREF_MODE:
+            return super().__str__()
+        return f"PYISOLATE_HOOKREF:{self._ensure_pyisolate_id()}"
 
 
 def default_should_register(hook: Hook, model: ModelPatcher, model_options: dict, target_dict: dict[str], registered: HookGroup):
@@ -168,6 +200,8 @@ class WeightHook(Hook):
                 key_map = comfy.lora.model_lora_keys_clip(model.model, key_map)
             else:
                 key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
+            if self.weights is None:
+                self.weights = {}
             weights = comfy.lora.load_lora(self.weights, key_map, log_missing=False)
         else:
             if target == EnumWeightTarget.Clip:
