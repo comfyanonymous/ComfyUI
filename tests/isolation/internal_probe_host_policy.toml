@@ -1,0 +1,7 @@
+[tool.comfy.host]
+sandbox_mode = "required"
+allow_network = false
+writable_paths = [
+  "/dev/shm",
+  "/home/johnj/ComfyUI/output",
+]

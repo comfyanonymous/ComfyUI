@@ -1,0 +1,13 @@
+[project]
+name = "comfyui-toolkit-conda-sealed-worker"
+version = "0.1.0"
+dependencies = ["xarray", "cfgrib"]
+
+[tool.comfy.isolation]
+can_isolate = true
+share_torch = false
+package_manager = "conda"
+execution_model = "sealed_worker"
+standalone = true
+conda_channels = ["conda-forge"]
+conda_dependencies = ["eccodes", "cfgrib"]
