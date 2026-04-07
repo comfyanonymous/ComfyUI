@@ -485,8 +485,6 @@ class IndexListContextHandler(ContextHandlerABC):
         is_multimodal = window_data.latent_shapes is not None and len(window_data.latent_shapes) > 1
 
         primary_frames = window_data.tensor
-        num_guide_frames = window_data.guide_frames.size(self.dim) if window_data.guide_frames is not None else 0
-
         context_windows = self.get_context_windows(model, primary_frames, model_options)
         enumerated_context_windows = list(enumerate(context_windows))
         total_windows = len(enumerated_context_windows)
@@ -508,9 +506,6 @@ class IndexListContextHandler(ContextHandlerABC):
 
         for window_idx, window in enumerated_context_windows:
             comfy.model_management.throw_exception_if_processing_interrupted()
-            logging.info(f"Context window {window_idx + 1}/{total_windows}: frames {window.index_list[0]}-{window.index_list[-1]} of {primary_frames.shape[self.dim]}"
-                         + (f" (+{num_guide_frames} guide frames)" if num_guide_frames > 0 else "")
-                         + (f" [{len(latents)} modalities]" if is_multimodal else ""))
 
             # Per-modality window indices
             if is_multimodal:
@@ -547,6 +542,9 @@ class IndexListContextHandler(ContextHandlerABC):
                 sliced_primary, num_guide_frames = inject_guide_frames_into_window(sliced_video, window, window_data, self.dim)
             else:
                 sliced_primary, num_guide_frames = sliced_video, 0
+            logging.info(f"Context window {window_idx + 1}/{total_windows}: frames {window.index_list[0]}-{window.index_list[-1]} of {primary_frames.shape[self.dim]}"
+                         + (f" (+{num_guide_frames} guide frames)" if num_guide_frames > 0 else "")
+                         + (f" [{len(latents)} modalities]" if is_multimodal else ""))
             sliced = [sliced_primary] + [per_modality_windows_list[mi].get_tensor(latents[mi]) for mi in range(1, len(latents))]
 
             sub_x, sub_shapes = self._pack(sliced)
