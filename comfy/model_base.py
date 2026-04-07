@@ -287,12 +287,6 @@ class BaseModel(torch.nn.Module):
             return data
         return None
 
-    def prepare_for_windowing(self, primary, conds, dim):
-        return comfy.context_windows.WindowingContext(tensor=primary, suffix=None, aux_data=None)
-
-    def prepare_window_input(self, video_slice, window, aux_data, dim):
-        return video_slice, 0
-
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         """Override in subclasses to handle model-specific cond slicing for context windows.
         Return a sliced cond object, or None to fall through to default handling.
@@ -1098,7 +1092,7 @@ class LTXAV(BaseModel):
 
         for i in range(1, len(latent_shapes)):
             mod_total = latent_shapes[i][dim]
-            # Length proportional to video window frame count (not index span)
+            # Length proportional to video window frame count
             mod_window_len = max(round(video_window_len * mod_total / video_total), 1)
             # Anchor to end of video range
             v_end = max(primary_indices) + 1
@@ -1108,17 +1102,6 @@ class LTXAV(BaseModel):
 
         return result
 
-    def get_guide_frame_count(self, x, conds):
-        for cond_list in conds:
-            if cond_list is None:
-                continue
-            for cond_dict in cond_list:
-                model_conds = cond_dict.get('model_conds', {})
-                gae = model_conds.get('guide_attention_entries')
-                if gae is not None and hasattr(gae, 'cond') and gae.cond:
-                    return sum(e["latent_shape"][0] for e in gae.cond)
-        return 0
-
     @staticmethod
     def _get_guide_entries(conds):
         for cond_list in conds:
@@ -1126,43 +1109,27 @@ class LTXAV(BaseModel):
                 continue
             for cond_dict in cond_list:
                 model_conds = cond_dict.get('model_conds', {})
-                gae = model_conds.get('guide_attention_entries')
-                if gae is not None and hasattr(gae, 'cond') and gae.cond:
-                    return gae.cond
+                entries = model_conds.get('guide_attention_entries')
+                if entries is not None and hasattr(entries, 'cond') and entries.cond:
+                    return entries.cond
         return None
-
-    def prepare_for_windowing(self, primary, conds, dim):
-        guide_count = self.get_guide_frame_count(primary, conds)
+    
+    def prepare_window_data(self, x_in, conds, dim, window_data):
+        primary = comfy.utils.unpack_latents(x_in, window_data.latent_shapes)[0] if window_data.is_multimodal else x_in
+        guide_entries = self._get_guide_entries(conds)
+        guide_count = sum(e["latent_shape"][0] for e in guide_entries) if guide_entries else 0
         if guide_count <= 0:
-            return comfy.context_windows.WindowingContext(tensor=primary, suffix=None, aux_data=None)
+            return comfy.context_windows.WindowingContext(
+                tensor=primary, guide_frames=None, aux_data=None,
+                latent_shapes=window_data.latent_shapes, is_multimodal=window_data.is_multimodal)
         video_len = primary.size(dim) - guide_count
         video_primary = primary.narrow(dim, 0, video_len)
-        guide_suffix = primary.narrow(dim, video_len, guide_count)
-        guide_entries = self._get_guide_entries(conds)
+        guide_frames = primary.narrow(dim, video_len, guide_count)
         return comfy.context_windows.WindowingContext(
-            tensor=video_primary, suffix=guide_suffix,
-            aux_data={"guide_entries": guide_entries, "guide_suffix": guide_suffix})
+            tensor=video_primary, guide_frames=guide_frames,
+            aux_data={"guide_entries": guide_entries, "guide_frames": guide_frames},
+            latent_shapes=window_data.latent_shapes, is_multimodal=window_data.is_multimodal)
 
-    def prepare_window_input(self, video_slice, window, aux_data, dim):
-        if aux_data is None:
-            return video_slice, 0
-        guide_entries = aux_data["guide_entries"]
-        guide_suffix = aux_data["guide_suffix"]
-        if guide_entries is None:
-            window.guide_suffix_indices = []
-            window.guide_overlap_info = []
-            window.guide_kf_local_positions = []
-            return video_slice, 0
-        overlap = comfy.context_windows._compute_guide_overlap(guide_entries, window.index_list)
-        suffix_idx, overlap_info, kf_local_pos, num_guide = overlap
-        window.guide_suffix_indices = suffix_idx
-        window.guide_overlap_info = overlap_info
-        window.guide_kf_local_positions = kf_local_pos
-        if num_guide > 0:
-            idx = tuple([slice(None)] * dim + [suffix_idx])
-            sliced_guide = guide_suffix[idx]
-            return torch.cat([video_slice, sliced_guide], dim=dim), num_guide
-        return video_slice, 0
 
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         # Audio denoise mask — slice using audio modality window
@@ -1181,7 +1148,7 @@ class LTXAV(BaseModel):
                 video_mask = cond_tensor.narrow(window.dim, 0, T_video)
                 guide_mask = cond_tensor.narrow(window.dim, T_video, guide_count)
                 sliced_video = window.get_tensor(video_mask, device, retain_index_list=retain_index_list)
-                suffix_indices = window.guide_suffix_indices
+                suffix_indices = window.guide_frames_indices
                 if suffix_indices:
                     idx = tuple([slice(None)] * window.dim + [suffix_indices])
                     sliced_guide = guide_mask[idx].to(device)
@@ -1199,14 +1166,31 @@ class LTXAV(BaseModel):
             patchifier = self.diffusion_model.patchifier
             latent_coords = patchifier.get_latent_coords(window_len, H, W, 1, cond_value.cond.device)
             from comfy.ldm.lightricks.symmetric_patchifier import latent_to_pixel_coords
+            scale_factors = self.diffusion_model.vae_scale_factors
             pixel_coords = latent_to_pixel_coords(
                 latent_coords,
-                self.diffusion_model.vae_scale_factors,
+                scale_factors,
                 causal_fix=self.diffusion_model.causal_temporal_positioning)
             tokens = []
             for pos in kf_local_pos:
                 tokens.extend(range(pos * H * W, (pos + 1) * H * W))
             pixel_coords = pixel_coords[:, :, tokens, :]
+
+            # Adjust spatial end positions for dilated (downscaled) guides.
+            # Each guide entry may have a different downscale factor; expand the
+            # per-entry factor to cover all tokens belonging to that entry.
+            downscale_factors = getattr(window, 'guide_downscale_factors', [])
+            overlap_info = window.guide_overlap_info
+            if downscale_factors:
+                per_token_factor = []
+                for (entry_idx, overlap_count), dsf in zip(overlap_info, downscale_factors):
+                    per_token_factor.extend([dsf] * (overlap_count * H * W))
+                factor_tensor = torch.tensor(per_token_factor, device=pixel_coords.device, dtype=pixel_coords.dtype)
+                spatial_end_offset = (factor_tensor.unsqueeze(0).unsqueeze(0).unsqueeze(-1) - 1) * torch.tensor(
+                    scale_factors[1:], device=pixel_coords.device, dtype=pixel_coords.dtype,
+                ).view(1, -1, 1, 1)
+                pixel_coords[:, 1:, :, 1:] += spatial_end_offset
+
             B = cond_value.cond.shape[0]
             if B > 1:
                 pixel_coords = pixel_coords.expand(B, -1, -1, -1)
