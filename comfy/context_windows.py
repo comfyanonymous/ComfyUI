@@ -198,6 +198,15 @@ def inject_guide_frames_into_window(video_slice: torch.Tensor, window: ContextWi
     window.guide_frames_indices = suffix_idx
     window.guide_overlap_info = overlap_info
     window.guide_kf_local_positions = kf_local_pos
+    # Derive per-overlap-entry latent_downscale_factor from guide entry latent_shape vs guide frame spatial dims.
+    # guide_frames has full (post-dilation) spatial dims; entry["latent_shape"] has pre-dilation dims.
+    guide_downscale_factors = []
+    if guide_frame_count > 0:
+        full_H = guide_frames.shape[3]
+        for entry_idx, _ in overlap_info:
+            entry_H = guide_entries[entry_idx]["latent_shape"][1]
+            guide_downscale_factors.append(full_H // entry_H)
+    window.guide_downscale_factors = guide_downscale_factors
     if guide_frame_count > 0:
         idx = tuple([slice(None)] * dim + [suffix_idx])
         sliced_guide = guide_frames[idx]
