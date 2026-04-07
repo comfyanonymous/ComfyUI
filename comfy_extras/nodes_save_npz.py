@@ -2,7 +2,7 @@ import os
 
 import folder_paths
 from comfy_api.latest import io
-from comfy_api.latest._util.npz_types import NPZ
+from comfy_api_sealed_worker.npz_types import NPZ
 
 
 class SaveNPZ(io.ComfyNode):

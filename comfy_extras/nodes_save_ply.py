@@ -2,7 +2,7 @@ import os
 
 import folder_paths
 from comfy_api.latest import io
-from comfy_api.latest._util.ply_types import PLY
+from comfy_api_sealed_worker.ply_types import PLY
 
 
 class SavePLY(io.ComfyNode):
