@@ -671,7 +671,7 @@ class SparseStructureFlowModel(nn.Module):
         coords = torch.meshgrid(*[torch.arange(res, device=self.device) for res in [resolution] * 3], indexing='ij')
         coords = torch.stack(coords, dim=-1).reshape(-1, 3)
         rope_phases = pos_embedder(coords)
-        self.register_buffer("rope_phases", rope_phases)
+        self.register_buffer("rope_phases", rope_phases, persistent=False)
 
         if pe_mode != "rope":
             self.rope_phases = None
