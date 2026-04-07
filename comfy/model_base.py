@@ -1113,23 +1113,6 @@ class LTXAV(BaseModel):
                 if entries is not None and hasattr(entries, 'cond') and entries.cond:
                     return entries.cond
         return None
-    
-    def prepare_window_data(self, x_in, conds, dim, window_data):
-        primary = comfy.utils.unpack_latents(x_in, window_data.latent_shapes)[0] if window_data.is_multimodal else x_in
-        guide_entries = self._get_guide_entries(conds)
-        guide_count = sum(e["latent_shape"][0] for e in guide_entries) if guide_entries else 0
-        if guide_count <= 0:
-            return comfy.context_windows.WindowingContext(
-                tensor=primary, guide_frames=None, aux_data=None,
-                latent_shapes=window_data.latent_shapes, is_multimodal=window_data.is_multimodal)
-        video_len = primary.size(dim) - guide_count
-        video_primary = primary.narrow(dim, 0, video_len)
-        guide_frames = primary.narrow(dim, video_len, guide_count)
-        return comfy.context_windows.WindowingContext(
-            tensor=video_primary, guide_frames=guide_frames,
-            aux_data={"guide_entries": guide_entries, "guide_frames": guide_frames},
-            latent_shapes=window_data.latent_shapes, is_multimodal=window_data.is_multimodal)
-
 
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         # Audio denoise mask — slice using audio modality window
