@@ -36,4 +36,4 @@ pydantic-settings~=2.0
 PyOpenGL
 glfw
 
-pyisolate==0.10.0
+pyisolate==0.10.1
