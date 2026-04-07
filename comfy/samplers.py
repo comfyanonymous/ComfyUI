@@ -1006,8 +1006,16 @@ class CFGGuider:
             return latent_image
 
         if latent_image.is_nested:
-            latent_image, latent_shapes = comfy.utils.pack_latents(latent_image.unbind())
-            noise, _ = comfy.utils.pack_latents(noise.unbind())
+            li_tensors = latent_image.unbind()
+            if noise.is_nested:
+                n_tensors = noise.unbind()
+            else:
+                # Noise only covers video -- pad remaining components (audio) with zeros
+                n_tensors = [noise]
+                for i in range(1, len(li_tensors)):
+                    n_tensors.append(torch.zeros_like(li_tensors[i]))
+            latent_image, latent_shapes = comfy.utils.pack_latents(li_tensors)
+            noise, _ = comfy.utils.pack_latents(n_tensors)
         else:
             latent_shapes = [latent_image.shape]
 
