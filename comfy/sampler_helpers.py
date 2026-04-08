@@ -11,6 +11,7 @@ import comfy.hooks
 import comfy.patcher_extension
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
+    from comfy.model_base import BaseModel
     from comfy.model_patcher import ModelPatcher
     from comfy.controlnet import ControlBase
 

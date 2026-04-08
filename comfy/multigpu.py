@@ -1,4 +1,6 @@
 from __future__ import annotations
+import queue
+import threading
 import torch
 import logging
 
@@ -9,6 +11,67 @@ if TYPE_CHECKING:
 import comfy.utils
 import comfy.patcher_extension
 import comfy.model_management
+
+
+class MultiGPUThreadPool:
+    """Persistent thread pool for multi-GPU work distribution.
+
+    Maintains one worker thread per extra GPU device. Each thread calls
+    torch.cuda.set_device() once at startup so that compiled kernel caches
+    (inductor/triton) stay warm across diffusion steps.
+    """
+
+    def __init__(self, devices: list[torch.device]):
+        self._workers: list[threading.Thread] = []
+        self._work_queues: dict[torch.device, queue.Queue] = {}
+        self._result_queues: dict[torch.device, queue.Queue] = {}
+
+        for device in devices:
+            wq = queue.Queue()
+            rq = queue.Queue()
+            self._work_queues[device] = wq
+            self._result_queues[device] = rq
+            t = threading.Thread(target=self._worker_loop, args=(device, wq, rq), daemon=True)
+            t.start()
+            self._workers.append(t)
+
+    def _worker_loop(self, device: torch.device, work_q: queue.Queue, result_q: queue.Queue):
+        try:
+            torch.cuda.set_device(device)
+        except Exception as e:
+            logging.error(f"MultiGPUThreadPool: failed to set device {device}: {e}")
+            while True:
+                item = work_q.get()
+                if item is None:
+                    return
+                result_q.put((None, e))
+            return
+        while True:
+            item = work_q.get()
+            if item is None:
+                break
+            fn, args, kwargs = item
+            try:
+                result = fn(*args, **kwargs)
+                result_q.put((result, None))
+            except Exception as e:
+                result_q.put((None, e))
+
+    def submit(self, device: torch.device, fn, *args, **kwargs):
+        self._work_queues[device].put((fn, args, kwargs))
+
+    def get_result(self, device: torch.device):
+        return self._result_queues[device].get()
+
+    @property
+    def devices(self) -> list[torch.device]:
+        return list(self._work_queues.keys())
+
+    def shutdown(self):
+        for wq in self._work_queues.values():
+            wq.put(None)  # sentinel
+        for t in self._workers:
+            t.join(timeout=5.0)
 
 
 class GPUOptions:
