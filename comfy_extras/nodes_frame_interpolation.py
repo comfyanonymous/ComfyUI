@@ -166,6 +166,7 @@ class FrameInterpolate(io.ComfyNode):
                 feat_cache["img1"] = inference_model.extract_features(img1_single)
                 feat_cache["next"] = feat_cache["img1"]
 
+                used_multi = False
                 if multi_fn is not None:
                     # Models with timestep-independent flow can compute it once for all timesteps
                     try:
@@ -174,12 +175,12 @@ class FrameInterpolate(io.ComfyNode):
                         out_idx += num_interp
                         pbar.update(num_interp)
                         tqdm_bar.update(num_interp)
+                        used_multi = True
                     except model_management.OOM_EXCEPTION:
-                        # Fall back to single-timestep calls
                         model_management.soft_empty_cache()
-                        multi_fn = None
-                        continue
-                else:
+                        multi_fn = None  # fall through to single-timestep path
+
+                if not used_multi:
                     j = 0
                     while j < num_interp:
                         b = min(batch, num_interp - j)
