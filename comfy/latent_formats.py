@@ -783,3 +783,10 @@ class ZImagePixelSpace(ChromaRadiance):
     No VAE encoding/decoding — the model operates directly on RGB pixels.
     """
     pass
+
+class CogVideoX(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
+
+    def __init__(self):
+        self.scale_factor = 1.15258426
