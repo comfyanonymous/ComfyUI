@@ -221,8 +221,9 @@ def _egl_device_display(eglInitialize):
     _query_devices_ptr = _get_proc(b"eglQueryDevicesEXT")
     if not _query_devices_ptr:
         raise RuntimeError("eglQueryDevicesEXT not available — install libnvidia-egl-gbm1 or libegl-mesa0")
+    # EGLboolean is unsigned int (32-bit) in the EGL spec, not C99 _Bool.
     _query_devices = ctypes.CFUNCTYPE(
-        ctypes.c_bool,
+        ctypes.c_uint32,
         ctypes.c_int32, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_int32),
     )(_query_devices_ptr)
 
@@ -243,17 +244,24 @@ def _egl_device_display(eglInitialize):
     logger.debug(f"_egl_device_display: found {count.value} EGL device(s)")
 
     EGL_PLATFORM_DEVICE_EXT = 0x313F
-    raw_display = _get_platform_display(EGL_PLATFORM_DEVICE_EXT, raw_devices[0], None)
-    if not raw_display:
-        raise RuntimeError("eglGetPlatformDisplayEXT() returned NULL")
-    # Cast the raw pointer to the opaque EGLDisplay type (c_void_p) that PyOpenGL uses.
-    display = ctypes.c_void_p(raw_display)
+    # Try each device in order; some may not support eglInitialize (e.g. non-render nodes).
+    for i, raw_device in enumerate(raw_devices[:count.value]):
+        raw_display = _get_platform_display(EGL_PLATFORM_DEVICE_EXT, raw_device, None)
+        if not raw_display:
+            logger.debug(f"_egl_device_display: device {i} eglGetPlatformDisplayEXT returned NULL, skipping")
+            continue
+        # Cast the raw pointer to the opaque EGLDisplay type (c_void_p) that PyOpenGL uses.
+        display = ctypes.c_void_p(raw_display)
+        major, minor = ctypes.c_int32(0), ctypes.c_int32(0)
+        try:
+            if eglInitialize(display, major, minor):
+                logger.debug(f"_egl_device_display: device {i} succeeded, EGL version {major.value}.{minor.value}")
+                return display, major, minor
+        except Exception:
+            pass
+        logger.debug(f"_egl_device_display: device {i} eglInitialize failed, skipping")
 
-    major, minor = ctypes.c_int32(0), ctypes.c_int32(0)
-    if not eglInitialize(display, major, minor):
-        raise RuntimeError("eglInitialize() failed on device display")
-    logger.debug(f"_egl_device_display: EGL version {major.value}.{minor.value}")
-    return display, major, minor
+    raise RuntimeError(f"eglInitialize() failed on all {count.value} enumerated EGL device(s)")
 
 
 def _init_egl():
