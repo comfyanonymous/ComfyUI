@@ -197,6 +197,65 @@ def _init_glfw():
         raise
 
 
+def _egl_device_display(eglInitialize):
+    """Obtain an EGLDisplay via EGL_EXT_platform_device for headless GPU rendering.
+
+    EGL_DEFAULT_DISPLAY fails on headless NVIDIA (EGL_BAD_ACCESS) because there is
+    no X/Wayland compositor. The correct approach is to enumerate EGL devices and
+    obtain a display from a specific device handle using EGL_EXT_platform_device.
+
+    PyOpenGL's egl_get_devices() wrapper does not reliably resolve eglQueryDevicesEXT
+    in this scenario, so both extension functions are loaded from libEGL directly via
+    ctypes. Returns an initialized (display, major, minor) tuple.
+    """
+    logger.debug("_egl_device_display: starting")
+
+    libegl_name = ctypes.util.find_library("EGL")
+    if not libegl_name:
+        raise RuntimeError("libEGL not found")
+    _libegl = ctypes.CDLL(libegl_name)
+    _get_proc = _libegl.eglGetProcAddress
+    _get_proc.restype = ctypes.c_void_p
+    _get_proc.argtypes = [ctypes.c_char_p]
+
+    _query_devices_ptr = _get_proc(b"eglQueryDevicesEXT")
+    if not _query_devices_ptr:
+        raise RuntimeError("eglQueryDevicesEXT not available — install libnvidia-egl-gbm1 or libegl-mesa0")
+    _query_devices = ctypes.CFUNCTYPE(
+        ctypes.c_bool,
+        ctypes.c_int32, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_int32),
+    )(_query_devices_ptr)
+
+    _get_platform_display_ptr = _get_proc(b"eglGetPlatformDisplayEXT")
+    if not _get_platform_display_ptr:
+        raise RuntimeError("eglGetPlatformDisplayEXT not available in libEGL")
+    _get_platform_display = ctypes.CFUNCTYPE(
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_void_p,
+    )(_get_platform_display_ptr)
+
+    # Two-pass query: first get the count, then fetch all devices.
+    count = ctypes.c_int32(0)
+    if not _query_devices(0, None, ctypes.byref(count)) or count.value == 0:
+        raise RuntimeError("eglQueryDevicesEXT() found no EGL devices")
+    raw_devices = (ctypes.c_void_p * count.value)()
+    if not _query_devices(count.value, raw_devices, ctypes.byref(count)):
+        raise RuntimeError("eglQueryDevicesEXT() failed on second call")
+    logger.debug(f"_egl_device_display: found {count.value} EGL device(s)")
+
+    EGL_PLATFORM_DEVICE_EXT = 0x313F
+    raw_display = _get_platform_display(EGL_PLATFORM_DEVICE_EXT, raw_devices[0], None)
+    if not raw_display:
+        raise RuntimeError("eglGetPlatformDisplayEXT() returned NULL")
+    # Cast the raw pointer to the opaque EGLDisplay type (c_void_p) that PyOpenGL uses.
+    display = ctypes.c_void_p(raw_display)
+
+    major, minor = ctypes.c_int32(0), ctypes.c_int32(0)
+    if not eglInitialize(display, major, minor):
+        raise RuntimeError("eglInitialize() failed on device display")
+    logger.debug(f"_egl_device_display: EGL version {major.value}.{minor.value}")
+    return display, major, minor
+
+
 def _init_egl():
     """Initialize EGL for headless rendering. Returns (display, context, surface, EGL_module). Raises RuntimeError on failure."""
     logger.debug("_init_egl: starting")
@@ -217,71 +276,24 @@ def _init_egl():
     surface = None
 
     try:
-        logger.debug("_init_egl: calling eglGetDisplay()")
-        display = eglGetDisplay(EGL_DEFAULT_DISPLAY)
-        if display == _EGL.EGL_NO_DISPLAY:
-            raise RuntimeError("eglGetDisplay() failed")
-
-        logger.debug("_init_egl: calling eglInitialize()")
+        # Try EGL_DEFAULT_DISPLAY first (works when a display server is present).
+        # Fall back to device enumeration for headless setups (e.g. NVIDIA with no
+        # X/Wayland). Both eglGetDisplay failure and eglInitialize failure (which may
+        # return False or raise EGLError depending on PyOpenGL version) trigger the
+        # fallback.
         major, minor = _EGL.EGLint(), _EGL.EGLint()
-        # eglInitialize may return False or raise EGLError depending on the PyOpenGL
-        # version and EGL vendor. Catch both so we can fall through to device enumeration.
-        default_display_ok = False
+        default_ok = False
         try:
-            if eglInitialize(display, major, minor):
-                default_display_ok = True
+            display = eglGetDisplay(EGL_DEFAULT_DISPLAY)
+            if display != _EGL.EGL_NO_DISPLAY and eglInitialize(display, major, minor):
+                default_ok = True
         except Exception:
             pass
 
-        if not default_display_ok:
-            # EGL_DEFAULT_DISPLAY fails on headless NVIDIA (EGL_BAD_ACCESS) because
-            # there is no X/Wayland compositor to back it. The correct approach for
-            # headless GPU rendering is to enumerate EGL devices and obtain a display
-            # from a specific device using EGL_EXT_platform_device.
-            #
-            # PyOpenGL's egl_get_devices() wrapper does not reliably resolve the
-            # eglQueryDevicesEXT function pointer in this scenario, so we call
-            # libEGL directly via ctypes instead.
+        if not default_ok:
             display = None  # Not initialized, don't terminate
             logger.debug("_init_egl: EGL_DEFAULT_DISPLAY failed, falling back to EGL device enumeration")
-
-            _libegl = ctypes.CDLL("libEGL.so.1")
-            _get_proc = _libegl.eglGetProcAddress
-            _get_proc.restype = ctypes.c_void_p
-            _get_proc.argtypes = [ctypes.c_char_p]
-
-            _query_devices_ptr = _get_proc(b"eglQueryDevicesEXT")
-            if not _query_devices_ptr:
-                raise RuntimeError("eglQueryDevicesEXT not available — install libnvidia-egl-gbm1 or libegl-mesa0")
-            _query_devices = ctypes.CFUNCTYPE(
-                ctypes.c_bool,
-                ctypes.c_int32, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_int32),
-            )(_query_devices_ptr)
-
-            _get_platform_display_ptr = _get_proc(b"eglGetPlatformDisplayEXT")
-            if not _get_platform_display_ptr:
-                raise RuntimeError("eglGetPlatformDisplayEXT not available in libEGL")
-            _get_platform_display = ctypes.CFUNCTYPE(
-                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_void_p,
-            )(_get_platform_display_ptr)
-
-            max_devices = 4
-            raw_devices = (ctypes.c_void_p * max_devices)()
-            count = ctypes.c_int32(0)
-            if not _query_devices(max_devices, raw_devices, ctypes.byref(count)) or count.value == 0:
-                raise RuntimeError("eglQueryDevicesEXT() found no EGL devices")
-            logger.debug(f"_init_egl: found {count.value} EGL device(s)")
-
-            EGL_PLATFORM_DEVICE_EXT = 0x313F
-            raw_display = _get_platform_display(EGL_PLATFORM_DEVICE_EXT, raw_devices[0], None)
-            if not raw_display:
-                raise RuntimeError("eglGetPlatformDisplayEXT() returned NULL")
-            # Cast the raw pointer to the opaque EGLDisplay type that PyOpenGL uses
-            # (c_void_p, same as EGL_NO_DISPLAY) so downstream EGL calls accept it.
-            display = ctypes.c_void_p(raw_display)
-            if not eglInitialize(display, major, minor):
-                display = None
-                raise RuntimeError("eglInitialize() failed on device display")
+            display, major, minor = _egl_device_display(eglInitialize)
         logger.debug(f"_init_egl: EGL version {major.value}.{minor.value}")
 
         config_attribs = [
