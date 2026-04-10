@@ -432,15 +432,6 @@ class CogVideoXTransformer3DModel(nn.Module):
         ).execute(x, timestep, context, ofs, transformer_options, **kwargs)
 
     def _forward(self, x, timestep, context, ofs=None, transformer_options={}, **kwargs):
-        import logging
-        logger = logging.getLogger(__name__)
-        if x.shape[1] > 16:
-            lq_part = x[:, :16]
-            ref_part = x[:, 16:]
-            logger.warning(f"[CogVideoX] x: {x.shape}, t: {timestep.item():.0f}, ofs: {ofs}, LQ: mean={lq_part.float().mean():.4f} std={lq_part.float().std():.4f}, REF: mean={ref_part.float().mean():.4f} std={ref_part.float().std():.4f} nonzero={ref_part.count_nonzero().item()}")
-        else:
-            logger.warning(f"[CogVideoX] x: {x.shape}, t: {timestep.item():.0f}, ofs: {ofs}")
-
         # ComfyUI passes [B, C, T, H, W]
         batch_size, channels, t, h, w = x.shape
 
@@ -512,7 +503,6 @@ class CogVideoXTransformer3DModel(nn.Module):
 
         # Back to ComfyUI format [B, C, T, H, W] and crop padding
         output = output.permute(0, 2, 1, 3, 4)[:, :, :t, :h, :w]
-        logger.warning(f"[CogVideoX] output: {output.shape}, mean={output.float().mean():.4f}, std={output.float().std():.4f}, min={output.float().min():.4f}, max={output.float().max():.4f}")
         return output
 
     def _get_rotary_emb(self, h, w, t, device):
