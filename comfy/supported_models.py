@@ -1795,6 +1795,10 @@ class CogVideoX_I2V(CogVideoX_T2V):
     }
 
     def get_model(self, state_dict, prefix="", device=None):
+        if self.unet_config.get("patch_size_t") is not None:
+            self.unet_config.setdefault("sample_height", 96)
+            self.unet_config.setdefault("sample_width", 170)
+            self.unet_config.setdefault("sample_frames", 81)
         out = model_base.CogVideoX(self, image_to_video=True, device=device)
         return out
 
