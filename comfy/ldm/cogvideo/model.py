@@ -260,7 +260,9 @@ class CogVideoXBlock(nn.Module):
         self.ff_proj = operations.Linear(dim, inner_dim, bias=ff_bias, device=device, dtype=dtype)
         self.ff_out = operations.Linear(inner_dim, dim, bias=ff_bias, device=device, dtype=dtype)
 
-    def forward(self, hidden_states, encoder_hidden_states, temb, image_rotary_emb=None, transformer_options={}):
+    def forward(self, hidden_states, encoder_hidden_states, temb, image_rotary_emb=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         text_seq_length = encoder_hidden_states.size(1)
 
         # Norm & modulate
@@ -428,14 +430,18 @@ class CogVideoXTransformer3DModel(nn.Module):
         self.temporal_interpolation_scale = temporal_interpolation_scale
         self.temporal_compression_ratio = temporal_compression_ratio
 
-    def forward(self, x, timestep, context, ofs=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, ofs=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, ofs, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, ofs=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, ofs=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         # ComfyUI passes [B, C, T, H, W]
         batch_size, channels, t, h, w = x.shape
 
