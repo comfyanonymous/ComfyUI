@@ -77,7 +77,7 @@ class LayerNorm32(nn.LayerNorm):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_dtype = x.dtype
         x = x.to(torch.float32)
-        w = self.weight.to(torch.float32)
+        w = self.weight.to(torch.float32) if self.weight is not None else None
         b = self.bias.to(torch.float32) if self.bias is not None else None
 
         o = F.layer_norm(x, self.normalized_shape, w, b, self.eps)

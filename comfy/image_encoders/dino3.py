@@ -1,6 +1,7 @@
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import comfy.model_management
 from comfy.ldm.modules.attention import optimized_attention_for_device
@@ -274,8 +275,11 @@ class DINOv3ViTModel(nn.Module):
                 position_embeddings=position_embeddings,
             )
 
-        norm = self.norm.to(hidden_states.device)
-        sequence_output = norm(hidden_states)
+        if kwargs.get("skip_norm_elementwise", False):
+            sequence_output= F.layer_norm(hidden_states, hidden_states.shape[-1:])
+        else:
+            norm = self.norm.to(hidden_states.device)
+            sequence_output = norm(hidden_states)
         pooled_output = sequence_output[:, 0, :]
 
         return sequence_output, None, pooled_output, None

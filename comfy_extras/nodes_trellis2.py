@@ -265,13 +265,13 @@ def run_conditioning(model, cropped_img_tensor, include_1024=True):
 
     model_internal.image_size = 512
     input_512 = prepare_tensor(cropped_img_tensor, 512)
-    cond_512 = model_internal(input_512)[0]
+    cond_512 = model_internal(input_512, skip_norm_elementwise=True)[0]
 
     cond_1024 = None
     if include_1024:
         model_internal.image_size = 1024
         input_1024 = prepare_tensor(cropped_img_tensor, 1024)
-        cond_1024 = model_internal(input_1024)[0]
+        cond_1024 = model_internal(input_1024, skip_norm_elementwise=True)[0]
 
     conditioning = {
         'cond_512': cond_512.to(device),
