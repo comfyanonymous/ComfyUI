@@ -2458,7 +2458,6 @@ async def init_builtin_extra_nodes():
         "nodes_painter.py",
         "nodes_curve.py",
         "nodes_rtdetr.py",
-        "nodes_cogvideox.py",
     ]
 
     import_failed = []
