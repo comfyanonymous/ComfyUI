@@ -481,21 +481,25 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
         latent = torch.randn(batch_size, in_channels, resolution, resolution, resolution)
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
-def simplify_fn(vertices, faces, target=100000):
-    is_batched = vertices.ndim == 3
-    if is_batched:
-        v_list, f_list = [], []
+def simplify_fn(vertices, faces, colors=None, target=100000):
+    if vertices.ndim == 3:
+        v_list, f_list, c_list = [], [], []
         for i in range(vertices.shape[0]):
-            v_i, f_i = simplify_fn(vertices[i], faces[i], target)
+            c_in = colors[i] if colors is not None else None
+            v_i, f_i, c_i = simplify_fn(vertices[i], faces[i], c_in, target)
             v_list.append(v_i)
             f_list.append(f_i)
-        return torch.stack(v_list), torch.stack(f_list)
+            if c_i is not None:
+                c_list.append(c_i)
+
+        c_out = torch.stack(c_list) if len(c_list) > 0 else None
+        return torch.stack(v_list), torch.stack(f_list), c_out
 
     if faces.shape[0] <= target:
-        return vertices, faces
+        return vertices, faces, colors
 
     device = vertices.device
-    target_v = target / 2.0
+    target_v = max(target / 4.0, 1.0)
 
     min_v = vertices.min(dim=0)[0]
     max_v = vertices.max(dim=0)[0]
@@ -510,14 +514,17 @@ def simplify_fn(vertices, faces, target=100000):
 
     new_vertices = torch.zeros((num_cells, 3), dtype=vertices.dtype, device=device)
     counts = torch.zeros((num_cells, 1), dtype=vertices.dtype, device=device)
-
     new_vertices.scatter_add_(0, inverse_indices.unsqueeze(1).expand(-1, 3), vertices)
     counts.scatter_add_(0, inverse_indices.unsqueeze(1), torch.ones_like(vertices[:, :1]))
-
     new_vertices = new_vertices / counts.clamp(min=1)
 
-    new_faces = inverse_indices[faces]
+    new_colors = None
+    if colors is not None:
+        new_colors = torch.zeros((num_cells, colors.shape[1]), dtype=colors.dtype, device=device)
+        new_colors.scatter_add_(0, inverse_indices.unsqueeze(1).expand(-1, colors.shape[1]), colors)
+        new_colors = new_colors / counts.clamp(min=1)
 
+    new_faces = inverse_indices[faces]
     valid_mask = (new_faces[:, 0] != new_faces[:, 1]) & \
                  (new_faces[:, 1] != new_faces[:, 2]) & \
                  (new_faces[:, 2] != new_faces[:, 0])
@@ -527,7 +534,10 @@ def simplify_fn(vertices, faces, target=100000):
     final_vertices = new_vertices[unique_face_indices]
     final_faces = inv_face.reshape(-1, 3)
 
-    return final_vertices, final_faces
+    # assign colors
+    final_colors = new_colors[unique_face_indices] if new_colors is not None else None
+
+    return final_vertices, final_faces, final_colors
 
 def fill_holes_fn(vertices, faces, max_perimeter=0.03):
     is_batched = vertices.ndim == 3
@@ -610,19 +620,6 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
 
     return v, f
 
-def make_double_sided(vertices, faces):
-    is_batched = vertices.ndim == 3
-    if is_batched:
-        f_list =[]
-        for i in range(faces.shape[0]):
-            f_inv = faces[i][:,[0, 2, 1]]
-            f_list.append(torch.cat([faces[i], f_inv], dim=0))
-        return vertices, torch.stack(f_list)
-
-    faces_inv = faces[:, [0, 2, 1]]
-    faces_double = torch.cat([faces, faces_inv], dim=0)
-    return vertices, faces_double
-
 class PostProcessMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -641,19 +638,23 @@ class PostProcessMesh(IO.ComfyNode):
 
     @classmethod
     def execute(cls, mesh, simplify, fill_holes_perimeter):
+        # TODO: batched mode may break
         mesh = copy.deepcopy(mesh)
         verts, faces = mesh.vertices, mesh.faces
+        colors = None
+        if hasattr(mesh, "colors"):
+            colors = mesh.colors
 
         if fill_holes_perimeter > 0:
             verts, faces = fill_holes_fn(verts, faces, max_perimeter=fill_holes_perimeter)
 
         if simplify > 0 and faces.shape[0] > simplify:
-            verts, faces = simplify_fn(verts, faces, target=simplify)
-
-        verts, faces = make_double_sided(verts, faces)
+            verts, faces, colors = simplify_fn(verts, faces, target=simplify, colors=colors)
 
         mesh.vertices = verts
         mesh.faces = faces
+        if colors is not None:
+            mesh.colors = None
         return IO.NodeOutput(mesh)
 
 class Trellis2Extension(ComfyExtension):

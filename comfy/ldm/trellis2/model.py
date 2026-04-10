@@ -14,12 +14,12 @@ class SparseGELU(nn.GELU):
         return input.replace(super().forward(input.feats))
 
 class SparseFeedForwardNet(nn.Module):
-    def __init__(self, channels: int, mlp_ratio: float = 4.0):
+    def __init__(self, channels: int, mlp_ratio: float = 4.0, device=None, dtype=None, operations=None):
         super().__init__()
         self.mlp = nn.Sequential(
-            SparseLinear(channels, int(channels * mlp_ratio)),
+            SparseLinear(channels, int(channels * mlp_ratio), device=device, dtype=dtype, operations=operations),
             SparseGELU(approximate="tanh"),
-            SparseLinear(int(channels * mlp_ratio), channels),
+            SparseLinear(int(channels * mlp_ratio), channels, device=device, dtype=dtype, operations=operations),
         )
 
     def forward(self, x: VarLenTensor) -> VarLenTensor:
@@ -37,10 +37,10 @@ class LayerNorm32(nn.LayerNorm):
 
 
 class SparseMultiHeadRMSNorm(nn.Module):
-    def __init__(self, dim: int, heads: int):
+    def __init__(self, dim: int, heads: int, device, dtype):
         super().__init__()
         self.scale = dim ** 0.5
-        self.gamma = nn.Parameter(torch.ones(heads, dim))
+        self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
 
     def forward(self, x: Union[VarLenTensor, torch.Tensor]) -> Union[VarLenTensor, torch.Tensor]:
         x_type = x.dtype
@@ -56,14 +56,15 @@ class SparseRotaryPositionEmbedder(nn.Module):
         self,
         head_dim: int,
         dim: int = 3,
-        rope_freq: Tuple[float, float] = (1.0, 10000.0)
+        rope_freq: Tuple[float, float] = (1.0, 10000.0),
+        device=None
     ):
         super().__init__()
         self.head_dim = head_dim
         self.dim = dim
         self.rope_freq = rope_freq
         self.freq_dim = head_dim // 2 // dim
-        self.freqs = torch.arange(self.freq_dim, dtype=torch.float32) / self.freq_dim
+        self.freqs = torch.arange(self.freq_dim, dtype=torch.float32, device=device) / self.freq_dim
         self.freqs = rope_freq[0] / (rope_freq[1] ** (self.freqs))
 
     def _get_freqs_cis(self, coords: torch.Tensor) -> torch.Tensor:
@@ -148,6 +149,7 @@ class SparseMultiHeadAttention(nn.Module):
         use_rope: bool = False,
         rope_freq: Tuple[int, int] = (1.0, 10000.0),
         qk_rms_norm: bool = False,
+        device=None, dtype=None, operations=None
     ):
         super().__init__()
 
@@ -163,19 +165,19 @@ class SparseMultiHeadAttention(nn.Module):
         self.qk_rms_norm = qk_rms_norm
 
         if self._type == "self":
-            self.to_qkv = nn.Linear(channels, channels * 3, bias=qkv_bias)
+            self.to_qkv = operations.Linear(channels, channels * 3, bias=qkv_bias, device=device, dtype=dtype)
         else:
-            self.to_q = nn.Linear(channels, channels, bias=qkv_bias)
-            self.to_kv = nn.Linear(self.ctx_channels, channels * 2, bias=qkv_bias)
+            self.to_q = operations.Linear(channels, channels, bias=qkv_bias, device=device, dtype=dtype)
+            self.to_kv = operations.Linear(self.ctx_channels, channels * 2, bias=qkv_bias, device=device, dtype=dtype)
 
         if self.qk_rms_norm:
-            self.q_rms_norm = SparseMultiHeadRMSNorm(self.head_dim, num_heads)
-            self.k_rms_norm = SparseMultiHeadRMSNorm(self.head_dim, num_heads)
+            self.q_rms_norm = SparseMultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
+            self.k_rms_norm = SparseMultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
 
-        self.to_out = nn.Linear(channels, channels)
+        self.to_out = operations.Linear(channels, channels, device=device, dtype=dtype)
 
         if use_rope:
-            self.rope = SparseRotaryPositionEmbedder(self.head_dim, rope_freq=rope_freq)
+            self.rope = SparseRotaryPositionEmbedder(self.head_dim, rope_freq=rope_freq, device=device)
 
     @staticmethod
     def _linear(module: nn.Linear, x: Union[VarLenTensor, torch.Tensor]) -> Union[VarLenTensor, torch.Tensor]:
@@ -267,14 +269,14 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
         qk_rms_norm_cross: bool = False,
         qkv_bias: bool = True,
         share_mod: bool = False,
-
+        device=None, dtype=None, operations=None
     ):
         super().__init__()
         self.use_checkpoint = use_checkpoint
         self.share_mod = share_mod
-        self.norm1 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6)
-        self.norm2 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6)
-        self.norm3 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6)
+        self.norm1 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
+        self.norm2 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6, device=device)
+        self.norm3 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
         self.self_attn = SparseMultiHeadAttention(
             channels,
             num_heads=num_heads,
@@ -286,6 +288,7 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
             use_rope=use_rope,
             rope_freq=rope_freq,
             qk_rms_norm=qk_rms_norm,
+            device=device, dtype=dtype, operations=operations
         )
         self.cross_attn = SparseMultiHeadAttention(
             channels,
@@ -295,18 +298,20 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
             attn_mode="full",
             qkv_bias=qkv_bias,
             qk_rms_norm=qk_rms_norm_cross,
+            device=device, dtype=dtype, operations=operations
         )
         self.mlp = SparseFeedForwardNet(
             channels,
             mlp_ratio=mlp_ratio,
+            device=device, dtype=dtype, operations=operations
         )
         if not share_mod:
             self.adaLN_modulation = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(channels, 6 * channels, bias=True)
+                operations.Linear(channels, 6 * channels, bias=True, device=device, dtype=dtype)
             )
         else:
-            self.modulation = nn.Parameter(torch.randn(6 * channels) / channels ** 0.5)
+            self.modulation = nn.Parameter(torch.randn(6 * channels, device=device, dtype=dtype) / channels ** 0.5)
 
     def _forward(self, x: SparseTensor, mod: torch.Tensor, context: Union[torch.Tensor, VarLenTensor]) -> SparseTensor:
         if self.share_mod:
@@ -376,10 +381,10 @@ class SLatFlowModel(nn.Module):
         if share_mod:
             self.adaLN_modulation = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(model_channels, 6 * model_channels, bias=True)
+                operations.Linear(model_channels, 6 * model_channels, bias=True, device=device, dtype=dtype)
             )
 
-        self.input_layer = SparseLinear(in_channels, model_channels)
+        self.input_layer = SparseLinear(in_channels, model_channels, device=device, dtype=dtype, operations=operations)
 
         self.blocks = nn.ModuleList([
             ModulatedSparseTransformerCrossBlock(
@@ -394,11 +399,12 @@ class SLatFlowModel(nn.Module):
                 share_mod=self.share_mod,
                 qk_rms_norm=self.qk_rms_norm,
                 qk_rms_norm_cross=self.qk_rms_norm_cross,
+                device=device, dtype=dtype, operations=operations
             )
             for _ in range(num_blocks)
         ])
 
-        self.out_layer = SparseLinear(model_channels, out_channels)
+        self.out_layer = SparseLinear(model_channels, out_channels, device=device, dtype=dtype, operations=operations)
 
     @property
     def device(self) -> torch.device:
@@ -438,22 +444,22 @@ class SLatFlowModel(nn.Module):
         return h
 
 class FeedForwardNet(nn.Module):
-    def __init__(self, channels: int, mlp_ratio: float = 4.0):
+    def __init__(self, channels: int, mlp_ratio: float = 4.0, device=None, dtype=None, operations=None):
         super().__init__()
         self.mlp = nn.Sequential(
-            nn.Linear(channels, int(channels * mlp_ratio)),
+            operations.Linear(channels, int(channels * mlp_ratio), device=device, dtype=dtype),
             nn.GELU(approximate="tanh"),
-            nn.Linear(int(channels * mlp_ratio), channels),
+            operations.Linear(int(channels * mlp_ratio), channels, device=device, dtype=dtype),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.mlp(x)
 
 class MultiHeadRMSNorm(nn.Module):
-    def __init__(self, dim: int, heads: int):
+    def __init__(self, dim: int, heads: int, device=None, dtype=None):
         super().__init__()
         self.scale = dim ** 0.5
-        self.gamma = nn.Parameter(torch.ones(heads, dim))
+        self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return (F.normalize(x.float(), dim = -1) * self.gamma * self.scale).to(x.dtype)
@@ -473,6 +479,7 @@ class MultiHeadAttention(nn.Module):
         use_rope: bool = False,
         rope_freq: Tuple[float, float] = (1.0, 10000.0),
         qk_rms_norm: bool = False,
+        device=None, dtype=None, operations=None
     ):
         super().__init__()
 
@@ -488,16 +495,16 @@ class MultiHeadAttention(nn.Module):
         self.qk_rms_norm = qk_rms_norm
 
         if self._type == "self":
-            self.to_qkv = nn.Linear(channels, channels * 3, bias=qkv_bias)
+            self.to_qkv = operations.Linear(channels, channels * 3, bias=qkv_bias, dtype=dtype, device=device)
         else:
-            self.to_q = nn.Linear(channels, channels, bias=qkv_bias)
-            self.to_kv = nn.Linear(self.ctx_channels, channels * 2, bias=qkv_bias)
+            self.to_q = operations.Linear(channels, channels, bias=qkv_bias, device=device, dtype=dtype)
+            self.to_kv = operations.Linear(self.ctx_channels, channels * 2, bias=qkv_bias, device=device, dtype=dtype)
 
         if self.qk_rms_norm:
-            self.q_rms_norm = MultiHeadRMSNorm(self.head_dim, num_heads)
-            self.k_rms_norm = MultiHeadRMSNorm(self.head_dim, num_heads)
+            self.q_rms_norm = MultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
+            self.k_rms_norm = MultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
 
-        self.to_out = nn.Linear(channels, channels)
+        self.to_out = operations.Linear(channels, channels, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor, context: Optional[torch.Tensor] = None, phases: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, L, C = x.shape
@@ -554,13 +561,14 @@ class ModulatedTransformerCrossBlock(nn.Module):
         qk_rms_norm_cross: bool = False,
         qkv_bias: bool = True,
         share_mod: bool = False,
+        device=None, dtype=None, operations=None
     ):
         super().__init__()
         self.use_checkpoint = use_checkpoint
         self.share_mod = share_mod
-        self.norm1 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6)
-        self.norm2 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6)
-        self.norm3 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6)
+        self.norm1 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
+        self.norm2 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6, device=device)
+        self.norm3 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
         self.self_attn = MultiHeadAttention(
             channels,
             num_heads=num_heads,
@@ -572,6 +580,7 @@ class ModulatedTransformerCrossBlock(nn.Module):
             use_rope=use_rope,
             rope_freq=rope_freq,
             qk_rms_norm=qk_rms_norm,
+            device=device, dtype=dtype, operations=operations
         )
         self.cross_attn = MultiHeadAttention(
             channels,
@@ -581,18 +590,20 @@ class ModulatedTransformerCrossBlock(nn.Module):
             attn_mode="full",
             qkv_bias=qkv_bias,
             qk_rms_norm=qk_rms_norm_cross,
+            device=device, dtype=dtype, operations=operations
         )
         self.mlp = FeedForwardNet(
             channels,
             mlp_ratio=mlp_ratio,
+            device=device, dtype=dtype, operations=operations
         )
         if not share_mod:
             self.adaLN_modulation = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(channels, 6 * channels, bias=True)
+                operations.Linear(channels, 6 * channels, bias=True, dtype=dtype, device=device)
             )
         else:
-            self.modulation = nn.Parameter(torch.randn(6 * channels) / channels ** 0.5)
+            self.modulation = nn.Parameter(torch.randn(6 * channels, device=device, dtype=dtype) / channels ** 0.5)
 
     def _forward(self, x: torch.Tensor, mod: torch.Tensor, context: torch.Tensor, phases: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.share_mod:
@@ -659,16 +670,17 @@ class SparseStructureFlowModel(nn.Module):
         self.qk_rms_norm = qk_rms_norm
         self.qk_rms_norm_cross = qk_rms_norm_cross
         self.dtype = dtype
+        self.device = device
 
-        self.t_embedder = TimestepEmbedder(model_channels, operations=operations)
+        self.t_embedder = TimestepEmbedder(model_channels, dtype=dtype, device=device, operations=operations)
         if share_mod:
             self.adaLN_modulation = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(model_channels, 6 * model_channels, bias=True)
+                operations.Linear(model_channels, 6 * model_channels, bias=True, device=device, dtype=dtype)
             )
 
-        pos_embedder = RotaryPositionEmbedder(self.model_channels // self.num_heads, 3)
-        coords = torch.meshgrid(*[torch.arange(res, device=self.device) for res in [resolution] * 3], indexing='ij')
+        pos_embedder = RotaryPositionEmbedder(self.model_channels // self.num_heads, 3, device=device)
+        coords = torch.meshgrid(*[torch.arange(res, device=self.device, dtype=dtype) for res in [resolution] * 3], indexing='ij')
         coords = torch.stack(coords, dim=-1).reshape(-1, 3)
         rope_phases = pos_embedder(coords)
         self.register_buffer("rope_phases", rope_phases, persistent=False)
@@ -676,7 +688,7 @@ class SparseStructureFlowModel(nn.Module):
         if pe_mode != "rope":
             self.rope_phases = None
 
-        self.input_layer = nn.Linear(in_channels, model_channels)
+        self.input_layer = operations.Linear(in_channels, model_channels, device=device, dtype=dtype)
 
         self.blocks = nn.ModuleList([
             ModulatedTransformerCrossBlock(
@@ -691,11 +703,12 @@ class SparseStructureFlowModel(nn.Module):
                 share_mod=share_mod,
                 qk_rms_norm=self.qk_rms_norm,
                 qk_rms_norm_cross=self.qk_rms_norm_cross,
+                device=device, dtype=dtype, operations=operations
             )
             for _ in range(num_blocks)
         ])
 
-        self.out_layer = nn.Linear(model_channels, out_channels)
+        self.out_layer = operations.Linear(model_channels, out_channels, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         x = x.view(x.shape[0], self.in_channels, *[self.resolution] * 3)
@@ -745,6 +758,7 @@ class Trellis2(nn.Module):
 
         super().__init__()
         self.dtype = dtype
+        operations = operations or nn
         # for some reason it passes num_heads = -1
         if num_heads == -1:
             num_heads = 12
@@ -772,6 +786,7 @@ class Trellis2(nn.Module):
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
         is_512_run = False
+        timestep = timestep.to(self.dtype)
         if mode == "shape_generation_512":
             is_512_run = True
             mode = "shape_generation"

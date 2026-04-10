@@ -962,13 +962,17 @@ def sparse_unbind(input: SparseTensor, dim: int) -> List[SparseTensor]:
         feats = input.feats.unbind(dim)
         return [input.replace(f) for f in feats]
 
-class SparseLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True):
-        super(SparseLinear, self).__init__(in_features, out_features, bias)
+# allow operations.Linear inheritance
+class SparseLinear:
+    def __new__(cls, in_features, out_features, bias=True, device=None, dtype=None, operations=nn, *args, **kwargs):
+        class _SparseLinear(operations.Linear):
+            def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
+                super().__init__(in_features, out_features, bias=bias, device=device, dtype=dtype)
 
-    def forward(self, input: VarLenTensor) -> VarLenTensor:
-        return input.replace(super().forward(input.feats))
+            def forward(self, input: VarLenTensor) -> VarLenTensor:
+                return input.replace(super().forward(input.feats))
 
+        return _SparseLinear(in_features, out_features, bias=bias, device=device, dtype=dtype, *args, **kwargs)
 
 MIX_PRECISION_MODULES = (
     nn.Conv1d,
