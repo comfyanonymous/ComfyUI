@@ -82,7 +82,7 @@ class EmptyAceStepLatentAudio(io.ComfyNode):
     @classmethod
     def execute(cls, seconds, batch_size) -> io.NodeOutput:
         length = int(seconds * 44100 / 512 / 8)
-        latent = torch.zeros([batch_size, 8, 16, length], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
+        latent = torch.zeros([batch_size, 8, 16, length], device=comfy.model_management.intermediate_device())
         return io.NodeOutput({"samples": latent, "type": "audio"})
 
 
@@ -105,7 +105,7 @@ class EmptyAceStep15LatentAudio(io.ComfyNode):
     @classmethod
     def execute(cls, seconds, batch_size) -> io.NodeOutput:
         length = round((seconds * 48000 / 1920))
-        latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
+        latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
         return io.NodeOutput({"samples": latent, "type": "audio"})
 
 class ReferenceAudio(io.ComfyNode):
