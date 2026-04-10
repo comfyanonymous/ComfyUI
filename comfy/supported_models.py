@@ -1270,6 +1270,8 @@ class Trellis2(supported_models_base.BASE):
     latent_format = latent_formats.Trellis2
     vae_key_prefix = ["vae."]
     clip_vision_prefix = "conditioner.main_image_encoder.model."
+    # this is only needed for the texture model
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.Trellis2(self, device=device)

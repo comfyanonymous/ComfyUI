@@ -620,6 +620,19 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
 
     return v, f
 
+
+def make_double_sided(vertices, faces):
+    is_batched = vertices.ndim == 3
+    if is_batched:
+        f_list = []
+        for i in range(faces.shape[0]):
+            f_inv = faces[i][:, [0, 2, 1]]
+            f_list.append(torch.cat([faces[i], f_inv], dim=0))
+        return vertices, torch.stack(f_list)
+
+    faces_inv = faces[:, [0, 2, 1]]
+    return vertices, torch.cat([faces, faces_inv], dim=0)
+
 class PostProcessMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -651,11 +664,13 @@ class PostProcessMesh(IO.ComfyNode):
         if simplify > 0 and actual_face_count > simplify:
             verts, faces, colors = simplify_fn(verts, faces, target=simplify, colors=colors)
 
+        verts, faces = make_double_sided(verts, faces)
+
         mesh = type(mesh)(vertices=verts, faces=faces)
         mesh.vertices = verts
         mesh.faces = faces
         if colors is not None:
-            mesh.colors = None
+            mesh.colors = colors
         return IO.NodeOutput(mesh)
 
 class Trellis2Extension(ComfyExtension):
