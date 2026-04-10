@@ -4,7 +4,7 @@ import comfy.model_management
 RMSNorm = torch.nn.RMSNorm
 
 def rms_norm(x, weight=None, eps=1e-6, fused=True):
-    if not fused:
+    if not fused: # compatibility mode as torch native rms_norm results are slightly different
         orig_dtype = x.dtype
         normed = x.float() * torch.pow(x.float().pow(2).mean(-1, keepdim=True) + eps, -0.5)
         if weight is not None:
