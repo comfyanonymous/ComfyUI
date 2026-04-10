@@ -55,7 +55,7 @@ class StringLength(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StringLength",
-            search_aliases=["character count", "text size", "string length"],
+            search_aliases=["Length", "character count", "text size", "string length"],
             display_name="Text Length",
             category="utils/string",
             inputs=[
