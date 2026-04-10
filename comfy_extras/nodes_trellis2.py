@@ -639,18 +639,19 @@ class PostProcessMesh(IO.ComfyNode):
     @classmethod
     def execute(cls, mesh, simplify, fill_holes_perimeter):
         # TODO: batched mode may break
-        mesh = copy.deepcopy(mesh)
         verts, faces = mesh.vertices, mesh.faces
         colors = None
         if hasattr(mesh, "colors"):
             colors = mesh.colors
 
+        actual_face_count = faces.shape[1] if faces.ndim == 3 else faces.shape[0]
         if fill_holes_perimeter > 0:
             verts, faces = fill_holes_fn(verts, faces, max_perimeter=fill_holes_perimeter)
 
-        if simplify > 0 and faces.shape[0] > simplify:
+        if simplify > 0 and actual_face_count > simplify:
             verts, faces, colors = simplify_fn(verts, faces, target=simplify, colors=colors)
 
+        mesh = type(mesh)(vertices=verts, faces=faces)
         mesh.vertices = verts
         mesh.faces = faces
         if colors is not None:
