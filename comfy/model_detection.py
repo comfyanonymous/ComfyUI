@@ -506,7 +506,6 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         # Detect in_channels from patch_embed
         patch_proj_key = '{}patch_embed.proj.weight'.format(key_prefix)
-        patch_proj_linear_key = '{}patch_embed.proj.weight'.format(key_prefix)
         if patch_proj_key in state_dict_keys:
             w = state_dict[patch_proj_key]
             if w.ndim == 4:

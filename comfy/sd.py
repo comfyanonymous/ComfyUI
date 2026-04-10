@@ -17,6 +17,7 @@ import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
+import comfy.ldm.cogvideo.vae
 import comfy.ldm.hunyuan_video.vae
 import comfy.ldm.mmaudio.vae.autoencoder
 import comfy.pixel_space_convert
@@ -651,7 +652,6 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: (1400 * 9 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (3600 * 4 * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
             elif "decoder.conv_in.conv.weight" in sd and "decoder.mid_block.resnets.0.norm1.norm_layer.weight" in sd:  # CogVideoX VAE
-                import comfy.ldm.cogvideo.vae
                 self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
                 self.upscale_index_formula = (4, 8, 8)
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)

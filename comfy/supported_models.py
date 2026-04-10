@@ -1779,9 +1779,6 @@ class CogVideoX_T2V(supported_models_base.BASE):
         return out
 
     def clip_target(self, state_dict={}):
-        pref = self.text_encoder_key_prefix[0]
-        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
-
         class CogVideoXT5Tokenizer(comfy.text_encoders.sd3_clip.T5XXLTokenizer):
             def __init__(self, embedding_directory=None, tokenizer_data={}):
                 super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, min_length=226)
