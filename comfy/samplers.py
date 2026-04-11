@@ -748,6 +748,18 @@ class KSAMPLER(Sampler):
         if callback is not None:
             k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
+        # On Apple Silicon MPS, flush the allocator pool between steps to prevent
+        # progressive memory fragmentation and swap thrashing. Wrapping the callback
+        # here (rather than patching individual samplers) covers all sampler variants.
+        import comfy.model_management
+        if noise.device.type == "mps" and getattr(comfy.model_management, "AGGRESSIVE_OFFLOAD", False):
+            _inner_callback = k_callback
+            def _mps_flush_callback(x):
+                if _inner_callback is not None:
+                    _inner_callback(x)
+                torch.mps.empty_cache()
+            k_callback = _mps_flush_callback
+
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
         samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples

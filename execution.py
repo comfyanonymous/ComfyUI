@@ -651,6 +651,17 @@ class PromptExecutor:
         self.cache_type = cache_type
         self.server = server
         self.reset()
+        # Register callback so model_management can invalidate cached outputs
+        # after destroying a model via meta device move (aggressive offload).
+        # NOTE: self.caches is resolved at call time (not capture time), so this
+        # callback remains valid even if reset() replaces self.caches later.
+        import comfy.model_management as mm
+        if mm.AGGRESSIVE_OFFLOAD:
+            executor = self
+            def _invalidate_cache(reason):
+                logging.info(f"[aggressive-offload] Invalidating execution cache ({reason})")
+                executor.caches.outputs.clear_all()
+            mm.register_model_destroyed_callback(_invalidate_cache)
 
     def reset(self):
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
