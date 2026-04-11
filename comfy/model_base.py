@@ -1162,7 +1162,7 @@ class LTXAV(BaseModel):
             # Adjust spatial end positions for dilated (downscaled) guides.
             # Each guide entry may have a different downscale factor; expand the
             # per-entry factor to cover all tokens belonging to that entry.
-            downscale_factors = getattr(window, 'guide_downscale_factors', [])
+            downscale_factors = window.guide_downscale_factors
             overlap_info = window.guide_overlap_info
             if downscale_factors:
                 per_token_factor = []
