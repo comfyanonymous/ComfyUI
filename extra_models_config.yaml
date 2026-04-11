@@ -1,0 +1,12 @@
+# ComfyUI extra_model_paths.yaml for win32
+# Optimized for internal C:/AI_PROJECTS storage only
+
+comfyui_internal:
+  is_default: true
+  base_path: C:/AI_PROJECTS/ComfyUI/
+  
+  # Custom Nodes path
+  #custom_nodes: custom_nodes/
+
+#desktop_extensions:
+#  custom_nodes: C:\Users\chgen\AppData\Local\Programs\ComfyUI\resources\ComfyUI\custom_nodes

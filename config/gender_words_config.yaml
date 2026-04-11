@@ -1,0 +1,59 @@
+error_words: !!set
+  person: null
+gender_add_words:
+  F:
+  - female
+  M:
+  - male
+gender_map:
+  F:
+    actor: actress
+    boy: girl
+    brother: sister
+    father: mother
+    fiance: fiancee
+    gentleman: lady
+    grandfather: grandmother
+    groom: bride
+    he: she
+    he's: she's
+    hero: heroine
+    him: her
+    himself: herself
+    his: her
+    husband: wife
+    king: queen
+    male: female
+    man: woman
+    men: women
+    nephew: niece
+    prince: princess
+    sir: madam
+    son: daughter
+    uncle: aunt
+    waiter: waitress
+  M:
+    actress: actor
+    aunt: uncle
+    bride: groom
+    daughter: son
+    female: male
+    fiancee: fiance
+    girl: boy
+    grandmother: grandfather
+    her: him
+    heroine: hero
+    herself: himself
+    lady: gentleman
+    madam: sir
+    mother: father
+    niece: nephew
+    princess: prince
+    queen: king
+    she: he
+    she's: he's
+    sister: brother
+    waitress: waiter
+    wife: husband
+    woman: man
+    women: men
