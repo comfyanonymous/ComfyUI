@@ -428,6 +428,10 @@ class NullCache:
     def clean_unused(self):
         pass
 
+    def clear_all(self):
+        """No-op: null backend has nothing to invalidate."""
+        pass
+
     def poll(self, **kwargs):
         pass
 
@@ -460,6 +464,13 @@ class LRUCache(BasicCache):
         self.generation += 1
         for node_id in node_ids:
             self._mark_used(node_id)
+
+    def clear_all(self):
+        """Drop all cached outputs and reset LRU bookkeeping."""
+        super().clear_all()
+        self.used_generation.clear()
+        self.children.clear()
+        self.min_generation = 0
 
     def clean_unused(self):
         while len(self.cache) > self.max_size and self.min_generation < self.generation:
@@ -518,6 +529,11 @@ class RAMPressureCache(LRUCache):
     def __init__(self, key_class, enable_providers=False):
         super().__init__(key_class, 0, enable_providers=enable_providers)
         self.timestamps = {}
+
+    def clear_all(self):
+        """Drop all cached outputs and reset RAM-pressure bookkeeping."""
+        super().clear_all()
+        self.timestamps.clear()
 
     def clean_unused(self):
         self._clean_subcaches()

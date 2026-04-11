@@ -681,11 +681,12 @@ def offloaded_memory(loaded_models, device):
 WINDOWS = any(platform.win32_ver())
 
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
-if cpu_state == CPUState.MPS:
-    # macOS with Apple Silicon: shared memory means OS needs more headroom.
-    # Reserve 4 GB for macOS + system services to prevent swap thrashing.
+if cpu_state == CPUState.MPS and AGGRESSIVE_OFFLOAD:
+    # macOS with Apple Silicon + aggressive offload: shared memory means OS
+    # needs more headroom.  Reserve 4 GB for macOS + system services to
+    # prevent swap thrashing during model destruction/reload cycles.
     EXTRA_RESERVED_VRAM = 4 * 1024 * 1024 * 1024
-    logging.info("MPS detected: reserving 4 GB for macOS system overhead")
+    logging.info("MPS detected with --aggressive-offload: reserving 4 GB for macOS system overhead")
 elif WINDOWS:
     import comfy.windows
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
@@ -748,12 +749,18 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
 
         # Aggressive offload for Apple Silicon: force-unload unused models
         # regardless of free memory, since CPU RAM == GPU VRAM.
+        # Only force-unload models > 1 GB — small models like the VAE (160 MB)
+        # are preserved to avoid unnecessary reload from disk.
         if AGGRESSIVE_OFFLOAD and vram_state == VRAMState.SHARED:
-            if not current_loaded_models[i].currently_used:
-                memory_to_free = 1e32  # Force unload
-                model_name = current_loaded_models[i].model.model.__class__.__name__
-                model_size_mb = current_loaded_models[i].model_memory() / (1024 * 1024)
-                logging.info(f"[aggressive-offload] Force-unloading {model_name} ({model_size_mb:.0f} MB) from shared RAM")
+            model_ref = current_loaded_models[i].model
+            if model_ref is not None and not current_loaded_models[i].currently_used:
+                model_size = current_loaded_models[i].model_memory()
+                if model_size > 1024 * 1024 * 1024:  # 1 GB threshold
+                    memory_to_free = 1e32  # Force unload
+                    inner = getattr(model_ref, "model", None)
+                    model_name = inner.__class__.__name__ if inner is not None else "unknown"
+                    model_size_mb = model_size / (1024 * 1024)
+                    logging.info(f"[aggressive-offload] Force-unloading {model_name} ({model_size_mb:.0f} MB) from shared RAM")
 
         if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
             logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
