@@ -190,6 +190,17 @@ class BasicCache:
         for key in to_remove:
             del self.subcaches[key]
 
+    def clear_all(self):
+        """Drop all cached outputs unconditionally.
+
+        This is the public API for external subsystems (e.g. aggressive model
+        offloading) that need to invalidate every cached result — for instance
+        after model parameters have been moved to the ``meta`` device and the
+        cached tensors are no longer usable.
+        """
+        self.cache.clear()
+        self.subcaches.clear()
+
     def clean_unused(self):
         assert self.initialized
         self._clean_cache()
