@@ -22,7 +22,9 @@ class ResearchExtension(ComfyExtension):
         from custom_nodes.research.review_atomize import ReviewAtomize
         from custom_nodes.research.review_classify import ReviewClassify
         from custom_nodes.research.review_map import ReviewMap
-        return [PaperSearch, PaperClaimExtract, ClaimEvidenceAssemble, StyleProfileExtract, ReferencePaperSelect, SectionPlan, AbstractDraft, IntroductionDraft, MethodsDraft, ConsistencyCheck, ExportManuscript, ReviewImport, ReviewAtomize, ReviewClassify, ReviewMap]
+        from custom_nodes.research.evidence_gap_detect import EvidenceGapDetect
+        from custom_nodes.research.action_route import ActionRoute
+        return [PaperSearch, PaperClaimExtract, ClaimEvidenceAssemble, StyleProfileExtract, ReferencePaperSelect, SectionPlan, AbstractDraft, IntroductionDraft, MethodsDraft, ConsistencyCheck, ExportManuscript, ReviewImport, ReviewAtomize, ReviewClassify, ReviewMap, EvidenceGapDetect, ActionRoute]
 
 
 async def comfy_entrypoint() -> ComfyExtension:
