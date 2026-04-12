@@ -1104,6 +1104,11 @@ class PromptServer():
                 web.static('/docs', embedded_docs_path)
             ])
 
+        # Serve research workbench web frontend
+        research_web_path = os.path.join(os.path.dirname(__file__), "research_web")
+        if os.path.exists(research_web_path):
+            self.app.add_routes([web.static('/research', research_web_path)])
+
         self.app.add_routes([
             web.static('/', self.web_root),
         ])

@@ -1,0 +1,110 @@
+/* Research Workbench Styles */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1e1e1e;
+    color: #d4d4d4;
+}
+
+#app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.app-header {
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.app-header h1 { font-size: 1.2rem; color: #fff; }
+
+.app-nav { display: flex; gap: 0.25rem; }
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    color: #d4d4d4;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.nav-btn:hover { background: #3c3c3c; }
+.nav-btn.active { background: #37373d; color: #fff; }
+
+#main-content { flex: 1; padding: 1rem; overflow: auto; }
+
+.home-panel, .project-panel { max-width: 1200px; margin: 0 auto; }
+
+/* Top Summary */
+.top-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+.summary-card { background: #252526; border-radius: 8px; padding: 1.5rem; text-align: center; }
+.summary-card h3 { font-size: 2rem; color: #fff; }
+.summary-card p { color: #858585; font-size: 0.85rem; }
+
+/* Sections */
+.today-feed, .project-focus, .quick-entry { margin-bottom: 2rem; }
+.today-feed h2, .project-focus h2, .quick-entry h2 { margin-bottom: 1rem; font-size: 1.1rem; color: #fff; }
+
+/* Feed Cards */
+.feed-card {
+    background: #252526;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+.feed-card h4 { color: #fff; margin-bottom: 0.25rem; }
+.feed-meta { color: #858585; font-size: 0.8rem; margin-bottom: 0.5rem; }
+.feed-abstract { font-size: 0.9rem; color: #ccc; margin-bottom: 0.75rem; }
+.feed-actions { display: flex; gap: 0.5rem; }
+
+.btn-save {
+    background: #37373d; border: none; color: #d4d4d4;
+    padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+}
+.btn-save:hover { background: #4f4f4f; }
+
+/* Project Cards */
+.project-card {
+    background: #252526; border-radius: 6px; padding: 1rem;
+    margin-bottom: 0.75rem; cursor: pointer;
+}
+.project-card:hover { background: #2d2d30; }
+.project-card h4 { color: #fff; }
+
+.status-badge {
+    display: inline-block; font-size: 0.75rem; padding: 0.2rem 0.5rem;
+    border-radius: 3px; margin-top: 0.5rem;
+}
+.status-badge.active { background: #2ea043; color: #fff; }
+.status-badge.paused { background: #d29922; color: #000; }
+.status-badge.completed { background: #388bfd; color: #fff; }
+
+/* Buttons */
+.btn-primary {
+    background: #0e639c; border: none; color: #fff;
+    padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;
+}
+.btn-primary:hover { background: #1177bb; }
+
+.project-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.project-header h2 { color: #fff; }
+
+.project-item {
+    background: #252526; border-radius: 6px; padding: 1rem;
+    margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;
+}
+.project-item h3 { color: #fff; font-size: 1rem; }
+.project-item p { color: #858585; font-size: 0.85rem; }
+.project-actions { display: flex; gap: 0.5rem; }
+
+.btn-open-canvas {
+    background: #37373d; border: none; color: #d4d4d4;
+    padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer;
+}
+.btn-open-canvas:hover { background: #4f4f4f; }
+
+.empty-state { color: #858585; font-style: italic; padding: 1rem; }
+.error { color: #f48771; padding: 1rem; }
