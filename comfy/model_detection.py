@@ -713,6 +713,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["enc_h"] = state_dict['{}encoder.pan_blocks.1.cv4.conv.weight'.format(key_prefix)].shape[0]
         return dit_config
 
+    if '{}layers.0.mlp.linear_fc2.weight'.format(key_prefix) in state_dict_keys: # Ernie Image
+        dit_config = {}
+        dit_config["image_model"] = "ernie"
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
