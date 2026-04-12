@@ -45,7 +45,7 @@ class Gemma4Config:
     num_kv_shared_layers: int = 18
     use_double_wide_mlp: bool = False
     stop_tokens = [1, 50, 106]
-    fused_rms_norm: bool = True  # True = use fused F.rms_norm (lot faster, minor output difference from reference)
+    fused_rms_norm: bool = True  # False: to match reference code's exact numerical behavior, which is much slower, so we default to True
     vision_config = GEMMA4_VISION_CONFIG
     audio_config = GEMMA4_AUDIO_CONFIG
     mm_tokens_per_image = 280
