@@ -108,3 +108,42 @@ body {
 
 .empty-state { color: #858585; font-style: italic; padding: 1rem; }
 .error { color: #f48771; padding: 1rem; }
+
+/* Asset Panel */
+.asset-panel { max-width: 1200px; margin: 0 auto; }
+.asset-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.asset-header h2 { color: #fff; }
+.asset-tabs { display: flex; gap: 0.25rem; }
+.tab-btn {
+    background: transparent; border: none; color: #d4d4d4;
+    padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px;
+}
+.tab-btn:hover { background: #3c3c3c; }
+.tab-btn.active { background: #37373d; color: #fff; }
+
+.asset-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+
+.asset-card {
+    background: #252526; border-radius: 6px; padding: 1rem;
+    cursor: grab;
+}
+.asset-card:active { cursor: grabbing; }
+.asset-card h4 { color: #fff; margin-bottom: 0.5rem; }
+.asset-meta { color: #858585; font-size: 0.85rem; }
+.asset-badges { display: flex; gap: 0.5rem; margin: 0.5rem 0; }
+.badge {
+    font-size: 0.7rem; padding: 0.2rem 0.4rem;
+    border-radius: 3px; background: #37373d; color: #d4d4d4;
+}
+.badge.unread { background: #d29922; color: #000; }
+.badge.library { background: #2ea043; color: #fff; }
+.badge.pending { background: #6c6c6c; color: #fff; }
+.badge.enabled { background: #2ea043; color: #fff; }
+.badge.disabled { background: #6c6c6c; color: #fff; }
+
+.asset-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.btn-quick-read, .btn-drag {
+    background: #37373d; border: none; color: #d4d4d4;
+    padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+}
+.btn-quick-read:hover, .btn-drag:hover { background: #4f4f4f; }

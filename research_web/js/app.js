@@ -1,5 +1,6 @@
 /** Main Research Workbench app - Home and Project Workspace panels. */
 import * as api from "./api_client.js";
+import { renderAssetPanel } from "./panels/AssetPanel.js";
 
 const mainContent = document.getElementById("main-content");
 const navButtons = document.querySelectorAll(".nav-btn");
@@ -38,6 +39,9 @@ async function render() {
         }
     } else if (currentPanel === "canvas") {
         window.location.href = "/";
+    } else if (currentPanel === "assets") {
+        mainContent.innerHTML = "";
+        renderAssetPanel(mainContent, api);
     }
 }
 
