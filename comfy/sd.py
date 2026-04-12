@@ -1238,9 +1238,9 @@ class TEModel(Enum):
     QWEN35_9B = 26
     QWEN35_27B = 27
     MINISTRAL_3_3B = 28
-    GEMMA_4_E4B = 28
-    GEMMA_4_E2B = 29
-    GEMMA_4_31B = 30
+    GEMMA_4_E4B = 29
+    GEMMA_4_E2B = 30
+    GEMMA_4_31B = 31
 
 
 def detect_te_model(sd):
