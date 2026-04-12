@@ -99,6 +99,9 @@ def model_lora_keys_clip(model, key_map={}):
     for k in sdk:
         if k.endswith(".weight"):
             key_map["text_encoders.{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
+            tp = k.find(".transformer.") #also map without wrapper prefix for composite text encoder models
+            if tp > 0 and not k.startswith("clip_"):
+                key_map["text_encoders.{}".format(k[tp + 1:-len(".weight")])] = k
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
@@ -337,6 +340,7 @@ def model_lora_keys_unet(model, key_map={}):
             if k.startswith("diffusion_model.decoder.") and k.endswith(".weight"):
                 key_lora = k[len("diffusion_model.decoder."):-len(".weight")]
                 key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
+                key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # LyCORIS/LoKR format
 
     return key_map
 

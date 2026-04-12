@@ -1,3 +1,7 @@
+import zipfile
+from io import BytesIO
+
+import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, Types
@@ -5,16 +9,20 @@ from comfy_api_nodes.apis.hunyuan3d import (
     Hunyuan3DViewImage,
     InputGenerateType,
     ResultFile3D,
+    SmartTopologyRequest,
+    TaskFile3DInput,
     TextureEditTaskRequest,
+    To3DPartTaskRequest,
     To3DProTaskCreateResponse,
     To3DProTaskQueryRequest,
     To3DProTaskRequest,
     To3DProTaskResultResponse,
-    To3DUVFileInput,
     To3DUVTaskRequest,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
+    bytesio_to_image_tensor,
+    download_url_to_bytesio,
     download_url_to_file_3d,
     download_url_to_image_tensor,
     downscale_image_tensor_by_max_side,
@@ -32,6 +40,68 @@ def _is_tencent_rate_limited(status: int, body: object) -> bool:
         status == 400
         and isinstance(body, dict)
         and "RequestLimitExceeded" in str(body.get("Response", {}).get("Error", {}).get("Code", ""))
+    )
+
+
+class ObjZipResult:
+    __slots__ = ("obj", "texture", "metallic", "normal", "roughness")
+
+    def __init__(
+        self,
+        obj: Types.File3D,
+        texture: Input.Image | None = None,
+        metallic: Input.Image | None = None,
+        normal: Input.Image | None = None,
+        roughness: Input.Image | None = None,
+    ):
+        self.obj = obj
+        self.texture = texture
+        self.metallic = metallic
+        self.normal = normal
+        self.roughness = roughness
+
+
+async def download_and_extract_obj_zip(url: str) -> ObjZipResult:
+    """The Tencent API returns OBJ results as ZIP archives containing the .obj mesh, and texture images.
+
+    When PBR is enabled, the ZIP may contain additional metallic, normal, and roughness maps
+    identified by their filename suffixes.
+    """
+    data = BytesIO()
+    await download_url_to_bytesio(url, data)
+    data.seek(0)
+    if not zipfile.is_zipfile(data):
+        data.seek(0)
+        return ObjZipResult(obj=Types.File3D(source=data, file_format="obj"))
+    data.seek(0)
+    obj_bytes = None
+    textures: dict[str, Input.Image] = {}
+    with zipfile.ZipFile(data) as zf:
+        for name in zf.namelist():
+            lower = name.lower()
+            if lower.endswith(".obj"):
+                obj_bytes = zf.read(name)
+            elif any(lower.endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp")):
+                stem = lower.rsplit(".", 1)[0]
+                tensor = bytesio_to_image_tensor(BytesIO(zf.read(name)), mode="RGB")
+                matched_key = "texture"
+                for suffix, key in {
+                    "_metallic": "metallic",
+                    "_normal": "normal",
+                    "_roughness": "roughness",
+                }.items():
+                    if stem.endswith(suffix):
+                        matched_key = key
+                        break
+                textures[matched_key] = tensor
+    if obj_bytes is None:
+        raise ValueError("ZIP archive does not contain an OBJ file.")
+    return ObjZipResult(
+        obj=Types.File3D(source=BytesIO(obj_bytes), file_format="obj"),
+        texture=textures.get("texture"),
+        metallic=textures.get("metallic"),
+        normal=textures.get("normal"),
+        roughness=textures.get("roughness"),
     )
 
 
@@ -62,7 +132,7 @@ class TencentTextToModelNode(IO.ComfyNode):
                     tooltip="The LowPoly option is unavailable for the `3.1` model.",
                 ),
                 IO.String.Input("prompt", multiline=True, default="", tooltip="Supports up to 1024 characters."),
-                IO.Int.Input("face_count", default=500000, min=40000, max=1500000),
+                IO.Int.Input("face_count", default=500000, min=3000, max=1500000),
                 IO.DynamicCombo.Input(
                     "generate_type",
                     options=[
@@ -92,6 +162,7 @@ class TencentTextToModelNode(IO.ComfyNode):
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.File3DGLB.Output(display_name="GLB"),
                 IO.File3DOBJ.Output(display_name="OBJ"),
+                IO.Image.Output(display_name="texture_image"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -150,14 +221,14 @@ class TencentTextToModelNode(IO.ComfyNode):
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
         )
+        obj_result = await download_and_extract_obj_zip(get_file_from_response(result.ResultFile3Ds, "obj").Url)
         return IO.NodeOutput(
             f"{task_id}.glb",
             await download_url_to_file_3d(
                 get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
             ),
-            await download_url_to_file_3d(
-                get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj", task_id=task_id
-            ),
+            obj_result.obj,
+            obj_result.texture,
         )
 
 
@@ -180,7 +251,7 @@ class TencentImageToModelNode(IO.ComfyNode):
                 IO.Image.Input("image_left", optional=True),
                 IO.Image.Input("image_right", optional=True),
                 IO.Image.Input("image_back", optional=True),
-                IO.Int.Input("face_count", default=500000, min=40000, max=1500000),
+                IO.Int.Input("face_count", default=500000, min=3000, max=1500000),
                 IO.DynamicCombo.Input(
                     "generate_type",
                     options=[
@@ -210,6 +281,10 @@ class TencentImageToModelNode(IO.ComfyNode):
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.File3DGLB.Output(display_name="GLB"),
                 IO.File3DOBJ.Output(display_name="OBJ"),
+                IO.Image.Output(display_name="texture_image"),
+                IO.Image.Output(display_name="optional_metallic"),
+                IO.Image.Output(display_name="optional_normal"),
+                IO.Image.Output(display_name="optional_roughness"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -303,14 +378,17 @@ class TencentImageToModelNode(IO.ComfyNode):
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
         )
+        obj_result = await download_and_extract_obj_zip(get_file_from_response(result.ResultFile3Ds, "obj").Url)
         return IO.NodeOutput(
             f"{task_id}.glb",
             await download_url_to_file_3d(
                 get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
             ),
-            await download_url_to_file_3d(
-                get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj", task_id=task_id
-            ),
+            obj_result.obj,
+            obj_result.texture,
+            obj_result.metallic if obj_result.metallic is not None else torch.zeros(1, 1, 1, 3),
+            obj_result.normal if obj_result.normal is not None else torch.zeros(1, 1, 1, 3),
+            obj_result.roughness if obj_result.roughness is not None else torch.zeros(1, 1, 1, 3),
         )
 
 
@@ -344,7 +422,7 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             outputs=[
                 IO.File3DOBJ.Output(display_name="OBJ"),
                 IO.File3DFBX.Output(display_name="FBX"),
-                IO.Image.Output(),
+                IO.Image.Output(display_name="uv_image"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -375,7 +453,7 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/tencent/hunyuan/3d-uv", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=To3DUVTaskRequest(
-                File=To3DUVFileInput(
+                File=TaskFile3DInput(
                     Type=file_format.upper(),
                     Url=await upload_3d_model_to_comfyapi(cls, model_3d, file_format),
                 )
@@ -391,10 +469,16 @@ class TencentModelTo3DUVNode(IO.ComfyNode):
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
         )
+        uv_image_file = get_file_from_response(result.ResultFile3Ds, "uv_image", raise_if_not_found=False)
+        uv_image = (
+            await download_url_to_image_tensor(uv_image_file.Url)
+            if uv_image_file is not None
+            else torch.zeros(1, 1, 1, 3)
+        )
         return IO.NodeOutput(
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
-            await download_url_to_image_tensor(get_file_from_response(result.ResultFile3Ds, "image").Url),
+            uv_image,
         )
 
 
@@ -432,7 +516,8 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
             ],
             outputs=[
                 IO.File3DGLB.Output(display_name="GLB"),
-                IO.File3DFBX.Output(display_name="FBX"),
+                IO.File3DOBJ.Output(display_name="OBJ"),
+                IO.Image.Output(display_name="texture_image"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -463,7 +548,7 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/tencent/hunyuan/3d-texture-edit", method="POST"),
             response_model=To3DProTaskCreateResponse,
             data=TextureEditTaskRequest(
-                File3D=To3DUVFileInput(Type=file_format.upper(), Url=model_url),
+                File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
                 Prompt=prompt,
                 EnablePBR=True,
             ),
@@ -481,7 +566,8 @@ class Tencent3DTextureEditNode(IO.ComfyNode):
         )
         return IO.NodeOutput(
             await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb"),
-            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "fbx").Url, "fbx"),
+            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
+            await download_url_to_image_tensor(get_file_from_response(result.ResultFile3Ds, "texture_image").Url),
         )
 
 
@@ -538,8 +624,8 @@ class Tencent3DPartNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path="/proxy/tencent/hunyuan/3d-part", method="POST"),
             response_model=To3DProTaskCreateResponse,
-            data=To3DUVTaskRequest(
-                File=To3DUVFileInput(Type=file_format.upper(), Url=model_url),
+            data=To3DPartTaskRequest(
+                File=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
             ),
             is_rate_limited=_is_tencent_rate_limited,
         )
@@ -557,15 +643,107 @@ class Tencent3DPartNode(IO.ComfyNode):
         )
 
 
+class TencentSmartTopologyNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TencentSmartTopologyNode",
+            display_name="Hunyuan3D: Smart Topology",
+            category="api node/3d/Tencent",
+            description="Perform smart retopology on a 3D model. "
+            "Supports GLB/OBJ formats; max 200MB; recommended for high-poly models.",
+            inputs=[
+                IO.MultiType.Input(
+                    "model_3d",
+                    types=[IO.File3DGLB, IO.File3DOBJ, IO.File3DAny],
+                    tooltip="Input 3D model (GLB or OBJ)",
+                ),
+                IO.Combo.Input(
+                    "polygon_type",
+                    options=["triangle", "quadrilateral"],
+                    tooltip="Surface composition type.",
+                ),
+                IO.Combo.Input(
+                    "face_level",
+                    options=["medium", "high", "low"],
+                    tooltip="Polygon reduction level.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[
+                IO.File3DOBJ.Output(display_name="OBJ"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(expr='{"type":"usd","usd":1.0}'),
+        )
+
+    SUPPORTED_FORMATS = {"glb", "obj"}
+
+    @classmethod
+    async def execute(
+        cls,
+        model_3d: Types.File3D,
+        polygon_type: str,
+        face_level: str,
+        seed: int,
+    ) -> IO.NodeOutput:
+        _ = seed
+        file_format = model_3d.format.lower()
+        if file_format not in cls.SUPPORTED_FORMATS:
+            raise ValueError(
+                f"Unsupported file format: '{file_format}'. " f"Supported: {', '.join(sorted(cls.SUPPORTED_FORMATS))}."
+            )
+        model_url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-smart-topology", method="POST"),
+            response_model=To3DProTaskCreateResponse,
+            data=SmartTopologyRequest(
+                File3D=TaskFile3DInput(Type=file_format.upper(), Url=model_url),
+                PolygonType=polygon_type,
+                FaceLevel=face_level,
+            ),
+            is_rate_limited=_is_tencent_rate_limited,
+        )
+        if response.Error:
+            raise ValueError(f"Task creation failed: [{response.Error.Code}] {response.Error.Message}")
+        result = await poll_op(
+            cls,
+            ApiEndpoint(path="/proxy/tencent/hunyuan/3d-smart-topology/query", method="POST"),
+            data=To3DProTaskQueryRequest(JobId=response.JobId),
+            response_model=To3DProTaskResultResponse,
+            status_extractor=lambda r: r.Status,
+        )
+        return IO.NodeOutput(
+            await download_url_to_file_3d(get_file_from_response(result.ResultFile3Ds, "obj").Url, "obj"),
+        )
+
+
 class TencentHunyuan3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             TencentTextToModelNode,
             TencentImageToModelNode,
-            # TencentModelTo3DUVNode,
-            # Tencent3DTextureEditNode,
+            TencentModelTo3DUVNode,
+            Tencent3DTextureEditNode,
             Tencent3DPartNode,
+            TencentSmartTopologyNode,
         ]
 
 

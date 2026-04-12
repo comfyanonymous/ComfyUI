@@ -19,7 +19,7 @@
 import torch
 import logging
 import comfy.model_management
-from comfy.cli_args import args, PerformanceFeature, enables_dynamic_vram
+from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import json
 import comfy.memory_management
@@ -80,6 +80,21 @@ def cast_to_input(weight, input, non_blocking=False, copy=True):
 
 
 def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant):
+
+    #vbar doesn't support CPU weights, but some custom nodes have weird paths
+    #that might switch the layer to the CPU and expect it to work. We have to take
+    #a clone conservatively as we are mmapped and some SFT files are packed misaligned
+    #If you are a custom node author reading this, please move your layer to the GPU
+    #or declare your ModelPatcher as CPU in the first place.
+    if comfy.model_management.is_device_cpu(device):
+        weight = s.weight.to(dtype=dtype, copy=True)
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        bias = None
+        if s.bias is not None:
+            bias = s.bias.to(dtype=bias_dtype, copy=True)
+        return weight, bias, (None, None, None)
+
     offload_stream = None
     xfer_dest = None
 
@@ -167,17 +182,15 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             x = to_dequant(x, dtype)
         if not resident and lowvram_fn is not None:
             x = to_dequant(x, dtype if compute_dtype is None else compute_dtype)
-            #FIXME: this is not accurate, we need to be sensitive to the compute dtype
             x = lowvram_fn(x)
-            if (isinstance(orig, QuantizedTensor) and
-                (want_requant and len(fns) == 0 or update_weight)):
+            if (want_requant and len(fns) == 0 or update_weight):
                 seed = comfy.utils.string_to_seed(s.seed_key)
-                y = QuantizedTensor.from_float(x, s.layout_type, scale="recalculate", stochastic_rounding=seed)
-                if want_requant and len(fns) == 0:
-                    #The layer actually wants our freshly saved QT
-                    x = y
-            elif update_weight:
-                y = comfy.float.stochastic_rounding(x, orig.dtype, seed = comfy.utils.string_to_seed(s.seed_key))
+                if isinstance(orig, QuantizedTensor):
+                    y = QuantizedTensor.from_float(x, s.layout_type, scale="recalculate", stochastic_rounding=seed)
+                else:
+                    y = comfy.float.stochastic_rounding(x, orig.dtype, seed=seed)
+            if want_requant and len(fns) == 0:
+                x = y
             if update_weight:
                 orig.copy_(y)
         for f in fns:
@@ -271,8 +284,8 @@ def uncast_bias_weight(s, weight, bias, offload_stream):
         return
     os, weight_a, bias_a = offload_stream
     device=None
-    #FIXME: This is not good RTTI
-    if not isinstance(weight_a, torch.Tensor):
+    #FIXME: This is really bad RTTI
+    if weight_a is not None and not isinstance(weight_a, torch.Tensor):
         comfy_aimdo.model_vbar.vbar_unpin(s._v)
         device = weight_a
     if os is None:
@@ -293,10 +306,40 @@ class CastWeightBiasOp:
     bias_function = []
 
 class disable_weight_init:
+    @staticmethod
+    def _lazy_load_from_state_dict(module, state_dict, prefix, local_metadata,
+                                   missing_keys, unexpected_keys, weight_shape,
+                                   bias_shape=None):
+        assign_to_params_buffers = local_metadata.get("assign_to_params_buffers", False)
+        prefix_len = len(prefix)
+        for k, v in state_dict.items():
+            key = k[prefix_len:]
+            if key == "weight":
+                if not assign_to_params_buffers:
+                    v = v.clone()
+                module.weight = torch.nn.Parameter(v, requires_grad=False)
+            elif bias_shape is not None and key == "bias" and v is not None:
+                if not assign_to_params_buffers:
+                    v = v.clone()
+                module.bias = torch.nn.Parameter(v, requires_grad=False)
+            else:
+                unexpected_keys.append(k)
+
+        if module.weight is None:
+            module.weight = torch.nn.Parameter(torch.zeros(weight_shape), requires_grad=False)
+            missing_keys.append(prefix + "weight")
+
+        if bias_shape is not None and module.bias is None and getattr(module, "comfy_need_lazy_init_bias", False):
+            module.bias = torch.nn.Parameter(torch.zeros(bias_shape), requires_grad=False)
+            missing_keys.append(prefix + "bias")
+
     class Linear(torch.nn.Linear, CastWeightBiasOp):
 
         def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
-            if not comfy.model_management.WINDOWS or not enables_dynamic_vram():
+            # don't trust subclasses that BYO state dict loader to call us.
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 super().__init__(in_features, out_features, bias, device, dtype)
                 return
 
@@ -317,32 +360,21 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if not comfy.model_management.WINDOWS or not enables_dynamic_vram():
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
-            assign_to_params_buffers = local_metadata.get("assign_to_params_buffers", False)
-            prefix_len = len(prefix)
-            for k,v in state_dict.items():
-                if k[prefix_len:] == "weight":
-                    if not assign_to_params_buffers:
-                        v = v.clone()
-                    self.weight = torch.nn.Parameter(v, requires_grad=False)
-                elif k[prefix_len:] == "bias" and v is not None:
-                    if not assign_to_params_buffers:
-                        v = v.clone()
-                    self.bias = torch.nn.Parameter(v, requires_grad=False)
-                else:
-                    unexpected_keys.append(k)
-
-            #Reconcile default construction of the weight if its missing.
-            if self.weight is None:
-                v = torch.zeros(self.in_features, self.out_features)
-                self.weight = torch.nn.Parameter(v, requires_grad=False)
-                missing_keys.append(prefix+"weight")
-            if self.bias is None and self.comfy_need_lazy_init_bias:
-                v = torch.zeros(self.out_features,)
-                self.bias = torch.nn.Parameter(v, requires_grad=False)
-                missing_keys.append(prefix+"bias")
+            disable_weight_init._lazy_load_from_state_dict(
+                self,
+                state_dict,
+                prefix,
+                local_metadata,
+                missing_keys,
+                unexpected_keys,
+                weight_shape=(self.in_features, self.out_features),
+                bias_shape=(self.out_features,),
+            )
 
 
         def reset_parameters(self):
@@ -534,6 +566,53 @@ class disable_weight_init:
                 return super().forward(*args, **kwargs)
 
     class Embedding(torch.nn.Embedding, CastWeightBiasOp):
+        def __init__(self, num_embeddings, embedding_dim, padding_idx=None, max_norm=None,
+                     norm_type=2.0, scale_grad_by_freq=False, sparse=False, _weight=None,
+                     _freeze=False, device=None, dtype=None):
+            # don't trust subclasses that BYO state dict loader to call us.
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
+                super().__init__(num_embeddings, embedding_dim, padding_idx, max_norm,
+                                 norm_type, scale_grad_by_freq, sparse, _weight,
+                                 _freeze, device, dtype)
+                return
+
+            torch.nn.Module.__init__(self)
+            self.num_embeddings = num_embeddings
+            self.embedding_dim = embedding_dim
+            self.padding_idx = padding_idx
+            self.max_norm = max_norm
+            self.norm_type = norm_type
+            self.scale_grad_by_freq = scale_grad_by_freq
+            self.sparse = sparse
+            # Keep shape/dtype visible for module introspection without reserving storage.
+            embedding_dtype = dtype if dtype is not None else torch.get_default_dtype()
+            self.weight = torch.nn.Parameter(
+                torch.empty((num_embeddings, embedding_dim), device="meta", dtype=embedding_dtype),
+                requires_grad=False,
+            )
+            self.bias = None
+            self.weight_comfy_model_dtype = dtype
+
+        def _load_from_state_dict(self, state_dict, prefix, local_metadata,
+                                strict, missing_keys, unexpected_keys, error_msgs):
+
+            if (not comfy.model_management.WINDOWS
+                or not comfy.memory_management.aimdo_enabled
+                or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
+                return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
+                                                     missing_keys, unexpected_keys, error_msgs)
+            disable_weight_init._lazy_load_from_state_dict(
+                self,
+                state_dict,
+                prefix,
+                local_metadata,
+                missing_keys,
+                unexpected_keys,
+                weight_shape=(self.num_embeddings, self.embedding_dim),
+            )
+
         def reset_parameters(self):
             self.bias = None
             return None
@@ -617,7 +696,8 @@ def fp8_linear(self, input):
 
     if input.ndim != 2:
         return None
-    w, bias, offload_stream = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype, offloadable=True)
+    lora_compute_dtype=comfy.model_management.lora_compute_dtype(input.device)
+    w, bias, offload_stream = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype, offloadable=True, compute_dtype=lora_compute_dtype, want_requant=True)
     scale_weight = torch.ones((), device=input.device, dtype=torch.float32)
 
     scale_input = torch.ones((), device=input.device, dtype=torch.float32)
@@ -661,23 +741,29 @@ class fp8_ops(manual_cast):
 
 CUBLAS_IS_AVAILABLE = False
 try:
-    from cublas_ops import CublasLinear
+    from cublas_ops import CublasLinear, cublas_half_matmul
     CUBLAS_IS_AVAILABLE = True
 except ImportError:
     pass
 
 if CUBLAS_IS_AVAILABLE:
-    class cublas_ops(disable_weight_init):
-        class Linear(CublasLinear, disable_weight_init.Linear):
+    class cublas_ops(manual_cast):
+        class Linear(CublasLinear, manual_cast.Linear):
             def reset_parameters(self):
                 return None
 
             def forward_comfy_cast_weights(self, input):
-                return super().forward(input)
+                weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
+                x = cublas_half_matmul(input, weight, bias, self._epilogue_str, self.has_bias)
+                uncast_bias_weight(self, weight, bias, offload_stream)
+                return x
 
             def forward(self, *args, **kwargs):
-                return super().forward(*args, **kwargs)
-
+                run_every_op()
+                if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                    return self.forward_comfy_cast_weights(*args, **kwargs)
+                else:
+                    return super().forward(*args, **kwargs)
 
 # ==============================================================================
 # Mixed Precision Operations
@@ -688,6 +774,104 @@ from .quant_ops import (
     TensorCoreFP8Layout,
     get_layout_class,
 )
+
+
+class QuantLinearFunc(torch.autograd.Function):
+    """Custom autograd function for quantized linear: quantized forward, optionally FP8 backward.
+
+    When training_fp8_bwd is enabled:
+      - Forward: quantize input per layout (FP8/NVFP4), use quantized matmul
+      - Backward: all matmuls use FP8 tensor cores via torch.mm dispatch
+      - Cached input is FP8 (half the memory of bf16)
+
+    When training_fp8_bwd is disabled:
+      - Forward: quantize input per layout, use quantized matmul
+      - Backward: dequantize weight to compute_dtype, use standard matmul
+    """
+
+    @staticmethod
+    def forward(ctx, input_float, weight, bias, layout_type, input_scale, compute_dtype):
+        input_shape = input_float.shape
+        inp = input_float.detach().flatten(0, -2)  # zero-cost view to 2D
+
+        # Quantize input for forward (same layout as weight)
+        if layout_type is not None:
+            q_input = QuantizedTensor.from_float(inp, layout_type, scale=input_scale)
+        else:
+            q_input = inp
+
+        w = weight.detach() if weight.requires_grad else weight
+        b = bias.detach() if bias is not None and bias.requires_grad else bias
+
+        output = torch.nn.functional.linear(q_input, w, b)
+
+        # Unflatten output to match original input shape
+        if len(input_shape) > 2:
+            output = output.unflatten(0, input_shape[:-1])
+
+        # Save for backward
+        ctx.input_shape = input_shape
+        ctx.has_bias = bias is not None
+        ctx.compute_dtype = compute_dtype
+        ctx.weight_requires_grad = weight.requires_grad
+        ctx.fp8_bwd = comfy.model_management.training_fp8_bwd
+
+        if ctx.fp8_bwd:
+            # Cache FP8 quantized input — half the memory of bf16
+            if isinstance(q_input, QuantizedTensor) and layout_type.startswith('TensorCoreFP8'):
+                ctx.q_input = q_input  # already FP8, reuse
+            else:
+                # NVFP4 or other layout — quantize input to FP8 for backward
+                ctx.q_input = QuantizedTensor.from_float(inp, "TensorCoreFP8E4M3Layout")
+            ctx.save_for_backward(weight)
+        else:
+            ctx.q_input = None
+            ctx.save_for_backward(input_float, weight)
+
+        return output
+
+    @staticmethod
+    @torch.autograd.function.once_differentiable
+    def backward(ctx, grad_output):
+        compute_dtype = ctx.compute_dtype
+        grad_2d = grad_output.flatten(0, -2).to(compute_dtype)
+
+        # Value casting — only difference between fp8 and non-fp8 paths
+        if ctx.fp8_bwd:
+            weight, = ctx.saved_tensors
+            # Wrap as FP8 QuantizedTensors → torch.mm dispatches to _scaled_mm
+            grad_mm = QuantizedTensor.from_float(grad_2d, "TensorCoreFP8E5M2Layout")
+            if isinstance(weight, QuantizedTensor) and weight._layout_cls.startswith("TensorCoreFP8"):
+                weight_mm = weight
+            elif isinstance(weight, QuantizedTensor):
+                weight_mm = QuantizedTensor.from_float(weight.dequantize().to(compute_dtype), "TensorCoreFP8E4M3Layout")
+            else:
+                weight_mm = QuantizedTensor.from_float(weight.to(compute_dtype), "TensorCoreFP8E4M3Layout")
+            input_mm = ctx.q_input
+        else:
+            input_float, weight = ctx.saved_tensors
+            # Standard tensors → torch.mm does regular matmul
+            grad_mm = grad_2d
+            if isinstance(weight, QuantizedTensor):
+                weight_mm = weight.dequantize().to(compute_dtype)
+            else:
+                weight_mm = weight.to(compute_dtype)
+            input_mm = input_float.flatten(0, -2).to(compute_dtype) if ctx.weight_requires_grad else None
+
+        # Computation — same for both paths, dispatch handles the rest
+        grad_input = torch.mm(grad_mm, weight_mm)
+        if len(ctx.input_shape) > 2:
+            grad_input = grad_input.unflatten(0, ctx.input_shape[:-1])
+
+        grad_weight = None
+        if ctx.weight_requires_grad:
+            grad_weight = torch.mm(grad_mm.t(), input_mm)
+
+        grad_bias = None
+        if ctx.has_bias:
+            grad_bias = grad_2d.sum(dim=0)
+
+        return grad_input, grad_weight, grad_bias, None, None, None
 
 
 def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_precision_mm=False, disabled=[]):
@@ -744,6 +928,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 weight = state_dict.pop(weight_key, None)
                 if weight is None:
                     logging.warning(f"Missing weight for layer {layer_name}")
+                    self.weight = None
                     return
 
                 manually_loaded_keys = [weight_key]
@@ -777,6 +962,22 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                         params = layout_cls.Params(
                             scale=scale,
+                            orig_dtype=MixedPrecisionOps._compute_dtype,
+                            orig_shape=(self.out_features, self.in_features),
+                        )
+
+                    elif self.quant_format == "mxfp8":
+                        # MXFP8: E8M0 block scales stored as uint8 in safetensors
+                        block_scale = self._load_scale_param(state_dict, prefix, "weight_scale", device, manually_loaded_keys,
+                                                             dtype=torch.uint8)
+
+                        if block_scale is None:
+                            raise ValueError(f"Missing MXFP8 block scales for layer {layer_name}")
+
+                        block_scale = block_scale.view(torch.float8_e8m0fnu)
+
+                        params = layout_cls.Params(
+                            scale=block_scale,
                             orig_dtype=MixedPrecisionOps._compute_dtype,
                             orig_shape=(self.out_features, self.in_features),
                         )
@@ -827,8 +1028,15 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 else:
                     sd = {}
 
+                if not hasattr(self, 'weight'):
+                    logging.warning("Warning: state dict on uninitialized op {}".format(prefix))
+                    return sd
+
                 if self.bias is not None:
                     sd["{}bias".format(prefix)] = self.bias
+
+                if self.weight is None:
+                    return sd
 
                 if isinstance(self.weight, QuantizedTensor):
                     sd_out = self.weight.state_dict("{}weight".format(prefix))
@@ -864,10 +1072,37 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 #If cast needs to apply lora, it should be done in the compute dtype
                 compute_dtype = input.dtype
 
-                if (getattr(self, 'layout_type', None) is not None and
+                _use_quantized = (
+                    getattr(self, 'layout_type', None) is not None and
                     not isinstance(input, QuantizedTensor) and not self._full_precision_mm and
                     not getattr(self, 'comfy_force_cast_weights', False) and
-                    len(self.weight_function) == 0 and len(self.bias_function) == 0):
+                    len(self.weight_function) == 0 and len(self.bias_function) == 0
+                )
+
+                # Training path: quantized forward with compute_dtype backward via autograd function
+                if (input.requires_grad and _use_quantized):
+
+                    weight, bias, offload_stream = cast_bias_weight(
+                        self,
+                        input,
+                        offloadable=True,
+                        compute_dtype=compute_dtype,
+                        want_requant=True
+                    )
+
+                    scale = getattr(self, 'input_scale', None)
+                    if scale is not None:
+                        scale = comfy.model_management.cast_to_device(scale, input.device, None)
+
+                    output = QuantLinearFunc.apply(
+                        input, weight, bias, self.layout_type, scale, compute_dtype
+                    )
+
+                    uncast_bias_weight(self, weight, bias, offload_stream)
+                    return output
+
+                # Inference path (unchanged)
+                if _use_quantized:
 
                     # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
                     input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
@@ -915,7 +1150,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 for key, param in self._parameters.items():
                     if param is None:
                         continue
-                    self.register_parameter(key, torch.nn.Parameter(fn(param), requires_grad=False))
+                    p = fn(param)
+                    if p.is_inference():
+                        p = p.clone()
+                    self.register_parameter(key, torch.nn.Parameter(p, requires_grad=False))
                 for key, buf in self._buffers.items():
                     if buf is not None:
                         self._buffers[key] = fn(buf)
@@ -926,12 +1164,15 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, model_config=None):
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device) # TODO: if we support more ops this needs to be more granular
     nvfp4_compute = comfy.model_management.supports_nvfp4_compute(load_device)
+    mxfp8_compute = comfy.model_management.supports_mxfp8_compute(load_device)
 
     if model_config and hasattr(model_config, 'quant_config') and model_config.quant_config:
         logging.info("Using mixed precision operations")
         disabled = set()
         if not nvfp4_compute:
             disabled.add("nvfp4")
+        if not mxfp8_compute:
+            disabled.add("mxfp8")
         if not fp8_compute:
             disabled.add("float8_e4m3fn")
             disabled.add("float8_e5m2")

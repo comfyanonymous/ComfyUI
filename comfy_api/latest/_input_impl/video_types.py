@@ -272,7 +272,7 @@ class VideoFromFile(VideoInput):
             has_first_frame = False
             for frame in frames:
                 offset_seconds = start_time - frame.pts * audio_stream.time_base
-                to_skip = int(offset_seconds * audio_stream.sample_rate)
+                to_skip = max(0, int(offset_seconds * audio_stream.sample_rate))
                 if to_skip < frame.samples:
                     has_first_frame = True
                     break
@@ -280,7 +280,7 @@ class VideoFromFile(VideoInput):
                 audio_frames.append(frame.to_ndarray()[..., to_skip:])
 
             for frame in frames:
-                if frame.time > start_time + self.__duration:
+                if self.__duration and frame.time > start_time + self.__duration:
                     break
                 audio_frames.append(frame.to_ndarray())  # shape: (channels, samples)
             if len(audio_frames) > 0:
@@ -401,6 +401,7 @@ class VideoFromComponents(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
     ):
+        """Save the video to a file path or BytesIO buffer."""
         if format != VideoContainer.AUTO and format != VideoContainer.MP4:
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
@@ -408,6 +409,10 @@ class VideoFromComponents(VideoInput):
         extra_kwargs = {}
         if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
             extra_kwargs["format"] = format.value
+        elif isinstance(path, io.BytesIO):
+            # BytesIO has no file extension, so av.open can't infer the format.
+            # Default to mp4 since that's the only supported format anyway.
+            extra_kwargs["format"] = "mp4"
         with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:

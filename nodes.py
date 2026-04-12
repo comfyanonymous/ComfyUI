@@ -81,6 +81,7 @@ class CLIPTextEncode(ComfyNodeABC):
 
 
 class ConditioningCombine:
+    ESSENTIALS_CATEGORY = "Image Generation"
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", )}}
@@ -951,7 +952,7 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (folder_paths.get_filename_list("diffusion_models"), ),
-                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],)
+                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"], {"advanced": True})
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
@@ -976,7 +977,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1211,9 +1212,6 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
-
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -1232,7 +1230,7 @@ class EmptyLatentImage:
     SEARCH_ALIASES = ["empty", "empty latent", "new latent", "create latent", "blank latent", "blank"]
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
+        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
         return ({"samples": latent, "downscale_ratio_spacial": 8}, )
 
 
@@ -1724,6 +1722,8 @@ class LoadImage:
         output_masks = []
         w, h = None, None
 
+        dtype = comfy.model_management.intermediate_dtype()
+
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
@@ -1748,8 +1748,8 @@ class LoadImage:
                 mask = 1. - torch.from_numpy(mask)
             else:
                 mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-            output_images.append(image)
-            output_masks.append(mask.unsqueeze(0))
+            output_images.append(image.to(dtype=dtype))
+            output_masks.append(mask.unsqueeze(0).to(dtype=dtype))
 
             if img.format == "MPO":
                 break  # ignore all frames except the first one for MPO format
@@ -1779,6 +1779,7 @@ class LoadImage:
         return True
 
 class LoadImageMask:
+    ESSENTIALS_CATEGORY = "Image Tools"
     SEARCH_ALIASES = ["import mask", "alpha mask", "channel mask"]
 
     _color_channels = ["alpha", "red", "green", "blue"]
@@ -1887,6 +1888,7 @@ class ImageScale:
         return (s,)
 
 class ImageScaleBy:
+    ESSENTIALS_CATEGORY = "Image Tools"
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
 
     @classmethod
@@ -1925,7 +1927,6 @@ class ImageInvert:
 
 class ImageBatch:
     SEARCH_ALIASES = ["combine images", "merge images", "stack images"]
-    ESSENTIALS_CATEGORY = "Image Tools"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1965,9 +1966,11 @@ class EmptyImage:
     CATEGORY = "image"
 
     def generate(self, width, height, batch_size=1, color=0):
-        r = torch.full([batch_size, height, width, 1], ((color >> 16) & 0xFF) / 0xFF)
-        g = torch.full([batch_size, height, width, 1], ((color >> 8) & 0xFF) / 0xFF)
-        b = torch.full([batch_size, height, width, 1], ((color) & 0xFF) / 0xFF)
+        dtype = comfy.model_management.intermediate_dtype()
+        device = comfy.model_management.intermediate_device()
+        r = torch.full([batch_size, height, width, 1], ((color >> 16) & 0xFF) / 0xFF, device=device, dtype=dtype)
+        g = torch.full([batch_size, height, width, 1], ((color >> 8) & 0xFF) / 0xFF, device=device, dtype=dtype)
+        b = torch.full([batch_size, height, width, 1], ((color) & 0xFF) / 0xFF, device=device, dtype=dtype)
         return (torch.cat((r, g, b), dim=-1), )
 
 class ImagePadForOutpaint:
@@ -2436,6 +2439,7 @@ async def init_builtin_extra_nodes():
         "nodes_audio_encoder.py",
         "nodes_rope.py",
         "nodes_logic.py",
+        "nodes_resolution.py",
         "nodes_nop.py",
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
@@ -2449,6 +2453,12 @@ async def init_builtin_extra_nodes():
         "nodes_replacements.py",
         "nodes_nag.py",
         "nodes_trellis2.py",
+        "nodes_sdpose.py",
+        "nodes_math.py",
+        "nodes_number_convert.py",
+        "nodes_painter.py",
+        "nodes_curve.py",
+        "nodes_rtdetr.py"
     ]
 
     import_failed = []
