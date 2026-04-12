@@ -494,3 +494,19 @@ def get_input_subfolders() -> list[str]:
         return sorted(folders)
     except FileNotFoundError:
         return []
+
+
+# Research Workbench paths
+RESEARCH_PATHS = {
+    "papers": "research_workbench/assets/papers",
+    "datasets": "research_workbench/assets/datasets",
+    "code": "research_workbench/assets/code",
+    "experiments": "research_workbench/assets/experiments",
+    "figures": "research_workbench/assets/figures",
+    "styles": "research_workbench/assets/styles",
+    "claims": "research_workbench/assets/claims",
+    "reviews": "research_workbench/assets/reviews",
+    "projects": "research_workbench/projects",
+    "inbox": "research_workbench/inbox",
+    "exports": "research_workbench/exports",
+}
