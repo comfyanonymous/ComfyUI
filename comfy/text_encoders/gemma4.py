@@ -1004,7 +1004,11 @@ class Gemma4AudioProjector(Gemma4RMSNormProjector):
 # Tokenizer and Wrappers
 
 class Gemma4_Tokenizer():
+    tokenizer_json_data = None
+
     def state_dict(self):
+        if self.tokenizer_json_data is not None:
+            return {"tokenizer_json": self.tokenizer_json_data}
         return {}
 
     def _extract_mel_spectrogram(self, waveform, sample_rate):
@@ -1217,6 +1221,7 @@ class Gemma4SDTokenizer(Gemma4_Tokenizer, sd1_clip.SDTokenizer):
     embedding_size = 2560
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer_json = tokenizer_data.get("tokenizer_json", None)
+        self.tokenizer_json_data = tokenizer_json
         super().__init__(tokenizer_json, pad_with_end=False, embedding_size=self.embedding_size, embedding_key='gemma4', tokenizer_class=_Gemma4Tokenizer, has_start_token=True, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_left=True, disable_weights=True, start_token=2, tokenizer_data=tokenizer_data)
 
 

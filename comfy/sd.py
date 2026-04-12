@@ -1295,7 +1295,7 @@ def detect_te_model(sd):
         if weight.shape[0] == 4096:
             return TEModel.QWEN35_9B
         if weight.shape[0] == 5120:
-            return TEModel.QWEN35_31B
+            return TEModel.QWEN35_27B
         return TEModel.QWEN35_2B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         weight = sd['model.layers.0.post_attention_layernorm.weight']

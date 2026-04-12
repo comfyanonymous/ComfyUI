@@ -14,6 +14,8 @@ from .sub_quadratic_attention import efficient_dot_product_attention
 
 from comfy import model_management
 
+TORCH_HAS_GQA = model_management.torch_version_numeric >= (2, 5)
+
 if model_management.xformers_enabled():
     import xformers
     import xformers.ops
@@ -510,7 +512,9 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             mask = mask.unsqueeze(1)
 
     # Pass through extra SDPA kwargs (scale, enable_gqa) if provided
-    sdpa_extra = {k: v for k, v in kwargs.items() if k in ("scale", "enable_gqa")}
+    # enable_gqa requires PyTorch 2.5+; older versions use manual KV expansion above
+    sdpa_keys = ("scale", "enable_gqa") if TORCH_HAS_GQA else ("scale",)
+    sdpa_extra = {k: v for k, v in kwargs.items() if k in sdpa_keys}
 
     if SDP_BATCH_LIMIT >= b:
         out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False, **sdpa_extra)
