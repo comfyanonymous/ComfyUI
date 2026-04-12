@@ -2,7 +2,7 @@
 import asyncio
 from functools import partial
 from research_api.db import create_session
-from research_api.models import Project, Intent, PaperAsset, ClaimAsset, Source, FeedItem
+from research_api.models import Project, Intent, PaperAsset, ClaimAsset, Source, FeedItem, StyleAsset
 from app.database.models import to_dict
 
 
@@ -307,3 +307,75 @@ async def asyncio_create_feed_item(data):
 
 async def asyncio_update_feed_item(item_id, data):
     return await loop().run_in_executor(None, partial(_sync_update_feed_item, item_id, data))
+
+
+# StyleAsset helpers
+def _sync_list_styles():
+    with create_session() as session:
+        from sqlalchemy import select
+        result = session.execute(select(StyleAsset).order_by(StyleAsset.updated_at.desc()))
+        return [to_dict(s) for s in result.scalars().all()]
+
+
+def _sync_create_style(data):
+    with create_session() as session:
+        style = StyleAsset(**data)
+        session.add(style)
+        session.commit()
+        session.refresh(style)
+        return to_dict(style)
+
+
+def _sync_get_style(style_id):
+    with create_session() as session:
+        from sqlalchemy import select
+        result = session.execute(select(StyleAsset).where(StyleAsset.id == style_id))
+        s = result.scalar_one_or_none()
+        return to_dict(s) if s else None
+
+
+def _sync_update_style(style_id, data):
+    with create_session() as session:
+        from sqlalchemy import select
+        result = session.execute(select(StyleAsset).where(StyleAsset.id == style_id))
+        style = result.scalar_one_or_none()
+        if not style:
+            return None
+        for key, value in data.items():
+            if hasattr(style, key):
+                setattr(style, key, value)
+        session.commit()
+        session.refresh(style)
+        return to_dict(style)
+
+
+def _sync_delete_style(style_id):
+    with create_session() as session:
+        from sqlalchemy import select
+        result = session.execute(select(StyleAsset).where(StyleAsset.id == style_id))
+        style = result.scalar_one_or_none()
+        if not style:
+            return None
+        session.delete(style)
+        session.commit()
+        return True
+
+
+async def asyncio_list_styles():
+    return await loop().run_in_executor(None, _sync_list_styles)
+
+
+async def asyncio_create_style(data):
+    return await loop().run_in_executor(None, partial(_sync_create_style, data))
+
+
+async def asyncio_get_style(style_id):
+    return await loop().run_in_executor(None, partial(_sync_get_style, style_id))
+
+
+async def asyncio_update_style(style_id, data):
+    return await loop().run_in_executor(None, partial(_sync_update_style, style_id, data))
+
+
+async def asyncio_delete_style(style_id):
+    return await loop().run_in_executor(None, partial(_sync_delete_style, style_id))

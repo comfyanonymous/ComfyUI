@@ -124,3 +124,19 @@ class FeedItem(Base):
     status = Column(String, default="discovered")  # discovered, ranked, presented, quick-reviewed, saved, ignored
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class StyleAsset(Base):
+    __tablename__ = "style_assets"
+
+    id = Column(String, primary_key=True, default=new_id)
+    title = Column(String, nullable=False)
+    abstract_pattern = Column(String)
+    intro_pattern = Column(String)
+    methods_pattern = Column(String)
+    tone_notes = Column(String)
+    citation_format = Column(String)
+    source_paper_refs = Column(String)  # JSON string
+    usage_notes = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

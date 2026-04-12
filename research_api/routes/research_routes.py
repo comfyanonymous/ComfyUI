@@ -21,6 +21,11 @@ from research_api.routes._db_helpers import (
     asyncio_list_feed,
     asyncio_create_feed_item,
     asyncio_update_feed_item,
+    asyncio_list_styles,
+    asyncio_create_style,
+    asyncio_get_style,
+    asyncio_update_style,
+    asyncio_delete_style,
 )
 
 
@@ -181,3 +186,40 @@ class ResearchRoutes:
             if not item:
                 return web.json_response({"error": "Not found"}, status=404)
             return web.json_response(item)
+
+        # Styles
+        @self.routes.get("/research/assets/styles/")
+        async def list_styles(request):
+            styles = await asyncio_list_styles()
+            return web.json_response(styles)
+
+        @self.routes.post("/research/assets/styles/")
+        async def create_style(request):
+            data = await request.json()
+            style = await asyncio_create_style(data)
+            return web.json_response(style, status=201)
+
+        @self.routes.get("/research/assets/styles/{style_id}")
+        async def get_style(request):
+            style_id = request.match_info["style_id"]
+            style = await asyncio_get_style(style_id)
+            if not style:
+                return web.json_response({"error": "Not found"}, status=404)
+            return web.json_response(style)
+
+        @self.routes.patch("/research/assets/styles/{style_id}")
+        async def update_style(request):
+            style_id = request.match_info["style_id"]
+            data = await request.json()
+            style = await asyncio_update_style(style_id, data)
+            if not style:
+                return web.json_response({"error": "Not found"}, status=404)
+            return web.json_response(style)
+
+        @self.routes.delete("/research/assets/styles/{style_id}")
+        async def delete_style(request):
+            style_id = request.match_info["style_id"]
+            result = await asyncio_delete_style(style_id)
+            if not result:
+                return web.json_response({"error": "Not found"}, status=404)
+            return web.json_response({"status": "deleted"})

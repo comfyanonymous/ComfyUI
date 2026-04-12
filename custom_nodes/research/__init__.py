@@ -10,7 +10,8 @@ class ResearchExtension(ComfyExtension):
         from custom_nodes.research.paper_search import PaperSearch
         from custom_nodes.research.claim_extract import PaperClaimExtract
         from custom_nodes.research.evidence_assemble import ClaimEvidenceAssemble
-        return [PaperSearch, PaperClaimExtract, ClaimEvidenceAssemble]
+        from custom_nodes.research.style_profile import StyleProfileExtract
+        return [PaperSearch, PaperClaimExtract, ClaimEvidenceAssemble, StyleProfileExtract]
 
 
 async def comfy_entrypoint() -> ComfyExtension:
