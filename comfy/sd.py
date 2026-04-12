@@ -1400,17 +1400,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             else:
                 clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
                 clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
-        elif te_model == TEModel.GEMMA_4_E4B:
-            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=comfy.text_encoders.gemma4.Gemma4_E4B)
-            clip_target.tokenizer = comfy.text_encoders.gemma4.Gemma4Tokenizer
-            tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
-        elif te_model == TEModel.GEMMA_4_E2B:
-            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=comfy.text_encoders.gemma4.Gemma4_E2B)
-            clip_target.tokenizer = comfy.text_encoders.gemma4.Gemma4_E2BTokenizerWrapper
-            tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
-        elif te_model == TEModel.GEMMA_4_31B:
-            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=comfy.text_encoders.gemma4.Gemma4_31B)
-            clip_target.tokenizer = comfy.text_encoders.gemma4.Gemma4_31BTokenizerWrapper
+        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B):
+            variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
+                       TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
+                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B}[te_model]
+            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
+            clip_target.tokenizer = variant.tokenizer
             tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
