@@ -21,6 +21,7 @@ import comfy.ldm.hunyuan3dv2_1.hunyuandit
 import torch
 import logging
 import comfy.ldm.lightricks.av_model
+import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from comfy.ldm.cascade.stage_c import StageC
@@ -1156,9 +1157,8 @@ class LTXAV(BaseModel):
             window_len = len(window.index_list)
             patchifier = self.diffusion_model.patchifier
             latent_coords = patchifier.get_latent_coords(window_len, H, W, 1, cond_value.cond.device)
-            from comfy.ldm.lightricks.symmetric_patchifier import latent_to_pixel_coords
             scale_factors = self.diffusion_model.vae_scale_factors
-            pixel_coords = latent_to_pixel_coords(
+            pixel_coords = comfy.ldm.lightricks.symmetric_patchifier.latent_to_pixel_coords(
                 latent_coords,
                 scale_factors,
                 causal_fix=self.diffusion_model.causal_temporal_positioning)
