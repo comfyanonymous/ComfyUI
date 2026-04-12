@@ -1589,6 +1589,7 @@ class WAN21_SCAIL(WAN21):
         pose_latents = kwargs.get("pose_video_latent", None)
         if pose_latents is not None:
             out['pose_latents'] = [pose_latents.shape[0], 20, *pose_latents.shape[2:]]
+        return out
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
