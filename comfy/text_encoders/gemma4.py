@@ -1073,7 +1073,6 @@ class Gemma4_Tokenizer():
         return np.maximum(np.zeros(1), np.minimum(down_slopes, up_slopes))
 
     def tokenize_with_weights(self, text, return_word_ids=False, image=None, audio=None, video=None, llama_template=None, skip_template=True, thinking=False, **kwargs):
-        self.thinking = thinking
 
         # Process audio
         audio_features = []
@@ -1131,7 +1130,7 @@ class Gemma4_Tokenizer():
                 llama_text = llama_template.format(text)
             else:
                 # Build template from modalities present
-                system = "<|turn>system\n<|think|><turn|>\n" if self.thinking else ""
+                system = "<|turn>system\n<|think|><turn|>\n" if thinking else ""
                 media = ""
                 if len(images) > 0:
                     if is_video:
