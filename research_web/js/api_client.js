@@ -68,11 +68,23 @@ export async function createPaper(data) {
     return res.json();
 }
 
+export async function getPaper(paperId) {
+    const res = await fetch(`${API_BASE}/papers/${paperId}`);
+    return res.json();
+}
+
 export async function updatePaper(paperId, data) {
     const res = await fetch(`${API_BASE}/papers/${paperId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function deletePaper(paperId) {
+    const res = await fetch(`${API_BASE}/papers/${paperId}`, {
+        method: "DELETE",
     });
     return res.json();
 }
@@ -116,6 +128,42 @@ export async function createSource(data) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+// Style Asset APIs
+export async function listStyles() {
+    const res = await fetch(`${API_BASE}/assets/styles/`);
+    return res.json();
+}
+
+export async function createStyle(data) {
+    const res = await fetch(`${API_BASE}/assets/styles/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function getStyle(styleId) {
+    const res = await fetch(`${API_BASE}/assets/styles/${styleId}`);
+    return res.json();
+}
+
+export async function updateStyle(styleId, data) {
+    const res = await fetch(`${API_BASE}/assets/styles/${styleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function deleteStyle(styleId) {
+    const res = await fetch(`${API_BASE}/assets/styles/${styleId}`, {
+        method: "DELETE",
     });
     return res.json();
 }
