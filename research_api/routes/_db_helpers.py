@@ -1,9 +1,10 @@
 """Async DB helpers that wrap sync SQLAlchemy with run_in_executor."""
 import asyncio
 from functools import partial
+
+from research_api.base import to_dict
 from research_api.db import create_session
 from research_api.models import Project, Intent, PaperAsset, ClaimAsset, Source, FeedItem, StyleAsset
-from app.database.models import to_dict
 
 
 def _sync_list_projects():
@@ -28,6 +29,28 @@ def _sync_get_project(project_id):
         result = session.execute(select(Project).where(Project.id == project_id))
         p = result.scalar_one_or_none()
         return to_dict(p) if p else None
+
+
+def _sync_update_project(project_id, data):
+    from datetime import datetime
+    with create_session() as session:
+        from sqlalchemy import select
+        result = session.execute(select(Project).where(Project.id == project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            return None
+        for key, value in data.items():
+            if hasattr(project, key):
+                # Handle date conversion for DateTime columns
+                if key == "expected_completion" and isinstance(value, str):
+                    try:
+                        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        pass  # Keep original value if parsing fails
+                setattr(project, key, value)
+        session.commit()
+        session.refresh(project)
+        return to_dict(project)
 
 
 def _sync_list_intents(project_id):
@@ -176,19 +199,20 @@ def _sync_update_source(source_id, data):
         return to_dict(source)
 
 
-def _sync_get_today_feed():
+def _sync_get_today_feed(limit: int = 50, offset: int = 0):
     with create_session() as session:
         from sqlalchemy import select
         result = session.execute(
             select(FeedItem)
             .where(FeedItem.status.in_(["discovered", "ranked", "presented"]))
             .order_by(FeedItem.rank_score.desc())
-            .limit(20)
+            .limit(limit)
+            .offset(offset)
         )
         return [to_dict(i) for i in result.scalars().all()]
 
 
-def _sync_list_feed(source_id=None, status=None):
+def _sync_list_feed(source_id=None, status=None, limit: int = 50, offset: int = 0):
     with create_session() as session:
         from sqlalchemy import select
         query = select(FeedItem)
@@ -196,7 +220,7 @@ def _sync_list_feed(source_id=None, status=None):
             query = query.where(FeedItem.source_id == source_id)
         if status:
             query = query.where(FeedItem.status == status)
-        query = query.order_by(FeedItem.rank_score.desc())
+        query = query.order_by(FeedItem.rank_score.desc()).limit(limit).offset(offset)
         result = session.execute(query)
         return [to_dict(i) for i in result.scalars().all()]
 
@@ -226,87 +250,90 @@ def _sync_update_feed_item(item_id, data):
 
 
 # Async wrappers using run_in_executor
-loop = asyncio.get_event_loop
 
 
 async def asyncio_get_projects():
-    return await loop().run_in_executor(None, _sync_list_projects)
+    return await asyncio.get_running_loop().run_in_executor(None, _sync_list_projects)
 
 
 async def asyncio_create_project(data):
-    return await loop().run_in_executor(None, partial(_sync_create_project, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_project, data))
 
 
 async def asyncio_get_project(project_id):
-    return await loop().run_in_executor(None, partial(_sync_get_project, project_id))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_get_project, project_id))
+
+
+async def asyncio_update_project(project_id, data):
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_project, project_id, data))
 
 
 async def asyncio_list_intents(project_id):
-    return await loop().run_in_executor(None, partial(_sync_list_intents, project_id))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_list_intents, project_id))
 
 
 async def asyncio_create_intent(data):
-    return await loop().run_in_executor(None, partial(_sync_create_intent, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_intent, data))
 
 
 async def asyncio_update_intent(intent_id, data):
-    return await loop().run_in_executor(None, partial(_sync_update_intent, intent_id, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_intent, intent_id, data))
 
 
 async def asyncio_list_papers(library_status=None, read_status=None):
-    return await loop().run_in_executor(None, partial(_sync_list_papers, library_status, read_status))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_list_papers, library_status, read_status))
 
 
 async def asyncio_create_paper(data):
-    return await loop().run_in_executor(None, partial(_sync_create_paper, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_paper, data))
 
 
 async def asyncio_get_paper(paper_id):
-    return await loop().run_in_executor(None, partial(_sync_get_paper, paper_id))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_get_paper, paper_id))
 
 
 async def asyncio_update_paper(paper_id, data):
-    return await loop().run_in_executor(None, partial(_sync_update_paper, paper_id, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_paper, paper_id, data))
 
 
 async def asyncio_list_claims(project_id=None, support_level=None):
-    return await loop().run_in_executor(None, partial(_sync_list_claims, project_id, support_level))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_list_claims, project_id, support_level))
 
 
 async def asyncio_create_claim(data):
-    return await loop().run_in_executor(None, partial(_sync_create_claim, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_claim, data))
 
 
 async def asyncio_update_claim(claim_id, data):
-    return await loop().run_in_executor(None, partial(_sync_update_claim, claim_id, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_claim, claim_id, data))
 
 
 async def asyncio_list_sources():
-    return await loop().run_in_executor(None, _sync_list_sources)
+    return await asyncio.get_running_loop().run_in_executor(None, _sync_list_sources)
 
 
 async def asyncio_create_source(data):
-    return await loop().run_in_executor(None, partial(_sync_create_source, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_source, data))
 
 
 async def asyncio_update_source(source_id, data):
-    return await loop().run_in_executor(None, partial(_sync_update_source, source_id, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_source, source_id, data))
 
 
-async def asyncio_get_today_feed():
-    return await loop().run_in_executor(None, _sync_get_today_feed)
+async def asyncio_get_today_feed(limit: int = 50, offset: int = 0):
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_get_today_feed, limit, offset))
 
 
-async def asyncio_list_feed(source_id=None, status=None):
-    return await loop().run_in_executor(None, partial(_sync_list_feed, source_id, status))
+async def asyncio_list_feed(source_id=None, status=None, limit: int = 50, offset: int = 0):
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_list_feed, source_id, status, limit, offset))
 
 
 async def asyncio_create_feed_item(data):
-    return await loop().run_in_executor(None, partial(_sync_create_feed_item, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_feed_item, data))
 
 
 async def asyncio_update_feed_item(item_id, data):
-    return await loop().run_in_executor(None, partial(_sync_update_feed_item, item_id, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_feed_item, item_id, data))
 
 
 # StyleAsset helpers
@@ -362,20 +389,29 @@ def _sync_delete_style(style_id):
 
 
 async def asyncio_list_styles():
-    return await loop().run_in_executor(None, _sync_list_styles)
+    return await asyncio.get_running_loop().run_in_executor(None, _sync_list_styles)
 
 
 async def asyncio_create_style(data):
-    return await loop().run_in_executor(None, partial(_sync_create_style, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_create_style, data))
 
 
 async def asyncio_get_style(style_id):
-    return await loop().run_in_executor(None, partial(_sync_get_style, style_id))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_get_style, style_id))
 
 
 async def asyncio_update_style(style_id, data):
-    return await loop().run_in_executor(None, partial(_sync_update_style, style_id, data))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_update_style, style_id, data))
 
 
 async def asyncio_delete_style(style_id):
-    return await loop().run_in_executor(None, partial(_sync_delete_style, style_id))
+    return await asyncio.get_running_loop().run_in_executor(None, partial(_sync_delete_style, style_id))
+
+
+async def asyncio_run_feed_discovery(categories, keywords, limit_per_keyword):
+    """Run feed discovery using academic APIs (Semantic Scholar, CrossRef)."""
+    def _sync_run():
+        from custom_nodes.research.feed_discovery import run_discovery
+        return run_discovery(categories, keywords, limit_per_keyword)
+
+    return await asyncio.get_running_loop().run_in_executor(None, _sync_run)

@@ -1,11 +1,11 @@
 """Research Workbench SQLAlchemy models."""
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Integer, DateTime, Boolean, ForeignKey, Text, JSON
-from sqlalchemy.orm import relationship
-import app.database.models as models
 
-Base = models.Base
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import relationship
+
+from research_api.base import Base
 
 
 def new_id():
@@ -14,12 +14,19 @@ def new_id():
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (
+        Index("ix_projects_updated_at", "updated_at"),
+        Index("ix_projects_status", "status"),
+    )
 
     id = Column(String, primary_key=True, default=new_id)
     title = Column(String, nullable=False)
     goal = Column(String, nullable=True)
     current_direction = Column(String, nullable=True)
     status = Column(String, default="active")  # active, paused, completed
+    stage = Column(String, default="文献调研")  # 文献调研, 实验设计, 实验实施, 论文写作, 投稿, 完成
+    urgency = Column(String, default="normal")  # urgent, normal, low
+    expected_completion = Column(DateTime, nullable=True)  # 预期完成时间
     last_active_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -47,8 +54,14 @@ class Intent(Base):
 
 class PaperAsset(Base):
     __tablename__ = "paper_assets"
+    __table_args__ = (
+        Index("ix_paper_assets_library_status", "library_status"),
+        Index("ix_paper_assets_updated_at", "updated_at"),
+        Index("ix_paper_assets_project_id", "project_id"),
+    )
 
     id = Column(String, primary_key=True, default=new_id)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=True)
     title = Column(String, nullable=False)
     authors_text = Column(String, nullable=True)
     journal_or_source = Column(String, nullable=True)
@@ -64,12 +77,20 @@ class PaperAsset(Base):
     read_status = Column(String, default="unread")  # unread, quick-reviewed, skimmed, deeply-read
     library_status = Column(String, default="pending")  # pending, library
     style_candidate = Column(Boolean, default=False)
+    asset_type = Column(String, default="paper")  # paper, figure, table, code, dataset
+    tags = Column(JSON, nullable=True)  # List of tags stored as JSON
+    local_path = Column(String, nullable=True)  # Path to local MinerU folder or asset file
+    content_text = Column(Text, nullable=True)  # Extracted text/markdown content for papers
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class ClaimAsset(Base):
     __tablename__ = "claim_assets"
+    __table_args__ = (
+        Index("ix_claim_assets_project_id", "project_id"),
+        Index("ix_claim_assets_support_level", "support_level"),
+    )
 
     id = Column(String, primary_key=True, default=new_id)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False)
@@ -107,14 +128,20 @@ class Source(Base):
 
 class FeedItem(Base):
     __tablename__ = "feed_items"
+    __table_args__ = (
+        Index("ix_feed_items_status", "status"),
+        Index("ix_feed_items_source_id", "source_id"),
+    )
 
     id = Column(String, primary_key=True, default=new_id)
     source_id = Column(String, ForeignKey("sources.id"), nullable=True)
     external_key = Column(String, nullable=True)
     title = Column(String, nullable=False)
+    title_zh = Column(String, nullable=True)  # 中文标题
     authors_text = Column(String, nullable=True)
     published_at = Column(String, nullable=True)
     abstract = Column(Text, nullable=True)
+    abstract_zh = Column(Text, nullable=True)  # 中文摘要
     source_url = Column(String, nullable=True)
     pdf_url = Column(String, nullable=True)
     doi = Column(String, nullable=True)
