@@ -52,6 +52,26 @@ class TaskImageContent(BaseModel):
     role: Literal["first_frame", "last_frame", "reference_image"] | None = Field(None)
 
 
+class TaskVideoContentUrl(BaseModel):
+    url: str = Field(...)
+
+
+class TaskVideoContent(BaseModel):
+    type: str = Field("video_url")
+    video_url: TaskVideoContentUrl = Field(...)
+    role: str = Field("reference_video")
+
+
+class TaskAudioContentUrl(BaseModel):
+    url: str = Field(...)
+
+
+class TaskAudioContent(BaseModel):
+    type: str = Field("audio_url")
+    audio_url: TaskAudioContentUrl = Field(...)
+    role: str = Field("reference_audio")
+
+
 class Text2VideoTaskCreationRequest(BaseModel):
     model: str = Field(...)
     content: list[TaskTextContent] = Field(..., min_length=1)
@@ -62,6 +82,17 @@ class Image2VideoTaskCreationRequest(BaseModel):
     model: str = Field(...)
     content: list[TaskTextContent | TaskImageContent] = Field(..., min_length=2)
     generate_audio: bool | None = Field(...)
+
+
+class Seedance2TaskCreationRequest(BaseModel):
+    model: str = Field(...)
+    content: list[TaskTextContent | TaskImageContent | TaskVideoContent | TaskAudioContent] = Field(..., min_length=1)
+    generate_audio: bool | None = Field(None)
+    resolution: str | None = Field(None)
+    ratio: str | None = Field(None)
+    duration: int | None = Field(None, ge=4, le=15)
+    seed: int | None = Field(None, ge=0, le=2147483647)
+    watermark: bool | None = Field(None)
 
 
 class TaskCreationResponse(BaseModel):
@@ -77,12 +108,27 @@ class TaskStatusResult(BaseModel):
     video_url: str = Field(...)
 
 
+class TaskStatusUsage(BaseModel):
+    completion_tokens: int = Field(0)
+    total_tokens: int = Field(0)
+
+
 class TaskStatusResponse(BaseModel):
     id: str = Field(...)
     model: str = Field(...)
     status: Literal["queued", "running", "cancelled", "succeeded", "failed"] = Field(...)
     error: TaskStatusError | None = Field(None)
     content: TaskStatusResult | None = Field(None)
+    usage: TaskStatusUsage | None = Field(None)
+
+
+# Dollars per 1K tokens, keyed by (model_id, has_video_input).
+SEEDANCE2_PRICE_PER_1K_TOKENS = {
+    ("dreamina-seedance-2-0-260128", False): 0.007,
+    ("dreamina-seedance-2-0-260128", True): 0.0043,
+    ("dreamina-seedance-2-0-fast-260128", False): 0.0056,
+    ("dreamina-seedance-2-0-fast-260128", True): 0.0033,
+}
 
 
 RECOMMENDED_PRESETS = [
@@ -111,6 +157,12 @@ RECOMMENDED_PRESETS_SEEDREAM_4 = [
     ("4096x4096 (1:1)", 4096, 4096),
     ("Custom", None, None),
 ]
+
+# Seedance 2.0 reference video pixel count limits per model.
+SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
+    "dreamina-seedance-2-0-260128": {"min": 409_600, "max": 927_408},
+    "dreamina-seedance-2-0-fast-260128": {"min": 409_600, "max": 927_408},
+}
 
 # The time in this dictionary are given for 10 seconds duration.
 VIDEO_TASKS_EXECUTION_TIME = {
