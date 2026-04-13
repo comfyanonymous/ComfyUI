@@ -84,8 +84,6 @@ class FrameInterpolate(io.ComfyNode):
                 FrameInterpolationModel.Input("model"),
                 io.Image.Input("images"),
                 io.Int.Input("multiplier", default=2, min=2, max=16),
-                io.Boolean.Input("torch_compile", default=False, optional=True, advanced=True,
-                                 tooltip="Requires triton. Compile model submodules for potential speed increase. Adds warmup on first run, recompiles on resolution change."),
             ],
             outputs=[
                 io.Image.Output(),
@@ -93,7 +91,7 @@ class FrameInterpolate(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, images, multiplier, torch_compile=False) -> io.NodeOutput:
+    def execute(cls, model, images, multiplier) -> io.NodeOutput:
         offload_device = model_management.intermediate_device()
 
         num_frames = images.shape[0]
@@ -118,15 +116,6 @@ class FrameInterpolate(io.ComfyNode):
                 from comfy.ldm.common_dit import pad_to_patch_size
                 frame = pad_to_patch_size(frame, (align, align), padding_mode="reflect")
             return frame
-
-        if torch_compile:
-            for name, child in inference_model.named_children():
-                if isinstance(child, (torch.nn.ModuleList, torch.nn.ModuleDict)):
-                    continue
-                if not hasattr(child, "_compiled"):
-                    compiled = torch.compile(child)
-                    compiled._compiled = True
-                    setattr(inference_model, name, compiled)
 
         # Count total interpolation passes for progress bar
         total_pairs = num_frames - 1
