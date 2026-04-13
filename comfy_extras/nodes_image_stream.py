@@ -82,6 +82,47 @@ class TensorImageStream(Input.ImageStream):
         return chunk
 
 
+class PreviewingImageStream(Input.ImageStream):
+    def __init__(self, stream: Input.ImageStream):
+        super().__init__()
+        self._stream = stream
+
+    def _emit_preview(self, chunk: Input.Image) -> None:
+        if int(chunk.shape[0]) == 0:
+            return
+
+        current = get_executing_context()
+        if current is None:
+            return
+
+        server = getattr(PromptServer, "instance", None)
+        if server is None or server.client_id is None:
+            return
+
+        preview_output = ui.PreviewImage(chunk[-1:]).as_dict()
+        server.send_sync(
+            "executed",
+            {
+                "node": current.node_id,
+                "display_node": current.node_id,
+                "output": preview_output,
+                "prompt_id": current.prompt_id,
+            },
+            server.client_id,
+        )
+
+    def get_dimensions(self) -> tuple[int, int]:
+        return self._stream.get_dimensions()
+
+    def do_reset(self) -> None:
+        self._stream.reset()
+
+    def do_pull(self, max_frames: int) -> Input.Image:
+        chunk = self._stream.pull(max_frames)
+        self._emit_preview(chunk)
+        return chunk
+
+
 class ImageBatchToStream(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -137,6 +178,29 @@ class ImageStreamToBatch(io.ComfyNode):
         return io.NodeOutput(torch.cat(chunks, dim=0))
 
 
+class PreviewImageStream(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PreviewImageStream",
+            display_name="Preview Image Stream",
+            category="image/stream",
+            search_aliases=["stream preview", "preview frames", "preview image stream"],
+            description="Passes an IMAGE_STREAM through while previewing the last frame from each pulled chunk.",
+            has_intermediate_output=True,
+            inputs=[
+                io.ImageStream.Input("stream", tooltip="The image stream to preview inline."),
+            ],
+            outputs=[
+                io.ImageStream.Output(display_name="passthrough"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, stream: Input.ImageStream) -> io.NodeOutput:
+        return io.NodeOutput(PreviewingImageStream(stream))
+
+
 class StreamSink(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -166,6 +230,7 @@ class ImageStreamExtension(ComfyExtension):
         return [
             ImageBatchToStream,
             ImageStreamToBatch,
+            PreviewImageStream,
             StreamSink,
         ]
 
