@@ -71,14 +71,7 @@ class TextGenerate(io.ComfyNode):
             seed=seed
         )
 
-        generated_text = clip.decode(generated_ids, skip_special_tokens=not thinking)
-
-        if thinking:
-            # Translate Gemma4 thinking channel markers to standard <think>/</think> tags
-            generated_text = generated_text.replace("<|channel>thought\n", "<think>\n")
-            generated_text = generated_text.replace("<channel|>", "</think>")
-            # Strip remaining special tokens
-            generated_text = generated_text.replace("<turn|>", "").replace("<eos>", "").strip()
+        generated_text = clip.decode(generated_ids)
 
         return io.NodeOutput(generated_text)
 
