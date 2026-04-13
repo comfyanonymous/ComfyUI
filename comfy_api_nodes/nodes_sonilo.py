@@ -180,6 +180,7 @@ async def _stream_sonilo_music(
 
     node_id = get_node_id(cls)
     start_ts = time.monotonic()
+    last_chunk_status_ts = 0.0
     audio_streams: dict[int, list[bytes]] = {}
     title: str | None = None
 
@@ -242,14 +243,17 @@ async def _stream_sonilo_music(
                         audio_streams[stream_idx] = []
                     audio_streams[stream_idx].append(chunk_data)
 
-                    total_chunks = sum(len(chunks) for chunks in audio_streams.values())
-                    elapsed = int(time.monotonic() - start_ts)
-                    status_lines = ["Status: Receiving audio"]
-                    if title:
-                        status_lines.append(f"Title: {title}")
-                    status_lines.append(f"Chunks received: {total_chunks}")
-                    status_lines.append(f"Time elapsed: {elapsed}s")
-                    PromptServer.instance.send_progress_text("\n".join(status_lines), node_id)
+                    now = time.monotonic()
+                    if now - last_chunk_status_ts >= 1.0:
+                        total_chunks = sum(len(chunks) for chunks in audio_streams.values())
+                        elapsed = int(now - start_ts)
+                        status_lines = ["Status: Receiving audio"]
+                        if title:
+                            status_lines.append(f"Title: {title}")
+                        status_lines.append(f"Chunks received: {total_chunks}")
+                        status_lines.append(f"Time elapsed: {elapsed}s")
+                        PromptServer.instance.send_progress_text("\n".join(status_lines), node_id)
+                        last_chunk_status_ts = now
                 elif evt_type == "complete":
                     break
 
