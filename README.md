@@ -137,7 +137,7 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
    - Builds a new release using the latest stable core version
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
-   - Weekly frontend updates are merged into the core repository
+   - Every 2+ weeks frontend updates are merged into the core repository
    - Features are frozen for the upcoming core release
    - Development continues for the next release cycle
 
@@ -276,7 +276,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements.
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu130```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu132```
 
 #### Troubleshooting
 

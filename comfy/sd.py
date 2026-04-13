@@ -62,6 +62,7 @@ import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
+import comfy.text_encoders.ernie
 
 import comfy.model_patcher
 import comfy.lora
@@ -556,12 +557,19 @@ class VAE:
                         old_memory_used_decode = self.memory_used_decode
                         self.memory_used_decode = lambda shape, dtype: old_memory_used_decode(shape, dtype) *  4.0
 
+                    decoder_ch = sd['decoder.conv_in.weight'].shape[0] // ddconfig['ch_mult'][-1]
+                    if decoder_ch != ddconfig['ch']:
+                        decoder_ddconfig = ddconfig.copy()
+                        decoder_ddconfig['ch'] = decoder_ch
+                    else:
+                        decoder_ddconfig = None
+
                     if 'post_quant_conv.weight' in sd:
-                        self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
+                        self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1], **({"decoder_ddconfig": decoder_ddconfig} if decoder_ddconfig is not None else {}))
                     else:
                         self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
                                                                     encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
-                                                                    decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
+                                                                    decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': decoder_ddconfig if decoder_ddconfig is not None else ddconfig})
             elif "decoder.layers.1.layers.0.beta" in sd:
                 config = {}
                 param_key = None
@@ -1228,6 +1236,7 @@ class TEModel(Enum):
     QWEN35_4B = 25
     QWEN35_9B = 26
     QWEN35_27B = 27
+    MINISTRAL_3_3B = 28
 
 
 def detect_te_model(sd):
@@ -1294,6 +1303,8 @@ def detect_te_model(sd):
                 return TEModel.MISTRAL3_24B
             else:
                 return TEModel.MISTRAL3_24B_PRUNED_FLUX2
+        if weight.shape[0] == 3072:
+            return TEModel.MINISTRAL_3_3B
 
         return TEModel.LLAMA3_8
     return None
@@ -1451,6 +1462,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN3_06B:
             clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.anima.AnimaTokenizer
+        elif te_model == TEModel.MINISTRAL_3_3B:
+            clip_target.clip = comfy.text_encoders.ernie.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.ernie.ErnieTokenizer
+            tokenizer_data["tekken_model"] = clip_data[0].get("tekken_model", None)
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
