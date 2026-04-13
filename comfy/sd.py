@@ -62,6 +62,7 @@ import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
+import comfy.text_encoders.ernie
 
 import comfy.model_patcher
 import comfy.lora
@@ -1235,6 +1236,7 @@ class TEModel(Enum):
     QWEN35_4B = 25
     QWEN35_9B = 26
     QWEN35_27B = 27
+    MINISTRAL_3_3B = 28
 
 
 def detect_te_model(sd):
@@ -1301,6 +1303,8 @@ def detect_te_model(sd):
                 return TEModel.MISTRAL3_24B
             else:
                 return TEModel.MISTRAL3_24B_PRUNED_FLUX2
+        if weight.shape[0] == 3072:
+            return TEModel.MINISTRAL_3_3B
 
         return TEModel.LLAMA3_8
     return None
@@ -1458,6 +1462,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN3_06B:
             clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.anima.AnimaTokenizer
+        elif te_model == TEModel.MINISTRAL_3_3B:
+            clip_target.clip = comfy.text_encoders.ernie.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.ernie.ErnieTokenizer
+            tokenizer_data["tekken_model"] = clip_data[0].get("tekken_model", None)
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
