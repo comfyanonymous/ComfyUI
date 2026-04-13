@@ -12,6 +12,7 @@ from comfy.cli_args import args
 # Default server capabilities
 SERVER_FEATURE_FLAGS: dict[str, Any] = {
     "supports_preview_metadata": True,
+    "supports_progress_text_metadata": True,
     "max_upload_size": args.max_upload_size * 1024 * 1024, # Convert MB to bytes
     "extension": {"manager": {"supports_v4": True}},
     "node_replacements": True,

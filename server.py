@@ -45,6 +45,7 @@ from app.subgraph_manager import SubgraphManager
 from app.node_replace_manager import NodeReplaceManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
+from comfy_execution.utils import get_executing_context
 from protocol import BinaryEventTypes
 
 # Import cache control middleware
@@ -1282,7 +1283,14 @@ class PromptServer():
             text = text.encode("utf-8")
         node_id_bytes = str(node_id).encode("utf-8")
 
-        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
-        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+        target_sid = sid if sid is not None else self.client_id
+        message = b""
 
-        self.send_sync(BinaryEventTypes.TEXT, message, sid)
+        if feature_flags.supports_feature(self.sockets_metadata, target_sid, "supports_progress_text_metadata"):
+            current = get_executing_context()
+            prompt_id_bytes = str(current.prompt_id).encode("utf-8") if current is not None else b""
+            message = struct.pack(">I", len(prompt_id_bytes)) + prompt_id_bytes
+
+        message += struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+
+        self.send_sync(BinaryEventTypes.TEXT, message, target_sid)
