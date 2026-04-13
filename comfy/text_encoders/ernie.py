@@ -3,7 +3,7 @@ from comfy import sd1_clip
 import comfy.text_encoders.llama
 
 class Ministral3_3BTokenizer(Mistral3Tokenizer):
-    def __init__(self, embedding_directory=None, embedding_size=5120, embedding_key='mistral3_24b', tokenizer_data={}):
+    def __init__(self, embedding_directory=None, embedding_size=5120, embedding_key='ministral3_3b', tokenizer_data={}):
         return super().__init__(embedding_directory=embedding_directory, embedding_size=embedding_size, embedding_key=embedding_key, tokenizer_data=tokenizer_data)
 
 class ErnieTokenizer(sd1_clip.SD1Tokenizer):
