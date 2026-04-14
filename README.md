@@ -61,6 +61,7 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
+- NOTE: There are many more models supported than the list below, if you want to see what is supported see our templates list inside ComfyUI.
 - Image Models
    - SD1.x, SD2.x ([unCLIP](https://comfyanonymous.github.io/ComfyUI_examples/unclip/))
    - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
@@ -136,7 +137,7 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
    - Builds a new release using the latest stable core version
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
-   - Weekly frontend updates are merged into the core repository
+   - Every 2+ weeks frontend updates are merged into the core repository
    - Features are frozen for the upcoming core release
    - Development continues for the next release cycle
 
@@ -232,7 +233,7 @@ Put your VAE in: models/vae
 
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.1```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.2```
 
 This is the command to install the nightly with ROCm 7.2 which might have some performance improvements:
 
@@ -275,7 +276,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements.
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu130```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu132```
 
 #### Troubleshooting
 
