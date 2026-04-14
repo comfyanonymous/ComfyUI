@@ -1640,7 +1640,6 @@ class SAM31Tracker(nn.Module):
         output_dict = {"cond_frame_outputs": {}, "non_cond_frame_outputs": {}}
         all_masks = []
         idev = comfy.model_management.intermediate_device()
-        empty = lambda: torch.zeros(0, self.image_size, self.image_size, device=idev, dtype=dt)
         mux_state = None
         if initial_masks is not None:
             mux_state = MultiplexState(initial_masks.shape[0], self.num_multiplex, device, dt)
@@ -1710,7 +1709,7 @@ class SAM31Tracker(nn.Module):
                         for i in range(mux_state.total_valid_entries):
                             keep_alive[i] = 1
                 else:
-                    all_masks.append(empty())
+                    all_masks.append(None)
                     if pbar is not None:
                         pbar.update(1)
                     # Skip to backbone advance at end of loop
