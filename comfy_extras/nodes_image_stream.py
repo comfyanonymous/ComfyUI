@@ -123,6 +123,60 @@ class PreviewingImageStream(Input.ImageStream):
         return chunk
 
 
+class VAEDecodedImageStream(Input.ImageStream):
+    def __init__(self, vae, latent: Input.Latent):
+        super().__init__()
+        self._vae = vae
+        self._latent = latent
+        vae.throw_exception_if_invalid()
+        if not getattr(vae.first_stage_model, "comfy_has_chunked_io", False):
+            raise RuntimeError("This VAE does not expose chunked decode support, so VAE Decode Stream cannot be used.")
+        if latent.ndim != 5:
+            raise RuntimeError("VAE Decode Stream expects a video latent shaped [batch, channels, frames, height, width].")
+        if latent.shape[0] != 1:
+            raise RuntimeError("VAE Decode Stream currently requires latent batch size 1.")
+        output_shape = vae.decode_output_shape(latent.shape)
+        self._channels = int(output_shape[1])
+        self._width = int(output_shape[4])
+        self._height = int(output_shape[3])
+        self._total_frames = int(output_shape[0] * output_shape[2])
+        self._frames_emitted = 0
+
+    def _update_progress(self, value: int) -> None:
+        current = get_executing_context()
+        if current is None:
+            return
+        get_progress_state().update_progress(
+            current.node_id,
+            value=float(value),
+            max_value=float(max(self._total_frames, 1)),
+        )
+
+    def get_dimensions(self) -> tuple[int, int]:
+        return self._width, self._height
+
+    def do_reset(self) -> None:
+        self._frames_emitted = 0
+        self._update_progress(0)
+        self._vae.decode_stream_start(self._latent)
+
+    def do_pull(self, max_frames: int) -> Input.Image:
+        chunk = self._vae.first_stage_model.decode_chunk(max_frames)
+        if chunk is None:
+            return torch.empty(
+                (0, self._height, self._width, self._channels),
+                device=self._vae.output_device,
+                dtype=self._vae.vae_output_dtype(),
+            )
+
+        chunk = chunk.to(device=self._vae.output_device, dtype=self._vae.vae_output_dtype())
+        chunk = self._vae.process_output(chunk).movedim(1, -1)
+        chunk = chunk.reshape((-1,) + tuple(chunk.shape[-3:]))
+        self._frames_emitted += int(chunk.shape[0])
+        self._update_progress(self._frames_emitted)
+        return chunk
+
+
 class ImageBatchToStream(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -178,6 +232,32 @@ class ImageStreamToBatch(io.ComfyNode):
         return io.NodeOutput(torch.cat(chunks, dim=0))
 
 
+class VAEDecodeStream(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VAEDecodeStream",
+            display_name="VAE Decode Stream",
+            category="image/stream",
+            search_aliases=["vae stream decode", "latent to stream", "video latent stream"],
+            description="Decodes a latent into an IMAGE_STREAM.",
+            inputs=[
+                io.Latent.Input("samples", tooltip="The LTX latent to decode."),
+                io.Vae.Input("vae", tooltip="The LTX VAE used for chunked streaming decode."),
+            ],
+            outputs=[
+                io.ImageStream.Output(display_name="stream"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, samples: Input.Latent, vae) -> io.NodeOutput:
+        latent = samples["samples"]
+        if latent.is_nested:
+            latent = latent.unbind()[0]
+        return io.NodeOutput(VAEDecodedImageStream(vae, latent))
+
+
 class PreviewImageStream(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -230,6 +310,7 @@ class ImageStreamExtension(ComfyExtension):
         return [
             ImageBatchToStream,
             ImageStreamToBatch,
+            VAEDecodeStream,
             PreviewImageStream,
             StreamSink,
         ]

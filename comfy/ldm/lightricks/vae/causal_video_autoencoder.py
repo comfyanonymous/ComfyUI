@@ -1388,6 +1388,15 @@ class VideoVAE(nn.Module):
     def decode_output_shape(self, input_shape):
         return self.decoder.decode_output_shape(input_shape)
 
+    def decode_start(self, x):
+        clear_temporal_cache_state(self.decoder)
+        if self.timestep_conditioning: #TODO: seed
+            x = torch.randn_like(x) * self.decode_noise_scale + (1.0 - self.decode_noise_scale) * x
+        return self.decoder.forward_start(self.per_channel_statistics.un_normalize(x), timestep=self.decode_timestep)
+
+    def decode_chunk(self, output_t: int):
+        return self.decoder.forward_resume(output_t)
+
     def decode(self, x, output_buffer=None):
         if self.timestep_conditioning: #TODO: seed
             x = torch.randn_like(x) * self.decode_noise_scale + (1.0 - self.decode_noise_scale) * x
