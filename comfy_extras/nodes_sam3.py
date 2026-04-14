@@ -429,7 +429,7 @@ class SAM3_TrackPreview(io.ComfyNode):
                 grid_y = torch.arange(H, device=gpu).view(1, H, 1)
                 grid_x = torch.arange(W, device=gpu).view(1, 1, W)
             for t in range(N):
-                if images is not None:
+                if images is not None and t < images.shape[0]:
                     frame = images[t].clone()
                 else:
                     frame = torch.zeros(H, W, 3)
