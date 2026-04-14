@@ -33,7 +33,7 @@ class PreviewAny():
                 except Exception:
                     value = 'source exists, but could not be serialized.'
 
-        return {"ui": {"text": (value,)}, "results": (value,)}
+        return {"ui": {"text": (value,)}, "result": (value,)}
 
 NODE_CLASS_MAPPINGS = {
     "PreviewAny": PreviewAny,
