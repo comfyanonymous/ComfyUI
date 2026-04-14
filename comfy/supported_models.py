@@ -1781,6 +1781,57 @@ class ErnieImage(supported_models_base.BASE):
         return supported_models_base.ClipTarget(comfy.text_encoders.ernie.ErnieTokenizer, comfy.text_encoders.ernie.te(**hunyuan_detect))
 
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, LongCatImage, FluxSchnell, GenmoMochi, LTXV, LTXAV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImagePixelSpace, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, WAN21_FlowRVS, WAN21_SCAIL, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, ACEStep15, Omnigen2, QwenImage, Flux2, Kandinsky5Image, Kandinsky5, Anima, RT_DETR_v4, ErnieImage]
+class SAM3(supported_models_base.BASE):
+    unet_config = {"image_model": "SAM3"}
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+    text_encoder_key_prefix = ["detector.backbone.language_backbone."]
+    unet_extra_prefix = ""
+
+    def process_clip_state_dict(self, state_dict):
+        clip_keys = getattr(self, "_clip_stash", {})
+        clip_keys = utils.state_dict_prefix_replace(clip_keys, {"detector.backbone.language_backbone.": "", "backbone.language_backbone.": ""}, filter_keys=True)
+        clip_keys = utils.clip_text_transformers_convert(clip_keys, "encoder.", "sam3_clip.transformer.")
+        return {k: v for k, v in clip_keys.items() if not k.startswith("resizer.")}
+
+    def process_unet_state_dict(self, state_dict):
+        self._clip_stash = {k: state_dict.pop(k) for k in list(state_dict.keys()) if "language_backbone" in k and "resizer" not in k}
+        # SAM3.1: remap tracker.model.* -> tracker.*
+        for k in list(state_dict.keys()):
+            if k.startswith("tracker.model."):
+                state_dict["tracker." + k[len("tracker.model."):]] = state_dict.pop(k)
+        # SAM3.1: remove per-block freqs_cis buffers (computed dynamically)
+        for k in [k for k in list(state_dict.keys()) if ".attn.freqs_cis" in k]:
+            state_dict.pop(k)
+        # Split fused QKV projections
+        for k in [k for k in list(state_dict.keys()) if k.endswith((".in_proj_weight", ".in_proj_bias"))]:
+            t = state_dict.pop(k)
+            base, suffix = k.rsplit(".in_proj_", 1)
+            s = ".weight" if suffix == "weight" else ".bias"
+            d = t.shape[0] // 3
+            state_dict[base + ".q_proj" + s] = t[:d]
+            state_dict[base + ".k_proj" + s] = t[d:2*d]
+            state_dict[base + ".v_proj" + s] = t[2*d:]
+        # Remap tracker SAM decoder transformer key names to match sam.py TwoWayTransformer
+        for k in list(state_dict.keys()):
+            if "sam_mask_decoder.transformer." not in k:
+                continue
+            new_k = k.replace(".mlp.lin1.", ".mlp.0.").replace(".mlp.lin2.", ".mlp.2.").replace(".norm_final_attn.", ".norm_final.")
+            if new_k != k:
+                state_dict[new_k] = state_dict.pop(k)
+        return state_dict
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SAM3(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        import comfy.text_encoders.sam3_clip
+        return supported_models_base.ClipTarget(comfy.text_encoders.sam3_clip.SAM3TokenizerWrapper, comfy.text_encoders.sam3_clip.SAM3ClipModelWrapper)
+
+
+class SAM31(SAM3):
+    unet_config = {"image_model": "SAM31"}
+
+
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, LongCatImage, FluxSchnell, GenmoMochi, LTXV, LTXAV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImagePixelSpace, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, WAN21_FlowRVS, WAN21_SCAIL, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, ACEStep15, Omnigen2, QwenImage, Flux2, Kandinsky5Image, Kandinsky5, Anima, RT_DETR_v4, ErnieImage, SAM3, SAM31]
 
 models += [SVD_img2vid]
