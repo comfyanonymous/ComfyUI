@@ -278,11 +278,11 @@ class SavePassthroughVideoStream(io.ComfyNode):
             has_intermediate_output=True,
             inputs=[
                 io.ImageStream.Input("stream", tooltip="The image stream to save."),
-                io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
                 io.Float.Input("fps", default=30.0, min=1.0, max=120.0, step=1.0),
                 io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
                 io.Combo.Input("format", options=Types.VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
                 io.Combo.Input("codec", options=Types.VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+                io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
             ],
             outputs=[
                 io.ImageStream.Output(display_name="passthrough"),
@@ -294,11 +294,11 @@ class SavePassthroughVideoStream(io.ComfyNode):
     def execute(
         cls,
         stream: Input.ImageStream,
-        audio: Optional[Input.Audio],
         fps: float,
         filename_prefix,
         format: str,
         codec,
+        audio: Optional[Input.Audio] = None,
     ) -> io.NodeOutput:
         return io.NodeOutput(_build_saved_stream(cls.hidden, stream, audio, fps, filename_prefix, format, codec))
 
@@ -316,12 +316,12 @@ class SaveVideoStream(io.ComfyNode):
             is_output_node=True,
             inputs=[
                 io.ImageStream.Input("stream", tooltip="The image stream to save."),
-                io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
                 io.Float.Input("fps", default=30.0, min=1.0, max=120.0, step=1.0),
                 io.Int.Input("chunk_size", default=8, min=1, max=4096),
                 io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
                 io.Combo.Input("format", options=Types.VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
                 io.Combo.Input("codec", options=Types.VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+                io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
             ],
             outputs=[],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo, io.Hidden.unique_id, io.Hidden.dynprompt],
@@ -331,12 +331,12 @@ class SaveVideoStream(io.ComfyNode):
     def execute(
         cls,
         stream: Input.ImageStream,
-        audio: Optional[Input.Audio],
         fps: float,
         chunk_size: int,
         filename_prefix,
         format: str,
         codec,
+        audio: Optional[Input.Audio] = None,
     ) -> io.NodeOutput:
         saved_stream = _build_saved_stream(
             cls.hidden,
