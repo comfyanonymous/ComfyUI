@@ -410,9 +410,10 @@ class SAM3_TrackPreview(io.ComfyNode):
         else:
             N, N_obj = packed.shape[0], packed.shape[1]
 
+        import uuid
         gpu = comfy.model_management.get_torch_device()
         temp_dir = folder_paths.get_temp_directory()
-        filename = "sam3_track_preview.mp4"
+        filename = f"sam3_track_preview_{uuid.uuid4().hex[:8]}.mp4"
         filepath = os.path.join(temp_dir, filename)
         with av.open(filepath, mode='w') as output:
             stream = output.add_stream('h264', rate=Fraction(round(fps * 1000), 1000))
