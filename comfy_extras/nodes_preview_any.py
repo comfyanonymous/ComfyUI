@@ -11,7 +11,7 @@ class PreviewAny():
             "required": {"source": (IO.ANY, {})},
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = (IO.STRING,)
     FUNCTION = "main"
     OUTPUT_NODE = True
 
@@ -33,7 +33,7 @@ class PreviewAny():
                 except Exception:
                     value = 'source exists, but could not be serialized.'
 
-        return {"ui": {"text": (value,)}}
+        return {"ui": {"text": (value,)}, "result": (value,)}
 
 NODE_CLASS_MAPPINGS = {
     "PreviewAny": PreviewAny,
