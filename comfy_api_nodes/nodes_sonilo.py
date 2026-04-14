@@ -139,8 +139,8 @@ class SoniloTextToMusic(IO.ComfyNode):
                 expr="""
                 (
                   widgets.duration > 0
-                    ? {"type":"usd","usd": 0.009 * widgets.duration}
-                    : {"type":"usd","usd": 0.009, "format":{"suffix":"/second"}}
+                    ? {"type":"usd","usd": 0.005 * widgets.duration}
+                    : {"type":"usd","usd": 0.005, "format":{"suffix":"/second"}}
                 )
                 """,
             ),
