@@ -319,7 +319,8 @@ class ModelPatcher:
         #than pays for CFG. So return everything both torch and Aimdo could give us
         aimdo_mem = 0
         if comfy.memory_management.aimdo_enabled:
-            aimdo_mem = comfy_aimdo.model_vbar.vbars_analyze()
+            aimdo_device = device.index if getattr(device, "type", None) == "cuda" else None
+            aimdo_mem = comfy_aimdo.model_vbar.vbars_analyze(aimdo_device)
         return comfy.model_management.get_free_memory(device) + aimdo_mem
 
     def get_clone_model_override(self):
