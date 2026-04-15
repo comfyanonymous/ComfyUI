@@ -1446,7 +1446,7 @@ def pytorch_attention_enabled():
     return ENABLE_PYTORCH_ATTENTION
 
 def pytorch_attention_enabled_vae():
-    if is_amd():
+    if is_amd() and not SUPPORT_FP8_OPS:  # exclude RDNA4 (gfx1200, gfx1201) and CDNA4 (gfx950) that support fp8
         return False  # enabling pytorch attention on AMD currently causes crash when doing high res
     return pytorch_attention_enabled()
 
