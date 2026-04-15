@@ -15,7 +15,7 @@ def rope(pos: torch.Tensor, dim: int, theta: int) -> torch.Tensor:
 
     scale = torch.arange(0, dim, 2, dtype=torch.float64, device=device) / dim
     omega = 1.0 / (theta**scale)
-    out = torch.einsum("...n,d->...nd", pos, omega)
+    out = torch.einsum("...n,d->...nd", pos.to(device), omega)
     out = torch.stack([torch.cos(out), torch.sin(out)], dim=0)
     return out.to(dtype=torch.float32, device=pos.device)
 
@@ -279,7 +279,7 @@ class ErnieImageModel(nn.Module):
         rotary_pos_emb = self.pos_embed(torch.cat([image_ids, text_ids], dim=1)).to(x.dtype)
         del image_ids, text_ids
 
-        sample = self.time_proj(timesteps.to(dtype)).to(self.time_embedding.linear_1.weight.dtype)
+        sample = self.time_proj(timesteps).to(dtype)
         c = self.time_embedding(sample)
 
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = [
