@@ -18,13 +18,13 @@ RUN apt install -y git libgl1 libglib2.0-0
 
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git .
 
-RUN git clone https://github.com/Comfy-Org/ComfyUI-Manager ./custom_nodes/comfyui‑manager
+RUN git clone https://github.com/Comfy-Org/ComfyUI-Manager ./custom_nodes/ComfyUI-Manager
 
 RUN python3.12 -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
 
 RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 
-RUN python3.12 -m pip install -r ./custom_nodes/comfyui‑manager/requirements.txt
+RUN python3.12 -m pip install -r ./custom_nodes/ComfyUI-Manager/requirements.txt
 
 EXPOSE 8188
 
