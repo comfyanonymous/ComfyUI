@@ -161,12 +161,12 @@ class TextGenerateLTX2Prompt(TextGenerate):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False) -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False, use_default_template=True) -> io.NodeOutput:
         if image is None:
             formatted_prompt = f"<start_of_turn>system\n{LTX2_T2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
         else:
             formatted_prompt = f"<start_of_turn>system\n{LTX2_I2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\n\n<image_soft_token>\n\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
-        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image, thinking)
+        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image, thinking, use_default_template)
 
 
 class TextgenExtension(ComfyExtension):
