@@ -443,7 +443,9 @@ class VoxelToMeshBasic(IO.ComfyNode):
             vertices.append(v)
             faces.append(f)
 
-        return IO.NodeOutput(Types.MESH(torch.stack(vertices), torch.stack(faces)))
+        if vertices and all(v.shape == vertices[0].shape for v in vertices) and all(f.shape == faces[0].shape for f in faces):
+            return IO.NodeOutput(Types.MESH(torch.stack(vertices), torch.stack(faces)))
+        return IO.NodeOutput(Types.MESH(vertices, faces))
 
     decode = execute  # TODO: remove
 
@@ -479,7 +481,9 @@ class VoxelToMesh(IO.ComfyNode):
             vertices.append(v)
             faces.append(f)
 
-        return IO.NodeOutput(Types.MESH(torch.stack(vertices), torch.stack(faces)))
+        if vertices and all(v.shape == vertices[0].shape for v in vertices) and all(f.shape == faces[0].shape for f in faces):
+            return IO.NodeOutput(Types.MESH(torch.stack(vertices), torch.stack(faces)))
+        return IO.NodeOutput(Types.MESH(vertices, faces))
 
     decode = execute  # TODO: remove
 
@@ -682,7 +686,8 @@ class SaveGLB(IO.ComfyNode):
             })
         else:
             # Handle Mesh input - save vertices and faces as GLB
-            for i in range(mesh.vertices.shape[0]):
+            bsz = len(mesh.vertices) if isinstance(mesh.vertices, list) else mesh.vertices.shape[0]
+            for i in range(bsz):
                 f = f"{filename}_{counter:05}_.glb"
                 v_colors = mesh.colors[i] if hasattr(mesh, "colors") and mesh.colors is not None else None
                 save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata, v_colors)
