@@ -52,6 +52,7 @@ import comfy.text_encoders.hidream
 import comfy.text_encoders.ace
 import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
+import comfy.text_encoders.nucleus_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
 import comfy.text_encoders.ovis
@@ -1189,6 +1190,7 @@ class CLIPType(Enum):
     NEWBIE = 24
     FLUX2 = 25
     LONGCAT_IMAGE = 26
+    NUCLEUS_IMAGE = 27
 
 
 
@@ -1449,8 +1451,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.ovis.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.ovis.OvisTokenizer
         elif te_model == TEModel.QWEN3_8B:
-            clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type="qwen3_8b")
-            clip_target.tokenizer = comfy.text_encoders.flux.KleinTokenizer8B
+            if clip_type == CLIPType.NUCLEUS_IMAGE:
+                clip_target.clip = comfy.text_encoders.nucleus_image.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.nucleus_image.NucleusImageTokenizer
+            else:
+                clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type="qwen3_8b")
+                clip_target.tokenizer = comfy.text_encoders.flux.KleinTokenizer8B
         elif te_model == TEModel.JINA_CLIP_2:
             clip_target.clip = comfy.text_encoders.jina_clip_2.JinaClip2TextModelWrapper
             clip_target.tokenizer = comfy.text_encoders.jina_clip_2.JinaClip2TokenizerWrapper

@@ -663,6 +663,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["timestep_scale"] = 1000.0
         return dit_config
 
+    if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys and ('{}transformer_blocks.3.moe_layer.gate.weight'.format(key_prefix) in state_dict_keys or '{}transformer_blocks.3.img_mlp.experts.gate_up_proj'.format(key_prefix) in state_dict_keys or '{}transformer_blocks.3.img_mlp.experts.gate_up_projs.0.weight'.format(key_prefix) in state_dict_keys):  # Nucleus Image
+        dit_config = {}
+        dit_config["image_model"] = "nucleus_image"
+        dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        return dit_config
+
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}
         dit_config["image_model"] = "qwen_image"

@@ -99,6 +99,171 @@ class TestModelDetection:
         assert "time_in.in_layer.weight" in processed
         assert "final_layer.linear.weight" in processed
 
+    def test_nucleus_diffusers_expert_weights_stay_packed_for_grouped_mm(self):
+        model_config = comfy.supported_models.NucleusImage({"image_model": "nucleus_image"})
+        gate_up = torch.arange(2 * 3 * 4, dtype=torch.bfloat16).reshape(2, 3, 4)
+        down = torch.arange(2 * 5 * 3, dtype=torch.bfloat16).reshape(2, 5, 3)
+        sd = {
+            "img_in.weight": torch.empty(2048, 64),
+            "transformer_blocks.3.img_mlp.experts.gate_up_proj": gate_up,
+            "transformer_blocks.3.img_mlp.experts.down_proj": down,
+        }
+
+        processed = model_config.process_unet_state_dict(dict(sd))
+
+        assert processed["transformer_blocks.3.img_mlp.experts.gate_up_proj"] is gate_up
+        assert processed["transformer_blocks.3.img_mlp.experts.down_proj"] is down
+
+    def test_nucleus_swiglu_experts_loads_packed_weights(self):
+        from comfy.ldm.nucleus.model import SwiGLUExperts
+
+        experts = SwiGLUExperts(
+            hidden_size=2,
+            moe_intermediate_dim=1,
+            num_experts=2,
+            use_grouped_mm=False,
+            operations=torch.nn,
+        )
+        gate_up = torch.tensor(
+            [
+                [[1.0, 0.5], [0.0, 1.0]],
+                [[0.0, -1.0], [1.0, 0.25]],
+            ]
+        )
+        down = torch.tensor(
+            [
+                [[2.0, -1.0]],
+                [[-0.5, 1.5]],
+            ]
+        )
+
+        experts.load_state_dict({"gate_up_proj": gate_up, "down_proj": down})
+        x = torch.tensor([[2.0, 3.0], [1.0, -2.0], [4.0, 0.5]])
+        num_tokens_per_expert = torch.tensor([2, 1], dtype=torch.long)
+
+        out = experts(x, num_tokens_per_expert)
+        expected_parts = []
+        offset = 0
+        for expert_idx, count in enumerate(num_tokens_per_expert.tolist()):
+            x_expert = x[offset : offset + count]
+            offset += count
+            gate, up = (x_expert @ gate_up[expert_idx]).chunk(2, dim=-1)
+            expected_parts.append((torch.nn.functional.silu(gate) * up) @ down[expert_idx])
+        expected = torch.cat(expected_parts, dim=0)
+
+        assert torch.allclose(out, expected)
+        assert hasattr(experts, "comfy_cast_weights")
+        assert experts.comfy_cast_weights is True
+        assert hasattr(experts, "weight")
+        assert hasattr(experts, "bias")
+        assert not hasattr(experts, "gate_up_proj")
+        assert not hasattr(experts, "down_proj")
+        assert torch.equal(experts.state_dict()["weight"], gate_up)
+        assert torch.equal(experts.state_dict()["bias"], down)
+
+    def test_nucleus_swiglu_experts_loads_packed_quantized_weights(self):
+        import json
+
+        from comfy.ldm.nucleus.model import SwiGLUExperts
+        from comfy.quant_ops import QuantizedTensor
+
+        experts = SwiGLUExperts(
+            hidden_size=2,
+            moe_intermediate_dim=1,
+            num_experts=2,
+            use_grouped_mm=False,
+            operations=torch.nn,
+            dtype=torch.bfloat16,
+        )
+        gate_up = QuantizedTensor.from_float(
+            torch.tensor(
+                [
+                    [[1.0, 0.5], [0.0, 1.0]],
+                    [[0.0, -1.0], [1.0, 0.25]],
+                ],
+                dtype=torch.bfloat16,
+            ),
+            "TensorCoreFP8E4M3Layout",
+            scale="recalculate",
+        ).state_dict("gate_up_proj")
+        down = QuantizedTensor.from_float(
+            torch.tensor(
+                [
+                    [[2.0, -1.0]],
+                    [[-0.5, 1.5]],
+                ],
+                dtype=torch.bfloat16,
+            ),
+            "TensorCoreFP8E4M3Layout",
+            scale="recalculate",
+        ).state_dict("down_proj")
+        state_dict = {
+            **gate_up,
+            **down,
+            "comfy_quant": torch.tensor(list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")), dtype=torch.uint8),
+        }
+
+        experts.load_state_dict(state_dict)
+
+        assert isinstance(experts.weight, QuantizedTensor)
+        assert isinstance(experts.bias, QuantizedTensor)
+        assert experts.weight.shape == (2, 2, 2)
+        assert experts.bias.shape == (2, 1, 2)
+        assert experts.weight.dtype == torch.bfloat16
+        assert experts.bias.dtype == torch.bfloat16
+
+    def test_nucleus_split_expert_weights_still_load_for_quantized_files(self):
+        from comfy.ldm.nucleus.model import SwiGLUExperts
+
+        experts = SwiGLUExperts(
+            hidden_size=2,
+            moe_intermediate_dim=1,
+            num_experts=2,
+            use_grouped_mm=True,
+            operations=torch.nn,
+        )
+        split_state = {
+            "gate_up_projs.0.weight": torch.tensor([[1.0, 0.0], [0.5, 1.0]]),
+            "gate_up_projs.1.weight": torch.tensor([[0.0, 1.0], [-1.0, 0.25]]),
+            "down_projs.0.weight": torch.tensor([[2.0], [-1.0]]),
+            "down_projs.1.weight": torch.tensor([[-0.5], [1.5]]),
+        }
+
+        experts.load_state_dict(split_state)
+        x = torch.tensor([[2.0, 3.0], [1.0, -2.0], [4.0, 0.5]])
+        out = experts(x, torch.tensor([2, 1], dtype=torch.long))
+
+        assert out.shape == x.shape
+        assert not hasattr(experts, "comfy_cast_weights")
+        assert not hasattr(experts, "gate_up_proj")
+        assert not hasattr(experts, "weight")
+        assert torch.equal(
+            experts.gate_up_projs[0].weight,
+            split_state["gate_up_projs.0.weight"],
+        )
+
+    def test_nucleus_dense_swiglu_uses_diffusers_chunk_order(self):
+        from comfy.ldm.nucleus.model import FeedForward
+
+        ff = FeedForward(dim=2, dim_out=1, inner_dim=2, operations=torch.nn)
+        with torch.no_grad():
+            ff.net[0].proj.weight.copy_(
+                torch.tensor(
+                    [
+                        [1.0, 0.0],
+                        [0.0, 1.0],
+                        [0.5, 0.0],
+                        [0.0, -0.5],
+                    ]
+                )
+            )
+            ff.net[2].weight.copy_(torch.tensor([[1.0, 1.0]]))
+
+        x = torch.tensor([[[2.0, 4.0]]])
+        expected = 2.0 * torch.nn.functional.silu(torch.tensor(1.0)) + 4.0 * torch.nn.functional.silu(torch.tensor(-2.0))
+
+        assert torch.allclose(ff(x), expected.reshape(1, 1, 1))
+
     def test_flux_schnell_comfyui_detected_as_flux_schnell(self):
         sd = _make_flux_schnell_comfyui_sd()
         unet_config = detect_unet_config(sd, "")
