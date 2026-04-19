@@ -782,7 +782,7 @@ class Trellis2(nn.Module):
         embeds = kwargs.get("embeds")
         if embeds is None:
             raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
-        is_1024 = self.img2shape.resolution == 1024
+        is_1024 = self.img2shape.resolution == 64
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
         is_512_run = False
