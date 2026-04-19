@@ -212,6 +212,40 @@ class TestModelDetection:
         assert experts.weight.dtype == torch.bfloat16
         assert experts.bias.dtype == torch.bfloat16
 
+    def test_nucleus_rope_rejects_text_beyond_frequency_table(self):
+        from comfy.ldm.nucleus.model import NucleusMoEEmbedRope
+
+        rope = NucleusMoEEmbedRope(theta=10000, axes_dim=[2, 2, 2], scale_rope=False, operations=torch.nn)
+
+        try:
+            rope(video_fhw=[(1, 4095, 1)], device=torch.device("cpu"), max_txt_seq_len=2)
+        except ValueError as exc:
+            assert "Nucleus RoPE requires" in str(exc)
+        else:
+            raise AssertionError("Expected long text RoPE request to raise ValueError")
+
+    def test_nucleus_float_binary_attention_mask_converts_to_additive(self):
+        from comfy.ldm.nucleus.model import NucleusMoEImageTransformer2DModel
+
+        mask = torch.tensor([[1.0, 0.0, 1.0]], dtype=torch.float32)
+
+        out = NucleusMoEImageTransformer2DModel._normalize_attention_mask(mask, torch.float16)
+
+        assert out.dtype == torch.float16
+        assert out[0, 0].item() == 0
+        assert out[0, 2].item() == 0
+        assert out[0, 1].item() < -60000
+
+    def test_nucleus_additive_attention_mask_preserves_values(self):
+        from comfy.ldm.nucleus.model import NucleusMoEImageTransformer2DModel
+
+        mask = torch.tensor([[0.0, -10000.0]], dtype=torch.float32)
+
+        out = NucleusMoEImageTransformer2DModel._normalize_attention_mask(mask, torch.float16)
+
+        assert out.dtype == torch.float16
+        assert torch.equal(out, mask.to(torch.float16))
+
     def test_nucleus_split_expert_weights_still_load_for_quantized_files(self):
         from comfy.ldm.nucleus.model import SwiGLUExperts
 
@@ -241,6 +275,20 @@ class TestModelDetection:
             experts.gate_up_projs[0].weight,
             split_state["gate_up_projs.0.weight"],
         )
+
+    def test_nucleus_moe_layer_keys_normalize_to_img_mlp(self):
+        model_config = comfy.supported_models.NucleusImage({"image_model": "nucleus_image"})
+        weight = torch.empty(64, 2048)
+        sd = {
+            "transformer_blocks.3.moe_layer.gate.weight": weight,
+            "transformer_blocks.3.img_mlp.experts.gate_up_proj": torch.empty(2, 3, 4),
+        }
+
+        processed = model_config.process_unet_state_dict(sd)
+
+        assert "transformer_blocks.3.moe_layer.gate.weight" not in processed
+        assert processed["transformer_blocks.3.img_mlp.gate.weight"] is weight
+        assert "transformer_blocks.3.img_mlp.experts.gate_up_proj" in processed
 
     def test_nucleus_dense_swiglu_uses_diffusers_chunk_order(self):
         from comfy.ldm.nucleus.model import FeedForward

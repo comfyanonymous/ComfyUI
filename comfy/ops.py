@@ -952,17 +952,16 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     # catastrophic error in SwiGLU intermediates (gate*up product has
                     # high dynamic range). Force full precision for these layers.
                     if not self._full_precision_mm and self.quant_format in ("float8_e4m3fn", "float8_e5m2"):
+                        _layer_path = f".{layer_name}."
                         _moe_patterns = (
                             ".img_mlp.experts.gate_up_projs.",
                             ".img_mlp.experts.down_projs.",
                             ".img_mlp.shared_expert.",
-                            ".img_mlp.gate",  # no trailing dot - layer_name has no trailing dot
+                            ".img_mlp.gate.",
                         )
-                        for _pat in _moe_patterns:
-                            if _pat in layer_name:
-                                self._full_precision_mm = True
-                                self._full_precision_mm_config = True
-                                break
+                        if any(_pat in _layer_path for _pat in _moe_patterns):
+                            self._full_precision_mm = True
+                            self._full_precision_mm_config = True
 
 
                     if self.quant_format is None:

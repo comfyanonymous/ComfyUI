@@ -1570,7 +1570,11 @@ class NucleusImage(supported_models_base.BASE):
         return supported_models_base.ClipTarget(comfy.text_encoders.nucleus_image.NucleusImageTokenizer, comfy.text_encoders.nucleus_image.te(**hunyuan_detect))
 
     def process_unet_state_dict(self, state_dict):
-        return state_dict
+        out_sd = {}
+        for k, v in state_dict.items():
+            key_out = k.replace(".moe_layer.", ".img_mlp.")
+            out_sd[key_out] = v
+        return out_sd
 
 
 class HunyuanImage21(HunyuanVideo):

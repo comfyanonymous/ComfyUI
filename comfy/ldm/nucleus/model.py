@@ -117,20 +117,29 @@ class NucleusMoEEmbedRope(nn.Module):
 
         vid_freqs = []
         max_vid_index = None
+        max_txt_seq_len_int = int(max_txt_seq_len)
         for idx, fhw in enumerate(video_fhw):
             frame, height, width = fhw
             video_freq = self._compute_video_freqs(frame, height, width, idx, device)
             vid_freqs.append(video_freq)
 
-            max_txt_seq_len_int = int(max_txt_seq_len)
             if self.scale_rope:
                 max_vid_index_val = max(height // 2, width // 2)
             else:
                 max_vid_index_val = max(height, width)
-            if max_vid_index is None:
+            if max_vid_index is None or max_vid_index_val > max_vid_index:
                 max_vid_index = max_vid_index_val
 
-        txt_freqs = self.pos_freqs.to(device)[max_vid_index : max_vid_index + max_txt_seq_len_int]
+        if max_vid_index is None:
+            raise ValueError("video_fhw must contain at least one image shape")
+        end_index = max_vid_index + max_txt_seq_len_int
+        if end_index > self.pos_freqs.shape[0]:
+            raise ValueError(
+                f"Nucleus RoPE requires {end_index} positions, "
+                f"but only {self.pos_freqs.shape[0]} are available."
+            )
+
+        txt_freqs = self.pos_freqs.to(device)[max_vid_index:end_index]
         vid_freqs = torch.cat(vid_freqs, dim=0)
 
         return vid_freqs, txt_freqs
@@ -868,6 +877,21 @@ class NucleusMoEImageTransformer2DModel(nn.Module):
             return False
         return True
 
+    @staticmethod
+    def _normalize_attention_mask(attention_mask, dtype):
+        if attention_mask is None:
+            return None
+        if attention_mask.ndim > 2:
+            attention_mask = attention_mask.reshape(attention_mask.shape[0], -1)
+
+        if not torch.is_floating_point(attention_mask):
+            return (attention_mask.to(dtype) - 1) * torch.finfo(dtype).max
+
+        if torch.all((attention_mask == 0) | (attention_mask == 1)):
+            return (attention_mask.to(dtype) - 1) * torch.finfo(dtype).max
+
+        return attention_mask.to(dtype)
+
     def process_img(self, x, index=0, h_offset=0, w_offset=0):
         bs, c, t, h, w = x.shape
         patch_size = self.patch_size
@@ -913,13 +937,7 @@ class NucleusMoEImageTransformer2DModel(nn.Module):
         **kwargs,
     ):
         encoder_hidden_states = context
-        encoder_hidden_states_mask = attention_mask
-
-        if encoder_hidden_states_mask is not None and encoder_hidden_states_mask.ndim > 2:
-            encoder_hidden_states_mask = encoder_hidden_states_mask.reshape(encoder_hidden_states_mask.shape[0], -1)
-
-        if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
-            encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
+        encoder_hidden_states_mask = self._normalize_attention_mask(attention_mask, x.dtype)
 
         block_attention_kwargs = {}
         if encoder_hidden_states_mask is not None:
