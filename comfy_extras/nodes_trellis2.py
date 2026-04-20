@@ -117,7 +117,7 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     tree = scipy.spatial.cKDTree(voxel_pos_np)
 
     # nearest neighbour k=1
-    _, nearest_idx_np = tree.query(verts_np, k=1, workers=-1)
+    _, nearest_idx_np = tree.query(verts_np, k=1, workers=1)
 
     nearest_idx = torch.from_numpy(nearest_idx_np).long()
     v_colors = voxel_colors[nearest_idx]
