@@ -256,6 +256,8 @@ def run_conditioning(model, cropped_img_tensor, include_1024=True):
     model_internal = model.model
     device = comfy.model_management.intermediate_device()
     torch_device = comfy.model_management.get_torch_device()
+    had_image_size = hasattr(model_internal, "image_size")
+    original_image_size = getattr(model_internal, "image_size", None)
 
     def prepare_tensor(pil_img, size):
         resized_pil = pil_img.resize((size, size), Image.Resampling.LANCZOS)
@@ -263,15 +265,21 @@ def run_conditioning(model, cropped_img_tensor, include_1024=True):
         img_t = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).to(torch_device)
         return (img_t - dino_mean.to(torch_device)) / dino_std.to(torch_device)
 
-    model_internal.image_size = 512
-    input_512 = prepare_tensor(cropped_img_tensor, 512)
-    cond_512 = model_internal(input_512, skip_norm_elementwise=True)[0]
-
     cond_1024 = None
-    if include_1024:
-        model_internal.image_size = 1024
-        input_1024 = prepare_tensor(cropped_img_tensor, 1024)
-        cond_1024 = model_internal(input_1024, skip_norm_elementwise=True)[0]
+    try:
+        model_internal.image_size = 512
+        input_512 = prepare_tensor(cropped_img_tensor, 512)
+        cond_512 = model_internal(input_512, skip_norm_elementwise=True)[0]
+
+        if include_1024:
+            model_internal.image_size = 1024
+            input_1024 = prepare_tensor(cropped_img_tensor, 1024)
+            cond_1024 = model_internal(input_1024, skip_norm_elementwise=True)[0]
+    finally:
+        if not had_image_size:
+            delattr(model_internal, "image_size")
+        else:
+            model_internal.image_size = original_image_size
 
     conditioning = {
         'cond_512': cond_512.to(device),
