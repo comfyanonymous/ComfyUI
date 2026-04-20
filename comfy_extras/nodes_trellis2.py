@@ -109,7 +109,7 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     # map voxels
     voxel_pos = voxel_coords.to(device).float() * voxel_size + origin
     verts = mesh.vertices.to(device).squeeze(0)
-    voxel_colors = voxel_colors.to(device)
+    voxel_colors = voxel_colors.cpu()
 
     voxel_pos_np = voxel_pos.cpu().numpy()
     verts_np = verts.cpu().numpy()
