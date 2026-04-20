@@ -256,8 +256,8 @@ def run_conditioning(model, cropped_img_tensor, include_1024=True):
     model_internal = model.model
     device = comfy.model_management.intermediate_device()
     torch_device = comfy.model_management.get_torch_device()
-    image_size_missing = object()
-    original_image_size = getattr(model_internal, "image_size", image_size_missing)
+    had_image_size = hasattr(model_internal, "image_size")
+    original_image_size = getattr(model_internal, "image_size", None)
 
     def prepare_tensor(pil_img, size):
         resized_pil = pil_img.resize((size, size), Image.Resampling.LANCZOS)
@@ -276,7 +276,7 @@ def run_conditioning(model, cropped_img_tensor, include_1024=True):
             input_1024 = prepare_tensor(cropped_img_tensor, 1024)
             cond_1024 = model_internal(input_1024, skip_norm_elementwise=True)[0]
     finally:
-        if original_image_size is image_size_missing:
+        if not had_image_size:
             delattr(model_internal, "image_size")
         else:
             model_internal.image_size = original_image_size
