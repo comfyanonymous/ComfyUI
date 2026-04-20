@@ -8,6 +8,57 @@ import torch
 import scipy
 import copy
 
+
+def pack_variable_mesh_batch(vertices, faces, colors=None):
+    batch_size = len(vertices)
+    max_vertices = max(v.shape[0] for v in vertices)
+    max_faces = max(f.shape[0] for f in faces)
+
+    packed_vertices = vertices[0].new_zeros((batch_size, max_vertices, vertices[0].shape[1]))
+    packed_faces = faces[0].new_zeros((batch_size, max_faces, faces[0].shape[1]))
+    vertex_counts = torch.tensor([v.shape[0] for v in vertices], device=vertices[0].device, dtype=torch.int64)
+    face_counts = torch.tensor([f.shape[0] for f in faces], device=faces[0].device, dtype=torch.int64)
+
+    for i, (v, f) in enumerate(zip(vertices, faces)):
+        packed_vertices[i, :v.shape[0]] = v
+        packed_faces[i, :f.shape[0]] = f
+
+    mesh = Types.MESH(packed_vertices, packed_faces)
+    mesh.vertex_counts = vertex_counts
+    mesh.face_counts = face_counts
+
+    if colors is not None:
+        max_colors = max(c.shape[0] for c in colors)
+        packed_colors = colors[0].new_zeros((batch_size, max_colors, colors[0].shape[1]))
+        color_counts = torch.tensor([c.shape[0] for c in colors], device=colors[0].device, dtype=torch.int64)
+        for i, c in enumerate(colors):
+            packed_colors[i, :c.shape[0]] = c
+        mesh.colors = packed_colors
+        mesh.color_counts = color_counts
+
+    return mesh
+
+
+def get_mesh_batch_item(mesh, index):
+    if hasattr(mesh, "vertex_counts"):
+        vertex_count = int(mesh.vertex_counts[index].item())
+        face_count = int(mesh.face_counts[index].item())
+        vertices = mesh.vertices[index, :vertex_count]
+        faces = mesh.faces[index, :face_count]
+        colors = None
+        if hasattr(mesh, "colors") and mesh.colors is not None:
+            if hasattr(mesh, "color_counts"):
+                color_count = int(mesh.color_counts[index].item())
+                colors = mesh.colors[index, :color_count]
+            else:
+                colors = mesh.colors[index, :vertex_count]
+        return vertices, faces, colors
+
+    colors = None
+    if hasattr(mesh, "colors") and mesh.colors is not None:
+        colors = mesh.colors[index]
+    return mesh.vertices[index], mesh.faces[index], colors
+
 shape_slat_normalization = {
     "mean": torch.tensor([
         0.781296, 0.018091, -0.495192, -0.558457, 1.060530, 0.093252, 1.518149, -0.933218,
@@ -79,9 +130,16 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
 
     final_colors = linear_colors.unsqueeze(0)
 
-    out_mesh = copy.deepcopy(mesh)
+    out_mesh = copy.copy(mesh)
     out_mesh.colors = final_colors
 
+    return out_mesh
+
+
+def paint_mesh_default_colors(mesh):
+    out_mesh = copy.copy(mesh)
+    vertex_count = mesh.vertices.shape[1]
+    out_mesh.colors = mesh.vertices.new_zeros((1, vertex_count, 3))
     return out_mesh
 
 class VaeDecodeShapeTrellis(IO.ComfyNode):
@@ -117,9 +175,12 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
         samples = shape_norm(samples, coords)
 
         mesh, subs = vae.decode_shape_slat(samples, resolution)
-        faces = torch.stack([m.faces for m in mesh])
-        verts = torch.stack([m.vertices for m in mesh])
-        mesh = Types.MESH(vertices=verts, faces=faces)
+        face_list = [m.faces for m in mesh]
+        vert_list = [m.vertices for m in mesh]
+        if all(v.shape == vert_list[0].shape for v in vert_list) and all(f.shape == face_list[0].shape for f in face_list):
+            mesh = Types.MESH(vertices=torch.stack(vert_list), faces=torch.stack(face_list))
+        else:
+            mesh = pack_variable_mesh_batch(vert_list, face_list)
         return IO.NodeOutput(mesh, subs)
 
 class VaeDecodeTextureTrellis(IO.ComfyNode):
@@ -160,8 +221,30 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         voxel = vae.decode_tex_slat(samples, shape_subs)
         color_feats = voxel.feats[:, :3]
         voxel_coords = voxel.coords[:, 1:]
+        voxel_batch_idx = voxel.coords[:, 0]
 
-        out_mesh = paint_mesh_with_voxels(shape_mesh, voxel_coords, color_feats, resolution=resolution)
+        mesh_batch_size = shape_mesh.vertices.shape[0]
+        if mesh_batch_size > 1:
+            out_verts, out_faces, out_colors = [], [], []
+            for i in range(mesh_batch_size):
+                sel = voxel_batch_idx == i
+                item_coords = voxel_coords[sel]
+                item_colors = color_feats[sel]
+                item_vertices, item_faces, _ = get_mesh_batch_item(shape_mesh, i)
+                item_mesh = Types.MESH(vertices=item_vertices.unsqueeze(0), faces=item_faces.unsqueeze(0))
+                if item_coords.shape[0] == 0:
+                    painted = paint_mesh_default_colors(item_mesh)
+                else:
+                    painted = paint_mesh_with_voxels(item_mesh, item_coords, item_colors, resolution=resolution)
+                out_verts.append(painted.vertices.squeeze(0))
+                out_faces.append(painted.faces.squeeze(0))
+                out_colors.append(painted.colors.squeeze(0))
+            out_mesh = pack_variable_mesh_batch(out_verts, out_faces, out_colors)
+        else:
+            if voxel_coords.shape[0] == 0:
+                out_mesh = paint_mesh_default_colors(shape_mesh)
+            else:
+                out_mesh = paint_mesh_with_voxels(shape_mesh, voxel_coords, color_feats, resolution=resolution)
         return IO.NodeOutput(out_mesh)
 
 class VaeDecodeStructureTrellis2(IO.ComfyNode):
@@ -310,69 +393,87 @@ class Trellis2Conditioning(IO.ComfyNode):
 
     @classmethod
     def execute(cls, clip_vision_model, image, mask, background_color) -> IO.NodeOutput:
+        # Normalize to batched form so per-image conditioning loop below is uniform.
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        batch_size = image.shape[0]
+        if mask.shape[0] == 1 and batch_size > 1:
+            mask = mask.expand(batch_size, -1, -1)
+        elif mask.shape[0] != batch_size:
+            raise ValueError(f"Trellis2Conditioning mask batch {mask.shape[0]} does not match image batch {batch_size}")
 
-        if image.ndim == 4:
-            image = image[0]
-        if mask.ndim == 3:
-            mask = mask[0]
+        cond_512_list = []
+        cond_1024_list = []
 
-        img_np = (image.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-        mask_np = (mask.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+        for b in range(batch_size):
+            item_image = image[b]
+            item_mask = mask[b]
 
-        pil_img = Image.fromarray(img_np)
-        pil_mask = Image.fromarray(mask_np)
+            img_np = (item_image.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+            mask_np = (item_mask.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
 
-        max_size = max(pil_img.size)
-        scale = min(1.0, 1024 / max_size)
-        if scale < 1.0:
-            new_w, new_h = int(pil_img.width * scale), int(pil_img.height * scale)
-            pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-            pil_mask = pil_mask.resize((new_w, new_h), Image.Resampling.NEAREST)
+            pil_img = Image.fromarray(img_np)
+            pil_mask = Image.fromarray(mask_np)
 
-        rgba_np = np.zeros((pil_img.height, pil_img.width, 4), dtype=np.uint8)
-        rgba_np[:, :, :3] = np.array(pil_img)
-        rgba_np[:, :, 3] = np.array(pil_mask)
+            max_size = max(pil_img.size)
+            scale = min(1.0, 1024 / max_size)
+            if scale < 1.0:
+                new_w, new_h = int(pil_img.width * scale), int(pil_img.height * scale)
+                pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                pil_mask = pil_mask.resize((new_w, new_h), Image.Resampling.NEAREST)
 
-        alpha = rgba_np[:, :, 3]
-        bbox_coords = np.argwhere(alpha > 0.8 * 255)
+            rgba_np = np.zeros((pil_img.height, pil_img.width, 4), dtype=np.uint8)
+            rgba_np[:, :, :3] = np.array(pil_img)
+            rgba_np[:, :, 3] = np.array(pil_mask)
 
-        if len(bbox_coords) > 0:
-            y_min, x_min = np.min(bbox_coords[:, 0]), np.min(bbox_coords[:, 1])
-            y_max, x_max = np.max(bbox_coords[:, 0]), np.max(bbox_coords[:, 1])
+            alpha = rgba_np[:, :, 3]
+            bbox_coords = np.argwhere(alpha > 0.8 * 255)
 
-            center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
-            size = max(y_max - y_min, x_max - x_min)
+            if len(bbox_coords) > 0:
+                y_min, x_min = np.min(bbox_coords[:, 0]), np.min(bbox_coords[:, 1])
+                y_max, x_max = np.max(bbox_coords[:, 0]), np.max(bbox_coords[:, 1])
 
-            crop_x1 = int(center_x - size // 2)
-            crop_y1 = int(center_y - size // 2)
-            crop_x2 = int(center_x + size // 2)
-            crop_y2 = int(center_y + size // 2)
+                center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
+                size = max(y_max - y_min, x_max - x_min)
 
-            rgba_pil = Image.fromarray(rgba_np)
-            cropped_rgba = rgba_pil.crop((crop_x1, crop_y1, crop_x2, crop_y2))
-            cropped_np = np.array(cropped_rgba).astype(np.float32) / 255.0
-        else:
-            import logging
-            logging.warning("Mask for the image is empty. Trellis2 requires an image with a mask for the best mesh quality.")
-            cropped_np = rgba_np.astype(np.float32) / 255.0
+                crop_x1 = int(center_x - size // 2)
+                crop_y1 = int(center_y - size // 2)
+                crop_x2 = int(center_x + size // 2)
+                crop_y2 = int(center_y + size // 2)
 
-        bg_colors = {"black":[0.0, 0.0, 0.0], "gray":[0.5, 0.5, 0.5], "white":[1.0, 1.0, 1.0]}
-        bg_rgb = np.array(bg_colors.get(background_color, [0.0, 0.0, 0.0]), dtype=np.float32)
+                rgba_pil = Image.fromarray(rgba_np)
+                cropped_rgba = rgba_pil.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+                cropped_np = np.array(cropped_rgba).astype(np.float32) / 255.0
+            else:
+                import logging
+                logging.warning("Mask for the image is empty. Trellis2 requires an image with a mask for the best mesh quality.")
+                cropped_np = rgba_np.astype(np.float32) / 255.0
 
-        fg = cropped_np[:, :, :3]
-        alpha_float = cropped_np[:, :, 3:4]
-        composite_np = fg * alpha_float + bg_rgb * (1.0 - alpha_float)
+            bg_colors = {"black":[0.0, 0.0, 0.0], "gray":[0.5, 0.5, 0.5], "white":[1.0, 1.0, 1.0]}
+            bg_rgb = np.array(bg_colors.get(background_color, [0.0, 0.0, 0.0]), dtype=np.float32)
 
-        # to match trellis2 code (quantize -> dequantize)
-        composite_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
+            fg = cropped_np[:, :, :3]
+            alpha_float = cropped_np[:, :, 3:4]
+            composite_np = fg * alpha_float + bg_rgb * (1.0 - alpha_float)
 
-        cropped_pil = Image.fromarray(composite_uint8)
+            # to match trellis2 code (quantize -> dequantize)
+            composite_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
 
-        conditioning = run_conditioning(clip_vision_model, cropped_pil, include_1024=True)
+            cropped_pil = Image.fromarray(composite_uint8)
 
-        embeds = conditioning["cond_1024"]
-        positive = [[conditioning["cond_512"], {"embeds": embeds}]]
-        negative = [[conditioning["neg_cond"], {"embeds": torch.zeros_like(embeds)}]]
+            item_conditioning = run_conditioning(clip_vision_model, cropped_pil, include_1024=True)
+            cond_512_list.append(item_conditioning["cond_512"])
+            cond_1024_list.append(item_conditioning["cond_1024"])
+
+        cond_512_batched = torch.cat(cond_512_list, dim=0)
+        cond_1024_batched = torch.cat(cond_1024_list, dim=0)
+        neg_cond_batched = torch.zeros_like(cond_512_batched)
+        neg_embeds_batched = torch.zeros_like(cond_1024_batched)
+
+        positive = [[cond_512_batched, {"embeds": cond_1024_batched}]]
+        negative = [[neg_cond_batched, {"embeds": neg_embeds_batched}]]
         return IO.NodeOutput(positive, negative)
 
 class EmptyShapeLatentTrellis2(IO.ComfyNode):
@@ -659,7 +760,22 @@ class PostProcessMesh(IO.ComfyNode):
 
     @classmethod
     def execute(cls, mesh, simplify, fill_holes_perimeter):
-        # TODO: batched mode may break
+        if hasattr(mesh, "vertex_counts"):
+            out_verts, out_faces, out_colors = [], [], []
+            for i in range(mesh.vertices.shape[0]):
+                v_i, f_i, c_i = get_mesh_batch_item(mesh, i)
+                actual_face_count = f_i.shape[0]
+                if fill_holes_perimeter > 0:
+                    v_i, f_i = fill_holes_fn(v_i, f_i, max_perimeter=fill_holes_perimeter)
+                if simplify > 0 and actual_face_count > simplify:
+                    v_i, f_i, c_i = simplify_fn(v_i, f_i, target=simplify, colors=c_i)
+                v_i, f_i = make_double_sided(v_i, f_i)
+                out_verts.append(v_i)
+                out_faces.append(f_i)
+                if c_i is not None:
+                    out_colors.append(c_i)
+            out_mesh = pack_variable_mesh_batch(out_verts, out_faces, out_colors if len(out_colors) == len(out_verts) else None)
+            return IO.NodeOutput(out_mesh)
         verts, faces = mesh.vertices, mesh.faces
         colors = None
         if hasattr(mesh, "colors"):
