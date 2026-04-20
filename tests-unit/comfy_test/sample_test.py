@@ -52,6 +52,25 @@ class TestPrepareNoiseInnerTrellis(unittest.TestCase):
         with self.assertRaises(ValueError):
             comfy.sample.prepare_noise_inner(latent, generator, noise_inds=[7])
 
+    def test_coord_counts_metadata_must_match_batch_and_bounds(self):
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(456)
+
+        latent = torch.zeros(2, 4, 5, 1)
+        latent.trellis_coord_counts = torch.tensor([[3, 5]], dtype=torch.int64)
+        with self.assertRaises(ValueError):
+            comfy.sample.prepare_noise_inner(latent, generator)
+
+        latent = torch.zeros(2, 4, 5, 1)
+        latent.trellis_coord_counts = torch.tensor([3], dtype=torch.int64)
+        with self.assertRaises(ValueError):
+            comfy.sample.prepare_noise_inner(latent, generator)
+
+        latent = torch.zeros(2, 4, 5, 1)
+        latent.trellis_coord_counts = torch.tensor([3, 6], dtype=torch.int64)
+        with self.assertRaises(ValueError):
+            comfy.sample.prepare_noise_inner(latent, generator)
+
 
 if __name__ == "__main__":
     unittest.main()
