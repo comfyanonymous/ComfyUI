@@ -782,7 +782,9 @@ class Trellis2(nn.Module):
         embeds = kwargs.get("embeds")
         if embeds is None:
             raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
-        is_1024 = self.img2shape.resolution == 1024
+        # img2shape.resolution is the latent-grid size, not the input pixel size:
+        # 32 -> 512px path, 64 -> 1024px path.
+        uses_1024_conditioning = self.img2shape.resolution == 64
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
         is_512_run = False
@@ -797,7 +799,7 @@ class Trellis2(nn.Module):
             mode = "structure_generation"
             not_struct_mode = False
 
-        if is_1024 and not_struct_mode and not is_512_run:
+        if uses_1024_conditioning and not_struct_mode and not is_512_run:
             context = embeds
 
         sigmas = transformer_options.get("sigmas")[0].item()
