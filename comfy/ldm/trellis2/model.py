@@ -813,6 +813,14 @@ class Trellis2(nn.Module):
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
         dense_out = None
+        cond_or_uncond = transformer_options.get("cond_or_uncond") or []
+
+        def cond_group_indices(batch_groups):
+            if len(cond_or_uncond) == batch_groups:
+                cond_groups = [i for i, marker in enumerate(cond_or_uncond) if marker == 0]
+                if len(cond_groups) > 0:
+                    return cond_groups
+            return [batch_groups - 1]
 
         if not_struct_mode:
             orig_bsz = x.shape[0]
@@ -820,10 +828,17 @@ class Trellis2(nn.Module):
 
             logical_batch = coord_counts.shape[0] if coord_counts is not None else 1
             if rule and orig_bsz > logical_batch:
-                half = orig_bsz // 2
-                x_eval = x[half:]
-                t_eval = timestep[half:] if timestep.shape[0] > 1 else timestep
-                c_eval = cond
+                batch_groups = orig_bsz // logical_batch
+                selected_groups = cond_group_indices(batch_groups)
+                x_groups = x.reshape(batch_groups, logical_batch, *x.shape[1:])
+                x_eval = x_groups[selected_groups].reshape(-1, *x.shape[1:])
+                if timestep.shape[0] > 1:
+                    t_groups = timestep.reshape(batch_groups, logical_batch, *timestep.shape[1:])
+                    t_eval = t_groups[selected_groups].reshape(-1, *timestep.shape[1:])
+                else:
+                    t_eval = timestep
+                c_groups = context.reshape(batch_groups, logical_batch, *context.shape[1:])
+                c_eval = c_groups[selected_groups].reshape(-1, *context.shape[1:])
             else:
                 x_eval = x
                 t_eval = timestep
@@ -838,113 +853,62 @@ class Trellis2(nn.Module):
                         raise ValueError(
                             f"Trellis2 coord_counts batch {logical_batch} doesn't divide latent batch {B}"
                         )
+                    batch_ids = coords[:, 0].to(torch.int64)
+                    order = torch.argsort(batch_ids, stable=True)
+                    sorted_coords = coords.index_select(0, order)
+                    sorted_batch_ids = batch_ids.index_select(0, order)
+                    offsets = coord_counts.cumsum(0) - coord_counts
+                    coords_by_batch = []
+                    for i in range(logical_batch):
+                        count = int(coord_counts[i].item())
+                        start = int(offsets[i].item())
+                        coords_i = sorted_coords[start:start + count]
+                        ids_i = sorted_batch_ids[start:start + count]
+                        if coords_i.shape[0] != count or not torch.all(ids_i == i):
+                            raise ValueError(
+                                f"Trellis2 coords rows for batch {i} expected {count}, got {coords_i.shape[0]}"
+                            )
+                        coords_by_batch.append(coords_i)
                     repeat_factor = B // logical_batch
                     sparse_outs = []
                     active_coord_counts = []
-                    if mode == "shape_generation" and repeat_factor > 1:
-                        grouped_outs = []
-                        grouped_counts = []
+                    for rep in range(repeat_factor):
                         for i in range(logical_batch):
+                            out_index = rep * logical_batch + i
                             count = int(coord_counts[i].item())
-                            coords_i = coords[coords[:, 0] == i].clone()
-                            if coords_i.shape[0] != count:
-                                raise ValueError(
-                                    f"Trellis2 coords rows for batch {i} expected {count}, got {coords_i.shape[0]}"
-                                )
+                            coords_i = coords_by_batch[i].clone()
+                            coords_i[:, 0] = 0
+                            feats_i = x_eval[out_index, :count].clone()
+                            x_st_i = SparseTensor(feats=feats_i, coords=coords_i.to(torch.int32))
+                            t_i = t_eval[out_index].unsqueeze(0).clone() if t_eval.shape[0] > 1 else t_eval
+                            c_i = c_eval[out_index].unsqueeze(0).clone() if c_eval.shape[0] > 1 else c_eval
 
-                            feat_batches = []
-                            coord_batches = []
-                            index_batch = []
-                            for rep in range(repeat_factor):
-                                out_index = rep * logical_batch + i
-                                feat_batches.append(x_eval[out_index, :count])
-                                coords_rep = coords_i.clone()
-                                coords_rep[:, 0] = rep
-                                coord_batches.append(coords_rep)
-                                index_batch.append(out_index)
-
-                            x_st_i = SparseTensor(
-                                feats=torch.cat(feat_batches, dim=0),
-                                coords=torch.cat(coord_batches, dim=0).to(torch.int32),
-                            )
-                            index_tensor = torch.tensor(index_batch, device=x_eval.device, dtype=torch.long)
-                            if t_eval.shape[0] > 1:
-                                t_i = t_eval.index_select(0, index_tensor)
-                            else:
-                                t_i = t_eval
-                            if c_eval.shape[0] > 1:
-                                c_i = c_eval.index_select(0, index_tensor)
-                            else:
-                                c_i = c_eval
-
-                            if is_512_run:
-                                sparse_out = self.img2shape_512(x_st_i, t_i, c_i)
-                            else:
-                                sparse_out = self.img2shape(x_st_i, t_i, c_i)
-
-                            feats_group, coords_group = sparse_out.to_tensor_list()
-                            if len(feats_group) != repeat_factor:
-                                raise ValueError(
-                                    f"Trellis2 expected {repeat_factor} sparse output groups for batch {i}, got {len(feats_group)}"
-                                )
-                            for rep, (feats_rep, coords_rep) in enumerate(zip(feats_group, coords_group)):
-                                if feats_rep.shape[0] != count:
-                                    raise ValueError(
-                                        f"Trellis2 sparse output rows for batch {i} rep {rep} expected {count}, got {feats_rep.shape[0]}"
-                                    )
-                                if coords_rep.shape[0] != count:
-                                    raise ValueError(
-                                        f"Trellis2 sparse output coords for batch {i} rep {rep} expected {count}, got {coords_rep.shape[0]}"
-                                    )
-                            grouped_outs.append(feats_group)
-                            grouped_counts.append(count)
-
-                        for rep in range(repeat_factor):
-                            for i in range(logical_batch):
-                                sparse_outs.append(grouped_outs[i][rep])
-                                active_coord_counts.append(grouped_counts[i])
-                    else:
-                        for rep in range(repeat_factor):
-                            for i in range(logical_batch):
-                                out_index = rep * logical_batch + i
-                                count = int(coord_counts[i].item())
-                                coords_i = coords[coords[:, 0] == i].clone()
-                                if coords_i.shape[0] != count:
-                                    raise ValueError(
-                                        f"Trellis2 coords rows for batch {i} expected {count}, got {coords_i.shape[0]}"
-                                    )
-                                coords_i[:, 0] = 0
-                                feats_i = x_eval[out_index, :count]
-                                x_st_i = SparseTensor(feats=feats_i, coords=coords_i.to(torch.int32))
-                                t_i = t_eval[out_index].unsqueeze(0) if t_eval.shape[0] > 1 else t_eval
-                                c_i = c_eval[out_index].unsqueeze(0) if c_eval.shape[0] > 1 else c_eval
-
-                                if mode == "shape_generation":
-                                    if is_512_run:
-                                        sparse_out = self.img2shape_512(x_st_i, t_i, c_i)
-                                    else:
-                                        sparse_out = self.img2shape(x_st_i, t_i, c_i)
+                            if mode == "shape_generation":
+                                if is_512_run:
+                                    sparse_out = self.img2shape_512(x_st_i, t_i, c_i)
                                 else:
-                                    slat = transformer_options.get("shape_slat")
-                                    if slat is None:
-                                        raise ValueError("shape_slat can't be None")
-                                    if slat.ndim == 3:
-                                        if slat.shape[0] != logical_batch:
-                                            raise ValueError(
-                                                f"shape_slat batch {slat.shape[0]} doesn't match coord_counts batch {logical_batch}"
-                                            )
-                                        if slat.shape[1] < count:
-                                            raise ValueError(
-                                                f"shape_slat tokens {slat.shape[1]} can't cover coord count {count} for batch {i}"
-                                            )
-                                        slat_feats = slat[i, :count].to(x_st_i.device)
-                                    else:
-                                        slat_feats = slat[:count].to(x_st_i.device)
-                                    x_st_i = x_st_i.replace(feats=torch.cat([x_st_i.feats, slat_feats], dim=-1))
-                                    sparse_out = self.shape2txt(x_st_i, t_i, c_i)
+                                    sparse_out = self.img2shape(x_st_i, t_i, c_i)
+                            else:
+                                slat = transformer_options.get("shape_slat")
+                                if slat is None:
+                                    raise ValueError("shape_slat can't be None")
+                                if slat.ndim == 3:
+                                    if slat.shape[0] != logical_batch:
+                                        raise ValueError(
+                                            f"shape_slat batch {slat.shape[0]} doesn't match coord_counts batch {logical_batch}"
+                                        )
+                                    if slat.shape[1] < count:
+                                        raise ValueError(
+                                            f"shape_slat tokens {slat.shape[1]} can't cover coord count {count} for batch {i}"
+                                        )
+                                    slat_feats = slat[i, :count].to(x_st_i.device)
+                                else:
+                                    slat_feats = slat[:count].to(x_st_i.device)
+                                x_st_i = x_st_i.replace(feats=torch.cat([x_st_i.feats, slat_feats], dim=-1))
+                                sparse_out = self.shape2txt(x_st_i, t_i, c_i)
 
-                                sparse_outs.append(sparse_out.feats)
-                                active_coord_counts.append(count)
+                            sparse_outs.append(sparse_out.feats)
+                            active_coord_counts.append(count)
 
                     out_channels = sparse_outs[0].shape[-1]
                     padded = sparse_outs[0].new_zeros((B, N, out_channels))
@@ -1022,7 +986,6 @@ class Trellis2(nn.Module):
             out = self.shape2txt(x_st, t_eval, c_eval)
         else: # structure
             orig_bsz = x.shape[0]
-            cond_or_uncond = transformer_options.get("cond_or_uncond") or []
             batch_groups = len(cond_or_uncond) if len(cond_or_uncond) > 0 and orig_bsz % len(cond_or_uncond) == 0 else 1
             logical_batch = orig_bsz // batch_groups
             if logical_batch > 1:
@@ -1034,23 +997,19 @@ class Trellis2(nn.Module):
                 c_groups = context.reshape(batch_groups, logical_batch, *context.shape[1:])
 
                 if shape_rule and batch_groups > 1:
-                    selected_group_indices = [batch_groups - 1]
+                    selected_group_indices = cond_group_indices(batch_groups)
                 else:
                     selected_group_indices = list(range(batch_groups))
 
                 out_groups = []
                 for sample_index in range(logical_batch):
                     if shape_rule and batch_groups > 1:
-                        half = orig_bsz // 2
-                        x_i = x[half + sample_index].unsqueeze(0)
+                        x_i = x_groups[selected_group_indices, sample_index]
                         if timestep.shape[0] > 1:
-                            t_i = timestep[half + sample_index].unsqueeze(0)
+                            t_i = t_groups[selected_group_indices, sample_index]
                         else:
                             t_i = timestep
-                        if cond.shape[0] > 1:
-                            c_i = cond[sample_index].unsqueeze(0)
-                        else:
-                            c_i = cond
+                        c_i = c_groups[selected_group_indices, sample_index]
                     else:
                         x_i = x_groups[selected_group_indices, sample_index]
                         if timestep.shape[0] > 1:

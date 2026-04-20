@@ -15,32 +15,26 @@ def prepare_noise_inner(latent_image, generator, noise_inds=None):
         else:
             noise_inds = np.asarray(noise_inds, dtype=np.int64)
 
+        base_seed = int(generator.initial_seed())
         unique_inds = np.unique(noise_inds)
-        first_indices = {int(unique_index): int(np.flatnonzero(noise_inds == unique_index)[0]) for unique_index in unique_inds.tolist()}
-        index_states = {}
-        for unique_index in sorted(first_indices):
-            index_states[unique_index] = generator.get_state().clone()
-            count = int(coord_counts[first_indices[unique_index]].item())
-            torch.randn(
-                [1, latent_image.size(1), count, latent_image.size(3)],
-                dtype=torch.float32,
-                layout=latent_image.layout,
-                generator=generator,
-                device="cpu",
-            )
-
-        for batch_index, noise_index in enumerate(noise_inds.tolist()):
-            count = int(coord_counts[batch_index].item())
+        sample_noises = {}
+        for noise_index in unique_inds.tolist():
+            rows = np.flatnonzero(noise_inds == noise_index)
+            max_count = max(int(coord_counts[row].item()) for row in rows.tolist())
             local_generator = torch.Generator(device="cpu")
-            local_generator.set_state(index_states[int(noise_index)].clone())
-            sample_noise = torch.randn(
-                [1, latent_image.size(1), count, latent_image.size(3)],
+            local_generator.manual_seed(base_seed + int(noise_index))
+            sample_noises[int(noise_index)] = torch.randn(
+                [1, latent_image.size(1), max_count, latent_image.size(3)],
                 dtype=torch.float32,
                 layout=latent_image.layout,
                 generator=local_generator,
                 device="cpu",
             )
-            noise[batch_index:batch_index + 1, :, :count, :] = sample_noise
+
+        for batch_index, noise_index in enumerate(noise_inds.tolist()):
+            count = int(coord_counts[batch_index].item())
+            sample_noise = sample_noises[int(noise_index)]
+            noise[batch_index:batch_index + 1, :, :count, :] = sample_noise[:, :, :count, :]
         return noise.to(dtype=latent_image.dtype)
 
     if noise_inds is None:
@@ -75,6 +69,8 @@ def prepare_noise(latent_image, seed, noise_inds=None):
 
 def fix_empty_latent_channels(model, latent_image, downscale_ratio_spacial=None):
     if latent_image.is_nested:
+        return latent_image
+    if getattr(latent_image, "trellis_skip_empty_fix", False):
         return latent_image
     latent_format = model.get_model_object("latent_format") #Resize the empty latent image so it has the right number of channels
     if torch.count_nonzero(latent_image) == 0:
