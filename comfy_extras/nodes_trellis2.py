@@ -111,8 +111,8 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     verts = mesh.vertices.to(device).squeeze(0)
     voxel_colors = voxel_colors.to(device)
 
-    voxel_pos_np = voxel_pos.numpy()
-    verts_np = verts.numpy()
+    voxel_pos_np = voxel_pos.cpu().numpy()
+    verts_np = verts.cpu().numpy()
 
     tree = scipy.spatial.cKDTree(voxel_pos_np)
 
@@ -194,6 +194,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
                 IO.AnyType.Input("shape_subs"),
+                IO.Combo.Input("resolution", options=["512", "1024"], default="1024")
             ],
             outputs=[
                 IO.Mesh.Output("mesh"),
@@ -201,9 +202,9 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, shape_mesh, samples, vae, shape_subs):
+    def execute(cls, shape_mesh, samples, vae, shape_subs, resolution):
 
-        resolution = 1024
+        resolution = int(resolution)
         patcher = vae.patcher
         device = comfy.model_management.get_torch_device()
         comfy.model_management.load_model_gpu(patcher)
