@@ -786,6 +786,7 @@ class Trellis2(nn.Module):
         # 32 -> 512px path, 64 -> 1024px path.
         uses_1024_conditioning = self.img2shape.resolution == 64
         coords = transformer_options.get("coords", None)
+        coord_counts = transformer_options.get("coord_counts")
         mode = transformer_options.get("generation_mode", "structure_generation")
         is_512_run = False
         timestep = timestep.to(self.dtype)
@@ -811,40 +812,205 @@ class Trellis2(nn.Module):
             cond = context
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
+        dense_out = None
 
         if not_struct_mode:
             orig_bsz = x.shape[0]
             rule = txt_rule if mode == "texture_generation" else shape_rule
 
-            if rule and orig_bsz > 1:
-                x_eval = x[1].unsqueeze(0)
-                t_eval = timestep[1].unsqueeze(0) if timestep.shape[0] > 1 else timestep
+            logical_batch = coord_counts.shape[0] if coord_counts is not None else 1
+            if rule and orig_bsz > logical_batch:
+                half = orig_bsz // 2
+                x_eval = x[half:]
+                t_eval = timestep[half:] if timestep.shape[0] > 1 else timestep
                 c_eval = cond
             else:
                 x_eval = x
                 t_eval = timestep
                 c_eval = context
 
+            x_eval_norms = [float(v) for v in x_eval.square().sum(dim=(1, 2)).detach().cpu().tolist()]
+            c_eval_norms = [float(v) for v in c_eval.square().sum(dim=(1, 2)).detach().cpu().tolist()]
+            print(
+                "TRELLIS2_NOT_STRUCT_INPUT_TRACE",
+                {
+                    "mode": mode,
+                    "orig_bsz": int(orig_bsz),
+                    "logical_batch": int(logical_batch),
+                    "rule": bool(rule),
+                    "coord_counts": coord_counts.tolist() if coord_counts is not None else None,
+                    "x_eval_norms": x_eval_norms,
+                    "c_eval_norms": c_eval_norms,
+                },
+            )
+
             B, N, C = x_eval.shape
 
             if mode in ["shape_generation", "texture_generation"]:
-                feats_flat = x_eval.reshape(-1, C)
+                if coord_counts is not None:
+                    logical_batch = coord_counts.shape[0]
+                    if B % logical_batch != 0:
+                        raise ValueError(
+                            f"Trellis2 coord_counts batch {logical_batch} doesn't divide latent batch {B}"
+                        )
+                    repeat_factor = B // logical_batch
+                    sparse_outs = []
+                    active_coord_counts = []
+                    if mode == "shape_generation" and repeat_factor > 1:
+                        grouped_outs = []
+                        grouped_counts = []
+                        for i in range(logical_batch):
+                            count = int(coord_counts[i].item())
+                            coords_i = coords[coords[:, 0] == i].clone()
+                            if coords_i.shape[0] != count:
+                                raise ValueError(
+                                    f"Trellis2 coords rows for batch {i} expected {count}, got {coords_i.shape[0]}"
+                                )
 
-                # inflate coords [N, 4] -> [B*N, 4]
-                coords_list = []
-                for i in range(B):
-                    c = coords.clone()
-                    c[:, 0] = i
-                    coords_list.append(c)
+                            feat_batches = []
+                            coord_batches = []
+                            index_batch = []
+                            for rep in range(repeat_factor):
+                                out_index = rep * logical_batch + i
+                                feat_batches.append(x_eval[out_index, :count])
+                                coords_rep = coords_i.clone()
+                                coords_rep[:, 0] = rep
+                                coord_batches.append(coords_rep)
+                                index_batch.append(out_index)
 
-                batched_coords = torch.cat(coords_list, dim=0)
+                            print(
+                                "TRELLIS2_GROUPED_INPUT_TRACE",
+                                {
+                                    "mode": mode,
+                                    "sample_index": int(i),
+                                    "coord_count": int(count),
+                                    "feat_norms": [float(v.square().sum().detach().cpu().item()) for v in feat_batches],
+                                },
+                            )
+
+                            x_st_i = SparseTensor(
+                                feats=torch.cat(feat_batches, dim=0),
+                                coords=torch.cat(coord_batches, dim=0).to(torch.int32),
+                            )
+                            index_tensor = torch.tensor(index_batch, device=x_eval.device, dtype=torch.long)
+                            if t_eval.shape[0] > 1:
+                                t_i = t_eval.index_select(0, index_tensor)
+                            else:
+                                t_i = t_eval
+                            if c_eval.shape[0] > 1:
+                                c_i = c_eval.index_select(0, index_tensor)
+                            else:
+                                c_i = c_eval
+
+                            if is_512_run:
+                                sparse_out = self.img2shape_512(x_st_i, t_i, c_i)
+                            else:
+                                sparse_out = self.img2shape(x_st_i, t_i, c_i)
+
+                            feats_group, coords_group = sparse_out.to_tensor_list()
+                            if len(feats_group) != repeat_factor:
+                                raise ValueError(
+                                    f"Trellis2 expected {repeat_factor} sparse output groups for batch {i}, got {len(feats_group)}"
+                                )
+                            for rep, (feats_rep, coords_rep) in enumerate(zip(feats_group, coords_group)):
+                                if feats_rep.shape[0] != count:
+                                    raise ValueError(
+                                        f"Trellis2 sparse output rows for batch {i} rep {rep} expected {count}, got {feats_rep.shape[0]}"
+                                    )
+                                if coords_rep.shape[0] != count:
+                                    raise ValueError(
+                                        f"Trellis2 sparse output coords for batch {i} rep {rep} expected {count}, got {coords_rep.shape[0]}"
+                                    )
+                            grouped_outs.append(feats_group)
+                            grouped_counts.append(count)
+
+                        for rep in range(repeat_factor):
+                            for i in range(logical_batch):
+                                sparse_outs.append(grouped_outs[i][rep])
+                                active_coord_counts.append(grouped_counts[i])
+                    else:
+                        for rep in range(repeat_factor):
+                            for i in range(logical_batch):
+                                out_index = rep * logical_batch + i
+                                count = int(coord_counts[i].item())
+                                coords_i = coords[coords[:, 0] == i].clone()
+                                if coords_i.shape[0] != count:
+                                    raise ValueError(
+                                        f"Trellis2 coords rows for batch {i} expected {count}, got {coords_i.shape[0]}"
+                                    )
+                                coords_i[:, 0] = 0
+                                feats_i = x_eval[out_index, :count]
+                                x_st_i = SparseTensor(feats=feats_i, coords=coords_i.to(torch.int32))
+                                t_i = t_eval[out_index].unsqueeze(0) if t_eval.shape[0] > 1 else t_eval
+                                c_i = c_eval[out_index].unsqueeze(0) if c_eval.shape[0] > 1 else c_eval
+
+                                if mode == "shape_generation":
+                                    if is_512_run:
+                                        sparse_out = self.img2shape_512(x_st_i, t_i, c_i)
+                                    else:
+                                        sparse_out = self.img2shape(x_st_i, t_i, c_i)
+                                else:
+                                    slat = transformer_options.get("shape_slat")
+                                    if slat is None:
+                                        raise ValueError("shape_slat can't be None")
+                                    if slat.ndim == 3:
+                                        if slat.shape[0] != logical_batch:
+                                            raise ValueError(
+                                                f"shape_slat batch {slat.shape[0]} doesn't match coord_counts batch {logical_batch}"
+                                            )
+                                        if slat.shape[1] < count:
+                                            raise ValueError(
+                                                f"shape_slat tokens {slat.shape[1]} can't cover coord count {count} for batch {i}"
+                                            )
+                                        slat_feats = slat[i, :count].to(x_st_i.device)
+                                    else:
+                                        slat_feats = slat[:count].to(x_st_i.device)
+                                    x_st_i = x_st_i.replace(feats=torch.cat([x_st_i.feats, slat_feats], dim=-1))
+                                    sparse_out = self.shape2txt(x_st_i, t_i, c_i)
+
+                                sparse_outs.append(sparse_out.feats)
+                                active_coord_counts.append(count)
+
+                    out_channels = sparse_outs[0].shape[-1]
+                    sparse_out_norms = [float(feats.square().sum().detach().cpu().item()) for feats in sparse_outs]
+                    print(
+                        "TRELLIS2_SPARSE_OUT_TRACE",
+                        {
+                            "mode": mode,
+                            "coords_rows": int(coords.shape[0]),
+                            "active_coord_counts": active_coord_counts,
+                            "sparse_out_norms": sparse_out_norms,
+                        },
+                    )
+                    padded = sparse_outs[0].new_zeros((B, N, out_channels))
+                    for out_index, (count, feats_i) in enumerate(zip(active_coord_counts, sparse_outs)):
+                        padded[out_index, :count] = feats_i
+                    dense_out = padded.transpose(1, 2).unsqueeze(-1)
+                elif coords.shape[0] == N:
+                    feats_flat = x_eval.reshape(-1, C)
+                    coords_list = []
+                    for i in range(B):
+                        c = coords.clone()
+                        c[:, 0] = i
+                        coords_list.append(c)
+                    batched_coords = torch.cat(coords_list, dim=0)
+                elif coords.shape[0] == B * N:
+                    feats_flat = x_eval.reshape(-1, C)
+                    batched_coords = coords
+                else:
+                    raise ValueError(
+                        f"Trellis2 expected coords rows {N} or {B * N}, got {coords.shape[0]}"
+                    )
             else:
                 batched_coords = coords
                 feats_flat = x_eval
 
-            x_st = SparseTensor(feats=feats_flat, coords=batched_coords.to(torch.int32))
+            if dense_out is None:
+                x_st = SparseTensor(feats=feats_flat, coords=batched_coords.to(torch.int32))
 
-        if mode == "shape_generation":
+        if dense_out is not None:
+            out = dense_out
+        elif mode == "shape_generation":
             if is_512_run:
                 out = self.img2shape_512(x_st, t_eval, c_eval)
             else:
@@ -856,23 +1022,152 @@ class Trellis2(nn.Module):
             if slat is None:
                 raise ValueError("shape_slat can't be None")
 
-            base_slat_feats = slat[:N]
-            slat_feats_batched = base_slat_feats.repeat(B, 1).to(x_st.device)
+            if slat.ndim == 3:
+                if coord_counts is not None:
+                    logical_batch = coord_counts.shape[0]
+                    if slat.shape[0] != logical_batch:
+                        raise ValueError(
+                            f"shape_slat batch {slat.shape[0]} doesn't match coord_counts batch {logical_batch}"
+                        )
+                    if B % logical_batch != 0:
+                        raise ValueError(
+                            f"Trellis2 coord_counts batch {logical_batch} doesn't divide latent batch {B}"
+                        )
+                    repeat_factor = B // logical_batch
+                    slat_list = []
+                    for _ in range(repeat_factor):
+                        for i in range(logical_batch):
+                            count = int(coord_counts[i].item())
+                            if slat.shape[1] < count:
+                                raise ValueError(
+                                    f"shape_slat tokens {slat.shape[1]} can't cover coord count {count} for batch {i}"
+                                )
+                            slat_list.append(slat[i, :count])
+                    slat_feats_batched = torch.cat(slat_list, dim=0).to(x_st.device)
+                else:
+                    if slat.shape[0] != B:
+                        raise ValueError(f"shape_slat batch {slat.shape[0]} doesn't match latent batch {B}")
+                    if slat.shape[1] != N:
+                        raise ValueError(f"shape_slat tokens {slat.shape[1]} doesn't match latent tokens {N}")
+                    slat_feats_batched = slat.reshape(B * N, -1).to(x_st.device)
+            else:
+                base_slat_feats = slat[:N]
+                slat_feats_batched = base_slat_feats.repeat(B, 1).to(x_st.device)
             x_st = x_st.replace(feats=torch.cat([x_st.feats, slat_feats_batched], dim=-1))
             out = self.shape2txt(x_st, t_eval, c_eval)
         else: # structure
             orig_bsz = x.shape[0]
-            if shape_rule and orig_bsz > 1:
-                half = orig_bsz // 2
-                x = x[half:]
-                timestep = timestep[half:] if timestep.shape[0] > 1 else timestep
-            out = self.structure_model(x, timestep, cond if shape_rule and orig_bsz > 1 else context)
-            if shape_rule and orig_bsz > 1:
-                out = out.repeat(2, 1, 1, 1, 1)
+            cond_or_uncond = transformer_options.get("cond_or_uncond") or []
+            batch_groups = len(cond_or_uncond) if len(cond_or_uncond) > 0 and orig_bsz % len(cond_or_uncond) == 0 else 1
+            logical_batch = orig_bsz // batch_groups
+            print(
+                "TRELLIS2_STRUCTURE_INPUT_TRACE",
+                {
+                    "orig_bsz": int(orig_bsz),
+                    "batch_groups": int(batch_groups),
+                    "logical_batch": int(logical_batch),
+                    "cond_or_uncond": cond_or_uncond,
+                    "x_norms": [float(v) for v in x.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
+                    "x_sums": [float(v) for v in x.sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
+                    "c_norms": [float(v) for v in context.square().sum(dim=(1, 2)).detach().cpu().tolist()],
+                    "c_sums": [float(v) for v in context.sum(dim=(1, 2)).detach().cpu().tolist()],
+                },
+            )
+
+            if logical_batch > 1:
+                x_groups = x.reshape(batch_groups, logical_batch, *x.shape[1:])
+                if timestep.shape[0] > 1:
+                    t_groups = timestep.reshape(batch_groups, logical_batch, *timestep.shape[1:])
+                else:
+                    t_groups = timestep
+                c_groups = context.reshape(batch_groups, logical_batch, *context.shape[1:])
+
+                if shape_rule and batch_groups > 1:
+                    selected_group_indices = [batch_groups - 1]
+                else:
+                    selected_group_indices = list(range(batch_groups))
+
+                out_groups = []
+                selected_x_norms = []
+                selected_x_sums = []
+                selected_c_norms = []
+                selected_c_sums = []
+                for sample_index in range(logical_batch):
+                    if shape_rule and batch_groups > 1:
+                        half = orig_bsz // 2
+                        x_i = x[half + sample_index].unsqueeze(0)
+                        if timestep.shape[0] > 1:
+                            t_i = timestep[half + sample_index].unsqueeze(0)
+                        else:
+                            t_i = timestep
+                        if cond.shape[0] > 1:
+                            c_i = cond[sample_index].unsqueeze(0)
+                        else:
+                            c_i = cond
+                    else:
+                        x_i = x_groups[selected_group_indices, sample_index]
+                        if timestep.shape[0] > 1:
+                            t_i = t_groups[selected_group_indices, sample_index]
+                        else:
+                            t_i = timestep
+                        c_i = c_groups[selected_group_indices, sample_index]
+                    selected_x_norms.extend(float(v) for v in x_i.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist())
+                    selected_x_sums.extend(float(v) for v in x_i.sum(dim=(1, 2, 3, 4)).detach().cpu().tolist())
+                    selected_c_norms.extend(float(v) for v in c_i.square().sum(dim=(1, 2)).detach().cpu().tolist())
+                    selected_c_sums.extend(float(v) for v in c_i.sum(dim=(1, 2)).detach().cpu().tolist())
+                    out_groups.append(self.structure_model(x_i, t_i, c_i))
+
+                print(
+                    "TRELLIS2_STRUCTURE_SELECTED_TRACE",
+                    {
+                        "selected_group_indices": selected_group_indices,
+                        "selected_x_norms": selected_x_norms,
+                        "selected_x_sums": selected_x_sums,
+                        "selected_c_norms": selected_c_norms,
+                        "selected_c_sums": selected_c_sums,
+                    },
+                )
+
+                out = out_groups[0].new_zeros((orig_bsz, *out_groups[0].shape[1:]))
+                for sample_index, out_sample in enumerate(out_groups):
+                    if shape_rule and batch_groups > 1:
+                        repeated = out_sample[0]
+                        for group_index in range(batch_groups):
+                            out[group_index * logical_batch + sample_index] = repeated
+                    else:
+                        for local_group_index, group_index in enumerate(selected_group_indices):
+                            out[group_index * logical_batch + sample_index] = out_sample[local_group_index]
+            else:
+                if shape_rule and orig_bsz > 1:
+                    half = orig_bsz // 2
+                    x = x[half:]
+                    timestep = timestep[half:] if timestep.shape[0] > 1 else timestep
+                out = self.structure_model(x, timestep, cond if shape_rule and orig_bsz > 1 else context)
+                if shape_rule and orig_bsz > 1:
+                    out = out.repeat(2, 1, 1, 1, 1)
+
+            print(
+                "TRELLIS2_STRUCTURE_OUTPUT_TRACE",
+                {
+                    "out_norms": [float(v) for v in out.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
+                    "out_sums": [float(v) for v in out.sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
+                },
+            )
 
         if not_struct_mode:
-            out = out.feats
-            out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
-            if rule and orig_bsz > 1:
-                out = out.repeat(orig_bsz, 1, 1, 1)
+            if dense_out is None:
+                out = out.feats
+                out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
+            if rule and orig_bsz > B:
+                out = out.repeat(orig_bsz // B, 1, 1, 1)
+            print(
+                "TRELLIS2_DENSE_OUT_TRACE",
+                {
+                    "mode": mode,
+                    "coords_rows": int(coords.shape[0]) if coords is not None else None,
+                    "output_shape": list(out.shape),
+                    "output_norms": [float(v) for v in out.squeeze(-1).square().sum(dim=(1, 2)).detach().cpu().tolist()],
+                    "coord_counts": coord_counts.tolist() if coord_counts is not None else None,
+                },
+            )
         return out

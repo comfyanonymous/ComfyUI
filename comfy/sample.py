@@ -7,6 +7,23 @@ import logging
 import comfy.nested_tensor
 
 def prepare_noise_inner(latent_image, generator, noise_inds=None):
+    coord_counts = getattr(latent_image, "trellis_coord_counts", None)
+    if coord_counts is not None:
+        noise = torch.zeros(latent_image.size(), dtype=torch.float32, layout=latent_image.layout, device="cpu")
+        base_state = generator.get_state()
+        for i, count in enumerate(coord_counts.tolist()):
+            local_generator = torch.Generator(device="cpu")
+            local_generator.set_state(base_state.clone())
+            sample_noise = torch.randn(
+                [1, latent_image.size(1), int(count), latent_image.size(3)],
+                dtype=torch.float32,
+                layout=latent_image.layout,
+                generator=local_generator,
+                device="cpu",
+            )
+            noise[i:i + 1, :, :int(count), :] = sample_noise
+        return noise.to(dtype=latent_image.dtype)
+
     if noise_inds is None:
         return torch.randn(latent_image.size(), dtype=torch.float32, layout=latent_image.layout, generator=generator, device="cpu").to(dtype=latent_image.dtype)
 
