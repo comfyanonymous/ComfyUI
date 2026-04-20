@@ -233,6 +233,35 @@ class TestTrellisBatchSemantics(unittest.TestCase):
                 13,
             )
 
+    def test_empty_texture_latent_uses_shape_batch_index_for_seed_fallback(self):
+        coords = torch.tensor(
+            [
+                [0, 1, 1, 1],
+                [1, 2, 2, 2],
+                [1, 3, 3, 3],
+            ],
+            dtype=torch.int32,
+        )
+        structure = {"coords": coords}
+        shape_latent = {
+            "samples": torch.zeros(2, 32, 2, 1),
+            "batch_index": [4, 9],
+        }
+
+        output, _ = nodes_trellis2.EmptyTextureLatentTrellis2.execute(
+            structure,
+            shape_latent,
+            DummyCloneModel(),
+            13,
+        )
+
+        expected = torch.zeros(2, 32, 2, 1)
+        expected[0, :, :1, :] = torch.randn(1, 32, 1, 1, generator=torch.Generator(device="cpu").manual_seed(17))[0]
+        expected[1, :, :2, :] = torch.randn(1, 32, 2, 1, generator=torch.Generator(device="cpu").manual_seed(22))[0]
+
+        self.assertTrue(torch.equal(output["samples"], expected))
+        self.assertEqual(output["batch_index"], [4, 9])
+
     def test_flatten_batched_sparse_latent_validates_coord_counts(self):
         samples = torch.zeros(2, 32, 3, 1)
         coords = torch.tensor(

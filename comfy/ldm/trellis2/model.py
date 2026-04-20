@@ -880,6 +880,10 @@ class Trellis2(nn.Module):
                         for i in range(logical_batch):
                             out_index = rep * logical_batch + i
                             count = int(coord_counts[i].item())
+                            if count > N:
+                                raise ValueError(
+                                    f"Trellis2 coord count {count} exceeds latent token dimension {N} for batch {i}"
+                                )
                             coords_i = coords_by_batch[i].clone()
                             coords_i[:, 0] = 0
                             feats_i = x_eval[out_index, :count].clone()

@@ -807,6 +807,8 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
             )
 
         shape_batch_index = normalize_batch_index(shape_latent.get("batch_index"))
+        if batch_index is None:
+            batch_index = shape_batch_index
         shape_latent = shape_latent["samples"]
         batch_size, inferred_coord_counts, max_tokens = infer_batched_coord_layout(coords)
         if coord_counts is not None:
@@ -844,8 +846,6 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
                 latent[i, :, :count] = latent_i[0]
         if coord_counts is not None:
             latent.trellis_coord_counts = coord_counts.clone()
-        if batch_index is None:
-            batch_index = shape_batch_index
         model = model.clone()
         model.model_options = model.model_options.copy()
         if "transformer_options" in model.model_options:

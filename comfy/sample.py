@@ -74,8 +74,6 @@ def prepare_noise(latent_image, seed, noise_inds=None):
 def fix_empty_latent_channels(model, latent_image, downscale_ratio_spacial=None):
     if latent_image.is_nested:
         return latent_image
-    if getattr(latent_image, "trellis_skip_empty_fix", False):
-        return latent_image
     latent_format = model.get_model_object("latent_format") #Resize the empty latent image so it has the right number of channels
     if torch.count_nonzero(latent_image) == 0:
         if latent_format.latent_channels != latent_image.shape[1]:
