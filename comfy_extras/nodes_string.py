@@ -1,4 +1,5 @@
 import re
+import json
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
@@ -375,6 +376,39 @@ class RegexReplace(io.ComfyNode):
         return io.NodeOutput(result)
 
 
+class JsonExtractString(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="JsonExtractString",
+            display_name="Extract String from JSON",
+            category="utils/string",
+            search_aliases=["json", "extract json", "parse json", "json value", "read json"],
+            inputs=[
+                io.String.Input("json_string", multiline=True),
+                io.String.Input("key", multiline=False),
+            ],
+            outputs=[
+                io.String.Output(),
+            ]
+        )
+
+    @classmethod
+    def execute(cls, json_string, key):
+        try:
+            data = json.loads(json_string)
+            if isinstance(data, dict) and key in data:
+                value = data[key]
+                if value is None:
+                    return io.NodeOutput("")
+
+                return io.NodeOutput(str(value))
+
+            return io.NodeOutput("")
+
+        except (json.JSONDecodeError, TypeError):
+            return io.NodeOutput("")
+
 class StringExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -390,6 +424,7 @@ class StringExtension(ComfyExtension):
             RegexMatch,
             RegexExtract,
             RegexReplace,
+            JsonExtractString,
         ]
 
 async def comfy_entrypoint() -> StringExtension:
