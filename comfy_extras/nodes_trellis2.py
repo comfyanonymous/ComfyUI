@@ -521,12 +521,16 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
             final_coords_list.append(final_coords_i)
             output_coord_counts.append(int(final_coords_i.shape[0]))
 
-        return IO.NodeOutput({
+        normalized_batch_index = normalize_batch_index(batch_index)
+        output = {
             "coords": torch.cat(final_coords_list, dim=0),
             "coord_counts": torch.tensor(output_coord_counts, dtype=torch.int64),
             "resolutions": torch.full((len(final_coords_list),), int(hr_resolution), dtype=torch.int64),
-            "batch_index": normalize_batch_index(batch_index),
-        },)
+        }
+        if normalized_batch_index is not None:
+            output["batch_index"] = normalized_batch_index
+
+        return IO.NodeOutput(output,)
 
 dino_mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
 dino_std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
