@@ -190,6 +190,40 @@ class TestTrellisBatchSemantics(unittest.TestCase):
 
         self.assertTrue(torch.equal(output["coord_counts"], torch.tensor([2], dtype=torch.int64)))
 
+    def test_empty_shape_latent_rejects_multi_index_singleton(self):
+        structure = {
+            "coords": torch.tensor(
+                [
+                    [0, 1, 1, 1],
+                    [0, 2, 2, 2],
+                ],
+                dtype=torch.int32,
+            ),
+            "batch_index": [5, 6],
+        }
+
+        with self.assertRaises(ValueError):
+            nodes_trellis2.EmptyShapeLatentTrellis2.execute(structure, DummyCloneModel(), 11)
+
+    def test_empty_texture_latent_rejects_multi_index_singleton(self):
+        coords = torch.tensor(
+            [
+                [0, 1, 1, 1],
+                [0, 2, 2, 2],
+            ],
+            dtype=torch.int32,
+        )
+        structure = {"coords": coords, "batch_index": [7, 8]}
+        shape_latent = {"samples": torch.zeros(1, 32, 2, 1)}
+
+        with self.assertRaises(ValueError):
+            nodes_trellis2.EmptyTextureLatentTrellis2.execute(
+                structure,
+                shape_latent,
+                DummyCloneModel(),
+                13,
+            )
+
     def test_flatten_batched_sparse_latent_validates_coord_counts(self):
         samples = torch.zeros(2, 32, 3, 1)
         coords = torch.tensor(
@@ -204,6 +238,49 @@ class TestTrellisBatchSemantics(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             nodes_trellis2.flatten_batched_sparse_latent(samples, coords, coord_counts)
+
+    def test_infer_batched_coord_layout_rejects_negative_batch_ids(self):
+        coords = torch.tensor(
+            [
+                [-1, 1, 1, 1],
+                [0, 2, 2, 2],
+            ],
+            dtype=torch.int32,
+        )
+
+        with self.assertRaises(ValueError):
+            nodes_trellis2.infer_batched_coord_layout(coords)
+
+    def test_split_batched_coords_validates_total_count(self):
+        coords = torch.tensor(
+            [
+                [0, 1, 1, 1],
+                [1, 2, 2, 2],
+                [1, 3, 3, 3],
+            ],
+            dtype=torch.int32,
+        )
+        coord_counts = torch.tensor([1, 1], dtype=torch.int64)
+
+        with self.assertRaises(ValueError):
+            nodes_trellis2.split_batched_coords(coords, coord_counts)
+
+    def test_empty_shape_latent_preserves_resolutions_key(self):
+        structure = {
+            "coords": torch.tensor(
+                [
+                    [0, 1, 1, 1],
+                    [0, 2, 2, 2],
+                ],
+                dtype=torch.int32,
+            ),
+            "resolutions": torch.tensor([1024], dtype=torch.int64),
+        }
+
+        output, model = nodes_trellis2.EmptyShapeLatentTrellis2.execute(structure, DummyCloneModel(), 11)
+
+        self.assertTrue(torch.equal(output["resolutions"], torch.tensor([1024], dtype=torch.int64)))
+        self.assertNotIn("coord_resolutions", model.model_options["transformer_options"])
 
 
 if __name__ == "__main__":

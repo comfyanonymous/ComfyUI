@@ -853,6 +853,10 @@ class Trellis2(nn.Module):
                         raise ValueError(
                             f"Trellis2 coord_counts batch {logical_batch} doesn't divide latent batch {B}"
                         )
+                    if int(coord_counts.sum().item()) != coords.shape[0]:
+                        raise ValueError(
+                            f"Trellis2 coord_counts total {int(coord_counts.sum().item())} does not match coords rows {coords.shape[0]}"
+                        )
                     batch_ids = coords[:, 0].to(torch.int64)
                     order = torch.argsort(batch_ids, stable=True)
                     sorted_coords = coords.index_select(0, order)

@@ -105,6 +105,8 @@ def infer_batched_coord_layout(coords):
         raise ValueError("Trellis2 coords can't be empty")
 
     batch_ids = coords[:, 0].to(torch.int64)
+    if (batch_ids < 0).any():
+        raise ValueError(f"Trellis2 batch ids must be non-negative, got {batch_ids.unique(sorted=True).tolist()}")
     batch_size = int(batch_ids.max().item()) + 1
     counts = torch.bincount(batch_ids, minlength=batch_size)
 
@@ -116,6 +118,15 @@ def infer_batched_coord_layout(coords):
 
 
 def split_batched_coords(coords, coord_counts):
+    if coord_counts.ndim != 1:
+        raise ValueError(f"Trellis2 coord_counts must be 1D, got shape {tuple(coord_counts.shape)}")
+    if (coord_counts < 0).any():
+        raise ValueError(f"Trellis2 coord_counts must be non-negative, got {coord_counts.tolist()}")
+    if int(coord_counts.sum().item()) != coords.shape[0]:
+        raise ValueError(
+            f"Trellis2 coord_counts total {int(coord_counts.sum().item())} does not match coords rows {coords.shape[0]}"
+        )
+
     batch_ids = coords[:, 0].to(torch.int64)
     order = torch.argsort(batch_ids, stable=True)
     sorted_coords = coords.index_select(0, order)
@@ -151,6 +162,17 @@ def resolve_sample_indices(batch_index, batch_size):
             f"Trellis2 batch_index length {len(sample_indices)} does not match batch size {batch_size}"
         )
     return sample_indices
+
+
+def resolve_singleton_sample_index(batch_index):
+    sample_indices = normalize_batch_index(batch_index)
+    if sample_indices is None:
+        return 0
+    if len(sample_indices) != 1:
+        raise ValueError(
+            f"Trellis2 batch_index must be an int or single-element iterable for singleton coords, got {sample_indices}"
+        )
+    return int(sample_indices[0])
 
 
 def flatten_batched_sparse_latent(samples, coords, coord_counts):
@@ -705,9 +727,9 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         else:
             coord_counts = inferred_coord_counts
         if batch_size == 1:
-            sample_indices = normalize_batch_index(batch_index) or [0]
+            sample_index = resolve_singleton_sample_index(batch_index)
             generator = torch.Generator(device="cpu")
-            generator.manual_seed(int(seed) + int(sample_indices[0]))
+            generator.manual_seed(int(seed) + sample_index)
             latent = torch.randn(1, in_channels, coords.shape[0], 1, generator=generator)
         else:
             sample_indices = resolve_sample_indices(batch_index, batch_size)
@@ -730,8 +752,6 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         model.model_options["transformer_options"]["coords"] = coords
         if coord_counts is not None:
             model.model_options["transformer_options"]["coord_counts"] = coord_counts
-        if coord_resolutions is not None:
-            model.model_options["transformer_options"]["coord_resolutions"] = coord_resolutions
         if is_512_pass:
             model.model_options["transformer_options"]["generation_mode"] = "shape_generation_512"
         else:
@@ -742,7 +762,7 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         if coord_counts is not None:
             output["coord_counts"] = coord_counts
             if coord_resolutions is not None:
-                output["coord_resolutions"] = coord_resolutions
+                output["resolutions"] = coord_resolutions
         return IO.NodeOutput(output, model)
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
@@ -804,9 +824,9 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
                 )
 
         if batch_size == 1:
-            sample_indices = normalize_batch_index(batch_index) or [0]
+            sample_index = resolve_singleton_sample_index(batch_index)
             generator = torch.Generator(device="cpu")
-            generator.manual_seed(int(seed) + int(sample_indices[0]))
+            generator.manual_seed(int(seed) + sample_index)
             latent = torch.randn(1, channels, coords.shape[0], 1, generator=generator)
         else:
             sample_indices = resolve_sample_indices(batch_index, batch_size)
