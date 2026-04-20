@@ -148,18 +148,6 @@ def split_batched_sparse_latent(samples, coords, coord_counts):
     return items
 
 
-def log_sparse_batch_trace(tag, items):
-    feat_norms = [float(feats.square().sum().detach().cpu().item()) for feats, _ in items]
-    coord_rows = [int(coords_i.shape[0]) for _, coords_i in items]
-    print(
-        tag,
-        {
-            "batch_size": len(items),
-            "coord_rows": coord_rows,
-            "feat_norms": feat_norms,
-        },
-    )
-
 def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     """
     Generic function to paint a mesh using nearest-neighbor colors from a sparse voxel field.
@@ -410,14 +398,6 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
             )
             feats = feats.to(device)
             coords_512 = coords_512.to(device)
-            print(
-                "TRELLIS2_UPSAMPLE_INPUT_TRACE",
-                {
-                    "batch_size": 1,
-                    "coord_rows": [int(coords_512.shape[0])],
-                    "feat_norms": [float(feats.square().sum().detach().cpu().item())],
-                },
-            )
             slat = shape_norm(feats, coords_512)
             slat.feats = slat.feats.to(next(decoder.parameters()).dtype)
             hr_coords = decoder.upsample(slat, upsample_times=4)
@@ -435,27 +415,18 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
                     break
                 hr_resolution -= 128
 
-            print(
-                "TRELLIS2_UPSAMPLE_OUTPUT_TRACE",
-                {
-                    "batch_size": 1,
-                    "coord_rows": [int(final_coords.shape[0])],
-                    "hr_resolution": int(hr_resolution),
-                },
-            )
             return IO.NodeOutput(final_coords,)
 
-        final_coords_list = []
         items = split_batched_sparse_latent(
             shape_latent_512["samples"],
             shape_latent_512["coords"],
             coord_counts,
         )
-        log_sparse_batch_trace("TRELLIS2_UPSAMPLE_INPUT_TRACE", items)
         decoder_dtype = next(decoder.parameters()).dtype
 
-        output_coord_rows = []
+        final_coords_list = []
         output_resolutions = []
+        output_coord_counts = []
         for batch_index, (feats_i, coords_i) in enumerate(items):
             feats_i = feats_i.to(device)
             coords_i = coords_i.to(device).clone()
@@ -480,19 +451,14 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
             final_coords_i = final_coords_i.clone()
             final_coords_i[:, 0] = batch_index
             final_coords_list.append(final_coords_i)
-            output_coord_rows.append(int(final_coords_i.shape[0]))
             output_resolutions.append(int(hr_resolution))
+            output_coord_counts.append(int(final_coords_i.shape[0]))
 
-        print(
-            "TRELLIS2_UPSAMPLE_OUTPUT_TRACE",
-            {
-                "batch_size": len(final_coords_list),
-                "coord_rows": output_coord_rows,
-                "hr_resolution": output_resolutions,
-            },
-        )
-
-        return IO.NodeOutput(torch.cat(final_coords_list, dim=0),)
+        return IO.NodeOutput({
+            "coords": torch.cat(final_coords_list, dim=0),
+            "coord_counts": torch.tensor(output_coord_counts, dtype=torch.int64),
+            "resolutions": torch.tensor(output_resolutions, dtype=torch.int64),
+        },)
 
 dino_mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
 dino_std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
@@ -568,7 +534,6 @@ class Trellis2Conditioning(IO.ComfyNode):
 
         cond_512_list = []
         cond_1024_list = []
-        composite_trace = []
 
         for b in range(batch_size):
             item_image = image[b]
@@ -623,14 +588,6 @@ class Trellis2Conditioning(IO.ComfyNode):
 
             # to match trellis2 code (quantize -> dequantize)
             composite_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
-            composite_trace.append(
-                {
-                    "sample_index": int(b),
-                    "shape": list(composite_uint8.shape),
-                    "sum": int(composite_uint8.sum(dtype=np.int64)),
-                    "prefix": composite_uint8[:2, :2, :].reshape(-1).tolist(),
-                }
-            )
 
             cropped_pil = Image.fromarray(composite_uint8)
 
@@ -642,19 +599,6 @@ class Trellis2Conditioning(IO.ComfyNode):
         cond_1024_batched = torch.cat(cond_1024_list, dim=0)
         neg_cond_batched = torch.zeros_like(cond_512_batched)
         neg_embeds_batched = torch.zeros_like(cond_1024_batched)
-        print(
-            "TRELLIS2_CONDITIONING_TRACE",
-            {
-                "batch_size": int(batch_size),
-                "cond_512_norms": [float(v) for v in cond_512_batched.square().sum(dim=(1, 2)).detach().cpu().tolist()],
-                "cond_512_sums": [float(v) for v in cond_512_batched.sum(dim=(1, 2)).detach().cpu().tolist()],
-                "cond_512_prefix": cond_512_batched[:, 0, :8].detach().cpu().tolist(),
-                "cond_1024_norms": [float(v) for v in cond_1024_batched.square().sum(dim=(1, 2)).detach().cpu().tolist()],
-                "cond_1024_sums": [float(v) for v in cond_1024_batched.sum(dim=(1, 2)).detach().cpu().tolist()],
-                "cond_1024_prefix": cond_1024_batched[:, 0, :8].detach().cpu().tolist(),
-                "composite_trace": composite_trace,
-            },
-        )
 
         positive = [[cond_512_batched, {"embeds": cond_1024_batched}]]
         negative = [[neg_cond_batched, {"embeds": neg_embeds_batched}]]
@@ -680,11 +624,19 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
     def execute(cls, structure_or_coords, model):
         # to accept the upscaled coords
         is_512_pass = False
+        coord_counts = None
+        coord_resolutions = None
 
         if hasattr(structure_or_coords, "data") and structure_or_coords.data.ndim == 4:
             decoded = structure_or_coords.data.unsqueeze(1)
             coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
             is_512_pass = True
+
+        elif isinstance(structure_or_coords, dict):
+            coords = structure_or_coords["coords"].int()
+            coord_counts = structure_or_coords.get("coord_counts")
+            coord_resolutions = structure_or_coords.get("resolutions")
+            is_512_pass = False
 
         elif isinstance(structure_or_coords, torch.Tensor) and structure_or_coords.ndim == 2:
             coords = structure_or_coords.int()
@@ -693,7 +645,15 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         else:
             raise ValueError(f"Invalid input to EmptyShapeLatent: {type(structure_or_coords)}")
         in_channels = 32
-        batch_size, coord_counts, max_tokens = infer_batched_coord_layout(coords)
+        batch_size, inferred_coord_counts, max_tokens = infer_batched_coord_layout(coords)
+        if coord_counts is not None:
+            coord_counts = coord_counts.to(dtype=torch.int64, device=coords.device)
+            if coord_counts.shape != inferred_coord_counts.shape or not torch.equal(coord_counts, inferred_coord_counts):
+                raise ValueError(
+                    f"Trellis2 coord_counts metadata {coord_counts.tolist()} does not match coords layout {inferred_coord_counts.tolist()}"
+                )
+        else:
+            coord_counts = inferred_coord_counts
         if batch_size == 1:
             coord_counts = None
             latent = torch.randn(1, in_channels, coords.shape[0], 1)
@@ -706,17 +666,6 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
                 generator.set_state(base_state.clone())
                 latent_i = torch.randn(1, in_channels, count, 1, generator=generator)
                 latent[i, :, :count] = latent_i[0]
-        if coords.shape[0] > 1000:
-            norms = [float(v) for v in latent.squeeze(-1).square().sum(dim=(1, 2)).detach().cpu().tolist()]
-            print(
-                "TRELLIS2_EMPTY_SHAPE_TRACE",
-                {
-                    "coords_rows": int(coords.shape[0]),
-                    "batch_size": int(batch_size),
-                    "coord_counts": coord_counts.tolist() if coord_counts is not None else None,
-                    "latent_norms": norms,
-                },
-            )
         if coord_counts is not None:
             latent.trellis_coord_counts = coord_counts.clone()
         model = model.clone()
@@ -729,6 +678,8 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         model.model_options["transformer_options"]["coords"] = coords
         if coord_counts is not None:
             model.model_options["transformer_options"]["coord_counts"] = coord_counts
+        if coord_resolutions is not None:
+            model.model_options["transformer_options"]["coord_resolutions"] = coord_resolutions
         if is_512_pass:
             model.model_options["transformer_options"]["generation_mode"] = "shape_generation_512"
         else:
@@ -736,6 +687,8 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         output = {"samples": latent, "coords": coords, "type": "trellis2"}
         if coord_counts is not None:
             output["coord_counts"] = coord_counts
+            if coord_resolutions is not None:
+                output["coord_resolutions"] = coord_resolutions
             output["batch_index"] = [0] * batch_size
         return IO.NodeOutput(output, model)
 
@@ -759,15 +712,28 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
     @classmethod
     def execute(cls, structure_or_coords, shape_latent, model):
         channels = 32
+        coord_counts = None
         if hasattr(structure_or_coords, "data") and structure_or_coords.data.ndim == 4:
             decoded = structure_or_coords.data.unsqueeze(1)
             coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
+
+        elif isinstance(structure_or_coords, dict):
+            coords = structure_or_coords["coords"].int()
+            coord_counts = structure_or_coords.get("coord_counts")
 
         elif isinstance(structure_or_coords, torch.Tensor) and structure_or_coords.ndim == 2:
             coords = structure_or_coords.int()
 
         shape_latent = shape_latent["samples"]
-        batch_size, coord_counts, max_tokens = infer_batched_coord_layout(coords)
+        batch_size, inferred_coord_counts, max_tokens = infer_batched_coord_layout(coords)
+        if coord_counts is not None:
+            coord_counts = coord_counts.to(dtype=torch.int64, device=coords.device)
+            if coord_counts.shape != inferred_coord_counts.shape or not torch.equal(coord_counts, inferred_coord_counts):
+                raise ValueError(
+                    f"Trellis2 coord_counts metadata {coord_counts.tolist()} does not match coords layout {inferred_coord_counts.tolist()}"
+                )
+        else:
+            coord_counts = inferred_coord_counts
         if shape_latent.ndim == 4:
             if shape_latent.shape[0] != batch_size:
                 raise ValueError(
@@ -791,19 +757,6 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
                 generator.set_state(base_state.clone())
                 latent_i = torch.randn(1, channels, count, 1, generator=generator)
                 latent[i, :, :count] = latent_i[0]
-        if coords.shape[0] > 1000:
-            norms = [float(v) for v in latent.squeeze(-1).square().sum(dim=(1, 2)).detach().cpu().tolist()]
-            shape_norms = [float(v) for v in shape_latent.square().sum(dim=(1, 2)).detach().cpu().tolist()] if shape_latent.ndim == 3 else None
-            print(
-                "TRELLIS2_EMPTY_TEXTURE_TRACE",
-                {
-                    "coords_rows": int(coords.shape[0]),
-                    "batch_size": int(batch_size),
-                    "coord_counts": coord_counts.tolist() if coord_counts is not None else None,
-                    "latent_norms": norms,
-                    "shape_latent_norms": shape_norms,
-                },
-            )
         if coord_counts is not None:
             latent.trellis_coord_counts = coord_counts.clone()
         model = model.clone()
@@ -842,11 +795,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
     def execute(cls, batch_size):
         in_channels = 8
         resolution = 16
-        generator = torch.Generator(device="cpu")
-        generator.manual_seed(11426)
-        latent = torch.randn(1, in_channels, resolution, resolution, resolution, generator=generator).repeat(batch_size, 1, 1, 1, 1)
-        norms = [float(v) for v in latent.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()]
-        print("TRELLIS2_EMPTY_STRUCTURE_TRACE", {"batch_size": int(batch_size), "latent_norms": norms})
+        latent = torch.randn(1, in_channels, resolution, resolution, resolution).repeat(batch_size, 1, 1, 1, 1)
         output = {"samples": latent, "type": "trellis2"}
         if batch_size > 1:
             output["batch_index"] = [0] * batch_size

@@ -829,21 +829,6 @@ class Trellis2(nn.Module):
                 t_eval = timestep
                 c_eval = context
 
-            x_eval_norms = [float(v) for v in x_eval.square().sum(dim=(1, 2)).detach().cpu().tolist()]
-            c_eval_norms = [float(v) for v in c_eval.square().sum(dim=(1, 2)).detach().cpu().tolist()]
-            print(
-                "TRELLIS2_NOT_STRUCT_INPUT_TRACE",
-                {
-                    "mode": mode,
-                    "orig_bsz": int(orig_bsz),
-                    "logical_batch": int(logical_batch),
-                    "rule": bool(rule),
-                    "coord_counts": coord_counts.tolist() if coord_counts is not None else None,
-                    "x_eval_norms": x_eval_norms,
-                    "c_eval_norms": c_eval_norms,
-                },
-            )
-
             B, N, C = x_eval.shape
 
             if mode in ["shape_generation", "texture_generation"]:
@@ -877,16 +862,6 @@ class Trellis2(nn.Module):
                                 coords_rep[:, 0] = rep
                                 coord_batches.append(coords_rep)
                                 index_batch.append(out_index)
-
-                            print(
-                                "TRELLIS2_GROUPED_INPUT_TRACE",
-                                {
-                                    "mode": mode,
-                                    "sample_index": int(i),
-                                    "coord_count": int(count),
-                                    "feat_norms": [float(v.square().sum().detach().cpu().item()) for v in feat_batches],
-                                },
-                            )
 
                             x_st_i = SparseTensor(
                                 feats=torch.cat(feat_batches, dim=0),
@@ -972,16 +947,6 @@ class Trellis2(nn.Module):
                                 active_coord_counts.append(count)
 
                     out_channels = sparse_outs[0].shape[-1]
-                    sparse_out_norms = [float(feats.square().sum().detach().cpu().item()) for feats in sparse_outs]
-                    print(
-                        "TRELLIS2_SPARSE_OUT_TRACE",
-                        {
-                            "mode": mode,
-                            "coords_rows": int(coords.shape[0]),
-                            "active_coord_counts": active_coord_counts,
-                            "sparse_out_norms": sparse_out_norms,
-                        },
-                    )
                     padded = sparse_outs[0].new_zeros((B, N, out_channels))
                     for out_index, (count, feats_i) in enumerate(zip(active_coord_counts, sparse_outs)):
                         padded[out_index, :count] = feats_i
@@ -1060,20 +1025,6 @@ class Trellis2(nn.Module):
             cond_or_uncond = transformer_options.get("cond_or_uncond") or []
             batch_groups = len(cond_or_uncond) if len(cond_or_uncond) > 0 and orig_bsz % len(cond_or_uncond) == 0 else 1
             logical_batch = orig_bsz // batch_groups
-            print(
-                "TRELLIS2_STRUCTURE_INPUT_TRACE",
-                {
-                    "orig_bsz": int(orig_bsz),
-                    "batch_groups": int(batch_groups),
-                    "logical_batch": int(logical_batch),
-                    "cond_or_uncond": cond_or_uncond,
-                    "x_norms": [float(v) for v in x.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
-                    "x_sums": [float(v) for v in x.sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
-                    "c_norms": [float(v) for v in context.square().sum(dim=(1, 2)).detach().cpu().tolist()],
-                    "c_sums": [float(v) for v in context.sum(dim=(1, 2)).detach().cpu().tolist()],
-                },
-            )
-
             if logical_batch > 1:
                 x_groups = x.reshape(batch_groups, logical_batch, *x.shape[1:])
                 if timestep.shape[0] > 1:
@@ -1088,10 +1039,6 @@ class Trellis2(nn.Module):
                     selected_group_indices = list(range(batch_groups))
 
                 out_groups = []
-                selected_x_norms = []
-                selected_x_sums = []
-                selected_c_norms = []
-                selected_c_sums = []
                 for sample_index in range(logical_batch):
                     if shape_rule and batch_groups > 1:
                         half = orig_bsz // 2
@@ -1111,22 +1058,7 @@ class Trellis2(nn.Module):
                         else:
                             t_i = timestep
                         c_i = c_groups[selected_group_indices, sample_index]
-                    selected_x_norms.extend(float(v) for v in x_i.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist())
-                    selected_x_sums.extend(float(v) for v in x_i.sum(dim=(1, 2, 3, 4)).detach().cpu().tolist())
-                    selected_c_norms.extend(float(v) for v in c_i.square().sum(dim=(1, 2)).detach().cpu().tolist())
-                    selected_c_sums.extend(float(v) for v in c_i.sum(dim=(1, 2)).detach().cpu().tolist())
                     out_groups.append(self.structure_model(x_i, t_i, c_i))
-
-                print(
-                    "TRELLIS2_STRUCTURE_SELECTED_TRACE",
-                    {
-                        "selected_group_indices": selected_group_indices,
-                        "selected_x_norms": selected_x_norms,
-                        "selected_x_sums": selected_x_sums,
-                        "selected_c_norms": selected_c_norms,
-                        "selected_c_sums": selected_c_sums,
-                    },
-                )
 
                 out = out_groups[0].new_zeros((orig_bsz, *out_groups[0].shape[1:]))
                 for sample_index, out_sample in enumerate(out_groups):
@@ -1146,28 +1078,10 @@ class Trellis2(nn.Module):
                 if shape_rule and orig_bsz > 1:
                     out = out.repeat(2, 1, 1, 1, 1)
 
-            print(
-                "TRELLIS2_STRUCTURE_OUTPUT_TRACE",
-                {
-                    "out_norms": [float(v) for v in out.square().sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
-                    "out_sums": [float(v) for v in out.sum(dim=(1, 2, 3, 4)).detach().cpu().tolist()],
-                },
-            )
-
         if not_struct_mode:
             if dense_out is None:
                 out = out.feats
                 out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
             if rule and orig_bsz > B:
                 out = out.repeat(orig_bsz // B, 1, 1, 1)
-            print(
-                "TRELLIS2_DENSE_OUT_TRACE",
-                {
-                    "mode": mode,
-                    "coords_rows": int(coords.shape[0]) if coords is not None else None,
-                    "output_shape": list(out.shape),
-                    "output_norms": [float(v) for v in out.squeeze(-1).square().sum(dim=(1, 2)).detach().cpu().tolist()],
-                    "coord_counts": coord_counts.tolist() if coord_counts is not None else None,
-                },
-            )
         return out
