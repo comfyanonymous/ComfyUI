@@ -31,6 +31,7 @@ class Load3D(IO.ComfyNode):
             node_id="Load3D",
             display_name="Load 3D & Animation",
             category="3d",
+            essentials_category="Basics",
             is_experimental=True,
             inputs=[
                 IO.Combo.Input("model_file", options=sorted(files), upload=IO.UploadType.model),
@@ -97,8 +98,8 @@ class Preview3D(IO.ComfyNode):
                     ],
                     tooltip="3D model file or path string",
                 ),
-                IO.Load3DCamera.Input("camera_info", optional=True),
-                IO.Image.Input("bg_image", optional=True),
+                IO.Load3DCamera.Input("camera_info", optional=True, advanced=True),
+                IO.Image.Input("bg_image", optional=True, advanced=True),
             ],
             outputs=[],
         )

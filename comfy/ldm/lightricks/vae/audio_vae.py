@@ -13,7 +13,7 @@ from comfy.ldm.lightricks.vae.causal_audio_autoencoder import (
     CausalityAxis,
     CausalAudioAutoencoder,
 )
-from comfy.ldm.lightricks.vocoders.vocoder import Vocoder
+from comfy.ldm.lightricks.vocoders.vocoder import Vocoder, VocoderWithBWE
 
 LATENT_DOWNSAMPLE_FACTOR = 4
 
@@ -141,7 +141,10 @@ class AudioVAE(torch.nn.Module):
         vocoder_sd = utils.state_dict_prefix_replace(state_dict, {"vocoder.": ""}, filter_keys=True)
 
         self.autoencoder = CausalAudioAutoencoder(config=component_config.autoencoder)
-        self.vocoder = Vocoder(config=component_config.vocoder)
+        if "bwe" in component_config.vocoder:
+            self.vocoder = VocoderWithBWE(config=component_config.vocoder)
+        else:
+            self.vocoder = Vocoder(config=component_config.vocoder)
 
         self.autoencoder.load_state_dict(vae_sd, strict=False)
         self.vocoder.load_state_dict(vocoder_sd, strict=False)

@@ -5,6 +5,10 @@ from comfy_api.latest._input import (
     MaskInput,
     LatentInput,
     VideoInput,
+    CurvePoint,
+    CurveInput,
+    MonotoneCubicCurve,
+    LinearCurve,
 )
 
 __all__ = [
@@ -13,4 +17,8 @@ __all__ = [
     "MaskInput",
     "LatentInput",
     "VideoInput",
+    "CurvePoint",
+    "CurveInput",
+    "MonotoneCubicCurve",
+    "LinearCurve",
 ]

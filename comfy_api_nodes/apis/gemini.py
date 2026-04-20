@@ -67,6 +67,7 @@ class GeminiPart(BaseModel):
     inlineData: GeminiInlineData | None = Field(None)
     fileData: GeminiFileData | None = Field(None)
     text: str | None = Field(None)
+    thought: bool | None = Field(None)
 
 
 class GeminiTextPart(BaseModel):
@@ -116,14 +117,26 @@ class GeminiGenerationConfig(BaseModel):
     topP: float | None = Field(None, ge=0.0, le=1.0)
 
 
+class GeminiImageOutputOptions(BaseModel):
+    mimeType: str = Field("image/png")
+    compressionQuality: int | None = Field(None)
+
+
 class GeminiImageConfig(BaseModel):
     aspectRatio: str | None = Field(None)
     imageSize: str | None = Field(None)
+    imageOutputOptions: GeminiImageOutputOptions = Field(default_factory=GeminiImageOutputOptions)
+
+
+class GeminiThinkingConfig(BaseModel):
+    includeThoughts: bool | None = Field(None)
+    thinkingLevel: str = Field(...)
 
 
 class GeminiImageGenerationConfig(GeminiGenerationConfig):
     responseModalities: list[str] | None = Field(None)
     imageConfig: GeminiImageConfig | None = Field(None)
+    thinkingConfig: GeminiThinkingConfig | None = Field(None)
 
 
 class GeminiImageGenerateContentRequest(BaseModel):

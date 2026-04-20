@@ -3,6 +3,7 @@ import node_helpers
 import torch
 import comfy.model_management
 import comfy.model_sampling
+import comfy.samplers
 import comfy.utils
 import math
 import numpy as np
@@ -134,6 +135,36 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
+def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0):
+    """Append a guide_attention_entry to both positive and negative conditioning.
+
+    Each entry tracks one guide reference for per-reference attention control.
+    Entries are derived independently from each conditioning to avoid cross-contamination.
+    """
+    new_entry = {
+        "pre_filter_count": pre_filter_count,
+        "strength": strength,
+        "pixel_mask": None,
+        "latent_shape": latent_shape,
+    }
+    results = []
+    for cond in (positive, negative):
+        # Read existing entries from this specific conditioning
+        existing = []
+        for t in cond:
+            found = t[1].get("guide_attention_entries", None)
+            if found is not None:
+                existing = found
+                break
+        # Shallow copy and append (no deepcopy needed — entries contain
+        # only scalars and None for pixel_mask at this call site).
+        entries = [*existing, new_entry]
+        results.append(node_helpers.conditioning_set_values(
+            cond, {"guide_attention_entries": entries}
+        ))
+    return results[0], results[1]
+
+
 def conditioning_get_any_value(conditioning, key, default=None):
     for t in conditioning:
         if key in t[1]:
@@ -223,10 +254,12 @@ class LTXVAddGuide(io.ComfyNode):
         return frame_idx, latent_idx
 
     @classmethod
-    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors, latent_downscale_factor=1):
+    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors, latent_downscale_factor=1, causal_fix=None):
         keyframe_idxs, _ = get_keyframe_idxs(cond)
         _, latent_coords = cls.PATCHIFIER.patchify(guiding_latent)
-        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=frame_idx == 0)  # we need the causal fix only if we're placing the new latents at index 0
+        if causal_fix is None:
+            causal_fix = frame_idx == 0 or guiding_latent.shape[2] == 1
+        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=causal_fix)
         pixel_coords[:, 0] += frame_idx
 
         # The following adjusts keyframe end positions for small grid IC-LoRA.
@@ -248,12 +281,12 @@ class LTXVAddGuide(io.ComfyNode):
         return node_helpers.conditioning_set_values(cond, {"keyframe_idxs": keyframe_idxs})
 
     @classmethod
-    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128, latent_downscale_factor=1):
+    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128, latent_downscale_factor=1, causal_fix=None):
         if latent_image.shape[1] != in_channels or guiding_latent.shape[1] != in_channels:
             raise ValueError("Adding guide to a combined AV latent is not supported.")
 
-        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors, latent_downscale_factor)
-        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors, latent_downscale_factor)
+        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors, latent_downscale_factor, causal_fix=causal_fix)
+        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors, latent_downscale_factor, causal_fix=causal_fix)
 
         if guide_mask is not None:
             target_h = max(noise_mask.shape[3], guide_mask.shape[3])
@@ -324,6 +357,13 @@ class LTXVAddGuide(io.ComfyNode):
             scale_factors,
         )
 
+        # Track this guide for per-reference attention control.
+        pre_filter_count = t.shape[2] * t.shape[3] * t.shape[4]
+        guide_latent_shape = list(t.shape[2:])  # [F, H, W]
+        positive, negative = _append_guide_attention_entry(
+            positive, negative, pre_filter_count, guide_latent_shape, strength=strength,
+        )
+
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
 
     generate = execute  # TODO: remove
@@ -359,8 +399,14 @@ class LTXVCropGuides(io.ComfyNode):
         latent_image = latent_image[:, :, :-num_keyframes]
         noise_mask = noise_mask[:, :, :-num_keyframes]
 
-        positive = node_helpers.conditioning_set_values(positive, {"keyframe_idxs": None})
-        negative = node_helpers.conditioning_set_values(negative, {"keyframe_idxs": None})
+        positive = node_helpers.conditioning_set_values(positive, {
+            "keyframe_idxs": None,
+            "guide_attention_entries": None,
+        })
+        negative = node_helpers.conditioning_set_values(negative, {
+            "keyframe_idxs": None,
+            "guide_attention_entries": None,
+        })
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
 
@@ -450,6 +496,7 @@ class LTXVScheduler(io.ComfyNode):
                     id="stretch",
                     default=True,
                     tooltip="Stretch the sigmas to be in the range [terminal, 1].",
+                    advanced=True,
                 ),
                 io.Float.Input(
                     id="terminal",
@@ -458,6 +505,7 @@ class LTXVScheduler(io.ComfyNode):
                     max=0.99,
                     step=0.01,
                     tooltip="The terminal value of the sigmas after stretching.",
+                    advanced=True,
                 ),
                 io.Latent.Input("latent", optional=True),
             ],
@@ -635,6 +683,84 @@ class LTXVSeparateAVLatent(io.ComfyNode):
         return io.NodeOutput(video_latent, audio_latent)
 
 
+class LTXVReferenceAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="LTXVReferenceAudio",
+            display_name="LTXV Reference Audio (ID-LoRA)",
+            category="conditioning/audio",
+            description="Set reference audio for ID-LoRA speaker identity transfer. Encodes a reference audio clip into the conditioning and optionally patches the model with identity guidance (extra forward pass without reference, amplifying the speaker identity effect).",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Audio.Input("reference_audio", tooltip="Reference audio clip whose speaker identity to transfer. ~5 seconds recommended (training duration). Shorter or longer clips may degrade voice identity transfer."),
+                io.Vae.Input(id="audio_vae", display_name="Audio VAE", tooltip="LTXV Audio VAE for encoding."),
+                io.Float.Input("identity_guidance_scale", default=3.0, min=0.0, max=100.0, step=0.01, round=0.01, tooltip="Strength of identity guidance. Runs an extra forward pass without reference each step to amplify speaker identity. Set to 0 to disable (no extra pass)."),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001, advanced=True, tooltip="Start of the sigma range where identity guidance is active."),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001, advanced=True, tooltip="End of the sigma range where identity guidance is active."),
+            ],
+            outputs=[
+                io.Model.Output(),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, positive, negative, reference_audio, audio_vae, identity_guidance_scale, start_percent, end_percent) -> io.NodeOutput:
+        # Encode reference audio to latents and patchify
+        audio_latents = audio_vae.encode(reference_audio)
+        b, c, t, f = audio_latents.shape
+        ref_tokens = audio_latents.permute(0, 2, 1, 3).reshape(b, t, c * f)
+        ref_audio = {"tokens": ref_tokens}
+
+        positive = node_helpers.conditioning_set_values(positive, {"ref_audio": ref_audio})
+        negative = node_helpers.conditioning_set_values(negative, {"ref_audio": ref_audio})
+
+        # Patch model with identity guidance
+        m = model.clone()
+        scale = identity_guidance_scale
+        model_sampling = m.get_model_object("model_sampling")
+        sigma_start = model_sampling.percent_to_sigma(start_percent)
+        sigma_end = model_sampling.percent_to_sigma(end_percent)
+
+        def post_cfg_function(args):
+            if scale == 0:
+                return args["denoised"]
+
+            sigma = args["sigma"]
+            sigma_ = sigma[0].item()
+            if sigma_ > sigma_start or sigma_ < sigma_end:
+                return args["denoised"]
+
+            cond_pred = args["cond_denoised"]
+            cond = args["cond"]
+            cfg_result = args["denoised"]
+            model_options = args["model_options"].copy()
+            x = args["input"]
+
+            # Strip ref_audio from conditioning for the no-reference pass
+            noref_cond = []
+            for entry in cond:
+                new_entry = entry.copy()
+                mc = new_entry.get("model_conds", {}).copy()
+                mc.pop("ref_audio", None)
+                new_entry["model_conds"] = mc
+                noref_cond.append(new_entry)
+
+            (pred_noref,) = comfy.samplers.calc_cond_batch(
+                args["model"], [noref_cond], x, sigma, model_options
+            )
+
+            return cfg_result + (cond_pred - pred_noref) * scale
+
+        m.set_model_sampler_post_cfg_function(post_cfg_function)
+
+        return io.NodeOutput(m, positive, negative)
+
+
 class LtxvExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -650,6 +776,7 @@ class LtxvExtension(ComfyExtension):
             LTXVCropGuides,
             LTXVConcatAVLatent,
             LTXVSeparateAVLatent,
+            LTXVReferenceAudio,
         ]
 
 

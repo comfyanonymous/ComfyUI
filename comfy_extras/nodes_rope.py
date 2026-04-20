@@ -12,14 +12,14 @@ class ScaleROPE(io.ComfyNode):
             is_experimental=True,
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("scale_x", default=1.0, min=0.0, max=100.0, step=0.1),
-                io.Float.Input("shift_x", default=0.0, min=-256.0, max=256.0, step=0.1),
+                io.Float.Input("scale_x", default=1.0, min=0.0, max=100.0, step=0.1, advanced=True),
+                io.Float.Input("shift_x", default=0.0, min=-256.0, max=256.0, step=0.1, advanced=True),
 
-                io.Float.Input("scale_y", default=1.0, min=0.0, max=100.0, step=0.1),
-                io.Float.Input("shift_y", default=0.0, min=-256.0, max=256.0, step=0.1),
+                io.Float.Input("scale_y", default=1.0, min=0.0, max=100.0, step=0.1, advanced=True),
+                io.Float.Input("shift_y", default=0.0, min=-256.0, max=256.0, step=0.1, advanced=True),
 
-                io.Float.Input("scale_t", default=1.0, min=0.0, max=100.0, step=0.1),
-                io.Float.Input("shift_t", default=0.0, min=-256.0, max=256.0, step=0.1),
+                io.Float.Input("scale_t", default=1.0, min=0.0, max=100.0, step=0.1, advanced=True),
+                io.Float.Input("shift_t", default=0.0, min=-256.0, max=256.0, step=0.1, advanced=True),
 
 
             ],

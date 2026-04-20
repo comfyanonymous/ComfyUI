@@ -28,6 +28,7 @@ class EpsilonScaling(io.ComfyNode):
                     max=1.5,
                     step=0.001,
                     display_mode=io.NumberDisplay.number,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -97,6 +98,7 @@ class TemporalScoreRescaling(io.ComfyNode):
                     max=100.0,
                     step=0.001,
                     display_mode=io.NumberDisplay.number,
+                    advanced=True,
                 ),
                 io.Float.Input(
                     "tsr_sigma",
@@ -109,6 +111,7 @@ class TemporalScoreRescaling(io.ComfyNode):
                     max=100.0,
                     step=0.001,
                     display_mode=io.NumberDisplay.number,
+                    advanced=True,
                 ),
             ],
             outputs=[
