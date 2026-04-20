@@ -800,6 +800,11 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
 
         elif isinstance(structure_or_coords, torch.Tensor) and structure_or_coords.ndim == 2:
             coords = structure_or_coords.int()
+        else:
+            raise ValueError(
+                "structure_or_coords must be a voxel input with data.ndim == 4, "
+                f'a dict containing "coords", or a 2D torch.Tensor; got {type(structure_or_coords).__name__}'
+            )
 
         shape_batch_index = normalize_batch_index(shape_latent.get("batch_index"))
         shape_latent = shape_latent["samples"]

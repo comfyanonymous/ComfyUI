@@ -14,6 +14,10 @@ def prepare_noise_inner(latent_image, generator, noise_inds=None):
             noise_inds = np.arange(latent_image.size(0), dtype=np.int64)
         else:
             noise_inds = np.asarray(noise_inds, dtype=np.int64)
+            if noise_inds.shape[0] != latent_image.size(0):
+                raise ValueError(
+                    f"Trellis2 noise_inds length {noise_inds.shape[0]} does not match latent batch {latent_image.size(0)}"
+                )
 
         base_seed = int(generator.initial_seed())
         unique_inds = np.unique(noise_inds)

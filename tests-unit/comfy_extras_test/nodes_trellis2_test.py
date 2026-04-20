@@ -224,6 +224,15 @@ class TestTrellisBatchSemantics(unittest.TestCase):
                 13,
             )
 
+    def test_empty_texture_latent_rejects_invalid_structure_input(self):
+        with self.assertRaises(ValueError):
+            nodes_trellis2.EmptyTextureLatentTrellis2.execute(
+                "bad-input",
+                {"samples": torch.zeros(1, 32, 2, 1)},
+                DummyCloneModel(),
+                13,
+            )
+
     def test_flatten_batched_sparse_latent_validates_coord_counts(self):
         samples = torch.zeros(2, 32, 3, 1)
         coords = torch.tensor(

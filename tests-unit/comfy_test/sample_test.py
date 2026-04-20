@@ -42,6 +42,16 @@ class TestPrepareNoiseInnerTrellis(unittest.TestCase):
         self.assertTrue(torch.equal(noise[1:2, :, :5, :], expected1))
         self.assertTrue(torch.equal(noise[0, :, 3:, :], torch.zeros_like(noise[0, :, 3:, :])))
 
+    def test_coord_counts_noise_inds_length_must_match_batch(self):
+        latent = torch.zeros(2, 4, 5, 1)
+        latent.trellis_coord_counts = torch.tensor([3, 5], dtype=torch.int64)
+
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(456)
+
+        with self.assertRaises(ValueError):
+            comfy.sample.prepare_noise_inner(latent, generator, noise_inds=[7])
+
 
 if __name__ == "__main__":
     unittest.main()
