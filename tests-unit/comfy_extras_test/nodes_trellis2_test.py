@@ -73,6 +73,57 @@ class DummyModel:
         self.model = inner_model
 
 
+class DummyPatcher:
+    def __init__(self, free_memory):
+        self.free_memory = free_memory
+
+    def get_free_memory(self, device):
+        return self.free_memory
+
+
+class DummyVAE:
+    vae_dtype = torch.float16
+
+    def __init__(self, free_memory, memory_factor=2):
+        self.patcher = DummyPatcher(free_memory)
+        self.memory_factor = memory_factor
+
+    def memory_used_decode(self, shape, dtype):
+        return shape[2] * shape[3] * self.memory_factor
+
+
+class TestPrepareTrellisVaeForDecode(unittest.TestCase):
+    def test_uses_load_models_gpu_without_pre_freeing_memory(self):
+        vae = DummyVAE(free_memory=1000)
+
+        with patch.object(nodes_trellis2.comfy.model_management, "get_torch_device", return_value="cuda"):
+            with patch.object(nodes_trellis2.comfy.model_management, "free_memory") as free_memory:
+                with patch.object(nodes_trellis2.comfy.model_management, "load_models_gpu") as load_models_gpu:
+                    batch_number = nodes_trellis2.prepare_trellis_vae_for_decode(vae, (3, 32, 10, 1))
+
+        free_memory.assert_not_called()
+        load_models_gpu.assert_called_once_with(
+            [vae.patcher],
+            memory_required=20,
+            force_full_load=False,
+        )
+        self.assertEqual(batch_number, 50)
+
+    def test_scales_memory_estimate_for_5d_structure_latents(self):
+        vae = DummyVAE(free_memory=40960, memory_factor=1)
+
+        with patch.object(nodes_trellis2.comfy.model_management, "get_torch_device", return_value="cuda"):
+            with patch.object(nodes_trellis2.comfy.model_management, "load_models_gpu") as load_models_gpu:
+                batch_number = nodes_trellis2.prepare_trellis_vae_for_decode(vae, (2, 8, 16, 16, 16))
+
+        load_models_gpu.assert_called_once_with(
+            [vae.patcher],
+            memory_required=4096,
+            force_full_load=False,
+        )
+        self.assertEqual(batch_number, 10)
+
+
 class TestRunConditioningRestore(unittest.TestCase):
     def setUp(self):
         self.intermediate_patch = patch.object(
