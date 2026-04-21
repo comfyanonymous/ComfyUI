@@ -9,9 +9,11 @@ import scipy
 import copy
 
 def prepare_trellis_vae_for_decode(vae, sample_shape):
-    memory_required = max(1, int(vae.memory_used_decode(sample_shape, vae.vae_dtype)))
+    memory_required = vae.memory_used_decode(sample_shape, vae.vae_dtype)
+    if len(sample_shape) == 5:
+        memory_required *= max(1, int(sample_shape[4]))
+    memory_required = max(1, int(memory_required))
     device = comfy.model_management.get_torch_device()
-    comfy.model_management.free_memory(memory_required, device, for_dynamic=False)
     comfy.model_management.load_models_gpu(
         [vae.patcher],
         memory_required=memory_required,
@@ -19,7 +21,7 @@ def prepare_trellis_vae_for_decode(vae, sample_shape):
     )
     free_memory = vae.patcher.get_free_memory(device)
     batch_number = max(1, int(free_memory / memory_required))
-    return min(sample_shape[0], batch_number)
+    return batch_number
 
 
 def pack_variable_mesh_batch(vertices, faces, colors=None):
