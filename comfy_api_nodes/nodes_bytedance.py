@@ -35,6 +35,7 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     image_tensor_pair_to_batch,
     poll_op,
+    resize_video_to_pixel_budget,
     sync_op,
     upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
@@ -69,9 +70,12 @@ DEPRECATED_MODELS = {"seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-i2v-2504
 logger = logging.getLogger(__name__)
 
 
-def _validate_ref_video_pixels(video: Input.Video, model_id: str, index: int) -> None:
-    """Validate reference video pixel count against Seedance 2.0 model limits."""
-    limits = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id)
+def _validate_ref_video_pixels(video: Input.Video, model_id: str, resolution: str, index: int) -> None:
+    """Validate reference video pixel count against Seedance 2.0 model limits for the selected resolution."""
+    model_limits = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id)
+    if not model_limits:
+        return
+    limits = model_limits.get(resolution)
     if not limits:
         return
     try:
@@ -1373,6 +1377,14 @@ def _seedance2_reference_inputs(resolutions: list[str]):
                 min=0,
             ),
         ),
+        IO.Boolean.Input(
+            "auto_downscale",
+            default=False,
+            advanced=True,
+            optional=True,
+            tooltip="Automatically downscale reference videos that exceed the model's pixel budget "
+            "for the selected resolution. Aspect ratio is preserved; videos already within limits are untouched.",
+        ),
     ]
 
 
@@ -1480,10 +1492,23 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
 
         model_id = SEEDANCE_MODELS[model["model"]]
         has_video_input = len(reference_videos) > 0
+
+        if model.get("auto_downscale") and reference_videos:
+            max_px = (
+                SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {})
+                .get(model["resolution"], {})
+                .get("max")
+            )
+            if max_px:
+                for key in reference_videos:
+                    reference_videos[key] = resize_video_to_pixel_budget(
+                        reference_videos[key], max_px
+                    )
+
         total_video_duration = 0.0
         for i, key in enumerate(reference_videos, 1):
             video = reference_videos[key]
-            _validate_ref_video_pixels(video, model_id, i)
+            _validate_ref_video_pixels(video, model_id, model["resolution"], i)
             try:
                 dur = video.get_duration()
                 if dur < 1.8:
