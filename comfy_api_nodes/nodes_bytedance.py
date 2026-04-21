@@ -1066,7 +1066,7 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
 )
 
 
-def _seedance2_text_inputs():
+def _seedance2_text_inputs(resolutions: list[str]):
     return [
         IO.String.Input(
             "prompt",
@@ -1076,7 +1076,7 @@ def _seedance2_text_inputs():
         ),
         IO.Combo.Input(
             "resolution",
-            options=["480p", "720p"],
+            options=resolutions,
             tooltip="Resolution of the output video.",
         ),
         IO.Combo.Input(
@@ -1114,8 +1114,8 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs()),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs()),
+                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p"])),
+                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
@@ -1152,11 +1152,14 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
                 (
                   $rate480 := 10044;
                   $rate720 := 21600;
+                  $rate1080 := 48800;
                   $m := widgets.model;
                   $pricePer1K := $contains($m, "fast") ? 0.008008 : 0.01001;
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $rate := $res = "720p" ? $rate720 : $rate480;
+                  $rate := $res = "1080p" ? $rate1080 :
+                           $res = "720p"  ? $rate720 :
+                                            $rate480;
                   $cost := $dur * $rate * $pricePer1K / 1000;
                   {"type": "usd", "usd": $cost, "format": {"approximate": true}}
                 )
@@ -1195,6 +1198,7 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=False),
             poll_interval=9,
+            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -1212,8 +1216,8 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs()),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs()),
+                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p"])),
+                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
@@ -1259,11 +1263,14 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                 (
                   $rate480 := 10044;
                   $rate720 := 21600;
+                  $rate1080 := 48800;
                   $m := widgets.model;
                   $pricePer1K := $contains($m, "fast") ? 0.008008 : 0.01001;
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $rate := $res = "720p" ? $rate720 : $rate480;
+                  $rate := $res = "1080p" ? $rate1080 :
+                           $res = "720p"  ? $rate720 :
+                                            $rate480;
                   $cost := $dur * $rate * $pricePer1K / 1000;
                   {"type": "usd", "usd": $cost, "format": {"approximate": true}}
                 )
@@ -1324,13 +1331,14 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=False),
             poll_interval=9,
+            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
-def _seedance2_reference_inputs():
+def _seedance2_reference_inputs(resolutions: list[str]):
     return [
-        *_seedance2_text_inputs(),
+        *_seedance2_text_inputs(resolutions),
         IO.Autogrow.Input(
             "reference_images",
             template=IO.Autogrow.TemplateNames(
@@ -1382,8 +1390,8 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_reference_inputs()),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_reference_inputs()),
+                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_reference_inputs(["480p", "720p", "1080p"])),
+                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_reference_inputs(["480p", "720p"])),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
@@ -1423,13 +1431,16 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 (
                   $rate480 := 10044;
                   $rate720 := 21600;
+                  $rate1080 := 48800;
                   $m := widgets.model;
                   $hasVideo := $lookup(inputGroups, "model.reference_videos") > 0;
                   $noVideoPricePer1K := $contains($m, "fast") ? 0.008008 : 0.01001;
                   $videoPricePer1K := $contains($m, "fast") ? 0.004719 : 0.006149;
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $rate := $res = "720p" ? $rate720 : $rate480;
+                  $rate := $res = "1080p" ? $rate1080 :
+                           $res = "720p"  ? $rate720 :
+                                            $rate480;
                   $noVideoCost := $dur * $rate * $noVideoPricePer1K / 1000;
                   $minVideoFactor := $ceil($dur * 5 / 3);
                   $minVideoCost := $minVideoFactor * $rate * $videoPricePer1K / 1000;
@@ -1559,6 +1570,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=has_video_input),
             poll_interval=9,
+            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 

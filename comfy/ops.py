@@ -1151,7 +1151,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     if param is None:
                         continue
                     p = fn(param)
-                    if p.is_inference():
+                    if (not torch.is_inference_mode_enabled()) and p.is_inference():
                         p = p.clone()
                     self.register_parameter(key, torch.nn.Parameter(p, requires_grad=False))
                 for key, buf in self._buffers.items():

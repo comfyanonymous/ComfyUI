@@ -37,6 +37,7 @@ class TextGenerate(io.ComfyNode):
                 io.Int.Input("max_length", default=256, min=1, max=2048),
                 io.DynamicCombo.Input("sampling_mode", options=sampling_options, display_name="Sampling Mode"),
                 io.Boolean.Input("thinking", optional=True, default=False, tooltip="Operate in thinking mode if the model supports it."),
+                io.Boolean.Input("use_default_template", optional=True, default=True, tooltip="Use the built in system prompt/template if the model has one.", advanced=True),
             ],
             outputs=[
                 io.String.Output(display_name="generated_text"),
@@ -44,9 +45,9 @@ class TextGenerate(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, video=None, audio=None, thinking=False) -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, video=None, audio=None, thinking=False, use_default_template=True) -> io.NodeOutput:
 
-        tokens = clip.tokenize(prompt, image=image, video=video, audio=audio, skip_template=False, min_length=1, thinking=thinking)
+        tokens = clip.tokenize(prompt, image=image, video=video, audio=audio, skip_template=not use_default_template, min_length=1, thinking=thinking)
 
         # Get sampling parameters from dynamic combo
         do_sample = sampling_mode.get("sampling_mode") == "on"
@@ -163,12 +164,12 @@ class TextGenerateLTX2Prompt(TextGenerate):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, video=None, audio=None, thinking=False) -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, video=None, audio=None, thinking=False, use_default_template=True) -> io.NodeOutput:
         if image is None:
             formatted_prompt = f"<start_of_turn>system\n{LTX2_T2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
         else:
             formatted_prompt = f"<start_of_turn>system\n{LTX2_I2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\n\n<image_soft_token>\n\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
-        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image=image, video=video, audio=audio, thinking=thinking)
+        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image=image, video=video, audio=audio, thinking=thinking, use_default_template)
 
 
 class TextgenExtension(ComfyExtension):
