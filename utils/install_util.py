@@ -21,8 +21,12 @@ If you are on the portable package you can run: update\\update_comfyui.bat to so
 
 
 def is_valid_version(version: str) -> bool:
-    """Validate if a string is a valid semantic version (X.Y.Z format)."""
-    pattern = r"^(\d+)\.(\d+)\.(\d+)$"
+    """Validate if a string is a valid version number.
+
+    Accepts PEP 440-style numeric versions with one or more dot-separated
+    components (e.g. ``2``, ``2.0``, ``2.0.0``, ``1.25.3``).
+    """
+    pattern = r"^\d+(\.\d+)*$"
     return bool(re.match(pattern, version))
 
 
@@ -39,7 +43,7 @@ def get_required_packages_versions():
                 if len(s) == 2:
                     version_str = s[-1]
                     if not is_valid_version(version_str):
-                        logging.error(f"Invalid version format in requirements.txt: {version_str}")
+                        logging.warning(f"Skipping unrecognised version format in requirements.txt: {version_str}")
                         continue
                     out[s[0]] = version_str
         return out.copy()
