@@ -434,7 +434,7 @@ class Veo3VideoGenerationNode(IO.ComfyNode):
             response_model=VeoGenVidPollResponse,
             status_extractor=lambda r: "completed" if r.done else "pending",
             data=VeoGenVidPollRequest(operationName=initial_response.name),
-            poll_interval=5.0,
+            poll_interval=9.0,
             estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
 
@@ -604,7 +604,7 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
             data=VeoGenVidPollRequest(
                 operationName=initial_response.name,
             ),
-            poll_interval=5.0,
+            poll_interval=9.0,
             estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
 
