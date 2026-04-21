@@ -10,12 +10,10 @@ from torch import Tensor, nn
 from einops import repeat
 import comfy.ldm.common_dit
 
-from comfy.ldm.flux.layers import EmbedND
+from comfy.ldm.flux.layers import EmbedND, DoubleStreamBlock, SingleStreamBlock
 
 from comfy.ldm.chroma.model import Chroma, ChromaParams
 from comfy.ldm.chroma.layers import (
-    DoubleStreamBlock,
-    SingleStreamBlock,
     Approximator,
 )
 from .layers import (
@@ -39,7 +37,7 @@ class ChromaRadianceParams(ChromaParams):
     nerf_final_head_type: str
     # None means use the same dtype as the model.
     nerf_embedder_dtype: Optional[torch.dtype]
-
+    use_x0: bool
 
 class ChromaRadiance(Chroma):
     """
@@ -89,7 +87,6 @@ class ChromaRadiance(Chroma):
                     dtype=dtype, device=device, operations=operations
                 )
 
-
         self.double_blocks = nn.ModuleList(
             [
                 DoubleStreamBlock(
@@ -97,6 +94,7 @@ class ChromaRadiance(Chroma):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -109,6 +107,7 @@ class ChromaRadiance(Chroma):
                     self.hidden_size,
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations,
                 )
                 for _ in range(params.depth_single_blocks)
@@ -159,6 +158,9 @@ class ChromaRadiance(Chroma):
         self.skip_mmdit = []
         self.skip_dit = []
         self.lite = False
+
+        if params.use_x0:
+            self.register_buffer("__x0__", torch.tensor([]))
 
     @property
     def _nerf_final_layer(self) -> nn.Module:
@@ -268,7 +270,7 @@ class ChromaRadiance(Chroma):
         bad_keys = tuple(
             k
             for k, v in overrides.items()
-            if type(v) != type(getattr(params, k)) and (v is not None or k not in nullable_keys)
+            if not isinstance(v, type(getattr(params, k))) and (v is not None or k not in nullable_keys)
         )
         if bad_keys:
             e = f"Invalid value(s) in transformer_options chroma_radiance_options: {', '.join(bad_keys)}"
@@ -276,6 +278,12 @@ class ChromaRadiance(Chroma):
         # At this point it's all valid keys and values so we can merge with the existing params.
         params_dict |= overrides
         return params.__class__(**params_dict)
+
+    def _apply_x0_residual(self, predicted, noisy, timesteps):
+
+        # non zero during training to prevent 0 div
+        eps = 0.0
+        return (noisy - predicted) / (timesteps.view(-1,1,1,1) + eps)
 
     def _forward(
         self,
@@ -317,4 +325,11 @@ class ChromaRadiance(Chroma):
             transformer_options,
             attn_mask=kwargs.get("attention_mask", None),
         )
-        return self.forward_nerf(img, img_out, params)[:, :, :h, :w]
+
+        out = self.forward_nerf(img, img_out, params)[:, :, :h, :w]
+
+        # If x0 variant → v-pred, just return this instead
+        if hasattr(self, "__x0__"):
+            out = self._apply_x0_residual(out, img, timestep)
+        return out
+

@@ -1,29 +1,23 @@
 from io import BytesIO
 from typing_extensions import override
-from comfy_api.latest import ComfyExtension, IO
+from comfy_api.latest import IO, ComfyExtension
 from PIL import Image
 import numpy as np
 import torch
-from comfy_api_nodes.apis import (
+from comfy_api_nodes.apis.ideogram import (
     IdeogramGenerateRequest,
     IdeogramGenerateResponse,
     ImageRequest,
     IdeogramV3Request,
     IdeogramV3EditRequest,
 )
-
-from comfy_api_nodes.apis.client import (
+from comfy_api_nodes.util import (
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-)
-
-from comfy_api_nodes.apinode_utils import (
-    download_url_to_bytesio,
     bytesio_to_image_tensor,
+    download_url_as_bytesio,
     resize_mask_to_image,
+    sync_op,
 )
-from server import PromptServer
 
 V1_V1_RES_MAP = {
   "Auto":"AUTO",
@@ -220,7 +214,7 @@ async def download_and_process_images(image_urls):
 
     for image_url in image_urls:
         # Using functions from apinode_utils.py to handle downloading and processing
-        image_bytesio = await download_url_to_bytesio(image_url)  # Download image content to BytesIO
+        image_bytesio = await download_url_as_bytesio(image_url)  # Download image content to BytesIO
         img_tensor = bytesio_to_image_tensor(image_bytesio, mode="RGB")  # Convert to torch.Tensor with RGB mode
         image_tensors.append(img_tensor)
 
@@ -233,19 +227,6 @@ async def download_and_process_images(image_urls):
     return stacked_tensors
 
 
-def display_image_urls_on_node(image_urls, node_id):
-    if node_id and image_urls:
-        if len(image_urls) == 1:
-            PromptServer.instance.send_progress_text(
-                f"Generated Image URL:\n{image_urls[0]}", node_id
-            )
-        else:
-            urls_text = "Generated Image URLs:\n" + "\n".join(
-                f"{i+1}. {url}" for i, url in enumerate(image_urls)
-            )
-            PromptServer.instance.send_progress_text(urls_text, node_id)
-
-
 class IdeogramV1(IO.ComfyNode):
 
     @classmethod
@@ -255,7 +236,6 @@ class IdeogramV1(IO.ComfyNode):
             display_name="Ideogram V1",
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V1 model.",
-            is_api_node=True,
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -281,6 +261,7 @@ class IdeogramV1(IO.ComfyNode):
                     default="AUTO",
                     tooltip="Determine if MagicPrompt should be used in generation",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -317,6 +298,17 @@ class IdeogramV1(IO.ComfyNode):
                 IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
+                expr="""
+                (
+                  $n := widgets.num_images;
+                  $base := (widgets.turbo = true) ? 0.0286 : 0.0858;
+                  {"type":"usd","usd": $round($base * $n, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -334,44 +326,30 @@ class IdeogramV1(IO.ComfyNode):
         aspect_ratio = V1_V2_RATIO_MAP.get(aspect_ratio, None)
         model = "V_1_TURBO" if turbo else "V_1"
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/ideogram/generate",
-                method=HttpMethod.POST,
-                request_model=IdeogramGenerateRequest,
-                response_model=IdeogramGenerateResponse,
-            ),
-            request=IdeogramGenerateRequest(
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/ideogram/generate", method="POST"),
+            response_model=IdeogramGenerateResponse,
+            data=IdeogramGenerateRequest(
                 image_request=ImageRequest(
                     prompt=prompt,
                     model=model,
                     num_images=num_images,
                     seed=seed,
                     aspect_ratio=aspect_ratio if aspect_ratio != "ASPECT_1_1" else None,
-                    magic_prompt_option=(
-                        magic_prompt_option if magic_prompt_option != "AUTO" else None
-                    ),
+                    magic_prompt_option=(magic_prompt_option if magic_prompt_option != "AUTO" else None),
                     negative_prompt=negative_prompt if negative_prompt else None,
                 )
             ),
-            auth_kwargs=auth,
+            max_retries=1,
         )
-
-        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
 
         image_urls = [image_data.url for image_data in response.data if image_data.url]
-
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
-
-        display_image_urls_on_node(image_urls, cls.hidden.unique_id)
         return IO.NodeOutput(await download_and_process_images(image_urls))
 
 
@@ -384,7 +362,6 @@ class IdeogramV2(IO.ComfyNode):
             display_name="Ideogram V2",
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V2 model.",
-            is_api_node=True,
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -418,6 +395,7 @@ class IdeogramV2(IO.ComfyNode):
                     default="AUTO",
                     tooltip="Determine if MagicPrompt should be used in generation",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -435,6 +413,7 @@ class IdeogramV2(IO.ComfyNode):
                     default="NONE",
                     tooltip="Style type for generation (V2 only)",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.String.Input(
                     "negative_prompt",
@@ -469,6 +448,17 @@ class IdeogramV2(IO.ComfyNode):
                 IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
+                expr="""
+                (
+                  $n := widgets.num_images;
+                  $base := (widgets.turbo = true) ? 0.0715 : 0.1144;
+                  {"type":"usd","usd": $round($base * $n, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -500,18 +490,11 @@ class IdeogramV2(IO.ComfyNode):
         else:
             final_aspect_ratio = aspect_ratio if aspect_ratio != "ASPECT_1_1" else None
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/ideogram/generate",
-                method=HttpMethod.POST,
-                request_model=IdeogramGenerateRequest,
-                response_model=IdeogramGenerateResponse,
-            ),
-            request=IdeogramGenerateRequest(
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/ideogram/generate", method="POST"),
+            response_model=IdeogramGenerateResponse,
+            data=IdeogramGenerateRequest(
                 image_request=ImageRequest(
                     prompt=prompt,
                     model=model,
@@ -519,28 +502,20 @@ class IdeogramV2(IO.ComfyNode):
                     seed=seed,
                     aspect_ratio=final_aspect_ratio,
                     resolution=final_resolution,
-                    magic_prompt_option=(
-                        magic_prompt_option if magic_prompt_option != "AUTO" else None
-                    ),
+                    magic_prompt_option=(magic_prompt_option if magic_prompt_option != "AUTO" else None),
                     style_type=style_type if style_type != "NONE" else None,
                     negative_prompt=negative_prompt if negative_prompt else None,
                     color_palette=color_palette if color_palette else None,
                 )
             ),
-            auth_kwargs=auth,
+            max_retries=1,
         )
-
-        response = await operation.execute()
-
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
 
         image_urls = [image_data.url for image_data in response.data if image_data.url]
-
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
-
-        display_image_urls_on_node(image_urls, cls.hidden.unique_id)
         return IO.NodeOutput(await download_and_process_images(image_urls))
 
 
@@ -554,7 +529,6 @@ class IdeogramV3(IO.ComfyNode):
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V3 model. "
                         "Supports both regular image generation from text prompts and image editing with mask.",
-            is_api_node=True,
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -593,6 +567,7 @@ class IdeogramV3(IO.ComfyNode):
                     default="AUTO",
                     tooltip="Determine if MagicPrompt should be used in generation",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -619,6 +594,7 @@ class IdeogramV3(IO.ComfyNode):
                     default="DEFAULT",
                     tooltip="Controls the trade-off between generation speed and quality",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Image.Input(
                     "character_image",
@@ -639,6 +615,23 @@ class IdeogramV3(IO.ComfyNode):
                 IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["rendering_speed", "num_images"], inputs=["character_image"]),
+                expr="""
+                (
+                  $n := widgets.num_images;
+                  $speed := widgets.rendering_speed;
+                  $hasChar := inputs.character_image.connected;
+                  $base :=
+                    $contains($speed,"quality") ? ($hasChar ? 0.286 : 0.1287) :
+                    $contains($speed,"default") ? ($hasChar ? 0.2145 : 0.0858) :
+                    $contains($speed,"turbo") ? ($hasChar ? 0.143 : 0.0429) :
+                    0.0858;
+                  {"type":"usd","usd": $round($base * $n, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -656,10 +649,6 @@ class IdeogramV3(IO.ComfyNode):
         character_image=None,
         character_mask=None,
     ):
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         if rendering_speed == "BALANCED":  # for backward compatibility
             rendering_speed = "DEFAULT"
 
@@ -694,9 +683,6 @@ class IdeogramV3(IO.ComfyNode):
 
         # Check if both image and mask are provided for editing mode
         if image is not None and mask is not None:
-            # Edit mode
-            path = "/proxy/ideogram/ideogram-v3/edit"
-
             # Process image and mask
             input_tensor = image.squeeze().cpu()
             # Resize mask to match image dimension
@@ -749,27 +735,20 @@ class IdeogramV3(IO.ComfyNode):
             if character_mask_binary:
                 files["character_mask_binary"] = character_mask_binary
 
-            # Execute the operation for edit mode
-            operation = SynchronousOperation(
-                endpoint=ApiEndpoint(
-                    path=path,
-                    method=HttpMethod.POST,
-                    request_model=IdeogramV3EditRequest,
-                    response_model=IdeogramGenerateResponse,
-                ),
-                request=edit_request,
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/ideogram/ideogram-v3/edit", method="POST"),
+                response_model=IdeogramGenerateResponse,
+                data=edit_request,
                 files=files,
                 content_type="multipart/form-data",
-                auth_kwargs=auth,
+                max_retries=1,
             )
 
         elif image is not None or mask is not None:
             # If only one of image or mask is provided, raise an error
             raise Exception("Ideogram V3 image editing requires both an image AND a mask")
         else:
-            # Generation mode
-            path = "/proxy/ideogram/ideogram-v3/generate"
-
             # Create generation request
             gen_request = IdeogramV3Request(
                 prompt=prompt,
@@ -800,32 +779,22 @@ class IdeogramV3(IO.ComfyNode):
             if files:
                 gen_request.style_type = "AUTO"
 
-            # Execute the operation for generation mode
-            operation = SynchronousOperation(
-                endpoint=ApiEndpoint(
-                    path=path,
-                    method=HttpMethod.POST,
-                    request_model=IdeogramV3Request,
-                    response_model=IdeogramGenerateResponse,
-                ),
-                request=gen_request,
+            response = await sync_op(
+                cls,
+                endpoint=ApiEndpoint(path="/proxy/ideogram/ideogram-v3/generate", method="POST"),
+                response_model=IdeogramGenerateResponse,
+                data=gen_request,
                 files=files if files else None,
                 content_type="multipart/form-data",
-                auth_kwargs=auth,
+                max_retries=1,
             )
-
-        # Execute the operation and process response
-        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
 
         image_urls = [image_data.url for image_data in response.data if image_data.url]
-
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
-
-        display_image_urls_on_node(image_urls, cls.hidden.unique_id)
         return IO.NodeOutput(await download_and_process_images(image_urls))
 
 
@@ -837,6 +806,7 @@ class IdeogramExtension(ComfyExtension):
             IdeogramV2,
             IdeogramV3,
         ]
+
 
 async def comfy_entrypoint() -> IdeogramExtension:
     return IdeogramExtension()

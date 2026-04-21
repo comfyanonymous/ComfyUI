@@ -1,9 +1,10 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from fractions import Fraction
 from typing import Optional, Union, IO
 import io
 import av
-from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoComponents
 
 class VideoInput(ABC):
     """
@@ -30,6 +31,21 @@ class VideoInput(ABC):
     ):
         """
         Abstract method to save the video input to a file.
+        """
+        pass
+
+    @abstractmethod
+    def as_trimmed(
+        self,
+        start_time: float | None = None,
+        duration: float | None = None,
+        strict_duration: bool = False,
+    ) -> VideoInput | None:
+        """
+        Create a new VideoInput which is trimmed to have the corresponding start_time and duration
+
+        Returns:
+            A new VideoInput, or None if the result would have negative duration
         """
         pass
 
@@ -71,6 +87,33 @@ class VideoInput(ABC):
         components = self.get_components()
         frame_count = components.images.shape[0]
         return float(frame_count / components.frame_rate)
+
+    def get_frame_count(self) -> int:
+        """
+        Returns the number of frames in the video.
+
+        Default implementation uses :meth:`get_components`, which may require
+        loading all frames into memory. File-based implementations should
+        override this method and use container/stream metadata instead.
+
+        Returns:
+            Total number of frames as an integer.
+        """
+        return int(self.get_components().images.shape[0])
+
+    def get_frame_rate(self) -> Fraction:
+        """
+        Returns the frame rate of the video.
+
+        Default implementation materializes the video into memory via
+        `get_components()`. Subclasses that can inspect the underlying
+        container (e.g. `VideoFromFile`) should override this with a more
+        efficient implementation.
+
+        Returns:
+            Frame rate as a Fraction.
+        """
+        return self.get_components().frame_rate
 
     def get_container_format(self) -> str:
         """

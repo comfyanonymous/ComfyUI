@@ -117,7 +117,7 @@ class SelfAttentionGuidance(io.ComfyNode):
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("scale", default=0.5, min=-2.0, max=5.0, step=0.01),
-                io.Float.Input("blur_sigma", default=2.0, min=0.0, max=10.0, step=0.1),
+                io.Float.Input("blur_sigma", default=2.0, min=0.0, max=10.0, step=0.1, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),

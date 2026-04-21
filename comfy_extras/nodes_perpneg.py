@@ -29,7 +29,7 @@ class PerpNeg(io.ComfyNode):
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("empty_conditioning"),
-                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),
@@ -134,7 +134,7 @@ class PerpNegGuider(io.ComfyNode):
                 io.Conditioning.Input("negative"),
                 io.Conditioning.Input("empty_conditioning"),
                 io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
-                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.Guider.Output(),

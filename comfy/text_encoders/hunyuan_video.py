@@ -1,21 +1,24 @@
 from comfy import sd1_clip
 import comfy.model_management
 import comfy.text_encoders.llama
+from .hunyuan_image import HunyuanImageTokenizer
 from transformers import LlamaTokenizerFast
 import torch
 import os
 import numbers
-
+import comfy.utils
 
 def llama_detect(state_dict, prefix=""):
     out = {}
-    t5_key = "{}model.norm.weight".format(prefix)
-    if t5_key in state_dict:
-        out["dtype_llama"] = state_dict[t5_key].dtype
+    norm_keys = ["{}model.norm.weight".format(prefix), "{}model.layers.0.input_layernorm.weight".format(prefix)]
+    for norm_key in norm_keys:
+        if norm_key in state_dict:
+            out["dtype_llama"] = state_dict[norm_key].dtype
+            break
 
-    scaled_fp8_key = "{}scaled_fp8".format(prefix)
-    if scaled_fp8_key in state_dict:
-        out["llama_scaled_fp8"] = state_dict[scaled_fp8_key].dtype
+    quant = comfy.utils.detect_layer_quantization(state_dict, prefix)
+    if quant is not None:
+        out["llama_quantization_metadata"] = quant
 
     return out
 
@@ -27,10 +30,10 @@ class LLAMA3Tokenizer(sd1_clip.SDTokenizer):
 
 class LLAMAModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="hidden", layer_idx=-3, dtype=None, attention_mask=True, model_options={}, special_tokens={"start": 128000, "pad": 128258}):
-        llama_scaled_fp8 = model_options.get("llama_scaled_fp8", None)
-        if llama_scaled_fp8 is not None:
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
             model_options = model_options.copy()
-            model_options["scaled_fp8"] = llama_scaled_fp8
+            model_options["quantization_metadata"] = llama_quantization_metadata
 
         textmodel_json_config = {}
         vocab_size = model_options.get("vocab_size", None)
@@ -72,6 +75,14 @@ class HunyuanVideoTokenizer:
     def state_dict(self):
         return {}
 
+
+class HunyuanVideo15Tokenizer(HunyuanImageTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
+        self.llama_template = "<|im_start|>system\nYou are a helpful assistant. Describe the video by detailing the following aspects:\n1. The main content and theme of the video.\n2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects.\n3. Actions, events, behaviors temporal relationships, physical movement changes of the objects.\n4. background environment, light, style and atmosphere.\n5. camera angles, movements, and transitions used in the video.<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
+
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
+        return super().tokenize_with_weights(text, return_word_ids, prevent_empty_text=True, **kwargs)
 
 class HunyuanVideoClipModel(torch.nn.Module):
     def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
@@ -149,11 +160,11 @@ class HunyuanVideoClipModel(torch.nn.Module):
             return self.llama.load_sd(sd)
 
 
-def hunyuan_video_clip(dtype_llama=None, llama_scaled_fp8=None):
+def hunyuan_video_clip(dtype_llama=None, llama_quantization_metadata=None):
     class HunyuanVideoClipModel_(HunyuanVideoClipModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if llama_scaled_fp8 is not None and "llama_scaled_fp8" not in model_options:
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["llama_scaled_fp8"] = llama_scaled_fp8
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
             super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
     return HunyuanVideoClipModel_

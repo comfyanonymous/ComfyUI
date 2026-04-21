@@ -1,4 +1,4 @@
-from typing import Type, List, NamedTuple
+from typing import NamedTuple
 from comfy_api.internal.singleton import ProxiedSingleton
 from packaging import version as packaging_version
 
@@ -10,7 +10,7 @@ class ComfyAPIBase(ProxiedSingleton):
 
 class ComfyAPIWithVersion(NamedTuple):
     version: str
-    api_class: Type[ComfyAPIBase]
+    api_class: type[ComfyAPIBase]
 
 
 def parse_version(version_str: str) -> packaging_version.Version:
@@ -23,16 +23,16 @@ def parse_version(version_str: str) -> packaging_version.Version:
     return packaging_version.parse(version_str)
 
 
-registered_versions: List[ComfyAPIWithVersion] = []
+registered_versions: list[ComfyAPIWithVersion] = []
 
 
-def register_versions(versions: List[ComfyAPIWithVersion]):
+def register_versions(versions: list[ComfyAPIWithVersion]):
     versions.sort(key=lambda x: parse_version(x.version))
     global registered_versions
     registered_versions = versions
 
 
-def get_all_versions() -> List[ComfyAPIWithVersion]:
+def get_all_versions() -> list[ComfyAPIWithVersion]:
     """
     Returns a list of all registered ComfyAPI versions.
     """

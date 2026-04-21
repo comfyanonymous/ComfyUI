@@ -5,19 +5,15 @@ Rodin API docs: https://developer.hyper3d.ai/
 
 """
 
-from __future__ import annotations
 from inspect import cleandoc
 import folder_paths as comfy_paths
-import aiohttp
 import os
-import asyncio
 import logging
 import math
-from typing import Optional
 from io import BytesIO
 from typing_extensions import override
 from PIL import Image
-from comfy_api_nodes.apis.rodin_api import (
+from comfy_api_nodes.apis.rodin import (
     Rodin3DGenerateRequest,
     Rodin3DGenerateResponse,
     Rodin3DCheckStatusRequest,
@@ -26,13 +22,14 @@ from comfy_api_nodes.apis.rodin_api import (
     Rodin3DDownloadResponse,
     JobStatus,
 )
-from comfy_api_nodes.apis.client import (
+from comfy_api_nodes.util import (
+    sync_op,
+    poll_op,
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
+    download_url_to_bytesio,
+    download_url_to_file_3d,
 )
-from comfy_api.latest import ComfyExtension, IO
+from comfy_api.latest import ComfyExtension, IO, Types
 
 
 COMMON_PARAMETERS = [
@@ -121,35 +118,31 @@ def tensor_to_filelike(tensor, max_pixels: int = 2048*2048):
 
 
 async def create_generate_task(
+    cls: type[IO.ComfyNode],
     images=None,
     seed=1,
     material="PBR",
     quality_override=18000,
     tier="Regular",
     mesh_mode="Quad",
-    TAPose = False,
-    auth_kwargs: Optional[dict[str, str]] = None,
+    ta_pose: bool = False,
 ):
     if images is None:
         raise Exception("Rodin 3D generate requires at least 1 image.")
     if len(images) > 5:
         raise Exception("Rodin 3D generate requires up to 5 image.")
 
-    path = "/proxy/rodin/api/v2/rodin"
-    operation = SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path=path,
-            method=HttpMethod.POST,
-            request_model=Rodin3DGenerateRequest,
-            response_model=Rodin3DGenerateResponse,
-        ),
-        request=Rodin3DGenerateRequest(
+    response = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/rodin/api/v2/rodin", method="POST"),
+        response_model=Rodin3DGenerateResponse,
+        data=Rodin3DGenerateRequest(
             seed=seed,
             tier=tier,
             material=material,
             quality_override=quality_override,
             mesh_mode=mesh_mode,
-            TAPose=TAPose,
+            TAPose=ta_pose,
         ),
         files=[
             (
@@ -159,10 +152,7 @@ async def create_generate_task(
             for image in images if image is not None
         ],
         content_type="multipart/form-data",
-        auth_kwargs=auth_kwargs,
     )
-
-    response = await operation.execute()
 
     if hasattr(response, "error"):
         error_message = f"Rodin3D Create 3D generate Task Failed. Message: {response.message}, error: {response.error}"
@@ -187,76 +177,55 @@ def check_rodin_status(response: Rodin3DCheckStatusResponse) -> str:
         return "DONE"
     return "Generating"
 
+def extract_progress(response: Rodin3DCheckStatusResponse) -> int | None:
+    if not response.jobs:
+        return None
+    completed_count = sum(1 for job in response.jobs if job.status == JobStatus.Done)
+    return int((completed_count / len(response.jobs)) * 100)
 
-async def poll_for_task_status(
-    subscription_key, auth_kwargs: Optional[dict[str, str]] = None,
-) -> Rodin3DCheckStatusResponse:
-    poll_operation = PollingOperation(
-        poll_endpoint=ApiEndpoint(
-            path="/proxy/rodin/api/v2/status",
-            method=HttpMethod.POST,
-            request_model=Rodin3DCheckStatusRequest,
-            response_model=Rodin3DCheckStatusResponse,
-        ),
-        request=Rodin3DCheckStatusRequest(subscription_key=subscription_key),
-        completed_statuses=["DONE"],
-        failed_statuses=["FAILED"],
-        status_extractor=check_rodin_status,
-        poll_interval=3.0,
-        auth_kwargs=auth_kwargs,
-    )
+
+async def poll_for_task_status(subscription_key: str, cls: type[IO.ComfyNode]) -> Rodin3DCheckStatusResponse:
     logging.info("[ Rodin3D API - CheckStatus ] Generate Start!")
-    return await poll_operation.execute()
-
-
-async def get_rodin_download_list(uuid, auth_kwargs: Optional[dict[str, str]] = None) -> Rodin3DDownloadResponse:
-    logging.info("[ Rodin3D API - Downloading ] Generate Successfully!")
-    operation = SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path="/proxy/rodin/api/v2/download",
-            method=HttpMethod.POST,
-            request_model=Rodin3DDownloadRequest,
-            response_model=Rodin3DDownloadResponse,
-        ),
-        request=Rodin3DDownloadRequest(task_uuid=uuid),
-        auth_kwargs=auth_kwargs,
+    return await poll_op(
+        cls,
+        ApiEndpoint(path="/proxy/rodin/api/v2/status", method="POST"),
+        response_model=Rodin3DCheckStatusResponse,
+        data=Rodin3DCheckStatusRequest(subscription_key=subscription_key),
+        status_extractor=check_rodin_status,
+        progress_extractor=extract_progress,
     )
-    return await operation.execute()
 
 
-async def download_files(url_list, task_uuid):
-    save_path = os.path.join(comfy_paths.get_output_directory(), f"Rodin3D_{task_uuid}")
+async def get_rodin_download_list(uuid: str, cls: type[IO.ComfyNode]) -> Rodin3DDownloadResponse:
+    logging.info("[ Rodin3D API - Downloading ] Generate Successfully!")
+    return await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/rodin/api/v2/download", method="POST"),
+        response_model=Rodin3DDownloadResponse,
+        data=Rodin3DDownloadRequest(task_uuid=uuid),
+        monitor_progress=False,
+    )
+
+
+async def download_files(url_list, task_uuid: str) -> tuple[str | None, Types.File3D | None]:
+    result_folder_name = f"Rodin3D_{task_uuid}"
+    save_path = os.path.join(comfy_paths.get_output_directory(), result_folder_name)
     os.makedirs(save_path, exist_ok=True)
     model_file_path = None
-    async with aiohttp.ClientSession() as session:
-        for i in url_list.list:
-            url = i.url
-            file_name = i.name
-            file_path = os.path.join(save_path, file_name)
-            if file_path.endswith(".glb"):
-                model_file_path = file_path
-            logging.info("[ Rodin3D API - download_files ] Downloading file: %s", file_path)
-            max_retries = 5
-            for attempt in range(max_retries):
-                try:
-                    async with session.get(url) as resp:
-                        resp.raise_for_status()
-                        with open(file_path, "wb") as f:
-                            async for chunk in resp.content.iter_chunked(32 * 1024):
-                                f.write(chunk)
-                    break
-                except Exception as e:
-                    logging.info("[ Rodin3D API - download_files ] Error downloading %s:%s", file_path, str(e))
-                    if attempt < max_retries - 1:
-                        logging.info("Retrying...")
-                        await asyncio.sleep(2)
-                    else:
-                        logging.info(
-                            "[ Rodin3D API - download_files ] Failed to download %s after %s attempts.",
-                            file_path,
-                            max_retries,
-                        )
-    return model_file_path
+    file_3d = None
+
+    for i in url_list.list:
+        file_path = os.path.join(save_path, i.name)
+        if i.name.lower().endswith(".glb"):
+            model_file_path = os.path.join(result_folder_name, i.name)
+            file_3d = await download_url_to_file_3d(i.url, "glb")
+            # Save to disk for backward compatibility
+            with open(file_path, "wb") as f:
+                f.write(file_3d.get_bytes())
+        else:
+            await download_url_to_bytesio(i.url, file_path)
+
+    return model_file_path, file_3d
 
 
 class Rodin3D_Regular(IO.ComfyNode):
@@ -273,12 +242,19 @@ class Rodin3D_Regular(IO.ComfyNode):
                 IO.Image.Input("Images"),
                 *COMMON_PARAMETERS,
             ],
-            outputs=[IO.String.Output(display_name="3D Model Path")],
+            outputs=[
+                IO.String.Output(display_name="3D Model Path"),  # for backward compatibility only
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
                 IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -295,24 +271,20 @@ class Rodin3D_Regular(IO.ComfyNode):
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
             tier=tier,
             mesh_mode=mesh_mode,
-            auth_kwargs=auth,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
-        model = await download_files(download_list, task_uuid)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
+        model_path, file_3d = await download_files(download_list, task_uuid)
 
-        return IO.NodeOutput(model)
+        return IO.NodeOutput(model_path, file_3d)
 
 
 class Rodin3D_Detail(IO.ComfyNode):
@@ -329,12 +301,19 @@ class Rodin3D_Detail(IO.ComfyNode):
                 IO.Image.Input("Images"),
                 *COMMON_PARAMETERS,
             ],
-            outputs=[IO.String.Output(display_name="3D Model Path")],
+            outputs=[
+                IO.String.Output(display_name="3D Model Path"),  # for backward compatibility only
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
                 IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -351,24 +330,20 @@ class Rodin3D_Detail(IO.ComfyNode):
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
             tier=tier,
             mesh_mode=mesh_mode,
-            auth_kwargs=auth,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
-        model = await download_files(download_list, task_uuid)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
+        model_path, file_3d = await download_files(download_list, task_uuid)
 
-        return IO.NodeOutput(model)
+        return IO.NodeOutput(model_path, file_3d)
 
 
 class Rodin3D_Smooth(IO.ComfyNode):
@@ -385,12 +360,19 @@ class Rodin3D_Smooth(IO.ComfyNode):
                 IO.Image.Input("Images"),
                 *COMMON_PARAMETERS,
             ],
-            outputs=[IO.String.Output(display_name="3D Model Path")],
+            outputs=[
+                IO.String.Output(display_name="3D Model Path"),  # for backward compatibility only
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
                 IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -401,30 +383,25 @@ class Rodin3D_Smooth(IO.ComfyNode):
         Material_Type,
         Polygon_count,
     ) -> IO.NodeOutput:
-        tier = "Smooth"
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
-            tier=tier,
+            tier="Smooth",
             mesh_mode=mesh_mode,
-            auth_kwargs=auth,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
-        model = await download_files(download_list, task_uuid)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
+        model_path, file_3d = await download_files(download_list, task_uuid)
 
-        return IO.NodeOutput(model)
+        return IO.NodeOutput(model_path, file_3d)
 
 
 class Rodin3D_Sketch(IO.ComfyNode):
@@ -448,12 +425,19 @@ class Rodin3D_Sketch(IO.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[IO.String.Output(display_name="3D Model Path")],
+            outputs=[
+                IO.String.Output(display_name="3D Model Path"),  # for backward compatibility only
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
                 IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -462,32 +446,24 @@ class Rodin3D_Sketch(IO.ComfyNode):
         Images,
         Seed,
     ) -> IO.NodeOutput:
-        tier = "Sketch"
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
-        material_type = "PBR"
-        quality_override = 18000
-        mesh_mode = "Quad"
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
-            material=material_type,
-            quality_override=quality_override,
-            tier=tier,
-            mesh_mode=mesh_mode,
-            auth_kwargs=auth,
+            material="PBR",
+            quality_override=18000,
+            tier="Sketch",
+            mesh_mode="Quad",
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
-        model = await download_files(download_list, task_uuid)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
+        model_path, file_3d = await download_files(download_list, task_uuid)
 
-        return IO.NodeOutput(model)
+        return IO.NodeOutput(model_path, file_3d)
 
 
 class Rodin3D_Gen2(IO.ComfyNode):
@@ -517,14 +493,21 @@ class Rodin3D_Gen2(IO.ComfyNode):
                     default="500K-Triangle",
                     optional=True,
                 ),
-                IO.Boolean.Input("TAPose", default=False),
+                IO.Boolean.Input("TAPose", default=False, advanced=True),
             ],
-            outputs=[IO.String.Output(display_name="3D Model Path")],
+            outputs=[
+                IO.String.Output(display_name="3D Model Path"),  # for backward compatibility only
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
                 IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -542,25 +525,21 @@ class Rodin3D_Gen2(IO.ComfyNode):
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
             tier=tier,
             mesh_mode=mesh_mode,
-            TAPose=TAPose,
-            auth_kwargs=auth,
+            ta_pose=TAPose,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
-        model = await download_files(download_list, task_uuid)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
+        model_path, file_3d = await download_files(download_list, task_uuid)
 
-        return IO.NodeOutput(model)
+        return IO.NodeOutput(model_path, file_3d)
 
 
 class Rodin3DExtension(ComfyExtension):

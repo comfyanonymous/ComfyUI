@@ -8,7 +8,7 @@ import os
 import textwrap
 import threading
 from enum import Enum
-from typing import Optional, Type, get_origin, get_args
+from typing import Optional, get_origin, get_args, get_type_hints
 
 
 class TypeTracker:
@@ -193,7 +193,7 @@ class AsyncToSyncConverter:
         return result_container["result"]
 
     @classmethod
-    def create_sync_class(cls, async_class: Type, thread_pool_size=10) -> Type:
+    def create_sync_class(cls, async_class: type, thread_pool_size=10) -> type:
         """
         Creates a new class with synchronous versions of all async methods.
 
@@ -220,11 +220,18 @@ class AsyncToSyncConverter:
             self._async_instance = async_class(*args, **kwargs)
 
             # Handle annotated class attributes (like execution: Execution)
-            # Get all annotations from the class hierarchy
-            all_annotations = {}
-            for base_class in reversed(inspect.getmro(async_class)):
-                if hasattr(base_class, "__annotations__"):
-                    all_annotations.update(base_class.__annotations__)
+            # Get all annotations from the class hierarchy and resolve string annotations
+            try:
+                # get_type_hints resolves string annotations to actual type objects
+                # This handles classes using 'from __future__ import annotations'
+                all_annotations = get_type_hints(async_class)
+            except Exception:
+                # Fallback to raw annotations if get_type_hints fails
+                # (e.g., for undefined forward references)
+                all_annotations = {}
+                for base_class in reversed(inspect.getmro(async_class)):
+                    if hasattr(base_class, "__annotations__"):
+                        all_annotations.update(base_class.__annotations__)
 
             # For each annotated attribute, check if it needs to be created or wrapped
             for attr_name, attr_type in all_annotations.items():
@@ -556,7 +563,7 @@ class AsyncToSyncConverter:
 
     @classmethod
     def _generate_imports(
-        cls, async_class: Type, type_tracker: TypeTracker
+        cls, async_class: type, type_tracker: TypeTracker
     ) -> list[str]:
         """Generate import statements for the stub file."""
         imports = []
@@ -621,19 +628,23 @@ class AsyncToSyncConverter:
         return imports
 
     @classmethod
-    def _get_class_attributes(cls, async_class: Type) -> list[tuple[str, Type]]:
+    def _get_class_attributes(cls, async_class: type) -> list[tuple[str, type]]:
         """Extract class attributes that are classes themselves."""
         class_attributes = []
+
+        # Get resolved type hints to handle string annotations
+        try:
+            type_hints = get_type_hints(async_class)
+        except Exception:
+            type_hints = {}
 
         # Look for class attributes that are classes
         for name, attr in sorted(inspect.getmembers(async_class)):
             if isinstance(attr, type) and not name.startswith("_"):
                 class_attributes.append((name, attr))
-            elif (
-                hasattr(async_class, "__annotations__")
-                and name in async_class.__annotations__
-            ):
-                annotation = async_class.__annotations__[name]
+            elif name in type_hints:
+                # Use resolved type hint instead of raw annotation
+                annotation = type_hints[name]
                 if isinstance(annotation, type):
                     class_attributes.append((name, annotation))
 
@@ -643,7 +654,7 @@ class AsyncToSyncConverter:
     def _generate_inner_class_stub(
         cls,
         name: str,
-        attr: Type,
+        attr: type,
         indent: str = "    ",
         type_tracker: Optional[TypeTracker] = None,
     ) -> list[str]:
@@ -771,7 +782,7 @@ class AsyncToSyncConverter:
         return processed
 
     @classmethod
-    def generate_stub_file(cls, async_class: Type, sync_class: Type) -> None:
+    def generate_stub_file(cls, async_class: type, sync_class: type) -> None:
         """
         Generate a .pyi stub file for the sync class to help IDEs with type checking.
         """
@@ -908,11 +919,15 @@ class AsyncToSyncConverter:
             attribute_mappings = {}
 
             # First check annotations for typed attributes (including from parent classes)
-            # Collect all annotations from the class hierarchy
-            all_annotations = {}
-            for base_class in reversed(inspect.getmro(async_class)):
-                if hasattr(base_class, "__annotations__"):
-                    all_annotations.update(base_class.__annotations__)
+            # Resolve string annotations to actual types
+            try:
+                all_annotations = get_type_hints(async_class)
+            except Exception:
+                # Fallback to raw annotations
+                all_annotations = {}
+                for base_class in reversed(inspect.getmro(async_class)):
+                    if hasattr(base_class, "__annotations__"):
+                        all_annotations.update(base_class.__annotations__)
 
             for attr_name, attr_type in sorted(all_annotations.items()):
                 for class_name, class_type in class_attributes:
@@ -973,7 +988,7 @@ class AsyncToSyncConverter:
             logging.error(traceback.format_exc())
 
 
-def create_sync_class(async_class: Type, thread_pool_size=10) -> Type:
+def create_sync_class(async_class: type, thread_pool_size=10) -> type:
     """
     Creates a sync version of an async class
 

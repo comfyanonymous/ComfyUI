@@ -3,7 +3,7 @@ from typing import Optional
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, Input, IO
-from comfy_api_nodes.apis.stability_api import (
+from comfy_api_nodes.apis.stability import (
     StabilityUpscaleConservativeRequest,
     StabilityUpscaleCreativeRequest,
     StabilityAsyncResponse,
@@ -20,13 +20,6 @@ from comfy_api_nodes.apis.stability_api import (
     StabilityAudioInpaintRequest,
     StabilityAudioResponse,
 )
-from comfy_api_nodes.apis.client import (
-    ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
-    EmptyRequest,
-)
 from comfy_api_nodes.util import (
     validate_audio_duration,
     validate_string,
@@ -34,6 +27,9 @@ from comfy_api_nodes.util import (
     bytesio_to_image_tensor,
     tensor_to_bytesio,
     audio_bytes_to_audio_input,
+    sync_op,
+    poll_op,
+    ApiEndpoint,
 )
 
 import torch
@@ -90,6 +86,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -111,6 +108,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                     tooltip="A blurb of text describing what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "image_denoise",
@@ -131,6 +129,9 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.08}""",
+            ),
         )
 
     @classmethod
@@ -161,19 +162,11 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
             "image": image_binary
         }
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/stable-image/generate/ultra",
-                method=HttpMethod.POST,
-                request_model=StabilityStableUltraRequest,
-                response_model=StabilityStableUltraResponse,
-            ),
-            request=StabilityStableUltraRequest(
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/generate/ultra", method="POST"),
+            response_model=StabilityStableUltraResponse,
+            data=StabilityStableUltraRequest(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 aspect_ratio=aspect_ratio,
@@ -183,9 +176,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_kwargs=auth,
         )
-        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stable Image Ultra generation failed: {response_api.finish_reason}.")
@@ -229,6 +220,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "cfg_scale",
@@ -258,6 +250,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "image_denoise",
@@ -278,6 +271,16 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $contains(widgets.model,"large")
+                    ? {"type":"usd","usd":0.065}
+                    : {"type":"usd","usd":0.035}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -313,19 +316,11 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
             "image": image_binary
         }
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/stable-image/generate/sd3",
-                method=HttpMethod.POST,
-                request_model=StabilityStable3_5Request,
-                response_model=StabilityStableUltraResponse,
-            ),
-            request=StabilityStable3_5Request(
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/generate/sd3", method="POST"),
+            response_model=StabilityStableUltraResponse,
+            data=StabilityStable3_5Request(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 aspect_ratio=aspect_ratio,
@@ -338,9 +333,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_kwargs=auth,
         )
-        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stable Diffusion 3.5 Image generation failed: {response_api.finish_reason}.")
@@ -395,6 +388,7 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -406,6 +400,9 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -427,19 +424,11 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
             "image": image_binary
         }
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/stable-image/upscale/conservative",
-                method=HttpMethod.POST,
-                request_model=StabilityUpscaleConservativeRequest,
-                response_model=StabilityStableUltraResponse,
-            ),
-            request=StabilityUpscaleConservativeRequest(
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/upscale/conservative", method="POST"),
+            response_model=StabilityStableUltraResponse,
+            data=StabilityUpscaleConservativeRequest(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 creativity=round(creativity,2),
@@ -447,9 +436,7 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_kwargs=auth,
         )
-        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stability Upscale Conservative generation failed: {response_api.finish_reason}.")
@@ -492,6 +479,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -509,6 +497,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -520,6 +509,9 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.6}""",
+            ),
         )
 
     @classmethod
@@ -544,19 +536,11 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
             "image": image_binary
         }
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/stable-image/upscale/creative",
-                method=HttpMethod.POST,
-                request_model=StabilityUpscaleCreativeRequest,
-                response_model=StabilityAsyncResponse,
-            ),
-            request=StabilityUpscaleCreativeRequest(
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/upscale/creative", method="POST"),
+            response_model=StabilityAsyncResponse,
+            data=StabilityUpscaleCreativeRequest(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 creativity=round(creativity,2),
@@ -565,25 +549,15 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_kwargs=auth,
         )
-        response_api = await operation.execute()
 
-        operation = PollingOperation(
-            poll_endpoint=ApiEndpoint(
-                path=f"/proxy/stability/v2beta/results/{response_api.id}",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=StabilityResultsGetResponse,
-            ),
+        response_poll = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/stability/v2beta/results/{response_api.id}"),
+            response_model=StabilityResultsGetResponse,
             poll_interval=3,
-            completed_statuses=[StabilityPollStatus.finished],
-            failed_statuses=[StabilityPollStatus.failed],
             status_extractor=lambda x: get_async_dummy_status(x),
-            auth_kwargs=auth,
-            node_id=cls.hidden.unique_id,
         )
-        response_poll: StabilityResultsGetResponse = await operation.execute()
 
         if response_poll.finish_reason != "SUCCESS":
             raise Exception(f"Stability Upscale Creative generation failed: {response_poll.finish_reason}.")
@@ -618,6 +592,9 @@ class StabilityUpscaleFastNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.02}""",
+            ),
         )
 
     @classmethod
@@ -628,24 +605,13 @@ class StabilityUpscaleFastNode(IO.ComfyNode):
             "image": image_binary
         }
 
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/stable-image/upscale/fast",
-                method=HttpMethod.POST,
-                request_model=EmptyRequest,
-                response_model=StabilityStableUltraResponse,
-            ),
-            request=EmptyRequest(),
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/stable-image/upscale/fast", method="POST"),
+            response_model=StabilityStableUltraResponse,
             files=files,
             content_type="multipart/form-data",
-            auth_kwargs=auth,
         )
-        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stability Upscale Fast failed: {response_api.finish_reason}.")
@@ -665,6 +631,7 @@ class StabilityTextToAudio(IO.ComfyNode):
             node_id="StabilityTextToAudio",
             display_name="Stability AI Text To Audio",
             category="api node/audio/Stability AI",
+            essentials_category="Audio",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Combo.Input(
@@ -700,6 +667,7 @@ class StabilityTextToAudio(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -711,27 +679,22 @@ class StabilityTextToAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.2}""",
+            ),
         )
 
     @classmethod
     async def execute(cls, model: str, prompt: str, duration: int, seed: int, steps: int) -> IO.NodeOutput:
         validate_string(prompt, max_length=10000)
         payload = StabilityTextToAudioRequest(prompt=prompt, model=model, duration=duration, seed=seed, steps=steps)
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/audio/stable-audio-2/text-to-audio",
-                method=HttpMethod.POST,
-                request_model=StabilityTextToAudioRequest,
-                response_model=StabilityAudioResponse,
-            ),
-            request=payload,
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/audio/stable-audio-2/text-to-audio", method="POST"),
+            response_model=StabilityAudioResponse,
+            data=payload,
             content_type="multipart/form-data",
-            auth_kwargs= {
-                "auth_token": cls.hidden.auth_token_comfy_org,
-                "comfy_api_key": cls.hidden.api_key_comfy_org,
-            },
         )
-        response_api = await operation.execute()
         if not response_api.audio:
             raise ValueError("No audio file was received in response.")
         return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
@@ -782,6 +745,7 @@ class StabilityAudioToAudio(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "strength",
@@ -803,6 +767,9 @@ class StabilityAudioToAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.2}""",
+            ),
         )
 
     @classmethod
@@ -814,22 +781,14 @@ class StabilityAudioToAudio(IO.ComfyNode):
         payload = StabilityAudioToAudioRequest(
             prompt=prompt, model=model, duration=duration, seed=seed, steps=steps, strength=strength
         )
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/audio/stable-audio-2/audio-to-audio",
-                method=HttpMethod.POST,
-                request_model=StabilityAudioToAudioRequest,
-                response_model=StabilityAudioResponse,
-            ),
-            request=payload,
+        response_api = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/stability/v2beta/audio/stable-audio-2/audio-to-audio", method="POST"),
+            response_model=StabilityAudioResponse,
+            data=payload,
             content_type="multipart/form-data",
             files={"audio": audio_input_to_mp3(audio)},
-            auth_kwargs= {
-                "auth_token": cls.hidden.auth_token_comfy_org,
-                "comfy_api_key": cls.hidden.api_key_comfy_org,
-            },
         )
-        response_api = await operation.execute()
         if not response_api.audio:
             raise ValueError("No audio file was received in response.")
         return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
@@ -880,6 +839,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "mask_start",
@@ -888,6 +848,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     max=190,
                     step=1,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "mask_end",
@@ -896,6 +857,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     max=190,
                     step=1,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -907,6 +869,9 @@ class StabilityAudioInpaint(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.2}""",
+            ),
         )
 
     @classmethod
@@ -935,22 +900,14 @@ class StabilityAudioInpaint(IO.ComfyNode):
             mask_start=mask_start,
             mask_end=mask_end,
         )
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/stability/v2beta/audio/stable-audio-2/inpaint",
-                method=HttpMethod.POST,
-                request_model=StabilityAudioInpaintRequest,
-                response_model=StabilityAudioResponse,
-            ),
-            request=payload,
+        response_api = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/stability/v2beta/audio/stable-audio-2/inpaint", method="POST"),
+            response_model=StabilityAudioResponse,
+            data=payload,
             content_type="multipart/form-data",
             files={"audio": audio_input_to_mp3(audio)},
-            auth_kwargs={
-                "auth_token": cls.hidden.auth_token_comfy_org,
-                "comfy_api_key": cls.hidden.api_key_comfy_org,
-            },
         )
-        response_api = await operation.execute()
         if not response_api.audio:
             raise ValueError("No audio file was received in response.")
         return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))

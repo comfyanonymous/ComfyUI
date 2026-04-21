@@ -6,6 +6,7 @@ import uuid
 import glob
 import shutil
 import logging
+import tempfile
 from aiohttp import web
 from urllib import parse
 from comfy.cli_args import args
@@ -59,6 +60,9 @@ class UserManager():
         user = "default"
         if args.multi_user and "comfy-user" in request.headers:
             user = request.headers["comfy-user"]
+            # Block System Users (use same error message to prevent probing)
+            if user.startswith(folder_paths.SYSTEM_USER_PREFIX):
+                raise KeyError("Unknown user: " + user)
 
         if user not in self.users:
             raise KeyError("Unknown user: " + user)
@@ -66,15 +70,16 @@ class UserManager():
         return user
 
     def get_request_user_filepath(self, request, file, type="userdata", create_dir=True):
-        user_directory = folder_paths.get_user_directory()
-
         if type == "userdata":
-            root_dir = user_directory
+            root_dir = folder_paths.get_user_directory()
         else:
             raise KeyError("Unknown filepath type:" + type)
 
         user = self.get_request_user_id(request)
-        path = user_root = os.path.abspath(os.path.join(root_dir, user))
+        user_root = folder_paths.get_public_user_directory(user)
+        if user_root is None:
+            return None
+        path = user_root
 
         # prevent leaving /{type}
         if os.path.commonpath((root_dir, user_root)) != root_dir:
@@ -101,7 +106,11 @@ class UserManager():
         name = name.strip()
         if not name:
             raise ValueError("username not provided")
+        if name.startswith(folder_paths.SYSTEM_USER_PREFIX):
+            raise ValueError("System User prefix not allowed")
         user_id = re.sub("[^a-zA-Z0-9-_]+", '-', name)
+        if user_id.startswith(folder_paths.SYSTEM_USER_PREFIX):
+            raise ValueError("System User prefix not allowed")
         user_id = user_id + "_" + str(uuid.uuid4())
 
         self.users[user_id] = name
@@ -132,7 +141,10 @@ class UserManager():
             if username in self.users.values():
                 return web.json_response({"error": "Duplicate username."}, status=400)
 
-            user_id = self.add_user(username)
+            try:
+                user_id = self.add_user(username)
+            except ValueError as e:
+                return web.json_response({"error": str(e)}, status=400)
             return web.json_response(user_id)
 
         @routes.get("/userdata")
@@ -366,8 +378,15 @@ class UserManager():
             try:
                 body = await request.read()
 
-                with open(path, "wb") as f:
-                    f.write(body)
+                dir_name = os.path.dirname(path)
+                fd, tmp_path = tempfile.mkstemp(dir=dir_name)
+                try:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(body)
+                    os.replace(tmp_path, path)
+                except:
+                    os.unlink(tmp_path)
+                    raise
             except OSError as e:
                 logging.warning(f"Error saving file '{path}': {e}")
                 return web.Response(
@@ -424,7 +443,7 @@ class UserManager():
                 return source
 
             dest = get_user_data_path(request, check_exists=False, param="dest")
-            if not isinstance(source, str):
+            if not isinstance(dest, str):
                 return dest
 
             overwrite = request.query.get("overwrite", 'true') != "false"

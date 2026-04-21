@@ -58,17 +58,18 @@ class FreSca(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FreSca",
+            search_aliases=["frequency guidance"],
             display_name="FreSca",
             category="_for_testing",
             description="Applies frequency-dependent scaling to the guidance",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("scale_low", default=1.0, min=0, max=10, step=0.01,
-                               tooltip="Scaling factor for low-frequency components"),
+                               tooltip="Scaling factor for low-frequency components", advanced=True),
                 io.Float.Input("scale_high", default=1.25, min=0, max=10, step=0.01,
-                               tooltip="Scaling factor for high-frequency components"),
+                               tooltip="Scaling factor for high-frequency components", advanced=True),
                 io.Int.Input("freq_cutoff", default=20, min=1, max=10000, step=1,
-                             tooltip="Number of frequency indices around center to consider as low-frequency"),
+                             tooltip="Number of frequency indices around center to consider as low-frequency", advanced=True),
             ],
             outputs=[
                 io.Model.Output(),

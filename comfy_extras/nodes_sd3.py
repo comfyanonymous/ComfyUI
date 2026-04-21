@@ -55,7 +55,7 @@ class EmptySD3LatentImage(io.ComfyNode):
     @classmethod
     def execute(cls, width, height, batch_size=1) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples":latent})
+        return io.NodeOutput({"samples": latent, "downscale_ratio_spacial": 8})
 
     generate = execute  # TODO: remove
 
@@ -65,13 +65,14 @@ class CLIPTextEncodeSD3(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CLIPTextEncodeSD3",
+            search_aliases=["sd3 prompt"],
             category="advanced/conditioning",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
                 io.String.Input("clip_g", multiline=True, dynamic_prompts=True),
                 io.String.Input("t5xxl", multiline=True, dynamic_prompts=True),
-                io.Combo.Input("empty_padding", options=["none", "empty_prompt"]),
+                io.Combo.Input("empty_padding", options=["none", "empty_prompt"], advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(),
@@ -178,10 +179,10 @@ class SkipLayerGuidanceSD3(io.ComfyNode):
             description="Generic version of SkipLayerGuidance node that can be used on every DiT model.",
             inputs=[
                 io.Model.Input("model"),
-                io.String.Input("layers", default="7, 8, 9", multiline=False),
+                io.String.Input("layers", default="7, 8, 9", multiline=False, advanced=True),
                 io.Float.Input("scale", default=3.0, min=0.0, max=10.0, step=0.1),
-                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),

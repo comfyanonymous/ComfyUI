@@ -2,6 +2,8 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 from comfy_api.torch_helpers import set_torch_compile_wrapper
 
+def skip_torch_compile_dict(guard_entries):
+    return [("transformer_options" not in entry.name) for entry in guard_entries]
 
 class TorchCompileModel(io.ComfyNode):
     @classmethod
@@ -14,6 +16,7 @@ class TorchCompileModel(io.ComfyNode):
                 io.Combo.Input(
                     "backend",
                     options=["inductor", "cudagraphs"],
+                    advanced=True,
                 ),
             ],
             outputs=[io.Model.Output()],
@@ -22,8 +25,8 @@ class TorchCompileModel(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, backend) -> io.NodeOutput:
-        m = model.clone()
-        set_torch_compile_wrapper(model=m, backend=backend)
+        m = model.clone(disable_dynamic=True)
+        set_torch_compile_wrapper(model=m, backend=backend, options={"guard_filter_fn": skip_torch_compile_dict})
         return io.NodeOutput(m)
 
 
