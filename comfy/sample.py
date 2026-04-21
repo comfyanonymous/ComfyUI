@@ -7,6 +7,50 @@ import logging
 import comfy.nested_tensor
 
 def prepare_noise_inner(latent_image, generator, noise_inds=None):
+    coord_counts = getattr(latent_image, "trellis_coord_counts", None)
+    if coord_counts is not None:
+        if coord_counts.ndim != 1:
+            raise ValueError(f"Trellis2 coord_counts must be 1D, got shape {tuple(coord_counts.shape)}")
+        if coord_counts.shape[0] != latent_image.size(0):
+            raise ValueError(
+                f"Trellis2 coord_counts length {coord_counts.shape[0]} does not match latent batch {latent_image.size(0)}"
+            )
+        if (coord_counts < 0).any() or (coord_counts > latent_image.size(2)).any():
+            raise ValueError(
+                f"Trellis2 coord_counts must be within [0, {latent_image.size(2)}], got {coord_counts.tolist()}"
+            )
+        noise = torch.zeros(latent_image.size(), dtype=torch.float32, layout=latent_image.layout, device="cpu")
+        if noise_inds is None:
+            noise_inds = np.arange(latent_image.size(0), dtype=np.int64)
+        else:
+            noise_inds = np.asarray(noise_inds, dtype=np.int64)
+            if noise_inds.shape[0] != latent_image.size(0):
+                raise ValueError(
+                    f"Trellis2 noise_inds length {noise_inds.shape[0]} does not match latent batch {latent_image.size(0)}"
+                )
+
+        base_seed = int(generator.initial_seed())
+        unique_inds = np.unique(noise_inds)
+        sample_noises = {}
+        for noise_index in unique_inds.tolist():
+            rows = np.flatnonzero(noise_inds == noise_index)
+            max_count = max(int(coord_counts[row].item()) for row in rows.tolist())
+            local_generator = torch.Generator(device="cpu")
+            local_generator.manual_seed(base_seed + int(noise_index))
+            sample_noises[int(noise_index)] = torch.randn(
+                [1, latent_image.size(1), max_count, latent_image.size(3)],
+                dtype=torch.float32,
+                layout=latent_image.layout,
+                generator=local_generator,
+                device="cpu",
+            )
+
+        for batch_index, noise_index in enumerate(noise_inds.tolist()):
+            count = int(coord_counts[batch_index].item())
+            sample_noise = sample_noises[int(noise_index)]
+            noise[batch_index:batch_index + 1, :, :count, :] = sample_noise[:, :, :count, :]
+        return noise.to(dtype=latent_image.dtype)
+
     if noise_inds is None:
         return torch.randn(latent_image.size(), dtype=torch.float32, layout=latent_image.layout, generator=generator, device="cpu").to(dtype=latent_image.dtype)
 
