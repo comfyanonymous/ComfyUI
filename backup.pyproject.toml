@@ -1,6 +1,6 @@
 [project]
 name = "ComfyUI"
-version = "0.19.3"
+version = "0.18.1"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11,<3.13"
@@ -16,7 +16,6 @@ dependencies = [
     "argostranslate",
     "audioread>=3.1.0",
     "av>=14.2.0",
-    "bitsandbytes>=0.49.2",
     "blake3>=1.0.8",
     "brotli>=1.2.0",
     "cffi>=2.0.0",
@@ -100,7 +99,6 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "orjson>=3.11.7",
     "pexpect>=4.9.0",
-    "pi-heif>=1.3.0",
     "piexif>=1.1.3",
     "pillow==12.0.0",
     "platformdirs>=4.9.2",
@@ -132,7 +130,6 @@ dependencies = [
     "referencing>=0.37.0",
     "reportlab>=4.4.10",
     "requests>=2.32.5",
-    "requirements-parser>=0.13.0",
     "rotary-embedding-torch>=0.8.9",
     "rpds-py>=0.30.0",
     "ruff>=0.15.2",
@@ -142,7 +139,6 @@ dependencies = [
     "sageattention",
     "sageattention3-blackwell",
     "sam-2",
-    "sam3",
     "scikit-image>=0.26.0",
     "scipy>=1.17.0",
     "segment-anything>=1.0",
@@ -253,13 +249,12 @@ messages_control.disable = [
 ]
 
 [tool.uv]
-no-build-isolation-package = ["sageattention", "sageattention3-blackwell", "sam3"]
+no-build-isolation-package = ["sageattention", "sageattention3-blackwell"]
 
 [tool.uv.workspace]
 members = [
     "SageAttention/sageattention3_blackwell",
     "SageAttention",
-    "sam3",
 ]
 
 [[tool.uv.index]]
@@ -290,7 +285,6 @@ sam-2 = { git = "https://github.com/facebookresearch/sam2" }
 # transformers = { git = "https://github.com/huggingface/transformers", rev = "v4.49.0-Gemma-3" }
 sageattention = { workspace = true }
 sageattention3-blackwell = { workspace = true }
-sam3 = { workspace = true }
 argostranslate = { git = "https://github.com/argosopentech/argos-translate.git" }
 # argostranslate = { git = "https://github.com/argosopentech/argos-translate.git" }
 # cstr = { git = "https://github.com/WASasquatch/cstr.git" }

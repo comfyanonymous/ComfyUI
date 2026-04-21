@@ -24,3 +24,16 @@ web_custom_versions/
 openapi.yaml
 filtered-openapi.yaml
 uv.lock
+/SageAttention/
+.gitignore
+.env
+.envrc
+/workflow_templates/
+*.txt
+/other/
+/sam3/
+/template_workflows/
+/workflows/
+gender_words_config.yaml
+/_models/
+backup.pyproject.toml
