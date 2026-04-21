@@ -122,6 +122,41 @@ class TaskStatusResponse(BaseModel):
     usage: TaskStatusUsage | None = Field(None)
 
 
+class GetAssetResponse(BaseModel):
+    id: str = Field(...)
+    name: str | None = Field(None)
+    url: str | None = Field(None)
+    asset_type: str = Field(...)
+    group_id: str = Field(...)
+    status: str = Field(...)
+    error: TaskStatusError | None = Field(None)
+
+
+class SeedanceCreateVisualValidateSessionResponse(BaseModel):
+    session_id: str = Field(...)
+    h5_link: str = Field(...)
+
+
+class SeedanceGetVisualValidateSessionResponse(BaseModel):
+    session_id: str = Field(...)
+    status: str = Field(...)
+    group_id: str | None = Field(None)
+    error_code: str | None = Field(None)
+    error_message: str | None = Field(None)
+
+
+class SeedanceCreateAssetRequest(BaseModel):
+    group_id: str = Field(...)
+    url: str = Field(...)
+    asset_type: str = Field(...)
+    name: str | None = Field(None, max_length=64)
+    project_name: str | None = Field(None)
+
+
+class SeedanceCreateAssetResponse(BaseModel):
+    asset_id: str = Field(...)
+
+
 # Dollars per 1K tokens, keyed by (model_id, has_video_input).
 SEEDANCE2_PRICE_PER_1K_TOKENS = {
     ("dreamina-seedance-2-0-260128", False): 0.007,

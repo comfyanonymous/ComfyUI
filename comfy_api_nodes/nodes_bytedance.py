@@ -1,5 +1,8 @@
+import asyncio
 import logging
 import math
+import re
+import time
 
 import torch
 from typing_extensions import override
@@ -11,9 +14,14 @@ from comfy_api_nodes.apis.bytedance import (
     SEEDANCE2_PRICE_PER_1K_TOKENS,
     SEEDANCE2_REF_VIDEO_PIXEL_LIMITS,
     VIDEO_TASKS_EXECUTION_TIME,
+    GetAssetResponse,
     Image2VideoTaskCreationRequest,
     ImageTaskCreationResponse,
     Seedance2TaskCreationRequest,
+    SeedanceCreateAssetRequest,
+    SeedanceCreateAssetResponse,
+    SeedanceCreateVisualValidateSessionResponse,
+    SeedanceGetVisualValidateSessionResponse,
     Seedream4Options,
     Seedream4TaskCreationRequest,
     TaskAudioContent,
@@ -45,8 +53,12 @@ from comfy_api_nodes.util import (
     validate_image_dimensions,
     validate_string,
 )
+from server import PromptServer
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
+
+_VERIFICATION_POLL_TIMEOUT_SEC = 120
+_VERIFICATION_POLL_INTERVAL_SEC = 3
 
 SEEDREAM_MODELS = {
     "seedream 5.0 lite": "seedream-5-0-260128",
@@ -94,6 +106,178 @@ def _validate_ref_video_pixels(video: Input.Video, model_id: str, resolution: st
             f"Reference video {index} is too large: {w}x{h} = {pixels:,}px. "
             f"Maximum is {max_px:,}px for this model. Try downscaling the video."
         )
+
+
+async def _resolve_reference_assets(
+    cls: type[IO.ComfyNode],
+    asset_ids: list[str],
+) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    """Look up each asset, validate Active status, group by asset_type.
+
+    Returns (image_assets, video_assets, audio_assets), each mapping asset_id -> "asset://<asset_id>".
+    """
+    image_assets: dict[str, str] = {}
+    video_assets: dict[str, str] = {}
+    audio_assets: dict[str, str] = {}
+    for i, raw_id in enumerate(asset_ids, 1):
+        asset_id = (raw_id or "").strip()
+        if not asset_id:
+            continue
+        result = await sync_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/seedance/assets/{asset_id}"),
+            response_model=GetAssetResponse,
+        )
+        if result.status != "Active":
+            extra = f" {result.error.code}: {result.error.message}" if result.error else ""
+            raise ValueError(f"Reference asset {i} (Id={asset_id}) is not Active (Status={result.status}).{extra}")
+        asset_uri = f"asset://{asset_id}"
+        if result.asset_type == "Image":
+            image_assets[asset_id] = asset_uri
+        elif result.asset_type == "Video":
+            video_assets[asset_id] = asset_uri
+        elif result.asset_type == "Audio":
+            audio_assets[asset_id] = asset_uri
+    return image_assets, video_assets, audio_assets
+
+
+_ASSET_REF_RE = re.compile(r"\basset ?(\d{1,2})\b", re.IGNORECASE)
+
+
+def _build_asset_labels(
+    reference_assets: dict[str, str],
+    image_asset_uris: dict[str, str],
+    video_asset_uris: dict[str, str],
+    audio_asset_uris: dict[str, str],
+    n_reference_images: int,
+    n_reference_videos: int,
+    n_reference_audios: int,
+) -> dict[int, str]:
+    """Map asset slot number (from 'asset_N' keys) to its positional label.
+
+    Asset entries are appended to `content` after the reference_images/videos/audios,
+    so their 1-indexed labels continue from the count of existing same-type refs:
+    one reference_images entry + one Image-type asset -> asset labelled "Image 2".
+    """
+    image_n = n_reference_images
+    video_n = n_reference_videos
+    audio_n = n_reference_audios
+    labels: dict[int, str] = {}
+    for slot_key, raw_id in reference_assets.items():
+        asset_id = (raw_id or "").strip()
+        if not asset_id:
+            continue
+        try:
+            slot_num = int(slot_key.rsplit("_", 1)[-1])
+        except ValueError:
+            continue
+        if asset_id in image_asset_uris:
+            image_n += 1
+            labels[slot_num] = f"Image {image_n}"
+        elif asset_id in video_asset_uris:
+            video_n += 1
+            labels[slot_num] = f"Video {video_n}"
+        elif asset_id in audio_asset_uris:
+            audio_n += 1
+            labels[slot_num] = f"Audio {audio_n}"
+    return labels
+
+
+def _rewrite_asset_refs(prompt: str, labels: dict[int, str]) -> str:
+    """Case-insensitively replace 'assetNN' (1-2 digit) tokens with their labels."""
+    if not labels:
+        return prompt
+
+    def _sub(m: "re.Match[str]") -> str:
+        return labels.get(int(m.group(1)), m.group(0))
+
+    return _ASSET_REF_RE.sub(_sub, prompt)
+
+
+async def _obtain_group_id_via_h5_auth(cls: type[IO.ComfyNode]) -> str:
+    session = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/seedance/visual-validate/sessions", method="POST"),
+        response_model=SeedanceCreateVisualValidateSessionResponse,
+    )
+
+    def _status_text(remaining_sec: int) -> str:
+        return (
+            "Seedance authentication required.\n"
+            f"Open this link in your browser and complete face verification "
+            f"(~{remaining_sec}s left):\n"
+            f"{session.h5_link}"
+        )
+
+    PromptServer.instance.send_progress_text(_status_text(_VERIFICATION_POLL_TIMEOUT_SEC), cls.hidden.unique_id)
+    logger.warning("Seedance authentication required. Open link: %s", session.h5_link)
+
+    deadline = time.monotonic() + _VERIFICATION_POLL_TIMEOUT_SEC
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        await asyncio.sleep(_VERIFICATION_POLL_INTERVAL_SEC)
+        try:
+            result = await sync_op(
+                cls,
+                ApiEndpoint(path=f"/proxy/seedance/visual-validate/sessions/{session.session_id}"),
+                response_model=SeedanceGetVisualValidateSessionResponse,
+                monitor_progress=False,
+            )
+        except Exception as exc:
+            last_error = exc
+            continue
+
+        if result.status == "completed":
+            if not result.group_id:
+                raise RuntimeError(f"Seedance session {session.session_id} completed without a group_id")
+            logger.warning("Seedance authentication complete. New GroupId: %s", result.group_id)
+            PromptServer.instance.send_progress_text(
+                f"Authentication complete. New GroupId: {result.group_id}", cls.hidden.unique_id
+            )
+            return result.group_id
+
+        if result.status == "failed":
+            parts = [f"Seedance authentication failed (session_id={session.session_id})."]
+            if result.error_code:
+                parts.append(f"code={result.error_code}")
+            if result.error_message:
+                parts.append(f"message={result.error_message}")
+            raise RuntimeError(" ".join(parts))
+
+        remaining = max(0, int(deadline - time.monotonic()))
+        PromptServer.instance.send_progress_text(_status_text(remaining), cls.hidden.unique_id)
+
+    hint = f" Last error: {last_error}" if last_error else ""
+    raise RuntimeError(f"Seedance real-person authentication timed out after {_VERIFICATION_POLL_TIMEOUT_SEC}s.{hint}")
+
+
+async def _resolve_group_id(cls: type[IO.ComfyNode], group_id: str) -> str:
+    if group_id and group_id.strip():
+        return group_id.strip()
+    return await _obtain_group_id_via_h5_auth(cls)
+
+
+async def _create_seedance_asset(
+    cls: type[IO.ComfyNode],
+    *,
+    group_id: str,
+    url: str,
+    name: str,
+    asset_type: str,
+) -> str:
+    req = SeedanceCreateAssetRequest(
+        group_id=group_id,
+        url=url,
+        asset_type=asset_type,
+        name=name or None,
+    )
+    result = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/seedance/assets", method="POST"),
+        response_model=SeedanceCreateAssetResponse,
+        data=req,
+    )
+    return result.asset_id
 
 
 def _seedance2_price_extractor(model_id: str, has_video_input: bool):
@@ -1385,6 +1569,24 @@ def _seedance2_reference_inputs(resolutions: list[str]):
             tooltip="Automatically downscale reference videos that exceed the model's pixel budget "
             "for the selected resolution. Aspect ratio is preserved; videos already within limits are untouched.",
         ),
+        IO.Autogrow.Input(
+            "reference_assets",
+            template=IO.Autogrow.TemplateNames(
+                IO.String.Input("reference_asset"),
+                names=[
+                    "asset_1",
+                    "asset_2",
+                    "asset_3",
+                    "asset_4",
+                    "asset_5",
+                    "asset_6",
+                    "asset_7",
+                    "asset_8",
+                    "asset_9",
+                ],
+                min=0,
+            ),
+        ),
     ]
 
 
@@ -1486,24 +1688,23 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
         reference_images = model.get("reference_images", {})
         reference_videos = model.get("reference_videos", {})
         reference_audios = model.get("reference_audios", {})
+        reference_assets = model.get("reference_assets", {})
 
-        if not reference_images and not reference_videos:
-            raise ValueError("At least one reference image or video is required.")
+        reference_image_assets, reference_video_assets, reference_audio_assets = await _resolve_reference_assets(
+            cls, list(reference_assets.values())
+        )
+
+        if not reference_images and not reference_videos and not reference_image_assets and not reference_video_assets:
+            raise ValueError("At least one reference image or video or asset is required.")
 
         model_id = SEEDANCE_MODELS[model["model"]]
         has_video_input = len(reference_videos) > 0
 
         if model.get("auto_downscale") and reference_videos:
-            max_px = (
-                SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {})
-                .get(model["resolution"], {})
-                .get("max")
-            )
+            max_px = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {}).get(model["resolution"], {}).get("max")
             if max_px:
                 for key in reference_videos:
-                    reference_videos[key] = resize_video_to_pixel_budget(
-                        reference_videos[key], max_px
-                    )
+                    reference_videos[key] = resize_video_to_pixel_budget(reference_videos[key], max_px)
 
         total_video_duration = 0.0
         for i, key in enumerate(reference_videos, 1):
@@ -1531,8 +1732,19 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
         if total_audio_duration > 15.1:
             raise ValueError(f"Total reference audio duration is {total_audio_duration:.1f}s. Maximum is 15.1 seconds.")
 
+        asset_labels = _build_asset_labels(
+            reference_assets,
+            reference_image_assets,
+            reference_video_assets,
+            reference_audio_assets,
+            len(reference_images),
+            len(reference_videos),
+            len(reference_audios),
+        )
+        prompt_text = _rewrite_asset_refs(model["prompt"], asset_labels)
+
         content: list[TaskTextContent | TaskImageContent | TaskVideoContent | TaskAudioContent] = [
-            TaskTextContent(text=model["prompt"]),
+            TaskTextContent(text=prompt_text),
         ]
         for i, key in enumerate(reference_images, 1):
             content.append(
@@ -1572,6 +1784,21 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                         ),
                     ),
                 ),
+            )
+        for url in reference_image_assets.values():
+            content.append(
+                TaskImageContent(
+                    image_url=TaskImageContentUrl(url=url),
+                    role="reference_image",
+                ),
+            )
+        for url in reference_video_assets.values():
+            content.append(
+                TaskVideoContent(video_url=TaskVideoContentUrl(url=url)),
+            )
+        for url in reference_audio_assets.values():
+            content.append(
+                TaskAudioContent(audio_url=TaskAudioContentUrl(url=url)),
             )
         initial_response = await sync_op(
             cls,
@@ -1627,6 +1854,128 @@ async def process_video_task(
     return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
+class ByteDanceCreateImageAsset(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ByteDanceCreateImageAsset",
+            display_name="ByteDance Create Image Asset",
+            category="api node/image/ByteDance",
+            description=(
+                "Create a Seedance 2.0 personal image asset. Uploads the input image and "
+                "registers it in the given asset group. If group_id is empty, runs a real-person "
+                "H5 authentication flow to create a new group before adding the asset."
+            ),
+            inputs=[
+                IO.Image.Input("image", tooltip="Image to register as a personal asset."),
+                IO.String.Input(
+                    "group_id",
+                    default="",
+                    tooltip=(
+                        "Existing Seedance asset group ID. Leave empty to run real-person "
+                        "authentication in the browser and create a new group."
+                    ),
+                ),
+                # IO.String.Input(
+                #     "name",
+                #     default="",
+                #     tooltip="Asset name (up to 64 characters).",
+                # ),
+            ],
+            outputs=[
+                IO.String.Output(display_name="asset_id"),
+                IO.String.Output(display_name="group_id"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            # is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        group_id: str = "",
+        # name: str = "",
+    ) -> IO.NodeOutput:
+        # if len(name) > 64:
+        #     raise ValueError("Name of asset can not be greater then 64 symbols")
+        resolved_group = await _resolve_group_id(cls, group_id)
+        asset_id = await _create_seedance_asset(
+            cls,
+            group_id=resolved_group,
+            url=await upload_image_to_comfyapi(cls, image),
+            name="",
+            asset_type="Image",
+        )
+        return IO.NodeOutput(asset_id, resolved_group)
+
+
+class ByteDanceCreateVideoAsset(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ByteDanceCreateVideoAsset",
+            display_name="ByteDance Create Video Asset",
+            category="api node/video/ByteDance",
+            description=(
+                "Create a Seedance 2.0 personal video asset. Uploads the input video and "
+                "registers it in the given asset group. If group_id is empty, runs a real-person "
+                "H5 authentication flow to create a new group before adding the asset."
+            ),
+            inputs=[
+                IO.Video.Input("video", tooltip="Video to register as a personal asset."),
+                IO.String.Input(
+                    "group_id",
+                    default="",
+                    tooltip=(
+                        "Existing Seedance asset group ID. Leave empty to run real-person "
+                        "authentication in the browser and create a new group."
+                    ),
+                ),
+                # IO.String.Input(
+                #     "name",
+                #     default="",
+                #     tooltip="Asset name (up to 64 characters).",
+                # ),
+            ],
+            outputs=[
+                IO.String.Output(display_name="asset_id"),
+                IO.String.Output(display_name="group_id"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            # is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        group_id: str = "",
+        # name: str = "",
+    ) -> IO.NodeOutput:
+        # if len(name) > 64:
+        #     raise ValueError("Name of asset can not be greater then 64 symbols")
+        resolved_group = await _resolve_group_id(cls, group_id)
+        asset_id = await _create_seedance_asset(
+            cls,
+            group_id=resolved_group,
+            url=await upload_video_to_comfyapi(cls, video),
+            name="",
+            asset_type="Video",
+        )
+        return IO.NodeOutput(asset_id, resolved_group)
+
+
 class ByteDanceExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -1640,6 +1989,8 @@ class ByteDanceExtension(ComfyExtension):
             ByteDance2TextToVideoNode,
             ByteDance2FirstLastFrameNode,
             ByteDance2ReferenceNode,
+            ByteDanceCreateImageAsset,
+            ByteDanceCreateVideoAsset,
         ]
 
 
