@@ -52,6 +52,8 @@ from comfy_api_nodes.util import (
     validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_string,
+    validate_video_dimensions,
+    validate_video_duration,
 )
 from server import PromptServer
 
@@ -1904,6 +1906,8 @@ class ByteDanceCreateImageAsset(IO.ComfyNode):
     ) -> IO.NodeOutput:
         # if len(name) > 64:
         #     raise ValueError("Name of asset can not be greater then 64 symbols")
+        validate_image_dimensions(image, min_width=300, max_width=6000, min_height=300, max_height=6000)
+        validate_image_aspect_ratio(image, min_ratio=(0.4, 1), max_ratio=(2.5, 1))
         resolved_group = await _resolve_group_id(cls, group_id)
         asset_id = await _create_seedance_asset(
             cls,
@@ -1965,6 +1969,24 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
     ) -> IO.NodeOutput:
         # if len(name) > 64:
         #     raise ValueError("Name of asset can not be greater then 64 symbols")
+        validate_video_duration(video, min_duration=2, max_duration=15)
+        validate_video_dimensions(video, min_width=300, max_width=6000, min_height=300, max_height=6000)
+
+        w, h = video.get_dimensions()
+        if h > 0:
+            ratio = w / h
+            if not (0.4 <= ratio <= 2.5):
+                raise ValueError(f"Asset video aspect ratio (W/H) must be in [0.4, 2.5], got {ratio:.3f} ({w}x{h}).")
+        pixels = w * h
+        if not (409_600 <= pixels <= 927_408):
+            raise ValueError(
+                f"Asset video total pixels (W×H) must be in [409600, 927408], " f"got {pixels:,} ({w}x{h})."
+            )
+
+        fps = float(video.get_frame_rate())
+        if not (24 <= fps <= 60):
+            raise ValueError(f"Asset video FPS must be in [24, 60], got {fps:.2f}.")
+
         resolved_group = await _resolve_group_id(cls, group_id)
         asset_id = await _create_seedance_asset(
             cls,
