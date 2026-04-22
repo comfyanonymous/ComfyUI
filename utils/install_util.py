@@ -43,7 +43,7 @@ def get_required_packages_versions():
                 if len(s) == 2:
                     version_str = s[-1]
                     if not is_valid_version(version_str):
-                        logging.warning(f"Skipping unrecognised version format in requirements.txt: {version_str}")
+                        logging.warning(f"Skipping unrecognized version format in requirements.txt for package {s[0]}: {version_str}")
                         continue
                     out[s[0]] = version_str
         return out.copy()
