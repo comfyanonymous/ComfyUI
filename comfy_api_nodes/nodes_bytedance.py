@@ -1,8 +1,6 @@
-import asyncio
 import logging
 import math
 import re
-import time
 
 import torch
 from typing_extensions import override
@@ -202,55 +200,31 @@ async def _obtain_group_id_via_h5_auth(cls: type[IO.ComfyNode]) -> str:
         ApiEndpoint(path="/proxy/seedance/visual-validate/sessions", method="POST"),
         response_model=SeedanceCreateVisualValidateSessionResponse,
     )
-
-    def _status_text(remaining_sec: int) -> str:
-        return (
-            "Seedance authentication required.\n"
-            f"Open this link in your browser and complete face verification "
-            f"(~{remaining_sec}s left):\n"
-            f"{session.h5_link}"
-        )
-
-    PromptServer.instance.send_progress_text(_status_text(_VERIFICATION_POLL_TIMEOUT_SEC), cls.hidden.unique_id)
     logger.warning("Seedance authentication required. Open link: %s", session.h5_link)
 
-    deadline = time.monotonic() + _VERIFICATION_POLL_TIMEOUT_SEC
-    last_error: Exception | None = None
-    while time.monotonic() < deadline:
-        await asyncio.sleep(_VERIFICATION_POLL_INTERVAL_SEC)
-        try:
-            result = await sync_op(
-                cls,
-                ApiEndpoint(path=f"/proxy/seedance/visual-validate/sessions/{session.session_id}"),
-                response_model=SeedanceGetVisualValidateSessionResponse,
-                monitor_progress=False,
-            )
-        except Exception as exc:
-            last_error = exc
-            continue
+    h5_text = f"Open this link in your browser and complete face verification:\n\n{session.h5_link}"
 
-        if result.status == "completed":
-            if not result.group_id:
-                raise RuntimeError(f"Seedance session {session.session_id} completed without a group_id")
-            logger.warning("Seedance authentication complete. New GroupId: %s", result.group_id)
-            PromptServer.instance.send_progress_text(
-                f"Authentication complete. New GroupId: {result.group_id}", cls.hidden.unique_id
-            )
-            return result.group_id
+    result = await poll_op(
+        cls,
+        ApiEndpoint(path=f"/proxy/seedance/visual-validate/sessions/{session.session_id}"),
+        response_model=SeedanceGetVisualValidateSessionResponse,
+        status_extractor=lambda r: r.status,
+        completed_statuses=["completed"],
+        failed_statuses=["failed"],
+        poll_interval=_VERIFICATION_POLL_INTERVAL_SEC,
+        max_poll_attempts=(_VERIFICATION_POLL_TIMEOUT_SEC // _VERIFICATION_POLL_INTERVAL_SEC) - 1,
+        estimated_duration=_VERIFICATION_POLL_TIMEOUT_SEC - 1,
+        extra_text=h5_text,
+    )
 
-        if result.status == "failed":
-            parts = [f"Seedance authentication failed (session_id={session.session_id})."]
-            if result.error_code:
-                parts.append(f"code={result.error_code}")
-            if result.error_message:
-                parts.append(f"message={result.error_message}")
-            raise RuntimeError(" ".join(parts))
+    if not result.group_id:
+        raise RuntimeError(f"Seedance session {session.session_id} completed without a group_id")
 
-        remaining = max(0, int(deadline - time.monotonic()))
-        PromptServer.instance.send_progress_text(_status_text(remaining), cls.hidden.unique_id)
-
-    hint = f" Last error: {last_error}" if last_error else ""
-    raise RuntimeError(f"Seedance real-person authentication timed out after {_VERIFICATION_POLL_TIMEOUT_SEC}s.{hint}")
+    logger.warning("Seedance authentication complete. New GroupId: %s", result.group_id)
+    PromptServer.instance.send_progress_text(
+        f"Authentication complete. New GroupId: {result.group_id}", cls.hidden.unique_id
+    )
+    return result.group_id
 
 
 async def _resolve_group_id(cls: type[IO.ComfyNode], group_id: str) -> str:
