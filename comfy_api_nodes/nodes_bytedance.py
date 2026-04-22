@@ -1753,7 +1753,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             )
 
         model_id = SEEDANCE_MODELS[model["model"]]
-        has_video_input = len(reference_videos) > 0
+        has_video_input = total_videos > 0
 
         if model.get("auto_downscale") and reference_videos:
             max_px = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {}).get(model["resolution"], {}).get("max")
