@@ -1733,6 +1733,25 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
         if not reference_images and not reference_videos and not reference_image_assets and not reference_video_assets:
             raise ValueError("At least one reference image or video or asset is required.")
 
+        total_images = len(reference_images) + len(reference_image_assets)
+        if total_images > 9:
+            raise ValueError(
+                f"Too many reference images: {total_images} "
+                f"(images={len(reference_images)}, image assets={len(reference_image_assets)}). Maximum is 9."
+            )
+        total_videos = len(reference_videos) + len(reference_video_assets)
+        if total_videos > 3:
+            raise ValueError(
+                f"Too many reference videos: {total_videos} "
+                f"(videos={len(reference_videos)}, video assets={len(reference_video_assets)}). Maximum is 3."
+            )
+        total_audios = len(reference_audios) + len(reference_audio_assets)
+        if total_audios > 3:
+            raise ValueError(
+                f"Too many reference audios: {total_audios} "
+                f"(audios={len(reference_audios)}, audio assets={len(reference_audio_assets)}). Maximum is 3."
+            )
+
         model_id = SEEDANCE_MODELS[model["model"]]
         has_video_input = len(reference_videos) > 0
 
