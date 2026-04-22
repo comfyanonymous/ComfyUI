@@ -477,14 +477,15 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     }
                   };
                   $range := $lookup($lookup($ranges, widgets.model), widgets.quality);
-                  $n := widgets.n;
+                  $nRaw := widgets.n;
+                  $n := ($nRaw != null and $nRaw != 0) ? $nRaw : 1;
                   ($n = 1)
                     ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1], "format": {"approximate": true}}
                     : {
                         "type":"range_usd",
-                        "min_usd": $range[0],
-                        "max_usd": $range[1],
-                        "format": { "suffix": " x " & $string($n) & "/Run", "approximate": true }
+                        "min_usd": $range[0] * $n,
+                        "max_usd": $range[1] * $n,
+                        "format": { "suffix": "/Run", "approximate": true }
                       }
                 )
                 """,
