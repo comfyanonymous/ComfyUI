@@ -35,6 +35,15 @@ class SimpleModel(torch.nn.Module):
         return x
 
 
+class NestedMoeNameModel(torch.nn.Module):
+    def __init__(self, operations):
+        super().__init__()
+        self.block = torch.nn.Module()
+        self.block.img_mlp = torch.nn.Module()
+        self.block.img_mlp.gate = operations.Linear(10, 20, bias=False, device="cpu", dtype=torch.bfloat16)
+        self.block.img_mlp.gate_proj = operations.Linear(10, 20, bias=False, device="cpu", dtype=torch.bfloat16)
+
+
 class TestMixedPrecisionOps(unittest.TestCase):
 
     def test_all_layers_standard(self):
@@ -201,6 +210,35 @@ class TestMixedPrecisionOps(unittest.TestCase):
 
         self.assertEqual(output.shape, (5, 40))
 
+    def test_moe_full_precision_matching_is_bounded(self):
+        layer_quant_config = {
+            "block.img_mlp.gate": {
+                "format": "float8_e4m3fn",
+                "params": {}
+            },
+            "block.img_mlp.gate_proj": {
+                "format": "float8_e4m3fn",
+                "params": {}
+            }
+        }
+
+        state_dict = {
+            "block.img_mlp.gate.weight": torch.randn(20, 10, dtype=torch.float32).to(torch.float8_e4m3fn),
+            "block.img_mlp.gate.weight_scale": torch.tensor(1.0, dtype=torch.float32),
+            "block.img_mlp.gate_proj.weight": torch.randn(20, 10, dtype=torch.float32).to(torch.float8_e4m3fn),
+            "block.img_mlp.gate_proj.weight_scale": torch.tensor(1.0, dtype=torch.float32),
+        }
+        state_dict, _ = comfy.utils.convert_old_quants(
+            state_dict,
+            metadata={"_quantization_metadata": json.dumps({"layers": layer_quant_config})},
+        )
+        model = NestedMoeNameModel(operations=ops.mixed_precision_ops({}))
+
+        model.load_state_dict(state_dict, strict=False)
+
+        self.assertTrue(model.block.img_mlp.gate._full_precision_mm)
+        self.assertFalse(model.block.img_mlp.gate_proj._full_precision_mm)
+
     def test_error_handling_unknown_format(self):
         """Test that unknown formats raise error"""
         # Configure with unknown format
@@ -230,4 +268,3 @@ class TestMixedPrecisionOps(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -948,6 +948,22 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     if self.quant_format in MixedPrecisionOps._disabled:
                         self._full_precision_mm = True
 
+                    # Auto-detect MoE layers: per-tensor FP8 input quantization causes
+                    # catastrophic error in SwiGLU intermediates (gate*up product has
+                    # high dynamic range). Force full precision for these layers.
+                    if not self._full_precision_mm and self.quant_format in ("float8_e4m3fn", "float8_e5m2"):
+                        _layer_path = f".{layer_name}."
+                        _moe_patterns = (
+                            ".img_mlp.experts.gate_up_projs.",
+                            ".img_mlp.experts.down_projs.",
+                            ".img_mlp.shared_expert.",
+                            ".img_mlp.gate.",
+                        )
+                        if any(_pat in _layer_path for _pat in _moe_patterns):
+                            self._full_precision_mm = True
+                            self._full_precision_mm_config = True
+
+
                     if self.quant_format is None:
                         raise ValueError(f"Unknown quantization format for layer {layer_name}")
 
