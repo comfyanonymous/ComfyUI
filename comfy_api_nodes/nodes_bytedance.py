@@ -1863,10 +1863,8 @@ class ByteDanceCreateImageAsset(IO.ComfyNode):
                 IO.String.Input(
                     "group_id",
                     default="",
-                    tooltip=(
-                        "Existing Seedance asset group ID. Leave empty to run real-person "
-                        "authentication in the browser and create a new group."
-                    ),
+                    tooltip="Reuse an existing Seedance asset group ID to skip repeated human verification for the "
+                    "same person. Leave empty to run real-person authentication in the browser and create a new group.",
                 ),
                 # IO.String.Input(
                 #     "name",
@@ -1932,10 +1930,8 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
                 IO.String.Input(
                     "group_id",
                     default="",
-                    tooltip=(
-                        "Existing Seedance asset group ID. Leave empty to run real-person "
-                        "authentication in the browser and create a new group."
-                    ),
+                    tooltip="Reuse an existing Seedance asset group ID to skip repeated human verification for the "
+                    "same person. Leave empty to run real-person authentication in the browser and create a new group.",
                 ),
                 # IO.String.Input(
                 #     "name",
