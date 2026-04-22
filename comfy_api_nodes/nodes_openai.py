@@ -363,7 +363,7 @@ class OpenAIGPTImage1(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIGPTImage1",
-            display_name="OpenAI GPT Image 1.5",
+            display_name="OpenAI GPT Image 2",
             category="api node/image/OpenAI",
             description="Generates images synchronously via OpenAI's GPT Image endpoint.",
             inputs=[
@@ -427,8 +427,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["gpt-image-1", "gpt-image-1.5"],
-                    default="gpt-image-1.5",
+                    options=["gpt-image-1", "gpt-image-1.5", 'gpt-image-2'],
+                    default="gpt-image-2",
                     optional=True,
                 ),
             ],
@@ -486,6 +486,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
         if model == "gpt-image-1":
             price_extractor = calculate_tokens_price_image_1
         elif model == "gpt-image-1.5":
+            price_extractor = calculate_tokens_price_image_1_5
+        elif model == "gpt-image-2":
             price_extractor = calculate_tokens_price_image_1_5
         else:
             raise ValueError(f"Unknown model: {model}")

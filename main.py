@@ -275,15 +275,19 @@ def _collect_output_absolute_paths(history_result: dict) -> list[str]:
 
 def prompt_worker(q, server_instance):
     current_time: float = 0.0
+    cache_ram = args.cache_ram
+    if cache_ram < 0:
+        cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
+
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
-    elif args.cache_ram > 0:
+    elif cache_ram > 0:
         cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:
         cache_type = execution.CacheType.NONE
 
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : args.cache_ram } )
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : cache_ram } )
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0

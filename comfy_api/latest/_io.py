@@ -1373,6 +1373,7 @@ class NodeInfoV1:
     price_badge: dict | None = None
     search_aliases: list[str]=None
     essentials_category: str=None
+    has_intermediate_output: bool=None
 
 
 @dataclass
@@ -1496,6 +1497,16 @@ class Schema:
     """When True, all inputs from the prompt will be passed to the node as kwargs, even if not defined in the schema."""
     essentials_category: str | None = None
     """Optional category for the Essentials tab. Path-based like category field (e.g., 'Basic', 'Image Tools/Editing')."""
+    has_intermediate_output: bool=False
+    """Flags this node as having intermediate output that should persist across page refreshes.
+
+    Nodes with this flag behave like output nodes (their UI results are cached and resent
+    to the frontend) but do NOT automatically get added to the execution list. This means
+    they will only execute if they are on the dependency path of a real output node.
+
+    Use this for nodes with interactive/operable UI regions that produce intermediate outputs
+    (e.g., Image Crop, Painter) rather than final outputs (e.g., Save Image).
+    """
 
     def validate(self):
         '''Validate the schema:
@@ -1595,6 +1606,7 @@ class Schema:
             category=self.category,
             description=self.description,
             output_node=self.is_output_node,
+            has_intermediate_output=self.has_intermediate_output,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
             dev_only=self.is_dev_only,
@@ -1886,6 +1898,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._OUTPUT_NODE
 
+    _HAS_INTERMEDIATE_OUTPUT = None
+    @final
+    @classproperty
+    def HAS_INTERMEDIATE_OUTPUT(cls):  # noqa
+        if cls._HAS_INTERMEDIATE_OUTPUT is None:
+            cls.GET_SCHEMA()
+        return cls._HAS_INTERMEDIATE_OUTPUT
+
     _INPUT_IS_LIST = None
     @final
     @classproperty
@@ -1978,6 +1998,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._API_NODE = schema.is_api_node
         if cls._OUTPUT_NODE is None:
             cls._OUTPUT_NODE = schema.is_output_node
+        if cls._HAS_INTERMEDIATE_OUTPUT is None:
+            cls._HAS_INTERMEDIATE_OUTPUT = schema.has_intermediate_output
         if cls._INPUT_IS_LIST is None:
             cls._INPUT_IS_LIST = schema.is_input_list
         if cls._NOT_IDEMPOTENT is None:
