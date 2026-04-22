@@ -256,6 +256,21 @@ async def _create_seedance_asset(
     return result.asset_id
 
 
+async def _wait_for_asset_active(cls: type[IO.ComfyNode], asset_id: str, group_id: str) -> GetAssetResponse:
+    """Poll the newly created asset until its status becomes Active."""
+    return await poll_op(
+        cls,
+        ApiEndpoint(path=f"/proxy/seedance/assets/{asset_id}"),
+        response_model=GetAssetResponse,
+        status_extractor=lambda r: r.status,
+        completed_statuses=["Active"],
+        failed_statuses=["Failed"],
+        poll_interval=5,
+        max_poll_attempts=1200,
+        extra_text=f"Waiting for asset pre-processing...\n\nasset_id: {asset_id}\n\ngroup_id: {group_id}",
+    )
+
+
 def _seedance2_price_extractor(model_id: str, has_video_input: bool):
     """Returns a price_extractor closure for Seedance 2.0 poll_op."""
     rate = SEEDANCE2_PRICE_PER_1K_TOKENS.get((model_id, has_video_input))
@@ -1890,6 +1905,7 @@ class ByteDanceCreateImageAsset(IO.ComfyNode):
             name="",
             asset_type="Image",
         )
+        await _wait_for_asset_active(cls, asset_id, resolved_group)
         PromptServer.instance.send_progress_text(
             f"Please save the asset_id and group_id for reuse.\n\nasset_id: {asset_id}\n\n"
             f"group_id: {resolved_group}",
@@ -1974,6 +1990,7 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
             name="",
             asset_type="Video",
         )
+        await _wait_for_asset_active(cls, asset_id, resolved_group)
         PromptServer.instance.send_progress_text(
             f"Please save the asset_id and group_id for reuse.\n\nasset_id: {asset_id}\n\n"
             f"group_id: {resolved_group}",
