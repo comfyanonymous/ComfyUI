@@ -1916,6 +1916,11 @@ class ByteDanceCreateImageAsset(IO.ComfyNode):
             name="",
             asset_type="Image",
         )
+        PromptServer.instance.send_progress_text(
+            f"Please save the asset_id and group_id for reuse.\n\nasset_id: {asset_id}\n\n"
+            f"group_id: {resolved_group}",
+            cls.hidden.unique_id,
+        )
         return IO.NodeOutput(asset_id, resolved_group)
 
 
@@ -1994,6 +1999,11 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
             url=await upload_video_to_comfyapi(cls, video),
             name="",
             asset_type="Video",
+        )
+        PromptServer.instance.send_progress_text(
+            f"Please save the asset_id and group_id for reuse.\n\nasset_id: {asset_id}\n\n"
+            f"group_id: {resolved_group}",
+            cls.hidden.unique_id,
         )
         return IO.NodeOutput(asset_id, resolved_group)
 
