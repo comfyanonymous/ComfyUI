@@ -158,10 +158,17 @@ RECOMMENDED_PRESETS_SEEDREAM_4 = [
     ("Custom", None, None),
 ]
 
-# Seedance 2.0 reference video pixel count limits per model.
+# Seedance 2.0 reference video pixel count limits per model and output resolution.
 SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
-    "dreamina-seedance-2-0-260128": {"min": 409_600, "max": 927_408},
-    "dreamina-seedance-2-0-fast-260128": {"min": 409_600, "max": 927_408},
+    "dreamina-seedance-2-0-260128": {
+        "480p": {"min": 409_600, "max": 927_408},
+        "720p": {"min": 409_600, "max": 927_408},
+        "1080p": {"min": 409_600, "max": 2_073_600},
+    },
+    "dreamina-seedance-2-0-fast-260128": {
+        "480p": {"min": 409_600, "max": 927_408},
+        "720p": {"min": 409_600, "max": 927_408},
+    },
 }
 
 # The time in this dictionary are given for 10 seconds duration.
