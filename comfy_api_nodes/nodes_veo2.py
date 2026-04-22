@@ -393,8 +393,8 @@ class Veo3VideoGenerationNode(IO.ComfyNode):
         model="veo-3.0-generate-001",
         generate_audio=False,
     ):
-        if "lite" in model and resolution == "4k":
-            raise Exception("4K resolution is not supported by the veo-3.1-lite model.")
+        if resolution == "4k" and ("lite" in model or "3.0" in model):
+            raise Exception("4K resolution is not supported by the veo-3.1-lite or veo-3.0 models.")
 
         model = MODELS_MAP[model]
 
