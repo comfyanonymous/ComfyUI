@@ -35,4 +35,4 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
                 model_options = model_options.copy()
                 model_options["quantization_metadata"] = llama_quantization_metadata
             super().__init__(device=device, dtype=dtype, model_options=model_options)
-    return ErnieTEModel
+    return ErnieTEModel_
