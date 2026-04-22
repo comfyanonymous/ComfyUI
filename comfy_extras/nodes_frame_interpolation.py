@@ -10,7 +10,7 @@ from comfy_extras.frame_interpolation_models.ifnet import IFNet, detect_rife_con
 from comfy_extras.frame_interpolation_models.film_net import FILMNet
 from comfy_api.latest import ComfyExtension, io
 
-FrameInterpolationModel = io.Custom("FRAME_INTERPOLATION_MODEL")
+FrameInterpolationModel = io.Custom("INTERP_MODEL")
 
 
 class FrameInterpolationModelLoader(io.ComfyNode):
@@ -81,7 +81,7 @@ class FrameInterpolate(io.ComfyNode):
             category="image/video",
             search_aliases=["rife", "film", "frame interpolation", "slow motion", "interpolate frames", "vfi"],
             inputs=[
-                FrameInterpolationModel.Input("frame_interpolation_model"),
+                FrameInterpolationModel.Input("interp_model"),
                 io.Image.Input("images"),
                 io.Int.Input("multiplier", default=2, min=2, max=16),
             ],
@@ -91,17 +91,17 @@ class FrameInterpolate(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, frame_interpolation_model, images, multiplier) -> io.NodeOutput:
+    def execute(cls, interp_model, images, multiplier) -> io.NodeOutput:
         offload_device = model_management.intermediate_device()
 
         num_frames = images.shape[0]
         if num_frames < 2 or multiplier < 2:
             return io.NodeOutput(images)
 
-        model_management.load_model_gpu(frame_interpolation_model)
-        device = frame_interpolation_model.load_device
-        dtype = frame_interpolation_model.model_dtype()
-        inference_model = frame_interpolation_model.model
+        model_management.load_model_gpu(interp_model)
+        device = interp_model.load_device
+        dtype = interp_model.model_dtype()
+        inference_model = interp_model.model
 
         # Free VRAM for inference activations (model weights + ~20x a single frame's worth)
         H, W = images.shape[1], images.shape[2]
