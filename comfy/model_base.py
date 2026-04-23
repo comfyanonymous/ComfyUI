@@ -54,6 +54,7 @@ import comfy.ldm.anima.model
 import comfy.ldm.ace.ace_step15
 import comfy.ldm.rt_detr.rtdetr_v4
 import comfy.ldm.ernie.model
+import comfy.ldm.sam3.detector
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1974,3 +1975,7 @@ class ErnieImage(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
+
+class SAM3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.sam3.detector.SAM3Model)

@@ -357,6 +357,10 @@ def calculate_tokens_price_image_1_5(response: OpenAIImageGenerationResponse) ->
     return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 32.0)) / 1_000_000.0
 
 
+def calculate_tokens_price_image_2_0(response: OpenAIImageGenerationResponse) -> float | None:
+    return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 30.0)) / 1_000_000.0
+
+
 class OpenAIGPTImage1(IO.ComfyNode):
 
     @classmethod
@@ -401,7 +405,17 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 IO.Combo.Input(
                     "size",
                     default="auto",
-                    options=["auto", "1024x1024", "1024x1536", "1536x1024"],
+                    options=[
+                        "auto",
+                        "1024x1024",
+                        "1024x1536",
+                        "1536x1024",
+                        "2048x2048",
+                        "2048x1152",
+                        "1152x2048",
+                        "3840x2160",
+                        "2160x3840",
+                    ],
                     tooltip="Image size",
                     optional=True,
                 ),
@@ -427,7 +441,7 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["gpt-image-1", "gpt-image-1.5", 'gpt-image-2'],
+                    options=["gpt-image-1", "gpt-image-1.5", "gpt-image-2"],
                     default="gpt-image-2",
                     optional=True,
                 ),
@@ -442,23 +456,36 @@ class OpenAIGPTImage1(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n", "model"]),
                 expr="""
                 (
                   $ranges := {
-                    "low":    [0.011, 0.02],
-                    "medium": [0.046, 0.07],
-                    "high":   [0.167, 0.3]
+                    "gpt-image-1": {
+                      "low":    [0.011, 0.02],
+                      "medium": [0.042, 0.07],
+                      "high":   [0.167, 0.25]
+                    },
+                    "gpt-image-1.5": {
+                      "low":    [0.009, 0.02],
+                      "medium": [0.034, 0.062],
+                      "high":   [0.133, 0.22]
+                    },
+                    "gpt-image-2": {
+                      "low":    [0.0048, 0.012],
+                      "medium": [0.041, 0.112],
+                      "high":   [0.165, 0.43]
+                    }
                   };
-                  $range := $lookup($ranges, widgets.quality);
-                  $n := widgets.n;
+                  $range := $lookup($lookup($ranges, widgets.model), widgets.quality);
+                  $nRaw := widgets.n;
+                  $n := ($nRaw != null and $nRaw != 0) ? $nRaw : 1;
                   ($n = 1)
-                    ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1]}
+                    ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1], "format": {"approximate": true}}
                     : {
                         "type":"range_usd",
-                        "min_usd": $range[0],
-                        "max_usd": $range[1],
-                        "format": { "suffix": " x " & $string($n) & "/Run" }
+                        "min_usd": $range[0] * $n,
+                        "max_usd": $range[1] * $n,
+                        "format": { "suffix": "/Run", "approximate": true }
                       }
                 )
                 """,
@@ -483,12 +510,18 @@ class OpenAIGPTImage1(IO.ComfyNode):
         if mask is not None and image is None:
             raise ValueError("Cannot use a mask without an input image")
 
+        if model in ("gpt-image-1", "gpt-image-1.5"):
+            if size not in ("auto", "1024x1024", "1024x1536", "1536x1024"):
+                raise ValueError(f"Resolution {size} is only supported by GPT Image 2 model")
+
         if model == "gpt-image-1":
             price_extractor = calculate_tokens_price_image_1
         elif model == "gpt-image-1.5":
             price_extractor = calculate_tokens_price_image_1_5
         elif model == "gpt-image-2":
-            price_extractor = calculate_tokens_price_image_1_5
+            price_extractor = calculate_tokens_price_image_2_0
+            if background == "transparent":
+                raise ValueError("Transparent background is not supported for GPT Image 2 model")
         else:
             raise ValueError(f"Unknown model: {model}")
 
