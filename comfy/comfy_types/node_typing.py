@@ -51,6 +51,7 @@ class IO(StrEnum):
     BBOX = "BBOX"
     SEGS = "SEGS"
     VIDEO = "VIDEO"
+    IMAGE_STREAM = "IMAGE_STREAM"
 
     ANY = "*"
     """Always matches any type, but at a price.

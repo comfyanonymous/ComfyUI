@@ -16,6 +16,17 @@ from comfy.ldm.modules.diffusionmodules.model import torch_cat_if_needed
 
 ops = comfy.ops.disable_weight_init
 
+class RunUpState:
+    def __init__(self, timestep_shift_scale, scaled_timestep, checkpoint_fn, max_chunk_size, output_shape, output_dtype, output_frames=None):
+        self.timestep_shift_scale = timestep_shift_scale
+        self.scaled_timestep = scaled_timestep
+        self.checkpoint_fn = checkpoint_fn
+        self.max_chunk_size = max_chunk_size
+        self.output_shape = output_shape
+        self.output_dtype = output_dtype
+        self.output_frames = output_frames
+        self.pending_samples = []
+
 def in_meta_context():
     return torch.device("meta") == torch.empty(0).device
 
@@ -25,6 +36,14 @@ def mark_conv3d_ended(module):
         if isinstance(m, CausalConv3d):
             current = m.temporal_cache_state.get(tid, (None, False))
             m.temporal_cache_state[tid] = (current[0], True)
+
+def clear_temporal_cache_state(module):
+    # ComfyUI doesn't thread this kind of stuff today, but just in case
+    # we key on the thread to make it thread safe.
+    tid = threading.get_ident()
+    for _, m in module.named_modules():
+        if hasattr(m, "temporal_cache_state"):
+            m.temporal_cache_state.pop(tid, None)
 
 def split2(tensor, split_point, dim=2):
     return torch.split(tensor, [split_point, tensor.shape[dim] - split_point], dim=dim)
@@ -315,13 +334,7 @@ class Encoder(nn.Module):
         try:
             return self.forward_orig(*args, **kwargs)
         finally:
-            tid = threading.get_ident()
-            for _, module in self.named_modules():
-                # ComfyUI doesn't thread this kind of stuff today, but just in case
-                # we key on the thread to make it thread safe.
-                tid = threading.get_ident()
-                if hasattr(module, "temporal_cache_state"):
-                    module.temporal_cache_state.pop(tid, None)
+            clear_temporal_cache_state(self)
 
 
 MIN_VRAM_FOR_CHUNK_SCALING = 6 * 1024 ** 3
@@ -530,19 +543,20 @@ class Decoder(nn.Module):
                 ).unsqueeze(1).expand(2, output_channel),
                 persistent=False,
             )
+        self.temporal_cache_state = {}
 
 
     def decode_output_shape(self, input_shape):
         c, (ts, hs, ws), to = self._output_scale
         return (input_shape[0], c, input_shape[2] * ts - to, input_shape[3] * hs, input_shape[4] * ws)
 
-    def run_up(self, idx, sample_ref, ended, timestep_shift_scale, scaled_timestep, checkpoint_fn, output_buffer, output_offset, max_chunk_size):
+    def run_up(self, idx, sample_ref, ended, run_up_state, output_buffer, output_offset):
         sample = sample_ref[0]
         sample_ref[0] = None
         if idx >= len(self.up_blocks):
             sample = self.conv_norm_out(sample)
-            if timestep_shift_scale is not None:
-                shift, scale = timestep_shift_scale
+            if run_up_state.timestep_shift_scale is not None:
+                shift, scale = run_up_state.timestep_shift_scale
                 sample = sample * (1 + scale) + shift
             sample = self.conv_act(sample)
             if ended:
@@ -550,38 +564,49 @@ class Decoder(nn.Module):
             sample = self.conv_out(sample, causal=self.causal)
             if sample is not None and sample.shape[2] > 0:
                 sample = unpatchify(sample, patch_size_hw=self.patch_size, patch_size_t=1)
-                t = sample.shape[2]
-                output_buffer[:, :, output_offset[0]:output_offset[0] + t].copy_(sample)
+                if output_buffer is None:
+                    run_up_state.output_frames = sample
+                    return
+                output_slice = output_buffer[:, :, output_offset[0]:output_offset[0] + sample.shape[2]]
+                t = output_slice.shape[2]
+                output_slice.copy_(sample[:, :, :t])
                 output_offset[0] += t
+                if t < sample.shape[2]:
+                    run_up_state.output_frames = sample[:, :, t:]
             return
 
         up_block = self.up_blocks[idx]
         if ended:
             mark_conv3d_ended(up_block)
         if self.timestep_conditioning and isinstance(up_block, UNetMidBlock3D):
-            sample = checkpoint_fn(up_block)(
-                sample, causal=self.causal, timestep=scaled_timestep
+            sample = run_up_state.checkpoint_fn(up_block)(
+                sample, causal=self.causal, timestep=run_up_state.scaled_timestep
             )
         else:
-            sample = checkpoint_fn(up_block)(sample, causal=self.causal)
+            sample = run_up_state.checkpoint_fn(up_block)(sample, causal=self.causal)
 
         if sample is None or sample.shape[2] == 0:
             return
 
         total_bytes = sample.numel() * sample.element_size()
-        num_chunks = (total_bytes + max_chunk_size - 1) // max_chunk_size
+        num_chunks = (total_bytes + run_up_state.max_chunk_size - 1) // run_up_state.max_chunk_size
 
         if num_chunks == 1:
             # when we are not chunking, detach our x so the callee can free it as soon as they are done
             next_sample_ref = [sample]
             del sample
-            self.run_up(idx + 1, next_sample_ref, ended, timestep_shift_scale, scaled_timestep, checkpoint_fn, output_buffer, output_offset, max_chunk_size)
+            #Just let this run_up unconditionally regardless of, its ok because either a lower layer
+            #chunker or output frame stash will do the work anyway. so unchanged.
+            self.run_up(idx + 1, next_sample_ref, ended, run_up_state, output_buffer, output_offset)
             return
         else:
-            samples = torch.chunk(sample, chunks=num_chunks, dim=2)
+            samples = list(torch.chunk(sample, chunks=num_chunks, dim=2))
 
-            for chunk_idx, sample1 in enumerate(samples):
-                self.run_up(idx + 1, [sample1], ended and chunk_idx == len(samples) - 1, timestep_shift_scale, scaled_timestep, checkpoint_fn, output_buffer, output_offset, max_chunk_size)
+            while len(samples):
+                if output_buffer is None or output_offset[0] == output_buffer.shape[2]:
+                    run_up_state.pending_samples.append((idx + 1, samples, ended))
+                    return
+                self.run_up(idx + 1, [samples.pop(0)], ended and len(samples) == 1, run_up_state, output_buffer, output_offset)
 
     def forward_orig(
         self,
@@ -591,6 +616,7 @@ class Decoder(nn.Module):
     ) -> torch.FloatTensor:
         r"""The forward method of the `Decoder` class."""
         batch_size = sample.shape[0]
+        output_shape = self.decode_output_shape(sample.shape)
 
         mark_conv3d_ended(self.conv_in)
         sample = self.conv_in(sample, causal=self.causal)
@@ -630,29 +656,89 @@ class Decoder(nn.Module):
             )
             timestep_shift_scale = ada_values.unbind(dim=1)
 
+        output_offset = [0]
+
+        run_up_state = RunUpState(
+            timestep_shift_scale=timestep_shift_scale,
+            scaled_timestep=scaled_timestep,
+            checkpoint_fn=checkpoint_fn,
+            max_chunk_size=get_max_chunk_size(sample.device),
+            output_shape=output_shape,
+            output_dtype=sample.dtype,
+        )
+        self.temporal_cache_state[threading.get_ident()] = run_up_state
+
+        self.run_up(0, [sample], True, run_up_state, output_buffer, output_offset)
+
+        return output_buffer
+
+    def forward_start(
+        self,
+        sample: torch.FloatTensor,
+        timestep: Optional[torch.Tensor] = None,
+    ):
+        try:
+            return self.forward_orig(sample, timestep=timestep, output_buffer=None)
+        except Exception:
+            clear_temporal_cache_state(self)
+            raise
+
+    def forward_resume(self, output_t: int):
+        tid = threading.get_ident()
+        run_up_state = self.temporal_cache_state.get(tid, None)
+        if run_up_state is None:
+            return None
+
+        output_shape = list(run_up_state.output_shape)
+        output_shape[2] = output_t
+        output_buffer = torch.empty(
+            output_shape,
+            dtype=run_up_state.output_dtype, device=comfy.model_management.intermediate_device(),
+        )
+        output_offset = [0]
+
+        try:
+            if run_up_state.output_frames is not None:
+                output_slice = output_buffer[:, :, :run_up_state.output_frames.shape[2]]
+                t = output_slice.shape[2]
+                output_slice.copy_(run_up_state.output_frames[:, :, :t])
+                output_offset[0] += t
+                run_up_state.output_frames = None if t == run_up_state.output_frames.shape[2] else run_up_state.output_frames[:, :, t:]
+
+            pending_samples = run_up_state.pending_samples
+            run_up_state.pending_samples = []
+            while len(pending_samples):
+                idx, samples, ended = pending_samples.pop(0)
+                while len(samples):
+                    if output_offset[0] == output_buffer.shape[2]:
+                        pending_samples = [(idx, samples, ended)] + pending_samples
+                        run_up_state.pending_samples.extend(pending_samples)
+                        return output_buffer
+                    sample1 = samples.pop(0)
+                    self.run_up(idx, [sample1], ended and len(samples) == 0, run_up_state, output_buffer, output_offset)
+
+            if run_up_state.output_frames is None and not run_up_state.pending_samples:
+                clear_temporal_cache_state(self)
+            return output_buffer[:, :, :output_offset[0]]
+        except Exception:
+            clear_temporal_cache_state(self)
+            raise
+
+    def forward(
+        self,
+        sample: torch.FloatTensor,
+        timestep: Optional[torch.Tensor] = None,
+        output_buffer: Optional[torch.Tensor] = None,
+    ):
         if output_buffer is None:
             output_buffer = torch.empty(
                 self.decode_output_shape(sample.shape),
                 dtype=sample.dtype, device=comfy.model_management.intermediate_device(),
             )
-        output_offset = [0]
-
-        max_chunk_size = get_max_chunk_size(sample.device)
-
-        self.run_up(0, [sample], True, timestep_shift_scale, scaled_timestep, checkpoint_fn, output_buffer, output_offset, max_chunk_size)
-
-        return output_buffer
-
-    def forward(self, *args, **kwargs):
         try:
-            return self.forward_orig(*args, **kwargs)
+            return self.forward_orig(sample, timestep=timestep, output_buffer=output_buffer)
         finally:
-            for _, module in self.named_modules():
-                #ComfyUI doesn't thread this kind of stuff today, but just incase
-                #we key on the thread to make it thread safe.
-                tid = threading.get_ident()
-                if hasattr(module, "temporal_cache_state"):
-                    module.temporal_cache_state.pop(tid, None)
+            clear_temporal_cache_state(self)
 
 
 class UNetMidBlock3D(nn.Module):
@@ -1301,6 +1387,15 @@ class VideoVAE(nn.Module):
 
     def decode_output_shape(self, input_shape):
         return self.decoder.decode_output_shape(input_shape)
+
+    def decode_start(self, x):
+        clear_temporal_cache_state(self.decoder)
+        if self.timestep_conditioning: #TODO: seed
+            x = torch.randn_like(x) * self.decode_noise_scale + (1.0 - self.decode_noise_scale) * x
+        return self.decoder.forward_start(self.per_channel_statistics.un_normalize(x), timestep=self.decode_timestep)
+
+    def decode_chunk(self, output_t: int):
+        return self.decoder.forward_resume(output_t)
 
     def decode(self, x, output_buffer=None):
         if self.timestep_conditioning: #TODO: seed

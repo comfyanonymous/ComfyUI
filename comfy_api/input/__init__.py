@@ -2,6 +2,7 @@
 from comfy_api.latest._input import (
     ImageInput,
     AudioInput,
+    ImageStreamInput,
     MaskInput,
     LatentInput,
     VideoInput,
@@ -14,6 +15,7 @@ from comfy_api.latest._input import (
 __all__ = [
     "ImageInput",
     "AudioInput",
+    "ImageStreamInput",
     "MaskInput",
     "LatentInput",
     "VideoInput",

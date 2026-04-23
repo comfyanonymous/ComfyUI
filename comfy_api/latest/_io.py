@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from comfy.samplers import CFGGuider, Sampler
     from comfy.sd import CLIP, VAE
     from comfy.sd import StyleModel as StyleModel_
-    from comfy_api.input import VideoInput, CurveInput as CurveInput_
+    from comfy_api.input import ImageStreamInput, VideoInput, CurveInput as CurveInput_
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_execution.graph_utils import ExecutionBlocker
@@ -418,6 +418,12 @@ class MultiCombo(ComfyTypeI):
 @comfytype(io_type="IMAGE")
 class Image(ComfyTypeIO):
     Type = torch.Tensor
+
+
+@comfytype(io_type="IMAGE_STREAM")
+class ImageStream(ComfyTypeIO):
+    if TYPE_CHECKING:
+        Type = ImageStreamInput
 
 
 @comfytype(io_type="WAN_CAMERA_EMBEDDING")
@@ -2203,6 +2209,7 @@ __all__ = [
     "Combo",
     "MultiCombo",
     "Image",
+    "ImageStream",
     "WanCameraEmbedding",
     "Webcam",
     "Mask",

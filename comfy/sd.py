@@ -1014,6 +1014,17 @@ class VAE:
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
 
+    def decode_output_shape(self, samples_shape):
+        self.throw_exception_if_invalid()
+        if hasattr(self.first_stage_model, "decode_output_shape"):
+            return self.first_stage_model.decode_output_shape(samples_shape)
+        raise RuntimeError("This VAE does not expose decode output shape information.")
+
+    def decode_stream_start(self, samples_in):
+        memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
+        model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
+        self.first_stage_model.decode_start(samples_in.to(device=self.device, dtype=self.vae_dtype))
+
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
         self.throw_exception_if_invalid()
         memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
