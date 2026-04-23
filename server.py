@@ -54,7 +54,7 @@ if args.enable_manager:
     import comfyui_manager
 
 
-def _make_content_disposition(filename: str) -> str:
+def _make_content_disposition(filename: str, disposition: str = "inline") -> str:
     """
     Generate RFC 8187 compliant Content-Disposition header.
     
@@ -63,13 +63,20 @@ def _make_content_disposition(filename: str) -> str:
     characters or needs special encoding.
     
     Examples:
-        ASCII: filename="test.png"
-        Unicode: filename*=utf-8''%E6%B5%8B%E8%AF%95.png
+        ASCII: inline; filename="test.png"; filename*=UTF-8''test.png
+        Unicode: inline; filename="__.png"; filename*=UTF-8''%E6%B5%8B%E8%AF%95.png
     """
     import urllib.parse
-    # Always use RFC 8187 extended notation for maximum compatibility
+    
+    # Create ASCII-safe fallback filename
+    fallback = "".join(
+        ch if 0x20 <= ord(ch) < 0x7F and ch not in {'"', '\\'} else "_"
+        for ch in filename
+    ) or "download"
+    
+    # Percent-encode the UTF-8 filename
     encoded_filename = urllib.parse.quote(filename, safe='')
-    return f"filename*=utf-8''{encoded_filename}"
+    return f"{disposition}; filename=\"{fallback}\"; filename*=UTF-8''{encoded_filename}"
 
 
 def _remove_sensitive_from_queue(queue: list) -> list:
