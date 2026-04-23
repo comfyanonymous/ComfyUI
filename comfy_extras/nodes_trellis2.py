@@ -617,7 +617,7 @@ class Trellis2Conditioning(IO.ComfyNode):
 
         for b in range(batch_size):
             item_image = image[b]
-            item_mask = mask[b]
+            item_mask = mask[b] if mask.size(0) > 1 else mask[0]
 
             img_np = (item_image.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
             mask_np = (item_mask.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
