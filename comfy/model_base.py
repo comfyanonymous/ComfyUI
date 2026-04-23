@@ -578,8 +578,8 @@ class Stable_Zero123(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None, cc_projection_weight=None, cc_projection_bias=None):
         super().__init__(model_config, model_type, device=device)
         self.cc_projection = comfy.ops.manual_cast.Linear(cc_projection_weight.shape[1], cc_projection_weight.shape[0], dtype=self.get_dtype(), device=device)
-        self.cc_projection.weight.copy_(cc_projection_weight)
-        self.cc_projection.bias.copy_(cc_projection_bias)
+        self.cc_projection.weight = torch.nn.Parameter(cc_projection_weight.clone())
+        self.cc_projection.bias = torch.nn.Parameter(cc_projection_bias.clone())
 
     def extra_conds(self, **kwargs):
         out = {}
