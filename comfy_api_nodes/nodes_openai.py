@@ -357,13 +357,18 @@ def calculate_tokens_price_image_1_5(response: OpenAIImageGenerationResponse) ->
     return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 32.0)) / 1_000_000.0
 
 
+def calculate_tokens_price_image_2(response: OpenAIImageGenerationResponse) -> float | None:
+    # https://platform.openai.com/docs/pricing - gpt-image-2: input $8/1M, output $30/1M
+    return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 30.0)) / 1_000_000.0
+
+
 class OpenAIGPTImage1(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIGPTImage1",
-            display_name="OpenAI GPT Image 2",
+            display_name="OpenAI GPT Image 1 & 1.5",
             category="api node/image/OpenAI",
             description="Generates images synchronously via OpenAI's GPT Image endpoint.",
             inputs=[
@@ -427,8 +432,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["gpt-image-1", "gpt-image-1.5", 'gpt-image-2'],
-                    default="gpt-image-2",
+                    options=["gpt-image-1", "gpt-image-1.5"],
+                    default="gpt-image-1.5",
                     optional=True,
                 ),
             ],
@@ -442,14 +447,22 @@ class OpenAIGPTImage1(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n", "model"]),
                 expr="""
                 (
-                  $ranges := {
-                    "low":    [0.011, 0.02],
-                    "medium": [0.046, 0.07],
-                    "high":   [0.167, 0.3]
-                  };
+                  $m := widgets.model;
+                  $ranges :=
+                    $contains($m, "gpt-image-1.5")
+                      ? {
+                          "low":    [0.009, 0.016],
+                          "medium": [0.037, 0.056],
+                          "high":   [0.134, 0.240]
+                        }
+                      : {
+                          "low":    [0.011, 0.020],
+                          "medium": [0.046, 0.070],
+                          "high":   [0.167, 0.300]
+                        };
                   $range := $lookup($ranges, widgets.quality);
                   $n := widgets.n;
                   ($n = 1)
@@ -486,8 +499,6 @@ class OpenAIGPTImage1(IO.ComfyNode):
         if model == "gpt-image-1":
             price_extractor = calculate_tokens_price_image_1
         elif model == "gpt-image-1.5":
-            price_extractor = calculate_tokens_price_image_1_5
-        elif model == "gpt-image-2":
             price_extractor = calculate_tokens_price_image_1_5
         else:
             raise ValueError(f"Unknown model: {model}")
@@ -562,6 +573,261 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     moderation="low",
                 ),
                 price_extractor=price_extractor,
+            )
+        return IO.NodeOutput(await validate_and_cast_response(response))
+
+
+_GPT_IMAGE_2_SIZES = [
+    "auto",
+    "1024x1024",
+    "1536x1024",
+    "1024x1536",
+    "2048x2048",
+    "2048x1152",
+    "3840x2160",
+    "2160x3840",
+]
+
+
+def _resolve_gpt_image_2_size(size: str, custom_width: int, custom_height: int) -> str:
+    if custom_width <= 0 or custom_height <= 0:
+        return size
+    w, h = custom_width, custom_height
+    if max(w, h) > 3840:
+        raise ValueError(f"Maximum edge length must be ≤ 3840px, got {max(w, h)}")
+    if w % 16 != 0 or h % 16 != 0:
+        raise ValueError(f"Both edges must be multiples of 16px, got {w}x{h}")
+    if max(w, h) / min(w, h) > 3:
+        raise ValueError(f"Long-to-short edge ratio must not exceed 3:1, got {max(w, h) / min(w, h):.2f}:1")
+    total = w * h
+    if total < 655_360 or total > 8_294_400:
+        raise ValueError(f"Total pixels must be between 655,360 and 8,294,400, got {total:,}")
+    return f"{w}x{h}"
+
+
+class OpenAIGPTImage2(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="OpenAIGPTImage2",
+            display_name="OpenAI GPT Image 2",
+            category="api node/image/OpenAI",
+            description="Generates images synchronously via OpenAI's GPT-Image-2 endpoint.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    default="",
+                    multiline=True,
+                    tooltip="Text prompt for GPT Image 2",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2**31 - 1,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="not implemented yet in backend",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "quality",
+                    default="auto",
+                    options=["auto", "low", "medium", "high"],
+                    tooltip="Image quality. 'auto' lets the model decide based on the prompt. Square images are typically fastest.",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "background",
+                    default="auto",
+                    options=["auto", "opaque"],
+                    tooltip="Background style. GPT-Image-2 does not support transparent backgrounds.",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "size",
+                    default="auto",
+                    options=_GPT_IMAGE_2_SIZES,
+                    tooltip="Output image dimensions. Ignored when custom_width and custom_height are both non-zero.",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "custom_width",
+                    default=0,
+                    min=0,
+                    max=3840,
+                    step=16,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Custom output width in pixels. Set to 0 (default) to use the size preset. When both width and height are non-zero, they override the size preset. Slider enforces multiples of 16 and max edge 3840px. Additional constraints checked at generation: ratio ≤ 3:1, total pixels 655,360–8,294,400.",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "custom_height",
+                    default=0,
+                    min=0,
+                    max=3840,
+                    step=16,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Custom output height in pixels. Set to 0 (default) to use the size preset. When both width and height are non-zero, they override the size preset. Slider enforces multiples of 16 and max edge 3840px. Additional constraints checked at generation: ratio ≤ 3:1, total pixels 655,360–8,294,400.",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "num_images",
+                    default=1,
+                    min=1,
+                    max=8,
+                    step=1,
+                    tooltip="Number of images to generate per run.",
+                    display_mode=IO.NumberDisplay.number,
+                    optional=True,
+                ),
+                IO.Image.Input(
+                    "image",
+                    tooltip="Optional reference image for image editing.",
+                    optional=True,
+                ),
+                IO.Mask.Input(
+                    "mask",
+                    tooltip="Optional mask for inpainting (white areas will be replaced).",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "model",
+                    options=["gpt-image-2"],
+                    default="gpt-image-2",
+                    tooltip="Model used for image generation.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["quality", "num_images"]),
+                expr="""
+                (
+                  $ranges := {
+                    "low":    [0.005, 0.010],
+                    "medium": [0.041, 0.060],
+                    "high":   [0.165, 0.250]
+                  };
+                  $q := widgets.quality;
+                  $n := widgets.num_images;
+                  $n := ($n != null and $n != 0) ? $n : 1;
+                  $range := $lookup($ranges, $q);
+                  $lo := $range ? $range[0] : 0.005;
+                  $hi := $range ? $range[1] : 0.250;
+                  ($n = 1)
+                    ? {"type":"range_usd","min_usd": $lo, "max_usd": $hi, "format": {"approximate": ($range ? false : true)}}
+                    : {
+                        "type":"range_usd",
+                        "min_usd": $lo,
+                        "max_usd": $hi,
+                        "format": {"approximate": ($range ? false : true), "suffix": " x " & $string($n) & "/Run"}
+                      }
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        seed: int = 0,
+        quality: str = "auto",
+        background: str = "auto",
+        image: Input.Image | None = None,
+        mask: Input.Image | None = None,
+        num_images: int = 1,
+        size: str = "auto",
+        custom_width: int = 0,
+        custom_height: int = 0,
+        model: str = "gpt-image-2",
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=False)
+
+        if mask is not None and image is None:
+            raise ValueError("Cannot use a mask without an input image")
+
+        resolved_size = _resolve_gpt_image_2_size(size, custom_width, custom_height)
+
+        if image is not None:
+            files = []
+            batch_size = image.shape[0]
+            for i in range(batch_size):
+                single_image = image[i : i + 1]
+                scaled_image = downscale_image_tensor(single_image, total_pixels=2048 * 2048).squeeze()
+
+                image_np = (scaled_image.numpy() * 255).astype(np.uint8)
+                img = Image.fromarray(image_np)
+                img_byte_arr = BytesIO()
+                img.save(img_byte_arr, format="PNG")
+                img_byte_arr.seek(0)
+
+                if batch_size == 1:
+                    files.append(("image", (f"image_{i}.png", img_byte_arr, "image/png")))
+                else:
+                    files.append(("image[]", (f"image_{i}.png", img_byte_arr, "image/png")))
+
+            if mask is not None:
+                if image.shape[0] != 1:
+                    raise Exception("Cannot use a mask with multiple image")
+                if mask.shape[1:] != image.shape[1:-1]:
+                    raise Exception("Mask and Image must be the same size")
+                _, height, width = mask.shape
+                rgba_mask = torch.zeros(height, width, 4, device="cpu")
+                rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
+
+                scaled_mask = downscale_image_tensor(rgba_mask.unsqueeze(0), total_pixels=2048 * 2048).squeeze()
+
+                mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
+                mask_img = Image.fromarray(mask_np)
+                mask_img_byte_arr = BytesIO()
+                mask_img.save(mask_img_byte_arr, format="PNG")
+                mask_img_byte_arr.seek(0)
+                files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
+
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/openai/images/edits", method="POST"),
+                response_model=OpenAIImageGenerationResponse,
+                data=OpenAIImageEditRequest(
+                    model=model,
+                    prompt=prompt,
+                    quality=quality,
+                    background=background,
+                    n=num_images,
+                    size=resolved_size,
+                    moderation="low",
+                ),
+                content_type="multipart/form-data",
+                files=files,
+                price_extractor=calculate_tokens_price_image_2,
+            )
+        else:
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/openai/images/generations", method="POST"),
+                response_model=OpenAIImageGenerationResponse,
+                data=OpenAIImageGenerationRequest(
+                    model=model,
+                    prompt=prompt,
+                    quality=quality,
+                    background=background,
+                    n=num_images,
+                    size=resolved_size,
+                    moderation="low",
+                ),
+                price_extractor=calculate_tokens_price_image_2,
             )
         return IO.NodeOutput(await validate_and_cast_response(response))
 
@@ -915,6 +1181,7 @@ class OpenAIExtension(ComfyExtension):
             OpenAIDalle2,
             OpenAIDalle3,
             OpenAIGPTImage1,
+            OpenAIGPTImage2,
             OpenAIChatNode,
             OpenAIInputFiles,
             OpenAIChatConfig,
