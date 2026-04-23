@@ -54,6 +54,24 @@ if args.enable_manager:
     import comfyui_manager
 
 
+def _make_content_disposition(filename: str) -> str:
+    """
+    Generate RFC 8187 compliant Content-Disposition header.
+    
+    According to RFC 8187, the filename parameter should use the extended notation
+    with 'filename*=' and 'utf-8'' language tag when the filename contains non-ASCII
+    characters or needs special encoding.
+    
+    Examples:
+        ASCII: filename="test.png"
+        Unicode: filename*=utf-8''%E6%B5%8B%E8%AF%95.png
+    """
+    import urllib.parse
+    # Always use RFC 8187 extended notation for maximum compatibility
+    encoded_filename = urllib.parse.quote(filename, safe='')
+    return f"filename*=utf-8''{encoded_filename}"
+
+
 def _remove_sensitive_from_queue(queue: list) -> list:
     """Remove sensitive data (index 5) from queue item tuples."""
     return [item[:5] for item in queue]
@@ -559,7 +577,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": _make_content_disposition(filename)})
 
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
@@ -579,7 +597,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": _make_content_disposition(filename)})
 
                     elif channel == 'a':
                         with Image.open(file) as img:
@@ -596,7 +614,7 @@ class PromptServer():
                             alpha_buffer.seek(0)
 
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": _make_content_disposition(filename)})
                     else:
                         # Use the content type from asset resolution if available,
                         # otherwise guess from the filename.
@@ -613,7 +631,7 @@ class PromptServer():
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Disposition": _make_content_disposition(filename),
                                 "Content-Type": content_type
                             }
                         )
