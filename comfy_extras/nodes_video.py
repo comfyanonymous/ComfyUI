@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import av
+import numpy as np
 import torch
 import folder_paths
 import json
@@ -164,6 +165,67 @@ class GetVideoComponents(io.ComfyNode):
         return io.NodeOutput(components.images, components.audio, float(components.frame_rate))
 
 
+class GetVideoLastFrame(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="GetVideoLastFrame",
+            search_aliases=["last frame", "final frame", "end frame", "tail frame"],
+            display_name="Get Video Last Frame",
+            category="image/video",
+            description="Extract the last visible frame of a video as an image.",
+            inputs=[
+                io.Video.Input("video", tooltip="Video to extract the last frame from."),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, video: Input.Video) -> io.NodeOutput:
+        # Fast path: untrimmed VideoFromFile -- seek to the tail GOP and decode only that.
+        # "Untrimmed" means container.duration matches video.get_duration(); 3ms tolerance
+        # is below one frame at 240fps, so any real trim falls through to the generic path.
+        if isinstance(video, InputImpl.VideoFromFile):
+            try:
+                reported_duration_s = video.get_duration()
+            except Exception:
+                reported_duration_s = None
+            if reported_duration_s is not None:
+                # One av.open serves as both probe and decode source. Errors here propagate --
+                # catching them would silently fall through to the generic path on real corruption.
+                with av.open(video.get_stream_source(), mode="r") as container:
+                    raw_duration_us = container.duration  # AV_TIME_BASE units (microseconds)
+                    if (
+                        raw_duration_us is not None
+                        and abs(raw_duration_us / av.time_base - reported_duration_s) < 0.003
+                    ):
+                        video_stream = next((s for s in container.streams if s.type == "video"), None)
+                        if video_stream is None:
+                            raise ValueError("Video has no video stream.")
+                        tail_window_us = 2 * av.time_base
+                        try:
+                            if raw_duration_us > tail_window_us:
+                                container.seek(raw_duration_us - tail_window_us, backward=True, any_frame=False)
+                        except Exception:
+                            container.seek(0)
+                        last_frame = None
+                        for frame in container.decode(video_stream):
+                            last_frame = frame
+                        if last_frame is None:
+                            raise ValueError("Video has no decodable frames.")
+                        arr = last_frame.to_ndarray(format="rgb24").astype(np.float32) / 255.0
+                        return io.NodeOutput(torch.from_numpy(arr).unsqueeze(0))
+
+        # Generic path: VideoFromComponents, trimmed VideoFromFile, or any other VideoInput
+        # subclass. get_components() respects any start_time/duration on VideoFromFile.
+        images = video.get_components().images
+        if images.shape[0] == 0:
+            raise ValueError("Video has no frames.")
+        return io.NodeOutput(images[-1:].clone().contiguous())
+
+
 class LoadVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -264,6 +326,7 @@ class VideoExtension(ComfyExtension):
             SaveVideo,
             CreateVideo,
             GetVideoComponents,
+            GetVideoLastFrame,
             LoadVideo,
             VideoSlice,
         ]
