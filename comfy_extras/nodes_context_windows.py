@@ -14,21 +14,22 @@ class ContextWindowsManualNode(io.ComfyNode):
             description="Manually set context windows.",
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
-                io.Int.Input("context_length", min=1, default=16, tooltip="The length of the context window.", advanced=True),
-                io.Int.Input("context_overlap", min=0, default=4, tooltip="The overlap of the context window.", advanced=True),
+                io.Int.Input("context_length", min=1, default=16, tooltip="The length of the context window."),
+                io.Int.Input("context_overlap", min=0, default=4, tooltip="The overlap of the context window."),
                 io.Combo.Input("context_schedule", options=[
                     comfy.context_windows.ContextSchedules.STATIC_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
                     ], tooltip="The stride of the context window."),
-                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules.", advanced=True),
+                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules."),
                 io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
                 io.Int.Input("dim", min=0, max=5, default=0, tooltip="The dimension to apply the context windows to."),
                 io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
-                io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window, for example setting this to '0' will use the initial start image for each window."),
+                io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window. For concat-style I2V models (e.g. Wan I2V, HunyuanVideo I2V, Cosmos I2V, SVD) the encoded start image lives in the c_concat conditioning channels; setting this to '0' will retain that start image content at sub-pos 0 of every window."),
                 io.Boolean.Input("split_conds_to_windows", default=False, tooltip="Whether to split multiple conditionings (created by ConditionCombine) to each window based on region index."),
+                io.String.Input("latent_retain_index_list", default="", tooltip="List of latent indices to retain in the noise latent itself for each window. Use for workflows where reference content (e.g. a start image) lives directly in the noise latent rather than in separate conditioning channels (e.g. inplace-style I2V like LTXV, AnimateDiff). Independent of cond_retain_index_list."),
             ],
             outputs=[
                 io.Model.Output(tooltip="The model with context windows applied during sampling."),
@@ -38,7 +39,7 @@ class ContextWindowsManualNode(io.ComfyNode):
 
     @classmethod
     def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, dim: int, freenoise: bool,
-                cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False) -> io.Model:
+                cond_retain_index_list: list[int]=[],  split_conds_to_windows: bool=False, latent_retain_index_list: list[int]=[]) -> io.Model:
         model = model.clone()
         model.model_options["context_handler"] = comfy.context_windows.IndexListContextHandler(
             context_schedule=comfy.context_windows.get_matching_context_schedule(context_schedule),
@@ -50,7 +51,8 @@ class ContextWindowsManualNode(io.ComfyNode):
             dim=dim,
             freenoise=freenoise,
             cond_retain_index_list=cond_retain_index_list,
-            split_conds_to_windows=split_conds_to_windows
+            split_conds_to_windows=split_conds_to_windows,
+            latent_retain_index_list=latent_retain_index_list
         )
         # make memory usage calculation only take into account the context window latents
         comfy.context_windows.create_prepare_sampling_wrapper(model)

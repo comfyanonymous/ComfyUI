@@ -314,7 +314,8 @@ class ContextFuseMethod:
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
-                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False):
+                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False,
+                 latent_retain_index_list: list[int]=[]):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -326,6 +327,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self.freenoise = freenoise
         self.cond_retain_index_list = [int(x.strip()) for x in cond_retain_index_list.split(",")] if cond_retain_index_list else []
         self.split_conds_to_windows = split_conds_to_windows
+        self.latent_retain_index_list = [int(x.strip()) for x in latent_retain_index_list.split(",")] if latent_retain_index_list else []
 
         self.callbacks = {}
 
@@ -415,6 +417,8 @@ class IndexListContextHandler(ContextHandlerABC):
             logging.info(f"\nUsing context windows: Context length {self.context_length} with overlap {self.context_overlap} for {total_frame_count} frames.")
             if self.cond_retain_index_list:
                 logging.info(f"Retaining original cond for indexes: {self.cond_retain_index_list}")
+            if self.latent_retain_index_list:
+                logging.info(f"Retaining original latent for indexes: {self.latent_retain_index_list}")
             return True
         logging.info(f"\nNot using context windows since context length ({self.context_length}) exceeds input frames ({total_frame_count}).")
         return False
@@ -609,7 +613,7 @@ class IndexListContextHandler(ContextHandlerABC):
             window = window_state.prepare_window(window, model)
 
             # slice the window for each modality, injecting guide frames where applicable
-            sliced, guide_frame_counts_per_modality = window_state.slice_for_window(window, self.cond_retain_index_list, device)
+            sliced, guide_frame_counts_per_modality = window_state.slice_for_window(window, self.latent_retain_index_list, device)
 
             for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EVALUATE_CONTEXT_WINDOWS, self.callbacks):
                 callback(self, model, x_in, conds, timestep, model_options, window_idx, window, model_options, device, first_device)
