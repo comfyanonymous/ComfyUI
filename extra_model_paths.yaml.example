@@ -3,6 +3,10 @@
 #config for comfyui
 #your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
 
+# When base_path is set, any standard subdirectory that exists on disk is automatically
+# registered — the explicit paths below are optional and only needed to override a
+# category or point it to a non-standard location.
+
 #comfyui:
 #     base_path: path/to/comfyui/
 #     # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads

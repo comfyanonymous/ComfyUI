@@ -32,3 +32,11 @@ def load_extra_path_config(yaml_path):
                 normalized_path = os.path.normpath(full_path)
                 logging.info("Adding extra search path {} {}".format(x, normalized_path))
                 folder_paths.add_model_folder_path(x, normalized_path, is_default)
+        if base_path:
+            for category in folder_paths.folder_names_and_paths:
+                if category in conf:
+                    continue
+                implicit_path = os.path.normpath(os.path.join(base_path, category))
+                if os.path.isdir(implicit_path):
+                    logging.info("Adding extra search path {} {}".format(category, implicit_path))
+                    folder_paths.add_model_folder_path(category, implicit_path, is_default)

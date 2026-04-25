@@ -301,3 +301,70 @@ def test_load_extra_path_config_no_base_path(
     actual_diffusion = folder_paths.folder_names_and_paths["diffusion_models"][0]
     assert len(actual_diffusion) == 1, "Should have one path for 'diffusion_models'."
     assert actual_diffusion[0] == os.path.abspath(expected_unet)
+
+
+@patch("yaml.safe_load")
+def test_load_extra_path_config_implicit_subdirs(
+    mock_yaml_load, clear_folder_paths, tmp_path
+):
+    """
+    When base_path is set and no explicit sub-paths are declared, any subdir
+    whose name matches a known category is auto-registered.
+    """
+    # Create real subdirs that match known categories
+    (tmp_path / "checkpoints").mkdir()
+    (tmp_path / "loras").mkdir()
+    (tmp_path / "unknown_dir").mkdir()  # not a registered category — should be ignored
+
+    config_data = {
+        "comfyui": {
+            "base_path": str(tmp_path),
+        }
+    }
+    mock_yaml_load.return_value = config_data
+
+    # Pre-populate only the categories we're testing so clear_folder_paths doesn't hide them
+    folder_paths.folder_names_and_paths["checkpoints"] = ([], set())
+    folder_paths.folder_names_and_paths["loras"] = ([], set())
+
+    yaml_path = str(tmp_path / "extra_model_paths.yaml")
+    with open(yaml_path, "w") as f:
+        f.write("")  # content ignored; yaml.safe_load is mocked
+
+    load_extra_path_config(yaml_path)
+
+    assert str(tmp_path / "checkpoints") in folder_paths.folder_names_and_paths["checkpoints"][0]
+    assert str(tmp_path / "loras") in folder_paths.folder_names_and_paths["loras"][0]
+    assert "unknown_dir" not in folder_paths.folder_names_and_paths
+
+
+@patch("yaml.safe_load")
+def test_load_extra_path_config_explicit_overrides_implicit(
+    mock_yaml_load, clear_folder_paths, tmp_path
+):
+    """
+    Explicit sub-path declarations take precedence; the implicit scan must not
+    double-register a category that was already declared explicitly.
+    """
+    (tmp_path / "loras").mkdir()
+    custom_loras = tmp_path / "my_custom_loras"
+    custom_loras.mkdir()
+
+    config_data = {
+        "comfyui": {
+            "base_path": str(tmp_path),
+            "loras": "my_custom_loras",  # explicit override
+        }
+    }
+    mock_yaml_load.return_value = config_data
+    folder_paths.folder_names_and_paths["loras"] = ([], set())
+
+    yaml_path = str(tmp_path / "extra_model_paths.yaml")
+    with open(yaml_path, "w") as f:
+        f.write("")
+
+    load_extra_path_config(yaml_path)
+
+    registered = folder_paths.folder_names_and_paths["loras"][0]
+    assert str(custom_loras) in registered
+    assert str(tmp_path / "loras") not in registered, "Implicit path must not override explicit"
