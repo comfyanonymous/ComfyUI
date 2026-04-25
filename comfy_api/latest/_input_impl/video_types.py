@@ -248,8 +248,8 @@ class VideoFromFile(VideoInput):
                 continue
             if self.__duration and frame.pts >= end_pts:
                 break
-            img = frame.to_ndarray(format='rgb24')  # shape: (H, W, 3)
-            img = torch.from_numpy(img) / 255.0  # shape: (H, W, 3)
+            img = frame.to_ndarray(format='gbrpf32le')  # shape: (H, W, 3)
+            img = torch.from_numpy(img)
             frames.append(img)
 
         images = torch.stack(frames) if len(frames) > 0 else torch.zeros(0, 3, 0, 0)
