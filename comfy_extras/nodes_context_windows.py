@@ -29,6 +29,7 @@ class ContextWindowsManualNode(io.ComfyNode):
                 io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
                 io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window, for example setting this to '0' will use the initial start image for each window."),
                 io.Boolean.Input("split_conds_to_windows", default=False, tooltip="Whether to split multiple conditionings (created by ConditionCombine) to each window based on region index."),
+                io.Boolean.Input("causal_window_fix", default=True, tooltip="Whether to add a causal fix frame to non-0-indexed context windows."),
             ],
             outputs=[
                 io.Model.Output(tooltip="The model with context windows applied during sampling."),
@@ -38,7 +39,7 @@ class ContextWindowsManualNode(io.ComfyNode):
 
     @classmethod
     def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, dim: int, freenoise: bool,
-                cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False) -> io.Model:
+                cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False, causal_window_fix: bool=True) -> io.Model:
         model = model.clone()
         model.model_options["context_handler"] = comfy.context_windows.IndexListContextHandler(
             context_schedule=comfy.context_windows.get_matching_context_schedule(context_schedule),
@@ -50,7 +51,8 @@ class ContextWindowsManualNode(io.ComfyNode):
             dim=dim,
             freenoise=freenoise,
             cond_retain_index_list=cond_retain_index_list,
-            split_conds_to_windows=split_conds_to_windows
+            split_conds_to_windows=split_conds_to_windows,
+            causal_window_fix=causal_window_fix,
         )
         # make memory usage calculation only take into account the context window latents
         comfy.context_windows.create_prepare_sampling_wrapper(model)
