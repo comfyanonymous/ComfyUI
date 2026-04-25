@@ -297,8 +297,8 @@ class ModelPatcher:
         self.size = comfy.model_management.module_size(self.model)
         return self.size
 
-    def get_ram_usage(self):
-        return self.model_size()
+    def model_mmap_residency(self, free=False):
+        return comfy.model_management.module_mmap_residency(self.model, free=free)
 
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
@@ -506,6 +506,10 @@ class ModelPatcher:
     def set_model_noise_refiner_patch(self, patch):
         self.set_model_patch(patch, "noise_refiner")
 
+    def set_model_middle_block_after_patch(self, patch):
+        self.set_model_patch(patch, "middle_block_after_patch")
+
+
     def set_model_rope_options(self, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t, **kwargs):
         rope_options = self.model_options["transformer_options"].get("rope_options", {})
         rope_options["scale_x"] = scale_x
@@ -599,6 +603,27 @@ class ModelPatcher:
 
         return models
 
+    def model_patches_call_function(self, function_name="cleanup", arguments={}):
+        to = self.model_options["transformer_options"]
+        if "patches" in to:
+            patches = to["patches"]
+            for name in patches:
+                patch_list = patches[name]
+                for i in range(len(patch_list)):
+                    if hasattr(patch_list[i], function_name):
+                        getattr(patch_list[i], function_name)(**arguments)
+        if "patches_replace" in to:
+            patches = to["patches_replace"]
+            for name in patches:
+                patch_list = patches[name]
+                for k in patch_list:
+                    if hasattr(patch_list[k], function_name):
+                        getattr(patch_list[k], function_name)(**arguments)
+        if "model_function_wrapper" in self.model_options:
+            wrap_func = self.model_options["model_function_wrapper"]
+            if hasattr(wrap_func, function_name):
+                getattr(wrap_func, function_name)(**arguments)
+
     def model_dtype(self):
         if hasattr(self.model, "get_dtype"):
             return self.model.get_dtype()
@@ -660,9 +685,9 @@ class ModelPatcher:
                         sd.pop(k)
             return sd
 
-    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False):
+    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False, force_cast=False):
         weight, set_func, convert_func = get_key_weight(self.model, key)
-        if key not in self.patches:
+        if key not in self.patches and not force_cast:
             return weight
 
         inplace_update = self.weight_inplace_update or inplace_update
@@ -670,7 +695,7 @@ class ModelPatcher:
         if key not in self.backup and not return_weight:
             self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight.to(device=self.offload_device, copy=inplace_update), inplace_update)
 
-        temp_dtype = comfy.model_management.lora_compute_dtype(device_to)
+        temp_dtype = comfy.model_management.lora_compute_dtype(device_to) if key in self.patches else None
         if device_to is not None:
             temp_weight = comfy.model_management.cast_to_device(weight, device_to, temp_dtype, copy=True)
         else:
@@ -678,9 +703,10 @@ class ModelPatcher:
         if convert_func is not None:
             temp_weight = convert_func(temp_weight, inplace=True)
 
-        out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
+        out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key) if key in self.patches else temp_weight
         if set_func is None:
-            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
+            if key in self.patches:
+                out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
             if return_weight:
                 return out_weight
             elif inplace_update:
@@ -1042,6 +1068,10 @@ class ModelPatcher:
 
             return self.model.model_loaded_weight_memory - current_used
 
+    def pinned_memory_size(self):
+        # Pinned memory pressure tracking is only implemented for DynamicVram loading
+        return 0
+
     def partially_unload_ram(self, ram_to_unload):
         pass
 
@@ -1062,6 +1092,7 @@ class ModelPatcher:
         return comfy.lora.calculate_weight(patches, weight, key, intermediate_dtype=intermediate_dtype)
 
     def cleanup(self):
+        self.model_patches_call_function(function_name="cleanup")
         self.clean_hooks()
         if hasattr(self.model, "current_patcher"):
             self.model.current_patcher = None
@@ -1554,7 +1585,7 @@ class ModelPatcherDynamic(ModelPatcher):
                     key = key_param_name_to_key(n, param_key)
                     if key in self.backup:
                         comfy.utils.set_attr_param(self.model, key, self.backup[key].weight)
-                    self.patch_weight_to_device(key, device_to=device_to)
+                    self.patch_weight_to_device(key, device_to=device_to, force_cast=True)
                     weight, _, _ = get_key_weight(self.model, key)
                     if weight is not None:
                         self.model.model_loaded_weight_memory += weight.numel() * weight.element_size()
@@ -1578,6 +1609,10 @@ class ModelPatcherDynamic(ModelPatcher):
                         if vbar is not None and not hasattr(m, "_v"):
                             m._v = vbar.alloc(v_weight_size)
                         allocated_size += v_weight_size
+
+                    for param in params:
+                        if param not in ("weight", "bias"):
+                            force_load_param(self, param, device_to)
 
                 else:
                     for param in params:
@@ -1630,6 +1665,16 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.model_loaded_weight_memory = 0
 
         return freed
+
+    def pinned_memory_size(self):
+        total = 0
+        loading = self._load_list(for_dynamic=True)
+        for x in loading:
+            _, _, _, _, m, _ = x
+            pin = comfy.pinned_memory.get_pin(m)
+            if pin is not None:
+                total += pin.numel() * pin.element_size()
+        return total
 
     def partially_unload_ram(self, ram_to_unload):
         loading = self._load_list(for_dynamic=True, default_device=self.offload_device)

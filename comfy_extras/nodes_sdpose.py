@@ -1,5 +1,6 @@
 import torch
 import comfy.utils
+import comfy.model_management
 import numpy as np
 import math
 import colorsys
@@ -410,7 +411,9 @@ class SDPoseDrawKeypoints(io.ComfyNode):
             pose_outputs.append(canvas)
 
         pose_outputs_np = np.stack(pose_outputs) if len(pose_outputs) > 1 else np.expand_dims(pose_outputs[0], 0)
-        final_pose_output = torch.from_numpy(pose_outputs_np).float() / 255.0
+        final_pose_output = torch.from_numpy(pose_outputs_np).to(
+            device=comfy.model_management.intermediate_device(),
+            dtype=comfy.model_management.intermediate_dtype()) / 255.0
         return io.NodeOutput(final_pose_output)
 
 class SDPoseKeypointExtractor(io.ComfyNode):
@@ -459,6 +462,27 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         model_h = int(head.heatmap_size[0]) * 4   # e.g. 192 * 4 = 768
         model_w = int(head.heatmap_size[1]) * 4   # e.g. 256 * 4 = 1024
 
+        def _resize_to_model(imgs):
+            """Aspect-preserving resize + zero-pad BHWC images to (model_h, model_w). Returns (resized_bhwc, scale, pad_top, pad_left)."""
+            h, w = imgs.shape[-3], imgs.shape[-2]
+            scale = min(model_h / h, model_w / w)
+            sh, sw = int(round(h * scale)), int(round(w * scale))
+            pt, pl = (model_h - sh) // 2, (model_w - sw) // 2
+            chw = imgs.permute(0, 3, 1, 2).float()
+            scaled = comfy.utils.common_upscale(chw, sw, sh, upscale_method="bilinear", crop="disabled")
+            padded = torch.zeros(scaled.shape[0], scaled.shape[1], model_h, model_w, dtype=scaled.dtype, device=scaled.device)
+            padded[:, :, pt:pt + sh, pl:pl + sw] = scaled
+            return padded.permute(0, 2, 3, 1), scale, pt, pl
+
+        def _remap_keypoints(kp, scale, pad_top, pad_left, offset_x=0, offset_y=0):
+            """Remap keypoints from model space back to original image space."""
+            kp = kp.copy() if isinstance(kp, np.ndarray) else np.array(kp, dtype=np.float32)
+            invalid = kp[..., 0] < 0
+            kp[..., 0] = (kp[..., 0] - pad_left) / scale + offset_x
+            kp[..., 1] = (kp[..., 1] - pad_top)  / scale + offset_y
+            kp[invalid] = -1
+            return kp
+
         def _run_on_latent(latent_batch):
             """Run one forward pass and return (keypoints_list, scores_list) for the batch."""
             nonlocal captured_feat
@@ -504,36 +528,19 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                         if x2 <= x1 or y2 <= y1:
                             continue
 
-                        crop_h_px, crop_w_px = y2 - y1, x2 - x1
                         crop = img[:, y1:y2, x1:x2, :]  # (1, crop_h, crop_w, C)
-
-                        # scale to fit inside (model_h, model_w) while preserving aspect ratio, then pad to exact model size.
-                        scale = min(model_h / crop_h_px, model_w / crop_w_px)
-                        scaled_h, scaled_w = int(round(crop_h_px * scale)), int(round(crop_w_px * scale))
-                        pad_top, pad_left  = (model_h - scaled_h) // 2, (model_w - scaled_w) // 2
-
-                        crop_chw = crop.permute(0, 3, 1, 2).float()  # BHWC → BCHW
-                        scaled = comfy.utils.common_upscale(crop_chw, scaled_w, scaled_h, upscale_method="bilinear", crop="disabled")
-                        padded = torch.zeros(1, scaled.shape[1], model_h, model_w, dtype=scaled.dtype, device=scaled.device)
-                        padded[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
-                        crop_resized = padded.permute(0, 2, 3, 1)  # BCHW → BHWC
+                        crop_resized, scale, pad_top, pad_left = _resize_to_model(crop)
 
                         latent_crop = vae.encode(crop_resized)
                         kp_batch, sc_batch = _run_on_latent(latent_crop)
-                        kp, sc = kp_batch[0], sc_batch[0]  # (K, 2), coords in model pixel space
-
-                        # remove padding offset, undo scale, offset to full-image coordinates.
-                        kp = kp.copy() if isinstance(kp, np.ndarray) else np.array(kp, dtype=np.float32)
-                        kp[..., 0] = (kp[..., 0] - pad_left) / scale + x1
-                        kp[..., 1] = (kp[..., 1] - pad_top)  / scale + y1
-
+                        kp = _remap_keypoints(kp_batch[0], scale, pad_top, pad_left, x1, y1)
                         img_keypoints.append(kp)
-                        img_scores.append(sc)
+                        img_scores.append(sc_batch[0])
                 else:
-                    # No bboxes for this image – run on the full image
-                    latent_img = vae.encode(img)
+                    img_resized, scale, pad_top, pad_left = _resize_to_model(img)
+                    latent_img = vae.encode(img_resized)
                     kp_batch, sc_batch = _run_on_latent(latent_img)
-                    img_keypoints.append(kp_batch[0])
+                    img_keypoints.append(_remap_keypoints(kp_batch[0], scale, pad_top, pad_left))
                     img_scores.append(sc_batch[0])
 
                 all_keypoints.append(img_keypoints)
@@ -541,19 +548,16 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                 pbar.update(1)
 
         else: # full-image mode, batched
-            tqdm_pbar = tqdm(total=total_images, desc="Extracting keypoints")
-            for batch_start in range(0, total_images, batch_size):
-                batch_end = min(batch_start + batch_size, total_images)
-                latent_batch = vae.encode(image[batch_start:batch_end])
-
+            for batch_start in tqdm(range(0, total_images, batch_size), desc="Extracting keypoints"):
+                batch_resized, scale, pad_top, pad_left = _resize_to_model(image[batch_start:batch_start + batch_size])
+                latent_batch = vae.encode(batch_resized)
                 kp_batch, sc_batch = _run_on_latent(latent_batch)
 
                 for kp, sc in zip(kp_batch, sc_batch):
-                    all_keypoints.append([kp])
+                    all_keypoints.append([_remap_keypoints(kp, scale, pad_top, pad_left)])
                     all_scores.append([sc])
-                    tqdm_pbar.update(1)
 
-                pbar.update(batch_end - batch_start)
+                pbar.update(len(kp_batch))
 
         openpose_frames = _to_openpose_frames(all_keypoints, all_scores, height, width)
         return io.NodeOutput(openpose_frames)
@@ -661,6 +665,7 @@ class CropByBBoxes(io.ComfyNode):
                 io.Int.Input("output_width",  default=512, min=64, max=4096, step=8, tooltip="Width each crop is resized to."),
                 io.Int.Input("output_height", default=512, min=64, max=4096, step=8, tooltip="Height each crop is resized to."),
                 io.Int.Input("padding", default=0, min=0, max=1024, step=1, tooltip="Extra padding in pixels added on each side of the bbox before cropping."),
+                io.Combo.Input("keep_aspect", options=["stretch", "pad"], default="stretch", tooltip="Whether to stretch the crop to fit the output size, or pad with black pixels to preserve aspect ratio."),
             ],
             outputs=[
                 io.Image.Output(tooltip="All crops stacked into a single image batch."),
@@ -668,7 +673,7 @@ class CropByBBoxes(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, bboxes, output_width, output_height, padding) -> io.NodeOutput:
+    def execute(cls, image, bboxes, output_width, output_height, padding, keep_aspect="stretch") -> io.NodeOutput:
         total_frames = image.shape[0]
         img_h = image.shape[1]
         img_w = image.shape[2]
@@ -716,7 +721,19 @@ class CropByBBoxes(io.ComfyNode):
                 x1, y1, x2, y2 = fb_x1, fb_y1, fb_x2, fb_y2
 
             crop_chw = frame_chw[:, :, y1:y2, x1:x2]  # (1, C, crop_h, crop_w)
-            resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="bilinear", crop="disabled")
+
+            if keep_aspect == "pad":
+                crop_h, crop_w = y2 - y1, x2 - x1
+                scale = min(output_width / crop_w, output_height / crop_h)
+                scaled_w = int(round(crop_w * scale))
+                scaled_h = int(round(crop_h * scale))
+                scaled = comfy.utils.common_upscale(crop_chw, scaled_w, scaled_h, upscale_method="bilinear", crop="disabled")
+                pad_left = (output_width  - scaled_w) // 2
+                pad_top  = (output_height - scaled_h) // 2
+                resized = torch.zeros(1, num_ch, output_height, output_width, dtype=image.dtype, device=image.device)
+                resized[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
+            else:  # "stretch"
+                resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="bilinear", crop="disabled")
             crops.append(resized)
 
         if not crops:
