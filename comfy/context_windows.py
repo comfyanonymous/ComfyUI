@@ -117,7 +117,14 @@ def slice_cond(cond_value, window: IndexListContextWindow, x_in: torch.Tensor, d
 
     # skip leading latent positions that have no corresponding conditioning (e.g. reference frames)
     if temporal_offset > 0:
-        indices = [i - temporal_offset for i in window.index_list[temporal_offset:]]
+        anchor_idx = getattr(window, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            # anchor occupies one of the no-cond positions, so skip one fewer from window.index_list
+            skip_count = temporal_offset - 1
+        else:
+            skip_count = temporal_offset
+
+        indices = [i - temporal_offset for i in window.index_list[skip_count:]]
         indices = [i for i in indices if 0 <= i]
     else:
         indices = list(window.index_list)
