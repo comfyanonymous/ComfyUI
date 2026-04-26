@@ -307,6 +307,12 @@ class CastWeightBiasOp:
 
 class disable_weight_init:
     @staticmethod
+    def _zero_init_parameter(module, name):
+        param = getattr(module, name)
+        device = None if getattr(param, "is_meta", False) else param.device
+        setattr(module, name, torch.nn.Parameter(torch.zeros(param.shape, device=device, dtype=param.dtype), requires_grad=False))
+
+    @staticmethod
     def _lazy_load_from_state_dict(module, state_dict, prefix, local_metadata,
                                    missing_keys, unexpected_keys, weight_shape,
                                    bias_shape=None):

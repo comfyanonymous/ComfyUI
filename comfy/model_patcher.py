@@ -31,6 +31,7 @@ import comfy.float
 import comfy.hooks
 import comfy.lora
 import comfy.model_management
+import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
@@ -856,7 +857,9 @@ class ModelPatcher:
                     if m.comfy_patched_weights == True:
                         continue
 
-                for param in params:
+                for param, param_value in params.items():
+                    if hasattr(m, "comfy_cast_weights") and getattr(param_value, "is_meta", False):
+                        comfy.ops.disable_weight_init._zero_init_parameter(m, param)
                     key = key_param_name_to_key(n, param)
                     self.unpin_weight(key)
                     self.patch_weight_to_device(key, device_to=device_to)
