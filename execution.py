@@ -424,6 +424,7 @@ def resolve_subgraph_outputs(subgraph_results, unique_id, output_is_list, execut
                         source_node, source_output = _result[0], _result[1]
                         node_cached = execution_list.get_cache(source_node, unique_id)
                         if node_cached.outputs[source_output]:
+                            # Output is not expected to be a list here - take only the first cached output
                             resolved_output.append(node_cached.outputs[source_output][0])
                     else:
                         resolved_output.append(_result)

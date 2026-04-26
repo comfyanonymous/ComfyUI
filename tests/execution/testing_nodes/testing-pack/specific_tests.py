@@ -388,6 +388,36 @@ class TestListExpansionResult:
             "result": (images_out, white.out(0)),
             "expand": g.finalize(),
         }
+    
+class TestListExpansionResultTruncation:
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value1": ("FLOAT",),
+                "value2": ("FLOAT",),
+                "value3": ("FLOAT",),
+            },
+        }
+    
+    RETURN_TYPES = ("IMAGE", "IMAGE")
+    FUNCTION = "result_truncation"
+    OUTPUT_IS_LIST = (False, True)
+    
+    CATEGORY = "Testing/Nodes"
+
+    def result_truncation(self, value1, value2, value3):
+        g = GraphBuilder()
+        image1 = g.node("StubConstantImage", value=value1, height=512, width=512, batch_size=1)
+        image2 = g.node("StubConstantImage", value=value2, height=512, width=512, batch_size=1)
+        image3 = g.node("StubConstantImage", value=value3, height=512, width=512, batch_size=1)
+        list_out_node = g.node("TestMakeListNode")
+        list_out_node.set_input("value1", image1.out(0))
+        list_out_node.set_input("value2", image2.out(0))
+        list_out_node.set_input("value3", image3.out(0))
+        return {
+            "result": (list_out_node.out(0), list_out_node.out(0)),
+            "expand": g.finalize(),
+        }
 
 class TestSamplingInExpansion:
     @classmethod
@@ -546,6 +576,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestDynamicDependencyCycle": TestDynamicDependencyCycle,
     "TestMixedExpansionReturns": TestMixedExpansionReturns,
     "TestListExpansionResult": TestListExpansionResult,
+    "TestListExpansionResultTruncation": TestListExpansionResultTruncation,
     "TestSamplingInExpansion": TestSamplingInExpansion,
     "TestSleep": TestSleep,
     "TestParallelSleep": TestParallelSleep,
@@ -565,6 +596,7 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestDynamicDependencyCycle": "Dynamic Dependency Cycle",
     "TestMixedExpansionReturns": "Mixed Expansion Returns",
     "TestListExpansionResult": "Output is List Expansion Result",
+    "TestListExpansionResultTruncation": "Output is List Expansion Result Truncation",
     "TestSamplingInExpansion": "Sampling In Expansion",
     "TestSleep": "Test Sleep",
     "TestParallelSleep": "Test Parallel Sleep",

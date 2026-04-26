@@ -554,6 +554,24 @@ class TestExecution:
             images_constant = result.get_images(output_constant)
             assert_constant_image(images_constant)
 
+    # Test case of a subgraph node returning a list when the parent node has output_is_list defined as false for that slot.
+    def test_expansion_result_truncation(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        test_node = g.node("TestListExpansionResultTruncation", value1=0.0, value2=0.5, value3=1.0)
+        output_trunc = g.node("SaveImage", images=test_node.out(0))
+        output = g.node("SaveImage", images=test_node.out(1))
+        result = client.run(g)
+
+        images_trunc = result.get_images(output_trunc)
+        assert len(images_trunc) == 1, "Should have 1 image"
+        assert numpy.array(images_trunc[0]).min() == 0 and numpy.array(images_trunc[0]).max() == 0, "Image should be 0.0"
+
+        images = result.get_images(output)
+        assert len(images) == 3, "Should have 3 images"
+        assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be 0.0"
+        assert numpy.array(images[1]).min() == 127 and numpy.array(images[1]).max() == 127, "Second image should be 0.5"
+        assert numpy.array(images[2]).min() == 255 and numpy.array(images[2]).max() == 255, "Third image should be 1.0"
+        
     def test_mixed_lazy_results(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         val_list = g.node("TestMakeListNode", value1=0.0, value2=0.5, value3=1.0)
