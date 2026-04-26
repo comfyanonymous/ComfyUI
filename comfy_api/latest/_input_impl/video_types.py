@@ -246,11 +246,12 @@ class VideoFromFile(VideoInput):
         container.seek(start_pts, stream=video_stream)
         image_format = 'gbrpf32le'
         for frame in container.decode(video_stream):
-            for comp in frame.format.components:
-                if comp.is_alpha:
-                    alphas = []
-                    image_format = 'gbrapf32le'
-                    break
+            if alphas is None:
+                for comp in frame.format.components:
+                    if comp.is_alpha:
+                        alphas = []
+                        image_format = 'gbrapf32le'
+                        break
 
             if frame.pts < start_pts:
                 continue
