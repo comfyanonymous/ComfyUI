@@ -390,6 +390,7 @@ class TestListExpansionResult:
         }
     
 class TestListExpansionResultTruncation:
+    @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
@@ -415,7 +416,7 @@ class TestListExpansionResultTruncation:
         list_out_node.set_input("value2", image2.out(0))
         list_out_node.set_input("value3", image3.out(0))
         return {
-            "result": (list_out_node.out(0), list_out_node.out(0)),
+            "result": (list_out_node.out(0), [list_out_node.out(0)]),
             "expand": g.finalize(),
         }
 
