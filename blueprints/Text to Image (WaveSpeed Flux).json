@@ -1,0 +1,382 @@
+{
+  "revision": 0,
+  "last_node_id": 1,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "d7434b88-8db4-4db4-833f-1f5f729bc8c3",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        400,
+        310
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        }
+      ],
+      "properties": {
+        "proxyWidgets": [
+          [
+            "-1",
+            "prompt"
+          ],
+          [
+            "-1",
+            "model"
+          ],
+          [
+            "-1",
+            "width"
+          ],
+          [
+            "-1",
+            "height"
+          ],
+          [
+            "1",
+            "seed"
+          ]
+        ],
+        "cnr_id": "comfy-core",
+        "ver": "0.18.1",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "prompt": true,
+            "model": true
+          },
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "",
+        "wavespeed-ai/flux-dev",
+        1024,
+        1024
+      ],
+      "title": "Text to Image (WaveSpeed Flux)"
+    }
+  ],
+  "links": [],
+  "version": 0.4,
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "d7434b88-8db4-4db4-833f-1f5f729bc8c3",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 1,
+          "lastLinkId": 5,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "Text to Image (WaveSpeed Flux)",
+        "inputNode": {
+          "id": -10,
+          "bounding": [
+            -350,
+            100,
+            120,
+            160
+          ]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [
+            550,
+            200,
+            120,
+            60
+          ]
+        },
+        "inputs": [
+          {
+            "id": "5a5065bf-290c-4592-a3e1-5582603295d3",
+            "name": "prompt",
+            "type": "STRING",
+            "linkIds": [
+              1
+            ],
+            "pos": [
+              -230,
+              120
+            ]
+          },
+          {
+            "id": "14adcda4-e0b1-4cfb-95e2-b468774548a2",
+            "name": "model",
+            "type": "COMBO",
+            "linkIds": [
+              2
+            ],
+            "pos": [
+              -230,
+              140
+            ]
+          },
+          {
+            "id": "aed38934-ba2f-4a5e-8829-60ce4ce7b80b",
+            "name": "width",
+            "type": "INT",
+            "linkIds": [
+              3
+            ],
+            "pos": [
+              -230,
+              160
+            ]
+          },
+          {
+            "id": "a5c7d360-174d-4ab8-b646-311fd5544e5f",
+            "name": "height",
+            "type": "INT",
+            "linkIds": [
+              4
+            ],
+            "pos": [
+              -230,
+              180
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "8654951d-aeb3-4ca1-82b1-0eebffc506ae",
+            "name": "IMAGE",
+            "type": "IMAGE",
+            "linkIds": [
+              5
+            ],
+            "localized_name": "IMAGE",
+            "pos": [
+              530,
+              220
+            ]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 1,
+            "type": "WavespeedTextToImageNode",
+            "pos": [
+              100,
+              100
+            ],
+            "size": [
+              380,
+              390
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "COMBO",
+                "widget": {
+                  "name": "model"
+                },
+                "link": 2
+              },
+              {
+                "localized_name": "prompt",
+                "name": "prompt",
+                "type": "STRING",
+                "widget": {
+                  "name": "prompt"
+                },
+                "link": 1
+              },
+              {
+                "localized_name": "width",
+                "name": "width",
+                "type": "INT",
+                "widget": {
+                  "name": "width"
+                },
+                "link": 3
+              },
+              {
+                "localized_name": "height",
+                "name": "height",
+                "type": "INT",
+                "widget": {
+                  "name": "height"
+                },
+                "link": 4
+              },
+              {
+                "localized_name": "steps",
+                "name": "steps",
+                "type": "INT",
+                "widget": {
+                  "name": "steps"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "guidance_scale",
+                "name": "guidance_scale",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "guidance_scale"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "seed",
+                "name": "seed",
+                "type": "INT",
+                "widget": {
+                  "name": "seed"
+                },
+                "link": null
+              },
+              {
+                "localized_name": "safety_checker",
+                "name": "safety_checker",
+                "type": "BOOLEAN",
+                "widget": {
+                  "name": "safety_checker"
+                },
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "IMAGE",
+                "name": "IMAGE",
+                "type": "IMAGE",
+                "links": [
+                  5
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.18.1",
+              "Node name for S&R": "WavespeedTextToImageNode",
+              "ue_properties": {
+                "widget_ue_connectable": {},
+                "input_ue_unconnectable": {}
+              }
+            },
+            "widgets_values": [
+              "wavespeed-ai/flux-dev",
+              "",
+              1024,
+              1024,
+              28,
+              3.5,
+              0,
+              "randomize",
+              true
+            ]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 1,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 1,
+            "target_slot": 1,
+            "type": "STRING"
+          },
+          {
+            "id": 2,
+            "origin_id": -10,
+            "origin_slot": 1,
+            "target_id": 1,
+            "target_slot": 0,
+            "type": "COMBO"
+          },
+          {
+            "id": 3,
+            "origin_id": -10,
+            "origin_slot": 2,
+            "target_id": 1,
+            "target_slot": 2,
+            "type": "INT"
+          },
+          {
+            "id": 4,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 1,
+            "target_slot": 3,
+            "type": "INT"
+          },
+          {
+            "id": 5,
+            "origin_id": 1,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "IMAGE"
+          }
+        ],
+        "extra": {
+          "workflowRendererVersion": "LG"
+        },
+        "category": "Image generation and editing/Text to image"
+      }
+    ]
+  },
+  "extra": {
+    "ds": {
+      "scale": 1.0,
+      "offset": [0, 0]
+    },
+    "ue_links": []
+  }
+}
