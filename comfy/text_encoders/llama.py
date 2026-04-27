@@ -648,8 +648,11 @@ class TransformerBlockGemma2(nn.Module):
 
         return x, present_key_value
 
-def _gemma_embed_scale_hook(module, input, output):
-    return (output.to(module._embed_scale.dtype) * module._embed_scale).to(output.dtype)
+def _make_scaled_embedding(ops, vocab_size, hidden_size, scale, device, dtype):
+    class ScaledEmbedding(ops.Embedding):
+        def forward(self, input_ids, out_dtype=None):
+            return super().forward(input_ids, out_dtype=out_dtype) * scale
+    return ScaledEmbedding(vocab_size, hidden_size, device=device, dtype=dtype)
 
 
 class Llama2_(nn.Module):
@@ -658,18 +661,12 @@ class Llama2_(nn.Module):
         self.config = config
         self.vocab_size = config.vocab_size
 
-        self.embed_tokens = ops.Embedding(
-            config.vocab_size,
-            config.hidden_size,
-            device=device,
-            dtype=dtype
-        )
         if self.config.transformer_type == "gemma2" or self.config.transformer_type == "gemma3":
             transformer = TransformerBlockGemma2
-            self.embed_tokens.register_buffer("_embed_scale", torch.tensor(config.hidden_size ** 0.5, dtype=dtype or self.embed_tokens.weight.dtype), persistent=False)
-            self.embed_tokens.register_forward_hook(_gemma_embed_scale_hook)
+            self.embed_tokens = _make_scaled_embedding(ops, config.vocab_size, config.hidden_size, config.hidden_size ** 0.5, device, dtype)
         else:
             transformer = TransformerBlock
+            self.embed_tokens = ops.Embedding(config.vocab_size, config.hidden_size, device=device, dtype=dtype)
 
         self.layers = nn.ModuleList([
             transformer(config, index=i, device=device, dtype=dtype, ops=ops)
