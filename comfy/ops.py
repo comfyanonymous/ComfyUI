@@ -164,6 +164,51 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
     return offload_stream
 
 
+def cast_prefetch_all(module, device):
+    prefetch_state = (module, None)
+    if (comfy.model_management.is_device_cpu(device)
+        or not comfy.model_management.device_supports_non_blocking(device)):
+        return (None, prefetch_state)
+
+    comfy_modules = []
+    for s in module.modules():
+        if hasattr(s, "_v"):
+            comfy_modules.append(s)
+
+    offload_stream = cast_modules_with_vbar(comfy_modules, None, device, None, True)
+    return (offload_stream, (module, comfy_modules))
+
+
+def uncast_prefetch_all(prefetch_state):
+    _, comfy_modules = prefetch_state
+    if comfy_modules is not None:
+        comfy.model_management.cleanup_prefetched_modules(comfy_modules)
+
+
+def prefetch_queue_pop(queue, device, module):
+    consumed = queue.pop(0)
+    if consumed is not None:
+        offload_stream, prefetch_state = consumed
+        if offload_stream is not None:
+            offload_stream.wait_stream(comfy.model_management.current_stream(device))
+        uncast_prefetch_all(prefetch_state)
+
+    active = queue[0]
+    if active is not None:
+        offload_stream, prefetch_state = active
+        assert prefetch_state[0] is module
+        if offload_stream is not None:
+            comfy.model_management.sync_stream(device, offload_stream)
+
+    prefetch = queue[1]
+    if prefetch is not None:
+        queue[1] = cast_prefetch_all(prefetch, device)
+
+
+def make_prefetch_queue(queue):
+    queue = [None, None] + queue + [None, None]
+    comfy.model_management.PREFETCH_QUEUES.append(queue)
+    return queue
 
 
 def phase_2(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant):
