@@ -141,3 +141,17 @@ def interpret_gathered_like(tensors, gathered):
     return dest_views
 
 aimdo_enabled = False
+
+extra_ram_release_callback = None
+RAM_CACHE_HEADROOM = 0
+
+def set_ram_cache_release_state(callback, headroom):
+    global extra_ram_release_callback
+    global RAM_CACHE_HEADROOM
+    extra_ram_release_callback = callback
+    RAM_CACHE_HEADROOM = max(0, int(headroom))
+
+def extra_ram_release(target):
+    if extra_ram_release_callback is None:
+        return 0
+    return extra_ram_release_callback(target)

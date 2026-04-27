@@ -55,6 +55,7 @@ total_vram = 0
 
 # Training Related State
 in_training = False
+training_fp8_bwd = False
 
 
 def get_supported_float8_types():
@@ -668,7 +669,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
 
     for i in range(len(current_loaded_models) -1, -1, -1):
         shift_model = current_loaded_models[i]
-        if shift_model.device == device:
+        if device is None or shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():
                 can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
                 shift_model.currently_used = False
@@ -678,8 +679,8 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
         i = x[-1]
         memory_to_free = 1e32
         pins_to_free = 1e32
-        if not DISABLE_SMART_MEMORY:
-            memory_to_free = memory_required - get_free_memory(device)
+        if not DISABLE_SMART_MEMORY or device is None:
+            memory_to_free = 0 if device is None else memory_required - get_free_memory(device)
             pins_to_free = pins_required - get_free_ram()
             if current_loaded_models[i].model.is_dynamic() and for_dynamic:
                 #don't actually unload dynamic models for the sake of other dynamic models
@@ -707,7 +708,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
 
     if len(unloaded_model) > 0:
         soft_empty_cache()
-    else:
+    elif device is not None:
         if vram_state != VRAMState.HIGH_VRAM:
             mem_free_total, mem_free_torch = get_free_memory(device, torch_free_too=True)
             if mem_free_torch > mem_free_total * 0.25:
@@ -1325,9 +1326,9 @@ MAX_PINNED_MEMORY = -1
 if not args.disable_pinned_memory:
     if is_nvidia() or is_amd():
         if WINDOWS:
-            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
+            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.40  # Windows limit is apparently 50%
         else:
-            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
+            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.90
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
@@ -1402,8 +1403,6 @@ def unpin_memory(tensor):
 
     if torch.cuda.cudart().cudaHostUnregister(ptr) == 0:
         TOTAL_PINNED_MEMORY -= PINNED_MEMORY.pop(ptr)
-        if len(PINNED_MEMORY) == 0:
-            TOTAL_PINNED_MEMORY = 0
         return True
     else:
         logging.warning("Unpin error.")
@@ -1733,6 +1732,21 @@ def supports_mxfp8_compute(device=None):
 
     return True
 
+def supports_fp64(device=None):
+    if is_device_mps(device):
+        return False
+
+    if is_intel_xpu():
+        return False
+
+    if is_directml_enabled():
+        return False
+
+    if is_ixuca():
+        return False
+
+    return True
+
 def extended_fp16_support():
     # TODO: check why some models work with fp16 on newer torch versions but not on older
     if torch_version_numeric < (2, 7):
@@ -1787,7 +1801,7 @@ def debug_memory_summary():
         return torch.cuda.memory.memory_summary()
     return ""
 
-class InterruptProcessingException(Exception):
+class InterruptProcessingException(BaseException):
     pass
 
 interrupt_processing_mutex = threading.RLock()

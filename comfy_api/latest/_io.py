@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from comfy.samplers import CFGGuider, Sampler
     from comfy.sd import CLIP, VAE
     from comfy.sd import StyleModel as StyleModel_
-    from comfy_api.input import VideoInput
+    from comfy_api.input import VideoInput, CurveInput as CurveInput_
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_execution.graph_utils import ExecutionBlocker
@@ -1242,8 +1242,9 @@ class BoundingBox(ComfyTypeIO):
 
 @comfytype(io_type="CURVE")
 class Curve(ComfyTypeIO):
-    CurvePoint = tuple[float, float]
-    Type = list[CurvePoint]
+    from comfy_api.input import CurvePoint
+    if TYPE_CHECKING:
+        Type = CurveInput_
 
     class Input(WidgetInput):
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
@@ -1251,6 +1252,55 @@ class Curve(ComfyTypeIO):
             super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
             if default is None:
                 self.default = [(0.0, 0.0), (1.0, 1.0)]
+
+        def as_dict(self):
+            d = super().as_dict()
+            if self.default is not None:
+                d["default"] = {"points": [list(p) for p in self.default], "interpolation": "monotone_cubic"}
+            return d
+
+
+@comfytype(io_type="HISTOGRAM")
+class Histogram(ComfyTypeIO):
+    """A histogram represented as a list of bin counts."""
+    Type = list[int]
+
+
+@comfytype(io_type="RANGE")
+class Range(ComfyTypeIO):
+    from comfy_api.input import RangeInput
+    if TYPE_CHECKING:
+        Type = RangeInput
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: dict=None,
+                     display: str=None,
+                     gradient_stops: list=None,
+                     show_midpoint: bool=None,
+                     midpoint_scale: str=None,
+                     value_min: float=None,
+                     value_max: float=None,
+                     advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = {"min": 0.0, "max": 1.0}
+            self.display = display
+            self.gradient_stops = gradient_stops
+            self.show_midpoint = show_midpoint
+            self.midpoint_scale = midpoint_scale
+            self.value_min = value_min
+            self.value_max = value_max
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "display": self.display,
+                "gradient_stops": self.gradient_stops,
+                "show_midpoint": self.show_midpoint,
+                "midpoint_scale": self.midpoint_scale,
+                "value_min": self.value_min,
+                "value_max": self.value_max,
+            })
 
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
@@ -1360,6 +1410,7 @@ class NodeInfoV1:
     price_badge: dict | None = None
     search_aliases: list[str]=None
     essentials_category: str=None
+    has_intermediate_output: bool=None
 
 
 @dataclass
@@ -1483,6 +1534,16 @@ class Schema:
     """When True, all inputs from the prompt will be passed to the node as kwargs, even if not defined in the schema."""
     essentials_category: str | None = None
     """Optional category for the Essentials tab. Path-based like category field (e.g., 'Basic', 'Image Tools/Editing')."""
+    has_intermediate_output: bool=False
+    """Flags this node as having intermediate output that should persist across page refreshes.
+
+    Nodes with this flag behave like output nodes (their UI results are cached and resent
+    to the frontend) but do NOT automatically get added to the execution list. This means
+    they will only execute if they are on the dependency path of a real output node.
+
+    Use this for nodes with interactive/operable UI regions that produce intermediate outputs
+    (e.g., Image Crop, Painter) rather than final outputs (e.g., Save Image).
+    """
 
     def validate(self):
         '''Validate the schema:
@@ -1582,6 +1643,7 @@ class Schema:
             category=self.category,
             description=self.description,
             output_node=self.is_output_node,
+            has_intermediate_output=self.has_intermediate_output,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
             dev_only=self.is_dev_only,
@@ -1873,6 +1935,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._OUTPUT_NODE
 
+    _HAS_INTERMEDIATE_OUTPUT = None
+    @final
+    @classproperty
+    def HAS_INTERMEDIATE_OUTPUT(cls):  # noqa
+        if cls._HAS_INTERMEDIATE_OUTPUT is None:
+            cls.GET_SCHEMA()
+        return cls._HAS_INTERMEDIATE_OUTPUT
+
     _INPUT_IS_LIST = None
     @final
     @classproperty
@@ -1965,6 +2035,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._API_NODE = schema.is_api_node
         if cls._OUTPUT_NODE is None:
             cls._OUTPUT_NODE = schema.is_output_node
+        if cls._HAS_INTERMEDIATE_OUTPUT is None:
+            cls._HAS_INTERMEDIATE_OUTPUT = schema.has_intermediate_output
         if cls._INPUT_IS_LIST is None:
             cls._INPUT_IS_LIST = schema.is_input_list
         if cls._NOT_IDEMPOTENT is None:
@@ -2240,5 +2312,7 @@ __all__ = [
     "PriceBadge",
     "BoundingBox",
     "Curve",
+    "Histogram",
+    "Range",
     "NodeReplace",
 ]

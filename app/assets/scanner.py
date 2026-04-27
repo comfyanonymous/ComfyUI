@@ -13,6 +13,7 @@ from app.assets.database.queries import (
     delete_references_by_ids,
     ensure_tags_exist,
     get_asset_by_hash,
+    get_reference_by_id,
     get_references_for_prefixes,
     get_unenriched_references,
     mark_references_missing_outside_prefixes,
@@ -338,6 +339,7 @@ def build_asset_specs(
                 "metadata": metadata,
                 "hash": asset_hash,
                 "mime_type": mime_type,
+                "job_id": None,
             }
         )
         tag_pool.update(tags)
@@ -426,6 +428,7 @@ def enrich_asset(
     except OSError:
         return new_level
 
+    initial_mtime_ns = get_mtime_ns(stat_p)
     rel_fname = compute_relative_filename(file_path)
     mime_type: str | None = None
     metadata = None
@@ -488,6 +491,18 @@ def enrich_asset(
                     new_level = ENRICHMENT_HASHED
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
+
+    # Optimistic guard: if the reference's mtime_ns changed since we
+    # started (e.g. ingest_existing_file updated it), our results are
+    # stale — discard them to avoid overwriting fresh registration data.
+    ref = get_reference_by_id(session, reference_id)
+    if ref is None or ref.mtime_ns != initial_mtime_ns:
+        session.rollback()
+        logging.info(
+            "Ref %s mtime changed during enrichment, discarding stale result",
+            reference_id,
+        )
+        return ENRICHMENT_STUB
 
     if extract_metadata and metadata:
         system_metadata = metadata.to_user_metadata()

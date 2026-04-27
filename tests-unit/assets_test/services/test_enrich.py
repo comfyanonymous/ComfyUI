@@ -1,9 +1,11 @@
 """Tests for asset enrichment (mime_type and hash population)."""
+import os
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.assets.database.models import Asset, AssetReference
+from app.assets.services.file_utils import get_mtime_ns
 from app.assets.scanner import (
     ENRICHMENT_HASHED,
     ENRICHMENT_METADATA,
@@ -20,6 +22,13 @@ def _create_stub_asset(
     name: str | None = None,
 ) -> tuple[Asset, AssetReference]:
     """Create a stub asset with reference for testing enrichment."""
+    # Use the real file's mtime so the optimistic guard in enrich_asset passes
+    try:
+        stat_result = os.stat(file_path, follow_symlinks=True)
+        mtime_ns = get_mtime_ns(stat_result)
+    except OSError:
+        mtime_ns = 1234567890000000000
+
     asset = Asset(
         id=asset_id,
         hash=None,
@@ -35,7 +44,7 @@ def _create_stub_asset(
         name=name or f"test-asset-{asset_id}",
         owner_id="system",
         file_path=file_path,
-        mtime_ns=1234567890000000000,
+        mtime_ns=mtime_ns,
         enrichment_level=ENRICHMENT_STUB,
     )
     session.add(ref)

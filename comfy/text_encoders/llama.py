@@ -61,6 +61,30 @@ class Mistral3Small24BConfig:
     lm_head: bool = False
 
 @dataclass
+class Ministral3_3BConfig:
+    vocab_size: int = 131072
+    hidden_size: int = 3072
+    intermediate_size: int = 9216
+    num_hidden_layers: int = 26
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 262144
+    rms_norm_eps: float = 1e-5
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = None
+    k_norm = None
+    rope_scale = None
+    final_norm: bool = True
+    lm_head: bool = False
+    stop_tokens = [2]
+
+@dataclass
 class Qwen25_3BConfig:
     vocab_size: int = 151936
     hidden_size: int = 2048
@@ -224,7 +248,7 @@ class Qwen3_8BConfig:
     k_norm = "gemma3"
     rope_scale = None
     final_norm: bool = True
-    lm_head: bool = False
+    lm_head: bool = True
     stop_tokens = [151643, 151645]
 
 @dataclass
@@ -655,6 +679,17 @@ class Llama2_(nn.Module):
         if config.lm_head:
             self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
 
+    def get_past_len(self, past_key_values):
+        return past_key_values[0][2]
+
+    def compute_freqs_cis(self, position_ids, device):
+        return precompute_freqs_cis(self.config.head_dim,
+                                    position_ids,
+                                    self.config.rope_theta,
+                                    self.config.rope_scale,
+                                    self.config.rope_dims,
+                                    device=device)
+
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[], past_key_values=None):
         if embeds is not None:
             x = embeds
@@ -667,17 +702,12 @@ class Llama2_(nn.Module):
         seq_len = x.shape[1]
         past_len = 0
         if past_key_values is not None and len(past_key_values) > 0:
-            past_len = past_key_values[0][2]
+            past_len = self.get_past_len(past_key_values)
 
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
 
-        freqs_cis = precompute_freqs_cis(self.config.head_dim,
-                                         position_ids,
-                                         self.config.rope_theta,
-                                         self.config.rope_scale,
-                                         self.config.rope_dims,
-                                         device=x.device)
+        freqs_cis = self.compute_freqs_cis(position_ids, x.device)
 
         mask = None
         if attention_mask is not None:
@@ -812,9 +842,16 @@ class BaseGenerate:
         comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
         return x
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0):
-        device = embeds.device
+    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
         model_config = self.model.config
+        past_key_values = []
+        for x in range(model_config.num_hidden_layers):
+            past_key_values.append((torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype),
+                                    torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
+        return past_key_values
+
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0):
+        device = embeds.device
 
         if stop_tokens is None:
             stop_tokens = self.model.config.stop_tokens
@@ -829,11 +866,8 @@ class BaseGenerate:
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
 
-        past_key_values = [] #kv_cache init
         max_cache_len = embeds.shape[1] + max_length
-        for x in range(model_config.num_hidden_layers):
-            past_key_values.append((torch.empty([embeds.shape[0], model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype),
-                                    torch.empty([embeds.shape[0], model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
+        past_key_values = self.init_kv_cache(embeds.shape[0], max_cache_len, device, execution_dtype)
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
@@ -844,7 +878,7 @@ class BaseGenerate:
         for step in tqdm(range(max_length), desc="Generating tokens"):
             x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values)
             logits = self.logits(x)[:, -1]
-            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
+            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
             token_id = next_token[0].item()
             generated_token_ids.append(token_id)
 
@@ -856,7 +890,7 @@ class BaseGenerate:
 
         return generated_token_ids
 
-    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
+    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True, presence_penalty=0.0):
 
         if not do_sample or temperature == 0.0:
             return torch.argmax(logits, dim=-1, keepdim=True)
@@ -866,6 +900,11 @@ class BaseGenerate:
             for i in range(logits.shape[0]):
                 for token_id in set(token_history):
                     logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
+
+        if presence_penalty is not None and presence_penalty != 0.0:
+            for i in range(logits.shape[0]):
+                for token_id in set(token_history):
+                    logits[i, token_id] -= presence_penalty
 
         if temperature != 1.0:
             logits = logits / temperature
@@ -897,6 +936,9 @@ class BaseGenerate:
 class BaseQwen3:
     def logits(self, x):
         input = x[:, -1:]
+        if self.model.config.lm_head:
+            return self.model.lm_head(input)
+
         module = self.model.embed_tokens
 
         offload_stream = None
@@ -923,6 +965,15 @@ class Mistral3Small24B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Mistral3Small24BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Ministral3_3B(BaseLlama, BaseQwen3, BaseGenerate, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Ministral3_3BConfig(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
