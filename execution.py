@@ -549,6 +549,13 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 asyncio.create_task(await_completion())
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
+            register_output_assets = getattr(server, "register_output_assets", None)
+            if register_output_assets is not None:
+                register_output_assets(
+                    output_ui,
+                    prompt_id,
+                    extra_data.get("_comfy_user_id", ""),
+                )
             ui_outputs[unique_id] = {
                 "meta": {
                     "node_id": unique_id,
