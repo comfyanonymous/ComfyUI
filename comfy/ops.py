@@ -176,6 +176,7 @@ def cast_prefetch_all(module, device):
             comfy_modules.append(s)
 
     offload_stream = cast_modules_with_vbar(comfy_modules, None, device, None, True)
+    comfy.model_management.sync_stream(device, offload_stream)
     return (offload_stream, (module, comfy_modules))
 
 
@@ -193,20 +194,13 @@ def prefetch_queue_pop(queue, device, module):
             offload_stream.wait_stream(comfy.model_management.current_stream(device))
         uncast_prefetch_all(prefetch_state)
 
-    active = queue[0]
-    if active is not None:
-        offload_stream, prefetch_state = active
-        assert prefetch_state[0] is module
-        if offload_stream is not None:
-            comfy.model_management.sync_stream(device, offload_stream)
-
-    prefetch = queue[1]
+    prefetch = queue[0]
     if prefetch is not None:
-        queue[1] = cast_prefetch_all(prefetch, device)
+        queue[0] = cast_prefetch_all(prefetch, device)
 
 
 def make_prefetch_queue(queue):
-    queue = [None, None] + queue + [None, None]
+    queue = [None] + queue + [None]
     comfy.model_management.PREFETCH_QUEUES.append(queue)
     return queue
 
