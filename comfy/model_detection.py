@@ -718,6 +718,14 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["image_model"] = "ernie"
         return dit_config
 
+    if 'detector.backbone.vision_backbone.trunk.blocks.0.attn.qkv.weight' in state_dict_keys: # SAM3 / SAM3.1
+        if 'detector.transformer.decoder.query_embed.weight' in state_dict_keys:
+            dit_config = {}
+            dit_config["image_model"] = "SAM3"
+            if 'detector.backbone.vision_backbone.propagation_convs.0.conv_1x1.weight' in state_dict_keys:
+                dit_config["image_model"] = "SAM31"
+            return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
@@ -873,6 +881,10 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     return model_config
 
 def unet_prefix_from_state_dict(state_dict):
+    # SAM3: detector.* and tracker.* at top level, no common prefix
+    if any(k.startswith("detector.") for k in state_dict) and any(k.startswith("tracker.") for k in state_dict):
+        return ""
+
     candidates = ["model.diffusion_model.", #ldm/sgm models
                   "model.model.", #audio models
                   "net.", #cosmos
