@@ -37,3 +37,11 @@ uv.lock
 gender_words_config.yaml
 /_models/
 backup.pyproject.toml
+models
+.archive/
+archived_workflows/
+comfy_extras/nodes_qwen.py.backup
+prompts.db*
+pyproject.toml.backup
+styles/
+

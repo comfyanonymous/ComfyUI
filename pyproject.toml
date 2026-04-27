@@ -23,13 +23,14 @@ dependencies = [
     "chardet>=6.0.0.post1",
     "chordparser>=0.4.2",
     "color-matcher>=0.6.0",
+    "colored>=2.3.2",
     "comfy-3d-viewers>=0.2.36",
     "comfy-aimdo>=0.2.12",
     "comfy-env>=0.2.18",
     "comfy-kitchen>=0.2.8",
     "comfyui-embedded-docs==0.4.3",
-    "comfyui-frontend-package==1.42.10",
-    "comfyui-workflow-templates==0.9.45",
+    "comfyui-frontend-package==1.42.12",
+    "comfyui-workflow-templates==0.9.57",
     "cryptography>=46.0.5",
     "cuda-bindings>=13.0.3",
     "cuda-pathfinder==1.2.2",
@@ -87,7 +88,12 @@ dependencies = [
     "nnaudio>=0.3.1",
     "numba>=0.64.0",
     "numpy>=1.25.0",
+    "nvidia-cublas-cu12>=12.9.2.10",
+    "nvidia-cuda-runtime-cu12>=12.9.79",
+    "nvidia-cudnn-cu12>=9.21.1.3",
+    "nvidia-cudnn-cu13>=9.19.0.56",
     "nvidia-ml-py>=13.590.48",
+    "nvidia-nccl-cu12>=2.30.4",
     "nvidia-vfx>=0.1.0.1",
     "olefile>=0.47",
     "ollama>=0.6.1",
@@ -156,9 +162,8 @@ dependencies = [
     "soxr>=1.0.0",
     "spandrel>=0.4.1",
     "spotipy>=2.25.1",
-    "sqlalchemy>=2.0.46",
+    "sqlalchemy>=2.0",
     "srt>=3.5.3",
-    "tensorflow[and-cuda]>=2.20.0",
     "tensorrt>=10.15.1.29",
     "tensorrt-cu13>=10.15.1.29",
     "tensorrt-cu13-bindings>=10.15.1.29",
@@ -172,7 +177,7 @@ dependencies = [
     "torchsde>=0.2.6",
     "torchvision>=0.25.0",
     "tqdm>=4.67.3",
-    "transformers>=5.5.4",
+    "transformers>=5.0.0",
     "typer>=0.24.1",
     "typer-slim>=0.24.0",
     "tzdata>=2025.3",
@@ -292,6 +297,11 @@ sageattention = { workspace = true }
 sageattention3-blackwell = { workspace = true }
 sam3 = { workspace = true }
 argostranslate = { git = "https://github.com/argosopentech/argos-translate.git" }
+
+[dependency-groups]
+dev = [
+    "nvidia-cudnn-cu12>=9.21.1.3",
+]
 # argostranslate = { git = "https://github.com/argosopentech/argos-translate.git" }
 # cstr = { git = "https://github.com/WASasquatch/cstr.git" }
 # ffmpy = { git = "https://github.com/WASasquatch/ffmpy.git" }
