@@ -331,7 +331,9 @@ def is_file_visible_to_owner(
     owner_id = (owner_id or "").strip()
     with create_session() as session:
         ref = get_reference_by_file_path(session, locator)
-        if not ref or ref.deleted_at is not None:
+        if not ref:
+            return os.path.isfile(locator)
+        if ref.deleted_at is not None:
             return False
         return ref.owner_id == "" or ref.owner_id == owner_id
 

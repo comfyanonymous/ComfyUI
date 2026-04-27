@@ -241,11 +241,6 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def _collect_output_absolute_paths(history_result: dict) -> list[str]:
-    """Extract absolute file paths for output items from a history result."""
-    return collect_output_absolute_paths(history_result)
-
-
 def prompt_worker(q, server_instance):
     current_time: float = 0.0
     cache_ram = args.cache_ram
@@ -308,8 +303,8 @@ def prompt_worker(q, server_instance):
                 logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
             if not asset_seeder.is_disabled():
-                paths = _collect_output_absolute_paths(e.history_result)
-                owner_id = extra_data.get("_comfy_user_id", "")
+                paths = collect_output_absolute_paths(e.history_result)
+                owner_id = extra_data.get(server.INTERNAL_USER_ID_KEY, "")
                 register_output_files(paths, job_id=prompt_id, owner_id=owner_id)
 
         flags = q.get_flags()

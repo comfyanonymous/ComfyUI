@@ -69,6 +69,7 @@ def _remove_sensitive_from_queue(queue: list) -> list:
 
 
 def _scrub_prompt_tuple(prompt_tuple):
+    """Remove internal-only prompt metadata before returning queue data."""
     if not isinstance(prompt_tuple, (list, tuple)):
         return prompt_tuple
     if len(prompt_tuple) <= 3 or not isinstance(prompt_tuple[3], dict):
@@ -81,6 +82,7 @@ def _scrub_prompt_tuple(prompt_tuple):
 
 
 def _scrub_history_for_response(history: dict) -> dict:
+    """Remove internal-only prompt metadata from history responses."""
     out = {}
     for prompt_id, item in history.items():
         if not isinstance(item, dict):
@@ -92,25 +94,32 @@ def _scrub_history_for_response(history: dict) -> dict:
     return out
 
 
-def _prompt_tuple_owner_id(prompt_tuple) -> str:
+def _prompt_tuple_owner_id(prompt_tuple) -> str | None:
+    """Return the stored owner id, or None for legacy prompts without one."""
     try:
         extra_data = prompt_tuple[3]
     except Exception:
         return "default"
     if not isinstance(extra_data, dict):
         return "default"
+    if INTERNAL_USER_ID_KEY not in extra_data:
+        return None
     return str(extra_data.get(INTERNAL_USER_ID_KEY) or "default")
 
 
 def _prompt_tuple_visible_to_user(prompt_tuple, owner_id: str) -> bool:
-    return _prompt_tuple_owner_id(prompt_tuple) == str(owner_id or "default")
+    """Return whether a prompt tuple is visible to the requesting user."""
+    prompt_owner_id = _prompt_tuple_owner_id(prompt_tuple)
+    return prompt_owner_id is None or prompt_owner_id == str(owner_id or "default")
 
 
 def _filter_queue_for_user(queue: list, owner_id: str) -> list:
+    """Filter queue entries to those visible to the requesting user."""
     return [item for item in queue if _prompt_tuple_visible_to_user(item, owner_id)]
 
 
 def _filter_history_for_user(history: dict, owner_id: str) -> dict:
+    """Filter history entries to those visible to the requesting user."""
     return {
         prompt_id: item
         for prompt_id, item in history.items()
@@ -120,6 +129,7 @@ def _filter_history_for_user(history: dict, owner_id: str) -> dict:
 
 
 def _slice_history(history: dict, max_items: int | None, offset: int) -> dict:
+    """Return a stable paginated slice of a history mapping."""
     items = list(history.items())
     if offset < 0 and max_items is not None:
         offset = len(items) - max_items

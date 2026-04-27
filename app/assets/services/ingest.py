@@ -193,7 +193,10 @@ def collect_output_absolute_paths(output_data: dict) -> list[str]:
                 abs_path = os.path.abspath(
                     os.path.join(base_dir, item.get("subfolder", ""), filename)
                 )
-                if os.path.commonpath((base_dir, abs_path)) != base_dir:
+                try:
+                    if os.path.commonpath((base_dir, abs_path)) != base_dir:
+                        continue
+                except ValueError:
                     continue
                 if abs_path not in seen:
                     seen.add(abs_path)
