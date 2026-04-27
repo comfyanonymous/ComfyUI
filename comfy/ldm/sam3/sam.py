@@ -40,7 +40,7 @@ class SAMAttention(nn.Module):
         q = self.q_proj(q)
         k = self.k_proj(k)
         v = self.v_proj(v)
-        return self.out_proj(optimized_attention(q, k, v, self.num_heads))
+        return self.out_proj(optimized_attention(q, k, v, self.num_heads, low_precision_attention=False))
 
 
 class TwoWayAttentionBlock(nn.Module):
@@ -179,7 +179,7 @@ class Attention(nn.Module):
         q, k, v = qkv.permute(2, 0, 3, 1, 4).unbind(dim=0)
         if self.use_rope and freqs_cis is not None:
             q, k = apply_rope(q, k, freqs_cis)
-        return self.proj(optimized_attention(q, k, v, self.num_heads, skip_reshape=True))
+        return self.proj(optimized_attention(q, k, v, self.num_heads, skip_reshape=True, low_precision_attention=False))
 
 
 class Block(nn.Module):
