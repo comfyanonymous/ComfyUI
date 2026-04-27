@@ -261,7 +261,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Depth to Video (LTX 2.0)",
+        "name": "Depth to Video (LTX 2.0)",
         "inputNode": {
           "id": -10,
           "bounding": [
