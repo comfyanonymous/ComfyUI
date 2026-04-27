@@ -280,6 +280,10 @@ class WindowingState:
         guide_entries = self.guide_entries[modality_idx]
         guide_frames = self.guide_latents[modality_idx]
         suffix_idx, overlap_info, kf_local_pos, guide_frame_count = compute_guide_overlap(guide_entries, window.index_list)
+        # Shift keyframe positions to account for causal_window_fix anchor occupying sub-pos 0.
+        anchor_idx = getattr(window, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            kf_local_pos = [p + 1 for p in kf_local_pos]
         window.guide_frames_indices = suffix_idx
         window.guide_overlap_info = overlap_info
         window.guide_kf_local_positions = kf_local_pos

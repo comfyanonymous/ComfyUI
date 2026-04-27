@@ -1166,6 +1166,10 @@ class LTXAV(BaseModel):
                 return cond_value._copy_with(cond_value.cond[:, :, :0, :])  # empty
             H, W = x_in.shape[3], x_in.shape[4]
             window_len = len(window.index_list)
+            # account for causal_window_fix anchor in coord space size
+            anchor_idx = getattr(window, 'causal_anchor_index', None)
+            if anchor_idx is not None and anchor_idx >= 0:
+                window_len += 1
             patchifier = self.diffusion_model.patchifier
             latent_coords = patchifier.get_latent_coords(window_len, H, W, 1, cond_value.cond.device)
             scale_factors = self.diffusion_model.vae_scale_factors
