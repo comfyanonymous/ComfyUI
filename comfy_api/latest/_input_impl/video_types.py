@@ -292,8 +292,8 @@ class VideoFromFile(VideoInput):
 
                         img = frame.to_ndarray(format=image_format)  # shape: (H, W, 4)
                         if frame.rotation != 0:
-                            k = int(frame.rotation // 90)
-                            img = np.rot90(img, k=-k, axes=(0, 1)).copy()
+                            k = int(round(frame.rotation // 90))
+                            img = np.rot90(img, k=k, axes=(0, 1)).copy()
                         if alphas is None:
                             frames.append(torch.from_numpy(img))
                         else:
