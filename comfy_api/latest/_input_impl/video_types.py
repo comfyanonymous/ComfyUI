@@ -284,7 +284,7 @@ class VideoFromFile(VideoInput):
 
                         if not checked_alpha:
                             for comp in frame.format.components:
-                                if comp.is_alpha:
+                                if comp.is_alpha or frame.format.name == "pal8":
                                     alphas = []
                                     image_format = 'gbrapf32le'
                                     break
