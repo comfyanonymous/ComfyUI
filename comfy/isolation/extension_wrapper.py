@@ -201,85 +201,89 @@ class ComfyNodeExtension(ExtensionBase):
         self.remote_objects: Dict[str, Any] = {}
         self._route_handlers: Dict[str, Any] = {}
         self._module: Any = None
+        self._metadata_ready = asyncio.Event()
 
     async def on_module_loaded(self, module: Any) -> None:
-        self._module = module
-
-        # Registries are initialized in host_hooks.py initialize_host_process()
-        # They auto-register via ProxiedSingleton when instantiated
-        # NO additional setup required here - if a registry is missing from host_hooks, it WILL fail
-
-        self.node_classes = getattr(module, "NODE_CLASS_MAPPINGS", {}) or {}
-        self.display_names = getattr(module, "NODE_DISPLAY_NAME_MAPPINGS", {}) or {}
-        self._register_module_routes(module)
-
-        # Register web directory with WebDirectoryProxy (child-side)
-        web_dir_attr = getattr(module, "WEB_DIRECTORY", None)
-        if web_dir_attr is not None:
-            module_dir = os.path.dirname(os.path.abspath(module.__file__))
-            web_dir_path = os.path.abspath(os.path.join(module_dir, web_dir_attr))
-            ext_name = _read_extension_name(module_dir)
-
-            # If web dir is empty, run the copy step that prestartup_script.py did
-            _run_prestartup_web_copy(module, module_dir, web_dir_path)
-
-            if os.path.isdir(web_dir_path) and any(os.scandir(web_dir_path)):
-                from comfy.isolation.proxies.web_directory_proxy import WebDirectoryProxy
-                WebDirectoryProxy.register_web_dir(ext_name, web_dir_path)
-
         try:
-            from comfy_api.latest import ComfyExtension
+            self._module = module
 
-            for name, obj in inspect.getmembers(module):
-                if not (
-                    inspect.isclass(obj)
-                    and issubclass(obj, ComfyExtension)
-                    and obj is not ComfyExtension
-                ):
-                    continue
-                if not obj.__module__.startswith(module.__name__):
-                    continue
-                try:
-                    ext_instance = obj()
-                    try:
-                        await asyncio.wait_for(
-                            ext_instance.on_load(), timeout=V3_DISCOVERY_TIMEOUT
-                        )
-                    except asyncio.TimeoutError:
-                        logger.error(
-                            "%s V3 Extension %s timed out in on_load()",
-                            LOG_PREFIX,
-                            name,
-                        )
+            # Registries are initialized in host_hooks.py initialize_host_process()
+            # They auto-register via ProxiedSingleton when instantiated
+            # NO additional setup required here - if a registry is missing from host_hooks, it WILL fail
+
+            self.node_classes = getattr(module, "NODE_CLASS_MAPPINGS", {}) or {}
+            self.display_names = getattr(module, "NODE_DISPLAY_NAME_MAPPINGS", {}) or {}
+            self._register_module_routes(module)
+
+            # Register web directory with WebDirectoryProxy (child-side)
+            web_dir_attr = getattr(module, "WEB_DIRECTORY", None)
+            if web_dir_attr is not None:
+                module_dir = os.path.dirname(os.path.abspath(module.__file__))
+                web_dir_path = os.path.abspath(os.path.join(module_dir, web_dir_attr))
+                ext_name = _read_extension_name(module_dir)
+
+                # If web dir is empty, run the copy step that prestartup_script.py did
+                _run_prestartup_web_copy(module, module_dir, web_dir_path)
+
+                if os.path.isdir(web_dir_path) and any(os.scandir(web_dir_path)):
+                    from comfy.isolation.proxies.web_directory_proxy import WebDirectoryProxy
+                    WebDirectoryProxy.register_web_dir(ext_name, web_dir_path)
+
+            try:
+                from comfy_api.latest import ComfyExtension
+
+                for name, obj in inspect.getmembers(module):
+                    if not (
+                        inspect.isclass(obj)
+                        and issubclass(obj, ComfyExtension)
+                        and obj is not ComfyExtension
+                    ):
+                        continue
+                    if not obj.__module__.startswith(module.__name__):
                         continue
                     try:
-                        v3_nodes = await asyncio.wait_for(
-                            ext_instance.get_node_list(), timeout=V3_DISCOVERY_TIMEOUT
-                        )
-                    except asyncio.TimeoutError:
-                        logger.error(
-                            "%s V3 Extension %s timed out in get_node_list()",
-                            LOG_PREFIX,
-                            name,
-                        )
-                        continue
-                    for node_cls in v3_nodes:
-                        if hasattr(node_cls, "GET_SCHEMA"):
-                            schema = node_cls.GET_SCHEMA()
-                            self.node_classes[schema.node_id] = node_cls
-                            if schema.display_name:
-                                self.display_names[schema.node_id] = schema.display_name
-                except Exception as e:
-                    logger.error("%s V3 Extension %s failed: %s", LOG_PREFIX, name, e)
-        except ImportError:
-            pass
+                        ext_instance = obj()
+                        try:
+                            await asyncio.wait_for(
+                                ext_instance.on_load(), timeout=V3_DISCOVERY_TIMEOUT
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(
+                                "%s V3 Extension %s timed out in on_load()",
+                                LOG_PREFIX,
+                                name,
+                            )
+                            continue
+                        try:
+                            v3_nodes = await asyncio.wait_for(
+                                ext_instance.get_node_list(), timeout=V3_DISCOVERY_TIMEOUT
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(
+                                "%s V3 Extension %s timed out in get_node_list()",
+                                LOG_PREFIX,
+                                name,
+                            )
+                            continue
+                        for node_cls in v3_nodes:
+                            if hasattr(node_cls, "GET_SCHEMA"):
+                                schema = node_cls.GET_SCHEMA()
+                                self.node_classes[schema.node_id] = node_cls
+                                if schema.display_name:
+                                    self.display_names[schema.node_id] = schema.display_name
+                    except Exception as e:
+                        logger.error("%s V3 Extension %s failed: %s", LOG_PREFIX, name, e)
+            except ImportError:
+                pass
 
-        module_name = getattr(module, "__name__", "isolated_nodes")
-        for node_cls in self.node_classes.values():
-            if hasattr(node_cls, "__module__") and "/" in str(node_cls.__module__):
-                node_cls.__module__ = module_name
+            module_name = getattr(module, "__name__", "isolated_nodes")
+            for node_cls in self.node_classes.values():
+                if hasattr(node_cls, "__module__") and "/" in str(node_cls.__module__):
+                    node_cls.__module__ = module_name
 
-        self.node_instances = {}
+            self.node_instances = {}
+        finally:
+            self._metadata_ready.set()
 
     def _register_module_routes(self, module: Any) -> None:
         """Bridge legacy module-level ROUTES declarations into isolated routing."""
@@ -331,12 +335,18 @@ class ComfyNodeExtension(ExtensionBase):
             logger.info("%s buffered legacy route %s %s", LOG_PREFIX, method, path)
 
     async def list_nodes(self) -> Dict[str, str]:
+        await asyncio.wait_for(
+            self._metadata_ready.wait(), timeout=V3_DISCOVERY_TIMEOUT
+        )
         return {name: self.display_names.get(name, name) for name in self.node_classes}
 
     async def get_node_info(self, node_name: str) -> Dict[str, Any]:
         return await self.get_node_details(node_name)
 
     async def get_node_details(self, node_name: str) -> Dict[str, Any]:
+        await asyncio.wait_for(
+            self._metadata_ready.wait(), timeout=V3_DISCOVERY_TIMEOUT
+        )
         node_cls = self._get_node_class(node_name)
         is_v3 = issubclass(node_cls, _ComfyNodeInternal)
 

@@ -11,6 +11,12 @@ CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
+if not IS_PYISOLATE_CHILD:
+    python_scripts_dir = os.path.dirname(os.path.realpath(sys.executable))
+    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    if python_scripts_dir and python_scripts_dir not in path_entries:
+        os.environ["PATH"] = os.pathsep.join([python_scripts_dir, *path_entries])
+
 IS_PRIMARY_PROCESS = (not IS_PYISOLATE_CHILD) and __name__ == "__main__"
 
 import comfy.options
