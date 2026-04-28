@@ -31,7 +31,6 @@ from contextlib import nullcontext
 import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
-import comfy_aimdo.model_vbar
 import comfy_aimdo.vram_buffer
 
 class VRAMState(Enum):
@@ -1185,7 +1184,6 @@ STREAM_CAST_BUFFERS = {}
 LARGEST_CASTED_WEIGHT = (None, 0)
 STREAM_AIMDO_CAST_BUFFERS = {}
 LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
-PREFETCH_QUEUES = []
 
 DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
 
@@ -1228,31 +1226,9 @@ def get_aimdo_cast_buffer(offload_stream, device):
         STREAM_AIMDO_CAST_BUFFERS[offload_stream] = cast_buffer
 
     return cast_buffer
-
-
-def cleanup_prefetched_modules(comfy_modules):
-    for s in comfy_modules:
-        prefetch = getattr(s, "_prefetch", None)
-        if prefetch is None:
-            continue
-        if prefetch["signature"] is not None:
-            comfy_aimdo.model_vbar.vbar_unpin(s._v)
-        delattr(s, "_prefetch")
-
-
-def cleanup_prefetch_queue(queue):
-    for entry in queue:
-        if entry is None or not isinstance(entry, tuple):
-            continue
-        _, prefetch_state = entry
-        comfy_modules = prefetch_state[1]
-        if comfy_modules is not None:
-            cleanup_prefetched_modules(comfy_modules)
-
 def reset_cast_buffers():
     global LARGEST_CASTED_WEIGHT
     global LARGEST_AIMDO_CASTED_WEIGHT
-    global PREFETCH_QUEUES
 
     LARGEST_CASTED_WEIGHT = (None, 0)
     LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
@@ -1260,10 +1236,6 @@ def reset_cast_buffers():
         if offload_stream is not None:
             offload_stream.synchronize()
     synchronize()
-
-    for queue in PREFETCH_QUEUES:
-        cleanup_prefetch_queue(queue)
-    PREFETCH_QUEUES = []
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()

@@ -15,6 +15,7 @@ import torch
 from comfy.cli_args import args
 import comfy.memory_management
 import comfy.model_management
+import comfy.model_prefetch
 import comfy_aimdo.model_vbar
 
 from latent_preview import set_preview_method
@@ -537,6 +538,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     if args.verbose == "DEBUG":
                         comfy_aimdo.control.analyze()
                     comfy.model_management.reset_cast_buffers()
+                    comfy.model_prefetch.cleanup_prefetch_queues()
                     comfy_aimdo.model_vbar.vbars_reset_watermark_limits()
 
             if has_pending_tasks:

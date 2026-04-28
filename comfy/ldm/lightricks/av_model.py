@@ -16,7 +16,7 @@ from comfy.ldm.lightricks.model import (
 from comfy.ldm.lightricks.symmetric_patchifier import AudioPatchifier
 from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
 import comfy.ldm.common_dit
-import comfy.ops
+import comfy.model_prefetch
 
 class CompressedTimestep:
     """Store video timestep embeddings in compressed form using per-frame indexing."""
@@ -908,11 +908,11 @@ class LTXAVModel(LTXVModel):
         """Process transformer blocks for LTXAV."""
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
-        prefetch_queue = comfy.ops.make_prefetch_queue(list(self.transformer_blocks))
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.transformer_blocks), vx.device)
 
         # Process transformer blocks
         for i, block in enumerate(self.transformer_blocks):
-            comfy.ops.prefetch_queue_pop(prefetch_queue, vx.device, block)
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, vx.device, block)
             if ("double_block", i) in blocks_replace:
 
                 def block_wrap(args):
@@ -985,7 +985,7 @@ class LTXAVModel(LTXVModel):
                     a_prompt_timestep=a_prompt_timestep,
                 )
 
-        comfy.ops.prefetch_queue_pop(prefetch_queue, vx.device, None)
+        comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, vx.device, None)
 
         return [vx, ax]
 
