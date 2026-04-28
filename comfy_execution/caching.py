@@ -5,6 +5,7 @@ import psutil
 import time
 import torch
 from typing import Sequence, Mapping, Dict
+from comfy.model_patcher import ModelPatcher
 from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod
 
@@ -544,6 +545,9 @@ class RAMPressureCache(LRUCache):
                         scan_list_for_ram_usage(output)
                     elif isinstance(output, torch.Tensor) and output.device.type == 'cpu':
                         ram_usage += output.numel() * output.element_size()
+                    elif isinstance(output, ModelPatcher) and self.used_generation[key] != self.generation:
+                        #old ModelPatchers are the first to go
+                        ram_usage = 1e30
             scan_list_for_ram_usage(cache_entry.outputs)
 
             oom_score *= ram_usage
