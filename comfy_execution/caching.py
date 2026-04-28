@@ -523,13 +523,15 @@ class RAMPressureCache(LRUCache):
         self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
         super().set_local(node_id, value)
 
-    def ram_release(self, target):
+    def ram_release(self, target, free_active=False):
         if psutil.virtual_memory().available >= target:
             return
 
         clean_list = []
 
         for key, cache_entry in self.cache.items():
+            if not free_active and self.used_generation[key] == self.generation:
+                continue
             oom_score =  RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
 
             ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
