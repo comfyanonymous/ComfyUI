@@ -1,0 +1,22 @@
+{
+  "1": {
+    "class_type": "CondaSealedLatentEcho",
+    "inputs": {}
+  },
+  "2": {
+    "class_type": "CondaSealedOpenWeatherDataset",
+    "inputs": {}
+  },
+  "3": {
+    "class_type": "CondaSealedRuntimeProbe",
+    "inputs": {}
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {}
+  },
+  "5": {
+    "class_type": "ProxyTestCondaSealedWorker",
+    "inputs": {}
+  }
+}

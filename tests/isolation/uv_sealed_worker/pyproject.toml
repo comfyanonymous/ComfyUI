@@ -1,0 +1,11 @@
+[project]
+name = "comfyui-toolkit-uv-sealed-worker"
+version = "0.1.0"
+dependencies = ["boltons"]
+
+[tool.comfy.isolation]
+can_isolate = true
+share_torch = false
+package_manager = "uv"
+execution_model = "sealed_worker"
+standalone = true

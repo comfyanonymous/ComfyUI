@@ -373,7 +373,7 @@ AMD_ENABLE_MIOPEN_ENV = 'COMFYUI_ENABLE_MIOPEN'
 
 try:
     if is_amd():
-        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName.split(':')[0]
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
         if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
             if os.getenv(AMD_ENABLE_MIOPEN_ENV) != '1':
                 torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
@@ -498,6 +498,9 @@ except:
 
 current_loaded_models = []
 
+def _isolation_mode_enabled():
+    return args.use_process_isolation or os.environ.get("PYISOLATE_CHILD") == "1"
+
 def module_size(module):
     module_mem = 0
     sd = module.state_dict()
@@ -604,8 +607,9 @@ class LoadedModel:
                 if freed >= memory_to_free:
                     return False
         self.model.detach(unpatch_weights)
-        self.model_finalizer.detach()
-        self.model_finalizer = None
+        if self.model_finalizer is not None:
+            self.model_finalizer.detach()
+            self.model_finalizer = None
         self.real_model = None
         return True
 
@@ -619,8 +623,15 @@ class LoadedModel:
         if self._patcher_finalizer is not None:
             self._patcher_finalizer.detach()
 
+    def dead_state(self):
+        model_ref_gone = self.model is None
+        real_model_ref = self.real_model
+        real_model_ref_gone = callable(real_model_ref) and real_model_ref() is None
+        return model_ref_gone, real_model_ref_gone
+
     def is_dead(self):
-        return self.real_model() is not None and self.model is None
+        model_ref_gone, real_model_ref_gone = self.dead_state()
+        return model_ref_gone or real_model_ref_gone
 
 
 def use_more_memory(extra_memory, loaded_models, device):
@@ -666,6 +677,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
     unloaded_model = []
     can_unload = []
     unloaded_models = []
+    isolation_active = _isolation_mode_enabled()
 
     for i in range(len(current_loaded_models) -1, -1, -1):
         shift_model = current_loaded_models[i]
@@ -673,6 +685,17 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
             if shift_model not in keep_loaded and not shift_model.is_dead():
                 can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
                 shift_model.currently_used = False
+
+    if can_unload and isolation_active:
+        try:
+            from pyisolate import flush_tensor_keeper  # type: ignore[attr-defined]
+        except Exception:
+            flush_tensor_keeper = None
+        if callable(flush_tensor_keeper):
+            flushed = flush_tensor_keeper()
+            if flushed > 0:
+                logging.debug("][ MM:tensor_keeper_flush | released=%d", flushed)
+                gc.collect()
 
     can_unload_sorted = sorted(can_unload)
     for x in can_unload_sorted:
@@ -704,7 +727,13 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
             logging.debug(f"RAM Unloading {current_loaded_models[i].model.model.__class__.__name__}")
 
     for i in sorted(unloaded_model, reverse=True):
-        unloaded_models.append(current_loaded_models.pop(i))
+        unloaded = current_loaded_models.pop(i)
+        model_obj = unloaded.model
+        if model_obj is not None:
+            cleanup = getattr(model_obj, "cleanup", None)
+            if callable(cleanup):
+                cleanup()
+        unloaded_models.append(unloaded)
 
     if len(unloaded_model) > 0:
         soft_empty_cache()
@@ -763,7 +792,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         for i in to_unload:
             model_to_unload = current_loaded_models.pop(i)
             model_to_unload.model.detach(unpatch_all=False)
-            model_to_unload.model_finalizer.detach()
+            if model_to_unload.model_finalizer is not None:
+                model_to_unload.model_finalizer.detach()
+                model_to_unload.model_finalizer = None
 
 
     total_memory_required = {}
@@ -836,25 +867,62 @@ def loaded_models(only_currently_used=False):
 
 
 def cleanup_models_gc():
-    do_gc = False
-
     reset_cast_buffers()
+    if not _isolation_mode_enabled():
+        dead_found = False
+        for i in range(len(current_loaded_models)):
+            if current_loaded_models[i].is_dead():
+                dead_found = True
+                break
 
+        if dead_found:
+            logging.info("Potential memory leak detected with model NoneType, doing a full garbage collect, for maximum performance avoid circular references in the model code.")
+            gc.collect()
+            soft_empty_cache()
+
+            for i in range(len(current_loaded_models) - 1, -1, -1):
+                cur = current_loaded_models[i]
+                if cur.is_dead():
+                    logging.warning("WARNING, memory leak with model NoneType. Please make sure it is not being referenced from somewhere.")
+                    leaked = current_loaded_models.pop(i)
+                    model_obj = getattr(leaked, "model", None)
+                    if model_obj is not None:
+                        cleanup = getattr(model_obj, "cleanup", None)
+                        if callable(cleanup):
+                            cleanup()
+        return
+
+    dead_found = False
+    has_real_model_leak = False
     for i in range(len(current_loaded_models)):
-        cur = current_loaded_models[i]
-        if cur.is_dead():
-            logging.info("Potential memory leak detected with model {}, doing a full garbage collect, for maximum performance avoid circular references in the model code.".format(cur.real_model().__class__.__name__))
-            do_gc = True
-            break
+        model_ref_gone, real_model_ref_gone = current_loaded_models[i].dead_state()
+        if model_ref_gone or real_model_ref_gone:
+            dead_found = True
+            if real_model_ref_gone and not model_ref_gone:
+                has_real_model_leak = True
 
-    if do_gc:
+    if dead_found:
+        if has_real_model_leak:
+            logging.info("Potential memory leak detected with model NoneType, doing a full garbage collect, for maximum performance avoid circular references in the model code.")
+        else:
+            logging.debug("Cleaning stale loaded-model entries with released patcher references.")
         gc.collect()
         soft_empty_cache()
 
-        for i in range(len(current_loaded_models)):
+        for i in range(len(current_loaded_models) - 1, -1, -1):
             cur = current_loaded_models[i]
-            if cur.is_dead():
-                logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
+            model_ref_gone, real_model_ref_gone = cur.dead_state()
+            if model_ref_gone or real_model_ref_gone:
+                if real_model_ref_gone and not model_ref_gone:
+                    logging.warning("WARNING, memory leak with model NoneType. Please make sure it is not being referenced from somewhere.")
+                else:
+                    logging.debug("Cleaning stale loaded-model entry with released patcher reference.")
+                leaked = current_loaded_models.pop(i)
+                model_obj = getattr(leaked, "model", None)
+                if model_obj is not None:
+                    cleanup = getattr(model_obj, "cleanup", None)
+                    if callable(cleanup):
+                        cleanup()
 
 
 def archive_model_dtypes(model):
@@ -868,11 +936,20 @@ def archive_model_dtypes(model):
 def cleanup_models():
     to_delete = []
     for i in range(len(current_loaded_models)):
-        if current_loaded_models[i].real_model() is None:
+        real_model_ref = current_loaded_models[i].real_model
+        if real_model_ref is None:
+            to_delete = [i] + to_delete
+            continue
+        if callable(real_model_ref) and real_model_ref() is None:
             to_delete = [i] + to_delete
 
     for i in to_delete:
         x = current_loaded_models.pop(i)
+        model_obj = getattr(x, "model", None)
+        if model_obj is not None:
+            cleanup = getattr(model_obj, "cleanup", None)
+            if callable(cleanup):
+                cleanup()
         del x
 
 def dtype_size(dtype):
