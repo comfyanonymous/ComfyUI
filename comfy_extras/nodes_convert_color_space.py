@@ -92,7 +92,7 @@ class ConvertColorSpace(IO.ComfyNode):
 
         img_tensor = torch.cat([rgb, alpha], dim=-1) if has_alpha else rgb
 
-        return IO.NodeOutput(images=img_tensor)
+        return IO.NodeOutput(img_tensor)
 
 
 class ConvertColorSpaceExtension(ComfyExtension):
