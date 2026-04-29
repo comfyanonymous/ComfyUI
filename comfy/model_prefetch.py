@@ -57,8 +57,9 @@ def prefetch_queue_pop(queue, device, module):
         comfy.model_management.sync_stream(device, offload_stream)
         queue[0] = (offload_stream, (prefetch, comfy_modules))
 
-def make_prefetch_queue(queue, device):
-    if (comfy.model_management.NUM_STREAMS == 0
+def make_prefetch_queue(queue, device, transformer_options):
+    if (not transformer_options.get("prefetch_dynamic_vbars", False)
+        or comfy.model_management.NUM_STREAMS == 0
         or comfy.model_management.is_device_cpu(device)
         or not comfy.model_management.device_supports_non_blocking(device)):
         return None

@@ -908,7 +908,7 @@ class LTXAVModel(LTXVModel):
         """Process transformer blocks for LTXAV."""
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
-        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.transformer_blocks), vx.device)
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.transformer_blocks), vx.device, transformer_options)
 
         # Process transformer blocks
         for i, block in enumerate(self.transformer_blocks):
