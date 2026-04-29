@@ -5,6 +5,7 @@ import psutil
 import time
 import torch
 from typing import Sequence, Mapping, Dict
+from comfy.model_patcher import ModelPatcher
 from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod
 
@@ -523,13 +524,15 @@ class RAMPressureCache(LRUCache):
         self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
         super().set_local(node_id, value)
 
-    def ram_release(self, target):
+    def ram_release(self, target, free_active=False):
         if psutil.virtual_memory().available >= target:
             return
 
         clean_list = []
 
         for key, cache_entry in self.cache.items():
+            if not free_active and self.used_generation[key] == self.generation:
+                continue
             oom_score =  RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
 
             ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
@@ -542,6 +545,9 @@ class RAMPressureCache(LRUCache):
                         scan_list_for_ram_usage(output)
                     elif isinstance(output, torch.Tensor) and output.device.type == 'cpu':
                         ram_usage += output.numel() * output.element_size()
+                    elif isinstance(output, ModelPatcher) and self.used_generation[key] != self.generation:
+                        #old ModelPatchers are the first to go
+                        ram_usage = 1e30
             scan_list_for_ram_usage(cache_entry.outputs)
 
             oom_score *= ram_usage
