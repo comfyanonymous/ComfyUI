@@ -346,7 +346,11 @@ class LTXVAddGuide(io.ComfyNode):
         # For mid-video multi-frame guides, prepend+strip a throwaway first frame so the VAE's "first latent = 1 pixel frame" asymmetry lands on the discarded slot
         time_scale_factor = scale_factors[0]
         num_frames_to_keep = ((image.shape[0] - 1) // time_scale_factor) * time_scale_factor + 1
-        causal_fix = frame_idx == 0 or num_frames_to_keep == 1
+        resolved_frame_idx = frame_idx
+        if frame_idx < 0:
+            _, num_keyframes = get_keyframe_idxs(positive)
+            resolved_frame_idx = max((latent_length - num_keyframes - 1) * time_scale_factor + 1 + frame_idx, 0)
+        causal_fix = resolved_frame_idx == 0 or num_frames_to_keep == 1
 
         if not causal_fix:
             image = torch.cat([image[:1], image], dim=0)
