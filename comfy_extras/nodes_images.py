@@ -1042,13 +1042,14 @@ class SaveImageAdvanced(IO.ComfyNode):
             # file pathing
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
 
-            file = f"{filename_with_batch_num}_{counter:05}.{file_format}"
+            file = f"{filename_with_batch_num}_{counter:05}_.{file_format}"
             file_path = os.path.join(full_output_folder, file)
 
             if file_format in ["png", "exr", "avif"]:
 
                 if bit_depth == "32-bit":
                     img_np = img_tensor.cpu().numpy().astype(np.float32)
+                    img_np = img_np[:, :, [1, 2, 0, 3]] if has_alpha else img_np[:, :,[1, 2, 0]]
                     av_fmt = 'gbrapf32le' if has_alpha else 'gbrpf32le'
                 elif bit_depth in ["10-bit", "12-bit", "16-bit"]:
                     img_np = (img_tensor * 65535.0).clamp(0, 65535).to(torch.int32).cpu().numpy().astype(np.uint16)
@@ -1112,11 +1113,6 @@ class SaveImageAdvanced(IO.ComfyNode):
                 stream.height = height
                 stream.time_base = Fraction(1, 1)
 
-                is_planar = av_fmt.startswith('gbrp') or 'p' in av_fmt.split('rgba')[-1]
-                if is_planar:
-                    if av_fmt.startswith('gbr'):
-                        img_np = img_np[:, :, [1, 2, 0, 3]] if has_alpha else img_np[:, :, [1, 2, 0]]
-
                 try:
                     frame = av.VideoFrame.from_ndarray(img_np, format=av_fmt)
                 except ValueError:
@@ -1138,7 +1134,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                     frame.time_base = stream.time_base
                     if file_format == "avif":
                         frame.color_range = 2
-                        frame.colorspace = 1
+                        frame.colorspace = stream.codec_context.colorspace
 
                 for packet in stream.encode(frame):
                     container.mux(packet)
