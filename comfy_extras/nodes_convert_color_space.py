@@ -42,8 +42,8 @@ class ConvertColorSpace(IO.ComfyNode):
             category="image/color",
             inputs=[
                 IO.Image.Input("images"),
-                IO.Combo.Input("source_color_space", options=["sRGB", "Linear", "HDR (Rec.2020)", "Grayscale"], default="sRGB"),
-                IO.Combo.Input("target_color_space", options=["sRGB", "Linear", "HDR (Rec.2020)", "Grayscale"], default="Linear"),
+                IO.Combo.Input("source_color_space", options=["sRGB", "Linear", "HDR Display (PQ/Rec.2020)", "Grayscale"], default="sRGB"),
+                IO.Combo.Input("target_color_space", options=["sRGB", "Linear", "HDR Display (PQ/Rec.2020)", "Grayscale"], default="Linear"),
             ],
             outputs=[
                 IO.Image.Output("images"),
@@ -69,7 +69,7 @@ class ConvertColorSpace(IO.ComfyNode):
             rgb = luma.unsqueeze(-1).repeat(1, 1, 1, 3)
             rgb = srgb_to_linear(rgb)
 
-        elif source_color_space == "HDR (Rec.2020)":
+        elif source_color_space == "HDR Display (PQ/Rec.2020)":
             # assuming Linear Rec.2020 input. Convert to Linear Rec.709
             matrix = M_2020_to_709.to(device)
             rgb = pq_to_linear(rgb)
@@ -85,7 +85,7 @@ class ConvertColorSpace(IO.ComfyNode):
             rgb = luma.unsqueeze(-1).repeat(1, 1, 1, 3)
             rgb = linear_to_srgb(rgb) # reapply srgb gamma
 
-        elif target_color_space == "HDR (Rec.2020)":
+        elif target_color_space == "HDR Display (PQ/Rec.2020)":
             # convert Gamut from Linear Rec.709 to Linear Rec.2020
             rgb = torch.matmul(rgb, M_709_to_2020.to(device).T).clamp(min=0)
             rgb = linear_to_pq(rgb)

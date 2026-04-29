@@ -963,12 +963,6 @@ class SaveImageAdvanced(IO.ComfyNode):
                     default="ComfyUI",
                     tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
                 ),
-                IO.Combo.Input(
-                    "interept_as",
-                    options=["Raw/Data", "sRGB"],
-                    default="sRGB",
-                    advanced=True,
-                ),
                 IO.DynamicCombo.Input(
                     "format",
                     options=[
@@ -979,6 +973,12 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     "bit_depth",
                                     options=["8-bit", "16-bit"],
                                     default="8-bit",
+                                    advanced=True,
+                                ),
+                                IO.Combo.Input(
+                                    "interept_as",
+                                    options=["sRGB", "Linear", "Raw/Data"],
+                                    default="sRGB",
                                     advanced=True,
                                 ),
                             ],
@@ -992,6 +992,12 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     default="8-bit",
                                     advanced=True,
                                 ),
+                                IO.Combo.Input(
+                                    "interept_as",
+                                    options=["sRGB", "Raw/Data"],
+                                    default="sRGB",
+                                    advanced=True,
+                                ),
                             ],
                         ),
                         IO.DynamicCombo.Option(
@@ -1001,6 +1007,12 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     "bit_depth",
                                     options=["16-bit", "32-bit"],
                                     default="16-bit",
+                                    advanced=True,
+                                ),
+                                IO.Combo.Input(
+                                    "interept_as",
+                                    options=["Linear", "Raw/Data"],
+                                    default="Linear",
                                     advanced=True,
                                 ),
                             ],
@@ -1025,7 +1037,7 @@ class SaveImageAdvanced(IO.ComfyNode):
             # get widget values from dynamic combo
             file_format = format["format"]
             bit_depth = format["bit_depth"]
-            color_space = format["color_space"]
+            interept_as = format["interept_as"]
 
             img_tensor = image.clone()
 
