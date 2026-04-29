@@ -1113,6 +1113,12 @@ class SaveImageAdvanced(IO.ComfyNode):
                 stream.height = height
                 stream.time_base = Fraction(1, 1)
 
+                is_planar = av_fmt.startswith('gbrp') or 'p' in av_fmt.split('rgba')[-1]
+                if is_planar:
+                    if av_fmt.startswith('gbr'):
+                        img_np = img_np[:, :, [1, 2, 0, 3]] if has_alpha else img_np[:, :, [1, 2, 0]]
+                    img_np = img_np.transpose(2, 0, 1)
+
                 try:
                     frame = av.VideoFrame.from_ndarray(img_np, format=av_fmt)
                 except ValueError:
