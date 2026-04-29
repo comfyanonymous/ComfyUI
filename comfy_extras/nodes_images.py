@@ -983,13 +983,13 @@ class SaveImageAdvanced(IO.ComfyNode):
                             [
                                 IO.Combo.Input(
                                     "bit_depth",
-                                    options=["8-bit", "10-bit", "12-bit"],
+                                    options=["8-bit", "10-bit"],
                                     default="8-bit",
                                     advanced=True,
                                 ),
                                 IO.Combo.Input(
                                     "interpret_as",
-                                    options=["sRGB", "Raw/Data"],
+                                    options=["sRGB", "Linear", "Raw/Data"],
                                     default="sRGB",
                                     advanced=True,
                                 ),
@@ -1000,13 +1000,13 @@ class SaveImageAdvanced(IO.ComfyNode):
                             [
                                 IO.Combo.Input(
                                     "bit_depth",
-                                    options=["16-bit", "32-bit"],
-                                    default="16-bit",
+                                    options=["32-bit"],
+                                    default="32-bit",
                                     advanced=True,
                                 ),
                                 IO.Combo.Input(
                                     "interpret_as",
-                                    options=["Linear", "Raw/Data"],
+                                    options=["sRGB", "Linear", "Raw/Data"],
                                     default="Linear",
                                     advanced=True,
                                 ),
@@ -1050,14 +1050,9 @@ class SaveImageAdvanced(IO.ComfyNode):
                 if bit_depth == "32-bit":
                     img_np = img_tensor.cpu().numpy().astype(np.float32)
                     av_fmt = 'gbrapf32le' if has_alpha else 'gbrpf32le'
-                elif bit_depth == "16-bit":
-                    if file_format == "exr":
-                        # default pyav build doesn't come with a codec for float16 exr format
-                        img_np = img_tensor.cpu().numpy().astype(np.float32)
-                        av_fmt = 'gbrapf32le' if has_alpha else 'gbrpf32le'
-                    else:
-                        img_np = (img_tensor * 65535.0).clamp(0, 65535).to(torch.int32).cpu().numpy().astype(np.uint16)
-                        av_fmt = 'rgba64le' if has_alpha else 'rgb48le'
+                elif bit_depth in ["10-bit", "12-bit", "16-bit"]:
+                    img_np = (img_tensor * 65535.0).clamp(0, 65535).to(torch.int32).cpu().numpy().astype(np.uint16)
+                    av_fmt = 'rgba64le' if has_alpha else 'rgb48le'
                 else:
                     img_np = (img_tensor * 255.0).clamp(0, 255).to(torch.int32).cpu().numpy().astype(np.uint8)
                     av_fmt = 'rgba' if has_alpha else 'rgb24'
@@ -1079,15 +1074,26 @@ class SaveImageAdvanced(IO.ComfyNode):
 
                     stream.time_base = Fraction(1, 1)
 
-                    if bit_depth in ["16-bit", "32-bit"]:
+                    if bit_depth == "12-bit":
+                        stream.pix_fmt = 'yuv420p12le'
+                    elif bit_depth in ["10-bit", "16-bit", "32-bit"]:
                         stream.pix_fmt = 'yuv420p10le'
                     else:
                         stream.pix_fmt = 'yuv420p'
 
                     stream.codec_context.color_range = 2
-                    stream.codec_context.colorspace = 1
-                    stream.codec_context.color_primaries = 1
-                    stream.codec_context.color_trc = 1
+                    if interpret_as == "Raw/Data": # 2 == unspecified
+                        stream.codec_context.colorspace = 2
+                        stream.codec_context.color_primaries = 2
+                        stream.codec_context.color_trc = 2
+                    elif interpret_as == "Linear":
+                        stream.codec_context.colorspace = 1
+                        stream.codec_context.color_primaries = 1
+                        stream.codec_context.color_trc = 8
+                    else: # sRGB
+                        stream.codec_context.colorspace = 1
+                        stream.codec_context.color_primaries = 1
+                        stream.codec_context.color_trc = 13
 
                     stream.options = {
                         'preset': '10',
