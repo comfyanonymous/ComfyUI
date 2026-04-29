@@ -1029,10 +1029,30 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
                         else:
                             list_info = str(combo_options)
 
+                        # Attempt to resolve the folder path for model-type inputs
+                        folder_path = None
+                        try:
+                            import folder_paths as fp
+                            if x.endswith("_name") or x.endswith("_dir"):
+                                folder_key = x.removesuffix("_name").removesuffix("_dir")
+                                folder_entry = fp.folder_names_and_paths.get(folder_key)
+                                if folder_entry and folder_entry[0]:
+                                    paths = folder_entry[0]
+                                    if isinstance(paths, (list, tuple)):
+                                        folder_path = ", ".join(str(p) for p in paths)
+                                    else:
+                                        folder_path = str(paths)
+                        except Exception:
+                            pass
+
+                        details = f"{x}: '{val}' not in {list_info}"
+                        if folder_path:
+                            details += f" — expected in folder: {folder_path}"
+
                         error = {
                             "type": "value_not_in_list",
                             "message": "Value not in list",
-                            "details": f"{x}: '{val}' not in {list_info}",
+                            "details": details,
                             "extra_info": {
                                 "input_name": x,
                                 "input_config": input_config,
