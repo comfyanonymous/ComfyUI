@@ -72,7 +72,13 @@ class InternalRoutes:
 
     def get_app(self):
         if self._app is None:
-            self._app = web.Application()
+            self._app = web.Application(middlewares=[self._local_only_middleware])
             self.setup_routes()
             self._app.add_routes(self.routes)
         return self._app
+
+    @web.middleware
+    async def _local_only_middleware(self, request, handler):
+        if request.remote not in ('127.0.0.1', '::1'):
+            raise web.HTTPForbidden(reason="Internal endpoints are only accessible from localhost")
+        return await handler(request)
