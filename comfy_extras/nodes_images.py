@@ -4,10 +4,8 @@ import nodes
 import folder_paths
 
 import av
-import io
 import json
 
-import av
 import os
 import re
 import math
@@ -15,19 +13,16 @@ import numpy as np
 import struct
 import torch
 
-import struct
 import zlib
 import tempfile
 import logging
 import comfy.utils
-import numpy as np
 from fractions import Fraction
 
 from server import PromptServer
-from comfy_api.latest import ComfyExtension, Input, IO, UI
+from comfy_api.latest import ComfyExtension, IO, UI
 from comfy.cli_args import args
 from typing_extensions import override
-from comfy.cli_args import args
 
 SVG = IO.SVG.Type  # TODO: temporary solution for backward compatibility, will be removed later.
 
