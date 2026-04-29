@@ -3,12 +3,18 @@ from __future__ import annotations
 import nodes
 import folder_paths
 
+import av
+import io
 import json
+
 import av
 import os
 import re
 import math
+import numpy as np
+import struct
 import torch
+
 import struct
 import zlib
 import tempfile
@@ -18,7 +24,8 @@ import numpy as np
 from fractions import Fraction
 
 from server import PromptServer
-from comfy_api.latest import ComfyExtension, IO, UI
+from comfy_api.latest import ComfyExtension, Input, IO, UI
+from comfy.cli_args import args
 from typing_extensions import override
 from comfy.cli_args import args
 
@@ -831,11 +838,13 @@ class ImageMergeTileList(IO.ComfyNode):
         return IO.NodeOutput(merged_image)
 
 
+
 def create_png_chunk(chunk_type: bytes, data: bytes) -> bytes:
     """Creates a valid PNG chunk with Length, Type, Data, and CRC32."""
     chunk = struct.pack('>I', len(data)) + chunk_type + data
     crc = zlib.crc32(chunk_type + data) & 0xffffffff
     return chunk + struct.pack('>I', crc)
+
 
 def inject_comfy_metadata_png(png_bytes, prompt=None, extra_pnginfo=None):
     # IEND chunk is the last 12 bytes of png files
@@ -939,32 +948,104 @@ class SaveImageAdvanced(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveImageAdvanced",
-            category="image/advanced_io",
-            output_node=True,
+            search_aliases=["save", "save image", "export image", "output image", "write image", "download"],
+            display_name="Save Image",
+            description="Saves the input images to your ComfyUI output directory.",
+            category="image",
+            essentials_category="Basics",
             inputs=[
-                IO.Image.Input("images"),
-                IO.String.Input("filename_prefix", default="ComfyUI"),
-                IO.Combo.Input("file_format", options=["png", "exr", "avif"], default="png"),
-                IO.Combo.Input("bit_depth", options=["8-bit", "16-bit", "32-bit"], default="8-bit"),
-                IO.Boolean.Input("embed_workflow", default=True),
-                IO.Hidden.Input("prompt", type="PROMPT"),
-                IO.Hidden.Input("extra_pnginfo", type="EXTRA_PNGINFO"),
+                IO.Image.Input(
+                    "images",
+                    tooltip="The images to save."
+                ),
+                IO.String.Input(
+                    "filename_prefix",
+                    default="ComfyUI",
+                    tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
+                ),
+                IO.DynamicCombo.Input(
+                    "format",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "png", 
+                            [
+                                IO.Combo.Input(
+                                    "bit_depth",
+                                    options=["8-bit", "16-bit"],
+                                    default="8-bit",
+                                    advanced=True,
+                                ),
+                                IO.Combo.Input(
+                                    "color_space",
+                                    options=["Raw/Data", "sRGB"],
+                                    default="sRGB",
+                                    advanced=True,
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "avif",
+                            [
+                                IO.Combo.Input(
+                                    "bit_depth",
+                                    options=["8-bit", "10-bit", "12-bit"],
+                                    default="8-bit",
+                                    advanced=True,
+                                ),
+                                IO.Combo.Input(
+                                    "color_space",
+                                    options=["sRGB"],
+                                    default="sRGB",
+                                    advanced=True,
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "exr",
+                            [
+                                IO.Combo.Input(
+                                    "bit_depth",
+                                    options=["16-bit (half-float)", "32-bit"],
+                                    default="16-bit (half-float)",
+                                    advanced=True,
+                                ),
+                                IO.Combo.Input(
+                                    "color_space",
+                                    options=["Linear", "Raw/Data"],
+                                    default="Linear",
+                                    advanced=True,
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip="The file format in which to save the image.",
+                ),
+                IO.Boolean.Input("embed_workflow", default=True, advanced=True),
             ],
-            outputs=[]
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            is_output_node=True,
         )
 
     @classmethod
-    def execute(cls, images, filename_prefix="ComfyUI", file_format="png", bit_depth="8-bit",
-                embed_workflow=True, prompt=None, extra_pnginfo=None) -> IO.NodeOutput:
-
+    def execute(
+        cls,
+        images: Input.Image,
+        filename_prefix: str,
+        format: dict,
+        embed_workflow: bool,
+        prompt=None,
+        extra_pnginfo=None
+    ) -> IO.NodeOutput:
         output_dir = folder_paths.get_output_directory()
-
-        full_output_folder, filename, counter, subfolder, filename_prefix = \
-            folder_paths.get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
-
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
 
         for batch_number, image in enumerate(images):
+            # get widget values from dynamic combo
+            extension = format["format"]
+            bit_depth = format["bit_depth"]
+            color_space = format["color_space"]
+
             img_tensor = image.clone()
 
             height, width, num_channels = img_tensor.shape
@@ -972,6 +1053,7 @@ class SaveImageAdvanced(IO.ComfyNode):
 
             # file pathing
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+
             file = f"{filename_with_batch_num}_{counter:05}.{file_format}"
             file_path = os.path.join(full_output_folder, file)
 
@@ -1114,6 +1196,7 @@ class ImagesExtension(ComfyExtension):
             ImageAddNoise,
             SaveAnimatedWEBP,
             SaveAnimatedPNG,
+            SaveImageAdvanced,
             SaveSVGNode,
             ImageStitch,
             ResizeAndPadImage,

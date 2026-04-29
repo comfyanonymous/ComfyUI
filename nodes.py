@@ -1652,6 +1652,7 @@ class SaveImage:
     ESSENTIALS_CATEGORY = "Basics"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
     SEARCH_ALIASES = ["save", "save image", "export image", "output image", "write image", "download"]
+    DEPRECATED = True
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
@@ -2157,7 +2158,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
-    "SaveImage": "Save Image",
+    "SaveImage": "Save Image (DEPRECATED)",
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
     "LoadImageMask": "Load Image (as Mask)",

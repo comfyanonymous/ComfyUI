@@ -94,6 +94,7 @@ class ConvertColorSpace(IO.ComfyNode):
 
         return IO.NodeOutput(images=img_tensor)
 
+
 class ConvertColorSpaceExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
