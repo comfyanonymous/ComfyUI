@@ -18,6 +18,7 @@ import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
+import comfy.ldm.cogvideo.vae
 import comfy.ldm.hunyuan_video.vae
 import comfy.ldm.mmaudio.vae.autoencoder
 import comfy.pixel_space_convert
@@ -652,6 +653,17 @@ class VAE:
 
                 self.memory_used_encode = lambda shape, dtype: (1400 * 9 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (3600 * 4 * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
+            elif "decoder.conv_in.conv.weight" in sd and "decoder.mid_block.resnets.0.norm1.norm_layer.weight" in sd:  # CogVideoX VAE
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                self.upscale_index_formula = (4, 8, 8)
+                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                self.downscale_index_formula = (4, 8, 8)
+                self.latent_dim = 3
+                self.latent_channels = sd["encoder.conv_out.conv.weight"].shape[0] // 2
+                self.first_stage_model = comfy.ldm.cogvideo.vae.AutoencoderKLCogVideoX(latent_channels=self.latent_channels)
+                self.memory_used_decode = lambda shape, dtype: (2800 * max(2, ((shape[2] - 1) * 4) + 1) * shape[3] * shape[4] * (8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1400 * max(1, shape[2]) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
             elif "decoder.conv_in.conv.weight" in sd:
                 ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 ddconfig["conv3d"] = True
