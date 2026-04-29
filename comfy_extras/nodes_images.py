@@ -963,22 +963,22 @@ class SaveImageAdvanced(IO.ComfyNode):
                     default="ComfyUI",
                     tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
                 ),
+                IO.Combo.Input(
+                    "interept_as",
+                    options=["Raw/Data", "sRGB"],
+                    default="sRGB",
+                    advanced=True,
+                ),
                 IO.DynamicCombo.Input(
                     "format",
                     options=[
                         IO.DynamicCombo.Option(
-                            "png", 
+                            "png",
                             [
                                 IO.Combo.Input(
                                     "bit_depth",
                                     options=["8-bit", "16-bit"],
                                     default="8-bit",
-                                    advanced=True,
-                                ),
-                                IO.Combo.Input(
-                                    "color_space",
-                                    options=["Raw/Data", "sRGB"],
-                                    default="sRGB",
                                     advanced=True,
                                 ),
                             ],
@@ -992,12 +992,6 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     default="8-bit",
                                     advanced=True,
                                 ),
-                                IO.Combo.Input(
-                                    "color_space",
-                                    options=["sRGB"],
-                                    default="sRGB",
-                                    advanced=True,
-                                ),
                             ],
                         ),
                         IO.DynamicCombo.Option(
@@ -1005,14 +999,8 @@ class SaveImageAdvanced(IO.ComfyNode):
                             [
                                 IO.Combo.Input(
                                     "bit_depth",
-                                    options=["16-bit (half-float)", "32-bit"],
-                                    default="16-bit (half-float)",
-                                    advanced=True,
-                                ),
-                                IO.Combo.Input(
-                                    "color_space",
-                                    options=["Linear", "Raw/Data"],
-                                    default="Linear",
+                                    options=["16-bit", "32-bit"],
+                                    default="16-bit",
                                     advanced=True,
                                 ),
                             ],
@@ -1027,22 +1015,15 @@ class SaveImageAdvanced(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(
-        cls,
-        images: Input.Image,
-        filename_prefix: str,
-        format: dict,
-        embed_workflow: bool,
-        prompt=None,
-        extra_pnginfo=None
-    ) -> IO.NodeOutput:
+    def execute(cls, images, filename_prefix: str, format: dict, embed_workflow: bool, prompt=None, extra_pnginfo=None) -> IO.NodeOutput:
         output_dir = folder_paths.get_output_directory()
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.\
+            get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
 
         for batch_number, image in enumerate(images):
             # get widget values from dynamic combo
-            extension = format["format"]
+            file_format = format["format"]
             bit_depth = format["bit_depth"]
             color_space = format["color_space"]
 
@@ -1058,12 +1039,6 @@ class SaveImageAdvanced(IO.ComfyNode):
             file_path = os.path.join(full_output_folder, file)
 
             if file_format in ["png", "exr", "avif"]:
-
-                # safe bit downcasting
-                if (file_format == "png" or file_format == "avif") and bit_depth == "32-bit":
-                    bit_depth = "16-bit"
-                if file_format == "exr" and bit_depth == "8-bit":
-                    bit_depth = "16-bit"
 
                 if bit_depth == "32-bit":
                     img_np = img_tensor.cpu().numpy().astype(np.float32)
