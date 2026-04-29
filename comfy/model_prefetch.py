@@ -4,7 +4,6 @@ import comfy.ops
 
 PREFETCH_QUEUES = []
 
-
 def cleanup_prefetched_modules(comfy_modules):
     for s in comfy_modules:
         prefetch = getattr(s, "_prefetch", None)
@@ -17,19 +16,19 @@ def cleanup_prefetched_modules(comfy_modules):
         if prefetch["signature"] is not None:
             comfy_aimdo.model_vbar.vbar_unpin(s._v)
         delattr(s, "_prefetch")
+
 def cleanup_prefetch_queues():
     global PREFETCH_QUEUES
 
     for queue in PREFETCH_QUEUES:
         for entry in queue:
-            if entry is None:
+            if entry is None or not isinstance(entry, tuple):
                 continue
             _, prefetch_state = entry
             comfy_modules = prefetch_state[1]
             if comfy_modules is not None:
                 cleanup_prefetched_modules(comfy_modules)
     PREFETCH_QUEUES = []
-
 
 def prefetch_queue_pop(queue, device, module):
     if queue is None:
@@ -51,9 +50,6 @@ def prefetch_queue_pop(queue, device, module):
                 comfy_modules.append(s)
 
         offload_stream = comfy.ops.cast_modules_with_vbar(comfy_modules, None, device, None, True)
-        if offload_stream is None:
-            queue[0] = None
-            return
         comfy.model_management.sync_stream(device, offload_stream)
         queue[0] = (offload_stream, (prefetch, comfy_modules))
 
