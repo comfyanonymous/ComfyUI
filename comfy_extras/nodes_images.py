@@ -971,7 +971,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     advanced=True,
                                 ),
                                 IO.Combo.Input(
-                                    "interept_as",
+                                    "interpret_as",
                                     options=["sRGB", "Linear", "Raw/Data"],
                                     default="sRGB",
                                     advanced=True,
@@ -988,7 +988,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     advanced=True,
                                 ),
                                 IO.Combo.Input(
-                                    "interept_as",
+                                    "interpret_as",
                                     options=["sRGB", "Raw/Data"],
                                     default="sRGB",
                                     advanced=True,
@@ -1005,7 +1005,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     advanced=True,
                                 ),
                                 IO.Combo.Input(
-                                    "interept_as",
+                                    "interpret_as",
                                     options=["Linear", "Raw/Data"],
                                     default="Linear",
                                     advanced=True,
@@ -1032,7 +1032,7 @@ class SaveImageAdvanced(IO.ComfyNode):
             # get widget values from dynamic combo
             file_format = format["format"]
             bit_depth = format["bit_depth"]
-            interept_as = format["interept_as"]
+            interpret_as = format["interpret_as"]
 
             img_tensor = image.clone()
 
