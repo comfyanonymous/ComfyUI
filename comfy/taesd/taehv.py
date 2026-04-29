@@ -49,13 +49,13 @@ class TGrow(nn.Module):
         return x.reshape(-1, C, H, W)
 
 def apply_model_with_memblocks(model, x, parallel, show_progress_bar, output_device=None,
-                               frame_preprocess=None, frame_postprocess=None):
+                               patch_size=1, decode=False):
 
     B, T, C, H, W = x.shape
     if parallel:
         x = x.reshape(B*T, C, H, W)
-        if frame_preprocess is not None:
-            x = frame_preprocess(x)
+        if not decode and patch_size > 1:
+            x = F.pixel_unshuffle(x, patch_size)
         # parallel over input timesteps, iterate over blocks
         for b in tqdm(model, disable=not show_progress_bar):
             if isinstance(b, MemBlock):
@@ -66,11 +66,9 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar, output_dev
                 x = b(x, mem)
             else:
                 x = b(x)
-        if frame_postprocess is not None:
-            x = frame_postprocess(x)
-        BT = x.shape[0]
-        T = BT // B
-        x = x.view(B, T, *x.shape[1:])
+        if decode and patch_size > 1:
+            x = F.pixel_shuffle(x, patch_size)
+        x = x.view(B, x.shape[0] // B, *x.shape[1:])
         x = x.to(output_device)
     else:
         out = []
@@ -83,11 +81,11 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar, output_dev
             xt, i = work_queue.popleft()
             if i == 0:
                 progress_bar.update(1)
-                if frame_preprocess is not None:
-                    xt = frame_preprocess(xt)
+                if not decode and patch_size > 1:
+                    xt = F.pixel_unshuffle(xt, patch_size)
             if i == len(model):
-                if frame_postprocess is not None:
-                    xt = frame_postprocess(xt)
+                if decode and patch_size > 1:
+                    xt = F.pixel_shuffle(xt, patch_size)
                 out.append(xt.to(output_device))
                 del xt
             else:
@@ -183,18 +181,15 @@ class TAEHV(nn.Module):
             n_pad = self.t_downscale - x.shape[1] % self.t_downscale
             padding = x[:, -1:].repeat_interleave(n_pad, dim=1)
             x = torch.cat([x, padding], 1)
-        ps = self.patch_size
-        preproc = (lambda f: F.pixel_unshuffle(f, ps)) if ps > 1 else None
-        x = apply_model_with_memblocks(self.encoder, x, self.parallel, self.show_progress_bar, frame_preprocess=preproc).movedim(2, 1)
+        x = apply_model_with_memblocks(self.encoder, x, self.parallel, self.show_progress_bar,
+                                        patch_size=self.patch_size).movedim(2, 1)
         return self.process_out(x)
 
     def decode(self, x, **kwargs):
         x = x.unsqueeze(0) if x.ndim == 4 else x  # [T, C, H, W] -> [1, T, C, H, W]
         x = x.movedim(1, 2) if x.shape[1] != self.latent_channels else x  # [B, T, C, H, W] or [B, C, T, H, W]
         x = self.process_in(x).movedim(2, 1)  # [B, C, T, H, W] -> [B, T, C, H, W]
-        ps = self.patch_size
-        postproc = (lambda f: F.pixel_shuffle(f, ps)) if ps > 1 else None
         x = apply_model_with_memblocks(self.decoder, x, self.parallel, self.show_progress_bar,
                                         output_device=comfy.model_management.intermediate_device(),
-                                        frame_postprocess=postproc)
+                                        patch_size=self.patch_size, decode=True)
         return x[:, self.frames_to_trim:].movedim(2, 1)
