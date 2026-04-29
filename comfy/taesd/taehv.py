@@ -71,8 +71,7 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar, output_dev
         BT = x.shape[0]
         T = BT // B
         x = x.view(B, T, *x.shape[1:])
-        if output_device is not None:
-            x = x.to(output_device)
+        x = x.to(output_device)
     else:
         out = []
         # Chunk along the time dim directly (chunks are [B,1,C,H,W] views, squeeze to [B,C,H,W] views).
@@ -89,10 +88,7 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar, output_dev
             if i == len(model):
                 if frame_postprocess is not None:
                     xt = frame_postprocess(xt)
-                if output_device is not None:
-                    out.append(xt.to(output_device))
-                else:
-                    out.append(xt)
+                out.append(xt.to(output_device))
                 del xt
             else:
                 b = model[i]
