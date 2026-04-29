@@ -1,0 +1,64 @@
+name: "Windows Release dependencies Manual"
+
+on:
+  workflow_dispatch:
+    inputs:
+      torch_dependencies:
+        description: 'torch dependencies'
+        required: false
+        type: string
+        default: "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128"
+      cache_tag:
+        description: 'Cached dependencies tag'
+        required: true
+        type: string
+        default: "cu128"
+
+      python_minor:
+        description: 'python minor version'
+        required: true
+        type: string
+        default: "12"
+
+      python_patch:
+        description: 'python patch version'
+        required: true
+        type: string
+        default: "10"
+
+jobs:
+  build_dependencies:
+    runs-on: windows-latest
+    steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-python@v5
+          with:
+            python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
+
+        - shell: bash
+          run: |
+            echo "@echo off
+            call update_comfyui.bat nopause
+            echo -
+            echo This will try to update pytorch and all python dependencies.
+            echo -
+            echo If you just want to update normally, close this and run update_comfyui.bat instead.
+            echo -
+            pause
+            ..\python_embeded\python.exe -s -m pip install --upgrade ${{ inputs.torch_dependencies }} -r ../ComfyUI/requirements.txt pygit2
+            pause" > update_comfyui_and_python_dependencies.bat
+
+            grep -v comfyui requirements.txt > requirements_nocomfyui.txt
+            python -m pip wheel --no-cache-dir ${{ inputs.torch_dependencies }} -r requirements_nocomfyui.txt pygit2 -w ./temp_wheel_dir
+            python -m pip install --no-cache-dir ./temp_wheel_dir/*
+            echo installed basic
+            ls -lah temp_wheel_dir
+            mv temp_wheel_dir ${{ inputs.cache_tag }}_python_deps
+            tar cf ${{ inputs.cache_tag }}_python_deps.tar ${{ inputs.cache_tag }}_python_deps
+
+        - uses: actions/cache/save@v4
+          with:
+            path: |
+              ${{ inputs.cache_tag }}_python_deps.tar
+              update_comfyui_and_python_dependencies.bat
+            key: ${{ runner.os }}-build-${{ inputs.cache_tag }}-${{ inputs.python_minor }}

@@ -11,7 +11,9 @@ import math
 from .position_embedding import VideoRopePosition3DEmb, LearnablePosEmbAxis
 from torchvision import transforms
 
+import comfy.patcher_extension
 from comfy.ldm.modules.attention import optimized_attention
+import comfy.ldm.common_dit
 
 def apply_rotary_pos_emb(
     t: torch.Tensor,
@@ -43,7 +45,7 @@ class GPT2FeedForward(nn.Module):
         return x
 
 
-def torch_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H_D: torch.Tensor) -> torch.Tensor:
+def torch_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H_D: torch.Tensor, transformer_options: Optional[dict] = {}) -> torch.Tensor:
     """Computes multi-head attention using PyTorch's native implementation.
 
     This function provides a PyTorch backend alternative to Transformer Engine's attention operation.
@@ -70,7 +72,7 @@ def torch_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H
     q_B_H_S_D = rearrange(q_B_S_H_D, "b ... h k -> b h ... k").view(in_q_shape[0], in_q_shape[-2], -1, in_q_shape[-1])
     k_B_H_S_D = rearrange(k_B_S_H_D, "b ... h v -> b h ... v").view(in_k_shape[0], in_k_shape[-2], -1, in_k_shape[-1])
     v_B_H_S_D = rearrange(v_B_S_H_D, "b ... h v -> b h ... v").view(in_k_shape[0], in_k_shape[-2], -1, in_k_shape[-1])
-    return optimized_attention(q_B_H_S_D, k_B_H_S_D, v_B_H_S_D, in_q_shape[-2], skip_reshape=True)
+    return optimized_attention(q_B_H_S_D, k_B_H_S_D, v_B_H_S_D, in_q_shape[-2], skip_reshape=True, transformer_options=transformer_options)
 
 
 class Attention(nn.Module):
@@ -179,8 +181,8 @@ class Attention(nn.Module):
 
         return q, k, v
 
-    def compute_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        result = self.attn_op(q, k, v)  # [B, S, H, D]
+    def compute_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, transformer_options: Optional[dict] = {}) -> torch.Tensor:
+        result = self.attn_op(q, k, v, transformer_options=transformer_options)  # [B, S, H, D]
         return self.output_dropout(self.output_proj(result))
 
     def forward(
@@ -188,6 +190,7 @@ class Attention(nn.Module):
         x: torch.Tensor,
         context: Optional[torch.Tensor] = None,
         rope_emb: Optional[torch.Tensor] = None,
+        transformer_options: Optional[dict] = {},
     ) -> torch.Tensor:
         """
         Args:
@@ -195,7 +198,7 @@ class Attention(nn.Module):
             context (Optional[Tensor]): The key tensor of shape [B, Mk, K] or use x as context [self attention] if None
         """
         q, k, v = self.compute_qkv(x, context, rope_emb=rope_emb)
-        return self.compute_attention(q, k, v)
+        return self.compute_attention(q, k, v, transformer_options=transformer_options)
 
 
 class Timesteps(nn.Module):
@@ -332,7 +335,7 @@ class FinalLayer(nn.Module):
         device=None, dtype=None, operations=None
     ):
         super().__init__()
-        self.layer_norm = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.layer_norm = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         self.linear = operations.Linear(
             hidden_size, spatial_patch_size * spatial_patch_size * temporal_patch_size * out_channels, bias=False, device=device, dtype=dtype
         )
@@ -458,7 +461,10 @@ class Block(nn.Module):
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
         adaln_lora_B_T_3D: Optional[torch.Tensor] = None,
         extra_per_block_pos_emb: Optional[torch.Tensor] = None,
+        transformer_options: Optional[dict] = {},
     ) -> torch.Tensor:
+        residual_dtype = x_B_T_H_W_D.dtype
+        compute_dtype = emb_B_T_D.dtype
         if extra_per_block_pos_emb is not None:
             x_B_T_H_W_D = x_B_T_H_W_D + extra_per_block_pos_emb
 
@@ -508,31 +514,34 @@ class Block(nn.Module):
         result_B_T_H_W_D = rearrange(
             self.self_attn(
                 # normalized_x_B_T_HW_D,
-                rearrange(normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
+                rearrange(normalized_x_B_T_H_W_D.to(compute_dtype), "b t h w d -> b (t h w) d"),
                 None,
                 rope_emb=rope_emb_L_1_1_D,
+                transformer_options=transformer_options,
             ),
             "b (t h w) d -> b t h w d",
             t=T,
             h=H,
             w=W,
         )
-        x_B_T_H_W_D = x_B_T_H_W_D + gate_self_attn_B_T_1_1_D * result_B_T_H_W_D
+        x_B_T_H_W_D = x_B_T_H_W_D + gate_self_attn_B_T_1_1_D.to(residual_dtype) * result_B_T_H_W_D.to(residual_dtype)
 
         def _x_fn(
             _x_B_T_H_W_D: torch.Tensor,
             layer_norm_cross_attn: Callable,
             _scale_cross_attn_B_T_1_1_D: torch.Tensor,
             _shift_cross_attn_B_T_1_1_D: torch.Tensor,
+            transformer_options: Optional[dict] = {},
         ) -> torch.Tensor:
             _normalized_x_B_T_H_W_D = _fn(
                 _x_B_T_H_W_D, layer_norm_cross_attn, _scale_cross_attn_B_T_1_1_D, _shift_cross_attn_B_T_1_1_D
             )
             _result_B_T_H_W_D = rearrange(
                 self.cross_attn(
-                    rearrange(_normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
+                    rearrange(_normalized_x_B_T_H_W_D.to(compute_dtype), "b t h w d -> b (t h w) d"),
                     crossattn_emb,
                     rope_emb=rope_emb_L_1_1_D,
+                    transformer_options=transformer_options,
                 ),
                 "b (t h w) d -> b t h w d",
                 t=T,
@@ -546,8 +555,9 @@ class Block(nn.Module):
             self.layer_norm_cross_attn,
             scale_cross_attn_B_T_1_1_D,
             shift_cross_attn_B_T_1_1_D,
+            transformer_options=transformer_options,
         )
-        x_B_T_H_W_D = result_B_T_H_W_D * gate_cross_attn_B_T_1_1_D + x_B_T_H_W_D
+        x_B_T_H_W_D = result_B_T_H_W_D.to(residual_dtype) * gate_cross_attn_B_T_1_1_D.to(residual_dtype) + x_B_T_H_W_D
 
         normalized_x_B_T_H_W_D = _fn(
             x_B_T_H_W_D,
@@ -555,8 +565,8 @@ class Block(nn.Module):
             scale_mlp_B_T_1_1_D,
             shift_mlp_B_T_1_1_D,
         )
-        result_B_T_H_W_D = self.mlp(normalized_x_B_T_H_W_D)
-        x_B_T_H_W_D = x_B_T_H_W_D + gate_mlp_B_T_1_1_D * result_B_T_H_W_D
+        result_B_T_H_W_D = self.mlp(normalized_x_B_T_H_W_D.to(compute_dtype))
+        x_B_T_H_W_D = x_B_T_H_W_D + gate_mlp_B_T_1_1_D.to(residual_dtype) * result_B_T_H_W_D.to(residual_dtype)
         return x_B_T_H_W_D
 
 
@@ -805,7 +815,21 @@ class MiniTrainDIT(nn.Module):
         )
         return x_B_C_Tt_Hp_Wp
 
-    def forward(
+    def forward(self,
+        x: torch.Tensor,
+        timesteps: torch.Tensor,
+        context: torch.Tensor,
+        fps: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, kwargs.get("transformer_options", {}))
+        ).execute(x, timesteps, context, fps, padding_mask, **kwargs)
+
+    def _forward(
         self,
         x: torch.Tensor,
         timesteps: torch.Tensor,
@@ -814,6 +838,8 @@ class MiniTrainDIT(nn.Module):
         padding_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        orig_shape = list(x.shape)
+        x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_temporal, self.patch_spatial, self.patch_spatial))
         x_B_C_T_H_W = x
         timesteps_B_T = timesteps
         crossattn_emb = context
@@ -850,7 +876,16 @@ class MiniTrainDIT(nn.Module):
             "rope_emb_L_1_1_D": rope_emb_L_1_1_D.unsqueeze(1).unsqueeze(0),
             "adaln_lora_B_T_3D": adaln_lora_B_T_3D,
             "extra_per_block_pos_emb": extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D,
+            "transformer_options": kwargs.get("transformer_options", {}),
         }
+
+        # The residual stream for this model has large values. To make fp16 compute_dtype work, we keep the residual stream
+        # in fp32, but run attention and MLP modules in fp16.
+        # An alternate method that clamps fp16 values "works" in the sense that it makes coherent images, but there is noticeable
+        # quality degradation and visual artifacts.
+        if x_B_T_H_W_D.dtype == torch.float16:
+            x_B_T_H_W_D = x_B_T_H_W_D.float()
+
         for block in self.blocks:
             x_B_T_H_W_D = block(
                 x_B_T_H_W_D,
@@ -859,6 +894,6 @@ class MiniTrainDIT(nn.Module):
                 **block_kwargs,
             )
 
-        x_B_T_H_W_O = self.final_layer(x_B_T_H_W_D, t_embedding_B_T_D, adaln_lora_B_T_3D=adaln_lora_B_T_3D)
-        x_B_C_Tt_Hp_Wp = self.unpatchify(x_B_T_H_W_O)
+        x_B_T_H_W_O = self.final_layer(x_B_T_H_W_D.to(crossattn_emb.dtype), t_embedding_B_T_D, adaln_lora_B_T_3D=adaln_lora_B_T_3D)
+        x_B_C_Tt_Hp_Wp = self.unpatchify(x_B_T_H_W_O)[:, :, :orig_shape[-3], :orig_shape[-2], :orig_shape[-1]]
         return x_B_C_Tt_Hp_Wp

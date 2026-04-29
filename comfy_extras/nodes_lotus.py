@@ -1,20 +1,22 @@
+from typing_extensions import override
+
 import torch
 import comfy.model_management as mm
+from comfy_api.latest import ComfyExtension, io
 
-class LotusConditioning:
+
+class LotusConditioning(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-            },
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LotusConditioning",
+            category="conditioning/lotus",
+            inputs=[],
+            outputs=[io.Conditioning.Output(display_name="conditioning")],
+        )
 
-    RETURN_TYPES = ("CONDITIONING",)
-    RETURN_NAMES = ("conditioning",)
-    FUNCTION = "conditioning"
-    CATEGORY = "conditioning/lotus"
-
-    def conditioning(self):
+    @classmethod
+    def execute(cls) -> io.NodeOutput:
         device = mm.get_torch_device()
         #lotus uses a frozen encoder and null conditioning, i'm just inlining the results of that operation since it doesn't change
         #and getting parity with the reference implementation would otherwise require inference and 800mb of tensors
@@ -22,8 +24,16 @@ class LotusConditioning:
 
         cond = [[prompt_embeds, {}]]
 
-        return (cond,)
+        return io.NodeOutput(cond)
 
-NODE_CLASS_MAPPINGS = {
-    "LotusConditioning" : LotusConditioning,
-}
+
+class LotusExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            LotusConditioning,
+        ]
+
+
+async def comfy_entrypoint() -> LotusExtension:
+    return LotusExtension()

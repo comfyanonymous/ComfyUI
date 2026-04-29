@@ -2,9 +2,9 @@ name: Test server launches without errors
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, release/** ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, release/** ]
 
 jobs:
   test:
@@ -13,7 +13,7 @@ jobs:
     - name: Checkout ComfyUI
       uses: actions/checkout@v4
       with:
-        repository: "comfyanonymous/ComfyUI"
+        repository: "Comfy-Org/ComfyUI"
         path: "ComfyUI"
     - uses: actions/setup-python@v4
       with:
@@ -32,7 +32,9 @@ jobs:
       working-directory: ComfyUI
     - name: Check for unhandled exceptions in server log
       run: |
-        if grep -qE "Exception|Error" console_output.log; then
+        grep -v "Found comfy_kitchen backend triton: {'available': False, 'disabled': True, 'unavailable_reason': \"ImportError: No module named 'triton'\", 'capabilities': \[\]}" console_output.log | grep -v "Found comfy_kitchen backend triton: {'available': False, 'disabled': False, 'unavailable_reason': \"ImportError: No module named 'triton'\", 'capabilities': \[\]}" > console_output_filtered.log
+        cat console_output_filtered.log
+        if grep -qE "Exception|Error" console_output_filtered.log; then
           echo "Unhandled exception/error found in server log."
           exit 1
         fi

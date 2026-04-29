@@ -17,14 +17,25 @@ class QwenImageTokenizer(sd1_clip.SD1Tokenizer):
         self.llama_template = "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
         self.llama_template_images = "<|im_start|>system\nDescribe the key features of the input image (color, shape, size, texture, objects, background), then explain how the user's text instruction should alter or modify the image. Generate a new image that meets the user's requirements while maintaining consistency with the original input where appropriate.<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{}<|im_end|>\n<|im_start|>assistant\n"
 
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], **kwargs):
-        if llama_template is None:
-            if len(images) > 0:
-                llama_text = self.llama_template_images.format(text)
-            else:
-                llama_text = self.llama_template.format(text)
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, **kwargs):
+        skip_template = False
+        if text.startswith('<|im_start|>'):
+            skip_template = True
+        if text.startswith('<|start_header_id|>'):
+            skip_template = True
+        if prevent_empty_text and text == '':
+            text = ' '
+
+        if skip_template:
+            llama_text = text
         else:
-            llama_text = llama_template.format(text)
+            if llama_template is None:
+                if len(images) > 0:
+                    llama_text = self.llama_template_images.format(text)
+                else:
+                    llama_text = self.llama_template.format(text)
+            else:
+                llama_text = llama_template.format(text)
         tokens = super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
         key_name = next(iter(tokens))
         embed_count = 0
@@ -47,22 +58,23 @@ class QwenImageTEModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__(device=device, dtype=dtype, name="qwen25_7b", clip_model=Qwen25_7BVLIModel, model_options=model_options)
 
-    def encode_token_weights(self, token_weight_pairs):
+    def encode_token_weights(self, token_weight_pairs, template_end=-1):
         out, pooled, extra = super().encode_token_weights(token_weight_pairs)
         tok_pairs = token_weight_pairs["qwen25_7b"][0]
         count_im_start = 0
-        for i, v in enumerate(tok_pairs):
-            elem = v[0]
-            if not torch.is_tensor(elem):
-                if isinstance(elem, numbers.Integral):
-                    if elem == 151644 and count_im_start < 2:
-                        template_end = i
-                        count_im_start += 1
+        if template_end == -1:
+            for i, v in enumerate(tok_pairs):
+                elem = v[0]
+                if not torch.is_tensor(elem):
+                    if isinstance(elem, numbers.Integral):
+                        if elem == 151644 and count_im_start < 2:
+                            template_end = i
+                            count_im_start += 1
 
-        if out.shape[1] > (template_end + 3):
-            if tok_pairs[template_end + 1][0] == 872:
-                if tok_pairs[template_end + 2][0] == 198:
-                    template_end += 3
+            if out.shape[1] > (template_end + 3):
+                if tok_pairs[template_end + 1][0] == 872:
+                    if tok_pairs[template_end + 2][0] == 198:
+                        template_end += 3
 
         out = out[:, template_end:]
 
@@ -73,12 +85,12 @@ class QwenImageTEModel(sd1_clip.SD1ClipModel):
         return out, pooled, extra
 
 
-def te(dtype_llama=None, llama_scaled_fp8=None):
+def te(dtype_llama=None, llama_quantization_metadata=None):
     class QwenImageTEModel_(QwenImageTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if llama_scaled_fp8 is not None and "scaled_fp8" not in model_options:
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["scaled_fp8"] = llama_scaled_fp8
+                model_options["quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=model_options)
