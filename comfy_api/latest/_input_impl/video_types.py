@@ -290,7 +290,7 @@ class VideoFromFile(VideoInput):
                                     alphas = []
                                     alpha_channel = True
                                     break
-                            if frame.format.name in ("yuvj420p", "rgb24", "rgba", "pal8"):
+                            if frame.format.name in ("yuvj420p", "yuvj422p", "yuvj444p", "rgb24", "rgba", "pal8"):
                                 process_image_format = lambda a: a.float() / 255.0
                                 if alpha_channel:
                                     image_format = 'rgba'
