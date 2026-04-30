@@ -157,6 +157,11 @@ class SeedanceCreateAssetResponse(BaseModel):
     asset_id: str = Field(...)
 
 
+class SeedanceVirtualLibraryCreateAssetRequest(BaseModel):
+    url: str = Field(..., description="Publicly accessible URL of the image asset to upload.")
+    hash: str = Field(..., description="Dedup key. Re-submitting the same hash returns the existing asset id.")
+
+
 # Dollars per 1K tokens, keyed by (model_id, has_video_input).
 SEEDANCE2_PRICE_PER_1K_TOKENS = {
     ("dreamina-seedance-2-0-260128", False): 0.007,
