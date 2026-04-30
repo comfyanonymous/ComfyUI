@@ -1642,17 +1642,20 @@ class SaveImage:
 
         # Note: when saving multiple images it can be much faster with multithreading
         with concurrent.futures.ThreadPoolExecutor() as exe:
+            futures = []
             for (batch_number, image) in enumerate(images):
                 filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
                 file = f"{filename_with_batch_num}_{counter:05}_.png"
 
-                exe.submit(save_png, image, full_output_folder, file, prompt, extra_pnginfo, self.compress_level)
+                futures.append(exe.submit(save_png, image, full_output_folder, file, prompt, extra_pnginfo, self.compress_level))
                 results.append({
                     "filename": file,
                     "subfolder": subfolder,
                     "type": self.type
                 })
                 counter += 1
+            for f in futures:
+                f.result() # propagate exception
 
         return { "ui": { "images": results } }
 
