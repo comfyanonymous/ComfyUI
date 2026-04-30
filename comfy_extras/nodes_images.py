@@ -1072,9 +1072,7 @@ class SaveImageAdvanced(IO.ComfyNode):
 
                     stream.time_base = Fraction(1, 1)
 
-                    if bit_depth == "12-bit":
-                        stream.pix_fmt = 'yuv420p12le'
-                    elif bit_depth in ["10-bit", "16-bit", "32-bit"]:
+                    if bit_depth in ["10-bit", "16-bit", "32-bit"]:
                         stream.pix_fmt = 'yuv420p10le'
                     else:
                         stream.pix_fmt = 'yuv420p'
