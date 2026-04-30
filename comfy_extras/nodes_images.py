@@ -943,7 +943,7 @@ class SaveImageAdvanced(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveImageAdvanced",
-            search_aliases=["save", "save image", "export image", "output image", "write image", "download"],
+            search_aliases=["save", "save image", "export image", "output image", "write image"],
             display_name="Save Image",
             description="Saves the input images to your ComfyUI output directory.",
             category="image",
