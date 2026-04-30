@@ -342,6 +342,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # LyCORIS/LoKR format
 
+    if isinstance(model, comfy.model_base.ErnieImage):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["transformer.{}".format(key_lora)] = k
+
     return key_map
 
 
