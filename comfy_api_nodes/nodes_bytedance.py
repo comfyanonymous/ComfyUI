@@ -281,7 +281,12 @@ async def _seedance_virtual_library_upload_image_asset(
 ) -> str:
     """Upload an image into the caller's per-customer Seedance virtual library."""
     public_url = await upload_image_to_comfyapi(cls, image, wait_label=wait_label)
-    image_hash = hashlib.sha256(image.detach().cpu().contiguous().to(torch.float32).numpy().tobytes()).hexdigest()
+    normalized = image.detach().cpu().contiguous().to(torch.float32)
+    digest = hashlib.sha256()
+    digest.update(str(tuple(normalized.shape)).encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(normalized.numpy().tobytes())
+    image_hash = digest.hexdigest()
     create_resp = await sync_op(
         cls,
         ApiEndpoint(path="/proxy/seedance/virtual-library/assets", method="POST"),
