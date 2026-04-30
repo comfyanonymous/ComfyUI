@@ -989,7 +989,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                                 ),
                                 IO.Combo.Input(
                                     "interpret_as",
-                                    options=["sRGB", "Linear", "Raw/Data"],
+                                    options=["sRGB"],
                                     default="sRGB",
                                     advanced=True,
                                 ),
