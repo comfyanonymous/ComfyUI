@@ -3,15 +3,8 @@ import comfy.model_management
 
 RMSNorm = torch.nn.RMSNorm
 
-def rms_norm(x, weight=None, eps=1e-6, fused=True):
-    if not fused: # compatibility mode as torch native rms_norm results are slightly different
-        orig_dtype = x.dtype
-        normed = x.float() * torch.pow(x.float().pow(2).mean(-1, keepdim=True) + eps, -0.5)
-        if weight is not None:
-            weight = comfy.model_management.cast_to(weight, dtype=torch.float32, device=x.device)
-            normed = normed * weight
-        return normed.to(orig_dtype)
-
+# Note: torch's fused F.rms_norm is faster but produces slightly different output than manual implementations (rsqrt/reduction rounding).
+def rms_norm(x, weight=None, eps=1e-6):
     if weight is None:
         return torch.nn.functional.rms_norm(x, (x.shape[-1],), eps=eps)
     else:

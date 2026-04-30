@@ -382,19 +382,18 @@ class Gemma3_12B_Config:
     stop_tokens = [1, 106]
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None, fused=True):
+    def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.empty(dim, device=device, dtype=dtype))
         self.add = add
-        self.fused = fused
 
     def forward(self, x: torch.Tensor):
         w = self.weight
         if self.add:
             w = w + 1.0
 
-        return comfy.ldm.common_dit.rms_norm(x, w, self.eps, fused=self.fused)
+        return comfy.ldm.common_dit.rms_norm(x, w, self.eps)
 
 
 
