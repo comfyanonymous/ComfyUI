@@ -54,7 +54,7 @@ class SplitMHA(nn.Module):
         if mask is not None and mask.ndim == 2:
             mask = mask[:, None, None, :]  # [B, T] -> [B, 1, 1, T] for SDPA broadcast
         dtype = q.dtype  # manual_cast may produce mixed dtypes
-        out = optimized_attention(q, k.to(dtype), v.to(dtype), self.num_heads, mask=mask)
+        out = optimized_attention(q, k.to(dtype), v.to(dtype), self.num_heads, mask=mask, low_precision_attention=False)
         return self.out_proj(out)
 
 

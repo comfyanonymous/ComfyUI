@@ -364,7 +364,7 @@ class SplitAttn(nn.Module):
         v = self.v_proj(v)
         if rope is not None:
             q, k = apply_rope_memory(q, k, rope, self.num_heads, num_k_exclude_rope)
-        out = optimized_attention(q, k, v, self.num_heads)
+        out = optimized_attention(q, k, v, self.num_heads, low_precision_attention=False)
         return self.out_proj(out)
 
 
@@ -657,7 +657,7 @@ class DecoupledMemoryAttnLayer(nn.Module):
         v = self.self_attn_v_proj(normed)
         if rope is not None:
             q, k = apply_rope_memory(q, k, rope, self.num_heads, 0)
-        x = x + self.self_attn_out_proj(optimized_attention(q, k, v, self.num_heads))
+        x = x + self.self_attn_out_proj(optimized_attention(q, k, v, self.num_heads, low_precision_attention=False))
 
         # Decoupled cross-attention: fuse image and memory projections
         normed = self.norm2(x)
@@ -668,7 +668,7 @@ class DecoupledMemoryAttnLayer(nn.Module):
         v = self.cross_attn_v_proj(memory)
         if rope is not None:
             q, k = apply_rope_memory(q, k, rope, self.num_heads, num_k_exclude_rope)
-        x = x + self.cross_attn_out_proj(optimized_attention(q, k, v, self.num_heads))
+        x = x + self.cross_attn_out_proj(optimized_attention(q, k, v, self.num_heads, low_precision_attention=False))
 
         # FFN
         x = x + self.linear2(F.gelu(self.linear1(self.norm3(x))))

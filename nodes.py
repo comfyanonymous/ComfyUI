@@ -32,7 +32,7 @@ import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
-from comfy_api.latest import io, ComfyExtension
+from comfy_api.latest import io, ComfyExtension, InputImpl
 
 import comfy.clip_vision
 
@@ -728,50 +728,26 @@ class LoraLoaderModelOnly(LoraLoader):
 
 class VAELoader:
     video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
-    image_taes = ["taesd", "taesdxl", "taesd3", "taef1"]
+    image_taes = ["taesd", "taesdxl", "taesd3", "taef1", "taef2"]
+
     @staticmethod
     def vae_list(s):
         vaes = folder_paths.get_filename_list("vae")
         approx_vaes = folder_paths.get_filename_list("vae_approx")
-        sdxl_taesd_enc = False
-        sdxl_taesd_dec = False
-        sd1_taesd_enc = False
-        sd1_taesd_dec = False
-        sd3_taesd_enc = False
-        sd3_taesd_dec = False
-        f1_taesd_enc = False
-        f1_taesd_dec = False
-
+        have_img_encoder, have_img_decoder = set(), set()
         for v in approx_vaes:
-            if v.startswith("taesd_decoder."):
-                sd1_taesd_dec = True
-            elif v.startswith("taesd_encoder."):
-                sd1_taesd_enc = True
-            elif v.startswith("taesdxl_decoder."):
-                sdxl_taesd_dec = True
-            elif v.startswith("taesdxl_encoder."):
-                sdxl_taesd_enc = True
-            elif v.startswith("taesd3_decoder."):
-                sd3_taesd_dec = True
-            elif v.startswith("taesd3_encoder."):
-                sd3_taesd_enc = True
-            elif v.startswith("taef1_encoder."):
-                f1_taesd_dec = True
-            elif v.startswith("taef1_decoder."):
-                f1_taesd_enc = True
-            else:
+            parts = v.split("_", 1)
+            if len(parts) != 2 or parts[0] not in s.image_taes:
                 for tae in s.video_taes:
                     if v.startswith(tae):
                         vaes.append(v)
-
-        if sd1_taesd_dec and sd1_taesd_enc:
-            vaes.append("taesd")
-        if sdxl_taesd_dec and sdxl_taesd_enc:
-            vaes.append("taesdxl")
-        if sd3_taesd_dec and sd3_taesd_enc:
-            vaes.append("taesd3")
-        if f1_taesd_dec and f1_taesd_enc:
-            vaes.append("taef1")
+                        break
+                continue
+            if parts[1].startswith("encoder."):
+                have_img_encoder.add(parts[0])
+            elif parts[1].startswith("decoder."):
+                have_img_decoder.add(parts[0])
+        vaes += [k for k in have_img_decoder if k in have_img_encoder]
         vaes.append("pixel_space")
         return vaes
 
@@ -827,6 +803,11 @@ class VAELoader:
             else:
                 vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+        if vae_name == "taef2":
+            if metadata is None:
+                metadata = {"tae_latent_channels": 128}
+            else:
+                metadata["tae_latent_channels"] = 128
         vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
         return (vae,)
@@ -1716,6 +1697,10 @@ class LoadImage:
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
 
+        components = InputImpl.VideoFromFile(image_path).get_components()
+        if components.images.shape[0] > 0:
+            return (components.images, 1.0 - components.alpha[..., -1] if components.alpha is not None else torch.zeros((components.images.shape[0], 64, 64), dtype=torch.float32, device="cpu"))
+
         img = node_helpers.pillow(Image.open, image_path)
 
         output_images = []
@@ -2459,7 +2444,7 @@ async def init_builtin_extra_nodes():
         "nodes_curve.py",
         "nodes_rtdetr.py",
         "nodes_frame_interpolation.py",
-        "nodes_sam3.py"
+        "nodes_sam3.py",
     ]
 
     import_failed = []

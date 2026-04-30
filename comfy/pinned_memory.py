@@ -2,7 +2,6 @@ import comfy.model_management
 import comfy.memory_management
 import comfy_aimdo.host_buffer
 import comfy_aimdo.torch
-import psutil
 
 from comfy.cli_args import args
 
@@ -12,11 +11,6 @@ def get_pin(module):
 def pin_memory(module):
     if module.pin_failed or args.disable_pinned_memory or get_pin(module) is not None:
         return
-    #FIXME: This is a RAM cache trigger event
-    ram_headroom = comfy.memory_management.RAM_CACHE_HEADROOM
-    #we split the difference and assume half the RAM cache headroom is for us
-    if ram_headroom > 0 and psutil.virtual_memory().available < (ram_headroom * 0.5):
-        comfy.memory_management.extra_ram_release(ram_headroom)
 
     size = comfy.memory_management.vram_aligned_size([ module.weight, module.bias ])
 

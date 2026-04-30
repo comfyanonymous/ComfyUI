@@ -2,6 +2,7 @@ import numpy as np
 import scipy.ndimage
 import torch
 import comfy.utils
+import comfy.model_management
 import node_helpers
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, UI
@@ -188,7 +189,7 @@ class SolidMask(IO.ComfyNode):
 
     @classmethod
     def execute(cls, value, width, height) -> IO.NodeOutput:
-        out = torch.full((1, height, width), value, dtype=torch.float32, device="cpu")
+        out = torch.full((1, height, width), value, dtype=torch.float32, device=comfy.model_management.intermediate_device())
         return IO.NodeOutput(out)
 
     solid = execute  # TODO: remove
@@ -262,6 +263,7 @@ class MaskComposite(IO.ComfyNode):
     def execute(cls, destination, source, x, y, operation) -> IO.NodeOutput:
         output = destination.reshape((-1, destination.shape[-2], destination.shape[-1])).clone()
         source = source.reshape((-1, source.shape[-2], source.shape[-1]))
+        source = source.to(output.device)
 
         left, top = (x, y,)
         right, bottom = (min(left + source.shape[-1], destination.shape[-1]), min(top + source.shape[-2], destination.shape[-2]))
