@@ -1068,10 +1068,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                     stream.pix_fmt = av_fmt
 
                 elif file_format == "avif":
-                    try:
-                        stream = container.add_stream('libsvtav1', rate=1)
-                    except Exception:
-                        stream = container.add_stream('av1', rate=1)
+                    stream = container.add_stream('libsvtav1', rate=1)
 
                     stream.time_base = Fraction(1, 1)
 

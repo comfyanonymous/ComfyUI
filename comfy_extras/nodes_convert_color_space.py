@@ -71,7 +71,7 @@ class ConvertColorSpace(IO.ComfyNode):
 
         elif source_color_space == "HDR Display (PQ/Rec.2020)":
             # assuming Linear Rec.2020 input. Convert to Linear Rec.709
-            matrix = M_2020_to_709.to(device)
+            matrix = M_2020_to_709.to(device=device, dtype=rgb.dtype)
             rgb = pq_to_linear(rgb)
             rgb = torch.matmul(rgb, matrix.T)
 
@@ -87,7 +87,7 @@ class ConvertColorSpace(IO.ComfyNode):
 
         elif target_color_space == "HDR Display (PQ/Rec.2020)":
             # convert Gamut from Linear Rec.709 to Linear Rec.2020
-            rgb = torch.matmul(rgb, M_709_to_2020.to(device).T).clamp(min=0)
+            rgb = torch.matmul(rgb, M_709_to_2020.to(device=device, dtype=rgb.dtype).T).clamp(min=0)
             rgb = linear_to_pq(rgb)
 
         img_tensor = torch.cat([rgb, alpha], dim=-1) if has_alpha else rgb
