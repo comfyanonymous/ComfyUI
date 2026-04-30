@@ -21,7 +21,7 @@ class ContextWindowsManualNode(io.ComfyNode):
                     comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
-                    ], tooltip="The stride of the context window."),
+                    ], default=comfy.context_windows.ContextSchedules.STATIC_STANDARD, tooltip="Step-dependent scheduling algorithm for context windows."),
                 io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules."),
                 io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
@@ -65,33 +65,34 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
     def define_schema(cls) -> io.Schema:
         schema = super().define_schema()
         schema.node_id = "WanContextWindowsManual"
-        schema.display_name = "WAN Context Windows (Manual)"
-        schema.description = "Manually set context windows for WAN-like models (dim=2)."
+        schema.display_name = "Wan Context Windows"
+        schema.description = "Set context windows for Wan-like models."
         schema.inputs = [
             io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
-                io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window.", advanced=True),
-                io.Int.Input("context_overlap", min=0, default=30, tooltip="The overlap of the context window.", advanced=True),
+                io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window in real frames. Must be 4*n + 1."),
+                io.Int.Input("context_overlap", min=0, default=30, tooltip="The overlap of the context window in real frames."),
                 io.Combo.Input("context_schedule", options=[
                     comfy.context_windows.ContextSchedules.STATIC_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
-                    ], tooltip="The stride of the context window."),
+                    ], default=comfy.context_windows.ContextSchedules.UNIFORM_STANDARD, tooltip="Step-dependent scheduling algorithm for context windows."),
                 io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules.", advanced=True),
-                io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
+                io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules.", advanced=True),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
-                io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
-                #io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window, for example setting this to '0' will use the initial start image for each window."),
-                #io.Boolean.Input("split_conds_to_windows", default=False, tooltip="Whether to split multiple conditionings (created by ConditionCombine) to each window based on region index."),
+                io.Boolean.Input("freenoise", default=True, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending.", advanced=True),
+                io.Boolean.Input("retain_first_frame", default=False, tooltip="Retain the first I2V frame in every context window (may help retain initial reference)."),
+                io.Boolean.Input("split_conds_to_windows", default=False, tooltip="Whether to split multiple conditionings (created by ConditionCombine) to each window based on region index.", advanced=True),
         ]
         return schema
 
     @classmethod
     def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, freenoise: bool,
-                cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False) -> io.Model:
+                retain_first_frame: bool=False, split_conds_to_windows: bool=False) -> io.Model:
         context_length = max(((context_length - 1) // 4) + 1, 1) # at least length 1
         context_overlap = max(context_overlap // 4, 0)  # at least overlap 0
-        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, dim=2, freenoise=freenoise, cond_retain_index_list=cond_retain_index_list, split_conds_to_windows=split_conds_to_windows, apply_causal_anchor_prefix=False)
+        retain_index_list = "0" if retain_first_frame else ""
+        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, dim=2, freenoise=freenoise, cond_retain_index_list=retain_index_list, split_conds_to_windows=split_conds_to_windows)
 
 
 class LTXVContextWindowsNode(ContextWindowsManualNode):
@@ -103,30 +104,31 @@ class LTXVContextWindowsNode(ContextWindowsManualNode):
         schema.description = "Set context windows for LTXV-like models."
         schema.inputs = [
             io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
-            io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=8, default=97, tooltip="The length of the context window in pixel frames. Must be 8*n + 1."),
-            io.Int.Input("context_overlap", min=0, step=8, default=32, tooltip="The overlap of the context window in pixel frames."),
+            io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=8, default=145, tooltip="The length of the context window in real frames. Must be 8*n + 1."),
+            io.Int.Input("context_overlap", min=0, step=8, default=40, tooltip="The overlap of the context window in real frames."),
             io.Combo.Input("context_schedule", options=[
                 comfy.context_windows.ContextSchedules.STATIC_STANDARD,
                 comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                 comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                 comfy.context_windows.ContextSchedules.BATCHED,
-                ], tooltip="The stride of the context window."),
-            io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
-            io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
-            io.Boolean.Input("retain_first_frame", default=False, tooltip="Retain the first latent frame in every context window."),
+                ], default=comfy.context_windows.ContextSchedules.UNIFORM_STANDARD, tooltip="Step-dependent scheduling algorithm for context windows."),
             io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules.", advanced=True),
             io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules.", advanced=True),
+            io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
+            io.Boolean.Input("freenoise", default=True, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending.", advanced=True),
+            io.Boolean.Input("retain_first_frame", default=False, tooltip="Retain the first latent frame in every context window (may help retain initial reference)."),
+            io.Boolean.Input("split_conds_to_windows", default=False, tooltip="Whether to split multiple conditionings (created by ConditionCombine) to each window based on region index.", advanced=True),
         ]
         return schema
 
     @classmethod
     def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, fuse_method: str, freenoise: bool,
-                retain_first_frame: bool=False, context_stride: int=1, closed_loop: bool=False) -> io.Model:
+                retain_first_frame: bool=False, split_conds_to_windows: bool=False, context_stride: int=1, closed_loop: bool=False) -> io.Model:
         context_length = max(((context_length - 1) // 8) + 1, 1)  # at least length 1
         context_overlap = max(context_overlap // 8, 0)  # at least overlap 0
-        retain_list = "0" if retain_first_frame else ""
+        retain_index_list = "0" if retain_first_frame else ""
         return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, dim=2, freenoise=freenoise,
-                               cond_retain_index_list=retain_list, latent_retain_index_list=retain_list)
+                               cond_retain_index_list=retain_index_list, latent_retain_index_list=retain_index_list, split_conds_to_windows=split_conds_to_windows)
 
 
 class ContextWindowsExtension(ComfyExtension):
