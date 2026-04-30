@@ -39,6 +39,7 @@ class ConvertColorSpace(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ConvertColorSpace",
+            display_name="Convert Color Space",
             category="image/color",
             inputs=[
                 IO.Image.Input("images"),
