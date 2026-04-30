@@ -12,9 +12,9 @@ from comfy.text_encoders.llama import RMSNorm, MLP, BaseLlama, BaseGenerate, _ma
 
 
 # Intentional minor divergences from transformers -reference implementation:
-# Embedding sqrt(hidden_size) scale applied as a Python scalar (full precision) instead of dtype-matched buffer tensor.
-# RMSNorm uses torch fused F.rms_norm
-# Input image and audio resizing/resampling slightly different numerically
+# - Embedding sqrt(hidden_size) scale applied as a Python scalar (full precision) instead of dtype-matched buffer tensor.
+# - RMSNorm uses torch fused F.rms_norm, very slight numerical differences, but considerably faster
+# - Input image and audio resizing/resampling slightly different numerically
 
 
 GEMMA4_VISION_CONFIG = {"hidden_size": 768, "image_size": 896, "intermediate_size": 3072, "num_attention_heads": 12, "num_hidden_layers": 16, "patch_size": 16, "head_dim": 64, "rms_norm_eps": 1e-6, "position_embedding_size": 10240, "pooling_kernel_size": 3}
