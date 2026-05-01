@@ -204,7 +204,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image Outpainting (Qwen-Image)",
+        "name": "Image Outpainting (Qwen-Image)",
         "inputNode": {
           "id": -10,
           "bounding": [
