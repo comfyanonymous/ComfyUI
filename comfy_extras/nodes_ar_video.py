@@ -1,12 +1,14 @@
 """
 ComfyUI nodes for autoregressive video generation (Causal Forcing, Self-Forcing, etc.).
   - EmptyARVideoLatent: create 5D [B, C, T, H, W] video latent tensors
+  - SamplerARVideo: SAMPLER for the block-by-block autoregressive denoising loop
 """
 
 import torch
 from typing_extensions import override
 
 import comfy.model_management
+import comfy.samplers
 from comfy_api.latest import ComfyExtension, io
 
 
@@ -37,11 +39,44 @@ class EmptyARVideoLatent(io.ComfyNode):
         return io.NodeOutput({"samples": latent})
 
 
+class SamplerARVideo(io.ComfyNode):
+    """Sampler for autoregressive video models (Causal Forcing, Self-Forcing).
+
+    All AR-loop parameters are owned by this node so they live in the workflow.
+    Add new widgets here as the AR sampler grows new options.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerARVideo",
+            display_name="Sampler AR Video",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Int.Input(
+                    "num_frame_per_block",
+                    default=1, min=1, max=64,
+                    tooltip="Frames per autoregressive block. 1 = framewise, "
+                            "3 = chunkwise. Must match the checkpoint's training mode.",
+                ),
+            ],
+            outputs=[io.Sampler.Output()],
+        )
+
+    @classmethod
+    def execute(cls, num_frame_per_block) -> io.NodeOutput:
+        extra_options = {
+            "num_frame_per_block": num_frame_per_block,
+        }
+        return io.NodeOutput(comfy.samplers.ksampler("ar_video", extra_options))
+
+
 class ARVideoExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             EmptyARVideoLatent,
+            SamplerARVideo,
         ]
 
 

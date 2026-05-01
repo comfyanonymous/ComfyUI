@@ -1813,18 +1813,21 @@ def sample_sa_solver_pece(model, x, sigmas, extra_args=None, callback=None, disa
 
 
 @torch.no_grad()
-def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=None):
+def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=None,
+                    num_frame_per_block=1):
     """
     Autoregressive video sampler: block-by-block denoising with KV cache
     and flow-match re-noising for Causal Forcing / Self-Forcing models.
 
     Requires a Causal-WAN compatible model (diffusion_model must expose
     init_kv_caches / init_crossattn_caches) and 5-D latents [B,C,T,H,W].
+
+    All AR-loop parameters are passed via the SamplerARVideo node, not read
+    from the checkpoint or transformer_options.
     """
     extra_args = {} if extra_args is None else extra_args
     model_options = extra_args.get("model_options", {})
     transformer_options = model_options.get("transformer_options", {})
-    ar_config = transformer_options.get("ar_config", {})
 
     if x.ndim != 5:
         raise ValueError(
@@ -1842,7 +1845,6 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
             "does not support this interface — choose a different sampler."
         )
 
-    num_frame_per_block = ar_config.get("num_frame_per_block", 1)
     seed = extra_args.get("seed", 0)
 
     bs, c, lat_t, lat_h, lat_w = x.shape
