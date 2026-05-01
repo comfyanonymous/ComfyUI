@@ -112,10 +112,6 @@ if args.directml is not None:
     # torch_directml.disable_tiled_resources(True)
     lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
-try:
-    import intel_extension_for_pytorch as ipex  # noqa: F401
-except:
-    pass
 
 try:
     _ = torch.xpu.device_count()
@@ -583,9 +579,6 @@ class LoadedModel:
 
         real_model = self.model.model
 
-        if is_intel_xpu() and not args.disable_ipex_optimize and 'ipex' in globals() and real_model is not None:
-            with torch.no_grad():
-                real_model = ipex.optimize(real_model.eval(), inplace=True, graph_mode=True, concat_linear=True)
 
         self.real_model = weakref.ref(real_model)
         self.model_finalizer = weakref.finalize(real_model, cleanup_models)
@@ -1581,10 +1574,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        if torch_version_numeric < (2, 3):
-            return True
-        else:
-            return torch.xpu.get_device_properties(device).has_fp16
+        return torch.xpu.get_device_properties(device).has_fp16
 
     if is_ascend_npu():
         return True
@@ -1650,10 +1640,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        if torch_version_numeric < (2, 3):
-            return True
-        else:
-            return torch.xpu.is_bf16_supported()
+        return torch.xpu.is_bf16_supported()
 
     if is_ascend_npu():
         return True
@@ -1784,6 +1771,7 @@ def soft_empty_cache(force=False):
     if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
     elif is_intel_xpu():
+        torch.xpu.synchronize()
         torch.xpu.empty_cache()
     elif is_ascend_npu():
         torch.npu.empty_cache()
