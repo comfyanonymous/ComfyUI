@@ -459,8 +459,8 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         total_images = image.shape[0]
         captured_feat = None
 
-        model_h = int(head.heatmap_size[0]) * 4   # e.g. 192 * 4 = 768
-        model_w = int(head.heatmap_size[1]) * 4   # e.g. 256 * 4 = 1024
+        model_w = int(head.heatmap_size[0]) * 4   # 192 * 4 = 768
+        model_h = int(head.heatmap_size[1]) * 4   # 256 * 4 = 1024
 
         def _resize_to_model(imgs):
             """Aspect-preserving resize + zero-pad BHWC images to (model_h, model_w). Returns (resized_bhwc, scale, pad_top, pad_left)."""
@@ -727,13 +727,13 @@ class CropByBBoxes(io.ComfyNode):
                 scale = min(output_width / crop_w, output_height / crop_h)
                 scaled_w = int(round(crop_w * scale))
                 scaled_h = int(round(crop_h * scale))
-                scaled = comfy.utils.common_upscale(crop_chw, scaled_w, scaled_h, upscale_method="bilinear", crop="disabled")
+                scaled = comfy.utils.common_upscale(crop_chw, scaled_w, scaled_h, upscale_method="area", crop="disabled")
                 pad_left = (output_width  - scaled_w) // 2
                 pad_top  = (output_height - scaled_h) // 2
                 resized = torch.zeros(1, num_ch, output_height, output_width, dtype=image.dtype, device=image.device)
                 resized[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
             else:  # "stretch"
-                resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="bilinear", crop="disabled")
+                resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="area", crop="disabled")
             crops.append(resized)
 
         if not crops:
