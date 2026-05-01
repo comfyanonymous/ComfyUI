@@ -1022,11 +1022,14 @@ class SaveImageAdvanced(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images, filename_prefix: str, format: dict, embed_workflow: bool, prompt=None, extra_pnginfo=None) -> IO.NodeOutput:
+    def execute(cls, images, filename_prefix: str, format: dict, embed_workflow: bool) -> IO.NodeOutput:
         output_dir = folder_paths.get_output_directory()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.\
             get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
+
+        prompt = cls.hidden.prompt
+        extra_pnginfo = cls.hidden.extra_pnginfo
 
         for batch_number, image in enumerate(images):
             # get widget values from dynamic combo
