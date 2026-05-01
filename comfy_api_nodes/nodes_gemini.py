@@ -83,13 +83,16 @@ class GeminiImageModel(str, Enum):
 
 async def create_image_parts(
     cls: type[IO.ComfyNode],
-    images: Input.Image,
+    images: Input.Image | list[Input.Image],
     image_limit: int = 0,
 ) -> list[GeminiPart]:
     image_parts: list[GeminiPart] = []
     if image_limit < 0:
         raise ValueError("image_limit must be greater than or equal to 0 when creating Gemini image parts.")
-    total_images = get_number_of_images(images)
+
+    # Accept either a single (possibly-batched) tensor or a list of them; share URL budget across all.
+    images_list: list[Input.Image] = images if isinstance(images, list) else [images]
+    total_images = sum(get_number_of_images(img) for img in images_list)
     if total_images <= 0:
         raise ValueError("No images provided to create_image_parts; at least one image is required.")
 
@@ -100,7 +103,7 @@ async def create_image_parts(
     num_url_images = min(effective_max, 10)  # Vertex API max number of image links
     reference_images_urls = await upload_images_to_comfyapi(
         cls,
-        images,
+        images_list,
         max_images=num_url_images,
     )
     for reference_image_url in reference_images_urls:
@@ -112,15 +115,22 @@ async def create_image_parts(
                 )
             )
         )
-    for idx in range(num_url_images, effective_max):
-        image_parts.append(
-            GeminiPart(
-                inlineData=GeminiInlineData(
-                    mimeType=GeminiMimeType.image_png,
-                    data=tensor_to_base64_string(images[idx]),
+    if effective_max > num_url_images:
+        flat: list[torch.Tensor] = []
+        for tensor in images_list:
+            if len(tensor.shape) == 4:
+                flat.extend(tensor[i] for i in range(tensor.shape[0]))
+            else:
+                flat.append(tensor)
+        for idx in range(num_url_images, effective_max):
+            image_parts.append(
+                GeminiPart(
+                    inlineData=GeminiInlineData(
+                        mimeType=GeminiMimeType.image_png,
+                        data=tensor_to_base64_string(flat[idx]),
+                    )
                 )
             )
-        )
     return image_parts
 
 
@@ -849,7 +859,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="GeminiNanoBanana2",
+            node_id="GeminiNanoBanana2V2",
             display_name="Nano Banana 2",
             category="api node/image/Gemini",
             description="Generate or edit images synchronously via Google Vertex API.",
@@ -919,11 +929,14 @@ class GeminiNanoBanana2(IO.ComfyNode):
                     "thinking_level",
                     options=["MINIMAL", "HIGH"],
                 ),
-                IO.Image.Input(
+                IO.Autogrow.Input(
                     "images",
-                    optional=True,
-                    tooltip="Optional reference image(s). "
-                    "To include multiple images, use the Batch Images node (up to 14).",
+                    template=IO.Autogrow.TemplateNames(
+                        IO.Image.Input("image"),
+                        names=[f"image_{i}" for i in range(1, 15)],
+                        min=0,
+                    ),
+                    tooltip="Optional reference image(s). Up to 14 images total.",
                 ),
                 IO.Custom("GEMINI_INPUT_FILES").Input(
                     "files",
@@ -968,7 +981,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
         resolution: str,
         response_modalities: str,
         thinking_level: str,
-        images: Input.Image | None = None,
+        images: IO.Autogrow.Type | None = None,
         files: list[GeminiPart] | None = None,
         system_prompt: str = "",
     ) -> IO.NodeOutput:
@@ -977,10 +990,12 @@ class GeminiNanoBanana2(IO.ComfyNode):
             model = "gemini-3.1-flash-image-preview"
 
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
-        if images is not None:
-            if get_number_of_images(images) > 14:
-                raise ValueError("The current maximum number of supported images is 14.")
-            parts.extend(await create_image_parts(cls, images))
+        if images:
+            image_tensors: list[Input.Image] = [t for t in images.values() if t is not None]
+            if image_tensors:
+                if sum(get_number_of_images(t) for t in image_tensors) > 14:
+                    raise ValueError("The current maximum number of supported images is 14.")
+                parts.extend(await create_image_parts(cls, image_tensors))
         if files is not None:
             parts.extend(files)
 

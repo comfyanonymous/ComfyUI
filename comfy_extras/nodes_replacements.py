@@ -13,6 +13,7 @@ async def register_replacements():
     await register_replacements_preview3d()
     await register_replacements_svdimg2vid()
     await register_replacements_conditioningavg()
+    await register_replacements_nanobanana2()
 
 async def register_replacements_longeredge():
     # No dynamic inputs here
@@ -90,6 +91,35 @@ async def register_replacements_conditioningavg():
     await api.node_replacement.register(io.NodeReplace(
             new_node_id="ConditioningAverage",
             old_node_id="ConditioningAverage ",
+        ))
+
+async def register_replacements_nanobanana2():
+    # GeminiNanoBanana2 replaced by GeminiNanoBanana2V2, which uses Autogrow for the images input.
+    await api.node_replacement.register(io.NodeReplace(
+            new_node_id="GeminiNanoBanana2V2",
+            old_node_id="GeminiNanoBanana2",
+            old_widget_ids=[
+                "prompt",
+                "model",
+                "seed",
+                "aspect_ratio",
+                "resolution",
+                "response_modalities",
+                "thinking_level",
+                "system_prompt",
+            ],
+            input_mapping=[
+                {"new_id": "prompt", "old_id": "prompt"},
+                {"new_id": "model", "old_id": "model"},
+                {"new_id": "seed", "old_id": "seed"},
+                {"new_id": "aspect_ratio", "old_id": "aspect_ratio"},
+                {"new_id": "resolution", "old_id": "resolution"},
+                {"new_id": "response_modalities", "old_id": "response_modalities"},
+                {"new_id": "thinking_level", "old_id": "thinking_level"},
+                {"new_id": "images.image_1", "old_id": "images"},
+                {"new_id": "files", "old_id": "files"},
+                {"new_id": "system_prompt", "old_id": "system_prompt"},
+            ],
         ))
 
 class NodeReplacementsExtension(ComfyExtension):
