@@ -453,7 +453,6 @@ class TopazVideoEnhance(IO.ComfyNode):
             progress_extractor=lambda x: getattr(x, "progress", 0),
             price_extractor=lambda x: (x.estimates.cost[0] * 0.08 if x.estimates and x.estimates.cost[0] else None),
             poll_interval=10.0,
-            max_poll_attempts=320,
         )
         return IO.NodeOutput(await download_url_to_video_output(final_response.download.url))
 

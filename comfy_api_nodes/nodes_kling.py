@@ -276,7 +276,6 @@ async def finish_omni_video_task(cls: type[IO.ComfyNode], response: TaskStatusRe
         cls,
         ApiEndpoint(path=f"/proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
         response_model=TaskStatusResponse,
-        max_poll_attempts=280,
         status_extractor=lambda r: (r.data.task_status if r.data else None),
     )
     return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
@@ -3062,7 +3061,6 @@ class KlingVideoNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path=poll_path),
             response_model=TaskStatusResponse,
-            max_poll_attempts=280,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
@@ -3188,7 +3186,6 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path=f"/proxy/kling/v1/videos/image2video/{response.data.task_id}"),
             response_model=TaskStatusResponse,
-            max_poll_attempts=280,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
