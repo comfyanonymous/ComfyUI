@@ -11,6 +11,74 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 import re
 
+def video_latent_composite(destination, source, x, y, mask=None, multiplier=8, resize_source=False):
+    # destination/source shape: [B, C, F, H, W]
+    source = source.to(destination.device)
+
+    # 1. Spatial Resizing for Source
+    if resize_source:
+        # size=(Frames, Height, Width). We keep source's F, but match destination's H, W
+        target_size = (source.shape[2], destination.shape[3], destination.shape[4])
+        source = torch.nn.functional.interpolate(
+            source, 
+            size=target_size, 
+            mode="trilinear", 
+            align_corners=False
+        )
+
+    # 2. Coordinate Scaling
+    x_latent = x // multiplier
+    y_latent = y // multiplier
+
+    # 3. Mask Processing (Input: [F, H, W])
+    if mask is None:
+        mask = torch.ones_like(source)
+    else:
+        mask = mask.to(destination.device, copy=True)
+        
+        # Convert [F, H, W] -> [1, 1, F, H, W]
+        # This allows it to broadcast across any Batch or Channel in 'source'
+        mask = mask.unsqueeze(0).unsqueeze(0)
+            
+        # Resize mask spatially, preserving its frame count
+        # size=(mask_frames, source_height, source_width)
+        mask_target_size = (mask.shape[2], source.shape[3], source.shape[4])
+        mask = torch.nn.functional.interpolate(
+            mask, 
+            size=mask_target_size, 
+            mode="trilinear", 
+            align_corners=False
+        )
+
+    # 4. Dimension Calculations for Spatial Slicing
+    dst_h, dst_w = destination.shape[3], destination.shape[4]
+    src_h, src_w = source.shape[3], source.shape[4]
+
+    # Calculate visible overlap region
+    visible_h = max(0, min(y_latent + src_h, dst_h) - max(0, y_latent))
+    visible_w = max(0, min(x_latent + src_w, dst_w) - max(0, x_latent))
+
+    if visible_h <= 0 or visible_w <= 0:
+        return destination
+
+    # Determine slicing offsets
+    src_top = max(0, -y_latent)
+    src_left = max(0, -x_latent)
+    dst_top = max(0, y_latent)
+    dst_left = max(0, x_latent)
+
+    # 5. Slicing and Blending
+    # destination/source/mask are now all 5D: [B, C, F, H, W]
+    # We slice only the H and W dimensions (indices 3 and 4)
+    m = mask[:, :, :, src_top:src_top+visible_h, src_left:src_left+visible_w]
+    s = source[:, :, :, src_top:src_top+visible_h, src_left:src_left+visible_w]
+    d = destination[:, :, :, dst_top:dst_top+visible_h, dst_left:dst_left+visible_w]
+
+    # Combine using the mask
+    destination[:, :, :, dst_top:dst_top+visible_h, dst_left:dst_left+visible_w] = (m * s) + ((1.0 - m) * d)
+    
+    return destination
+
 def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, reference_latent_image, reference_latent_mask, denoise=1.0, start_step=None, time_to_move_last_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
     sampler = comfy.samplers.KSampler(model, steps=steps, device=model.load_device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
 
