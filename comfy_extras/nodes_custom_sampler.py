@@ -31,7 +31,7 @@ def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, posit
     #during each step, composite the reference latent back onto the partially sampled latent using the reference latent mask
 
     for i in range (min(last_step, len(sigmas) - 1) - start_step):
-        if i > 1:
+        if i > 0:
             #don't add new noise to samples after first loop iteration
             noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu") 
 
@@ -52,13 +52,13 @@ def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, posit
             process_latent_out = model.get_model_object("process_latent_out")
             process_latent_in = model.get_model_object("process_latent_in")
 
-            scale = sigmas[temp_start + 1]
+            scale = sigmas[temp_start + 1].to(noise.device)
 
             if torch.count_nonzero(reference_latent_image) > 0: #Don't shift the empty latent image.
                 reference_latent_image = process_latent_in(reference_latent_image)
             noisy = model_sampling.noise_scaling(scale, noise, reference_latent_image)
             noisy = process_latent_out(noisy)
-            noisy = torch.nan_to_num(noisy, nan=0.0, posinf=0.0, neginf=0.0)
+            noisy = torch.nan_to_num(noisy, nan=0.0, posinf=0.0, neginf=0.0).to(samples.device)
 
             samples = video_latent_composite(samples, noisy, 0, 0, reference_latent_mask, multiplier=8, resize_source=True)
         
