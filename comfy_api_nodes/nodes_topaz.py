@@ -36,9 +36,9 @@ from comfy_api_nodes.util import (
 )
 
 UPSCALER_MODELS_MAP = {
+    "Astra 2": "ast-2",
     "Starlight (Astra) Fast": "slf-1",
     "Starlight (Astra) Creative": "slc-1",
-    "Astra 2": "ast-2",
     "Starlight Precise 2.5": "slp-2.5",
 }
 
@@ -483,22 +483,6 @@ class TopazVideoEnhanceV2(IO.ComfyNode):
                     "upscaler_model",
                     options=[
                         IO.DynamicCombo.Option(
-                            "Starlight (Astra) Fast",
-                            [IO.Combo.Input("upscaler_resolution", options=["FullHD (1080p)", "4K (2160p)"]),],
-                        ),
-                        IO.DynamicCombo.Option(
-                            "Starlight (Astra) Creative",
-                            [
-                                IO.Combo.Input("upscaler_resolution", options=["FullHD (1080p)", "4K (2160p)"]),
-                                IO.Combo.Input(
-                                    "creativity",
-                                    options=["low", "middle", "high"],
-                                    default="low",
-                                    tooltip="Creative strength of the upscale.",
-                                ),
-                            ],
-                        ),
-                        IO.DynamicCombo.Option(
                             "Astra 2",
                             [
                                 IO.Combo.Input("upscaler_resolution", options=["FullHD (1080p)", "4K (2160p)"]),
@@ -539,6 +523,22 @@ class TopazVideoEnhanceV2(IO.ComfyNode):
                                     tooltip="Pulls output toward photographic realism."
                                     "Leave at 0 for the model default.",
                                     advanced=True,
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Starlight (Astra) Fast",
+                            [IO.Combo.Input("upscaler_resolution", options=["FullHD (1080p)", "4K (2160p)"]),],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Starlight (Astra) Creative",
+                            [
+                                IO.Combo.Input("upscaler_resolution", options=["FullHD (1080p)", "4K (2160p)"]),
+                                IO.Combo.Input(
+                                    "creativity",
+                                    options=["low", "middle", "high"],
+                                    default="low",
+                                    tooltip="Creative strength of the upscale.",
                                 ),
                             ],
                         ),
