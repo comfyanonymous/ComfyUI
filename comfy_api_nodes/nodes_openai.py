@@ -415,8 +415,9 @@ class OpenAIGPTImage1(IO.ComfyNode):
                         "1152x2048",
                         "3840x2160",
                         "2160x3840",
+                        "Custom",
                     ],
-                    tooltip="Image size",
+                    tooltip="Image size. Select 'Custom' to use the custom width and height (GPT Image 2 only).",
                     optional=True,
                 ),
                 IO.Int.Input(
@@ -445,6 +446,24 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     default="gpt-image-2",
                     optional=True,
                 ),
+                IO.Int.Input(
+                    "custom_width",
+                    default=1024,
+                    min=1024,
+                    max=3840,
+                    step=16,
+                    tooltip="Used only when `size` is 'Custom'. Must be a multiple of 16 (GPT Image 2 only).",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "custom_height",
+                    default=1024,
+                    min=1024,
+                    max=3840,
+                    step=16,
+                    tooltip="Used only when `size` is 'Custom'. Must be a multiple of 16 (GPT Image 2 only).",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -471,9 +490,9 @@ class OpenAIGPTImage1(IO.ComfyNode):
                       "high":   [0.133, 0.22]
                     },
                     "gpt-image-2": {
-                      "low":    [0.0048, 0.012],
-                      "medium": [0.041, 0.112],
-                      "high":   [0.165, 0.43]
+                      "low":    [0.0048, 0.019],
+                      "medium": [0.041, 0.168],
+                      "high":   [0.165, 0.67]
                     }
                   };
                   $range := $lookup($lookup($ranges, widgets.model), widgets.quality);
@@ -503,6 +522,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
         mask: Input.Image | None = None,
         n: int = 1,
         size: str = "1024x1024",
+        custom_width: int = 1024,
+        custom_height: int = 1024,
         model: str = "gpt-image-1",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
@@ -510,7 +531,25 @@ class OpenAIGPTImage1(IO.ComfyNode):
         if mask is not None and image is None:
             raise ValueError("Cannot use a mask without an input image")
 
-        if model in ("gpt-image-1", "gpt-image-1.5"):
+        if size == "Custom":
+            if model != "gpt-image-2":
+                raise ValueError("Custom resolution is only supported by GPT Image 2 model")
+            if custom_width % 16 != 0 or custom_height % 16 != 0:
+                raise ValueError(f"Custom width and height must be multiples of 16, got {custom_width}x{custom_height}")
+            if max(custom_width, custom_height) > 3840:
+                raise ValueError(f"Custom resolution max edge must be <= 3840, got {custom_width}x{custom_height}")
+            ratio = max(custom_width, custom_height) / min(custom_width, custom_height)
+            if ratio > 3:
+                raise ValueError(
+                    f"Custom resolution aspect ratio must not exceed 3:1, got {custom_width}x{custom_height}"
+                )
+            total_pixels = custom_width * custom_height
+            if not 655_360 <= total_pixels <= 8_294_400:
+                raise ValueError(
+                    f"Custom resolution total pixels must be between 655,360 and 8,294,400, got {total_pixels}"
+                )
+            size = f"{custom_width}x{custom_height}"
+        elif model in ("gpt-image-1", "gpt-image-1.5"):
             if size not in ("auto", "1024x1024", "1024x1536", "1536x1024"):
                 raise ValueError(f"Resolution {size} is only supported by GPT Image 2 model")
 

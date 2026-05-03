@@ -1,7 +1,7 @@
 <div align="center">
 
 # ComfyUI
-**The most powerful and modular visual AI engine and application.**
+**The most powerful and modular AI engine for content creation.**
 
 
 [![Website][website-shield]][website-url]
@@ -31,10 +31,15 @@
 [github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
 [github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
 
-![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
+<img width="1590" height="795" alt="ComfyUI Screenshot" src="https://github.com/user-attachments/assets/4aab0bef-b413-4595-9766-a2c134676d27" />
 </div>
 
-ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
+ComfyUI is the AI creation engine for visual professionals who demand control over every model, every parameter, and every output. Its powerful and modular node graph interface empowers creatives to generate images, videos, 3D models, audio, and more...
+- ComfyUI natively supports the latest open-source state of the art models.
+- API nodes provide access to the best closed source models such as Nano Banana, Seedance, Hunyuan3D, etc.
+- It is available on Windows, Linux, and macOS, locally with our desktop application or on our cloud.
+- The most sophisticated workflows can be exposed through a simple UI thanks to App Mode.
+- It integrates seamlessly into production pipelines with our API endpoints.
 
 ## Get Started
 
@@ -77,6 +82,7 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
    - [Hunyuan Image 2.1](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_image/)
    - [Flux 2](https://comfyanonymous.github.io/ComfyUI_examples/flux2/)
    - [Z Image](https://comfyanonymous.github.io/ComfyUI_examples/z_image/)
+   - Ernie Image
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
@@ -193,13 +199,15 @@ If you have trouble extracting it, right click the file -> properties -> unblock
 
 The portable above currently comes with python 3.13 and pytorch cuda 13.0. Update your Nvidia drivers if it doesn't start.
 
-#### Alternative Downloads:
+#### All Official Portable Downloads:
 
 [Portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
 
-[Experimental portable for Intel GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_intel.7z)
+[Portable for Intel GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_intel.7z)
 
-[Portable with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
+[Portable for Nvidia GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z) (supports 20 series and above).
+
+[Portable for Nvidia GPUs with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
 
 #### How do I share models between another UI and ComfyUI?
 
