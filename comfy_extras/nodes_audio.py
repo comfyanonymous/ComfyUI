@@ -19,10 +19,11 @@ class EmptyLatentAudio(IO.ComfyNode):
             node_id="EmptyLatentAudio",
             display_name="Empty Latent Audio",
             category="latent/audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
                 IO.Int.Input(
-                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
+                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch.",
                 ),
             ],
             outputs=[IO.Latent.Output()],
@@ -96,14 +97,14 @@ class VAEEncodeAudio(IO.ComfyNode):
 
 def vae_decode_audio(vae, samples, tile=None, overlap=None):
     if tile is not None:
-        audio = vae.decode_tiled(samples["samples"], tile_y=tile, overlap=overlap).movedim(-1, 1)
+        audio = vae.decode_tiled(samples["samples"], tile_x=tile, tile_y=tile, overlap=overlap).movedim(-1, 1)
     else:
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
 
     std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
     std[std < 1.0] = 1.0
     audio /= std
-    vae_sample_rate = getattr(vae, "audio_sample_rate", 44100)
+    vae_sample_rate = getattr(vae, "audio_sample_rate_output", getattr(vae, "audio_sample_rate", 44100))
     return {"waveform": audio, "sample_rate": vae_sample_rate if "sample_rate" not in samples else samples["sample_rate"]}
 
 
@@ -159,6 +160,7 @@ class SaveAudio(IO.ComfyNode):
             search_aliases=["export flac"],
             display_name="Save Audio (FLAC)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -184,6 +186,7 @@ class SaveAudioMP3(IO.ComfyNode):
             search_aliases=["export mp3"],
             display_name="Save Audio (MP3)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -300,6 +303,7 @@ class LoadAudio(IO.ComfyNode):
             search_aliases=["import audio", "open audio", "audio file"],
             display_name="Load Audio",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Combo.Input("audio", upload=IO.UploadType.audio, options=sorted(files)),
             ],
@@ -677,6 +681,7 @@ class EmptyAudio(IO.ComfyNode):
                     tooltip="Sample rate of the empty audio clip.",
                     min=1,
                     max=192000,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "channels",
@@ -684,6 +689,7 @@ class EmptyAudio(IO.ComfyNode):
                     min=1,
                     max=2,
                     tooltip="Number of audio channels (1 for mono, 2 for stereo).",
+                    advanced=True,
                 ),
             ],
             outputs=[IO.Audio.Output()],

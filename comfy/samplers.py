@@ -946,6 +946,8 @@ class CFGGuider:
 
     def inner_set_conds(self, conds):
         for k in conds:
+            if self.model_patcher.is_dynamic() and comfy.sampler_helpers.cond_has_hooks(conds[k]):
+                self.model_patcher = self.model_patcher.get_non_dynamic_delegate()
             self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):
@@ -983,8 +985,8 @@ class CFGGuider:
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
-        noise = noise.to(device)
-        latent_image = latent_image.to(device)
+        noise = noise.to(device=device, dtype=torch.float32)
+        latent_image = latent_image.to(device=device, dtype=torch.float32)
         sigmas = sigmas.to(device)
         cast_to_load_options(self.model_options, device=device, dtype=self.model_patcher.model_dtype())
 
@@ -1026,6 +1028,7 @@ class CFGGuider:
                 denoise_mask, _ = comfy.utils.pack_latents(denoise_masks)
             else:
                 denoise_mask = denoise_masks[0]
+            denoise_mask = denoise_mask.float()
 
         self.conds = {}
         for k in self.original_conds:

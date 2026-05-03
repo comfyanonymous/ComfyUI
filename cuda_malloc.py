@@ -1,9 +1,7 @@
 import os
 import importlib.util
-from comfy.cli_args import args, PerformanceFeature, enables_dynamic_vram
+from comfy.cli_args import args, PerformanceFeature
 import subprocess
-
-import comfy_aimdo.control
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
@@ -86,10 +84,6 @@ if not args.cuda_malloc:
                 args.cuda_malloc = cuda_malloc_supported()
     except:
         pass
-
-if enables_dynamic_vram() and comfy_aimdo.control.init():
-    args.cuda_malloc = False
-    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = ""
 
 if args.disable_cuda_malloc:
     args.cuda_malloc = False

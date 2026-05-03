@@ -110,11 +110,13 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "engine",
                     options=["automatic", "magnific_illusio", "magnific_sharpy", "magnific_sparkle"],
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "auto_downscale",
                     default=False,
                     tooltip="Automatically downscale input image if output would exceed maximum pixel limit.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -228,7 +230,6 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             status_extractor=lambda x: x.status,
             price_extractor=lambda _: price_usd,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -280,6 +281,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
                     "auto_downscale",
                     default=False,
                     tooltip="Automatically downscale input image if output would exceed maximum resolution.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -388,7 +390,6 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
             status_extractor=lambda x: x.status,
             price_extractor=lambda _: price_usd,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -440,6 +441,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
                         "softy",
                     ],
                     tooltip="Processing engine selection.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "portrait_mode",
@@ -468,6 +470,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
                     default=True,
                     tooltip="When disabled, expect each generation to introduce a degree of randomness, "
                     "leading to more diverse outcomes.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -536,7 +539,6 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -582,16 +584,19 @@ class MagnificImageRelightNode(IO.ComfyNode):
                     "interpolate_from_original",
                     default=False,
                     tooltip="Restricts generation freedom to match original more closely.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "change_background",
                     default=True,
                     tooltip="Modifies background based on prompt/reference.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "preserve_details",
                     default=True,
                     tooltip="Maintains texture and fine details from original.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "advanced_settings",
@@ -774,7 +779,6 @@ class MagnificImageRelightNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -916,7 +920,6 @@ class MagnificImageSkinEnhancerNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 

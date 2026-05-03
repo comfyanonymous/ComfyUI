@@ -833,6 +833,7 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
             node_id="RecraftVectorizeImageNode",
             display_name="Recraft Vectorize Image",
             category="api node/image/Recraft",
+            essentials_category="Image Tools",
             description="Generates SVG synchronously from an input image.",
             inputs=[
                 IO.Image.Input("image"),
@@ -963,6 +964,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
             node_id="RecraftRemoveBackgroundNode",
             display_name="Recraft Remove Background",
             category="api node/image/Recraft",
+            essentials_category="Image Tools",
             description="Remove background from image, and return processed image and mask.",
             inputs=[
                 IO.Image.Input("image"),

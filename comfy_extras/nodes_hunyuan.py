@@ -138,7 +138,7 @@ class HunyuanVideo15SuperResolution(io.ComfyNode):
                 io.Image.Input("start_image", optional=True),
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True),
                 io.Latent.Input("latent"),
-                io.Float.Input("noise_augmentation", default=0.70, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("noise_augmentation", default=0.70, min=0.0, max=1.0, step=0.01, advanced=True),
 
             ],
             outputs=[
@@ -285,6 +285,7 @@ class TextEncodeHunyuanVideo_ImageToVideo(io.ComfyNode):
                     min=1,
                     max=512,
                     tooltip="How much the image influences things vs the text prompt. Higher number means more influence from the text prompt.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -313,7 +314,7 @@ class HunyuanImageToVideo(io.ComfyNode):
                 io.Int.Input("height", default=480, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("length", default=53, min=1, max=nodes.MAX_RESOLUTION, step=4),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
-                io.Combo.Input("guidance_type", options=["v1 (concat)", "v2 (replace)", "custom"]),
+                io.Combo.Input("guidance_type", options=["v1 (concat)", "v2 (replace)", "custom"], advanced=True),
                 io.Image.Input("start_image", optional=True),
             ],
             outputs=[
@@ -384,7 +385,7 @@ class HunyuanRefinerLatent(io.ComfyNode):
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
                 io.Latent.Input("latent"),
-                io.Float.Input("noise_augmentation", default=0.10, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("noise_augmentation", default=0.10, min=0.0, max=1.0, step=0.01, advanced=True),
 
             ],
             outputs=[

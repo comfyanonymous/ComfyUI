@@ -75,8 +75,8 @@ class StableZero123_Conditioning_Batched(io.ComfyNode):
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
                 io.Float.Input("elevation", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
                 io.Float.Input("azimuth", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
-                io.Float.Input("elevation_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
-                io.Float.Input("azimuth_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False)
+                io.Float.Input("elevation_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False, advanced=True),
+                io.Float.Input("azimuth_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False, advanced=True)
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),

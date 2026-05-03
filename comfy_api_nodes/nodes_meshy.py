@@ -58,11 +58,12 @@ class MeshyTextToModelNode(IO.ComfyNode):
                     ],
                     tooltip="When set to false, returns an unprocessed triangular mesh.",
                 ),
-                IO.Combo.Input("symmetry_mode", options=["auto", "on", "off"]),
+                IO.Combo.Input("symmetry_mode", options=["auto", "on", "off"], advanced=True),
                 IO.Combo.Input(
                     "pose_mode",
                     options=["", "A-pose", "T-pose"],
                     tooltip="Specify the pose mode for the generated model.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -155,6 +156,7 @@ class MeshyRefineNode(IO.ComfyNode):
                     tooltip="Generate PBR Maps (metallic, roughness, normal) in addition to the base color. "
                     "Note: this should be set to false when using Sculpture style, "
                     "as Sculpture style generates its own set of PBR maps.",
+                    advanced=True,
                 ),
                 IO.String.Input(
                     "texture_prompt",
@@ -299,6 +301,7 @@ class MeshyImageToModelNode(IO.ComfyNode):
                     "pose_mode",
                     options=["", "A-pose", "T-pose"],
                     tooltip="Specify the pose mode for the generated model.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -429,7 +432,7 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                     ],
                     tooltip="When set to false, returns an unprocessed triangular mesh.",
                 ),
-                IO.Combo.Input("symmetry_mode", options=["auto", "on", "off"]),
+                IO.Combo.Input("symmetry_mode", options=["auto", "on", "off"], advanced=True),
                 IO.DynamicCombo.Input(
                     "should_texture",
                     options=[
@@ -466,6 +469,7 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                     "pose_mode",
                     options=["", "A-pose", "T-pose"],
                     tooltip="Specify the pose mode for the generated model.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -728,8 +732,9 @@ class MeshyTextureNode(IO.ComfyNode):
                     tooltip="Use the original UV of the model instead of generating new UVs. "
                     "When enabled, Meshy preserves existing textures from the uploaded model. "
                     "If the model has no original UV, the quality of the output might not be as good.",
+                    advanced=True,
                 ),
-                IO.Boolean.Input("pbr", default=False),
+                IO.Boolean.Input("pbr", default=False, advanced=True),
                 IO.String.Input(
                     "text_style_prompt",
                     default="",

@@ -74,6 +74,7 @@ class TextToVideoNode(IO.ComfyNode):
                     default=False,
                     optional=True,
                     tooltip="When true, the generated video will include AI-generated audio matching the scene.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -151,6 +152,7 @@ class ImageToVideoNode(IO.ComfyNode):
                     default=False,
                     optional=True,
                     tooltip="When true, the generated video will include AI-generated audio matching the scene.",
+                    advanced=True,
                 ),
             ],
             outputs=[

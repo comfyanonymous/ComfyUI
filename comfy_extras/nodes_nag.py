@@ -10,7 +10,7 @@ class NAGuidance(io.ComfyNode):
             node_id="NAGuidance",
             display_name="Normalized Attention Guidance",
             description="Applies Normalized Attention Guidance to models, enabling negative prompts on distilled/schnell models.",
-            category="",
+            category="advanced/guidance",
             is_experimental=True,
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply NAG to."),

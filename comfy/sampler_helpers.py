@@ -66,6 +66,18 @@ def convert_cond(cond):
         out.append(temp)
     return out
 
+def cond_has_hooks(cond):
+    for c in cond:
+        temp = c[1]
+        if "hooks" in temp:
+            return True
+        if "control" in temp:
+            control = temp["control"]
+            extra_hooks = control.get_extra_hooks()
+            if len(extra_hooks) > 0:
+                return True
+    return False
+
 def get_additional_models(conds, dtype):
     """loads additional models in conditioning"""
     cnets: list[ControlBase] = []

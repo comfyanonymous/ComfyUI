@@ -134,6 +134,13 @@ class ImageToVideoWithAudioRequest(BaseModel):
     shot_type: str | None = Field(None)
 
 
+class KlingAvatarRequest(BaseModel):
+    image: str = Field(...)
+    sound_file: str = Field(...)
+    prompt: str | None = Field(None)
+    mode: str = Field(...)
+
+
 class MotionControlRequest(BaseModel):
     prompt: str = Field(...)
     image_url: str = Field(...)
@@ -141,3 +148,4 @@ class MotionControlRequest(BaseModel):
     keep_original_sound: str = Field(...)
     character_orientation: str = Field(...)
     mode: str = Field(..., description="'pro' or 'std'")
+    model_name: str = Field(...)

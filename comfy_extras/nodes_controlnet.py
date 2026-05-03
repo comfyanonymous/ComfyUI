@@ -48,8 +48,8 @@ class ControlNetInpaintingAliMamaApply(io.ComfyNode):
                 io.Image.Input("image"),
                 io.Mask.Input("mask"),
                 io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001, advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),

@@ -89,13 +89,13 @@ class TripoTextToModelNode(IO.ComfyNode):
                 IO.Combo.Input("style", options=TripoStyle, default="None", optional=True),
                 IO.Boolean.Input("texture", default=True, optional=True),
                 IO.Boolean.Input("pbr", default=True, optional=True),
-                IO.Int.Input("image_seed", default=42, optional=True),
-                IO.Int.Input("model_seed", default=42, optional=True),
-                IO.Int.Input("texture_seed", default=42, optional=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True),
-                IO.Boolean.Input("quad", default=False, optional=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
+                IO.Int.Input("image_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True),
+                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -210,18 +210,18 @@ class TripoImageToModelNode(IO.ComfyNode):
                 IO.Combo.Input("style", options=TripoStyle, default="None", optional=True),
                 IO.Boolean.Input("texture", default=True, optional=True),
                 IO.Boolean.Input("pbr", default=True, optional=True),
-                IO.Int.Input("model_seed", default=42, optional=True),
+                IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
                 IO.Combo.Input(
-                    "orientation", options=TripoOrientation, default=TripoOrientation.DEFAULT, optional=True
+                    "orientation", options=TripoOrientation, default=TripoOrientation.DEFAULT, optional=True, advanced=True
                 ),
-                IO.Int.Input("texture_seed", default=42, optional=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
+                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
                 IO.Combo.Input(
-                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True
+                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
                 ),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
-                IO.Boolean.Input("quad", default=False, optional=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
+                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -347,18 +347,19 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     options=TripoOrientation,
                     default=TripoOrientation.DEFAULT,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input("texture", default=True, optional=True),
                 IO.Boolean.Input("pbr", default=True, optional=True),
-                IO.Int.Input("model_seed", default=42, optional=True),
-                IO.Int.Input("texture_seed", default=42, optional=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
+                IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
                 IO.Combo.Input(
-                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True
+                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
                 ),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
-                IO.Boolean.Input("quad", default=False, optional=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
+                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -474,10 +475,10 @@ class TripoTextureNode(IO.ComfyNode):
                 IO.Custom("MODEL_TASK_ID").Input("model_task_id"),
                 IO.Boolean.Input("texture", default=True, optional=True),
                 IO.Boolean.Input("pbr", default=True, optional=True),
-                IO.Int.Input("texture_seed", default=42, optional=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
+                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
                 IO.Combo.Input(
-                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True
+                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
                 ),
             ],
             outputs=[
@@ -682,13 +683,14 @@ class TripoConversionNode(IO.ComfyNode):
             inputs=[
                 IO.Custom("MODEL_TASK_ID,RIG_TASK_ID,RETARGET_TASK_ID").Input("original_model_task_id"),
                 IO.Combo.Input("format", options=["GLTF", "USDZ", "FBX", "OBJ", "STL", "3MF"]),
-                IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
                 IO.Int.Input(
                     "face_limit",
                     default=-1,
                     min=-1,
                     max=2000000,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "texture_size",
@@ -696,47 +698,53 @@ class TripoConversionNode(IO.ComfyNode):
                     min=128,
                     max=4096,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "texture_format",
                     options=["BMP", "DPX", "HDR", "JPEG", "OPEN_EXR", "PNG", "TARGA", "TIFF", "WEBP"],
                     default="JPEG",
                     optional=True,
+                    advanced=True,
                 ),
-                IO.Boolean.Input("force_symmetry", default=False, optional=True),
-                IO.Boolean.Input("flatten_bottom", default=False, optional=True),
+                IO.Boolean.Input("force_symmetry", default=False, optional=True, advanced=True),
+                IO.Boolean.Input("flatten_bottom", default=False, optional=True, advanced=True),
                 IO.Float.Input(
                     "flatten_bottom_threshold",
                     default=0.0,
                     min=0.0,
                     max=1.0,
                     optional=True,
+                    advanced=True,
                 ),
-                IO.Boolean.Input("pivot_to_center_bottom", default=False, optional=True),
+                IO.Boolean.Input("pivot_to_center_bottom", default=False, optional=True, advanced=True),
                 IO.Float.Input(
                     "scale_factor",
                     default=1.0,
                     min=0.0,
                     optional=True,
+                    advanced=True,
                 ),
-                IO.Boolean.Input("with_animation", default=False, optional=True),
-                IO.Boolean.Input("pack_uv", default=False, optional=True),
-                IO.Boolean.Input("bake", default=False, optional=True),
-                IO.String.Input("part_names", default="", optional=True),  # comma-separated list
+                IO.Boolean.Input("with_animation", default=False, optional=True, advanced=True),
+                IO.Boolean.Input("pack_uv", default=False, optional=True, advanced=True),
+                IO.Boolean.Input("bake", default=False, optional=True, advanced=True),
+                IO.String.Input("part_names", default="", optional=True, advanced=True),  # comma-separated list
                 IO.Combo.Input(
                     "fbx_preset",
                     options=["blender", "mixamo", "3dsmax"],
                     default="blender",
                     optional=True,
+                    advanced=True,
                 ),
-                IO.Boolean.Input("export_vertex_colors", default=False, optional=True),
+                IO.Boolean.Input("export_vertex_colors", default=False, optional=True, advanced=True),
                 IO.Combo.Input(
                     "export_orientation",
                     options=["align_image", "default"],
                     default="default",
                     optional=True,
+                    advanced=True,
                 ),
-                IO.Boolean.Input("animate_in_place", default=False, optional=True),
+                IO.Boolean.Input("animate_in_place", default=False, optional=True, advanced=True),
             ],
             outputs=[],
             hidden=[

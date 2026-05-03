@@ -224,6 +224,7 @@ class Flux2(LatentFormat):
 
         self.latent_rgb_factors_bias = [-0.0329, -0.0718, -0.0851]
         self.latent_rgb_factors_reshape = lambda t: t.reshape(t.shape[0], 32, 2, 2, t.shape[-2], t.shape[-1]).permute(0, 1, 4, 2, 5, 3).reshape(t.shape[0], 32, t.shape[-2] * 2, t.shape[-1] * 2)
+        self.taesd_decoder_name = "taef2_decoder"
 
     def process_in(self, latent):
         return latent
@@ -776,3 +777,17 @@ class ChromaRadiance(LatentFormat):
 
     def process_out(self, latent):
         return latent
+
+
+class ZImagePixelSpace(ChromaRadiance):
+    """Pixel-space latent format for ZImage DCT variant.
+    No VAE encoding/decoding — the model operates directly on RGB pixels.
+    """
+    pass
+
+class CogVideoX(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
+
+    def __init__(self):
+        self.scale_factor = 1.15258426

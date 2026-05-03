@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import functools
+import logging
 import math
 from typing import Dict, Optional, Tuple
 
@@ -13,6 +14,8 @@ import comfy.ldm.modules.attention
 import comfy.ldm.common_dit
 
 from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
+
+logger = logging.getLogger(__name__)
 
 def _log_base(x, base):
     return np.log(x) / np.log(base)
@@ -272,6 +275,30 @@ class PixArtAlphaTextProjection(nn.Module):
         return hidden_states
 
 
+class NormSingleLinearTextProjection(nn.Module):
+    """Text projection for 20B models - single linear with RMSNorm (no activation)."""
+
+    def __init__(
+        self, in_features, hidden_size, dtype=None, device=None, operations=None
+    ):
+        super().__init__()
+        if operations is None:
+            operations = comfy.ops.disable_weight_init
+        self.in_norm = operations.RMSNorm(
+            in_features, eps=1e-6, elementwise_affine=False
+        )
+        self.linear_1 = operations.Linear(
+            in_features, hidden_size, bias=True, dtype=dtype, device=device
+        )
+        self.hidden_size = hidden_size
+        self.in_features = in_features
+
+    def forward(self, caption):
+        caption = self.in_norm(caption)
+        caption = caption * (self.hidden_size / self.in_features) ** 0.5
+        return self.linear_1(caption)
+
+
 class GELU_approx(nn.Module):
     def __init__(self, dim_in, dim_out, dtype=None, device=None, operations=None):
         super().__init__()
@@ -340,6 +367,7 @@ class CrossAttention(nn.Module):
         dim_head=64,
         dropout=0.0,
         attn_precision=None,
+        apply_gated_attention=False,
         dtype=None,
         device=None,
         operations=None,
@@ -358,6 +386,12 @@ class CrossAttention(nn.Module):
         self.to_q = operations.Linear(query_dim, inner_dim, bias=True, dtype=dtype, device=device)
         self.to_k = operations.Linear(context_dim, inner_dim, bias=True, dtype=dtype, device=device)
         self.to_v = operations.Linear(context_dim, inner_dim, bias=True, dtype=dtype, device=device)
+
+        # Optional per-head gating
+        if apply_gated_attention:
+            self.to_gate_logits = operations.Linear(query_dim, heads, bias=True, dtype=dtype, device=device)
+        else:
+            self.to_gate_logits = None
 
         self.to_out = nn.Sequential(
             operations.Linear(inner_dim, query_dim, dtype=dtype, device=device), nn.Dropout(dropout)
@@ -380,16 +414,30 @@ class CrossAttention(nn.Module):
             out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
             out = comfy.ldm.modules.attention.optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+
+        # Apply per-head gating if enabled
+        if self.to_gate_logits is not None:
+            gate_logits = self.to_gate_logits(x)  # (B, T, H)
+            b, t, _ = out.shape
+            out = out.view(b, t, self.heads, self.dim_head)
+            gates = 2.0 * torch.sigmoid(gate_logits)  # zero-init -> identity
+            out = out * gates.unsqueeze(-1)
+            out = out.view(b, t, self.heads * self.dim_head)
+
         return self.to_out(out)
 
+# 6 base ADaLN params (shift/scale/gate for MSA + MLP), +3 for cross-attention Q (shift/scale/gate)
+ADALN_BASE_PARAMS_COUNT = 6
+ADALN_CROSS_ATTN_PARAMS_COUNT = 9
 
 class BasicTransformerBlock(nn.Module):
     def __init__(
-        self, dim, n_heads, d_head, context_dim=None, attn_precision=None, dtype=None, device=None, operations=None
+        self, dim, n_heads, d_head, context_dim=None, attn_precision=None, cross_attention_adaln=False, dtype=None, device=None, operations=None
     ):
         super().__init__()
 
         self.attn_precision = attn_precision
+        self.cross_attention_adaln = cross_attention_adaln
         self.attn1 = CrossAttention(
             query_dim=dim,
             heads=n_heads,
@@ -413,24 +461,72 @@ class BasicTransformerBlock(nn.Module):
             operations=operations,
         )
 
-        self.scale_shift_table = nn.Parameter(torch.empty(6, dim, device=device, dtype=dtype))
+        num_ada_params = ADALN_CROSS_ATTN_PARAMS_COUNT if cross_attention_adaln else ADALN_BASE_PARAMS_COUNT
+        self.scale_shift_table = nn.Parameter(torch.empty(num_ada_params, dim, device=device, dtype=dtype))
 
-    def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None, transformer_options={}):
-        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)).unbind(dim=2)
+        if cross_attention_adaln:
+            self.prompt_scale_shift_table = nn.Parameter(torch.empty(2, dim, device=device, dtype=dtype))
 
-        attn1_input = comfy.ldm.common_dit.rms_norm(x)
-        attn1_input = torch.addcmul(attn1_input, attn1_input, scale_msa).add_(shift_msa)
-        attn1_input = self.attn1(attn1_input, pe=pe, transformer_options=transformer_options)
-        x.addcmul_(attn1_input, gate_msa)
-        del attn1_input
+    def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None, transformer_options={}, self_attention_mask=None, prompt_timestep=None):
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None, :6].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)[:, :, :6, :]).unbind(dim=2)
 
-        x += self.attn2(x, context=context, mask=attention_mask, transformer_options=transformer_options)
+        x += self.attn1(comfy.ldm.common_dit.rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe, mask=self_attention_mask, transformer_options=transformer_options) * gate_msa
+
+        if self.cross_attention_adaln:
+            shift_q_mca, scale_q_mca, gate_mca = (self.scale_shift_table[None, None, 6:9].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)[:, :, 6:9, :]).unbind(dim=2)
+            x += apply_cross_attention_adaln(
+                x, context, self.attn2, shift_q_mca, scale_q_mca, gate_mca,
+                self.prompt_scale_shift_table, prompt_timestep, attention_mask, transformer_options,
+            )
+        else:
+            x += self.attn2(x, context=context, mask=attention_mask, transformer_options=transformer_options)
 
         y = comfy.ldm.common_dit.rms_norm(x)
         y = torch.addcmul(y, y, scale_mlp).add_(shift_mlp)
         x.addcmul_(self.ff(y), gate_mlp)
 
         return x
+
+def compute_prompt_timestep(adaln_module, timestep_scaled, batch_size, hidden_dtype):
+    """Compute a single global prompt timestep for cross-attention ADaLN.
+
+    Uses the max across tokens (matching JAX max_per_segment) and broadcasts
+    over text tokens.  Returns None when *adaln_module* is None.
+    """
+    if adaln_module is None:
+        return None
+    ts_input = (
+        timestep_scaled.max(dim=1, keepdim=True).values.flatten()
+        if timestep_scaled.dim() > 1
+        else timestep_scaled.flatten()
+    )
+    prompt_ts, _ = adaln_module(
+        ts_input,
+        {"resolution": None, "aspect_ratio": None},
+        batch_size=batch_size,
+        hidden_dtype=hidden_dtype,
+    )
+    return prompt_ts.view(batch_size, 1, prompt_ts.shape[-1])
+
+
+def apply_cross_attention_adaln(
+    x, context, attn, q_shift, q_scale, q_gate,
+    prompt_scale_shift_table, prompt_timestep,
+    attention_mask=None, transformer_options={},
+):
+    """Apply cross-attention with ADaLN modulation (shift/scale/gate on Q and KV).
+
+    Q params (q_shift, q_scale, q_gate) are pre-extracted by the caller so
+    that both regular tensors and CompressedTimestep are supported.
+    """
+    batch_size = x.shape[0]
+    shift_kv, scale_kv = (
+        prompt_scale_shift_table[None, None].to(device=x.device, dtype=x.dtype)
+        + prompt_timestep.reshape(batch_size, prompt_timestep.shape[1], 2, -1)
+    ).unbind(dim=2)
+    attn_input = comfy.ldm.common_dit.rms_norm(x) * (1 + q_scale) + q_shift
+    encoder_hidden_states = context * (1 + scale_kv) + shift_kv
+    return attn(attn_input, context=encoder_hidden_states, mask=attention_mask, transformer_options=transformer_options) * q_gate
 
 def get_fractional_positions(indices_grid, max_pos):
     n_pos_dims = indices_grid.shape[1]
@@ -553,6 +649,9 @@ class LTXBaseModel(torch.nn.Module, ABC):
         vae_scale_factors: tuple = (8, 32, 32),
         use_middle_indices_grid=False,
         timestep_scale_multiplier = 1000.0,
+        caption_proj_before_connector=False,
+        cross_attention_adaln=False,
+        caption_projection_first_linear=True,
         dtype=None,
         device=None,
         operations=None,
@@ -579,6 +678,9 @@ class LTXBaseModel(torch.nn.Module, ABC):
         self.causal_temporal_positioning = causal_temporal_positioning
         self.operations = operations
         self.timestep_scale_multiplier = timestep_scale_multiplier
+        self.caption_proj_before_connector = caption_proj_before_connector
+        self.cross_attention_adaln = cross_attention_adaln
+        self.caption_projection_first_linear = caption_projection_first_linear
 
         # Common dimensions
         self.inner_dim = num_attention_heads * attention_head_dim
@@ -606,17 +708,37 @@ class LTXBaseModel(torch.nn.Module, ABC):
             self.in_channels, self.inner_dim, bias=True, dtype=dtype, device=device
         )
 
+        embedding_coefficient = ADALN_CROSS_ATTN_PARAMS_COUNT if self.cross_attention_adaln else ADALN_BASE_PARAMS_COUNT
         self.adaln_single = AdaLayerNormSingle(
-            self.inner_dim, use_additional_conditions=False, dtype=dtype, device=device, operations=self.operations
+            self.inner_dim, embedding_coefficient=embedding_coefficient, use_additional_conditions=False, dtype=dtype, device=device, operations=self.operations
         )
 
-        self.caption_projection = PixArtAlphaTextProjection(
-            in_features=self.caption_channels,
-            hidden_size=self.inner_dim,
-            dtype=dtype,
-            device=device,
-            operations=self.operations,
-        )
+        if self.cross_attention_adaln:
+            self.prompt_adaln_single = AdaLayerNormSingle(
+                self.inner_dim, embedding_coefficient=2, use_additional_conditions=False, dtype=dtype, device=device, operations=self.operations
+            )
+        else:
+            self.prompt_adaln_single = None
+
+        if self.caption_proj_before_connector:
+            if self.caption_projection_first_linear:
+                self.caption_projection = NormSingleLinearTextProjection(
+                    in_features=self.caption_channels,
+                    hidden_size=self.inner_dim,
+                    dtype=dtype,
+                    device=device,
+                    operations=self.operations,
+                )
+            else:
+                self.caption_projection = lambda a: a
+        else:
+            self.caption_projection = PixArtAlphaTextProjection(
+                in_features=self.caption_channels,
+                hidden_size=self.inner_dim,
+                dtype=dtype,
+                device=device,
+                operations=self.operations,
+            )
 
     @abstractmethod
     def _init_model_components(self, device, dtype, **kwargs):
@@ -638,8 +760,16 @@ class LTXBaseModel(torch.nn.Module, ABC):
         """Process input data. Must be implemented by subclasses."""
         pass
 
+    def _build_guide_self_attention_mask(self, x, transformer_options, merged_args):
+        """Build self-attention mask for per-guide attention attenuation.
+
+        Base implementation returns None (no attenuation). Subclasses that
+        support guide-based attention control should override this.
+        """
+        return None
+
     @abstractmethod
-    def _process_transformer_blocks(self, x, context, attention_mask, timestep, pe, **kwargs):
+    def _process_transformer_blocks(self, x, context, attention_mask, timestep, pe, self_attention_mask=None, **kwargs):
         """Process transformer blocks. Must be implemented by subclasses."""
         pass
 
@@ -654,9 +784,9 @@ class LTXBaseModel(torch.nn.Module, ABC):
         if grid_mask is not None:
             timestep = timestep[:, grid_mask]
 
-        timestep = timestep * self.timestep_scale_multiplier
+        timestep_scaled = timestep * self.timestep_scale_multiplier
         timestep, embedded_timestep = self.adaln_single(
-            timestep.flatten(),
+            timestep_scaled.flatten(),
             {"resolution": None, "aspect_ratio": None},
             batch_size=batch_size,
             hidden_dtype=hidden_dtype,
@@ -666,14 +796,18 @@ class LTXBaseModel(torch.nn.Module, ABC):
         timestep = timestep.view(batch_size, -1, timestep.shape[-1])
         embedded_timestep = embedded_timestep.view(batch_size, -1, embedded_timestep.shape[-1])
 
-        return timestep, embedded_timestep
+        prompt_timestep = compute_prompt_timestep(
+            self.prompt_adaln_single, timestep_scaled, batch_size, hidden_dtype
+        )
+
+        return timestep, embedded_timestep, prompt_timestep
 
     def _prepare_context(self, context, batch_size, x, attention_mask=None):
         """Prepare context for transformer blocks."""
-        if self.caption_projection is not None:
+        if self.caption_proj_before_connector is False:
             context = self.caption_projection(context)
-            context = context.view(batch_size, -1, x.shape[-1])
 
+        context = context.view(batch_size, -1, x.shape[-1])
         return context, attention_mask
 
     def _precompute_freqs_cis(
@@ -781,16 +915,25 @@ class LTXBaseModel(torch.nn.Module, ABC):
         merged_args.update(additional_args)
 
         # Prepare timestep and context
-        timestep, embedded_timestep = self._prepare_timestep(timestep, batch_size, input_dtype, **merged_args)
+        timestep, embedded_timestep, prompt_timestep = self._prepare_timestep(timestep, batch_size, input_dtype, **merged_args)
+        merged_args["prompt_timestep"] = prompt_timestep
         context, attention_mask = self._prepare_context(context, batch_size, x, attention_mask)
 
         # Prepare attention mask and positional embeddings
         attention_mask = self._prepare_attention_mask(attention_mask, input_dtype)
         pe = self._prepare_positional_embeddings(pixel_coords, frame_rate, input_dtype)
 
+        # Build self-attention mask for per-guide attenuation
+        self_attention_mask = self._build_guide_self_attention_mask(
+            x, transformer_options, merged_args
+        )
+
         # Process transformer blocks
         x = self._process_transformer_blocks(
-            x, context, attention_mask, timestep, pe, transformer_options=transformer_options, **merged_args
+            x, context, attention_mask, timestep, pe,
+            transformer_options=transformer_options,
+            self_attention_mask=self_attention_mask,
+            **merged_args,
         )
 
         # Process output
@@ -814,7 +957,9 @@ class LTXVModel(LTXBaseModel):
         causal_temporal_positioning=False,
         vae_scale_factors=(8, 32, 32),
         use_middle_indices_grid=False,
-        timestep_scale_multiplier = 1000.0,
+        timestep_scale_multiplier=1000.0,
+        caption_proj_before_connector=False,
+        cross_attention_adaln=False,
         dtype=None,
         device=None,
         operations=None,
@@ -833,6 +978,8 @@ class LTXVModel(LTXBaseModel):
             vae_scale_factors=vae_scale_factors,
             use_middle_indices_grid=use_middle_indices_grid,
             timestep_scale_multiplier=timestep_scale_multiplier,
+            caption_proj_before_connector=caption_proj_before_connector,
+            cross_attention_adaln=cross_attention_adaln,
             dtype=dtype,
             device=device,
             operations=operations,
@@ -841,7 +988,6 @@ class LTXVModel(LTXBaseModel):
 
     def _init_model_components(self, device, dtype, **kwargs):
         """Initialize LTXV-specific components."""
-        # No additional components needed for LTXV beyond base class
         pass
 
     def _init_transformer_blocks(self, device, dtype, **kwargs):
@@ -853,6 +999,7 @@ class LTXVModel(LTXBaseModel):
                     self.num_attention_heads,
                     self.attention_head_dim,
                     context_dim=self.cross_attention_dim,
+                    cross_attention_adaln=self.cross_attention_adaln,
                     dtype=dtype,
                     device=device,
                     operations=self.operations,
@@ -890,26 +1037,257 @@ class LTXVModel(LTXBaseModel):
             pixel_coords = pixel_coords[:, :, grid_mask, ...]
 
             kf_grid_mask = grid_mask[-keyframe_idxs.shape[2]:]
+
+            # Compute per-guide surviving token counts from guide_attention_entries.
+            # Each entry tracks one guide reference; they are appended in order and
+            # their pre_filter_counts partition the kf_grid_mask.
+            guide_entries = kwargs.get("guide_attention_entries", None)
+            if guide_entries:
+                total_pfc = sum(e["pre_filter_count"] for e in guide_entries)
+                if total_pfc != len(kf_grid_mask):
+                    raise ValueError(
+                        f"guide pre_filter_counts ({total_pfc}) != "
+                        f"keyframe grid mask length ({len(kf_grid_mask)})"
+                    )
+                resolved_entries = []
+                offset = 0
+                for entry in guide_entries:
+                    pfc = entry["pre_filter_count"]
+                    entry_mask = kf_grid_mask[offset:offset + pfc]
+                    surviving = int(entry_mask.sum().item())
+                    resolved_entries.append({
+                        **entry,
+                        "surviving_count": surviving,
+                    })
+                    offset += pfc
+                additional_args["resolved_guide_entries"] = resolved_entries
+
             keyframe_idxs = keyframe_idxs[..., kf_grid_mask, :]
             pixel_coords[:, :, -keyframe_idxs.shape[2]:, :] = keyframe_idxs
+
+            # Total surviving guide tokens (all guides)
+            additional_args["num_guide_tokens"] = keyframe_idxs.shape[2]
 
         x = self.patchify_proj(x)
         return x, pixel_coords, additional_args
 
-    def _process_transformer_blocks(self, x, context, attention_mask, timestep, pe, transformer_options={}, **kwargs):
+    def _build_guide_self_attention_mask(self, x, transformer_options, merged_args):
+        """Build self-attention mask for per-guide attention attenuation.
+
+        Reads resolved_guide_entries from merged_args (computed in _process_input)
+        to build a log-space additive bias mask that attenuates noisy ↔ guide
+        attention for each guide reference independently.
+
+        Returns None if no attenuation is needed (all strengths == 1.0 and no
+        spatial masks, or no guide tokens).
+        """
+        if isinstance(x, list):
+            # AV model: x = [vx, ax]; use vx for token count and device
+            total_tokens = x[0].shape[1]
+            device = x[0].device
+            dtype = x[0].dtype
+        else:
+            total_tokens = x.shape[1]
+            device = x.device
+            dtype = x.dtype
+
+        num_guide_tokens = merged_args.get("num_guide_tokens", 0)
+        if num_guide_tokens == 0:
+            return None
+
+        resolved_entries = merged_args.get("resolved_guide_entries", None)
+        if not resolved_entries:
+            return None
+
+        # Check if any attenuation is actually needed
+        needs_attenuation = any(
+            e["strength"] < 1.0 or e.get("pixel_mask") is not None
+            for e in resolved_entries
+        )
+        if not needs_attenuation:
+            return None
+
+        # Build per-guide-token weights for all tracked guide tokens.
+        # Guides are appended in order at the end of the sequence.
+        guide_start = total_tokens - num_guide_tokens
+        all_weights = []
+        total_tracked = 0
+
+        for entry in resolved_entries:
+            surviving = entry["surviving_count"]
+            if surviving == 0:
+                continue
+
+            strength = entry["strength"]
+            pixel_mask = entry.get("pixel_mask")
+            latent_shape = entry.get("latent_shape")
+
+            if pixel_mask is not None and latent_shape is not None:
+                f_lat, h_lat, w_lat = latent_shape
+                per_token = self._downsample_mask_to_latent(
+                    pixel_mask.to(device=device, dtype=dtype),
+                    f_lat, h_lat, w_lat,
+                )
+                # per_token shape: (B, f_lat*h_lat*w_lat).
+                # Collapse batch dim — the mask is assumed identical across the
+                # batch; validate and take the first element to get (1, tokens).
+                if per_token.shape[0] > 1:
+                    ref = per_token[0]
+                    for bi in range(1, per_token.shape[0]):
+                        if not torch.equal(ref, per_token[bi]):
+                            logger.warning(
+                                "pixel_mask differs across batch elements; "
+                                "using first element only."
+                            )
+                            break
+                    per_token = per_token[:1]
+                # `surviving` is the post-grid_mask token count.
+                # Clamp to surviving to handle any mismatch safely.
+                n_weights = min(per_token.shape[1], surviving)
+                weights = per_token[:, :n_weights] * strength  # (1, n_weights)
+            else:
+                weights = torch.full(
+                    (1, surviving), strength, device=device, dtype=dtype
+                )
+
+            all_weights.append(weights)
+            total_tracked += weights.shape[1]
+
+        if not all_weights:
+            return None
+
+        # Concatenate per-token weights for all tracked guides
+        tracked_weights = torch.cat(all_weights, dim=1)  # (1, total_tracked)
+
+        # Check if any weight is actually < 1.0 (otherwise no attenuation needed)
+        if (tracked_weights >= 1.0).all():
+            return None
+
+        # Build the mask: guide tokens are at the end of the sequence.
+        # Tracked guides come first (in order), untracked follow.
+        return self._build_self_attention_mask(
+            total_tokens, num_guide_tokens, total_tracked,
+            tracked_weights, guide_start, device, dtype,
+        )
+
+    @staticmethod
+    def _downsample_mask_to_latent(mask, f_lat, h_lat, w_lat):
+        """Downsample a pixel-space mask to per-token latent weights.
+
+        Args:
+            mask: (B, 1, F_pix, H_pix, W_pix) pixel-space mask with values in [0, 1].
+            f_lat: Number of latent frames (pre-dilation original count).
+            h_lat: Latent height (pre-dilation original height).
+            w_lat: Latent width (pre-dilation original width).
+
+        Returns:
+            (B, F_lat * H_lat * W_lat) flattened per-token weights.
+        """
+        b = mask.shape[0]
+        f_pix = mask.shape[2]
+
+        # Spatial downsampling: area interpolation per frame
+        spatial_down = torch.nn.functional.interpolate(
+            rearrange(mask, "b 1 f h w -> (b f) 1 h w"),
+            size=(h_lat, w_lat),
+            mode="area",
+        )
+        spatial_down = rearrange(spatial_down, "(b f) 1 h w -> b 1 f h w", b=b)
+
+        # Temporal downsampling: first pixel frame maps to first latent frame,
+        # remaining pixel frames are averaged in groups for causal temporal structure.
+        first_frame = spatial_down[:, :, :1, :, :]
+        if f_pix > 1 and f_lat > 1:
+            remaining_pix = f_pix - 1
+            remaining_lat = f_lat - 1
+            t = remaining_pix // remaining_lat
+            if t < 1:
+                # Fewer pixel frames than latent frames — upsample by repeating
+                # the available pixel frames via nearest interpolation.
+                rest_flat = rearrange(
+                    spatial_down[:, :, 1:, :, :],
+                    "b 1 f h w -> (b h w) 1 f",
+                )
+                rest_up = torch.nn.functional.interpolate(
+                    rest_flat, size=remaining_lat, mode="nearest",
+                )
+                rest = rearrange(
+                    rest_up, "(b h w) 1 f -> b 1 f h w",
+                    b=b, h=h_lat, w=w_lat,
+                )
+            else:
+                # Trim trailing pixel frames that don't fill a complete group
+                usable = remaining_lat * t
+                rest = rearrange(
+                    spatial_down[:, :, 1:1 + usable, :, :],
+                    "b 1 (f t) h w -> b 1 f t h w",
+                    t=t,
+                )
+                rest = rest.mean(dim=3)
+            latent_mask = torch.cat([first_frame, rest], dim=2)
+        elif f_lat > 1:
+            # Single pixel frame but multiple latent frames — repeat the
+            # single frame across all latent frames.
+            latent_mask = first_frame.expand(-1, -1, f_lat, -1, -1)
+        else:
+            latent_mask = first_frame
+
+        return rearrange(latent_mask, "b 1 f h w -> b (f h w)")
+
+    @staticmethod
+    def _build_self_attention_mask(total_tokens, num_guide_tokens, tracked_count,
+                                    tracked_weights, guide_start, device, dtype):
+        """Build a log-space additive self-attention bias mask.
+
+        Attenuates attention between noisy tokens and tracked guide tokens.
+        Untracked guide tokens (at the end of the guide portion) keep full attention.
+
+        Args:
+            total_tokens: Total sequence length.
+            num_guide_tokens: Total guide tokens (all guides) at end of sequence.
+            tracked_count: Number of tracked guide tokens (first in the guide portion).
+            tracked_weights: (1, tracked_count) tensor, values in [0, 1].
+            guide_start: Index where guide tokens begin in the sequence.
+            device: Target device.
+            dtype: Target dtype.
+
+        Returns:
+            (1, 1, total_tokens, total_tokens) additive bias mask.
+            0.0 = full attention, negative = attenuated, finfo.min = effectively fully masked.
+        """
+        finfo = torch.finfo(dtype)
+        mask = torch.zeros((1, 1, total_tokens, total_tokens), device=device, dtype=dtype)
+        tracked_end = guide_start + tracked_count
+
+        # Convert weights to log-space bias
+        w = tracked_weights.to(device=device, dtype=dtype)  # (1, tracked_count)
+        log_w = torch.full_like(w, finfo.min)
+        positive_mask = w > 0
+        if positive_mask.any():
+            log_w[positive_mask] = torch.log(w[positive_mask].clamp(min=finfo.tiny))
+
+        # noisy → tracked guides: each noisy row gets the same per-guide weight
+        mask[:, :, :guide_start, guide_start:tracked_end] = log_w.view(1, 1, 1, -1)
+        # tracked guides → noisy: each guide row broadcasts its weight across noisy cols
+        mask[:, :, guide_start:tracked_end, :guide_start] = log_w.view(1, 1, -1, 1)
+
+        return mask
+
+    def _process_transformer_blocks(self, x, context, attention_mask, timestep, pe, transformer_options={}, self_attention_mask=None, **kwargs):
         """Process transformer blocks for LTXV."""
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        prompt_timestep = kwargs.get("prompt_timestep", None)
 
         for i, block in enumerate(self.transformer_blocks):
             if ("double_block", i) in blocks_replace:
 
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"], transformer_options=args["transformer_options"])
+                    out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"], transformer_options=args["transformer_options"], self_attention_mask=args.get("self_attention_mask"), prompt_timestep=args.get("prompt_timestep"))
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe, "transformer_options": transformer_options}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe, "transformer_options": transformer_options, "self_attention_mask": self_attention_mask, "prompt_timestep": prompt_timestep}, {"original_block": block_wrap})
                 x = out["img"]
             else:
                 x = block(
@@ -919,6 +1297,8 @@ class LTXVModel(LTXBaseModel):
                     timestep=timestep,
                     pe=pe,
                     transformer_options=transformer_options,
+                    self_attention_mask=self_attention_mask,
+                    prompt_timestep=prompt_timestep,
                 )
 
         return x
