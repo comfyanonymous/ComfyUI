@@ -194,7 +194,7 @@ def create_block_external_middleware():
             response = await handler(request)
         connectSrc = "'self' data:"
         if args.enable_manager:
-            connectSrc += " https://api.comfy.org"
+            connectSrc += " " + args.comfy_api_base
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
