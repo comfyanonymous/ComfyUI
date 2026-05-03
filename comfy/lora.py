@@ -17,6 +17,7 @@
 """
 
 from __future__ import annotations
+import comfy.memory_management
 import comfy.utils
 import comfy.model_management
 import comfy.model_base
@@ -342,6 +343,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # LyCORIS/LoKR format
 
+    if isinstance(model, comfy.model_base.ErnieImage):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["transformer.{}".format(key_lora)] = k
+
     return key_map
 
 
@@ -467,3 +474,17 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
             weight = old_weight
 
     return weight
+
+def prefetch_prepared_value(value, allocate_buffer, stream):
+    if isinstance(value, torch.Tensor):
+        dest = allocate_buffer(comfy.memory_management.vram_aligned_size(value))
+        comfy.model_management.cast_to_gathered([value], dest, non_blocking=True, stream=stream)
+        return comfy.memory_management.interpret_gathered_like([value], dest)[0]
+    elif isinstance(value, weight_adapter.WeightAdapterBase):
+        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, allocate_buffer, stream))
+    elif isinstance(value, tuple):
+        return tuple(prefetch_prepared_value(item, allocate_buffer, stream) for item in value)
+    elif isinstance(value, list):
+        return [prefetch_prepared_value(item, allocate_buffer, stream) for item in value]
+
+    return value

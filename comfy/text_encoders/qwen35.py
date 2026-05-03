@@ -408,8 +408,6 @@ class Qwen35Transformer(Llama2_):
         nn.Module.__init__(self)
         self.config = config
         self.vocab_size = config.vocab_size
-        self.normalize_in = False
-
         self.embed_tokens = ops.Embedding(config.vocab_size, config.hidden_size, device=device, dtype=dtype)
         self.layers = nn.ModuleList([
             Qwen35TransformerBlock(config, index=i, device=device, dtype=dtype, ops=ops)
