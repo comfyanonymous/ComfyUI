@@ -1788,8 +1788,8 @@ class LoadImageMask(LoadImage):
             return (image_tensor[..., channel_idx].clone(),)
         else:
             empty_mask = torch.zeros(
-                image_tensor.shape[:-1], 
-                dtype=image_tensor.dtype, 
+                image_tensor.shape[:-1],
+                dtype=image_tensor.dtype,
                 device=image_tensor.device
             )
             return (empty_mask,)
