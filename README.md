@@ -38,7 +38,7 @@ ComfyUI is the AI creation engine for visual professionals who demand control ov
 - ComfyUI natively supports the latest open-source state of the art models.
 - API nodes provide access to the best closed source models such as Nano Banana, Seedance, Hunyuan3D, etc.
 - It is available on Windows, Linux, and macOS, locally with our desktop application or on our cloud.
-- The most sophisticated workflow can be exposed through simple UI with App Mode.
+- The most sophisticated workflows can be exposed through a simple UI thanks to App Mode.
 - It integrates seamlessly into production pipelines with our API endpoints.
 
 ## Get Started
