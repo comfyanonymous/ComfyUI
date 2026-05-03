@@ -16,6 +16,7 @@ from comfy.ldm.lightricks.model import (
 from comfy.ldm.lightricks.symmetric_patchifier import AudioPatchifier
 from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
 import comfy.ldm.common_dit
+import comfy.model_prefetch
 
 class CompressedTimestep:
     """Store video timestep embeddings in compressed form using per-frame indexing."""
@@ -681,6 +682,33 @@ class LTXAVModel(LTXVModel):
         additional_args["has_spatial_mask"] = has_spatial_mask
 
         ax, a_latent_coords = self.a_patchifier.patchify(ax)
+
+        # Inject reference audio for ID-LoRA in-context conditioning
+        ref_audio = kwargs.get("ref_audio", None)
+        ref_audio_seq_len = 0
+        if ref_audio is not None:
+            ref_tokens = ref_audio["tokens"].to(dtype=ax.dtype, device=ax.device)
+            if ref_tokens.shape[0] < ax.shape[0]:
+                ref_tokens = ref_tokens.expand(ax.shape[0], -1, -1)
+            ref_audio_seq_len = ref_tokens.shape[1]
+            B = ax.shape[0]
+
+            # Compute negative temporal positions matching ID-LoRA convention:
+            # offset by -(end_of_last_token + time_per_latent) so reference ends just before t=0
+            p = self.a_patchifier
+            tpl = p.hop_length * p.audio_latent_downsample_factor / p.sample_rate
+            ref_start = p._get_audio_latent_time_in_sec(0, ref_audio_seq_len, torch.float32, ax.device)
+            ref_end = p._get_audio_latent_time_in_sec(1, ref_audio_seq_len + 1, torch.float32, ax.device)
+            time_offset = ref_end[-1].item() + tpl
+            ref_start = (ref_start - time_offset).unsqueeze(0).expand(B, -1).unsqueeze(1)
+            ref_end = (ref_end - time_offset).unsqueeze(0).expand(B, -1).unsqueeze(1)
+            ref_pos = torch.stack([ref_start, ref_end], dim=-1)
+
+            additional_args["ref_audio_seq_len"] = ref_audio_seq_len
+            additional_args["target_audio_seq_len"] = ax.shape[1]
+            ax = torch.cat([ref_tokens, ax], dim=1)
+            a_latent_coords = torch.cat([ref_pos.to(a_latent_coords), a_latent_coords], dim=2)
+
         ax = self.audio_patchify_proj(ax)
 
         # additional_args.update({"av_orig_shape": list(x.shape)})
@@ -721,6 +749,14 @@ class LTXAVModel(LTXVModel):
 
         # Prepare audio timestep
         a_timestep = kwargs.get("a_timestep")
+        ref_audio_seq_len = kwargs.get("ref_audio_seq_len", 0)
+        if ref_audio_seq_len > 0 and a_timestep is not None:
+            # Reference tokens must have timestep=0, expand scalar/1D timestep to per-token so ref=0 and target=sigma.
+            target_len = kwargs.get("target_audio_seq_len")
+            if a_timestep.dim() <= 1:
+                a_timestep = a_timestep.view(-1, 1).expand(batch_size, target_len)
+            ref_ts = torch.zeros(batch_size, ref_audio_seq_len, *a_timestep.shape[2:], device=a_timestep.device, dtype=a_timestep.dtype)
+            a_timestep = torch.cat([ref_ts, a_timestep], dim=1)
         if a_timestep is not None:
             a_timestep_scaled = a_timestep * self.timestep_scale_multiplier
             a_timestep_flat = a_timestep_scaled.flatten()
@@ -872,9 +908,11 @@ class LTXAVModel(LTXVModel):
         """Process transformer blocks for LTXAV."""
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.transformer_blocks), vx.device, transformer_options)
 
         # Process transformer blocks
         for i, block in enumerate(self.transformer_blocks):
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, vx.device, block)
             if ("double_block", i) in blocks_replace:
 
                 def block_wrap(args):
@@ -947,6 +985,8 @@ class LTXAVModel(LTXVModel):
                     a_prompt_timestep=a_prompt_timestep,
                 )
 
+        comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, vx.device, None)
+
         return [vx, ax]
 
     def _process_output(self, x, embedded_timestep, keyframe_idxs, **kwargs):
@@ -954,6 +994,13 @@ class LTXAVModel(LTXVModel):
         ax = x[1]
         v_embedded_timestep = embedded_timestep[0]
         a_embedded_timestep = embedded_timestep[1]
+
+        # Trim reference audio tokens before unpatchification
+        ref_audio_seq_len = kwargs.get("ref_audio_seq_len", 0)
+        if ref_audio_seq_len > 0:
+            ax = ax[:, ref_audio_seq_len:]
+            if a_embedded_timestep.shape[1] > 1:
+                a_embedded_timestep = a_embedded_timestep[:, ref_audio_seq_len:]
 
         # Expand compressed video timestep if needed
         if isinstance(v_embedded_timestep, CompressedTimestep):

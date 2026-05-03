@@ -897,6 +897,10 @@ def set_attr(obj, attr, value):
     return prev
 
 def set_attr_param(obj, attr, value):
+    # Clone inference tensors (created under torch.inference_mode) since
+    # their version counter is frozen and nn.Parameter() cannot wrap them.
+    if (not torch.is_inference_mode_enabled()) and value.is_inference():
+        value = value.clone()
     return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
 
 def set_attr_buffer(obj, attr, value):
@@ -1131,8 +1135,8 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 pbar.update(1)
             continue
 
-        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
-        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+        out = output[b:b+1].zero_()
+        out_div = torch.zeros([s.shape[0], 1] + mult_list_upscale(s.shape[2:]), device=output_device)
 
         positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
 
@@ -1147,7 +1151,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 upscaled.append(round(get_pos(d, pos)))
 
             ps = function(s_in).to(output_device)
-            mask = torch.ones_like(ps)
+            mask = torch.ones([1, 1] + list(ps.shape[2:]), device=output_device)
 
             for d in range(2, dims + 2):
                 feather = round(get_scale(d - 2, overlap[d - 2]))
@@ -1170,7 +1174,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
             if pbar is not None:
                 pbar.update(1)
 
-        output[b:b+1] = out/out_div
+        out.div_(out_div)
     return output
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
@@ -1442,10 +1446,3 @@ def deepcopy_list_dict(obj, memo=None):
     memo[obj_id] = res
     return res
 
-def normalize_image_embeddings(embeds, embeds_info, scale_factor):
-    """Normalize image embeddings to match text embedding scale"""
-    for info in embeds_info:
-        if info.get("type") == "image":
-            start_idx = info["index"]
-            end_idx = start_idx + info["size"]
-            embeds[:, start_idx:end_idx, :] /= scale_factor

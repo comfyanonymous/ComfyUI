@@ -59,6 +59,7 @@ class ImageCropV2(IO.ComfyNode):
             display_name="Image Crop",
             category="image/transform",
             essentials_category="Image Tools",
+            has_intermediate_output=True,
             inputs=[
                 IO.Image.Input("image"),
                 IO.BoundingBox.Input("crop_region", component="ImageCrop"),

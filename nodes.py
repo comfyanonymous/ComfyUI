@@ -32,7 +32,7 @@ import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
-from comfy_api.latest import io, ComfyExtension
+from comfy_api.latest import io, ComfyExtension, InputImpl
 
 import comfy.clip_vision
 
@@ -728,50 +728,26 @@ class LoraLoaderModelOnly(LoraLoader):
 
 class VAELoader:
     video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
-    image_taes = ["taesd", "taesdxl", "taesd3", "taef1"]
+    image_taes = ["taesd", "taesdxl", "taesd3", "taef1", "taef2"]
+
     @staticmethod
     def vae_list(s):
         vaes = folder_paths.get_filename_list("vae")
         approx_vaes = folder_paths.get_filename_list("vae_approx")
-        sdxl_taesd_enc = False
-        sdxl_taesd_dec = False
-        sd1_taesd_enc = False
-        sd1_taesd_dec = False
-        sd3_taesd_enc = False
-        sd3_taesd_dec = False
-        f1_taesd_enc = False
-        f1_taesd_dec = False
-
+        have_img_encoder, have_img_decoder = set(), set()
         for v in approx_vaes:
-            if v.startswith("taesd_decoder."):
-                sd1_taesd_dec = True
-            elif v.startswith("taesd_encoder."):
-                sd1_taesd_enc = True
-            elif v.startswith("taesdxl_decoder."):
-                sdxl_taesd_dec = True
-            elif v.startswith("taesdxl_encoder."):
-                sdxl_taesd_enc = True
-            elif v.startswith("taesd3_decoder."):
-                sd3_taesd_dec = True
-            elif v.startswith("taesd3_encoder."):
-                sd3_taesd_enc = True
-            elif v.startswith("taef1_encoder."):
-                f1_taesd_dec = True
-            elif v.startswith("taef1_decoder."):
-                f1_taesd_enc = True
-            else:
+            parts = v.split("_", 1)
+            if len(parts) != 2 or parts[0] not in s.image_taes:
                 for tae in s.video_taes:
                     if v.startswith(tae):
                         vaes.append(v)
-
-        if sd1_taesd_dec and sd1_taesd_enc:
-            vaes.append("taesd")
-        if sdxl_taesd_dec and sdxl_taesd_enc:
-            vaes.append("taesdxl")
-        if sd3_taesd_dec and sd3_taesd_enc:
-            vaes.append("taesd3")
-        if f1_taesd_dec and f1_taesd_enc:
-            vaes.append("taef1")
+                        break
+                continue
+            if parts[1].startswith("encoder."):
+                have_img_encoder.add(parts[0])
+            elif parts[1].startswith("decoder."):
+                have_img_decoder.add(parts[0])
+        vaes += [k for k in have_img_decoder if k in have_img_encoder]
         vaes.append("pixel_space")
         return vaes
 
@@ -827,6 +803,11 @@ class VAELoader:
             else:
                 vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+        if vae_name == "taef2":
+            if metadata is None:
+                metadata = {"tae_latent_channels": 128}
+            else:
+                metadata["tae_latent_channels"] = 128
         vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
         return (vae,)
@@ -952,7 +933,7 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (folder_paths.get_filename_list("diffusion_models"), ),
-                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],)
+                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"], {"advanced": True})
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
@@ -1713,22 +1694,27 @@ class LoadImage:
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
+
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
 
+        dtype = comfy.model_management.intermediate_dtype()
+        device = comfy.model_management.intermediate_device()
+
+        components = InputImpl.VideoFromFile(image_path).get_components()
+        if components.images.shape[0] > 0:
+            return (components.images.to(device=device, dtype=dtype), (1.0 - components.alpha[..., -1]).to(device=device, dtype=dtype) if components.alpha is not None else torch.zeros((components.images.shape[0], 64, 64), dtype=dtype, device=device))
+
+        # This code is left here to handle animated webp which pyav does not support loading
         img = node_helpers.pillow(Image.open, image_path)
 
         output_images = []
         output_masks = []
         w, h = None, None
 
-        dtype = comfy.model_management.intermediate_dtype()
-
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
-            if i.mode == 'I':
-                i = i.point(lambda i: i * (1 / 255))
             image = i.convert("RGB")
 
             if len(output_images) == 0:
@@ -1743,25 +1729,15 @@ class LoadImage:
             if 'A' in i.getbands():
                 mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
                 mask = 1. - torch.from_numpy(mask)
-            elif i.mode == 'P' and 'transparency' in i.info:
-                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
             else:
-                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+                mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
             output_images.append(image.to(dtype=dtype))
             output_masks.append(mask.unsqueeze(0).to(dtype=dtype))
 
-            if img.format == "MPO":
-                break  # ignore all frames except the first one for MPO format
+        output_image = torch.cat(output_images, dim=0)
+        output_mask = torch.cat(output_masks, dim=0)
 
-        if len(output_images) > 1:
-            output_image = torch.cat(output_images, dim=0)
-            output_mask = torch.cat(output_masks, dim=0)
-        else:
-            output_image = output_images[0]
-            output_mask = output_masks[0]
-
-        return (output_image, output_mask)
+        return (output_image.to(device=device, dtype=dtype), output_mask.to(device=device, dtype=dtype))
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1966,9 +1942,11 @@ class EmptyImage:
     CATEGORY = "image"
 
     def generate(self, width, height, batch_size=1, color=0):
-        r = torch.full([batch_size, height, width, 1], ((color >> 16) & 0xFF) / 0xFF)
-        g = torch.full([batch_size, height, width, 1], ((color >> 8) & 0xFF) / 0xFF)
-        b = torch.full([batch_size, height, width, 1], ((color) & 0xFF) / 0xFF)
+        dtype = comfy.model_management.intermediate_dtype()
+        device = comfy.model_management.intermediate_device()
+        r = torch.full([batch_size, height, width, 1], ((color >> 16) & 0xFF) / 0xFF, device=device, dtype=dtype)
+        g = torch.full([batch_size, height, width, 1], ((color >> 8) & 0xFF) / 0xFF, device=device, dtype=dtype)
+        b = torch.full([batch_size, height, width, 1], ((color) & 0xFF) / 0xFF, device=device, dtype=dtype)
         return (torch.cat((r, g, b), dim=-1), )
 
 class ImagePadForOutpaint:
@@ -2452,7 +2430,12 @@ async def init_builtin_extra_nodes():
         "nodes_nag.py",
         "nodes_sdpose.py",
         "nodes_math.py",
+        "nodes_number_convert.py",
         "nodes_painter.py",
+        "nodes_curve.py",
+        "nodes_rtdetr.py",
+        "nodes_frame_interpolation.py",
+        "nodes_sam3.py",
     ]
 
     import_failed = []

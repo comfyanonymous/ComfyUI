@@ -39,7 +39,10 @@ def read_tensor_file_slice_into(tensor, destination):
     if (destination.device.type != "cpu"
             or file_obj is None
             or threading.get_ident() != info.thread_id
-            or destination.numel() * destination.element_size() < info.size):
+            or destination.numel() * destination.element_size() < info.size
+            or tensor.numel() * tensor.element_size() != info.size
+            or tensor.storage_offset() != 0
+            or not tensor.is_contiguous()):
         return False
 
     if info.size == 0:
@@ -138,3 +141,17 @@ def interpret_gathered_like(tensors, gathered):
     return dest_views
 
 aimdo_enabled = False
+
+extra_ram_release_callback = None
+RAM_CACHE_HEADROOM = 0
+
+def set_ram_cache_release_state(callback, headroom):
+    global extra_ram_release_callback
+    global RAM_CACHE_HEADROOM
+    extra_ram_release_callback = callback
+    RAM_CACHE_HEADROOM = max(0, int(headroom))
+
+def extra_ram_release(target):
+    if extra_ram_release_callback is None:
+        return 0
+    return extra_ram_release_callback(target)

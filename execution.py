@@ -15,6 +15,7 @@ import torch
 from comfy.cli_args import args
 import comfy.memory_management
 import comfy.model_management
+import comfy.model_prefetch
 import comfy_aimdo.model_vbar
 
 from latent_preview import set_preview_method
@@ -411,6 +412,19 @@ def format_value(x):
     else:
         return str(x)
 
+def _is_intermediate_output(dynprompt, node_id):
+    class_type = dynprompt.get_node(node_id)["class_type"]
+    class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    return getattr(class_def, 'HAS_INTERMEDIATE_OUTPUT', False)
+
+def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
+    if server.client_id is None:
+        return
+    cached_ui = cached.ui or {}
+    server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, server.client_id)
+    if cached.ui is not None:
+        ui_outputs[node_id] = cached.ui
+
 async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
@@ -421,11 +435,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     cached = await caches.outputs.get(unique_id)
     if cached is not None:
-        if server.client_id is not None:
-            cached_ui = cached.ui or {}
-            server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_ui.get("output",None), "prompt_id": prompt_id }, server.client_id)
-            if cached.ui is not None:
-                ui_outputs[unique_id] = cached.ui
+        _send_cached_ui(server, unique_id, display_node_id, cached, prompt_id, ui_outputs)
         get_progress_state().finish_progress(unique_id)
         execution_list.cache_update(unique_id, cached)
         return (ExecutionResult.SUCCESS, None, None)
@@ -528,6 +538,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     if args.verbose == "DEBUG":
                         comfy_aimdo.control.analyze()
                     comfy.model_management.reset_cast_buffers()
+                    comfy.model_prefetch.cleanup_prefetch_queues()
                     comfy_aimdo.model_vbar.vbars_reset_watermark_limits()
 
             if has_pending_tasks:
@@ -715,6 +726,9 @@ class PromptExecutor:
         self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         self._notify_prompt_lifecycle("start", prompt_id)
+        ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
+        ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
+        comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
         try:
             with torch.inference_mode():
@@ -764,9 +778,22 @@ class PromptExecutor:
                         execution_list.unstage_node_execution()
                     else: # result == ExecutionResult.SUCCESS:
                         execution_list.complete_node_execution()
-                    self.caches.outputs.poll(ram_headroom=self.cache_args["ram"])
+
+                    if self.cache_type == CacheType.RAM_PRESSURE:
+                        comfy.model_management.free_memory(0, None, pins_required=ram_headroom, ram_required=ram_headroom)
+                        ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
+                    # Send cached UI for intermediate output nodes that weren't executed
+                    for node_id in dynamic_prompt.all_node_ids():
+                        if node_id in executed:
+                            continue
+                        if not _is_intermediate_output(dynamic_prompt, node_id):
+                            continue
+                        cached = await self.caches.outputs.get(node_id)
+                        if cached is not None:
+                            display_node_id = dynamic_prompt.get_display_node_id(node_id)
+                            _send_cached_ui(self.server, node_id, display_node_id, cached, prompt_id, ui_node_outputs)
                     self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
                 ui_outputs = {}
@@ -782,12 +809,32 @@ class PromptExecutor:
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
+            comfy.memory_management.set_ram_cache_release_state(None, 0)
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
-async def validate_inputs(prompt_id, prompt, item, validated):
+async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
+    if visiting is None:
+        visiting = []
+
     unique_id = item
     if unique_id in validated:
+        return validated[unique_id]
+
+    if unique_id in visiting:
+        cycle_path_nodes = visiting[visiting.index(unique_id):] + [unique_id]
+        cycle_nodes = list(dict.fromkeys(cycle_path_nodes))
+        cycle_path = " -> ".join(f"{node_id} ({prompt[node_id]['class_type']})" for node_id in cycle_path_nodes)
+        for node_id in cycle_nodes:
+            validated[node_id] = (False, [{
+                "type": "dependency_cycle",
+                "message": "Dependency cycle detected",
+                "details": cycle_path,
+                "extra_info": {
+                    "node_id": node_id,
+                    "cycle_nodes": cycle_nodes,
+                }
+            }], node_id)
         return validated[unique_id]
 
     inputs = prompt[unique_id]['inputs']
@@ -873,7 +920,11 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                 errors.append(error)
                 continue
             try:
-                r = await validate_inputs(prompt_id, prompt, o_id, validated)
+                visiting.append(unique_id)
+                try:
+                    r = await validate_inputs(prompt_id, prompt, o_id, validated, visiting)
+                finally:
+                    visiting.pop()
                 if r[0] is False:
                     # `r` will be set in `validated[o_id]` already
                     valid = False
@@ -1022,10 +1073,13 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     errors.append(error)
                     continue
 
-    if len(errors) > 0 or valid is not True:
-        ret = (False, errors, unique_id)
-    else:
-        ret = (True, [], unique_id)
+    ret = validated.get(unique_id, (True, [], unique_id))
+    # Recursive cycle detection may have already populated an error on us. Join it.
+    ret = (
+        ret[0] and valid is True and not errors,
+        ret[1] + [error for error in errors if error not in ret[1]],
+        unique_id,
+    )
 
     validated[unique_id] = ret
     return ret

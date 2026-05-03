@@ -31,6 +31,7 @@ import comfy.float
 import comfy.hooks
 import comfy.lora
 import comfy.model_management
+import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
@@ -120,9 +121,20 @@ class LowVramPatch:
         self.patches = patches
         self.convert_func = convert_func # TODO: remove
         self.set_func = set_func
+        self.prepared_patches = None
+
+    def prepare(self, allocate_buffer, stream):
+        self.prepared_patches = [
+            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], allocate_buffer, stream), patch[2], patch[3], patch[4])
+            for patch in self.patches[self.key]
+        ]
+
+    def clear_prepared(self):
+        self.prepared_patches = None
 
     def __call__(self, weight):
-        return comfy.lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
+        patches = self.prepared_patches if self.prepared_patches is not None else self.patches[self.key]
+        return comfy.lora.calculate_weight(patches, weight, self.key, intermediate_dtype=weight.dtype)
 
 LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 2
 
@@ -299,9 +311,6 @@ class ModelPatcher:
 
     def model_mmap_residency(self, free=False):
         return comfy.model_management.module_mmap_residency(self.model, free=free)
-
-    def get_ram_usage(self):
-        return self.model_size()
 
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
@@ -509,6 +518,10 @@ class ModelPatcher:
     def set_model_noise_refiner_patch(self, patch):
         self.set_model_patch(patch, "noise_refiner")
 
+    def set_model_middle_block_after_patch(self, patch):
+        self.set_model_patch(patch, "middle_block_after_patch")
+
+
     def set_model_rope_options(self, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t, **kwargs):
         rope_options = self.model_options["transformer_options"].get("rope_options", {})
         rope_options["scale_x"] = scale_x
@@ -684,9 +697,9 @@ class ModelPatcher:
                         sd.pop(k)
             return sd
 
-    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False):
+    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False, force_cast=False):
         weight, set_func, convert_func = get_key_weight(self.model, key)
-        if key not in self.patches:
+        if key not in self.patches and not force_cast:
             return weight
 
         inplace_update = self.weight_inplace_update or inplace_update
@@ -694,7 +707,7 @@ class ModelPatcher:
         if key not in self.backup and not return_weight:
             self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight.to(device=self.offload_device, copy=inplace_update), inplace_update)
 
-        temp_dtype = comfy.model_management.lora_compute_dtype(device_to)
+        temp_dtype = comfy.model_management.lora_compute_dtype(device_to) if key in self.patches else None
         if device_to is not None:
             temp_weight = comfy.model_management.cast_to_device(weight, device_to, temp_dtype, copy=True)
         else:
@@ -702,9 +715,10 @@ class ModelPatcher:
         if convert_func is not None:
             temp_weight = convert_func(temp_weight, inplace=True)
 
-        out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
+        out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key) if key in self.patches else temp_weight
         if set_func is None:
-            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
+            if key in self.patches:
+                out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
             if return_weight:
                 return out_weight
             elif inplace_update:
@@ -854,7 +868,9 @@ class ModelPatcher:
                     if m.comfy_patched_weights == True:
                         continue
 
-                for param in params:
+                for param, param_value in params.items():
+                    if hasattr(m, "comfy_cast_weights") and getattr(param_value, "is_meta", False):
+                        comfy.ops.disable_weight_init._zero_init_parameter(m, param)
                     key = key_param_name_to_key(n, param)
                     self.unpin_weight(key)
                     self.patch_weight_to_device(key, device_to=device_to)
@@ -1583,7 +1599,7 @@ class ModelPatcherDynamic(ModelPatcher):
                     key = key_param_name_to_key(n, param_key)
                     if key in self.backup:
                         comfy.utils.set_attr_param(self.model, key, self.backup[key].weight)
-                    self.patch_weight_to_device(key, device_to=device_to)
+                    self.patch_weight_to_device(key, device_to=device_to, force_cast=True)
                     weight, _, _ = get_key_weight(self.model, key)
                     if weight is not None:
                         self.model.model_loaded_weight_memory += weight.numel() * weight.element_size()
@@ -1607,6 +1623,10 @@ class ModelPatcherDynamic(ModelPatcher):
                         if vbar is not None and not hasattr(m, "_v"):
                             m._v = vbar.alloc(v_weight_size)
                         allocated_size += v_weight_size
+
+                    for param in params:
+                        if param not in ("weight", "bias"):
+                            force_load_param(self, param, device_to)
 
                 else:
                     for param in params:
