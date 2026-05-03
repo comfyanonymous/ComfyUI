@@ -1760,7 +1760,7 @@ class LoadImageMask(LoadImage):
     SEARCH_ALIASES = ["import mask", "alpha mask", "channel mask"]
 
     _color_channels = ["alpha", "red", "green", "blue"]
-    
+
     @classmethod
     def INPUT_TYPES(s):
         types = super().INPUT_TYPES()
@@ -1773,17 +1773,17 @@ class LoadImageMask(LoadImage):
 
     CATEGORY = "mask"
     RETURN_TYPES = ("MASK",)
-    FUNCTION = "load_image_mask" 
+    FUNCTION = "load_image_mask"
 
     def load_image_mask(self, image, channel):
         image_tensor, mask_tensor = super().load_image(image)
         c = channel[0].upper()
-        
+
         if c == 'A':
             return (mask_tensor,)
-        
+
         channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(c, 0)
-        
+
         if channel_idx < image_tensor.shape[-1]:
             return (image_tensor[..., channel_idx].clone(),)
         else:
