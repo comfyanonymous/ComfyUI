@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 from comfy_api.latest import ComfyExtension, io
 from comfy_api.input import CurveInput
 from typing_extensions import override
@@ -32,10 +34,58 @@ class CurveEditor(io.ComfyNode):
         return io.NodeOutput(result, ui=ui) if ui else io.NodeOutput(result)
 
 
+class ImageHistogram(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ImageHistogram",
+            display_name="Image Histogram",
+            category="utils",
+            inputs=[
+                io.Image.Input("image"),
+            ],
+            outputs=[
+                io.Histogram.Output("rgb"),
+                io.Histogram.Output("luminance"),
+                io.Histogram.Output("red"),
+                io.Histogram.Output("green"),
+                io.Histogram.Output("blue"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, image) -> io.NodeOutput:
+        img = image[0].cpu().numpy()
+        img_uint8 = np.clip(img * 255, 0, 255).astype(np.uint8)
+
+        def bincount(data):
+            return np.bincount(data.ravel(), minlength=256)[:256]
+
+        hist_r = bincount(img_uint8[:, :, 0])
+        hist_g = bincount(img_uint8[:, :, 1])
+        hist_b = bincount(img_uint8[:, :, 2])
+
+        # Average of R, G, B histograms (same as Photoshop's RGB composite)
+        rgb = ((hist_r + hist_g + hist_b) // 3).tolist()
+
+        # ITU-R BT.709-6, Item 3.2 (p.6) — Derivation of luminance signal
+        # https://www.itu.int/rec/R-REC-BT.709-6-201506-I/en
+        lum = 0.2126 * img[:, :, 0] + 0.7152 * img[:, :, 1] + 0.0722 * img[:, :, 2]
+        luminance = bincount(np.clip(lum * 255, 0, 255).astype(np.uint8)).tolist()
+
+        return io.NodeOutput(
+            rgb,
+            luminance,
+            hist_r.tolist(),
+            hist_g.tolist(),
+            hist_b.tolist(),
+        )
+
+
 class CurveExtension(ComfyExtension):
     @override
     async def get_node_list(self):
-        return [CurveEditor]
+        return [CurveEditor, ImageHistogram]
 
 
 async def comfy_entrypoint():

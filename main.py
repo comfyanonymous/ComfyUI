@@ -9,6 +9,8 @@ import folder_paths
 import time
 from comfy.cli_args import args, enables_dynamic_vram
 from app.logger import setup_logger
+setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
 from app.assets.seeder import asset_seeder
 from app.assets.services import register_output_files
 import itertools
@@ -26,8 +28,6 @@ if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
-
-setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 faulthandler.enable(file=sys.stderr, all_threads=False)
 
