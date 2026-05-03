@@ -203,9 +203,9 @@ class JoinImageWithAlpha(io.ComfyNode):
     @classmethod
     def execute(cls, image: torch.Tensor, alpha: torch.Tensor) -> io.NodeOutput:
         batch_size = max(len(image), len(alpha))
-        image = comfy.utils.repeat_to_batch_size(image, batch_size)
-        alpha = comfy.utils.repeat_to_batch_size(alpha, batch_size)
         alpha = 1.0 - resize_mask(alpha, image.shape[1:])
+        alpha = comfy.utils.repeat_to_batch_size(alpha, batch_size)
+        image = comfy.utils.repeat_to_batch_size(image, batch_size)
         return io.NodeOutput(torch.cat((image[..., :3], alpha.unsqueeze(-1)), dim=-1))
 
 
