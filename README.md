@@ -31,7 +31,7 @@
 [github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
 [github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
 
-
+<img width="1590" height="795" alt="ComfyUI Screenshot" src="https://github.com/user-attachments/assets/e1ca1340-07af-4722-bb14-fd43beb52d4d" />
 </div>
 
 ComfyUI is the AI creation engine for visual professionals who demand control over every model, every parameter, and every output. Its powerful and modular node graph interface empowers creatives to generate images, videos, 3D models, audio, and more...
