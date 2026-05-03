@@ -31,6 +31,7 @@ from contextlib import nullcontext
 import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
+import comfy_aimdo.vram_buffer
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -1175,6 +1176,10 @@ stream_counters = {}
 
 STREAM_CAST_BUFFERS = {}
 LARGEST_CASTED_WEIGHT = (None, 0)
+STREAM_AIMDO_CAST_BUFFERS = {}
+LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+
+DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
 
 def get_cast_buffer(offload_stream, device, size, ref):
     global LARGEST_CASTED_WEIGHT
@@ -1208,13 +1213,26 @@ def get_cast_buffer(offload_stream, device, size, ref):
 
     return cast_buffer
 
+def get_aimdo_cast_buffer(offload_stream, device):
+    cast_buffer = STREAM_AIMDO_CAST_BUFFERS.get(offload_stream, None)
+    if cast_buffer is None:
+        cast_buffer = comfy_aimdo.vram_buffer.VRAMBuffer(DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE, device.index)
+        STREAM_AIMDO_CAST_BUFFERS[offload_stream] = cast_buffer
+
+    return cast_buffer
 def reset_cast_buffers():
     global LARGEST_CASTED_WEIGHT
+    global LARGEST_AIMDO_CASTED_WEIGHT
+
     LARGEST_CASTED_WEIGHT = (None, 0)
-    for offload_stream in STREAM_CAST_BUFFERS:
-        offload_stream.synchronize()
+    LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+    for offload_stream in set(STREAM_CAST_BUFFERS) | set(STREAM_AIMDO_CAST_BUFFERS):
+        if offload_stream is not None:
+            offload_stream.synchronize()
     synchronize()
+
     STREAM_CAST_BUFFERS.clear()
+    STREAM_AIMDO_CAST_BUFFERS.clear()
     soft_empty_cache()
 
 def get_offload_stream(device):

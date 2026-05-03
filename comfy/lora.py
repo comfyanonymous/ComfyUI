@@ -17,6 +17,7 @@
 """
 
 from __future__ import annotations
+import comfy.memory_management
 import comfy.utils
 import comfy.model_management
 import comfy.model_base
@@ -473,3 +474,17 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
             weight = old_weight
 
     return weight
+
+def prefetch_prepared_value(value, allocate_buffer, stream):
+    if isinstance(value, torch.Tensor):
+        dest = allocate_buffer(comfy.memory_management.vram_aligned_size(value))
+        comfy.model_management.cast_to_gathered([value], dest, non_blocking=True, stream=stream)
+        return comfy.memory_management.interpret_gathered_like([value], dest)[0]
+    elif isinstance(value, weight_adapter.WeightAdapterBase):
+        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, allocate_buffer, stream))
+    elif isinstance(value, tuple):
+        return tuple(prefetch_prepared_value(item, allocate_buffer, stream) for item in value)
+    elif isinstance(value, list):
+        return [prefetch_prepared_value(item, allocate_buffer, stream) for item in value]
+
+    return value
