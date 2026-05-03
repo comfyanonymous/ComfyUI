@@ -1,7 +1,7 @@
 <div align="center">
 
 # ComfyUI
-**The most powerful and modular visual AI engine and application.**
+**The most powerful and modular AI engine for content creation.**
 
 
 [![Website][website-shield]][website-url]
@@ -31,10 +31,15 @@
 [github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
 [github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
 
-![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
+
 </div>
 
-ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
+ComfyUI is the AI creation engine for visual professionals who demand control over every model, every parameter, and every output. Its powerful and modular node graph interface empowers creatives to generate images, videos, 3D models, audio, and more...
+- ComfyUI natively supports the latest open-source state of the art models.
+- API nodes provide access to the best closed source models such as Nano Banana, Seedance, Hunyuan3D, etc.
+- It is available on Windows, Linux, and macOS, locally with our desktop application or on our cloud.
+- The most sophisticated workflow can be exposed through simple UI with App Mode.
+- It integrates seamlessly into production pipelines with our API endpoints.
 
 ## Get Started
 
