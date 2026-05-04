@@ -109,14 +109,19 @@ class MeshyTextureRequest(BaseModel):
 
 class MeshyModelsUrls(BaseModel):
     glb: str = Field("")
+    fbx: str = Field("")
+    usdz: str = Field("")
+    obj: str = Field("")
 
 
 class MeshyRiggedModelsUrls(BaseModel):
     rigged_character_glb_url: str = Field("")
+    rigged_character_fbx_url: str = Field("")
 
 
 class MeshyAnimatedModelsUrls(BaseModel):
     animation_glb_url: str = Field("")
+    animation_fbx_url: str = Field("")
 
 
 class MeshyResultTextureUrls(BaseModel):

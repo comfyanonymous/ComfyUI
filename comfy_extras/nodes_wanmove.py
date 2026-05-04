@@ -252,9 +252,9 @@ class WanMoveVisualizeTracks(io.ComfyNode):
                 io.Image.Input("images"),
                 io.Tracks.Input("tracks", optional=True),
                 io.Int.Input("line_resolution", default=24, min=1, max=1024),
-                io.Int.Input("circle_size", default=12, min=1, max=128),
+                io.Int.Input("circle_size", default=12, min=1, max=128, advanced=True),
                 io.Float.Input("opacity", default=0.75, min=0.0, max=1.0, step=0.01),
-                io.Int.Input("line_width", default=16, min=1, max=128),
+                io.Int.Input("line_width", default=16, min=1, max=128, advanced=True),
             ],
             outputs=[
                 io.Image.Output(),

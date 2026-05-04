@@ -50,6 +50,7 @@ class BasicTransformerBlock1D(nn.Module):
         d_head,
         context_dim=None,
         attn_precision=None,
+        apply_gated_attention=False,
         dtype=None,
         device=None,
         operations=None,
@@ -63,6 +64,7 @@ class BasicTransformerBlock1D(nn.Module):
             heads=n_heads,
             dim_head=d_head,
             context_dim=None,
+            apply_gated_attention=apply_gated_attention,
             dtype=dtype,
             device=device,
             operations=operations,
@@ -121,6 +123,7 @@ class Embeddings1DConnector(nn.Module):
         positional_embedding_max_pos=[4096],
         causal_temporal_positioning=False,
         num_learnable_registers: Optional[int] = 128,
+        apply_gated_attention=False,
         dtype=None,
         device=None,
         operations=None,
@@ -145,6 +148,7 @@ class Embeddings1DConnector(nn.Module):
                     num_attention_heads,
                     attention_head_dim,
                     context_dim=cross_attention_dim,
+                    apply_gated_attention=apply_gated_attention,
                     dtype=dtype,
                     device=device,
                     operations=operations,
@@ -157,11 +161,9 @@ class Embeddings1DConnector(nn.Module):
         self.num_learnable_registers = num_learnable_registers
         if self.num_learnable_registers:
             self.learnable_registers = nn.Parameter(
-                torch.rand(
+                torch.empty(
                     self.num_learnable_registers, inner_dim, dtype=dtype, device=device
                 )
-                * 2.0
-                - 1.0
             )
 
     def get_fractional_positions(self, indices_grid):
@@ -234,7 +236,7 @@ class Embeddings1DConnector(nn.Module):
 
         return indices
 
-    def precompute_freqs_cis(self, indices_grid, spacing="exp"):
+    def precompute_freqs_cis(self, indices_grid, spacing="exp", out_dtype=None):
         dim = self.inner_dim
         n_elem = 2  # 2 because of cos and sin
         freqs = self.precompute_freqs(indices_grid, spacing)
@@ -247,7 +249,7 @@ class Embeddings1DConnector(nn.Module):
             )
         else:
             cos_freq, sin_freq = interleaved_freqs_cis(freqs, dim % n_elem)
-        return cos_freq.to(self.dtype), sin_freq.to(self.dtype), self.split_rope
+        return cos_freq.to(dtype=out_dtype), sin_freq.to(dtype=out_dtype), self.split_rope
 
     def forward(
         self,
@@ -288,7 +290,7 @@ class Embeddings1DConnector(nn.Module):
             hidden_states.shape[1], dtype=torch.float32, device=hidden_states.device
         )
         indices_grid = indices_grid[None, None, :]
-        freqs_cis = self.precompute_freqs_cis(indices_grid)
+        freqs_cis = self.precompute_freqs_cis(indices_grid, out_dtype=hidden_states.dtype)
 
         # 2. Blocks
         for block_idx, block in enumerate(self.transformer_1d_blocks):

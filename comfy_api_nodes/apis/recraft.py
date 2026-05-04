@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-
-
 from enum import Enum
-from typing import Optional
 
-from pydantic import BaseModel, Field, conint, confloat
+from pydantic import BaseModel, Field
 
 
 class RecraftColor:
@@ -201,11 +198,6 @@ dict_recraft_substyles_v3 = {
 }
 
 
-class RecraftModel(str, Enum):
-    recraftv3 = 'recraftv3'
-    recraftv2 = 'recraftv2'
-
-
 class RecraftImageSize(str, Enum):
     res_1024x1024 = '1024x1024'
     res_1365x1024 = '1365x1024'
@@ -224,30 +216,64 @@ class RecraftImageSize(str, Enum):
     res_1707x1024 = '1707x1024'
 
 
+RECRAFT_V4_SIZES = [
+    "1024x1024",
+    "1536x768",
+    "768x1536",
+    "1280x832",
+    "832x1280",
+    "1216x896",
+    "896x1216",
+    "1152x896",
+    "896x1152",
+    "832x1344",
+    "1280x896",
+    "896x1280",
+    "1344x768",
+    "768x1344",
+]
+
+RECRAFT_V4_PRO_SIZES = [
+    "2048x2048",
+    "3072x1536",
+    "1536x3072",
+    "2560x1664",
+    "1664x2560",
+    "2432x1792",
+    "1792x2432",
+    "2304x1792",
+    "1792x2304",
+    "1664x2688",
+    "1434x1024",
+    "1024x1434",
+    "2560x1792",
+    "1792x2560",
+]
+
+
 class RecraftColorObject(BaseModel):
     rgb: list[int] = Field(..., description='An array of 3 integer values in range of 0...255 defining RGB Color Model')
 
 
 class RecraftControlsObject(BaseModel):
-    colors: Optional[list[RecraftColorObject]] = Field(None, description='An array of preferable colors')
-    background_color: Optional[RecraftColorObject] = Field(None, description='Use given color as a desired background color')
-    no_text: Optional[bool] = Field(None, description='Do not embed text layouts')
-    artistic_level: Optional[conint(ge=0, le=5)] = Field(None, description='Defines artistic tone of your image. At a simple level, the person looks straight at the camera in a static and clean style. Dynamic and eccentric levels introduce movement and creativity. The value should be in range [0..5].')
+    colors: list[RecraftColorObject] | None = Field(None, description='An array of preferable colors')
+    background_color: RecraftColorObject | None = Field(None, description='Use given color as a desired background color')
+    no_text: bool | None = Field(None, description='Do not embed text layouts')
+    artistic_level: int | None = Field(None, description='Defines artistic tone of your image. At a simple level, the person looks straight at the camera in a static and clean style. Dynamic and eccentric levels introduce movement and creativity. The value should be in range [0..5].')
 
 
 class RecraftImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description='The text prompt describing the image to generate')
-    size: Optional[RecraftImageSize] = Field(None, description='The size of the generated image (e.g., "1024x1024")')
-    n: conint(ge=1, le=6) = Field(..., description='The number of images to generate')
-    negative_prompt: Optional[str] = Field(None, description='A text description of undesired elements on an image')
-    model: Optional[RecraftModel] = Field(RecraftModel.recraftv3, description='The model to use for generation (e.g., "recraftv3")')
-    style: Optional[str] = Field(None, description='The style to apply to the generated image (e.g., "digital_illustration")')
-    substyle: Optional[str] = Field(None, description='The substyle to apply to the generated image, depending on the style input')
-    controls: Optional[RecraftControlsObject] = Field(None, description='A set of custom parameters to tweak generation process')
-    style_id: Optional[str] = Field(None, description='Use a previously uploaded style as a reference; UUID')
-    strength: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description='Defines the difference with the original image, should lie in [0, 1], where 0 means almost identical, and 1 means miserable similarity')
-    random_seed: Optional[int] = Field(None, description="Seed for video generation")
-    # text_layout
+    size: str | None = Field(None, description='The size of the generated image (e.g., "1024x1024")')
+    n: int = Field(..., description='The number of images to generate')
+    negative_prompt: str | None = Field(None, description='A text description of undesired elements on an image')
+    model: str = Field(...)
+    style: str | None = Field(None, description='The style to apply to the generated image (e.g., "digital_illustration")')
+    substyle: str | None = Field(None, description='The substyle to apply to the generated image, depending on the style input')
+    controls: RecraftControlsObject | None = Field(None, description='A set of custom parameters to tweak generation process')
+    style_id: str | None = Field(None, description='Use a previously uploaded style as a reference; UUID')
+    strength: float | None = Field(None, description='Defines the difference with the original image, should lie in [0, 1], where 0 means almost identical, and 1 means miserable similarity')
+    random_seed: int | None = Field(None, description="Seed for video generation")
 
 
 class RecraftReturnedObject(BaseModel):
@@ -258,5 +284,13 @@ class RecraftReturnedObject(BaseModel):
 class RecraftImageGenerationResponse(BaseModel):
     created: int = Field(..., description='Unix timestamp when the generation was created')
     credits: int = Field(..., description='Number of credits used for the generation')
-    data: Optional[list[RecraftReturnedObject]] = Field(None, description='Array of generated image information')
-    image: Optional[RecraftReturnedObject] = Field(None, description='Single generated image')
+    data: list[RecraftReturnedObject] | None = Field(None, description='Array of generated image information')
+    image: RecraftReturnedObject | None = Field(None, description='Single generated image')
+
+
+class RecraftCreateStyleRequest(BaseModel):
+    style: str = Field(..., description="realistic_image, digital_illustration, vector_illustration, or icon")
+
+
+class RecraftCreateStyleResponse(BaseModel):
+    id: str = Field(..., description="UUID of the created style")

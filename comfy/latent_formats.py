@@ -81,6 +81,7 @@ class SD_X4(LatentFormat):
 
 class SC_Prior(LatentFormat):
     latent_channels = 16
+    spacial_downscale_ratio = 42
     def __init__(self):
         self.scale_factor = 1.0
         self.latent_rgb_factors = [
@@ -103,6 +104,7 @@ class SC_Prior(LatentFormat):
         ]
 
 class SC_B(LatentFormat):
+    spacial_downscale_ratio = 4
     def __init__(self):
         self.scale_factor = 1.0 / 0.43
         self.latent_rgb_factors = [
@@ -222,6 +224,7 @@ class Flux2(LatentFormat):
 
         self.latent_rgb_factors_bias = [-0.0329, -0.0718, -0.0851]
         self.latent_rgb_factors_reshape = lambda t: t.reshape(t.shape[0], 32, 2, 2, t.shape[-2], t.shape[-1]).permute(0, 1, 4, 2, 5, 3).reshape(t.shape[0], 32, t.shape[-2] * 2, t.shape[-1] * 2)
+        self.taesd_decoder_name = "taef2_decoder"
 
     def process_in(self, latent):
         return latent
@@ -274,6 +277,7 @@ class Mochi(LatentFormat):
 class LTXV(LatentFormat):
     latent_channels = 128
     latent_dimensions = 3
+    spacial_downscale_ratio = 32
 
     def __init__(self):
         self.latent_rgb_factors = [
@@ -517,6 +521,7 @@ class Wan21(LatentFormat):
 class Wan22(Wan21):
     latent_channels = 48
     latent_dimensions = 3
+    spacial_downscale_ratio = 16
 
     latent_rgb_factors = [
             [ 0.0119,  0.0103,  0.0046],
@@ -594,6 +599,7 @@ class Wan22(Wan21):
 class HunyuanImage21(LatentFormat):
     latent_channels = 64
     latent_dimensions = 2
+    spacial_downscale_ratio = 32
     scale_factor = 0.75289
 
     latent_rgb_factors = [
@@ -727,6 +733,7 @@ class HunyuanVideo15(LatentFormat):
     latent_rgb_factors_bias = [ 0.0456, -0.0202, -0.0644]
     latent_channels = 32
     latent_dimensions = 3
+    spacial_downscale_ratio = 16
     scale_factor = 1.03682
     taesd_decoder_name = "lighttaehy1_5"
 
@@ -749,6 +756,10 @@ class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
 
+class ACEAudio15(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 1
+
 class ChromaRadiance(LatentFormat):
     latent_channels = 3
     spacial_downscale_ratio = 1
@@ -766,3 +777,17 @@ class ChromaRadiance(LatentFormat):
 
     def process_out(self, latent):
         return latent
+
+
+class ZImagePixelSpace(ChromaRadiance):
+    """Pixel-space latent format for ZImage DCT variant.
+    No VAE encoding/decoding — the model operates directly on RGB pixels.
+    """
+    pass
+
+class CogVideoX(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
+
+    def __init__(self):
+        self.scale_factor = 1.15258426

@@ -152,6 +152,7 @@ class Chroma(nn.Module):
         transformer_options={},
         attn_mask: Tensor = None,
     ) -> Tensor:
+        transformer_options = transformer_options.copy()
         patches_replace = transformer_options.get("patches_replace", {})
 
         # running on sequences img
@@ -228,6 +229,7 @@ class Chroma(nn.Module):
 
         transformer_options["total_blocks"] = len(self.single_blocks)
         transformer_options["block_type"] = "single"
+        transformer_options["img_slice"] = [txt.shape[1], img.shape[1]]
         for i, block in enumerate(self.single_blocks):
             transformer_options["block_index"] = i
             if i not in self.skip_dit:

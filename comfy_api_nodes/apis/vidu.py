@@ -6,6 +6,30 @@ class SubjectReference(BaseModel):
     images: list[str] = Field(...)
 
 
+class FrameSetting(BaseModel):
+    prompt: str = Field(...)
+    key_image: str = Field(...)
+    duration: int = Field(...)
+
+
+class TaskMultiFrameCreationRequest(BaseModel):
+    model: str = Field(...)
+    seed: int = Field(..., ge=0, le=2147483647)
+    resolution: str = Field(...)
+    start_image: str = Field(...)
+    image_settings: list[FrameSetting] = Field(...)
+
+
+class TaskExtendCreationRequest(BaseModel):
+    model: str = Field(...)
+    prompt: str = Field(..., max_length=2000)
+    duration: int = Field(...)
+    seed: int = Field(..., ge=0, le=2147483647)
+    resolution: str = Field(...)
+    images: list[str] | None = Field(None, description="Base64 encoded string or image URL")
+    video_url: str = Field(..., description="URL of the video to extend")
+
+
 class TaskCreationRequest(BaseModel):
     model: str = Field(...)
     prompt: str = Field(..., max_length=2000)

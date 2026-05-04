@@ -1,0 +1,127 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+tone_instructions: "Only comment on issues introduced by this PR's changes. Do not flag pre-existing problems in moved, re-indented, or reformatted code."
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: false
+  poem: false
+  review_status: false
+  review_details: false
+  commit_status: true
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  in_progress_fortune: false
+  enable_prompt_for_ai_agents: true
+
+  path_filters:
+    - "!comfy_api_nodes/apis/**"
+    - "!**/generated/*.pyi"
+    - "!.ci/**"
+    - "!script_examples/**"
+    - "!**/__pycache__/**"
+    - "!**/*.ipynb"
+    - "!**/*.png"
+    - "!**/*.bat"
+
+  path_instructions:
+    - path: "**"
+      instructions: |
+        IMPORTANT: Only comment on issues directly introduced by this PR's code changes.
+        Do NOT flag pre-existing issues in code that was merely moved, re-indented,
+        de-indented, or reformatted without logic changes. If code appears in the diff
+        only due to whitespace or structural reformatting (e.g., removing a `with:` block),
+        treat it as unchanged. Contributors should not feel obligated to address
+        pre-existing issues outside the scope of their contribution.
+    - path: "comfy/**"
+      instructions: |
+        Core ML/diffusion engine. Focus on:
+        - Backward compatibility (breaking changes affect all custom nodes)
+        - Memory management and GPU resource handling
+        - Performance implications in hot paths
+        - Thread safety for concurrent execution
+    - path: "comfy_api_nodes/**"
+      instructions: |
+        Third-party API integration nodes. Focus on:
+        - No hardcoded API keys or secrets
+        - Proper error handling for API failures (timeouts, rate limits, auth errors)
+        - Correct Pydantic model usage
+        - Security of user data passed to external APIs
+    - path: "comfy_extras/**"
+      instructions: |
+        Community-contributed extra nodes. Focus on:
+        - Consistency with node patterns (INPUT_TYPES, RETURN_TYPES, FUNCTION, CATEGORY)
+        - No breaking changes to existing node interfaces
+    - path: "comfy_execution/**"
+      instructions: |
+        Execution engine (graph execution, caching, jobs). Focus on:
+        - Caching correctness
+        - Concurrent execution safety
+        - Graph validation edge cases
+    - path: "nodes.py"
+      instructions: |
+        Core node definitions (2500+ lines). Focus on:
+        - Backward compatibility of NODE_CLASS_MAPPINGS
+        - Consistency of INPUT_TYPES return format
+    - path: "alembic_db/**"
+      instructions: |
+        Database migrations. Focus on:
+        - Migration safety and rollback support
+        - Data preservation during schema changes
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT REVIEW"
+      - "DO NOT MERGE"
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+
+  tools:
+    ruff:
+      enabled: false
+    pylint:
+      enabled: false
+    flake8:
+      enabled: false
+    gitleaks:
+      enabled: true
+    shellcheck:
+      enabled: false
+    markdownlint:
+      enabled: false
+    yamllint:
+      enabled: false
+    languagetool:
+      enabled: false
+    github-checks:
+      enabled: true
+      timeout_ms: 90000
+    ast-grep:
+      essential_rules: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"

@@ -1,3 +1,4 @@
+import errno
 import os
 import sys
 import asyncio
@@ -33,13 +34,16 @@ import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
-from app.assets.scanner import seed_assets
-from app.assets.api.routes import register_assets_system
+from app.assets.seeder import asset_seeder
+from app.assets.api.routes import register_assets_routes
+from app.assets.services.ingest import register_file_in_place
+from app.assets.services.asset_management import resolve_hash_to_path
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from app.subgraph_manager import SubgraphManager
+from app.node_replace_manager import NodeReplaceManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
@@ -143,6 +147,10 @@ def is_loopback(host):
 def create_origin_only_middleware():
     @web.middleware
     async def origin_only_middleware(request: web.Request, handler):
+        if 'Sec-Fetch-Site' in request.headers:
+            sec_fetch_site = request.headers['Sec-Fetch-Site']
+            if sec_fetch_site == 'cross-site':
+                return web.Response(status=403)
         #this code is used to prevent the case where a random website can queue comfy workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
         #in that case the Host and Origin hostnames won't match
         #I know the proper fix would be to add a cookie but this should take care of the problem in the meantime
@@ -196,14 +204,11 @@ class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
 
-        mimetypes.init()
-        mimetypes.add_type('application/javascript; charset=utf-8', '.js')
-        mimetypes.add_type('image/webp', '.webp')
-
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
         self.subgraph_manager = SubgraphManager()
+        self.node_replace_manager = NodeReplaceManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = execution.PromptQueue(self)
@@ -237,7 +242,11 @@ class PromptServer():
             else args.front_end_root
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
-        register_assets_system(self.app, self.user_manager)
+        if args.enable_assets:
+            register_assets_routes(self.app, self.user_manager)
+        else:
+            register_assets_routes(self.app)
+            asset_seeder.disable()
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -308,7 +317,7 @@ class PromptServer():
         @routes.get("/")
         async def get_root(request):
             response = web.FileResponse(os.path.join(self.web_root, "index.html"))
-            response.headers['Cache-Control'] = 'no-cache'
+            response.headers['Cache-Control'] = 'no-store, must-revalidate'
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
             return response
@@ -417,7 +426,24 @@ class PromptServer():
                         with open(filepath, "wb") as f:
                             f.write(image.file.read())
 
-                return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
+                resp = {"name" : filename, "subfolder": subfolder, "type": image_upload_type}
+
+                if args.enable_assets:
+                    try:
+                        tag = image_upload_type if image_upload_type in ("input", "output") else "input"
+                        result = register_file_in_place(abs_path=filepath, name=filename, tags=[tag])
+                        resp["asset"] = {
+                            "id": result.ref.id,
+                            "name": result.ref.name,
+                            "asset_hash": result.asset.hash,
+                            "size": result.asset.size_bytes,
+                            "mime_type": result.asset.mime_type,
+                            "tags": result.tags,
+                        }
+                    except Exception:
+                        logging.warning("Failed to register uploaded image as asset", exc_info=True)
+
+                return web.json_response(resp)
             else:
                 return web.Response(status=400)
 
@@ -477,30 +503,43 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
-                filename, output_dir = folder_paths.annotated_filepath(filename)
 
-                if not filename:
-                    return web.Response(status=400)
+                # The frontend's LoadImage combo widget uses asset_hash values
+                # (e.g. "blake3:...") as widget values. When litegraph renders the
+                # node preview, it constructs /view?filename=<asset_hash>, so this
+                # endpoint must resolve blake3 hashes to their on-disk file paths.
+                if filename.startswith("blake3:"):
+                    owner_id = self.user_manager.get_request_user_id(request)
+                    result = resolve_hash_to_path(filename, owner_id=owner_id)
+                    if result is None:
+                        return web.Response(status=404)
+                    file, filename, resolved_content_type = result.abs_path, result.download_name, result.content_type
+                else:
+                    resolved_content_type = None
+                    filename, output_dir = folder_paths.annotated_filepath(filename)
 
-                # validation for security: prevent accessing arbitrary path
-                if filename[0] == '/' or '..' in filename:
-                    return web.Response(status=400)
+                    if not filename:
+                        return web.Response(status=400)
 
-                if output_dir is None:
-                    type = request.rel_url.query.get("type", "output")
-                    output_dir = folder_paths.get_directory_by_type(type)
+                    # validation for security: prevent accessing arbitrary path
+                    if filename[0] == '/' or '..' in filename:
+                        return web.Response(status=400)
 
-                if output_dir is None:
-                    return web.Response(status=400)
+                    if output_dir is None:
+                        type = request.rel_url.query.get("type", "output")
+                        output_dir = folder_paths.get_directory_by_type(type)
 
-                if "subfolder" in request.rel_url.query:
-                    full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                        return web.Response(status=403)
-                    output_dir = full_output_dir
+                    if output_dir is None:
+                        return web.Response(status=400)
 
-                filename = os.path.basename(filename)
-                file = os.path.join(output_dir, filename)
+                    if "subfolder" in request.rel_url.query:
+                        full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+                        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                            return web.Response(status=403)
+                        output_dir = full_output_dir
+
+                    filename = os.path.basename(filename)
+                    file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
@@ -560,8 +599,13 @@ class PromptServer():
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
-                        # Get content type from mimetype, defaulting to 'application/octet-stream'
-                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                        # Use the content type from asset resolution if available,
+                        # otherwise guess from the filename.
+                        content_type = (
+                            resolved_content_type
+                            or mimetypes.guess_type(filename)[0]
+                            or 'application/octet-stream'
+                        )
 
                         # For security, force certain mimetypes to download instead of display
                         if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
@@ -656,6 +700,7 @@ class PromptServer():
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
+            info['is_input_list'] = getattr(obj_class, "INPUT_IS_LIST", False)
             info['output'] = obj_class.RETURN_TYPES
             info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
@@ -669,6 +714,11 @@ class PromptServer():
             else:
                 info['output_node'] = False
 
+            if hasattr(obj_class, 'HAS_INTERMEDIATE_OUTPUT') and obj_class.HAS_INTERMEDIATE_OUTPUT == True:
+                info['has_intermediate_output'] = True
+            else:
+                info['has_intermediate_output'] = False
+
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
 
@@ -679,19 +729,22 @@ class PromptServer():
                 info['deprecated'] = True
             if getattr(obj_class, "EXPERIMENTAL", False):
                 info['experimental'] = True
+            if getattr(obj_class, "DEV_ONLY", False):
+                info['dev_only'] = True
 
             if hasattr(obj_class, 'API_NODE'):
                 info['api_node'] = obj_class.API_NODE
 
             info['search_aliases'] = getattr(obj_class, 'SEARCH_ALIASES', [])
+
+            if hasattr(obj_class, 'ESSENTIALS_CATEGORY'):
+                info['essentials_category'] = obj_class.ESSENTIALS_CATEGORY
+
             return info
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            try:
-                seed_assets(["models"])
-            except Exception as e:
-                logging.error(f"Failed to seed assets: {e}")
+            asset_seeder.start(roots=("models", "input", "output"))
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:
@@ -884,6 +937,8 @@ class PromptServer():
                 if "partial_execution_targets" in json_data:
                     partial_execution_targets = json_data["partial_execution_targets"]
 
+                self.node_replace_manager.apply_replacements(prompt)
+
                 valid = await execution.validate_prompt(prompt_id, prompt, partial_execution_targets)
                 extra_data = {}
                 if "extra_data" in json_data:
@@ -992,6 +1047,7 @@ class PromptServer():
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
         self.subgraph_manager.add_routes(self.routes, nodes.LOADED_MODULE_DIRS.items())
+        self.node_replace_manager.add_routes(self.routes)
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -1190,7 +1246,13 @@ class PromptServer():
             address = addr[0]
             port = addr[1]
             site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-            await site.start()
+            try:
+                await site.start()
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logging.error(f"Port {port} is already in use on address {address}. Please close the other application or use a different port with --port.")
+                    raise SystemExit(1)
+                raise
 
             if not hasattr(self, 'address'):
                 self.address = address #TODO: remove this

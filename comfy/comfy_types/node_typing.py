@@ -176,6 +176,8 @@ class InputTypeOptions(TypedDict):
     """COMBO type only. Specifies the configuration for a multi-select widget.
     Available after ComfyUI frontend v1.13.4
     https://github.com/Comfy-Org/ComfyUI_frontend/pull/2987"""
+    gradient_stops: NotRequired[list[dict]]
+    """Gradient color stops for gradientslider display mode. Each stop is {"offset": float, "color": [r, g, b]}."""
 
 
 class HiddenInputTypeDict(TypedDict):
@@ -236,6 +238,8 @@ class ComfyNodeABC(ABC):
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     DEPRECATED: bool
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
+    DEV_ONLY: bool
+    """Flags a node as dev-only, hiding it from search/menus unless dev mode is enabled."""
     API_NODE: Optional[bool]
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
 

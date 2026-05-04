@@ -3,7 +3,11 @@ from typing_extensions import override
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.bria import (
     BriaEditImageRequest,
-    BriaResponse,
+    BriaRemoveBackgroundRequest,
+    BriaRemoveBackgroundResponse,
+    BriaRemoveVideoBackgroundRequest,
+    BriaRemoveVideoBackgroundResponse,
+    BriaImageEditResponse,
     BriaStatusResponse,
     InputModerationSettings,
 )
@@ -11,10 +15,12 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     convert_mask_to_image,
     download_url_to_image_tensor,
-    get_number_of_images,
+    download_url_to_video_output,
     poll_op,
     sync_op,
-    upload_images_to_comfyapi,
+    upload_image_to_comfyapi,
+    upload_video_to_comfyapi,
+    validate_video_duration,
 )
 
 
@@ -73,21 +79,15 @@ class BriaImageEditNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "moderation",
                     options=[
+                        IO.DynamicCombo.Option("false", []),
                         IO.DynamicCombo.Option(
                             "true",
                             [
-                                IO.Boolean.Input(
-                                    "prompt_content_moderation", default=False
-                                ),
-                                IO.Boolean.Input(
-                                    "visual_input_moderation", default=False
-                                ),
-                                IO.Boolean.Input(
-                                    "visual_output_moderation", default=True
-                                ),
+                                IO.Boolean.Input("prompt_content_moderation", default=False),
+                                IO.Boolean.Input("visual_input_moderation", default=False),
+                                IO.Boolean.Input("visual_output_moderation", default=True),
                             ],
                         ),
-                        IO.DynamicCombo.Option("false", []),
                     ],
                     tooltip="Moderation settings",
                 ),
@@ -127,50 +127,26 @@ class BriaImageEditNode(IO.ComfyNode):
         mask: Input.Image | None = None,
     ) -> IO.NodeOutput:
         if not prompt and not structured_prompt:
-            raise ValueError(
-                "One of prompt or structured_prompt is required to be non-empty."
-            )
-        if get_number_of_images(image) != 1:
-            raise ValueError("Exactly one input image is required.")
+            raise ValueError("One of prompt or structured_prompt is required to be non-empty.")
         mask_url = None
         if mask is not None:
-            mask_url = (
-                await upload_images_to_comfyapi(
-                    cls,
-                    convert_mask_to_image(mask),
-                    max_images=1,
-                    mime_type="image/png",
-                    wait_label="Uploading mask",
-                )
-            )[0]
+            mask_url = await upload_image_to_comfyapi(cls, convert_mask_to_image(mask), wait_label="Uploading mask")
         response = await sync_op(
             cls,
             ApiEndpoint(path="proxy/bria/v2/image/edit", method="POST"),
             data=BriaEditImageRequest(
                 instruction=prompt if prompt else None,
                 structured_instruction=structured_prompt if structured_prompt else None,
-                images=await upload_images_to_comfyapi(
-                    cls,
-                    image,
-                    max_images=1,
-                    mime_type="image/png",
-                    wait_label="Uploading image",
-                ),
+                images=[await upload_image_to_comfyapi(cls, image, wait_label="Uploading image")],
                 mask=mask_url,
                 negative_prompt=negative_prompt if negative_prompt else None,
                 guidance_scale=guidance_scale,
                 seed=seed,
                 model_version=model,
                 steps_num=steps,
-                prompt_content_moderation=moderation.get(
-                    "prompt_content_moderation", False
-                ),
-                visual_input_content_moderation=moderation.get(
-                    "visual_input_moderation", False
-                ),
-                visual_output_content_moderation=moderation.get(
-                    "visual_output_moderation", False
-                ),
+                prompt_content_moderation=moderation.get("prompt_content_moderation", False),
+                visual_input_content_moderation=moderation.get("visual_input_moderation", False),
+                visual_output_content_moderation=moderation.get("visual_output_moderation", False),
             ),
             response_model=BriaStatusResponse,
         )
@@ -178,7 +154,7 @@ class BriaImageEditNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
             status_extractor=lambda r: r.status,
-            response_model=BriaResponse,
+            response_model=BriaImageEditResponse,
         )
         return IO.NodeOutput(
             await download_url_to_image_tensor(response.result.image_url),
@@ -186,11 +162,167 @@ class BriaImageEditNode(IO.ComfyNode):
         )
 
 
+class BriaRemoveImageBackground(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="BriaRemoveImageBackground",
+            display_name="Bria Remove Image Background",
+            category="api node/image/Bria",
+            description="Remove the background from an image using Bria RMBG 2.0.",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.DynamicCombo.Input(
+                    "moderation",
+                    options=[
+                        IO.DynamicCombo.Option("false", []),
+                        IO.DynamicCombo.Option(
+                            "true",
+                            [
+                                IO.Boolean.Input("visual_input_moderation", default=False),
+                                IO.Boolean.Input("visual_output_moderation", default=True),
+                            ],
+                        ),
+                    ],
+                    tooltip="Moderation settings",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.018}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        moderation: dict,
+        seed: int,
+    ) -> IO.NodeOutput:
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/bria/v2/image/edit/remove_background", method="POST"),
+            data=BriaRemoveBackgroundRequest(
+                image=await upload_image_to_comfyapi(cls, image, wait_label="Uploading image"),
+                sync=False,
+                visual_input_content_moderation=moderation.get("visual_input_moderation", False),
+                visual_output_content_moderation=moderation.get("visual_output_moderation", False),
+                seed=seed,
+            ),
+            response_model=BriaStatusResponse,
+        )
+        response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
+            status_extractor=lambda r: r.status,
+            response_model=BriaRemoveBackgroundResponse,
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(response.result.image_url))
+
+
+class BriaRemoveVideoBackground(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="BriaRemoveVideoBackground",
+            display_name="Bria Remove Video Background",
+            category="api node/video/Bria",
+            description="Remove the background from a video using Bria. ",
+            inputs=[
+                IO.Video.Input("video"),
+                IO.Combo.Input(
+                    "background_color",
+                    options=[
+                        "Black",
+                        "White",
+                        "Gray",
+                        "Red",
+                        "Green",
+                        "Blue",
+                        "Yellow",
+                        "Cyan",
+                        "Magenta",
+                        "Orange",
+                    ],
+                    tooltip="Background color for the output video.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        background_color: str,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_video_duration(video, max_duration=60.0)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/bria/v2/video/edit/remove_background", method="POST"),
+            data=BriaRemoveVideoBackgroundRequest(
+                video=await upload_video_to_comfyapi(cls, video),
+                background_color=background_color,
+                output_container_and_codec="mp4_h264",
+                seed=seed,
+            ),
+            response_model=BriaStatusResponse,
+        )
+        response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
+            status_extractor=lambda r: r.status,
+            response_model=BriaRemoveVideoBackgroundResponse,
+        )
+        return IO.NodeOutput(await download_url_to_video_output(response.result.video_url))
+
+
 class BriaExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             BriaImageEditNode,
+            BriaRemoveImageBackground,
+            BriaRemoveVideoBackground,
         ]
 
 

@@ -11,7 +11,8 @@ import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
 from comfy_api.latest import IO as COMFY_IO
-from comfy_api.latest import InputImpl
+from comfy_api.latest import InputImpl, Types
+from folder_paths import get_output_directory
 
 from . import request_logger
 from ._helpers import (
@@ -166,27 +167,25 @@ async def download_url_to_bytesio(
                     with contextlib.suppress(Exception):
                         dest.seek(0)
 
-                with contextlib.suppress(Exception):
-                    request_logger.log_request_response(
-                        operation_id=op_id,
-                        request_method="GET",
-                        request_url=url,
-                        response_status_code=resp.status,
-                        response_headers=dict(resp.headers),
-                        response_content=f"[streamed {written} bytes to dest]",
-                    )
+                request_logger.log_request_response(
+                    operation_id=op_id,
+                    request_method="GET",
+                    request_url=url,
+                    response_status_code=resp.status,
+                    response_headers=dict(resp.headers),
+                    response_content=f"[streamed {written} bytes to dest]",
+                )
                 return
         except asyncio.CancelledError:
             raise ProcessingInterrupted("Task cancelled") from None
         except (ClientError, OSError) as e:
             if attempt <= max_retries:
-                with contextlib.suppress(Exception):
-                    request_logger.log_request_response(
-                        operation_id=op_id,
-                        request_method="GET",
-                        request_url=url,
-                        error_message=f"{type(e).__name__}: {str(e)} (will retry)",
-                    )
+                request_logger.log_request_response(
+                    operation_id=op_id,
+                    request_method="GET",
+                    request_url=url,
+                    error_message=f"{type(e).__name__}: {str(e)} (will retry)",
+                )
                 await sleep_with_interrupt(delay, cls, None, None, None)
                 delay *= retry_backoff
                 continue
@@ -261,3 +260,38 @@ def _generate_operation_id(method: str, url: str, attempt: int) -> str:
     except Exception:
         slug = "download"
     return f"{method}_{slug}_try{attempt}_{uuid.uuid4().hex[:8]}"
+
+
+async def download_url_to_file_3d(
+    url: str,
+    file_format: str,
+    *,
+    task_id: str | None = None,
+    timeout: float | None = None,
+    max_retries: int = 5,
+    cls: type[COMFY_IO.ComfyNode] = None,
+) -> Types.File3D:
+    """Downloads a 3D model file from a URL into memory as BytesIO.
+
+    If task_id is provided, also writes the file to disk in the output directory
+    for backward compatibility with the old save-to-disk behavior.
+    """
+    file_format = file_format.lstrip(".").lower()
+    data = BytesIO()
+    await download_url_to_bytesio(
+        url,
+        data,
+        timeout=timeout,
+        max_retries=max_retries,
+        cls=cls,
+    )
+
+    if task_id is not None:
+        # This is only for backward compatability with current behavior when every 3D node is output node
+        # All new API nodes should not use "task_id" and instead users should use "SaveGLB" node to save results
+        output_dir = Path(get_output_directory())
+        output_path = output_dir / f"{task_id}.{file_format}"
+        output_path.write_bytes(data.getvalue())
+        data.seek(0)
+
+    return Types.File3D(source=data, file_format=file_format)
