@@ -666,12 +666,13 @@ class ColorTransfer(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ColorTransfer",
+            display_name="Color Transfer",
             category="image/postprocessing",
             description="Match the colors of one image to another using various algorithms.",
             search_aliases=["color match", "color grading", "color correction", "match colors", "color transform", "mkl", "reinhard", "histogram"],
             inputs=[
                 io.Image.Input("image_target", tooltip="Image(s) to apply the color transform to."),
-                io.Image.Input("image_ref", optional=True, tooltip="Reference image(s) to match colors to. If not provided, processing is skipped"),
+                io.Image.Input("image_ref", tooltip="Reference image(s) to match colors to."),
                 io.Combo.Input("method", options=['reinhard_lab', 'mkl_lab', 'histogram'],),
                 io.DynamicCombo.Input("source_stats",
                     tooltip="per_frame: each frame matched to image_ref individually. uniform: pool stats across all source frames as baseline, match to image_ref. target_frame: use one chosen frame as the baseline for the transform to image_ref, applied uniformly to all frames (preserves relative differences)",

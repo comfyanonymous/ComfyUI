@@ -1,3 +1,4 @@
+import errno
 import os
 import sys
 import asyncio
@@ -1245,7 +1246,13 @@ class PromptServer():
             address = addr[0]
             port = addr[1]
             site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-            await site.start()
+            try:
+                await site.start()
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logging.error(f"Port {port} is already in use on address {address}. Please close the other application or use a different port with --port.")
+                    raise SystemExit(1)
+                raise
 
             if not hasattr(self, 'address'):
                 self.address = address #TODO: remove this
