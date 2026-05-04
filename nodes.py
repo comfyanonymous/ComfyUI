@@ -2103,7 +2103,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
-    "ControlNetApply": "Apply ControlNet (OLD)",
+    "ControlNetApply": "Apply ControlNet (DEPRECATED)",
     "ControlNetApplyAdvanced": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",

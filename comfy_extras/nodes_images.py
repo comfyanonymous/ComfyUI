@@ -24,7 +24,7 @@ class ImageCrop(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageCrop",
             search_aliases=["trim"],
-            display_name="Image Crop (Deprecated)",
+            display_name="Image Crop (DEPRECATED)",
             category="image/transform",
             is_deprecated=True,
             essentials_category="Image Tools",
