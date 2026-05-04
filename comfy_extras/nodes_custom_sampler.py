@@ -15,9 +15,7 @@ def video_latent_composite(destination, source, x, y, mask=None, multiplier=8, r
     # destination/source shape: [B, C, F, H, W]
     source = source.to(destination.device)
 
-    # 1. Spatial Resizing for Source
     if resize_source:
-        # size=(Frames, Height, Width). We keep source's F, but match destination's H, W
         target_size = (source.shape[2], destination.shape[3], destination.shape[4])
         source = torch.nn.functional.interpolate(
             source, 
@@ -26,22 +24,14 @@ def video_latent_composite(destination, source, x, y, mask=None, multiplier=8, r
             align_corners=False
         )
 
-    # 2. Coordinate Scaling
     x_latent = x // multiplier
     y_latent = y // multiplier
 
-    # 3. Mask Processing (Input: [F, H, W])
     if mask is None:
         mask = torch.ones_like(source)
     else:
         mask = mask.to(destination.device, copy=True)
-        
-        # Convert [F, H, W] -> [1, 1, F, H, W]
-        # This allows it to broadcast across any Batch or Channel in 'source'
         mask = mask.unsqueeze(0).unsqueeze(0)
-            
-        # Resize mask spatially, preserving its frame count
-        # size=(mask_frames, source_height, source_width)
         mask_target_size = (mask.shape[2], source.shape[3], source.shape[4])
         mask = torch.nn.functional.interpolate(
             mask, 
@@ -50,96 +40,86 @@ def video_latent_composite(destination, source, x, y, mask=None, multiplier=8, r
             align_corners=False
         )
 
-    # 4. Dimension Calculations for Spatial Slicing
     dst_h, dst_w = destination.shape[3], destination.shape[4]
     src_h, src_w = source.shape[3], source.shape[4]
 
-    # Calculate visible overlap region
     visible_h = max(0, min(y_latent + src_h, dst_h) - max(0, y_latent))
     visible_w = max(0, min(x_latent + src_w, dst_w) - max(0, x_latent))
 
     if visible_h <= 0 or visible_w <= 0:
         return destination
 
-    # Determine slicing offsets
     src_top = max(0, -y_latent)
     src_left = max(0, -x_latent)
     dst_top = max(0, y_latent)
     dst_left = max(0, x_latent)
 
-    # 5. Slicing and Blending
-    # destination/source/mask are now all 5D: [B, C, F, H, W]
-    # We slice only the H and W dimensions (indices 3 and 4)
     m = mask[:, :, :, src_top:src_top+visible_h, src_left:src_left+visible_w]
     s = source[:, :, :, src_top:src_top+visible_h, src_left:src_left+visible_w]
     d = destination[:, :, :, dst_top:dst_top+visible_h, dst_left:dst_left+visible_w]
 
-    # Combine using the mask
     destination[:, :, :, dst_top:dst_top+visible_h, dst_left:dst_left+visible_w] = (m * s) + ((1.0 - m) * d)
     
     return destination
 
-def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, reference_latent_image, reference_latent_mask, denoise=1.0, start_step=None, time_to_move_last_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
-    sampler = comfy.samplers.KSampler(model, steps=steps, device=model.load_device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask, denoise=1.0, start_step=None, time_to_move_last_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
 
-    sigmas = sampler.sigmas
+    sampler = comfy.samplers.KSampler(model, steps=steps, device=model.load_device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+    model_sampling = model.get_model_object("model_sampling")
+    process_latent_out = model.get_model_object("process_latent_out")
+    process_latent_in = model.get_model_object("process_latent_in")
     
-    if last_step == None:
+    reference_latent_image = latent_image.clone()
+    
+    reference_sigmas = sampler.sigmas
+    reference_noise = noise.clone()
+    
+    if last_step == None or last_step > steps:
         last_step = steps
 
-    if time_to_move_last_step == None:
-        time_to_move_last_step = last_step
-
-    if time_to_move_last_step > last_step:
+    if time_to_move_last_step == None or time_to_move_last_step > last_step:
         time_to_move_last_step = last_step
 
     if start_step == None:
         start_step = 0
 
-    #during each step, composite the reference latent back onto the partially sampled latent using the reference latent mask
-
-    for i in range (min(last_step, len(sigmas) - 1) - start_step):
+    for i in range (min(last_step, steps) - start_step):
         if i > 0:
-            #don't add new noise to samples after first loop iteration
-            noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu") 
+            #don't add new noise to samples after first step taken
+            noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
 
-        if i < last_step - 1:
+        temp_start = start_step + i
+
+        if temp_start < last_step - 1:
             temp_force_full_denoise = False
         else:
             temp_force_full_denoise = force_full_denoise
 
-        temp_start = start_step + i
-
         samples = sampler.sample(noise, positive, negative, cfg=cfg, latent_image=latent_image, start_step=temp_start, last_step=temp_start + 1, force_full_denoise=temp_force_full_denoise, denoise_mask=noise_mask, sigmas=sigmas, callback=callback, disable_pbar=disable_pbar, seed=seed)
 
-        #add noise to the reference latent image (referenced from AddNoise node)
-
         if temp_start < time_to_move_last_step:
-
-            model_sampling = model.get_model_object("model_sampling")
-            process_latent_out = model.get_model_object("process_latent_out")
-            process_latent_in = model.get_model_object("process_latent_in")
-
-            scale = sigmas[temp_start + 1].to(noise.device)
-
+            scale = reference_sigmas[temp_start + 1].to(noise.device)
+            
             if torch.count_nonzero(reference_latent_image) > 0: #Don't shift the empty latent image.
-                reference_latent_image = process_latent_in(reference_latent_image)
-            noisy = model_sampling.noise_scaling(scale, noise, reference_latent_image)
-            noisy = process_latent_out(noisy)
-            noisy = torch.nan_to_num(noisy, nan=0.0, posinf=0.0, neginf=0.0).to(samples.device)
+                noisy = model_sampling.noise_scaling(scale, reference_noise, process_latent_in(reference_latent_image))
+                noisy = model_sampling.inverse_noise_scaling(scale, noisy)
+                noisy = process_latent_out(noisy)
+            else:
+                noisy = reference_latent_image
+            
+            noisy.to(samples.device)            
+            
+            samples = video_latent_composite(samples, noisy, 0, 0, latent_mask, multiplier=1, resize_source=True)
 
-            samples = video_latent_composite(samples, noisy, 0, 0, reference_latent_mask, multiplier=8, resize_source=True)
+        latent_image = samples
         
     samples = samples.to(device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
     return samples
 
 
-def time_to_move_common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, reference_latent, reference_latent_mask, denoise=1.0, disable_noise=False, start_step=None, time_to_move_last_step = None, last_step=None, force_full_denoise=False):
+def time_to_move_common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, latent_mask, denoise=1.0, disable_noise=False, start_step=None, time_to_move_last_step = None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
     latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
-
-    reference_latent_image = reference_latent["samples"]
-    reference_latent_image = comfy.sample.fix_empty_latent_channels(model, reference_latent_image, reference_latent.get("downscale_ratio_spacial", None))
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -153,7 +133,7 @@ def time_to_move_common_ksampler(model, seed, steps, cfg, sampler_name, schedule
 
     callback = latent_preview.prepare_callback(model, steps)
     disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-    samples = time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, reference_latent_image, reference_latent_mask,
+    samples = time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask,
                                   denoise=denoise, start_step=start_step, time_to_move_last_step = time_to_move_last_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
@@ -1127,7 +1107,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
         return io.NodeOutput(out, out_denoised)
 
     sample = execute
-
+    
 class TimeToMoveKSamplerAdvanced(io.ComfyNode):
     @classmethod
 
@@ -1145,9 +1125,8 @@ class TimeToMoveKSamplerAdvanced(io.ComfyNode):
                 io.Combo.Input("scheduler", options = comfy.samplers.KSampler.SCHEDULERS),
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
-                io.Latent.Input("latent_image", tooltip = "Generally should be the same as reference_latent_image."),
-                io.Latent.Input("reference_latent_image"),
-                io.Mask.Input("reference_latent_mask", tooltip = "Make sure mask is the same length as the latents rather than the original video."),
+                io.Latent.Input("latent_image"),
+                io.Mask.Input("latent_mask", tooltip = "Make sure mask is the same length as the latents rather than the original video."),
                 io.Int.Input("start_at_step", default = 0, min = 0, max = 10000, advanced = True, tooltip = "Generally should set at a step greater than 0."),
                 io.Int.Input("time_to_move_end_at_step", default = 0, min = 0, max = 10000, advanced = True, tooltip = "Generally should set at a step greater than 0 and less than total number of steps."),
                 io.Int.Input("end_at_step", default = 10000, min = 0, max = 10000, advanced = True, tooltip = "Use just like typical end_at_step with normal KSamplerAdvanced"),
@@ -1159,7 +1138,7 @@ class TimeToMoveKSamplerAdvanced(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, reference_latent_image, reference_latent_mask, start_at_step, time_to_move_end_at_step, end_at_step, return_with_leftover_noise, denoise=1.0) -> io.NodeOutput:
+    def execute(cls, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask, start_at_step, time_to_move_end_at_step, end_at_step, return_with_leftover_noise, denoise=1.0) -> io.NodeOutput:
         force_full_denoise = True
         if return_with_leftover_noise == "enable":
             force_full_denoise = False
@@ -1167,7 +1146,7 @@ class TimeToMoveKSamplerAdvanced(io.ComfyNode):
         if add_noise == "disable":
             disable_noise = True          
 
-        return time_to_move_common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, reference_latent_image, reference_latent_mask, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, time_to_move_last_step = time_to_move_end_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
+        return time_to_move_common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, time_to_move_last_step = time_to_move_end_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
 class AddNoise(io.ComfyNode):
     @classmethod
