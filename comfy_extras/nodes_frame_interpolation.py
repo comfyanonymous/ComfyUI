@@ -78,7 +78,7 @@ class FrameInterpolate(io.ComfyNode):
         return io.Schema(
             node_id="FrameInterpolate",
             display_name="Frame Interpolate",
-            category="image/video",
+            category="video",
             search_aliases=["rife", "film", "frame interpolation", "slow motion", "interpolate frames", "vfi"],
             inputs=[
                 FrameInterpolationModel.Input("interp_model"),
