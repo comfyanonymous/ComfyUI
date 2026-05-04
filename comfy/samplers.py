@@ -1008,7 +1008,10 @@ class CFGGuider:
         if latent_image.is_nested:
             li_tensors = latent_image.unbind()
             if noise.is_nested:
-                n_tensors = noise.unbind()
+                # Truncate extra noise components, pad missing ones with zeros
+                n_tensors = list(noise.unbind()[:len(li_tensors)])
+                for i in range(len(n_tensors), len(li_tensors)):
+                    n_tensors.append(torch.zeros_like(li_tensors[i]))
             else:
                 # Noise only covers video -- pad remaining components (audio) with zeros
                 n_tensors = [noise]
