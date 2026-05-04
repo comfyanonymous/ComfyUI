@@ -10,11 +10,11 @@ import urllib.parse
 server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
 
-def queue_prompt(prompt):
-    p = {"prompt": prompt, "client_id": client_id}
+def queue_prompt(prompt, prompt_id):
+    p = {"prompt": prompt, "client_id": client_id, "prompt_id": prompt_id}
     data = json.dumps(p).encode('utf-8')
-    req =  urllib.request.Request("http://{}/prompt".format(server_address), data=data)
-    return json.loads(urllib.request.urlopen(req).read())
+    req = urllib.request.Request("http://{}/prompt".format(server_address), data=data)
+    urllib.request.urlopen(req).read()
 
 def get_image(filename, subfolder, folder_type):
     data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
@@ -27,7 +27,8 @@ def get_history(prompt_id):
         return json.loads(response.read())
 
 def get_images(ws, prompt):
-    prompt_id = queue_prompt(prompt)['prompt_id']
+    prompt_id = str(uuid.uuid4())
+    queue_prompt(prompt, prompt_id)
     output_images = {}
     while True:
         out = ws.recv()
@@ -38,18 +39,20 @@ def get_images(ws, prompt):
                 if data['node'] is None and data['prompt_id'] == prompt_id:
                     break #Execution is done
         else:
+            # If you want to be able to decode the binary stream for latent previews, here is how you can do it:
+            # bytesIO = BytesIO(out[8:])
+            # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
-    for o in history['outputs']:
-        for node_id in history['outputs']:
-            node_output = history['outputs'][node_id]
-            if 'images' in node_output:
-                images_output = []
-                for image in node_output['images']:
-                    image_data = get_image(image['filename'], image['subfolder'], image['type'])
-                    images_output.append(image_data)
-            output_images[node_id] = images_output
+    for node_id in history['outputs']:
+        node_output = history['outputs'][node_id]
+        images_output = []
+        if 'images' in node_output:
+            for image in node_output['images']:
+                image_data = get_image(image['filename'], image['subfolder'], image['type'])
+                images_output.append(image_data)
+        output_images[node_id] = images_output
 
     return output_images
 
@@ -85,7 +88,7 @@ prompt_text = """
     "4": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {
-            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+            "ckpt_name": "v1-5-pruned-emaonly.safetensors"
         }
     },
     "5": {
@@ -152,7 +155,7 @@ prompt["3"]["inputs"]["seed"] = 5
 ws = websocket.WebSocket()
 ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 images = get_images(ws, prompt)
-
+ws.close() # for in case this example is used in an environment where it will be repeatedly called, like in a Gradio app. otherwise, you'll randomly receive connection timeouts
 #Commented out code to display the output images:
 
 # for node_id in images:

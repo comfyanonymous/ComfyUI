@@ -1,6 +1,5 @@
 from copy import deepcopy
 from io import BytesIO
-from urllib import request
 import numpy
 import os
 from PIL import Image
@@ -24,7 +23,7 @@ These tests generate and save images through a range of parameters
 """
 
 class ComfyGraph:
-    def __init__(self, 
+    def __init__(self,
                  graph: dict,
                  sampler_nodes: list[str],
                  ):
@@ -44,12 +43,12 @@ class ComfyGraph:
         # sets the sampler name for the sampler nodes (eg. base and refiner)
         for node in self.sampler_nodes:
             self.graph[node]['inputs']['sampler_name'] = sampler_name
-    
+
     def set_scheduler(self, scheduler:str):
         # sets the sampler name for the sampler nodes (eg. base and refiner)
         for node in self.sampler_nodes:
             self.graph[node]['inputs']['scheduler'] = scheduler
-    
+
     def set_filename_prefix(self, prefix:str):
         # sets the filename prefix for the save nodes
         for node in self.graph:
@@ -60,8 +59,8 @@ class ComfyGraph:
 class ComfyClient:
     # From examples/websockets_api_example.py
 
-    def connect(self, 
-                    listen:str = '127.0.0.1', 
+    def connect(self,
+                    listen:str = '127.0.0.1',
                     port:Union[str,int] = 8188,
                     client_id: str = str(uuid.uuid4())
                     ):
@@ -109,15 +108,14 @@ class ComfyClient:
                 continue #previews are binary data
 
         history = self.get_history(prompt_id)[prompt_id]
-        for o in history['outputs']:
-            for node_id in history['outputs']:
-                node_output = history['outputs'][node_id]
-                if 'images' in node_output:
-                    images_output = []
-                    for image in node_output['images']:
-                        image_data = self.get_image(image['filename'], image['subfolder'], image['type'])
-                        images_output.append(image_data)
-                output_images[node_id] = images_output
+        for node_id in history['outputs']:
+            node_output = history['outputs'][node_id]
+            images_output = []
+            if 'images' in node_output:
+                for image in node_output['images']:
+                    image_data = self.get_image(image['filename'], image['subfolder'], image['type'])
+                    images_output.append(image_data)
+            output_images[node_id] = images_output
 
         return output_images
 
@@ -154,7 +152,7 @@ class TestInference:
     def _server(self, args_pytest):
         # Start server
         p = subprocess.Popen([
-                'python','main.py', 
+                'python','main.py',
                 '--output-directory', args_pytest["output_dir"],
                 '--listen', args_pytest["listen"],
                 '--port', str(args_pytest["port"]),
@@ -173,8 +171,8 @@ class TestInference:
             try:
                 comfy_client.connect(listen=listen, port=port)
             except ConnectionRefusedError as e:
-                print(e)
-                print(f"({i+1}/{n_tries}) Retrying...")
+                print(e)  # noqa: T201
+                print(f"({i+1}/{n_tries}) Retrying...")  # noqa: T201
             else:
                 break
         return comfy_client
@@ -187,7 +185,7 @@ class TestInference:
     @fixture(scope="class", params=comfy_graph_list, ids=comfy_graph_ids, autouse=True)
     def _client_graph(self, request, args_pytest, _server) -> (ComfyClient, ComfyGraph):
         comfy_graph = request.param
-        
+
         # Start client
         comfy_client = self.start_client(args_pytest["listen"], args_pytest["port"])
 
@@ -203,7 +201,7 @@ class TestInference:
     def client(self, _client_graph):
         client = _client_graph[0]
         yield client
-    
+
     @fixture
     def comfy_graph(self, _client_graph):
         # avoid mutating the graph

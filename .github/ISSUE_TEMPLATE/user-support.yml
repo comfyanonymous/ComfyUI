@@ -1,0 +1,40 @@
+name: User Support
+description: "Use this if you need help with something, or you're experiencing an issue."
+labels: [ "User Support" ]
+body:
+    - type: markdown
+      attributes:
+        value: |
+            Before submitting a **User Report** issue, please ensure the following:
+
+            **1:** You are running the latest version of ComfyUI.
+            **2:** You have made an effort to find public answers to your question before asking here. In other words, you googled it first, and scrolled through recent help topics.
+
+                If unsure, ask on the [ComfyUI Matrix Space](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) or the [Comfy Org Discord](https://discord.gg/comfyorg) first.
+    - type: checkboxes
+      id: custom-nodes-test
+      attributes:
+        label: Custom Node Testing
+        description: Please confirm you have tried to reproduce the issue with all custom nodes disabled.
+        options:
+          - label: I have tried disabling custom nodes and the issue persists (see [how to disable custom nodes](https://docs.comfy.org/troubleshooting/custom-node-issues#step-1%3A-test-with-all-custom-nodes-disabled) if you need help)
+            required: false
+    - type: textarea
+      attributes:
+            label: Your question
+            description: "Post your question here. Please be as detailed as possible."
+      validations:
+            required: true
+    - type: textarea
+      attributes:
+                label: Logs
+                description: "If your question relates to an issue you're experiencing, please go to `Server` -> `Logs` -> potentially set `View Type` to `Debug` as well, then copypaste all the text into here."
+                render: powershell
+      validations:
+                required: false
+    - type: textarea
+      attributes:
+                label: Other
+                description: "Any other additional information you think might be helpful."
+      validations:
+                required: false

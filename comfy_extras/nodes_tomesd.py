@@ -1,7 +1,9 @@
 #Taken from: https://github.com/dbolya/tomesd
 
 import torch
-from typing import Tuple, Callable
+from typing import Tuple, Callable, Optional
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
 import math
 
 def do_nothing(x: torch.Tensor, mode:str=None):
@@ -40,9 +42,8 @@ def bipartite_soft_matching_random2d(metric: torch.Tensor,
         return do_nothing, do_nothing
 
     gather = mps_gather_workaround if metric.device.type == "mps" else torch.gather
-    
+
     with torch.no_grad():
-        
         hsy, wsx = h // sy, w // sx
 
         # For each sy by sx kernel, randomly assign one token to be dst and the rest src
@@ -50,7 +51,7 @@ def bipartite_soft_matching_random2d(metric: torch.Tensor,
             rand_idx = torch.zeros(hsy, wsx, 1, device=metric.device, dtype=torch.int64)
         else:
             rand_idx = torch.randint(sy*sx, size=(hsy, wsx, 1), device=metric.device)
-        
+
         # The image might not divide sx and sy, so we need to work on a view of the top left if the idx buffer instead
         idx_buffer_view = torch.zeros(hsy, wsx, sy*sx, device=metric.device, dtype=torch.int64)
         idx_buffer_view.scatter_(dim=2, index=rand_idx, src=-torch.ones_like(rand_idx, dtype=rand_idx.dtype))
@@ -99,7 +100,7 @@ def bipartite_soft_matching_random2d(metric: torch.Tensor,
     def merge(x: torch.Tensor, mode="mean") -> torch.Tensor:
         src, dst = split(x)
         n, t1, c = src.shape
-        
+
         unm = gather(src, dim=-2, index=unm_idx.expand(n, t1 - r, c))
         src = gather(src, dim=-2, index=src_idx.expand(n, r, c))
         dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)
@@ -145,33 +146,45 @@ def get_functions(x, ratio, original_shape):
 
 
 
-class TomePatchModel:
+class TomePatchModel(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "ratio": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TomePatchModel",
+            category="model_patches/unet",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("ratio", default=0.3, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[io.Model.Output()],
+        )
 
-    CATEGORY = "_for_testing"
-
-    def patch(self, model, ratio):
-        self.u = None
+    @classmethod
+    def execute(cls, model, ratio) -> io.NodeOutput:
+        u: Optional[Callable] = None
         def tomesd_m(q, k, v, extra_options):
+            nonlocal u
             #NOTE: In the reference code get_functions takes x (input of the transformer block) as the argument instead of q
             #however from my basic testing it seems that using q instead gives better results
-            m, self.u = get_functions(q, ratio, extra_options["original_shape"])
+            m, u = get_functions(q, ratio, extra_options["original_shape"])
             return m(q), k, v
         def tomesd_u(n, extra_options):
-            return self.u(n)
+            nonlocal u
+            return u(n)
 
         m = model.clone()
         m.set_model_attn1_patch(tomesd_m)
         m.set_model_attn1_output_patch(tomesd_u)
-        return (m, )
+        return io.NodeOutput(m)
 
 
-NODE_CLASS_MAPPINGS = {
-    "TomePatchModel": TomePatchModel,
-}
+class TomePatchModelExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            TomePatchModel,
+        ]
+
+
+async def comfy_entrypoint() -> TomePatchModelExtension:
+    return TomePatchModelExtension()

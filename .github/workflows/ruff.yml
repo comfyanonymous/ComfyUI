@@ -1,0 +1,48 @@
+name: Python Linting
+
+on: [push, pull_request]
+
+jobs:
+  ruff:
+    name: Run Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+
+    - name: Install Ruff
+      run: pip install ruff
+
+    - name: Run Ruff
+      run: ruff check .
+
+  pylint:
+    name: Run Pylint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install requirements
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
+
+    - name: Install Pylint
+      run: pip install pylint
+
+    - name: Run Pylint
+      run: pylint comfy_api_nodes
