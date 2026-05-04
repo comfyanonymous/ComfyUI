@@ -49,7 +49,7 @@ class Int(io.ComfyNode):
             display_name="Int",
             category="utils/primitive",
             inputs=[
-                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize, control_after_generate=True),
+                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize, control_after_generate=io.ControlAfterGenerate.fixed),
             ],
             outputs=[io.Int.Output()],
         )

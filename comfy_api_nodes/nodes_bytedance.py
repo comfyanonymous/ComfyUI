@@ -1403,7 +1403,6 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=False),
             poll_interval=9,
-            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -1585,7 +1584,6 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=False),
             poll_interval=9,
-            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -1907,7 +1905,6 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=has_video_input),
             poll_interval=9,
-            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
