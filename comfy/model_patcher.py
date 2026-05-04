@@ -35,6 +35,7 @@ import comfy.model_management
 import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
+import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
@@ -1543,6 +1544,10 @@ class ModelPatcherDynamic(ModelPatcher):
         super().__init__(model, load_device, offload_device, size, weight_inplace_update)
         if not hasattr(self.model, "dynamic_vbars"):
             self.model.dynamic_vbars = {}
+        if not hasattr(self.model, "dynamic_pins"):
+            self.model.dynamic_pins = {}
+        if self.load_device not in self.model.dynamic_pins:
+            self.model.dynamic_pins[self.load_device] = {"hostbuf": comfy_aimdo.host_buffer.HostBuffer(0), "stack": [], "failed": False}
         self.non_dynamic_delegate_model = None
         assert load_device is not None
 
@@ -1604,6 +1609,8 @@ class ModelPatcherDynamic(ModelPatcher):
             self.unpatch_hooks()
 
             vbar = self._vbar_get(create=True)
+            pin_state = self.model.dynamic_pins[self.load_device]
+            pin_state["failed"] = False
             if vbar is not None:
                 vbar.prioritize()
 
@@ -1655,8 +1662,8 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 if hasattr(m, "comfy_cast_weights"):
                     m.comfy_cast_weights = True
-                    m.pin_failed = False
                     m.seed_key = n
+                    m._pin_state = pin_state
                     set_dirty(m, dirty)
 
                     force_load, v_weight_size = setup_param(self, m, n, "weight")
@@ -1734,20 +1741,21 @@ class ModelPatcherDynamic(ModelPatcher):
         return freed
 
     def pinned_memory_size(self):
-        total = 0
-        loading = self._load_list(for_dynamic=True)
-        for x in loading:
-            _, _, _, _, m, _ = x
-            pin = comfy.pinned_memory.get_pin(m)
-            if pin is not None:
-                total += pin.numel() * pin.element_size()
-        return total
+        return self.model.dynamic_pins[self.load_device]["hostbuf"].size
 
     def partially_unload_ram(self, ram_to_unload):
-        loading = self._load_list(for_dynamic=True, default_device=self.offload_device)
-        for x in loading:
-            *_, m, _ = x
-            ram_to_unload -= comfy.pinned_memory.unpin_memory(m)
+        pin_state = self.model.dynamic_pins[self.load_device]
+        hostbuf = pin_state["hostbuf"]
+        stack = self.model.dynamic_pins[self.load_device]["stack"]
+        while len(stack) > 0:
+            module, offset = stack.pop()
+            size = module._pin.numel() * module._pin.element_size()
+            del module._pin
+            hostbuf.truncate(offset)
+            comfy.model_management.TOTAL_PINNED_MEMORY -= size
+            if comfy.model_management.TOTAL_PINNED_MEMORY < 0:
+                comfy.model_management.TOTAL_PINNED_MEMORY = 0
+            ram_to_unload -= size
             if ram_to_unload <= 0:
                 return
 
