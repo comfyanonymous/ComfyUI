@@ -48,6 +48,12 @@ def read_tensor_file_slice_into(tensor, destination):
     if info.size == 0:
         return True
 
+    hostbuf = getattr(destination.untyped_storage(), "_comfy_hostbuf", None)
+    if hostbuf is not None:
+        hostbuf.read_file_slice(file_obj, info.offset, info.size,
+                                offset=destination.data_ptr() - hostbuf.get_raw_address())
+        return True
+
     buf_type = ctypes.c_ubyte * info.size
     view = memoryview(buf_type.from_address(destination.data_ptr()))
 
