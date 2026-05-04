@@ -453,6 +453,8 @@ class RGBMaskToLatentMask(IO.ComfyNode):
         # Ensure we work on a copy of the mask to remain non-destructive
         mask_copy = mask.clone()
         downscale_ratio = vae.downscale_ratio
+        if not isinstance(downscale_ratio, tuple) or len(downscale_ratio) < 3:
+            raise ValueError("RGBMaskToLatentMask requires a causal Video VAE (e.g., Wan). The provided VAE does not have a compatible downscale_ratio.")
         k = (mask.shape[0] - 1) // (downscale_ratio[0](mask.shape[0]) - 1) if (downscale_ratio[0](mask.shape[0]) - 1) > 1 else 1
         return IO.NodeOutput(convert_rgb_mask_to_latent_mask(mask_copy, k, spatial_downsample_h = downscale_ratio[1], spatial_downsample_w = downscale_ratio[2]))
 
