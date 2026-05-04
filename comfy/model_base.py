@@ -214,6 +214,11 @@ class BaseModel(torch.nn.Module):
         if "latent_shapes" in extra_conds:
             xc = utils.unpack_latents(xc, extra_conds.pop("latent_shapes"))
 
+        transformer_options = transformer_options.copy()
+        transformer_options["prefetch_dynamic_vbars"] = (
+            self.current_patcher is not None and self.current_patcher.is_dynamic()
+        )
+
         model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds)
         if len(model_output) > 1 and not torch.is_tensor(model_output):
             model_output, _ = utils.pack_latents(model_output)

@@ -65,6 +65,7 @@ import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
 import comfy.text_encoders.ernie
+import comfy.text_encoders.gemma4
 
 import comfy.model_patcher
 import comfy.lora
@@ -1271,6 +1272,9 @@ class TEModel(Enum):
     QWEN35_9B = 26
     QWEN35_27B = 27
     MINISTRAL_3_3B = 28
+    GEMMA_4_E4B = 29
+    GEMMA_4_E2B = 30
+    GEMMA_4_31B = 31
 
 
 def detect_te_model(sd):
@@ -1296,6 +1300,12 @@ def detect_te_model(sd):
             return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        if 'model.layers.59.self_attn.q_norm.weight' in sd:
+            return TEModel.GEMMA_4_31B
+        if 'model.layers.41.self_attn.q_norm.weight' in sd and 'model.layers.47.self_attn.q_norm.weight' not in sd:
+            return TEModel.GEMMA_4_E4B
+        if 'model.layers.34.self_attn.q_norm.weight' in sd and 'model.layers.41.self_attn.q_norm.weight' not in sd:
+            return TEModel.GEMMA_4_E2B
         if 'model.layers.47.self_attn.q_norm.weight' in sd:
             return TEModel.GEMMA_3_12B
         if 'model.layers.0.self_attn.q_norm.weight' in sd:
@@ -1435,6 +1445,13 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             else:
                 clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
                 clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
+        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B):
+            variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
+                       TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
+                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B}[te_model]
+            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
+            clip_target.tokenizer = variant.tokenizer
+            tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
