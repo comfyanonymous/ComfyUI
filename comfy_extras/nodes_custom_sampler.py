@@ -83,7 +83,14 @@ def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, posit
     if start_step == None:
         start_step = 0
 
-    for i in range (min(last_step, steps) - start_step):
+    total_iterations = min(last_step, steps) - start_step
+    if total_iterations <= 0:
+        return latent_image.to(
+            device=comfy.model_management.intermediate_device(),
+            dtype=comfy.model_management.intermediate_dtype(),
+        )
+
+    for i in range(total_iterations):
         if i > 0:
             #don't add new noise to samples after first step taken
             noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
