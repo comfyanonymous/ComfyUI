@@ -439,7 +439,7 @@ class RGBMaskToLatentMask(IO.ComfyNode):
         return IO.Schema(
             node_id="RGBMasktoLatentMask",
             search_aliases=["rgb mask to latent mask", "rgb mask", "latent mask"],
-            description="Helpful for applying masks to video latents if the VAE uses spatial downsampling.",
+            description="Converts an RGB mask to a latent-space mask for use with causal Video VAEs (e.g., Wan).",
             category="latent",
             inputs=[
                 IO.Mask.Input("mask", optional=False),
