@@ -106,7 +106,8 @@ class FrameInterpolate(io.ComfyNode):
         # Free VRAM for inference activations (model weights + ~20x a single frame's worth)
         H, W = images.shape[1], images.shape[2]
         activation_mem = H * W * 3 * images.element_size() * 20
-        model_management.free_memory(activation_mem, device)
+        model_management.free_memory(activation_mem, device, keep_loaded=[interp_model])
+        inference_model.to(device=device, dtype=dtype)
         align = getattr(inference_model, "pad_align", 1)
 
         # Prepare a single padded frame on device for determining output dimensions
