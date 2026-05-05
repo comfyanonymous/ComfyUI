@@ -37,7 +37,7 @@ class FrameInterpolationModelLoader(io.ComfyNode):
         model = cls._detect_and_load(sd)
         dtype = torch.float16 if model_management.should_use_fp16(model_management.get_torch_device()) else torch.float32
         model.eval().to(dtype)
-        patcher = comfy.model_patcher.ModelPatcher(
+        patcher = comfy.model_patcher.CoreModelPatcher(
             model,
             load_device=model_management.get_torch_device(),
             offload_device=model_management.unet_offload_device(),
@@ -78,7 +78,7 @@ class FrameInterpolate(io.ComfyNode):
         return io.Schema(
             node_id="FrameInterpolate",
             display_name="Frame Interpolate",
-            category="image/video",
+            category="video",
             search_aliases=["rife", "film", "frame interpolation", "slow motion", "interpolate frames", "vfi"],
             inputs=[
                 FrameInterpolationModel.Input("interp_model"),
@@ -98,16 +98,13 @@ class FrameInterpolate(io.ComfyNode):
         if num_frames < 2 or multiplier < 2:
             return io.NodeOutput(images)
 
-        model_management.load_model_gpu(interp_model)
         device = interp_model.load_device
         dtype = interp_model.model_dtype()
         inference_model = interp_model.model
-
-        # Free VRAM for inference activations (model weights + ~20x a single frame's worth)
-        H, W = images.shape[1], images.shape[2]
-        activation_mem = H * W * 3 * images.element_size() * 20
-        model_management.free_memory(activation_mem, device)
+        activation_mem = inference_model.memory_used_forward(images.shape, dtype)
+        model_management.load_models_gpu([interp_model], memory_required=activation_mem)
         align = getattr(inference_model, "pad_align", 1)
+        H, W = images.shape[1], images.shape[2]
 
         # Prepare a single padded frame on device for determining output dimensions
         def prepare_frame(idx):

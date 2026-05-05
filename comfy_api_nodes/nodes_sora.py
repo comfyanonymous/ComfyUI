@@ -33,7 +33,7 @@ class OpenAIVideoSora2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIVideoSora2",
-            display_name="OpenAI Sora - Video (Deprecated)",
+            display_name="OpenAI Sora - Video (DEPRECATED)",
             category="api node/video/Sora",
             description=(
                 "OpenAI video and audio generation.\n\n"
