@@ -160,7 +160,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Depth to Image (Z-Image-Turbo)",
+        "name": "Depth to Image (Z-Image-Turbo)",
         "inputNode": {
           "id": -10,
           "bounding": [
