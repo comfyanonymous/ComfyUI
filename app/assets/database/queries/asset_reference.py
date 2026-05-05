@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import NamedTuple, Sequence
 
 import sqlalchemy as sa
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, noload
@@ -24,12 +24,14 @@ from app.assets.database.models import (
 )
 from app.assets.database.queries.common import (
     MAX_BIND_PARAMS,
+    apply_metadata_filter,
+    apply_tag_filters,
     build_prefix_like_conditions,
     build_visible_owner_clause,
     calculate_rows_per_statement,
     iter_chunks,
 )
-from app.assets.helpers import escape_sql_like_string, get_utc_now, normalize_tags
+from app.assets.helpers import escape_sql_like_string, get_utc_now
 
 
 def _check_is_scalar(v):
@@ -44,15 +46,6 @@ def _check_is_scalar(v):
 
 def _scalar_to_row(key: str, ordinal: int, value) -> dict:
     """Convert a scalar value to a typed projection row."""
-    if value is None:
-        return {
-            "key": key,
-            "ordinal": ordinal,
-            "val_str": None,
-            "val_num": None,
-            "val_bool": None,
-            "val_json": None,
-        }
     if isinstance(value, bool):
         return {"key": key, "ordinal": ordinal, "val_bool": bool(value)}
     if isinstance(value, (int, float, Decimal)):
@@ -66,96 +59,19 @@ def _scalar_to_row(key: str, ordinal: int, value) -> dict:
 def convert_metadata_to_rows(key: str, value) -> list[dict]:
     """Turn a metadata key/value into typed projection rows."""
     if value is None:
-        return [_scalar_to_row(key, 0, None)]
+        return []
 
     if _check_is_scalar(value):
         return [_scalar_to_row(key, 0, value)]
 
     if isinstance(value, list):
         if all(_check_is_scalar(x) for x in value):
-            return [_scalar_to_row(key, i, x) for i, x in enumerate(value)]
-        return [{"key": key, "ordinal": i, "val_json": x} for i, x in enumerate(value)]
+            return [_scalar_to_row(key, i, x) for i, x in enumerate(value) if x is not None]
+        return [{"key": key, "ordinal": i, "val_json": x} for i, x in enumerate(value) if x is not None]
 
     return [{"key": key, "ordinal": 0, "val_json": value}]
 
 
-def _apply_tag_filters(
-    stmt: sa.sql.Select,
-    include_tags: Sequence[str] | None = None,
-    exclude_tags: Sequence[str] | None = None,
-) -> sa.sql.Select:
-    """include_tags: every tag must be present; exclude_tags: none may be present."""
-    include_tags = normalize_tags(include_tags)
-    exclude_tags = normalize_tags(exclude_tags)
-
-    if include_tags:
-        for tag_name in include_tags:
-            stmt = stmt.where(
-                exists().where(
-                    (AssetReferenceTag.asset_reference_id == AssetReference.id)
-                    & (AssetReferenceTag.tag_name == tag_name)
-                )
-            )
-
-    if exclude_tags:
-        stmt = stmt.where(
-            ~exists().where(
-                (AssetReferenceTag.asset_reference_id == AssetReference.id)
-                & (AssetReferenceTag.tag_name.in_(exclude_tags))
-            )
-        )
-    return stmt
-
-
-def _apply_metadata_filter(
-    stmt: sa.sql.Select,
-    metadata_filter: dict | None = None,
-) -> sa.sql.Select:
-    """Apply filters using asset_reference_meta projection table."""
-    if not metadata_filter:
-        return stmt
-
-    def _exists_for_pred(key: str, *preds) -> sa.sql.ClauseElement:
-        return sa.exists().where(
-            AssetReferenceMeta.asset_reference_id == AssetReference.id,
-            AssetReferenceMeta.key == key,
-            *preds,
-        )
-
-    def _exists_clause_for_value(key: str, value) -> sa.sql.ClauseElement:
-        if value is None:
-            no_row_for_key = sa.not_(
-                sa.exists().where(
-                    AssetReferenceMeta.asset_reference_id == AssetReference.id,
-                    AssetReferenceMeta.key == key,
-                )
-            )
-            null_row = _exists_for_pred(
-                key,
-                AssetReferenceMeta.val_json.is_(None),
-                AssetReferenceMeta.val_str.is_(None),
-                AssetReferenceMeta.val_num.is_(None),
-                AssetReferenceMeta.val_bool.is_(None),
-            )
-            return sa.or_(no_row_for_key, null_row)
-
-        if isinstance(value, bool):
-            return _exists_for_pred(key, AssetReferenceMeta.val_bool == bool(value))
-        if isinstance(value, (int, float, Decimal)):
-            num = value if isinstance(value, Decimal) else Decimal(str(value))
-            return _exists_for_pred(key, AssetReferenceMeta.val_num == num)
-        if isinstance(value, str):
-            return _exists_for_pred(key, AssetReferenceMeta.val_str == value)
-        return _exists_for_pred(key, AssetReferenceMeta.val_json == value)
-
-    for k, v in metadata_filter.items():
-        if isinstance(v, list):
-            ors = [_exists_clause_for_value(k, elem) for elem in v]
-            if ors:
-                stmt = stmt.where(sa.or_(*ors))
-        else:
-            stmt = stmt.where(_exists_clause_for_value(k, v))
-    return stmt
 
 
 def get_reference_by_id(
@@ -198,6 +114,23 @@ def get_reference_by_file_path(
     )
 
 
+def count_active_siblings(
+    session: Session,
+    asset_id: str,
+    exclude_reference_id: str,
+) -> int:
+    """Count active (non-deleted) references to an asset, excluding one reference."""
+    return (
+        session.query(AssetReference)
+        .filter(
+            AssetReference.asset_id == asset_id,
+            AssetReference.id != exclude_reference_id,
+            AssetReference.deleted_at.is_(None),
+        )
+        .count()
+    )
+
+
 def reference_exists_for_asset_id(
     session: Session,
     asset_id: str,
@@ -206,6 +139,21 @@ def reference_exists_for_asset_id(
         select(sa.literal(True))
         .select_from(AssetReference)
         .where(AssetReference.asset_id == asset_id)
+        .where(AssetReference.deleted_at.is_(None))
+        .limit(1)
+    )
+    return session.execute(q).first() is not None
+
+
+def reference_exists(
+    session: Session,
+    reference_id: str,
+) -> bool:
+    """Return True if a reference with the given ID exists (not soft-deleted)."""
+    q = (
+        select(sa.literal(True))
+        .select_from(AssetReference)
+        .where(AssetReference.id == reference_id)
         .where(AssetReference.deleted_at.is_(None))
         .limit(1)
     )
@@ -336,8 +284,8 @@ def list_references_page(
         escaped, esc = escape_sql_like_string(name_contains)
         base = base.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
 
-    base = _apply_tag_filters(base, include_tags, exclude_tags)
-    base = _apply_metadata_filter(base, metadata_filter)
+    base = apply_tag_filters(base, include_tags, exclude_tags)
+    base = apply_metadata_filter(base, metadata_filter)
 
     sort = (sort or "created_at").lower()
     order = (order or "desc").lower()
@@ -366,8 +314,8 @@ def list_references_page(
         count_stmt = count_stmt.where(
             AssetReference.name.ilike(f"%{escaped}%", escape=esc)
         )
-    count_stmt = _apply_tag_filters(count_stmt, include_tags, exclude_tags)
-    count_stmt = _apply_metadata_filter(count_stmt, metadata_filter)
+    count_stmt = apply_tag_filters(count_stmt, include_tags, exclude_tags)
+    count_stmt = apply_metadata_filter(count_stmt, metadata_filter)
 
     total = int(session.execute(count_stmt).scalar_one() or 0)
     refs = session.execute(base).unique().scalars().all()
@@ -379,7 +327,7 @@ def list_references_page(
             select(AssetReferenceTag.asset_reference_id, Tag.name)
             .join(Tag, Tag.name == AssetReferenceTag.tag_name)
             .where(AssetReferenceTag.asset_reference_id.in_(id_list))
-            .order_by(AssetReferenceTag.added_at)
+            .order_by(AssetReferenceTag.tag_name.asc())
         )
         for ref_id, tag_name in rows.all():
             tag_map[ref_id].append(tag_name)
@@ -492,6 +440,42 @@ def update_reference_updated_at(
     )
 
 
+def rebuild_metadata_projection(session: Session, ref: AssetReference) -> None:
+    """Delete and rebuild AssetReferenceMeta rows from merged system+user metadata.
+
+    The merged dict is ``{**system_metadata, **user_metadata}`` so user keys
+    override system keys of the same name.
+    """
+    session.execute(
+        delete(AssetReferenceMeta).where(
+            AssetReferenceMeta.asset_reference_id == ref.id
+        )
+    )
+    session.flush()
+
+    merged = {**(ref.system_metadata or {}), **(ref.user_metadata or {})}
+    if not merged:
+        return
+
+    rows: list[AssetReferenceMeta] = []
+    for k, v in merged.items():
+        for r in convert_metadata_to_rows(k, v):
+            rows.append(
+                AssetReferenceMeta(
+                    asset_reference_id=ref.id,
+                    key=r["key"],
+                    ordinal=int(r["ordinal"]),
+                    val_str=r.get("val_str"),
+                    val_num=r.get("val_num"),
+                    val_bool=r.get("val_bool"),
+                    val_json=r.get("val_json"),
+                )
+            )
+    if rows:
+        session.add_all(rows)
+        session.flush()
+
+
 def set_reference_metadata(
     session: Session,
     reference_id: str,
@@ -505,33 +489,24 @@ def set_reference_metadata(
     ref.updated_at = get_utc_now()
     session.flush()
 
-    session.execute(
-        delete(AssetReferenceMeta).where(
-            AssetReferenceMeta.asset_reference_id == reference_id
-        )
-    )
+    rebuild_metadata_projection(session, ref)
+
+
+def set_reference_system_metadata(
+    session: Session,
+    reference_id: str,
+    system_metadata: dict | None = None,
+) -> None:
+    """Set system_metadata on a reference and rebuild the merged projection."""
+    ref = session.get(AssetReference, reference_id)
+    if not ref:
+        raise ValueError(f"AssetReference {reference_id} not found")
+
+    ref.system_metadata = system_metadata or {}
+    ref.updated_at = get_utc_now()
     session.flush()
 
-    if not user_metadata:
-        return
-
-    rows: list[AssetReferenceMeta] = []
-    for k, v in user_metadata.items():
-        for r in convert_metadata_to_rows(k, v):
-            rows.append(
-                AssetReferenceMeta(
-                    asset_reference_id=reference_id,
-                    key=r["key"],
-                    ordinal=int(r["ordinal"]),
-                    val_str=r.get("val_str"),
-                    val_num=r.get("val_num"),
-                    val_bool=r.get("val_bool"),
-                    val_json=r.get("val_json"),
-                )
-            )
-    if rows:
-        session.add_all(rows)
-        session.flush()
+    rebuild_metadata_projection(session, ref)
 
 
 def delete_reference_by_id(
@@ -571,19 +546,19 @@ def soft_delete_reference_by_id(
 def set_reference_preview(
     session: Session,
     reference_id: str,
-    preview_asset_id: str | None = None,
+    preview_reference_id: str | None = None,
 ) -> None:
     """Set or clear preview_id and bump updated_at. Raises on unknown IDs."""
     ref = session.get(AssetReference, reference_id)
     if not ref:
         raise ValueError(f"AssetReference {reference_id} not found")
 
-    if preview_asset_id is None:
+    if preview_reference_id is None:
         ref.preview_id = None
     else:
-        if not session.get(Asset, preview_asset_id):
-            raise ValueError(f"Preview Asset {preview_asset_id} not found")
-        ref.preview_id = preview_asset_id
+        if not session.get(AssetReference, preview_reference_id):
+            raise ValueError(f"Preview AssetReference {preview_reference_id} not found")
+        ref.preview_id = preview_reference_id
 
     ref.updated_at = get_utc_now()
     session.flush()
@@ -609,7 +584,28 @@ def list_references_by_asset_id(
         session.execute(
             select(AssetReference)
             .where(AssetReference.asset_id == asset_id)
+            .where(AssetReference.is_missing == False)  # noqa: E712
+            .where(AssetReference.deleted_at.is_(None))
             .order_by(AssetReference.id.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+def list_all_file_paths_by_asset_id(
+    session: Session,
+    asset_id: str,
+) -> list[str]:
+    """Return every file_path for an asset, including soft-deleted/missing refs.
+
+    Used for orphan cleanup where all on-disk files must be removed.
+    """
+    return list(
+        session.execute(
+            select(AssetReference.file_path)
+            .where(AssetReference.asset_id == asset_id)
+            .where(AssetReference.file_path.isnot(None))
         )
         .scalars()
         .all()
@@ -853,6 +849,22 @@ def bulk_update_is_missing(
         )
         total += result.rowcount
     return total
+
+
+def update_is_missing_by_asset_id(
+    session: Session, asset_id: str, value: bool
+) -> int:
+    """Set is_missing flag for ALL references belonging to an asset.
+
+    Returns: Number of rows updated
+    """
+    result = session.execute(
+        sa.update(AssetReference)
+        .where(AssetReference.asset_id == asset_id)
+        .where(AssetReference.deleted_at.is_(None))
+        .values(is_missing=value)
+    )
+    return result.rowcount
 
 
 def delete_references_by_ids(session: Session, reference_ids: list[str]) -> int:

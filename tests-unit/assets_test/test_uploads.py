@@ -243,6 +243,15 @@ def test_upload_tags_traversal_guard(http: requests.Session, api_base: str):
     assert body["error"]["code"] in ("BAD_REQUEST", "INVALID_BODY")
 
 
+def test_upload_empty_tags_rejected(http: requests.Session, api_base: str):
+    files = {"file": ("notags.bin", b"A" * 64, "application/octet-stream")}
+    form = {"tags": json.dumps([]), "name": "notags.bin", "user_metadata": json.dumps({})}
+    r = http.post(api_base + "/api/assets", data=form, files=files, timeout=120)
+    body = r.json()
+    assert r.status_code == 400
+    assert body["error"]["code"] == "INVALID_BODY"
+
+
 @pytest.mark.parametrize("root", ["input", "output"])
 def test_duplicate_upload_same_display_name_does_not_clobber(
     root: str,

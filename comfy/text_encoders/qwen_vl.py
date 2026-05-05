@@ -425,4 +425,7 @@ class Qwen2VLVisionTransformer(nn.Module):
             hidden_states = block(hidden_states, position_embeddings, cu_seqlens_now, optimized_attention=optimized_attention)
 
         hidden_states = self.merger(hidden_states)
+        # Potentially important for spatially precise edits. This is present in the HF implementation.
+        reverse_indices = torch.argsort(window_index)
+        hidden_states = hidden_states[reverse_indices, :]
         return hidden_states

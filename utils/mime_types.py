@@ -24,6 +24,7 @@ def init_mime_types():
     # Web types (used by server.py for static file serving)
     mimetypes.add_type('application/javascript; charset=utf-8', '.js')
     mimetypes.add_type('image/webp', '.webp')
+    mimetypes.add_type('image/svg+xml', '.svg')
 
     # Model and data file types (used by asset scanning / metadata extraction)
     mimetypes.add_type("application/safetensors", ".safetensors")

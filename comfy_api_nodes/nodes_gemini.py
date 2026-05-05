@@ -63,7 +63,7 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
       $m := widgets.model;
       $r := widgets.resolution;
       $isFlash := $contains($m, "nano banana 2");
-      $flashPrices := {"1k": 0.0696, "2k": 0.0696, "4k": 0.123};
+      $flashPrices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
       $proPrices := {"1k": 0.134, "2k": 0.134, "4k": 0.24};
       $prices := $isFlash ? $flashPrices : $proPrices;
       {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
@@ -188,10 +188,12 @@ def get_text_from_response(response: GeminiGenerateContentResponse) -> str:
     return "\n".join([part.text for part in parts])
 
 
-async def get_image_from_response(response: GeminiGenerateContentResponse) -> Input.Image:
+async def get_image_from_response(response: GeminiGenerateContentResponse, thought: bool = False) -> Input.Image:
     image_tensors: list[Input.Image] = []
     parts = get_parts_by_type(response, "image/*")
     for part in parts:
+        if (part.thought is True) != thought:
+            continue
         if part.inlineData:
             image_data = base64.b64decode(part.inlineData.data)
             returned_image = bytesio_to_image_tensor(BytesIO(image_data))
@@ -199,6 +201,16 @@ async def get_image_from_response(response: GeminiGenerateContentResponse) -> In
             returned_image = await download_url_to_image_tensor(part.fileData.fileUri)
         image_tensors.append(returned_image)
     if len(image_tensors) == 0:
+        if not thought:
+            # No images generated --> extract text response for a meaningful error
+            model_message = get_text_from_response(response).strip()
+            if model_message:
+                raise ValueError(f"Gemini did not generate an image. Model response: {model_message}")
+            raise ValueError(
+                "Gemini did not generate an image. "
+                "Try rephrasing your prompt or changing the response modality to 'IMAGE+TEXT' "
+                "to see the model's reasoning."
+            )
         return torch.zeros((1, 1024, 1024, 4))
     return torch.cat(image_tensors, dim=0)
 
@@ -931,6 +943,11 @@ class GeminiNanoBanana2(IO.ComfyNode):
             outputs=[
                 IO.Image.Output(),
                 IO.String.Output(),
+                IO.Image.Output(
+                    display_name="thought_image",
+                    tooltip="First image from the model's thinking process. "
+                    "Only available with thinking_level HIGH and IMAGE+TEXT modality.",
+                ),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -992,7 +1009,11 @@ class GeminiNanoBanana2(IO.ComfyNode):
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
         )
-        return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
+        return IO.NodeOutput(
+            await get_image_from_response(response),
+            get_text_from_response(response),
+            await get_image_from_response(response, thought=True),
+        )
 
 
 class GeminiExtension(ComfyExtension):
