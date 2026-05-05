@@ -124,7 +124,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image Inpainting (Qwen-image)",
+        "name": "Image Inpainting (Qwen-image)",
         "inputNode": {
           "id": -10,
           "bounding": [
