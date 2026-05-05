@@ -253,6 +253,9 @@ def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, w
     if bias is not None:
         bias = post_cast(s, "bias", bias, bias_dtype, prefetch["resident"], update_weight)
 
+    if prefetch["signature"] is not None:
+        prefetch["resident"] = True
+
     return weight, bias
 
 

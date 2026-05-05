@@ -721,13 +721,15 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     else:
         minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory())
 
-    models_temp = set()
+    # Order-preserving dedup. A plain set() would randomize iteration order across runs
+    models_temp = {}
     for m in models:
-        models_temp.add(m)
+        models_temp[m] = None
         for mm in m.model_patches_models():
-            models_temp.add(mm)
+            models_temp[mm] = None
 
-    models = models_temp
+    models = list(models_temp)
+    models.reverse()
 
     models_to_load = []
 

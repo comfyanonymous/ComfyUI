@@ -37,7 +37,8 @@ def prefetch_queue_pop(queue, device, module):
     consumed = queue.pop(0)
     if consumed is not None:
         offload_stream, prefetch_state = consumed
-        offload_stream.wait_stream(comfy.model_management.current_stream(device))
+        if offload_stream is not None:
+            offload_stream.wait_stream(comfy.model_management.current_stream(device))
         _, comfy_modules = prefetch_state
         if comfy_modules is not None:
             cleanup_prefetched_modules(comfy_modules)

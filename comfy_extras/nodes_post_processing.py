@@ -20,7 +20,8 @@ class Blend(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageBlend",
-            display_name="Image Blend",
+            search_aliases=["mix images"],
+            display_name="Blend Images",
             category="image/postprocessing",
             essentials_category="Image Tools",
             inputs=[
@@ -224,6 +225,7 @@ class ImageScaleToTotalPixels(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageScaleToTotalPixels",
+            display_name="Scale Image to Total Pixels",
             category="image/upscaling",
             inputs=[
                 io.Image.Input("image"),
@@ -568,7 +570,7 @@ class BatchImagesNode(io.ComfyNode):
         return io.Schema(
             node_id="BatchImagesNode",
             display_name="Batch Images",
-            category="image",
+            category="image/batch",
             essentials_category="Image Tools",
             search_aliases=["batch", "image batch", "batch images", "combine images", "merge images", "stack images"],
             inputs=[

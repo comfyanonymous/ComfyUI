@@ -1887,7 +1887,7 @@ class ImageInvert:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "invert"
 
-    CATEGORY = "image"
+    CATEGORY = "image/color"
 
     def invert(self, image):
         s = 1.0 - image
@@ -1903,7 +1903,7 @@ class ImageBatch:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "batch"
 
-    CATEGORY = "image"
+    CATEGORY = "image/batch"
     DEPRECATED = True
 
     def batch(self, image1, image2):
@@ -1960,7 +1960,7 @@ class ImagePadForOutpaint:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "expand_image"
 
-    CATEGORY = "image"
+    CATEGORY = "image/transform"
 
     def expand_image(self, image, left, top, right, bottom, feathering):
         d1, d2, d3, d4 = image.size()
@@ -2103,7 +2103,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
-    "ControlNetApply": "Apply ControlNet (OLD)",
+    "ControlNetApply": "Apply ControlNet (DEPRECATED)",
     "ControlNetApplyAdvanced": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
@@ -2121,6 +2121,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
+    "EmptyImage": "Empty Image",
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
@@ -2128,15 +2129,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImageOutput": "Load Image (from Outputs)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",
-    "ImageInvert": "Invert Image",
+    "ImageInvert": "Invert Image Colors",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
-    "ImageBatch": "Batch Images",
-    "ImageCrop": "Image Crop",
-    "ImageStitch": "Image Stitch",
-    "ImageBlend": "Image Blend",
-    "ImageBlur": "Image Blur",
-    "ImageQuantize": "Image Quantize",
-    "ImageSharpen": "Image Sharpen",
+    "ImageBatch": "Batch Images (DEPRECATED)",
+    "ImageCrop": "Crop Image",
+    "ImageStitch": "Stitch Images",
+    "ImageBlend": "Blend Images",
+    "ImageBlur": "Blur Image",
+    "ImageQuantize": "Quantize Image",
+    "ImageSharpen": "Sharpen Image",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     "GetImageSize": "Get Image Size",
     # _for_testing
@@ -2411,6 +2412,7 @@ async def init_builtin_extra_nodes():
         "nodes_nop.py",
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
+        "nodes_ar_video.py",
         "nodes_image_compare.py",
         "nodes_zimage.py",
         "nodes_glsl.py",

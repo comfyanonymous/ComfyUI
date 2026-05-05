@@ -1999,6 +1999,26 @@ components:
           items:
             type: string
           description: List of node IDs to execute (partial graph execution)
+        workflow_id:
+          type: string
+          format: uuid
+          nullable: true
+          x-runtime: [cloud]
+          description: |
+            UUID identifying a hosted-cloud workflow entity to associate with this
+            job. Local ComfyUI doesn't track workflow entities and returns `null`
+            (or omits the field). The `x-runtime: [cloud]` extension marks this
+            as populated only by the hosted-cloud runtime; absence of the tag
+            means a field is populated by all runtimes.
+        workflow_version_id:
+          type: string
+          format: uuid
+          nullable: true
+          x-runtime: [cloud]
+          description: |
+            UUID identifying a hosted-cloud workflow version to associate with
+            this job. Local ComfyUI returns `null` (or omits the field). See
+            `workflow_id` above for `x-runtime` semantics.
 
     PromptResponse:
       type: object
@@ -2347,7 +2367,12 @@ components:
           description: Device type (cuda, mps, cpu, etc.)
         index:
           type: number
-          description: Device index
+          nullable: true
+          description: |
+            Device index within its type (e.g. CUDA ordinal for `cuda:0`,
+            `cuda:1`). `null` for devices with no index, including the CPU
+            device returned in `--cpu` mode (PyTorch's `torch.device('cpu').index`
+            is `None`).
         vram_total:
           type: number
           description: Total VRAM in bytes
@@ -2503,7 +2528,18 @@ components:
           description: Alternative search terms for finding this node
         essentials_category:
           type: string
-          description: Category override used by the essentials pack
+          nullable: true
+          description: |
+            Category override used by the essentials pack. The
+            `essentials_category` key may be present with a string value,
+            present and `null`, or absent entirely:
+
+            - V1 nodes: `essentials_category` is **omitted** when the node
+              class doesn't define an `ESSENTIALS_CATEGORY` attribute, and
+              **`null`** if the attribute is explicitly set to `None`.
+            - V3 nodes (`comfy_api.latest.io`): `essentials_category` is
+              **always present**, and **`null`** for nodes whose `Schema`
+              doesn't populate it.
 
     # -------------------------------------------------------------------
     # Models

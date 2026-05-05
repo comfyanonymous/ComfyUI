@@ -42,6 +42,7 @@ import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
+import comfy.ldm.wan.ar_model
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -1363,6 +1364,13 @@ class WAN21(BaseModel):
             out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
 
         return out
+
+
+class WAN21_CausalAR(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device,
+                                    unet_model=comfy.ldm.wan.ar_model.CausalWanModel)
+        self.image_to_video = False
 
 
 class WAN21_Vace(WAN21):
