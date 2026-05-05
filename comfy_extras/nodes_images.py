@@ -716,7 +716,7 @@ class SplitImageToTileList(IO.ComfyNode):
     def get_grid_coords(width, height, tile_width, tile_height, overlap):
         coords = []
         stride_x = round(max(tile_width * 0.25, tile_width - overlap))
-        stride_y = round(max(tile_width * 0.25, tile_height - overlap))
+        stride_y = round(max(tile_height * 0.25, tile_height - overlap))
 
         y = 0
         while y < height:
