@@ -395,7 +395,6 @@ class Combo(ComfyTypeIO):
 @comfytype(io_type="COMBO")
 class MultiCombo(ComfyTypeI):
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
-    # TODO: something is wrong with the serialization, frontend does not recognize it as multiselect
     Type = list[str]
     class Input(Combo.Input):
         def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -408,12 +407,14 @@ class MultiCombo(ComfyTypeI):
             self.default: list[str]
 
         def as_dict(self):
-            to_return = super().as_dict() | prune_dict({
-                "multi_select": self.multiselect,
-                "placeholder": self.placeholder,
-                "chip": self.chip,
+            # Frontend expects `multi_select` to be an object config (not a boolean).
+            # Keep top-level `multiselect` from Combo.Input for backwards compatibility.
+            return super().as_dict() | prune_dict({
+                "multi_select": prune_dict({
+                    "placeholder": self.placeholder,
+                    "chip": self.chip,
+                }),
             })
-            return to_return
 
 @comfytype(io_type="IMAGE")
 class Image(ComfyTypeIO):
