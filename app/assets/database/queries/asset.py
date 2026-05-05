@@ -78,6 +78,18 @@ def upsert_asset(
     return asset, created, updated
 
 
+def create_stub_asset(
+    session: Session,
+    size_bytes: int,
+    mime_type: str | None = None,
+) -> Asset:
+    """Create a new asset with no hash (stub for later enrichment)."""
+    asset = Asset(size_bytes=size_bytes, mime_type=mime_type, hash=None)
+    session.add(asset)
+    session.flush()
+    return asset
+
+
 def bulk_insert_assets(
     session: Session,
     rows: list[dict],

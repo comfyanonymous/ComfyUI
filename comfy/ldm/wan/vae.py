@@ -376,22 +376,22 @@ class Decoder3d(nn.Module):
             return
 
         layer = self.upsamples[layer_idx]
-        if isinstance(layer, Resample) and layer.mode == 'upsample3d' and x.shape[2] > 1:
-            for frame_idx in range(x.shape[2]):
+        if feat_cache is not None:
+            x = layer(x, feat_cache, feat_idx)
+        else:
+            x = layer(x)
+
+        if isinstance(layer, Resample) and layer.mode == 'upsample3d' and x.shape[2] > 2:
+            for frame_idx in range(0, x.shape[2], 2):
                 self.run_up(
-                    layer_idx,
-                    [x[:, :, frame_idx:frame_idx + 1, :, :]],
+                    layer_idx + 1,
+                    [x[:, :, frame_idx:frame_idx + 2, :, :]],
                     feat_cache,
                     feat_idx.copy(),
                     out_chunks,
                 )
             del x
             return
-
-        if feat_cache is not None:
-            x = layer(x, feat_cache, feat_idx)
-        else:
-            x = layer(x)
 
         next_x_ref = [x]
         del x

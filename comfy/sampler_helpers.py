@@ -89,7 +89,8 @@ def get_additional_models(conds, dtype):
         gligen += get_models_from_cond(conds[k], "gligen")
         add_models += get_models_from_cond(conds[k], "additional_models")
 
-    control_nets = set(cnets)
+    # Order-preserving dedup. A plain set() would randomize iteration order across runs
+    control_nets = list(dict.fromkeys(cnets))
 
     inference_memory = 0
     control_models = []

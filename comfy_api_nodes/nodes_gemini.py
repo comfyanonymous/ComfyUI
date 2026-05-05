@@ -201,6 +201,16 @@ async def get_image_from_response(response: GeminiGenerateContentResponse, thoug
             returned_image = await download_url_to_image_tensor(part.fileData.fileUri)
         image_tensors.append(returned_image)
     if len(image_tensors) == 0:
+        if not thought:
+            # No images generated --> extract text response for a meaningful error
+            model_message = get_text_from_response(response).strip()
+            if model_message:
+                raise ValueError(f"Gemini did not generate an image. Model response: {model_message}")
+            raise ValueError(
+                "Gemini did not generate an image. "
+                "Try rephrasing your prompt or changing the response modality to 'IMAGE+TEXT' "
+                "to see the model's reasoning."
+            )
         return torch.zeros((1, 1024, 1024, 4))
     return torch.cat(image_tensors, dim=0)
 

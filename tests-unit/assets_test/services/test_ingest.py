@@ -1,12 +1,18 @@
 """Tests for ingest services."""
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as SASession, Session
 
-from app.assets.database.models import Asset, AssetReference, Tag
+from app.assets.database.models import Asset, AssetReference, AssetReferenceTag, Tag
 from app.assets.database.queries import get_reference_tags
-from app.assets.services.ingest import _ingest_file_from_path, _register_existing_asset
+from app.assets.services.ingest import (
+    _ingest_file_from_path,
+    _register_existing_asset,
+    ingest_existing_file,
+)
 
 
 class TestIngestFileFromPath:
@@ -235,3 +241,42 @@ class TestRegisterExistingAsset:
 
         assert result.created is True
         assert set(result.tags) == {"alpha", "beta"}
+
+
+class TestIngestExistingFileTagFK:
+    """Regression: ingest_existing_file must seed Tag rows before inserting
+    AssetReferenceTag rows, otherwise FK enforcement raises IntegrityError."""
+
+    def test_creates_tag_rows_before_reference_tags(self, db_engine_fk, temp_dir: Path):
+        """With PRAGMA foreign_keys=ON, tags must exist in the tags table
+        before they can be referenced in asset_reference_tags."""
+
+        @contextmanager
+        def _create_session():
+            with SASession(db_engine_fk) as sess:
+                yield sess
+
+        file_path = temp_dir / "output.png"
+        file_path.write_bytes(b"image data")
+
+        with patch("app.assets.services.ingest.create_session", _create_session), \
+             patch(
+                 "app.assets.services.ingest.get_name_and_tags_from_asset_path",
+                 return_value=("output.png", ["output"]),
+             ):
+            result = ingest_existing_file(
+                abs_path=str(file_path),
+                extra_tags=["my-job"],
+            )
+
+        assert result is True
+
+        with SASession(db_engine_fk) as sess:
+            tag_names = {t.name for t in sess.query(Tag).all()}
+            assert "output" in tag_names
+            assert "my-job" in tag_names
+
+            ref_tags = sess.query(AssetReferenceTag).all()
+            ref_tag_names = {rt.tag_name for rt in ref_tags}
+            assert "output" in ref_tag_names
+            assert "my-job" in ref_tag_names

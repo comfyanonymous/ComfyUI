@@ -114,6 +114,23 @@ def get_reference_by_file_path(
     )
 
 
+def count_active_siblings(
+    session: Session,
+    asset_id: str,
+    exclude_reference_id: str,
+) -> int:
+    """Count active (non-deleted) references to an asset, excluding one reference."""
+    return (
+        session.query(AssetReference)
+        .filter(
+            AssetReference.asset_id == asset_id,
+            AssetReference.id != exclude_reference_id,
+            AssetReference.deleted_at.is_(None),
+        )
+        .count()
+    )
+
+
 def reference_exists_for_asset_id(
     session: Session,
     asset_id: str,

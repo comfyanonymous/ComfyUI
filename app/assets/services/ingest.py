@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 import app.assets.services.hashing as hashing
 from app.assets.database.queries import (
     add_tags_to_reference,
+    count_active_siblings,
+    create_stub_asset,
+    ensure_tags_exist,
     fetch_reference_and_asset,
     get_asset_by_hash,
     get_reference_by_file_path,
@@ -23,7 +26,8 @@ from app.assets.database.queries import (
     upsert_reference,
     validate_tags_exist,
 )
-from app.assets.helpers import normalize_tags
+from app.assets.helpers import get_utc_now, normalize_tags
+from app.assets.services.bulk_ingest import batch_insert_seed_assets
 from app.assets.services.file_utils import get_size_and_mtime_ns
 from app.assets.services.path_utils import (
     compute_relative_filename,
@@ -128,6 +132,102 @@ def _ingest_file_from_path(
         ref_updated=ref_updated,
         reference_id=reference_id,
     )
+
+
+def register_output_files(
+    file_paths: Sequence[str],
+    user_metadata: UserMetadata = None,
+    job_id: str | None = None,
+) -> int:
+    """Register a batch of output file paths as assets.
+
+    Returns the number of files successfully registered.
+    """
+    registered = 0
+    for abs_path in file_paths:
+        if not os.path.isfile(abs_path):
+            continue
+        try:
+            if ingest_existing_file(
+                abs_path, user_metadata=user_metadata, job_id=job_id
+            ):
+                registered += 1
+        except Exception:
+            logging.exception("Failed to register output: %s", abs_path)
+    return registered
+
+
+def ingest_existing_file(
+    abs_path: str,
+    user_metadata: UserMetadata = None,
+    extra_tags: Sequence[str] = (),
+    owner_id: str = "",
+    job_id: str | None = None,
+) -> bool:
+    """Register an existing on-disk file as an asset stub.
+
+    If a reference already exists for this path, updates mtime_ns, job_id,
+    size_bytes, and resets enrichment so the enricher will re-hash it.
+
+    For brand-new paths, inserts a stub record (hash=NULL) for immediate
+    UX visibility.
+
+    Returns True if a row was inserted or updated, False otherwise.
+    """
+    locator = os.path.abspath(abs_path)
+    size_bytes, mtime_ns = get_size_and_mtime_ns(abs_path)
+    mime_type = mimetypes.guess_type(abs_path, strict=False)[0]
+    name, path_tags = get_name_and_tags_from_asset_path(abs_path)
+    tags = list(dict.fromkeys(path_tags + list(extra_tags)))
+
+    with create_session() as session:
+        existing_ref = get_reference_by_file_path(session, locator)
+        if existing_ref is not None:
+            now = get_utc_now()
+            existing_ref.mtime_ns = mtime_ns
+            existing_ref.job_id = job_id
+            existing_ref.is_missing = False
+            existing_ref.deleted_at = None
+            existing_ref.updated_at = now
+            existing_ref.enrichment_level = 0
+
+            asset = existing_ref.asset
+            if asset:
+                # If other refs share this asset, detach to a new stub
+                # instead of mutating the shared row.
+                siblings = count_active_siblings(session, asset.id, existing_ref.id)
+                if siblings > 0:
+                    new_asset = create_stub_asset(
+                        session,
+                        size_bytes=size_bytes,
+                        mime_type=mime_type or asset.mime_type,
+                    )
+                    existing_ref.asset_id = new_asset.id
+                else:
+                    asset.hash = None
+                    asset.size_bytes = size_bytes
+                    if mime_type:
+                        asset.mime_type = mime_type
+            session.commit()
+            return True
+
+        spec = {
+            "abs_path": abs_path,
+            "size_bytes": size_bytes,
+            "mtime_ns": mtime_ns,
+            "info_name": name,
+            "tags": tags,
+            "fname": os.path.basename(abs_path),
+            "metadata": None,
+            "hash": None,
+            "mime_type": mime_type,
+            "job_id": job_id,
+        }
+        if tags:
+            ensure_tags_exist(session, tags)
+        result = batch_insert_seed_assets(session, [spec], owner_id=owner_id)
+        session.commit()
+        return result.won_paths > 0
 
 
 def _register_existing_asset(

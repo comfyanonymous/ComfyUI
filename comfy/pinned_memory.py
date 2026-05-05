@@ -11,7 +11,7 @@ def get_pin(module):
 def pin_memory(module):
     if module.pin_failed or args.disable_pinned_memory or get_pin(module) is not None:
         return
-    #FIXME: This is a RAM cache trigger event
+
     size = comfy.memory_management.vram_aligned_size([ module.weight, module.bias ])
 
     if comfy.model_management.MAX_PINNED_MEMORY <= 0 or (comfy.model_management.TOTAL_PINNED_MEMORY + size) > comfy.model_management.MAX_PINNED_MEMORY:
