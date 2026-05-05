@@ -1860,6 +1860,35 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
     s_in = x.new_ones([x.shape[0]])
     current_start_frame = 0
     num_sigma_steps = len(sigmas) - 1
+
+    def set_ar_state(start_frame):
+        transformer_options["ar_state"] = {
+            "start_frame": start_frame,
+            "kv_caches": kv_caches,
+            "crossattn_caches": crossattn_caches,
+        }
+    def cache_frames(latent, start_frame):
+        set_ar_state(start_frame)
+        model(latent, sigmas.new_zeros([1]) * s_in, **extra_args)
+
+
+    # ── I2V: cache initial frame(s) at σ=0 before the denoising loop ──
+    ar_initial_latent = transformer_options.get("ar_initial_latent", None)
+    if ar_initial_latent is not None:
+        init_latent = ar_initial_latent.to(device=device, dtype=x.dtype)
+
+        init_frames = min(init_latent.shape[2], lat_t)
+        init_latent = init_latent[:, :, :init_frames]
+
+        if init_latent.shape[0] != bs:
+            init_latent = init_latent.expand(bs, -1, -1, -1, -1)
+        init_latent = inner_model.process_latent_in(init_latent)
+        output[:, :, :init_frames] = init_latent
+        cache_frames(init_latent, 0)
+        current_start_frame = init_frames
+        remaining_frames = lat_t - init_frames
+        num_blocks = max(0, -(-remaining_frames // num_frame_per_block))
+
     total_real_steps = num_blocks * num_sigma_steps
     step_count = 0
 
@@ -1868,14 +1897,7 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
             bf = min(num_frame_per_block, lat_t - current_start_frame)
             fs, fe = current_start_frame, current_start_frame + bf
             noisy_input = x[:, :, fs:fe]
-
-            ar_state = {
-                "start_frame": current_start_frame,
-                "kv_caches": kv_caches,
-                "crossattn_caches": crossattn_caches,
-            }
-            transformer_options["ar_state"] = ar_state
-
+            set_ar_state(current_start_frame)
             for i in range(num_sigma_steps):
                 denoised = model(noisy_input, sigmas[i] * s_in, **extra_args)
 
@@ -1898,13 +1920,11 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
                 step_count += 1
 
             output[:, :, fs:fe] = noisy_input
-
             for cache in kv_caches:
                 cache["end"] -= bf * frame_seq_len
-            zero_sigma = sigmas.new_zeros([1])
-            _ = model(noisy_input, zero_sigma * s_in, **extra_args)
-
+            cache_frames(noisy_input, fs)
             current_start_frame += bf
+
     finally:
         transformer_options.pop("ar_state", None)
 
