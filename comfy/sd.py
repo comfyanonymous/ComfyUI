@@ -1320,6 +1320,13 @@ def detect_te_model(sd):
             return TEModel.QWEN25_3B
         if weight.shape[0] == 512:
             return TEModel.QWEN25_7B
+    # Qwen-VL checkpoints can be saved under model.language_model.* (e.g. HY-OmniWeave text encoder).
+    if 'model.language_model.layers.0.self_attn.k_proj.bias' in sd:
+        weight = sd['model.language_model.layers.0.self_attn.k_proj.bias']
+        if weight.shape[0] == 256:
+            return TEModel.QWEN25_3B
+        if weight.shape[0] == 512:
+            return TEModel.QWEN25_7B
     if "model.language_model.layers.0.linear_attn.A_log" in sd and "model.language_model.layers.0.input_layernorm.weight" in sd:
         weight = sd['model.language_model.layers.0.input_layernorm.weight']
         if weight.shape[0] == 1024:
@@ -1365,7 +1372,11 @@ def t5xxl_detect(clip_data):
     return {}
 
 def llama_detect(clip_data):
-    weight_names = ["model.layers.0.self_attn.k_proj.weight", "model.layers.0.linear_attn.in_proj_a.weight"]
+    weight_names = [
+        "model.layers.0.self_attn.k_proj.weight",
+        "model.layers.0.linear_attn.in_proj_a.weight",
+        "model.language_model.layers.0.self_attn.k_proj.weight",
+    ]
 
     for sd in clip_data:
         for weight_name in weight_names:
@@ -1476,7 +1487,23 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.omnigen2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.omnigen2.Omnigen2Tokenizer
         elif te_model == TEModel.QWEN25_7B:
-            if clip_type == CLIPType.HUNYUAN_IMAGE:
+            # Some Qwen2.5-VL checkpoints (including HY-OmniWeave's text encoder)
+            # are saved with "model.language_model.*" and "model.visual.*" prefixes.
+            # Normalize keys to the layout expected by Comfy text encoder wrappers.
+            for i, sd in enumerate(clip_data):
+                if "model.language_model.layers.0.self_attn.k_proj.weight" in sd:
+                    clip_data[i] = comfy.utils.state_dict_prefix_replace(
+                        sd,
+                        {
+                            "model.language_model.": "model.",
+                            "model.visual.": "visual.",
+                            "final_layer_norm.": "model.norm.",
+                        },
+                    )
+            if clip_type == CLIPType.HUNYUAN_VIDEO_15:
+                clip_target.clip = comfy.text_encoders.hunyuan_image.te(byt5=False, **llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideo15Tokenizer
+            elif clip_type == CLIPType.HUNYUAN_IMAGE:
                 clip_target.clip = comfy.text_encoders.hunyuan_image.te(byt5=False, **llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
             elif clip_type == CLIPType.LONGCAT_IMAGE:
@@ -1813,6 +1840,39 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
         sd = temp_sd
         if custom_operations is None:
             sd, metadata = comfy.utils.convert_old_quants(sd, "", metadata=metadata)
+
+    # HY-OmniWeave checkpoints store double-block attention as split q/k/v tensors
+    # while Comfy's HunyuanVideo implementation expects merged qkv tensors.
+    if "double_blocks.0.img_attn_q.weight" in sd and "double_blocks.0.img_attn.qkv.weight" not in sd:
+        converted_qkv = 0
+        block_indices = set()
+        for k in list(sd.keys()):
+            if not k.startswith("double_blocks."):
+                continue
+            parts = k.split(".")
+            if len(parts) < 3:
+                continue
+            if parts[2] == "img_attn_q":
+                try:
+                    block_indices.add(int(parts[1]))
+                except ValueError:
+                    pass
+
+        for idx in sorted(block_indices):
+            for attn_prefix in ("img_attn", "txt_attn"):
+                for end in ("weight", "bias"):
+                    q_key = f"double_blocks.{idx}.{attn_prefix}_q.{end}"
+                    k_key = f"double_blocks.{idx}.{attn_prefix}_k.{end}"
+                    v_key = f"double_blocks.{idx}.{attn_prefix}_v.{end}"
+                    qkv_key = f"double_blocks.{idx}.{attn_prefix}.qkv.{end}"
+                    if qkv_key in sd:
+                        continue
+                    if q_key in sd and k_key in sd and v_key in sd:
+                        sd[qkv_key] = torch.cat((sd.pop(q_key), sd.pop(k_key), sd.pop(v_key)), dim=0)
+                        converted_qkv += 1
+
+        if converted_qkv > 0:
+            logging.info(f"Converted {converted_qkv} split HunyuanVideo attention tensors to qkv format.")
 
     parameters = comfy.utils.calculate_parameters(sd)
     weight_dtype = comfy.utils.weight_dtype(sd)
