@@ -86,38 +86,61 @@ def materialize_meta_param(s, param_keys):
             setattr(s, param_key, torch.nn.Parameter(torch.zeros(param.shape, dtype=param.dtype), requires_grad=param.requires_grad))
 
 
-def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant):
-    #vbar doesn't support CPU weights, but some custom nodes have weird paths
-    #that might switch the layer to the CPU and expect it to work. We have to take
-    #a clone conservatively as we are mmapped and some SFT files are packed misaligned
-    #If you are a custom node author reading this, please move your layer to the GPU
-    #or declare your ModelPatcher as CPU in the first place.
-    if comfy.model_management.is_device_cpu(device):
-        materialize_meta_param(s, ["weight", "bias"])
-        weight = s.weight.to(dtype=dtype, copy=True)
-        if isinstance(weight, QuantizedTensor):
-            weight = weight.dequantize()
-        bias = None
-        if s.bias is not None:
-            bias = s.bias.to(dtype=bias_dtype, copy=True)
-        return weight, bias, (None, None, None)
-
+# FIXME: add n=1 cache hit fast path
+def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blocking):
     offload_stream = None
-    xfer_dest = None
+    cast_buffer = None
+    cast_buffer_offset = 0
 
-    signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
-    resident = comfy_aimdo.model_vbar.vbar_signature_compare(signature, s._v_signature)
-    if signature is not None:
+    def ensure_offload_stream(module, required_size, check_largest):
+        nonlocal offload_stream
+        nonlocal cast_buffer
+
+        if offload_stream is None:
+            offload_stream = comfy.model_management.get_offload_stream(device)
+        if offload_stream is None or not check_largest or len(comfy_modules) != 1:
+            return
+
+        current_size = 0 if cast_buffer is None else cast_buffer.size()
+        if current_size < required_size and module is comfy.model_management.LARGEST_AIMDO_CASTED_WEIGHT[0]:
+            offload_stream = comfy.model_management.get_offload_stream(device)
+            cast_buffer = None
+        if required_size > comfy.model_management.LARGEST_AIMDO_CASTED_WEIGHT[1]:
+            comfy.model_management.LARGEST_AIMDO_CASTED_WEIGHT = (module, required_size)
+
+    def get_cast_buffer(buffer_size):
+        nonlocal offload_stream
+        nonlocal cast_buffer
+        nonlocal cast_buffer_offset
+
+        if buffer_size == 0:
+            return None
+
+        if offload_stream is None:
+            return torch.empty((buffer_size,), dtype=torch.uint8, device=device)
+
+        cast_buffer = comfy.model_management.get_aimdo_cast_buffer(offload_stream, device)
+        buffer = comfy_aimdo.torch.aimdo_to_tensor(cast_buffer.get(buffer_size, cast_buffer_offset), device)
+        cast_buffer_offset += buffer_size
+        return buffer
+
+    for s in comfy_modules:
+        signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
+        resident = comfy_aimdo.model_vbar.vbar_signature_compare(signature, s._v_signature)
+        prefetch = {
+            "signature": signature,
+            "resident": resident,
+        }
+
         if resident:
-            weight = s._v_weight
-            bias = s._v_bias
-        else:
-            xfer_dest = comfy_aimdo.torch.aimdo_to_tensor(s._v, device)
+            s._prefetch = prefetch
+            continue
 
-    if not resident:
         materialize_meta_param(s, ["weight", "bias"])
+        xfer_dest = comfy_aimdo.torch.aimdo_to_tensor(s._v, device) if signature is not None else None
         cast_geometry = comfy.memory_management.tensors_to_geometries([ s.weight, s.bias ])
         cast_dest = None
+        needs_cast = False
 
         xfer_source = [ s.weight, s.bias ]
 
@@ -129,22 +152,15 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             if data is None:
                 continue
             if data.dtype != geometry.dtype:
+                needs_cast = True
                 cast_dest = xfer_dest
-                if cast_dest is None:
-                    cast_dest = torch.empty((comfy.memory_management.vram_aligned_size(cast_geometry),), dtype=torch.uint8, device=device)
                 xfer_dest = None
                 break
 
         dest_size = comfy.memory_management.vram_aligned_size(xfer_source)
-        offload_stream = comfy.model_management.get_offload_stream(device)
-        if xfer_dest is None and offload_stream is not None:
-                xfer_dest = comfy.model_management.get_cast_buffer(offload_stream, device, dest_size, s)
-                if xfer_dest is None:
-                    offload_stream = comfy.model_management.get_offload_stream(device)
-                    xfer_dest = comfy.model_management.get_cast_buffer(offload_stream, device, dest_size, s)
+        ensure_offload_stream(s, dest_size if xfer_dest is None else 0, True)
         if xfer_dest is None:
-            xfer_dest = torch.empty((dest_size,), dtype=torch.uint8, device=device)
-            offload_stream = None
+            xfer_dest = get_cast_buffer(dest_size)
 
         if signature is None and pin is None:
             comfy.pinned_memory.pin_memory(s)
@@ -157,26 +173,53 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             xfer_source = [ pin ]
         #send it over
         comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
-        comfy.model_management.sync_stream(device, offload_stream)
 
-        if cast_dest is not None:
+        for param_key in ("weight", "bias"):
+            lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
+            if lowvram_fn is not None:
+                ensure_offload_stream(s, cast_buffer_offset, False)
+                lowvram_fn.prepare(lambda size: get_cast_buffer(size), offload_stream)
+
+        prefetch["xfer_dest"] = xfer_dest
+        prefetch["cast_dest"] = cast_dest
+        prefetch["cast_geometry"] = cast_geometry
+        prefetch["needs_cast"] = needs_cast
+        s._prefetch = prefetch
+
+    return offload_stream
+
+
+def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, want_requant):
+
+    prefetch = getattr(s, "_prefetch", None)
+
+    if prefetch["resident"]:
+        weight = s._v_weight
+        bias = s._v_bias
+    else:
+        xfer_dest = prefetch["xfer_dest"]
+        if prefetch["needs_cast"]:
+            cast_dest = prefetch["cast_dest"] if prefetch["cast_dest"] is not None else torch.empty((comfy.memory_management.vram_aligned_size(prefetch["cast_geometry"]),), dtype=torch.uint8, device=device)
             for pre_cast, post_cast in zip(comfy.memory_management.interpret_gathered_like([s.weight, s.bias ], xfer_dest),
-                                           comfy.memory_management.interpret_gathered_like(cast_geometry, cast_dest)):
+                                           comfy.memory_management.interpret_gathered_like(prefetch["cast_geometry"], cast_dest)):
                 if post_cast is not None:
                     post_cast.copy_(pre_cast)
             xfer_dest = cast_dest
 
-        params = comfy.memory_management.interpret_gathered_like(cast_geometry, xfer_dest)
+        params = comfy.memory_management.interpret_gathered_like(prefetch["cast_geometry"], xfer_dest)
         weight = params[0]
         bias = params[1]
-        if signature is not None:
+        if prefetch["signature"] is not None:
             s._v_weight = weight
             s._v_bias = bias
-        s._v_signature=signature
+        s._v_signature = prefetch["signature"]
 
     def post_cast(s, param_key, x, dtype, resident, update_weight):
         lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
         fns = getattr(s, param_key + "_function", [])
+
+        if x is None:
+            return None
 
         orig = x
 
@@ -205,14 +248,15 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             x = f(x)
         return x
 
-    update_weight = signature is not None
+    update_weight = prefetch["signature"] is not None
+    weight = post_cast(s, "weight", weight, dtype, prefetch["resident"], update_weight)
+    if bias is not None:
+        bias = post_cast(s, "bias", bias, bias_dtype, prefetch["resident"], update_weight)
 
-    weight = post_cast(s, "weight", weight, dtype, resident, update_weight)
-    if s.bias is not None:
-        bias = post_cast(s, "bias", bias, bias_dtype, resident, update_weight)
+    if prefetch["signature"] is not None:
+        prefetch["resident"] = True
 
-    #FIXME: weird offload return protocol
-    return weight, bias, (offload_stream, device if signature is not None else None, None)
+    return weight, bias
 
 
 def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, offloadable=False, compute_dtype=None, want_requant=False):
@@ -230,10 +274,46 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
         if device is None:
             device = input.device
 
+    def format_return(result, offloadable):
+        weight, bias, offload_stream = result
+        return (weight, bias, offload_stream) if offloadable else (weight, bias)
+
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
 
     if hasattr(s, "_v"):
-        return cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype, want_requant)
+
+        #vbar doesn't support CPU weights, but some custom nodes have weird paths
+        #that might switch the layer to the CPU and expect it to work. We have to take
+        #a clone conservatively as we are mmapped and some SFT files are packed misaligned
+        #If you are a custom node author reading this, please move your layer to the GPU
+        #or declare your ModelPatcher as CPU in the first place.
+        if comfy.model_management.is_device_cpu(device):
+            materialize_meta_param(s, ["weight", "bias"])
+            weight = s.weight.to(dtype=dtype, copy=True)
+            if isinstance(weight, QuantizedTensor):
+                weight = weight.dequantize()
+            bias = s.bias.to(dtype=bias_dtype, copy=True) if s.bias is not None else None
+            return format_return((weight, bias, (None, None, None)), offloadable)
+
+        prefetched = hasattr(s, "_prefetch")
+        offload_stream = None
+        offload_device = None
+        if not prefetched:
+            offload_stream = cast_modules_with_vbar([s], dtype, device, bias_dtype, non_blocking)
+            comfy.model_management.sync_stream(device, offload_stream)
+
+        weight, bias = resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, want_requant)
+
+        if not prefetched:
+            if getattr(s, "_prefetch")["signature"] is not None:
+                offload_device = device
+            for param_key in ("weight", "bias"):
+                lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
+                if lowvram_fn is not None:
+                    lowvram_fn.clear_prepared()
+            delattr(s, "_prefetch")
+        return format_return((weight, bias, (offload_stream, offload_device, None)), offloadable)
+
 
     if offloadable and (device != s.weight.device or
                         (s.bias is not None and device != s.bias.device)):
@@ -280,11 +360,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
         for f in s.weight_function:
             weight = f(weight)
 
-    if offloadable:
-        return weight, bias, (offload_stream, weight_a, bias_a)
-    else:
-        #Legacy function signature
-        return weight, bias
+    return format_return((weight, bias, (offload_stream, weight_a, bias_a)), offloadable)
 
 
 def uncast_bias_weight(s, weight, bias, offload_stream):
@@ -1172,6 +1248,93 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     if buf is not None:
                         self._buffers[key] = fn(buf)
                 return self
+
+        class Embedding(manual_cast.Embedding):
+            def _load_from_state_dict(self, state_dict, prefix, local_metadata,
+                                    strict, missing_keys, unexpected_keys, error_msgs):
+                weight_key = f"{prefix}weight"
+                layer_conf = state_dict.pop(f"{prefix}comfy_quant", None)
+                if layer_conf is not None:
+                    layer_conf = json.loads(layer_conf.numpy().tobytes())
+
+                # Only fp8 makes sense for embeddings (per-row dequant via index select).
+                # Block-scaled formats (NVFP4, MXFP8) can't do per-row lookup efficiently.
+                quant_format = layer_conf.get("format", None) if layer_conf is not None else None
+                if quant_format in ["float8_e4m3fn", "float8_e5m2"] and weight_key in state_dict:
+                    self.quant_format = quant_format
+                    qconfig = QUANT_ALGOS[quant_format]
+                    layout_cls = get_layout_class(qconfig["comfy_tensor_layout"])
+                    weight = state_dict.pop(weight_key)
+                    manually_loaded_keys = [weight_key]
+
+                    scale_key = f"{prefix}weight_scale"
+                    scale = state_dict.pop(scale_key, None)
+                    if scale is not None:
+                        scale = scale.float()
+                        manually_loaded_keys.append(scale_key)
+
+                    params = layout_cls.Params(
+                        scale=scale if scale is not None else torch.ones((), dtype=torch.float32),
+                        orig_dtype=MixedPrecisionOps._compute_dtype,
+                        orig_shape=(self.num_embeddings, self.embedding_dim),
+                    )
+                    self.weight = torch.nn.Parameter(
+                        QuantizedTensor(weight.to(dtype=qconfig["storage_t"]), qconfig["comfy_tensor_layout"], params),
+                        requires_grad=False)
+
+                    super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+                    for k in manually_loaded_keys:
+                        if k in missing_keys:
+                            missing_keys.remove(k)
+                else:
+                    if layer_conf is not None:
+                        state_dict[f"{prefix}comfy_quant"] = torch.tensor(list(json.dumps(layer_conf).encode('utf-8')), dtype=torch.uint8)
+                    super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+
+            def state_dict(self, *args, destination=None, prefix="", **kwargs):
+                if destination is not None:
+                    sd = destination
+                else:
+                    sd = {}
+
+                if not hasattr(self, 'weight') or self.weight is None:
+                    return sd
+
+                if isinstance(self.weight, QuantizedTensor):
+                    sd_out = self.weight.state_dict("{}weight".format(prefix))
+                    for k in sd_out:
+                        sd[k] = sd_out[k]
+
+                    quant_conf = {"format": self.quant_format}
+                    sd["{}comfy_quant".format(prefix)] = torch.tensor(list(json.dumps(quant_conf).encode('utf-8')), dtype=torch.uint8)
+                else:
+                    sd["{}weight".format(prefix)] = self.weight
+                return sd
+
+            def forward_comfy_cast_weights(self, input, out_dtype=None):
+                weight = self.weight
+
+                # Optimized path: lookup in fp8, dequantize only the selected rows.
+                if isinstance(weight, QuantizedTensor) and len(self.weight_function) == 0:
+                    qdata, _, offload_stream = cast_bias_weight(self, device=input.device, dtype=weight.dtype, offloadable=True)
+                    if isinstance(qdata, QuantizedTensor):
+                        scale = qdata._params.scale
+                        qdata = qdata._qdata
+                    else:
+                        scale = None
+
+                    x = torch.nn.functional.embedding(
+                        input, qdata, self.padding_idx, self.max_norm,
+                        self.norm_type, self.scale_grad_by_freq, self.sparse)
+                    uncast_bias_weight(self, qdata, None, offload_stream)
+                    target_dtype = out_dtype if out_dtype is not None else weight._params.orig_dtype
+                    x = x.to(dtype=target_dtype)
+                    if scale is not None and scale != 1.0:
+                        x = x * scale.to(dtype=target_dtype)
+                    return x
+
+                # Fallback for non-quantized or weight_function (LoRA) case
+                return super().forward_comfy_cast_weights(input, out_dtype=out_dtype)
 
     return MixedPrecisionOps
 
