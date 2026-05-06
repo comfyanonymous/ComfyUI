@@ -358,6 +358,60 @@ def apply_split_rotary_emb(input_tensor, cos, sin):
     return output.swapaxes(1, 2).reshape(B, T, -1) if needs_reshape else output
 
 
+class GuideAttentionMask:
+    """Holds the two per-group masks for LTXV guide self-attention.
+    _attention_with_guide_mask splits queries into noisy and tracked-guide
+    groups, so the largest mask is (1, 1, tracked_count, T).
+    """
+    __slots__ = ("guide_start", "tracked_count", "noisy_mask", "tracked_mask")
+
+    def __init__(self, total_tokens, guide_start, tracked_count, tracked_weights):
+        device = tracked_weights.device
+        dtype = tracked_weights.dtype
+        finfo = torch.finfo(dtype)
+
+        pos = tracked_weights > 0
+        log_w = torch.full_like(tracked_weights, finfo.min)
+        log_w[pos] = torch.log(tracked_weights[pos].clamp(min=finfo.tiny))
+
+        self.guide_start = guide_start
+        self.tracked_count = tracked_count
+
+        self.noisy_mask = torch.zeros((1, 1, 1, total_tokens), device=device, dtype=dtype)
+        self.noisy_mask[:, :, :, guide_start:guide_start + tracked_count] = log_w.view(1, 1, 1, -1)
+
+        self.tracked_mask = torch.zeros((1, 1, tracked_count, total_tokens), device=device, dtype=dtype)
+        self.tracked_mask[:, :, :, :guide_start] = log_w.view(1, 1, -1, 1)
+
+    def to(self, *args, **kwargs):
+        new = GuideAttentionMask.__new__(GuideAttentionMask)
+        new.guide_start = self.guide_start
+        new.tracked_count = self.tracked_count
+        new.noisy_mask = self.noisy_mask.to(*args, **kwargs)
+        new.tracked_mask = self.tracked_mask.to(*args, **kwargs)
+        return new
+
+
+def _attention_with_guide_mask(q, k, v, heads, guide_mask, attn_precision, transformer_options):
+    """Apply the guide mask by partitioning Q into noisy and tracked-guide
+    groups, so each group needs only its own sub-mask. Avoids materializing
+    the (1,1,T,T) dense mask.
+    """
+    guide_start = guide_mask.guide_start
+    tracked_end = guide_start + guide_mask.tracked_count
+
+    out = torch.empty_like(q)
+    out[:, :guide_start, :] = comfy.ldm.modules.attention.optimized_attention_masked(
+        q[:, :guide_start, :], k, v, heads, guide_mask.noisy_mask,
+        attn_precision=attn_precision, transformer_options=transformer_options,
+    )
+    out[:, guide_start:tracked_end, :] = comfy.ldm.modules.attention.optimized_attention_masked(
+        q[:, guide_start:tracked_end, :], k, v, heads, guide_mask.tracked_mask,
+        attn_precision=attn_precision, transformer_options=transformer_options,
+    )
+    return out
+
+
 class CrossAttention(nn.Module):
     def __init__(
         self,
@@ -412,6 +466,8 @@ class CrossAttention(nn.Module):
 
         if mask is None:
             out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
+        elif isinstance(mask, GuideAttentionMask):
+            out = _attention_with_guide_mask(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
             out = comfy.ldm.modules.attention.optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
 
@@ -1163,12 +1219,7 @@ class LTXVModel(LTXBaseModel):
         if (tracked_weights >= 1.0).all():
             return None
 
-        # Build the mask: guide tokens are at the end of the sequence.
-        # Tracked guides come first (in order), untracked follow.
-        return self._build_self_attention_mask(
-            total_tokens, num_guide_tokens, total_tracked,
-            tracked_weights, guide_start, device, dtype,
-        )
+        return GuideAttentionMask(total_tokens, guide_start, total_tracked, tracked_weights)
 
     @staticmethod
     def _downsample_mask_to_latent(mask, f_lat, h_lat, w_lat):
@@ -1233,42 +1284,6 @@ class LTXVModel(LTXBaseModel):
             latent_mask = first_frame
 
         return rearrange(latent_mask, "b 1 f h w -> b (f h w)")
-
-    @staticmethod
-    def _build_self_attention_mask(total_tokens, num_guide_tokens, tracked_count,
-                                    tracked_weights, guide_start, device, dtype):
-        """Build a log-space additive self-attention bias mask.
-
-        Attenuates attention between noisy tokens and tracked guide tokens.
-        Untracked guide tokens (at the end of the guide portion) keep full attention.
-
-        Args:
-            total_tokens: Total sequence length.
-            num_guide_tokens: Total guide tokens (all guides) at end of sequence.
-            tracked_count: Number of tracked guide tokens (first in the guide portion).
-            tracked_weights: (1, tracked_count) tensor, values in [0, 1].
-            guide_start: Index where guide tokens begin in the sequence.
-            device: Target device.
-            dtype: Target dtype.
-
-        Returns:
-            (1, 1, 1, total_tokens) additive bias mask. Broadcasts across queries
-            inside attention, dropping the persistent allocation from O(T²) to O(T).
-            0.0 = full attention, negative = attenuated, finfo.min = effectively fully masked.
-        """
-        finfo = torch.finfo(dtype)
-        mask = torch.zeros((1, 1, 1, total_tokens), device=device, dtype=dtype)
-        tracked_end = guide_start + tracked_count
-
-        w = tracked_weights.to(device=device, dtype=dtype)  # (1, tracked_count)
-        log_w = torch.full_like(w, finfo.min)
-        positive_mask = w > 0
-        if positive_mask.any():
-            log_w[positive_mask] = torch.log(w[positive_mask].clamp(min=finfo.tiny))
-
-        mask[:, :, :, guide_start:tracked_end] = log_w.view(1, 1, 1, -1)
-
-        return mask
 
     def _process_transformer_blocks(self, x, context, attention_mask, timestep, pe, transformer_options={}, self_attention_mask=None, **kwargs):
         """Process transformer blocks for LTXV."""
