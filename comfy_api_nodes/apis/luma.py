@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-
-import torch
-
 from enum import Enum
 from typing import Optional, Union
 
+import torch
 from pydantic import BaseModel, Field, confloat
-
 
 
 class LumaIO:
@@ -183,13 +180,13 @@ class LumaAssets(BaseModel):
 
 
 class LumaImageRef(BaseModel):
-    '''Used for image gen'''
+    """Used for image gen"""
     url: str = Field(..., description='The URL of the image reference')
     weight: confloat(ge=0.0, le=1.0) = Field(..., description='The weight of the image reference')
 
 
 class LumaImageReference(BaseModel):
-    '''Used for video gen'''
+    """Used for video gen"""
     type: Optional[str] = Field('image', description='Input type, defaults to image')
     url: str = Field(..., description='The URL of the image')
 
@@ -251,3 +248,32 @@ class LumaGeneration(BaseModel):
     assets: Optional[LumaAssets] = Field(None, description='The assets of the generation')
     model: str = Field(..., description='The model used for the generation')
     request: Union[LumaGenerationRequest, LumaImageGenerationRequest] = Field(..., description="The request used for the generation")
+
+
+class Luma2ImageRef(BaseModel):
+    url: str | None = None
+    data: str | None = None
+    media_type: str | None = None
+
+
+class Luma2GenerationRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=6000)
+    model: str | None = None
+    type: str | None = None
+    aspect_ratio: str | None = None
+    style: str | None = None
+    output_format: str | None = None
+    web_search: bool | None = None
+    image_ref: list[Luma2ImageRef] | None = None
+    source: Luma2ImageRef | None = None
+
+
+class Luma2Generation(BaseModel):
+    id: str | None = None
+    type: str | None = None
+    state: str | None = None
+    model: str | None = None
+    created_at: str | None = None
+    output: list[LumaImageReference] | None = None
+    failure_reason: str | None = None
+    failure_code: str | None = None
