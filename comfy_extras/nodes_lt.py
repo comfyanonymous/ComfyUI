@@ -136,7 +136,7 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
-def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0, latent_start=0):
+def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0):
     """Append a guide_attention_entry to both positive and negative conditioning.
 
     Each entry tracks one guide reference for per-reference attention control.
@@ -147,7 +147,6 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
         "strength": strength,
         "pixel_mask": None,
         "latent_shape": latent_shape,
-        "latent_start": latent_start,
     }
     results = []
     for cond in (positive, negative):
@@ -364,7 +363,6 @@ class LTXVAddGuide(io.ComfyNode):
         guide_latent_shape = list(t.shape[2:])  # [F, H, W]
         positive, negative = _append_guide_attention_entry(
             positive, negative, pre_filter_count, guide_latent_shape, strength=strength,
-            latent_start=latent_idx,
         )
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
