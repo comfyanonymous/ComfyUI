@@ -1754,57 +1754,49 @@ class LoadImage:
 
         return True
 
-class LoadImageMask:
+
+class LoadImageMask(LoadImage):
     ESSENTIALS_CATEGORY = "Image Tools"
     SEARCH_ALIASES = ["import mask", "alpha mask", "channel mask"]
 
     _color_channels = ["alpha", "red", "green", "blue"]
+
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {"required":
-                    {"image": (sorted(files), {"image_upload": True}),
-                     "channel": (s._color_channels, ), }
-                }
+        types = super().INPUT_TYPES()
+        return {
+            "required": {
+                **types["required"],
+                "channel": (s._color_channels, )
+            }
+        }
 
     CATEGORY = "mask"
-
     RETURN_TYPES = ("MASK",)
-    FUNCTION = "load_image"
-    def load_image(self, image, channel):
-        image_path = folder_paths.get_annotated_filepath(image)
-        i = node_helpers.pillow(Image.open, image_path)
-        i = node_helpers.pillow(ImageOps.exif_transpose, i)
-        if i.getbands() != ("R", "G", "B", "A"):
-            if i.mode == 'I':
-                i = i.point(lambda i: i * (1 / 255))
-            i = i.convert("RGBA")
-        mask = None
+    FUNCTION = "load_image_mask"
+
+    def load_image_mask(self, image, channel):
+        image_tensor, mask_tensor = super().load_image(image)
         c = channel[0].upper()
-        if c in i.getbands():
-            mask = np.array(i.getchannel(c)).astype(np.float32) / 255.0
-            mask = torch.from_numpy(mask)
-            if c == 'A':
-                mask = 1. - mask
+
+        if c == 'A':
+            return (mask_tensor,)
+
+        channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(c, 0)
+
+        if channel_idx < image_tensor.shape[-1]:
+            return (image_tensor[..., channel_idx].clone(),)
         else:
-            mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (mask.unsqueeze(0),)
+            empty_mask = torch.zeros(
+                image_tensor.shape[:-1],
+                dtype=image_tensor.dtype,
+                device=image_tensor.device
+            )
+            return (empty_mask,)
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        image_path = folder_paths.get_annotated_filepath(image)
-        m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
-            m.update(f.read())
-        return m.digest().hex()
-
-    @classmethod
-    def VALIDATE_INPUTS(s, image):
-        if not folder_paths.exists_annotated_filepath(image):
-            return "Invalid image file: {}".format(image)
-
-        return True
+        return super().IS_CHANGED(image)
 
 
 class LoadImageOutput(LoadImage):
@@ -1895,7 +1887,7 @@ class ImageInvert:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "invert"
 
-    CATEGORY = "image"
+    CATEGORY = "image/color"
 
     def invert(self, image):
         s = 1.0 - image
@@ -1911,7 +1903,7 @@ class ImageBatch:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "batch"
 
-    CATEGORY = "image"
+    CATEGORY = "image/batch"
     DEPRECATED = True
 
     def batch(self, image1, image2):
@@ -1968,7 +1960,7 @@ class ImagePadForOutpaint:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "expand_image"
 
-    CATEGORY = "image"
+    CATEGORY = "image/transform"
 
     def expand_image(self, image, left, top, right, bottom, feathering):
         d1, d2, d3, d4 = image.size()
@@ -2111,7 +2103,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
-    "ControlNetApply": "Apply ControlNet (OLD)",
+    "ControlNetApply": "Apply ControlNet (DEPRECATED)",
     "ControlNetApplyAdvanced": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
@@ -2129,6 +2121,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
+    "EmptyImage": "Empty Image",
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
@@ -2136,15 +2129,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImageOutput": "Load Image (from Outputs)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",
-    "ImageInvert": "Invert Image",
+    "ImageInvert": "Invert Image Colors",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
-    "ImageBatch": "Batch Images",
-    "ImageCrop": "Image Crop",
-    "ImageStitch": "Image Stitch",
-    "ImageBlend": "Image Blend",
-    "ImageBlur": "Image Blur",
-    "ImageQuantize": "Image Quantize",
-    "ImageSharpen": "Image Sharpen",
+    "ImageBatch": "Batch Images (DEPRECATED)",
+    "ImageCrop": "Crop Image",
+    "ImageStitch": "Stitch Images",
+    "ImageBlend": "Blend Images",
+    "ImageBlur": "Blur Image",
+    "ImageQuantize": "Quantize Image",
+    "ImageSharpen": "Sharpen Image",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     "GetImageSize": "Get Image Size",
     # _for_testing
@@ -2269,7 +2262,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                 logging.warning(f"Error while calling comfy_entrypoint in {module_path}: {e}")
                 return False
         else:
-            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")
+            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or comfy_entrypoint (need one).")
             return False
     except Exception as e:
         logging.warning(traceback.format_exc())
@@ -2419,6 +2412,7 @@ async def init_builtin_extra_nodes():
         "nodes_nop.py",
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
+        "nodes_ar_video.py",
         "nodes_image_compare.py",
         "nodes_zimage.py",
         "nodes_glsl.py",
