@@ -120,7 +120,7 @@ class GrokImageNode(IO.ComfyNode):
                 expr="""
                 (
                   $rate := widgets.model = "grok-imagine-image-quality"
-                    ? (widgets.resolution = "1K" ? 0.04 : 0.05)
+                    ? (widgets.resolution = "1k" ? 0.04 : 0.05)
                     : ($contains(widgets.model, "pro") ? 0.07 : 0.02);
                   {"type":"usd","usd": $rate * widgets.number_of_images}
                 )
@@ -244,11 +244,15 @@ class GrokImageEditNode(IO.ComfyNode):
                 expr="""
                 (
                   $isQualityModel := widgets.model = "grok-imagine-image-quality";
+                  $isPro := $contains(widgets.model, "pro");
                   $rate := $isQualityModel
-                    ? (widgets.resolution = "1K" ? 0.04 : 0.05)
-                    : ($contains(widgets.model, "pro") ? 0.07 : 0.02);
+                    ? (widgets.resolution = "1k" ? 0.04 : 0.05)
+                    : ($isPro ? 0.07 : 0.02);
                   $base := $isQualityModel ? 0.01 : 0.002;
-                  {"type":"usd","usd": $base + $rate * widgets.number_of_images}
+                  $output := $rate * widgets.number_of_images;
+                  $isPro
+                    ? {"type":"usd","usd": $base + $output}
+                    : {"type":"range_usd","min_usd": $base + $output, "max_usd": 3 * $base + $output}
                 )
                 """,
             ),
