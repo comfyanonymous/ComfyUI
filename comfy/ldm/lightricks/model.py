@@ -1122,7 +1122,9 @@ class LTXVModel(LTXBaseModel):
                 additional_args["resolved_guide_entries"] = resolved_entries
 
             keyframe_idxs = keyframe_idxs[..., kf_grid_mask, :]
-            pixel_coords[:, :, -keyframe_idxs.shape[2]:, :] = keyframe_idxs
+
+            if keyframe_idxs.shape[2] > 0: # Guard for the case of no keyframes surviving
+                pixel_coords[:, :, -keyframe_idxs.shape[2]:, :] = keyframe_idxs
 
             # Total surviving guide tokens (all guides)
             additional_args["num_guide_tokens"] = keyframe_idxs.shape[2]
@@ -1158,12 +1160,12 @@ class LTXVModel(LTXBaseModel):
         if not resolved_entries:
             return None
 
-        # Check if any attenuation is actually needed
-        needs_attenuation = any(
-            e["strength"] < 1.0 or e.get("pixel_mask") is not None
+        # strength != 1.0 means we want to either attenuate (< 1) or amplify (> 1) guide attention.
+        needs_mask = any(
+            e["strength"] != 1.0 or e.get("pixel_mask") is not None
             for e in resolved_entries
         )
-        if not needs_attenuation:
+        if not needs_mask:
             return None
 
         # Build per-guide-token weights for all tracked guide tokens.
@@ -1218,8 +1220,8 @@ class LTXVModel(LTXBaseModel):
         # Concatenate per-token weights for all tracked guides
         tracked_weights = torch.cat(all_weights, dim=1)  # (1, total_tracked)
 
-        # Check if any weight is actually < 1.0 (otherwise no attenuation needed)
-        if (tracked_weights >= 1.0).all():
+        # Skip when every weight is exactly 1.0 (additive bias would be 0).
+        if (tracked_weights == 1.0).all():
             return None
 
         return GuideAttentionMask(total_tokens, guide_start, total_tracked, tracked_weights)
