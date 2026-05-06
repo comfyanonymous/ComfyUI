@@ -5893,7 +5893,14 @@ components:
         prompt_id:
           type: string
           format: uuid
-          description: ID of the prompt that created this asset
+          nullable: true
+          deprecated: true
+          description: "Deprecated: use job_id instead. ID of the prompt that created this asset."
+        job_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the job that created this asset
         created_at:
           type: string
           format: date-time
