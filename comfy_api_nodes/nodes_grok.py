@@ -558,7 +558,7 @@ class GrokVideoReferenceNode(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $refs := inputGroups["model.reference_images"];
+                  $refs := $lookup(inputGroups, "model.reference_images");
                   $rate := $res = "720p" ? 0.07 : 0.05;
                   $price := ($rate * $dur + 0.002 * $refs) * 1.43;
                   {"type":"usd","usd": $price}

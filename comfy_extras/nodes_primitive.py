@@ -9,7 +9,8 @@ class String(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PrimitiveString",
-            display_name="String",
+            search_aliases=["text", "string", "text box", "prompt"],
+            display_name="Text String",
             category="utils/primitive",
             inputs=[
                 io.String.Input("value"),
@@ -27,7 +28,8 @@ class StringMultiline(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PrimitiveStringMultiline",
-            display_name="String (Multiline)",
+            search_aliases=["text", "string", "text multiline", "string multiline", "text box", "prompt"],
+            display_name="Text String (Multiline)",
             category="utils/primitive",
             essentials_category="Basics",
             inputs=[
@@ -49,7 +51,7 @@ class Int(io.ComfyNode):
             display_name="Int",
             category="utils/primitive",
             inputs=[
-                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize, control_after_generate=True),
+                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize, control_after_generate=io.ControlAfterGenerate.fixed),
             ],
             outputs=[io.Int.Output()],
         )
