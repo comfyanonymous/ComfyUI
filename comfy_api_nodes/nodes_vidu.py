@@ -38,7 +38,7 @@ async def execute_task(
     cls: type[IO.ComfyNode],
     vidu_endpoint: str,
     payload: TaskCreationRequest | TaskExtendCreationRequest | TaskMultiFrameCreationRequest,
-    max_poll_attempts: int = 320,
+    max_poll_attempts: int = 480,
 ) -> list[TaskResult]:
     task_creation_response = await sync_op(
         cls,
@@ -1097,7 +1097,6 @@ class ViduExtendVideoNode(IO.ComfyNode):
                 video_url=await upload_video_to_comfyapi(cls, video, wait_label="Uploading video"),
                 images=[image_url] if image_url else None,
             ),
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
 
