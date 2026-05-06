@@ -401,13 +401,16 @@ def _attention_with_guide_mask(q, k, v, heads, guide_mask, attn_precision, trans
     tracked_end = guide_start + guide_mask.tracked_count
 
     out = torch.empty_like(q)
-    out[:, :guide_start, :] = comfy.ldm.modules.attention.optimized_attention_masked(
-        q[:, :guide_start, :], k, v, heads, guide_mask.noisy_mask,
+
+    out[:, :guide_start, :] = comfy.ldm.modules.attention.optimized_attention(
+        q[:, :guide_start, :], k, v, heads, mask=guide_mask.noisy_mask,
         attn_precision=attn_precision, transformer_options=transformer_options,
+        low_precision_attention=False, # sageattn mask support is unreliable
     )
-    out[:, guide_start:tracked_end, :] = comfy.ldm.modules.attention.optimized_attention_masked(
-        q[:, guide_start:tracked_end, :], k, v, heads, guide_mask.tracked_mask,
+    out[:, guide_start:tracked_end, :] = comfy.ldm.modules.attention.optimized_attention(
+        q[:, guide_start:tracked_end, :], k, v, heads, mask=guide_mask.tracked_mask,
         attn_precision=attn_precision, transformer_options=transformer_options,
+        low_precision_attention=False,
     )
     return out
 
@@ -469,7 +472,7 @@ class CrossAttention(nn.Module):
         elif isinstance(mask, GuideAttentionMask):
             out = _attention_with_guide_mask(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
-            out = comfy.ldm.modules.attention.optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, mask=mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
 
         # Apply per-head gating if enabled
         if self.to_gate_logits is not None:
