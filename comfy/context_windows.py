@@ -71,7 +71,11 @@ class IndexListContextWindow(ContextWindowABC):
             dim = self.dim
         if dim == 0 and full.shape[dim] == 1:
             return full
-        idx = tuple([slice(None)] * dim + [self.index_list])
+        indices = self.index_list
+        anchor_idx = getattr(self, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            indices = [anchor_idx] + list(indices)
+        idx = tuple([slice(None)] * dim + [indices])
         window = full[idx]
         if retain_index_list:
             idx = tuple([slice(None)] * dim + [retain_index_list])
@@ -126,7 +130,14 @@ def slice_cond(cond_value, window: IndexListContextWindow, x_in: torch.Tensor, d
 
     # skip leading latent positions that have no corresponding conditioning (e.g. reference frames)
     if temporal_offset > 0:
-        indices = [i - temporal_offset for i in window.index_list[temporal_offset:]]
+        anchor_idx = getattr(window, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            # anchor occupies one of the no-cond positions, so skip one fewer from window.index_list
+            skip_count = temporal_offset - 1
+        else:
+            skip_count = temporal_offset
+
+        indices = [i - temporal_offset for i in window.index_list[skip_count:]]
         indices = [i for i in indices if 0 <= i]
     else:
         indices = list(window.index_list)
@@ -315,7 +326,7 @@ ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_co
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
                  closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False,
-                 latent_retain_index_list: list[int]=[]):
+                 latent_retain_index_list: list[int]=[], causal_window_fix: bool=True):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -328,6 +339,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self.cond_retain_index_list = [int(x.strip()) for x in cond_retain_index_list.split(",")] if cond_retain_index_list else []
         self.split_conds_to_windows = split_conds_to_windows
         self.latent_retain_index_list = [int(x.strip()) for x in latent_retain_index_list.split(",")] if latent_retain_index_list else []
+        self.causal_window_fix = causal_window_fix
 
         self.callbacks = {}
 
@@ -612,6 +624,15 @@ class IndexListContextHandler(ContextHandlerABC):
             # prepare the window accounting for multimodal windows
             window = window_state.prepare_window(window, model)
 
+            # causal_window_fix: prepend a pre-window frame that will be stripped post-forward.
+            # Set anchor before slice_for_window so the latent slice and downstream cond slices both pick it up.
+            anchor_applied = False
+            if self.causal_window_fix:
+                anchor_idx = window.index_list[0] - 1
+                if 0 <= anchor_idx < x_in.size(self.dim):
+                    window.causal_anchor_index = anchor_idx
+                    anchor_applied = True
+
             # slice the window for each modality, injecting guide frames where applicable
             sliced, guide_frame_counts_per_modality = window_state.slice_for_window(window, self.latent_retain_index_list, device)
 
@@ -639,8 +660,16 @@ class IndexListContextHandler(ContextHandlerABC):
             # call model on window
             sub_conds_out = calc_cond_batch(model, sub_conds, sub_x, sub_timestep, model_options)
 
-            # unpack outputs and strip guide frames
+            # unpack outputs
             out_per_modality = [comfy.utils.unpack_latents(sub_conds_out[i], sub_shapes) for i in range(len(sub_conds_out))]
+
+            # strip causal_window_fix anchor from primary modality before guide strip so window_len math stays correct
+            if anchor_applied:
+                for ci in range(len(out_per_modality)):
+                    t = out_per_modality[ci][0]
+                    out_per_modality[ci][0] = t.narrow(self.dim, 1, t.shape[self.dim] - 1)
+
+            # strip injected guide frames
             window_state.strip_guide_frames(out_per_modality, guide_frame_counts_per_modality, window)
 
             results.append(ContextResults(window_idx, out_per_modality, sub_conds, window))

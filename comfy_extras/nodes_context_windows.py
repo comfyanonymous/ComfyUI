@@ -30,6 +30,7 @@ class ContextWindowsManualNode(io.ComfyNode):
                 io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window. For concat-style I2V models (e.g. Wan I2V, HunyuanVideo I2V, Cosmos I2V, SVD) the encoded start image lives in the c_concat conditioning channels; setting this to '0' will retain that start image content at sub-pos 0 of every window."),
                 io.Boolean.Input("split_conds_to_windows", default=False, tooltip="Whether to split multiple conditionings (created by ConditionCombine) to each window based on region index."),
                 io.String.Input("latent_retain_index_list", default="", tooltip="List of latent indices to retain in the noise latent itself for each window. Use for workflows where reference content (e.g. a start image) lives directly in the noise latent rather than in separate conditioning channels (e.g. inplace-style I2V like LTXV, AnimateDiff). Independent of cond_retain_index_list."),
+                io.Boolean.Input("causal_window_fix", default=True, tooltip="Whether to add a causal fix frame to non-0-indexed context windows."),
             ],
             outputs=[
                 io.Model.Output(tooltip="The model with context windows applied during sampling."),
@@ -39,7 +40,7 @@ class ContextWindowsManualNode(io.ComfyNode):
 
     @classmethod
     def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, dim: int, freenoise: bool,
-                cond_retain_index_list: list[int]=[],  split_conds_to_windows: bool=False, latent_retain_index_list: list[int]=[]) -> io.Model:
+                cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False, latent_retain_index_list: list[int]=[], causal_window_fix: bool=True) -> io.Model:
         model = model.clone()
         model.model_options["context_handler"] = comfy.context_windows.IndexListContextHandler(
             context_schedule=comfy.context_windows.get_matching_context_schedule(context_schedule),
@@ -52,7 +53,8 @@ class ContextWindowsManualNode(io.ComfyNode):
             freenoise=freenoise,
             cond_retain_index_list=cond_retain_index_list,
             split_conds_to_windows=split_conds_to_windows,
-            latent_retain_index_list=latent_retain_index_list
+            latent_retain_index_list=latent_retain_index_list,
+            causal_window_fix=causal_window_fix,
         )
         # make memory usage calculation only take into account the context window latents
         comfy.context_windows.create_prepare_sampling_wrapper(model)

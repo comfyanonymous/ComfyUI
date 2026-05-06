@@ -31,6 +31,7 @@ import comfy.float
 import comfy.hooks
 import comfy.lora
 import comfy.model_management
+import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
@@ -120,9 +121,20 @@ class LowVramPatch:
         self.patches = patches
         self.convert_func = convert_func # TODO: remove
         self.set_func = set_func
+        self.prepared_patches = None
+
+    def prepare(self, allocate_buffer, stream):
+        self.prepared_patches = [
+            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], allocate_buffer, stream), patch[2], patch[3], patch[4])
+            for patch in self.patches[self.key]
+        ]
+
+    def clear_prepared(self):
+        self.prepared_patches = None
 
     def __call__(self, weight):
-        return comfy.lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
+        patches = self.prepared_patches if self.prepared_patches is not None else self.patches[self.key]
+        return comfy.lora.calculate_weight(patches, weight, self.key, intermediate_dtype=weight.dtype)
 
 LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 2
 
@@ -856,7 +868,9 @@ class ModelPatcher:
                     if m.comfy_patched_weights == True:
                         continue
 
-                for param in params:
+                for param, param_value in params.items():
+                    if hasattr(m, "comfy_cast_weights") and getattr(param_value, "is_meta", False):
+                        comfy.ops.disable_weight_init._zero_init_parameter(m, param)
                     key = key_param_name_to_key(n, param)
                     self.unpin_weight(key)
                     self.patch_weight_to_device(key, device_to=device_to)
