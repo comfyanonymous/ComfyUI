@@ -2093,6 +2093,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPVisionLoader": "Load CLIP Vision",
     "UNETLoader": "Load Diffusion Model",
     "unCLIPCheckpointLoader": "Load unCLIP Checkpoint",
+    "GLIGENLoader": "Load GLIGEN Model",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
     "StyleModelApply": "Apply Style Model",

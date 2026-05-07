@@ -42,3 +42,7 @@ class SaveImageWebsocket:
 NODE_CLASS_MAPPINGS = {
     "SaveImageWebsocket": SaveImageWebsocket,
 }
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SaveImageWebsocket": "Save Image (Websocket)",
+}
