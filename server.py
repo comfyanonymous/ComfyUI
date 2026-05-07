@@ -911,7 +911,23 @@ class PromptServer():
             current_queue = self.prompt_queue.get_current_queue_volatile()
             queue_info['queue_running'] = _remove_sensitive_from_queue(current_queue[0])
             queue_info['queue_pending'] = _remove_sensitive_from_queue(current_queue[1])
+            queue_info['paused'] = self.prompt_queue.is_paused()
             return web.json_response(queue_info)
+
+        @routes.post("/queue/pause")
+        async def post_queue_pause(request):
+            """Pause the queue worker. The currently-running item (if any)
+            finishes; subsequent items wait until /queue/resume. Items can
+            still be queued / reordered / deleted while paused."""
+            previous = self.prompt_queue.set_paused(True)
+            return web.json_response({"paused": True, "was_paused": previous})
+
+        @routes.post("/queue/resume")
+        async def post_queue_resume(request):
+            """Resume the queue worker. Wakes any waiter so it picks the
+            next item off the queue immediately."""
+            previous = self.prompt_queue.set_paused(False)
+            return web.json_response({"paused": False, "was_paused": previous})
 
         @routes.post("/prompt")
         async def post_prompt(request):

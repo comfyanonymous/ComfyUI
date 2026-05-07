@@ -1228,6 +1228,11 @@ class PromptQueue:
         self.currently_running = {}
         self.history = {}
         self.flags = {}
+        # When paused, the worker stops PULLING new items off the queue —
+        # any item already in `currently_running` finishes normally, but
+        # the next get() blocks until resume() is called. Items can still
+        # be queued (POST /prompt), reordered, or deleted while paused.
+        self.paused = False
 
     def put(self, item):
         with self.mutex:
@@ -1237,9 +1242,9 @@ class PromptQueue:
 
     def get(self, timeout=None):
         with self.not_empty:
-            while len(self.queue) == 0:
+            while len(self.queue) == 0 or self.paused:
                 self.not_empty.wait(timeout=timeout)
-                if timeout is not None and len(self.queue) == 0:
+                if timeout is not None and (len(self.queue) == 0 or self.paused):
                     return None
             item = heapq.heappop(self.queue)
             i = self.task_counter
@@ -1247,6 +1252,23 @@ class PromptQueue:
             self.task_counter += 1
             self.server.queue_updated()
             return (item, i)
+
+    def set_paused(self, paused: bool):
+        """Pause or resume the queue worker. Pausing leaves the currently-
+        running item alone (it finishes naturally); resuming wakes the
+        worker so it pulls the next item from the queue."""
+        with self.mutex:
+            previous = self.paused
+            self.paused = bool(paused)
+            if previous and not self.paused:
+                # Resume: wake any waiter so they re-evaluate the loop.
+                self.not_empty.notify_all()
+            self.server.queue_updated()
+        return previous
+
+    def is_paused(self) -> bool:
+        with self.mutex:
+            return self.paused
 
     class ExecutionStatus(NamedTuple):
         status_str: Literal['success', 'error']
