@@ -89,7 +89,11 @@ class IsChangedCache:
             is_changed = await resolve_map_node_over_list_results(is_changed)
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
-            logging.warning("WARNING: {}".format(e))
+            # Include node_id + class_type so the user can find the offending
+            # node in a 50-node graph instead of just seeing a bare exception
+            # message. Mirrors the diagnostic shape used by the main
+            # executor's failure path.
+            logging.warning("WARNING: IS_CHANGED failed for node_id=%s class=%s :: %s", node_id, class_type, e)
             node["is_changed"] = float("NaN")
         finally:
             self.is_changed[node_id] = node["is_changed"]
