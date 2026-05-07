@@ -1633,6 +1633,15 @@ def model_detection_error_hint(path, state_dict):
         return ("\nHINT: This looks like a LoRA file. LoRA files belong in models/loras/ "
                 "and should be loaded with a LoRA Loader node, not CheckpointLoaderSimple.")
 
+    # GGUF / quantized formats that core ComfyUI doesn't load natively.
+    # Checked first so filenames like `llama-q4.gguf` route to the GGUF
+    # loader instead of being misclassified as a text-encoder by the
+    # filename heuristics below (which match `llama` / `t5` / `clip_l`).
+    if fname_lower.endswith('.gguf'):
+        return ("\nHINT: GGUF quantized checkpoints require the ComfyUI-GGUF "
+                "custom node (https://github.com/city96/ComfyUI-GGUF). Install "
+                "it and use the GGUF loader node instead.")
+
     keys = state_dict.keys() if state_dict is not None else ()
 
     # UNet-only diffusion checkpoints (Flux, SD3, AuraFlow, HiDream, etc.).
@@ -1676,12 +1685,6 @@ def model_detection_error_hint(path, state_dict):
                 "Text-encoder files belong in models/text_encoders/ (or "
                 "models/clip/) and should be loaded with **CLIPLoader** or "
                 "**DualCLIPLoader**, not CheckpointLoaderSimple.")
-
-    # GGUF / quantized formats that core ComfyUI doesn't load natively.
-    if fname_lower.endswith('.gguf'):
-        return ("\nHINT: GGUF quantized checkpoints require the ComfyUI-GGUF "
-                "custom node (https://github.com/city96/ComfyUI-GGUF). Install "
-                "it and use the GGUF loader node instead.")
 
     return ""
 

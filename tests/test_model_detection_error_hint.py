@@ -75,6 +75,12 @@ class ModelDetectionErrorHintTests(unittest.TestCase):
         self.assertIn("GGUF", h)
         self.assertIn("ComfyUI-GGUF", h)
 
+    def test_gguf_hint_wins_over_te_filename(self):
+        # `llama` in the name would otherwise trigger the text-encoder hint;
+        # the `.gguf` extension must take precedence (CodeRabbit r1).
+        h = _hint("/x/llama-q4.gguf", {})
+        self.assertIn("ComfyUI-GGUF", h)
+
     def test_unknown_returns_empty(self):
         h = _hint("/x/mystery.safetensors", {"some.unknown.key": None})
         self.assertEqual("", h)
