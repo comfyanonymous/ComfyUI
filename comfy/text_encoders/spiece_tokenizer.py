@@ -10,7 +10,20 @@ class SPieceTokenizer:
         self.add_bos = add_bos
         self.add_eos = add_eos
         self.special_tokens = special_tokens
-        import sentencepiece
+        try:
+            import sentencepiece
+        except ImportError as e:
+            raise ImportError(
+                "The 'sentencepiece' package is required to load this text "
+                "encoder (T5 / UMT5 / Llama variants store their tokenizer as "
+                "an SPM proto). Install it with one of:\n"
+                "    pip install sentencepiece\n"
+                "    uv pip install sentencepiece\n"
+                "On Python 3.13+ you may need a recent prebuilt wheel — see "
+                "https://github.com/google/sentencepiece/issues/1090 for the "
+                "current install state. The tokenizer that triggered this "
+                "import was at: {}".format(tokenizer_path)
+            ) from e
         if torch.is_tensor(tokenizer_path):
             tokenizer_path = tokenizer_path.numpy().tobytes()
 
