@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -84,7 +85,7 @@ class SaveImageParallelTests(unittest.TestCase):
         node = self._make_node()
         with self._patch_save_image_path(node):
             with mock.patch.object(self.nodes, "args",
-                                     mock.SimpleNamespace(disable_metadata=True)):
+                                     types.SimpleNamespace(disable_metadata=True)):
                 result = node.save_images(_ImageBatch(1))
         files = sorted(os.listdir(self.tmp))
         self.assertEqual(len(files), 1)
@@ -94,7 +95,7 @@ class SaveImageParallelTests(unittest.TestCase):
         node = self._make_node()
         with self._patch_save_image_path(node):
             with mock.patch.object(self.nodes, "args",
-                                     mock.SimpleNamespace(disable_metadata=True)):
+                                     types.SimpleNamespace(disable_metadata=True)):
                 result = node.save_images(_ImageBatch(8))
         files = [f for f in os.listdir(self.tmp) if f.endswith(".png")]
         self.assertEqual(len(files), 8)
@@ -110,7 +111,7 @@ class SaveImageParallelTests(unittest.TestCase):
         extra = {"workflow": {"version": 42}}
         with self._patch_save_image_path(node):
             with mock.patch.object(self.nodes, "args",
-                                     mock.SimpleNamespace(disable_metadata=False)):
+                                     types.SimpleNamespace(disable_metadata=False)):
                 node.save_images(_ImageBatch(4),
                                   prompt=prompt_data, extra_pnginfo=extra)
         files = sorted(f for f in os.listdir(self.tmp) if f.endswith(".png"))
@@ -130,7 +131,7 @@ class SaveImageParallelTests(unittest.TestCase):
                                 "get_save_image_path",
                                 return_value=(node.output_dir, "p", 0, "", "p")):
             with mock.patch.object(self.nodes, "args",
-                                     mock.SimpleNamespace(disable_metadata=True)):
+                                     types.SimpleNamespace(disable_metadata=True)):
                 with self.assertRaises(Exception):
                     node.save_images(_ImageBatch(4))
 
@@ -141,7 +142,7 @@ class SaveImageParallelTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"COMFY_SAVEIMAGE_THREADS": "1"}):
             with self._patch_save_image_path(node):
                 with mock.patch.object(self.nodes, "args",
-                                         mock.SimpleNamespace(disable_metadata=True)):
+                                         types.SimpleNamespace(disable_metadata=True)):
                     node.save_images(_ImageBatch(4))
         files = [f for f in os.listdir(self.tmp) if f.endswith(".png")]
         self.assertEqual(len(files), 4)

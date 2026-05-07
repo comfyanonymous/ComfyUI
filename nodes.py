@@ -1695,15 +1695,24 @@ class SaveImage:
         def _save_one(img, path):
             img.save(path, pnginfo=metadata, compress_level=compress)
 
-        first_error = None
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
             futures = [ex.submit(_save_one, img, path) for img, path in jobs]
-            for f in concurrent.futures.as_completed(futures):
-                exc = f.exception()
-                if exc is not None and first_error is None:
-                    first_error = exc
-        if first_error is not None:
-            raise first_error
+            try:
+                for f in concurrent.futures.as_completed(futures):
+                    exc = f.exception()
+                    if exc is not None:
+                        # Fail fast: cancel any not-yet-started futures so the
+                        # caller doesn't wait on the rest of the batch after a
+                        # write failure (e.g. disk full, permission denied).
+                        for pending in futures:
+                            if not pending.done():
+                                pending.cancel()
+                        raise exc
+            finally:
+                # Don't wait on cancelled / running tasks beyond what the with
+                # block does — shutdown(wait=False) lets the context-manager
+                # exit promptly when we re-raise.
+                ex.shutdown(wait=False)
 
 class PreviewImage(SaveImage):
     def __init__(self):
