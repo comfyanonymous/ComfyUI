@@ -1076,6 +1076,18 @@ class VAE:
             free_memory = self.patcher.get_free_memory(self.device)
             batch_number = int(free_memory / max(1, memory_used))
             batch_number = max(1, batch_number)
+
+            # Mirror of the async D2H path in VAE.decode: when output is CPU
+            # and the encoder runs on CUDA, allocate `samples` in pinned host
+            # memory so per-batch copies use non_blocking=True. The cuda copy
+            # engine then runs the D2H concurrently with the next batch's
+            # encode kernels — matters mostly for batch encoding (img2img
+            # variation sweeps, hires-fix on multi-image batches).
+            async_d2h = (
+                self.output_device.type == 'cpu'
+                and getattr(self.device, 'type', None) == 'cuda'
+            )
+
             samples = None
             for x in range(0, pixel_samples.shape[0], batch_number):
                 pixels_in = self.process_input(pixel_samples[x:x + batch_number]).to(self.vae_dtype)
@@ -1084,10 +1096,23 @@ class VAE:
                 else:
                     pixels_in = pixels_in.to(self.device)
                     out = self.first_stage_model.encode(pixels_in)
-                out = out.to(self.output_device).to(dtype=self.vae_output_dtype())
+                # Cast on-device first so the only host-bound operation is
+                # the copy, then queue the copy as non_blocking when the
+                # destination is pinned host memory.
+                out = out.to(dtype=self.vae_output_dtype())
                 if samples is None:
-                    samples = torch.empty((pixel_samples.shape[0],) + tuple(out.shape[1:]), device=self.output_device, dtype=self.vae_output_dtype())
-                samples[x:x + batch_number] = out
+                    samples = torch.empty(
+                        (pixel_samples.shape[0],) + tuple(out.shape[1:]),
+                        device=self.output_device, dtype=self.vae_output_dtype(),
+                        pin_memory=async_d2h)
+                if async_d2h:
+                    samples[x:x + batch_number].copy_(out, non_blocking=True)
+                else:
+                    samples[x:x + batch_number] = out.to(self.output_device)
+
+            # Materialise queued async copies before returning.
+            if async_d2h:
+                torch.cuda.synchronize(self.device)
 
         except Exception as e:
             model_management.raise_non_oom(e)
