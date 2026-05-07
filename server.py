@@ -1028,15 +1028,18 @@ class PromptServer():
         @routes.post("/history")
         async def post_history(request):
             json_data =  await request.json()
+            cleared = 0
+            deleted = 0
             if "clear" in json_data:
                 if json_data["clear"]:
-                    self.prompt_queue.wipe_history()
+                    cleared = self.prompt_queue.wipe_history()
             if "delete" in json_data:
                 to_delete = json_data['delete']
                 for id_to_delete in to_delete:
-                    self.prompt_queue.delete_history_item(id_to_delete)
+                    if self.prompt_queue.delete_history_item(id_to_delete):
+                        deleted += 1
 
-            return web.Response(status=200)
+            return web.json_response({"cleared": cleared, "deleted": deleted})
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout

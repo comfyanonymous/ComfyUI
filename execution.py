@@ -1341,11 +1341,13 @@ class PromptQueue:
 
     def wipe_history(self):
         with self.mutex:
+            cleared = len(self.history)
             self.history = {}
+        return cleared
 
     def delete_history_item(self, id_to_delete):
         with self.mutex:
-            self.history.pop(id_to_delete, None)
+            return self.history.pop(id_to_delete, None) is not None
 
     def set_flag(self, name, data):
         with self.mutex:
