@@ -145,7 +145,7 @@ jobs:
           cp -r ComfyUI/.ci/windows_${{ inputs.rel_name }}_base_files/* ./
           cp ../update_comfyui_and_python_dependencies.bat ./update/
 
-          echo 'local-portable' > .comfy_environment
+          echo 'local-portable' > ComfyUI/.comfy_environment
 
           cd ..
 
