@@ -54,6 +54,8 @@ folder_names_and_paths["audio_encoders"] = ([os.path.join(models_dir, "audio_enc
 
 folder_names_and_paths["background_removal"] = ([os.path.join(models_dir, "background_removal")], supported_pt_extensions)
 
+folder_names_and_paths["frame_interpolation"] = ([os.path.join(models_dir, "frame_interpolation")], supported_pt_extensions)
+
 output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")

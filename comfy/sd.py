@@ -12,6 +12,7 @@ from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.audio.autoencoder import AudioOobleckVAE
 import comfy.ldm.genmo.vae.model
 import comfy.ldm.lightricks.vae.causal_video_autoencoder
+import comfy.ldm.lightricks.vae.audio_vae
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
@@ -805,6 +806,24 @@ class VAE:
                     self.downscale_index_formula = (4, 8, 8)
                     self.memory_used_encode = lambda shape, dtype: (700 * (max(1, (shape[-3] ** 0.66 * 0.11)) * shape[-2] * shape[-1]) * model_management.dtype_size(dtype))
                     self.memory_used_decode = lambda shape, dtype: (50 * (max(1, (shape[-3] ** 0.65 * 0.26)) * shape[-2] * shape[-1] * 32 * 32) * model_management.dtype_size(dtype))
+            elif "vocoder.resblocks.0.convs1.0.weight" in sd or "vocoder.vocoder.resblocks.0.convs1.0.weight" in sd: # LTX Audio
+                sd = comfy.utils.state_dict_prefix_replace(sd, {"audio_vae.": "autoencoder."})
+                self.first_stage_model = comfy.ldm.lightricks.vae.audio_vae.AudioVAE(metadata=metadata)
+                self.memory_used_encode = lambda shape, dtype: (shape[2] * 330) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (shape[2] * shape[3] * 87000) * model_management.dtype_size(dtype)
+                self.latent_channels = self.first_stage_model.latent_channels
+                self.audio_sample_rate_output = self.first_stage_model.output_sample_rate
+                self.autoencoder = self.first_stage_model.autoencoder  # TODO: remove hack for ltxv custom nodes
+                self.output_channels = 2
+                self.pad_channel_value = "replicate"
+                self.upscale_ratio = 4096
+                self.downscale_ratio = 4096
+                self.latent_dim = 2
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float32]
+                self.disable_offload = True
+                self.extra_1d_channel = 16
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None

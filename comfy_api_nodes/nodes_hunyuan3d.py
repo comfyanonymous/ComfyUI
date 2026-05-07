@@ -221,14 +221,17 @@ class TencentTextToModelNode(IO.ComfyNode):
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
         )
-        obj_result = await download_and_extract_obj_zip(get_file_from_response(result.ResultFile3Ds, "obj").Url)
+        obj_file_response = get_file_from_response(result.ResultFile3Ds, "obj", raise_if_not_found=False)
+        obj_result = None
+        if obj_file_response:
+            obj_result = await download_and_extract_obj_zip(obj_file_response.Url)
         return IO.NodeOutput(
             f"{task_id}.glb",
             await download_url_to_file_3d(
                 get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
             ),
-            obj_result.obj,
-            obj_result.texture,
+            obj_result.obj if obj_result else None,
+            obj_result.texture if obj_result else None,
         )
 
 
@@ -378,17 +381,30 @@ class TencentImageToModelNode(IO.ComfyNode):
             response_model=To3DProTaskResultResponse,
             status_extractor=lambda r: r.Status,
         )
-        obj_result = await download_and_extract_obj_zip(get_file_from_response(result.ResultFile3Ds, "obj").Url)
+        obj_file_response = get_file_from_response(result.ResultFile3Ds, "obj", raise_if_not_found=False)
+        if obj_file_response:
+            obj_result = await download_and_extract_obj_zip(obj_file_response.Url)
+            return IO.NodeOutput(
+                f"{task_id}.glb",
+                await download_url_to_file_3d(
+                    get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
+                ),
+                obj_result.obj,
+                obj_result.texture,
+                obj_result.metallic if obj_result.metallic is not None else torch.zeros(1, 1, 1, 3),
+                obj_result.normal if obj_result.normal is not None else torch.zeros(1, 1, 1, 3),
+                obj_result.roughness if obj_result.roughness is not None else torch.zeros(1, 1, 1, 3),
+            )
         return IO.NodeOutput(
             f"{task_id}.glb",
             await download_url_to_file_3d(
                 get_file_from_response(result.ResultFile3Ds, "glb").Url, "glb", task_id=task_id
             ),
-            obj_result.obj,
-            obj_result.texture,
-            obj_result.metallic if obj_result.metallic is not None else torch.zeros(1, 1, 1, 3),
-            obj_result.normal if obj_result.normal is not None else torch.zeros(1, 1, 1, 3),
-            obj_result.roughness if obj_result.roughness is not None else torch.zeros(1, 1, 1, 3),
+            None,
+            None,
+            None,
+            None,
+            None,
         )
 
 

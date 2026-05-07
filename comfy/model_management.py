@@ -1801,7 +1801,7 @@ def debug_memory_summary():
         return torch.cuda.memory.memory_summary()
     return ""
 
-class InterruptProcessingException(Exception):
+class InterruptProcessingException(BaseException):
     pass
 
 interrupt_processing_mutex = threading.RLock()
