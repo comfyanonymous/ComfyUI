@@ -496,6 +496,8 @@ except:
 
 current_loaded_models = []
 
+DIRTY_MMAPS = set()
+
 def module_size(module):
     module_mem = 0
     sd = module.state_dict()
@@ -504,27 +506,11 @@ def module_size(module):
         module_mem += t.nbytes
     return module_mem
 
-def module_mmap_residency(module, free=False):
-    mmap_touched_mem = 0
-    module_mem = 0
-    bounced_mmaps = set()
-    sd = module.state_dict()
-    for k in sd:
-        t = sd[k]
-        module_mem += t.nbytes
-        storage = t._qdata.untyped_storage() if isinstance(t, comfy.quant_ops.QuantizedTensor) else t.untyped_storage()
-        if not getattr(storage, "_comfy_tensor_mmap_touched", False):
-            continue
-        mmap_touched_mem += t.nbytes
-        if not free:
-            continue
-        storage._comfy_tensor_mmap_touched = False
-        mmap_obj = storage._comfy_tensor_mmap_refs[0]
-        if mmap_obj in bounced_mmaps:
-            continue
-        mmap_obj.bounce()
-        bounced_mmaps.add(mmap_obj)
-    return mmap_touched_mem, module_mem
+def mark_mmap_dirty(storage):
+    mmap_refs = getattr(storage, "_comfy_tensor_mmap_refs", None)
+    if mmap_refs is not None:
+        DIRTY_MMAPS.add(mmap_refs[0])
+
 
 class LoadedModel:
     def __init__(self, model):
@@ -553,9 +539,6 @@ class LoadedModel:
 
     def model_memory(self):
         return self.model.model_size()
-
-    def model_mmap_residency(self, free=False):
-        return self.model.model_mmap_residency(free=free)
 
     def model_loaded_memory(self):
         return self.model.loaded_size()
@@ -636,15 +619,9 @@ WINDOWS = any(platform.win32_ver())
 
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
-    import comfy.windows
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
     if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
         EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
-    def get_free_ram():
-        return comfy.windows.get_free_ram()
-else:
-    def get_free_ram():
-        return psutil.virtual_memory().available
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -658,7 +635,6 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins_required=0, ram_required=0):
     cleanup_models_gc()
-    comfy.memory_management.extra_ram_release(max(pins_required, ram_required))
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -674,10 +650,8 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
     for x in can_unload_sorted:
         i = x[-1]
         memory_to_free = 1e32
-        pins_to_free = 1e32
         if current_loaded_models[i].model.is_dynamic() and (not DISABLE_SMART_MEMORY or device is None):
             memory_to_free = 0 if device is None else memory_required - get_free_memory(device)
-            pins_to_free = pins_required - get_free_ram()
             if for_dynamic:
                 #don't actually unload dynamic models for the sake of other dynamic models
                 #as that works on-demand.
@@ -686,18 +660,6 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
         if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
             logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
             unloaded_model.append(i)
-        if pins_to_free > 0:
-            logging.debug(f"PIN Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-            current_loaded_models[i].model.partially_unload_ram(pins_to_free)
-
-    for x in can_unload_sorted:
-        i = x[-1]
-        ram_to_free = ram_required - psutil.virtual_memory().available
-        if ram_to_free <= 0 and i not in unloaded_model:
-            continue
-        resident_memory, _ = current_loaded_models[i].model_mmap_residency(free=True)
-        if resident_memory > 0:
-            logging.debug(f"RAM Unloading {current_loaded_models[i].model.model.__class__.__name__}")
 
     for i in sorted(unloaded_model, reverse=True):
         unloaded_models.append(current_loaded_models.pop(i))
@@ -763,29 +725,16 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             model_to_unload.model.detach(unpatch_all=False)
             model_to_unload.model_finalizer.detach()
 
-
     total_memory_required = {}
-    total_pins_required = {}
-    total_ram_required = {}
     for loaded_model in models_to_load:
         device = loaded_model.device
         total_memory_required[device] = total_memory_required.get(device, 0) + loaded_model.model_memory_required(device)
-        resident_memory, model_memory = loaded_model.model_mmap_residency()
-        pinned_memory = loaded_model.model.pinned_memory_size()
-        #FIXME: This can over-free the pins as it budgets to pin the entire model. We should
-        #make this JIT to keep as much pinned as possible.
-        pins_required = model_memory - pinned_memory
-        ram_required = model_memory - resident_memory
-        total_pins_required[device] = total_pins_required.get(device, 0) + pins_required
-        total_ram_required[device] = total_ram_required.get(device, 0) + ram_required
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_memory(total_memory_required[device] * 1.1 + extra_mem,
                         device,
-                        for_dynamic=free_for_dynamic,
-                        pins_required=total_pins_required[device],
-                        ram_required=total_ram_required[device])
+                        for_dynamic=free_for_dynamic)
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
@@ -1246,6 +1195,10 @@ def reset_cast_buffers():
             offload_stream.synchronize()
     synchronize()
 
+    for mmap_obj in DIRTY_MMAPS:
+        mmap_obj.bounce()
+
+    DIRTY_MMAPS.clear()
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
     STREAM_PIN_BUFFERS.clear()
@@ -1310,8 +1263,7 @@ def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
             if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view):
                 continue
             storage = tensor._qdata.untyped_storage() if isinstance(tensor, comfy.quant_ops.QuantizedTensor) else tensor.untyped_storage()
-            if hasattr(storage, "_comfy_tensor_mmap_touched"):
-                storage._comfy_tensor_mmap_touched = True
+            mark_mmap_dirty(storage)
             dest_view.copy_(tensor, non_blocking=non_blocking)
 
 

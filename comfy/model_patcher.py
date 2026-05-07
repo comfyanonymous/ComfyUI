@@ -342,9 +342,6 @@ class ModelPatcher:
         self.size = comfy.model_management.module_size(self.model)
         return self.size
 
-    def model_mmap_residency(self, free=False):
-        return comfy.model_management.module_mmap_residency(self.model, free=free)
-
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
 
