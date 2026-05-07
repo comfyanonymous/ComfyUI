@@ -836,6 +836,59 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
     control = ControlNet(control_model, global_average_pooling=global_average_pooling, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
     return control
 
+# Process-wide LRU cache for ControlNet state-dicts. Two ControlNetLoader
+# nodes wired to the same .safetensors file (very common when a workflow
+# applies the same ControlNet to multiple regions / passes) currently each
+# load the file from disk; with this cache they share a single load.
+#
+# Cache key: (path, mtime). Each entry is the raw state_dict (typically
+# 700 MB - 2.5 GB for SDXL controlnets), so the default cap of 2 keeps
+# the cache under ~5 GB worst case. Bump via env var on a big-RAM box.
+import collections as _collections
+import threading as _threading
+_CONTROLNET_CACHE: "_collections.OrderedDict[tuple, dict]" = _collections.OrderedDict()
+_CONTROLNET_CACHE_LOCK = _threading.Lock()
+
+
+def _controlnet_cache_max() -> int:
+    raw = os.environ.get("COMFY_CONTROLNET_CACHE_MAX", "2")
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        logging.warning("COMFY_CONTROLNET_CACHE_MAX must be a positive integer "
+                        "(got %r); falling back to 2", raw)
+        return 2
+
+
+_CONTROLNET_CACHE_MAX = _controlnet_cache_max()
+_CONTROLNET_CACHE_ENABLED = os.environ.get("COMFY_CONTROLNET_CACHE", "1") != "0"
+
+
+def _load_controlnet_state_dict_cached(ckpt_path: str) -> dict:
+    if not _CONTROLNET_CACHE_ENABLED:
+        return comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    try:
+        mtime = os.path.getmtime(ckpt_path)
+    except OSError:
+        return comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    key = (ckpt_path, mtime)
+    with _CONTROLNET_CACHE_LOCK:
+        cached = _CONTROLNET_CACHE.get(key)
+        if cached is not None:
+            _CONTROLNET_CACHE.move_to_end(key)
+            return cached
+    sd = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    with _CONTROLNET_CACHE_LOCK:
+        existing = _CONTROLNET_CACHE.get(key)
+        if existing is not None:
+            _CONTROLNET_CACHE.move_to_end(key)
+            return existing
+        _CONTROLNET_CACHE[key] = sd
+        if len(_CONTROLNET_CACHE) > _CONTROLNET_CACHE_MAX:
+            _CONTROLNET_CACHE.popitem(last=False)
+    return sd
+
+
 def load_controlnet(ckpt_path, model=None, model_options={}):
     model_options = model_options.copy()
     if "global_average_pooling" not in model_options:
@@ -843,7 +896,7 @@ def load_controlnet(ckpt_path, model=None, model_options={}):
         if filename.endswith("_shuffle") or filename.endswith("_shuffle_fp16"): #TODO: smarter way of enabling global_average_pooling
             model_options["global_average_pooling"] = True
 
-    cnet = load_controlnet_state_dict(comfy.utils.load_torch_file(ckpt_path, safe_load=True), model=model, model_options=model_options)
+    cnet = load_controlnet_state_dict(_load_controlnet_state_dict_cached(ckpt_path), model=model, model_options=model_options)
     if cnet is None:
         logging.error("error checkpoint does not contain controlnet or t2i adapter data {}".format(ckpt_path))
     return cnet
