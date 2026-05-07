@@ -1627,8 +1627,62 @@ def load_gligen(ckpt_path):
 
 def model_detection_error_hint(path, state_dict):
     filename = os.path.basename(path)
-    if 'lora' in filename.lower():
-        return "\nHINT: This seems to be a Lora file and Lora files should be put in the lora folder and loaded with a lora loader node.."
+    fname_lower = filename.lower()
+
+    if 'lora' in fname_lower:
+        return ("\nHINT: This looks like a LoRA file. LoRA files belong in models/loras/ "
+                "and should be loaded with a LoRA Loader node, not CheckpointLoaderSimple.")
+
+    keys = state_dict.keys() if state_dict is not None else ()
+
+    # UNet-only diffusion checkpoints (Flux, SD3, AuraFlow, HiDream, etc.).
+    # These ship the diffusion model alone — no text encoders, no VAE — so
+    # CheckpointLoaderSimple can't assemble the (model, clip, vae) tuple it
+    # promises. Users want the UNETLoader / DiffusionModelLoader node and
+    # need to wire CLIP/VAE separately (DualCLIPLoader, VAELoader).
+    flux_unet_keys = ('double_blocks.0.img_attn.proj.weight',
+                      'double_blocks.0.img_mlp.0.weight',
+                      'single_blocks.0.linear1.weight')
+    sd3_unet_keys = ('joint_blocks.0.x_block.attn.proj.weight',
+                     'pos_embed')
+    has_flux = any(k in keys for k in flux_unet_keys)
+    has_sd3 = all(k in keys for k in sd3_unet_keys)
+    if has_flux or has_sd3:
+        kind = "Flux / Chroma" if has_flux else "SD3"
+        return ("\nHINT: This looks like a {} diffusion-model-only checkpoint. "
+                "CheckpointLoaderSimple expects a bundled (model + CLIP + VAE) "
+                "checkpoint. Load this file with the **UNETLoader** (or "
+                "**DiffusionModelLoader**) node, then wire CLIP via "
+                "**DualCLIPLoader** and VAE via **VAELoader** separately.").format(kind)
+
+    # Pure VAE checkpoints — no diffusion blocks, just encoder/decoder.
+    vae_indicators = ('decoder.up_blocks.0.resnets.0.conv1.weight',
+                      'decoder.mid.block_1.conv1.weight',
+                      'first_stage_model.decoder.conv_in.weight')
+    looks_like_vae = (any(k in keys for k in vae_indicators)
+                      and not any('blocks' in k and 'attn' in k for k in keys))
+    if looks_like_vae or 'vae' in fname_lower:
+        return ("\nHINT: This looks like a VAE-only file. VAE files belong in "
+                "models/vae/ and should be loaded with the **VAELoader** node.")
+
+    # Pure text encoder checkpoints (CLIP-L, T5-XXL, Llama, etc.).
+    te_indicators = ('shared.weight',                         # T5
+                     'text_model.embeddings.token_embedding.weight',  # CLIP
+                     'model.embed_tokens.weight')             # Llama
+    looks_like_te = any(k in keys for k in te_indicators) and not any(
+        'double_blocks' in k or 'single_blocks' in k or 'down_blocks' in k for k in keys)
+    if looks_like_te or 't5' in fname_lower or 'clip_l' in fname_lower or 'llama' in fname_lower:
+        return ("\nHINT: This looks like a text-encoder file (CLIP/T5/Llama). "
+                "Text-encoder files belong in models/text_encoders/ (or "
+                "models/clip/) and should be loaded with **CLIPLoader** or "
+                "**DualCLIPLoader**, not CheckpointLoaderSimple.")
+
+    # GGUF / quantized formats that core ComfyUI doesn't load natively.
+    if fname_lower.endswith('.gguf'):
+        return ("\nHINT: GGUF quantized checkpoints require the ComfyUI-GGUF "
+                "custom node (https://github.com/city96/ComfyUI-GGUF). Install "
+                "it and use the GGUF loader node instead.")
+
     return ""
 
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
