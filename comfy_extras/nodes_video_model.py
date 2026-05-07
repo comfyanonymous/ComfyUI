@@ -33,7 +33,7 @@ class ImageOnlyCheckpointLoaderDevice:
             },
             "optional": {
                 "model_device": (device_options, {"advanced": True, "tooltip": "Device for the diffusion model (UNET)."}),
-                "clip_device": (device_options, {"advanced": True, "tooltip": "Device for the CLIP text encoder."}),
+                "clip_vision_device": (device_options, {"advanced": True, "tooltip": "Device for the CLIP vision encoder."}),
                 "vae_device": (device_options, {"advanced": True, "tooltip": "Device for the VAE."}),
             }
         }
@@ -43,10 +43,10 @@ class ImageOnlyCheckpointLoaderDevice:
     CATEGORY = "loaders/video_models"
 
     @classmethod
-    def VALIDATE_INPUTS(cls, model_device="default", clip_device="default", vae_device="default"):
+    def VALIDATE_INPUTS(cls, model_device="default", clip_vision_device="default", vae_device="default"):
         return True
 
-    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True, model_device="default", clip_device="default", vae_device="default"):
+    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True, model_device="default", clip_vision_device="default", vae_device="default"):
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
 
         model_options = {}
@@ -57,13 +57,13 @@ class ImageOnlyCheckpointLoaderDevice:
             else:
                 model_options["load_device"] = resolved_model
         
-        te_model_options = {}
-        resolved_clip = comfy.model_management.resolve_gpu_device_option(clip_device)
+        cv_model_options = {}
+        resolved_clip = comfy.model_management.resolve_gpu_device_option(clip_vision_device)
         if resolved_clip is not None:
             if resolved_clip.type == "cpu":
-                te_model_options["load_device"] = te_model_options["offload_device"] = resolved_clip
+                cv_model_options["load_device"] = cv_model_options["offload_device"] = resolved_clip
             else:
-                te_model_options["load_device"] = resolved_clip
+                cv_model_options["load_device"] = resolved_clip
 
         # VAE device is passed via model_options["load_device"] which
         # load_state_dict_guess_config forwards to the VAE constructor.
@@ -71,7 +71,6 @@ class ImageOnlyCheckpointLoaderDevice:
         resolved_vae = comfy.model_management.resolve_gpu_device_option(vae_device)
 
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
-        print(out)
         model_patcher, clip, vae, clipvision = out[:4]
 
         # Apply VAE device override if it differs from the model device
