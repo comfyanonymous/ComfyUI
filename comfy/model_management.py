@@ -1201,7 +1201,7 @@ def get_pin_buffer(offload_stream):
 
 def resize_pin_buffer(pin_buffer, size):
     global TOTAL_PINNED_MEMORY
-    old_size = getattr(pin_buffer, "_comfy_stream_pin_size", 0)
+    old_size = pin_buffer.size
     if size <= old_size:
         return True
     growth = size - old_size
@@ -1210,8 +1210,7 @@ def resize_pin_buffer(pin_buffer, size):
         pin_buffer.extend(size=size, reallocate=True)
     except RuntimeError:
         return False
-    pin_buffer._comfy_stream_pin_size = size
-    TOTAL_PINNED_MEMORY += growth
+    TOTAL_PINNED_MEMORY += pin_buffer.size - old_size
     return True
 
 def reset_cast_buffers():
@@ -1231,7 +1230,7 @@ def reset_cast_buffers():
     DIRTY_MMAPS.clear()
 
     for pin_buffer in STREAM_PIN_BUFFERS.values():
-        TOTAL_PINNED_MEMORY -= getattr(pin_buffer, "_comfy_stream_pin_size", 0)
+        TOTAL_PINNED_MEMORY -= pin_buffer.size
     if TOTAL_PINNED_MEMORY < 0:
         TOTAL_PINNED_MEMORY = 0
 

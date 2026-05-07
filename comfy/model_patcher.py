@@ -118,6 +118,8 @@ def string_to_seed(data):
     return comfy.utils.string_to_seed(data)
 
 class LowVramPatch:
+    is_lowvram_patch = True
+
     def __init__(self, key, patches, convert_func=None, set_func=None):
         self.key = key
         self.patches = patches
@@ -128,15 +130,18 @@ class LowVramPatch:
     def memory_required(self):
         counter = [0]
         for patch in self.patches[self.key]:
-            comfy.lora.prefetch_prepared_value(patch[1], counter, None, None)
+            comfy.lora.prefetch_prepared_value(patch[1], counter, None, None, False)
         return counter[0]
 
-    def prepare(self, destination, stream):
+    def prepare(self, destination, stream, copy=True, commit=True):
         counter = [0]
-        self.prepared_patches = [
-            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], counter, destination, stream), patch[2], patch[3], patch[4])
+        prepared_patches = [
+            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], counter, destination, stream, copy), patch[2], patch[3], patch[4])
             for patch in self.patches[self.key]
         ]
+        if commit:
+            self.prepared_patches = prepared_patches
+        return prepared_patches
 
     def clear_prepared(self):
         self.prepared_patches = None

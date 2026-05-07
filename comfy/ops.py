@@ -203,7 +203,14 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
             if lowvram_fn is not None:
                 ensure_offload_stream(s, cast_buffer_offset, False)
-                lowvram_fn.prepare(get_cast_buffer(lowvram_fn.memory_required()), offload_stream)
+                lowvram_size = lowvram_fn.memory_required()
+                lowvram_dest = get_cast_buffer(lowvram_size)
+                lowvram_fn.prepare(lowvram_dest, None, copy=False, commit=True)
+                pin_offset = get_stream_pin_buffer_offset(lowvram_size)
+                if pin_offset is not None:
+                    stream_pin_queue.append((lowvram_fn, pin_offset, lowvram_size, lowvram_dest))
+                else:
+                    lowvram_fn.prepare(lowvram_dest, offload_stream, copy=True, commit=True)
 
         prefetch["xfer_dest"] = xfer_dest
         prefetch["cast_dest"] = cast_dest
@@ -211,19 +218,23 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         prefetch["needs_cast"] = needs_cast
         s._prefetch = prefetch
 
+    def cast_maybe_lowvram_patch(xfer_source, xfer_dest, stream):
+        if getattr(xfer_source, "is_lowvram_patch", False):
+            xfer_source.prepare(xfer_dest, stream, copy=True, commit=False)
+        else:
+            comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=stream)
+
     if stream_pin_offset > 0:
-        stream_pin_hostbuf_size = getattr(stream_pin_hostbuf, "_comfy_stream_pin_size", stream_pin_hostbuf.size)
-        if stream_pin_hostbuf_size < stream_pin_offset:
-            stream_pin_hostbuf_size = stream_pin_offset + STREAM_PIN_BUFFER_HEADROOM
-            if not comfy.model_management.resize_pin_buffer(stream_pin_hostbuf, stream_pin_hostbuf_size):
+        if stream_pin_hostbuf.size < stream_pin_offset:
+            if not comfy.model_management.resize_pin_buffer(stream_pin_hostbuf, stream_pin_offset + STREAM_PIN_BUFFER_HEADROOM):
                 for xfer_source, _, _, xfer_dest in stream_pin_queue:
-                    comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
+                    cast_maybe_lowvram_patch(xfer_source, xfer_dest, offload_stream)
                 return offload_stream
         stream_pin_tensor = comfy_aimdo.torch.hostbuf_to_tensor(stream_pin_hostbuf, size=stream_pin_offset)
         stream_pin_tensor.untyped_storage()._comfy_hostbuf = stream_pin_hostbuf
         for xfer_source, pin_offset, pin_size, xfer_dest in stream_pin_queue:
             pin = stream_pin_tensor[pin_offset:pin_offset + pin_size]
-            comfy.model_management.cast_to_gathered(xfer_source, pin)
+            cast_maybe_lowvram_patch(xfer_source, pin, None)
             comfy.model_management.cast_to_gathered([ pin ], xfer_dest, non_blocking=non_blocking, stream=offload_stream)
 
     return offload_stream

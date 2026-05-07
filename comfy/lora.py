@@ -475,7 +475,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
 
     return weight
 
-def prefetch_prepared_value(value, counter, destination, stream):
+def prefetch_prepared_value(value, counter, destination, stream, copy):
     if isinstance(value, torch.Tensor):
         size = comfy.memory_management.vram_aligned_size(value)
         offset = counter[0]
@@ -484,14 +484,14 @@ def prefetch_prepared_value(value, counter, destination, stream):
             return value
 
         dest = destination[offset:offset + size]
-        if stream is not None:
+        if copy:
             comfy.model_management.cast_to_gathered([value], dest, non_blocking=True, stream=stream)
         return comfy.memory_management.interpret_gathered_like([value], dest)[0]
     elif isinstance(value, weight_adapter.WeightAdapterBase):
-        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, counter, destination, stream))
+        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, counter, destination, stream, copy))
     elif isinstance(value, tuple):
-        return tuple(prefetch_prepared_value(item, counter, destination, stream) for item in value)
+        return tuple(prefetch_prepared_value(item, counter, destination, stream, copy) for item in value)
     elif isinstance(value, list):
-        return [prefetch_prepared_value(item, counter, destination, stream) for item in value]
+        return [prefetch_prepared_value(item, counter, destination, stream, copy) for item in value]
 
     return value
