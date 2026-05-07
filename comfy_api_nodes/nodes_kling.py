@@ -2787,11 +2787,15 @@ class MotionControl(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model"]),
                 expr="""
                 (
-                  $prices := {"std": 0.07, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
+                  $prices := {
+                    "kling-v3": {"std": 0.126, "pro": 0.168},
+                    "kling-v2-6": {"std": 0.07, "pro": 0.112}
+                  };
+                  $modelPrices := $lookup($prices, widgets.model);
+                  {"type":"usd","usd": $lookup($modelPrices, widgets.mode), "format":{"suffix":"/second"}}
                 )
                 """,
             ),
