@@ -318,7 +318,11 @@ class LTXVAddGuide(io.ComfyNode):
     @classmethod
     def replace_latent_frames(cls, latent_image, noise_mask, guiding_latent, latent_idx, strength):
         cond_length = guiding_latent.shape[2]
-        assert latent_image.shape[2] >= latent_idx + cond_length, "Conditioning frames exceed the length of the latent sequence."
+        if latent_image.shape[2] < latent_idx + cond_length:
+            raise ValueError(
+                "Conditioning frames exceed the length of the latent sequence "
+                "(latent length {} < latent_idx {} + cond_length {}).".format(
+                    latent_image.shape[2], latent_idx, cond_length))
 
         mask = torch.full(
             (noise_mask.shape[0], 1, cond_length, 1, 1),
@@ -345,7 +349,11 @@ class LTXVAddGuide(io.ComfyNode):
         image, t = cls.encode(vae, latent_width, latent_height, image, scale_factors)
 
         frame_idx, latent_idx = cls.get_latent_index(positive, latent_length, len(image), frame_idx, scale_factors)
-        assert latent_idx + t.shape[2] <= latent_length, "Conditioning frames exceed the length of the latent sequence."
+        if latent_idx + t.shape[2] > latent_length:
+            raise ValueError(
+                "Conditioning frames exceed the length of the latent sequence "
+                "(latent_idx {} + cond_length {} > latent_length {}).".format(
+                    latent_idx, t.shape[2], latent_length))
 
         positive, negative, latent_image, noise_mask = cls.append_keyframe(
             positive,

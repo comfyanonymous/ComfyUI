@@ -143,7 +143,10 @@ class LTXVEmptyLatentAudio(io.ComfyNode):
     ) -> io.NodeOutput:
         """Generate empty audio latents matching the reference pipeline structure."""
 
-        assert audio_vae is not None, "Audio VAE model is required"
+        if audio_vae is None:
+            raise ValueError(
+                "Audio VAE model is required. Wire an Audio VAE loader (e.g. "
+                "VAELoader pointing at the LTX-V audio VAE) into the audio_vae input.")
 
         z_channels = audio_vae.latent_channels
         audio_freq = audio_vae.first_stage_model.latent_frequency_bins
