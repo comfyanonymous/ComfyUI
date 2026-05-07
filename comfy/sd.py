@@ -990,23 +990,59 @@ class VAE:
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
 
-            # Pre-allocate output for VAEs that support direct buffer writes
+            # Async D2H overlap is only safe + useful for CUDA/ROCm devices
+            # decoding to CPU output. The pinned host buffer + non_blocking
+            # copy_() lets the cuda copy engine run the transfer concurrently
+            # with the next batch's decode kernels — near-free for batch>=2.
+            # For single-batch decodes the gain is small but the only cost
+            # is pin allocation. Disabled in the preallocated chunked-io
+            # path because those VAEs blocking-copy_() into the buffer
+            # internally and pinning wouldn't help.
             preallocated = False
             if getattr(self.first_stage_model, 'comfy_has_chunked_io', False):
                 pixel_samples = torch.empty(self.first_stage_model.decode_output_shape(samples_in.shape), device=self.output_device, dtype=self.vae_output_dtype())
                 preallocated = True
 
+            async_d2h = (
+                not preallocated
+                and self.output_device.type == 'cpu'
+                and getattr(self.device, 'type', None) == 'cuda'
+            )
+
             for x in range(0, samples_in.shape[0], batch_number):
                 samples = samples_in[x:x + batch_number].to(device=self.device, dtype=self.vae_dtype)
                 if preallocated:
                     self.first_stage_model.decode(samples, output_buffer=pixel_samples[x:x+batch_number], **vae_options)
+                    self.process_output(pixel_samples[x:x+batch_number])
+                elif async_d2h:
+                    decoded = self.first_stage_model.decode(samples, **vae_options)
+                    # On-device copy + cast so we can mutate without aliasing
+                    # the decoder's internal output. Then run process_output
+                    # on the GPU side and queue the D2H copy as non_blocking
+                    # — the next iteration's decode runs while this copy is
+                    # still in flight on the cuda copy engine.
+                    gpu_buf = decoded.to(dtype=self.vae_output_dtype(), copy=True)
+                    self.process_output(gpu_buf)
+                    if pixel_samples is None:
+                        pixel_samples = torch.empty(
+                            (samples_in.shape[0],) + tuple(gpu_buf.shape[1:]),
+                            device=self.output_device, dtype=self.vae_output_dtype(),
+                            pin_memory=True)
+                    pixel_samples[x:x+batch_number].copy_(gpu_buf, non_blocking=True)
+                    del decoded, gpu_buf
                 else:
                     out = self.first_stage_model.decode(samples, **vae_options).to(device=self.output_device, dtype=self.vae_output_dtype(), copy=True)
                     if pixel_samples is None:
                         pixel_samples = torch.empty((samples_in.shape[0],) + tuple(out.shape[1:]), device=self.output_device, dtype=self.vae_output_dtype())
                     pixel_samples[x:x+batch_number].copy_(out)
                     del out
-                self.process_output(pixel_samples[x:x+batch_number])
+                    self.process_output(pixel_samples[x:x+batch_number])
+
+            # Single sync at the end materialises the async copies. Without
+            # this, the first downstream host-side read could race with an
+            # in-flight DMA. CUDA-only — other backends are sequential.
+            if async_d2h:
+                torch.cuda.synchronize(self.device)
         except Exception as e:
             model_management.raise_non_oom(e)
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
