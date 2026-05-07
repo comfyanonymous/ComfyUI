@@ -71,7 +71,7 @@ class ImageOnlyCheckpointLoaderDevice:
         resolved_vae = comfy.model_management.resolve_gpu_device_option(vae_device)
 
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
-        model_patcher, clip, vae, clipvision = out[:4]
+        model_patcher, clip, vae, clip_vision = out[:4]
 
         # Apply VAE device override if it differs from the model device
         if resolved_vae is not None and vae is not None:
@@ -83,7 +83,7 @@ class ImageOnlyCheckpointLoaderDevice:
             vae.patcher.load_device = resolved_vae
             vae.patcher.offload_device = offload
 
-        return (model_patcher, clipvision, vae)
+        return (model_patcher, clip_vision, vae)
 
 
 class SVD_img2vid_Conditioning:
