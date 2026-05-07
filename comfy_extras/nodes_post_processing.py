@@ -20,7 +20,8 @@ class Blend(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageBlend",
-            display_name="Image Blend",
+            search_aliases=["mix images"],
+            display_name="Blend Images",
             category="image/postprocessing",
             essentials_category="Image Tools",
             inputs=[
@@ -224,6 +225,7 @@ class ImageScaleToTotalPixels(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageScaleToTotalPixels",
+            display_name="Scale Image to Total Pixels",
             category="image/upscaling",
             inputs=[
                 io.Image.Input("image"),
@@ -568,7 +570,7 @@ class BatchImagesNode(io.ComfyNode):
         return io.Schema(
             node_id="BatchImagesNode",
             display_name="Batch Images",
-            category="image",
+            category="image/batch",
             essentials_category="Image Tools",
             search_aliases=["batch", "image batch", "batch images", "combine images", "merge images", "stack images"],
             inputs=[
@@ -666,12 +668,13 @@ class ColorTransfer(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ColorTransfer",
+            display_name="Color Transfer",
             category="image/postprocessing",
             description="Match the colors of one image to another using various algorithms.",
             search_aliases=["color match", "color grading", "color correction", "match colors", "color transform", "mkl", "reinhard", "histogram"],
             inputs=[
                 io.Image.Input("image_target", tooltip="Image(s) to apply the color transform to."),
-                io.Image.Input("image_ref", optional=True, tooltip="Reference image(s) to match colors to. If not provided, processing is skipped"),
+                io.Image.Input("image_ref", tooltip="Reference image(s) to match colors to."),
                 io.Combo.Input("method", options=['reinhard_lab', 'mkl_lab', 'histogram'],),
                 io.DynamicCombo.Input("source_stats",
                     tooltip="per_frame: each frame matched to image_ref individually. uniform: pool stats across all source frames as baseline, match to image_ref. target_frame: use one chosen frame as the baseline for the transform to image_ref, applied uniformly to all frames (preserves relative differences)",

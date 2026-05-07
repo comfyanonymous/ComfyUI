@@ -32,6 +32,8 @@ class TextGenerate(io.ComfyNode):
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True, default=""),
                 io.Image.Input("image", optional=True),
+                io.Image.Input("video", optional=True, tooltip="Video frames as image batch. Assumed to be 24 FPS; subsampled to 1 FPS internally."),
+                io.Audio.Input("audio", optional=True),
                 io.Int.Input("max_length", default=256, min=1, max=2048),
                 io.DynamicCombo.Input("sampling_mode", options=sampling_options, display_name="Sampling Mode"),
                 io.Boolean.Input("thinking", optional=True, default=False, tooltip="Operate in thinking mode if the model supports it."),
@@ -43,9 +45,9 @@ class TextGenerate(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False, use_default_template=True) -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False, use_default_template=True, video=None, audio=None) -> io.NodeOutput:
 
-        tokens = clip.tokenize(prompt, image=image, skip_template=not use_default_template, min_length=1, thinking=thinking)
+        tokens = clip.tokenize(prompt, image=image, skip_template=not use_default_template, min_length=1, thinking=thinking, video=video, audio=audio)
 
         # Get sampling parameters from dynamic combo
         do_sample = sampling_mode.get("sampling_mode") == "on"
@@ -70,7 +72,8 @@ class TextGenerate(io.ComfyNode):
             seed=seed
         )
 
-        generated_text = clip.decode(generated_ids, skip_special_tokens=True)
+        generated_text = clip.decode(generated_ids)
+
         return io.NodeOutput(generated_text)
 
 
@@ -161,12 +164,12 @@ class TextGenerateLTX2Prompt(TextGenerate):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False, use_default_template=True) -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False, use_default_template=True, video=None, audio=None) -> io.NodeOutput:
         if image is None:
             formatted_prompt = f"<start_of_turn>system\n{LTX2_T2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
         else:
             formatted_prompt = f"<start_of_turn>system\n{LTX2_I2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\n\n<image_soft_token>\n\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
-        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image, thinking, use_default_template)
+        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image=image, thinking=thinking, use_default_template=use_default_template, video=video, audio=audio)
 
 
 class TextgenExtension(ComfyExtension):

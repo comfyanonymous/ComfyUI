@@ -1810,3 +1810,102 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
 def sample_sa_solver_pece(model, x, sigmas, extra_args=None, callback=None, disable=False, tau_func=None, s_noise=1.0, noise_sampler=None, predictor_order=3, corrector_order=4, simple_order_2=False):
     """Stochastic Adams Solver with PECE (Predict–Evaluate–Correct–Evaluate) mode (NeurIPS 2023)."""
     return sample_sa_solver(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, tau_func=tau_func, s_noise=s_noise, noise_sampler=noise_sampler, predictor_order=predictor_order, corrector_order=corrector_order, use_pece=True, simple_order_2=simple_order_2)
+
+
+@torch.no_grad()
+def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=None,
+                    num_frame_per_block=1):
+    """
+    Autoregressive video sampler: block-by-block denoising with KV cache
+    and flow-match re-noising for Causal Forcing / Self-Forcing models.
+
+    Requires a Causal-WAN compatible model (diffusion_model must expose
+    init_kv_caches / init_crossattn_caches) and 5-D latents [B,C,T,H,W].
+
+    All AR-loop parameters are passed via the SamplerARVideo node, not read
+    from the checkpoint or transformer_options.
+    """
+    extra_args = {} if extra_args is None else extra_args
+    model_options = extra_args.get("model_options", {})
+    transformer_options = model_options.get("transformer_options", {})
+
+    if x.ndim != 5:
+        raise ValueError(
+            f"ar_video sampler requires 5-D video latents [B,C,T,H,W], got {x.ndim}-D tensor with shape {x.shape}. "
+            "This sampler is only compatible with autoregressive video models (e.g. Causal-WAN)."
+        )
+
+    inner_model = model.inner_model.inner_model
+    causal_model = inner_model.diffusion_model
+
+    if not (hasattr(causal_model, "init_kv_caches") and hasattr(causal_model, "init_crossattn_caches")):
+        raise TypeError(
+            "ar_video sampler requires a Causal-WAN compatible model whose diffusion_model "
+            "exposes init_kv_caches() and init_crossattn_caches(). The loaded checkpoint "
+            "does not support this interface — choose a different sampler."
+        )
+
+    seed = extra_args.get("seed", 0)
+
+    bs, c, lat_t, lat_h, lat_w = x.shape
+    frame_seq_len = -(-lat_h // 2) * -(-lat_w // 2) # ceiling division
+    num_blocks = -(-lat_t // num_frame_per_block)   # ceiling division
+    device = x.device
+    model_dtype = inner_model.get_dtype()
+
+    kv_caches = causal_model.init_kv_caches(bs, lat_t * frame_seq_len, device, model_dtype)
+    crossattn_caches = causal_model.init_crossattn_caches(bs, device, model_dtype)
+
+    output = torch.zeros_like(x)
+    s_in = x.new_ones([x.shape[0]])
+    current_start_frame = 0
+    num_sigma_steps = len(sigmas) - 1
+    total_real_steps = num_blocks * num_sigma_steps
+    step_count = 0
+
+    try:
+        for block_idx in trange(num_blocks, disable=disable):
+            bf = min(num_frame_per_block, lat_t - current_start_frame)
+            fs, fe = current_start_frame, current_start_frame + bf
+            noisy_input = x[:, :, fs:fe]
+
+            ar_state = {
+                "start_frame": current_start_frame,
+                "kv_caches": kv_caches,
+                "crossattn_caches": crossattn_caches,
+            }
+            transformer_options["ar_state"] = ar_state
+
+            for i in range(num_sigma_steps):
+                denoised = model(noisy_input, sigmas[i] * s_in, **extra_args)
+
+                if callback is not None:
+                    scaled_i = step_count * num_sigma_steps // total_real_steps
+                    callback({"x": noisy_input, "i": scaled_i, "sigma": sigmas[i],
+                              "sigma_hat": sigmas[i], "denoised": denoised})
+
+                if sigmas[i + 1] == 0:
+                    noisy_input = denoised
+                else:
+                    sigma_next = sigmas[i + 1]
+                    torch.manual_seed(seed + block_idx * 1000 + i)
+                    fresh_noise = torch.randn_like(denoised)
+                    noisy_input = (1.0 - sigma_next) * denoised + sigma_next * fresh_noise
+
+                    for cache in kv_caches:
+                        cache["end"] -= bf * frame_seq_len
+
+                step_count += 1
+
+            output[:, :, fs:fe] = noisy_input
+
+            for cache in kv_caches:
+                cache["end"] -= bf * frame_seq_len
+            zero_sigma = sigmas.new_zeros([1])
+            _ = model(noisy_input, zero_sigma * s_in, **extra_args)
+
+            current_start_frame += bf
+    finally:
+        transformer_options.pop("ar_state", None)
+
+    return output

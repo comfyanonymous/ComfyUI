@@ -28,8 +28,8 @@ def get_file_info(path: str, relative_to: str) -> FileInfo:
     return {
         "path": os.path.relpath(path, relative_to).replace(os.sep, '/'),
         "size": os.path.getsize(path),
-        "modified": os.path.getmtime(path),
-        "created": os.path.getctime(path)
+        "modified": int(os.path.getmtime(path) * 1000),
+        "created": int(os.path.getctime(path) * 1000),
     }
 
 
