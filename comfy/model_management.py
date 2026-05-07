@@ -674,10 +674,10 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
         i = x[-1]
         memory_to_free = 1e32
         pins_to_free = 1e32
-        if not DISABLE_SMART_MEMORY or device is None:
+        if current_loaded_models[i].model.is_dynamic() and (not DISABLE_SMART_MEMORY or device is None):
             memory_to_free = 0 if device is None else memory_required - get_free_memory(device)
             pins_to_free = pins_required - get_free_ram()
-            if current_loaded_models[i].model.is_dynamic() and for_dynamic:
+            if for_dynamic:
                 #don't actually unload dynamic models for the sake of other dynamic models
                 #as that works on-demand.
                 memory_required -= current_loaded_models[i].model.loaded_size()
