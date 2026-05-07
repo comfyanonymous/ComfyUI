@@ -147,19 +147,24 @@ class WorkflowToPromptTests(unittest.TestCase):
         self.assertEqual(out["5"]["inputs"]["text"], "a cat")
         self.assertEqual(out["5"]["inputs"]["clip"], ["1", 1])
 
-    def test_bypass_node_skipped(self):
+    def test_bypass_and_never_nodes_skipped(self):
+        # Both BYPASS (mode=4) and NEVER (mode=2) match frontend semantics
+        # of "don't ship to executor" — confirm both are filtered.
         wf = {
             "nodes": [
                 {"id": 1, "type": "CheckpointLoaderSimple",
-                 "widgets_values": ["m.ckpt"], "inputs": [], "mode": 4},
+                 "widgets_values": ["bypass.ckpt"], "inputs": [], "mode": 4},
                 {"id": 2, "type": "CheckpointLoaderSimple",
-                 "widgets_values": ["other.ckpt"], "inputs": [], "mode": 0},
+                 "widgets_values": ["never.ckpt"], "inputs": [], "mode": 2},
+                {"id": 3, "type": "CheckpointLoaderSimple",
+                 "widgets_values": ["always.ckpt"], "inputs": [], "mode": 0},
             ],
             "links": [],
         }
         out = self.fn(wf)
         self.assertNotIn("1", out)
-        self.assertIn("2", out)
+        self.assertNotIn("2", out)
+        self.assertIn("3", out)
 
     def test_frontend_only_nodes_skipped(self):
         wf = {

@@ -81,76 +81,80 @@ def workflow_to_prompt(workflow: dict) -> dict:
 
     prompt: dict[str, dict] = {}
     for node in nodes_list:
-        node_id = node.get("id")
-        class_type = node.get("type")
-        if node_id is None or not class_type:
-            continue
-        if class_type in _FRONTEND_ONLY_NODES:
-            continue
-        # Skip muted/bypassed — same semantics as the frontend (these don't
-        # ship to the executor at all).
-        if node.get("mode") in (_MODE_NEVER, _MODE_BYPASS):
-            continue
-        cls = nodes.NODE_CLASS_MAPPINGS.get(class_type)
-        if cls is None:
-            # Custom node not installed in this comfy instance. Skipping is
-            # safer than emitting a class_type that won't validate.
-            continue
-
+        # Whole-node guard: a malformed widget_values entry, an
+        # unexpectedly-shaped INPUT_TYPES from a quirky custom node, an
+        # int(node_id) that fails on a non-integer string, or any other
+        # surprise should skip the node — not crash the conversion of an
+        # otherwise-mostly-valid workflow. (CodeRabbit r1)
         try:
+            node_id = node.get("id")
+            class_type = node.get("type")
+            if node_id is None or not class_type:
+                continue
+            if class_type in _FRONTEND_ONLY_NODES:
+                continue
+            # Skip muted/bypassed — same semantics as the frontend (these
+            # don't ship to the executor at all).
+            if node.get("mode") in (_MODE_NEVER, _MODE_BYPASS):
+                continue
+            cls = nodes.NODE_CLASS_MAPPINGS.get(class_type)
+            if cls is None:
+                # Custom node not installed in this comfy instance.
+                # Skipping is safer than emitting a class_type that
+                # won't validate.
+                continue
+
             inp_types = cls.INPUT_TYPES()
+
+            node_inputs = node.get("inputs") or []
+            link_input_names = {inp.get("name") for inp in node_inputs if inp.get("name")}
+            slot_idx_by_name = {
+                inp.get("name"): i
+                for i, inp in enumerate(node_inputs)
+                if inp.get("name")
+            }
+
+            widget_values = list(node.get("widgets_values") or [])
+            widget_idx = 0
+
+            prompt_inputs: dict[str, Any] = {}
+            ordered_inputs = list(inp_types.get("required", {}).items()) + \
+                             list(inp_types.get("optional", {}).items())
+
+            for input_name, input_def in ordered_inputs:
+                input_type = input_def[0] if isinstance(input_def, (list, tuple)) and input_def else input_def
+
+                if input_name in link_input_names:
+                    slot_idx = slot_idx_by_name[input_name]
+                    key = (int(node_id), slot_idx)
+                    if key in inbound:
+                        prompt_inputs[input_name] = inbound[key]
+                    # else: unconnected link slot (e.g. converted-but-unwired);
+                    # leave absent so /prompt validation flags if required.
+                    continue
+
+                # Widget input. COMBO inputs are encoded as a list of choices.
+                is_combo = isinstance(input_type, list)
+                is_widgety = is_combo or (
+                    isinstance(input_type, str) and input_type in _WIDGET_PRIMITIVE_TYPES
+                )
+                if not is_widgety:
+                    # Non-primitive type with no link wired (e.g. unconnected
+                    # MODEL input). Nothing to emit.
+                    continue
+                if widget_idx >= len(widget_values):
+                    continue
+                prompt_inputs[input_name] = widget_values[widget_idx]
+                widget_idx += 1
+
+                # control_after_generate sneaks an extra widget value in after
+                # any INT seed widget. The frontend appends it implicitly so
+                # the workflow JSON contains one extra entry per seed slot.
+                if input_type == "INT" and input_name in ("seed", "noise_seed"):
+                    if widget_idx < len(widget_values):
+                        widget_idx += 1
         except Exception:
-            # Some custom nodes' INPUT_TYPES throw without their runtime
-            # context. Skip rather than crash the whole conversion.
             continue
-
-        node_inputs = node.get("inputs") or []
-        link_input_names = {inp.get("name") for inp in node_inputs if inp.get("name")}
-        slot_idx_by_name = {
-            inp.get("name"): i
-            for i, inp in enumerate(node_inputs)
-            if inp.get("name")
-        }
-
-        widget_values = list(node.get("widgets_values") or [])
-        widget_idx = 0
-
-        prompt_inputs: dict[str, Any] = {}
-        ordered_inputs = list(inp_types.get("required", {}).items()) + \
-                         list(inp_types.get("optional", {}).items())
-
-        for input_name, input_def in ordered_inputs:
-            input_type = input_def[0] if isinstance(input_def, (list, tuple)) and input_def else input_def
-
-            if input_name in link_input_names:
-                slot_idx = slot_idx_by_name[input_name]
-                key = (int(node_id), slot_idx)
-                if key in inbound:
-                    prompt_inputs[input_name] = inbound[key]
-                # else: unconnected link slot (e.g. converted-but-unwired);
-                # leave absent so /prompt validation flags if required.
-                continue
-
-            # Widget input. COMBO inputs are encoded as a list of choices.
-            is_combo = isinstance(input_type, list)
-            is_widgety = is_combo or (
-                isinstance(input_type, str) and input_type in _WIDGET_PRIMITIVE_TYPES
-            )
-            if not is_widgety:
-                # Non-primitive type with no link wired (e.g. unconnected
-                # MODEL input). Nothing to emit.
-                continue
-            if widget_idx >= len(widget_values):
-                continue
-            prompt_inputs[input_name] = widget_values[widget_idx]
-            widget_idx += 1
-
-            # control_after_generate sneaks an extra widget value in after
-            # any INT seed widget. The frontend appends it implicitly so the
-            # workflow JSON contains one extra entry per seed slot.
-            if input_type == "INT" and input_name in ("seed", "noise_seed"):
-                if widget_idx < len(widget_values):
-                    widget_idx += 1
 
         prompt[str(node_id)] = {
             "class_type": class_type,
