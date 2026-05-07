@@ -324,12 +324,17 @@ class FeatherMask(IO.ComfyNode):
         bottom = min(bottom, output.shape[-2])
 
         for x in range(left):
-            feather_rate = (x + 1.0) / left
+            feather_rate = (x + 1) / left
             output[:, :, x] *= feather_rate
 
         for x in range(right):
             feather_rate = (x + 1) / right
-            output[:, :, -x] *= feather_rate
+            # `-x` would resolve to `0` for x=0 (column 0 is the LEFT edge).
+            # Use `-(x + 1)` so the right loop walks the rightmost columns,
+            # mirroring the left loop. Without this fix the rightmost column
+            # never feathered and column 0 picked up the right feather (and
+            # got double-feathered when `left` was also nonzero).
+            output[:, :, -(x + 1)] *= feather_rate
 
         for y in range(top):
             feather_rate = (y + 1) / top
@@ -337,7 +342,8 @@ class FeatherMask(IO.ComfyNode):
 
         for y in range(bottom):
             feather_rate = (y + 1) / bottom
-            output[:, -y, :] *= feather_rate
+            # Same off-by-one as `right` above — see comment there.
+            output[:, -(y + 1), :] *= feather_rate
 
         return IO.NodeOutput(output)
 
