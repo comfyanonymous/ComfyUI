@@ -348,6 +348,12 @@ def prompt_worker(q, server_instance):
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
+        # --no-cache-models unconditionally forces unload+free after every
+        # prompt — same effect as the user posting {unload_models, free_memory}
+        # to /free after every queue item, but always-on without round-tripping
+        # through the HTTP layer.
+        if args.no_cache_models:
+            free_memory = True
 
         if flags.get("unload_models", free_memory):
             comfy.model_management.unload_all_models()
