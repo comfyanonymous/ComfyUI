@@ -575,7 +575,15 @@ class LoadedModel:
         # if self.model.loaded_size() > 0:
         use_more_vram = lowvram_model_memory
         if use_more_vram == 0:
-            use_more_vram = 1e32
+            # Use actual free memory rather than the historical 1e32
+            # "unbounded" sentinel. On unified-memory devices (Jetson Thor,
+            # integrated GPUs) the unbounded value asks for more than is
+            # physically available and the dispatcher OOMs at allocation
+            # time; on dGPUs it can request more than free VRAM after
+            # eviction has already run, with the same effect. Bounding to
+            # current free memory is the cap the dispatcher would have to
+            # observe anyway. (#11332)
+            use_more_vram = get_free_memory(self.device)
         self.model_use_more_vram(use_more_vram, force_patch_weights=force_patch_weights)
 
         real_model = self.model.model
