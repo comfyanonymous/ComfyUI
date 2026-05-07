@@ -793,9 +793,27 @@ class ZImagePixelSpace(ChromaRadiance):
     pass
 
 class CogVideoX(LatentFormat):
+    """Latent format for CogVideoX-2b (THUDM/CogVideoX-2b).
+
+    scale_factor matches the vae/config.json scaling_factor for the 2b variant.
+    The 5b-class checkpoints (CogVideoX-5b, CogVideoX-1.5-5B, CogVideoX-Fun-V1.5-*)
+    use a different value; see CogVideoX1_5 below.
+    """
     latent_channels = 16
     latent_dimensions = 3
     temporal_downscale_ratio = 4
 
     def __init__(self):
         self.scale_factor = 1.15258426
+
+
+class CogVideoX1_5(CogVideoX):
+    """Latent format for 5b-class CogVideoX checkpoints.
+
+    Covers THUDM/CogVideoX-5b, THUDM/CogVideoX-1.5-5B, and the CogVideoX-Fun
+    V1.5-5b family (including VOID inpainting). All of these have
+    scaling_factor=0.7 in their vae/config.json. Auto-selected in
+    supported_models.CogVideoX_T2V based on transformer hidden dim.
+    """
+    def __init__(self):
+        self.scale_factor = 0.7

@@ -1872,6 +1872,14 @@ class CogVideoX_T2V(supported_models_base.BASE):
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
 
+    def __init__(self, unet_config):
+        # 2b-class (dim=1920, heads=30) uses scale_factor=1.15258426.
+        # 5b-class (dim=3072, heads=48) — incl. CogVideoX-5b, 1.5-5B, and
+        # Fun-V1.5 inpainting — uses scale_factor=0.7 per vae/config.json.
+        if unet_config.get("num_attention_heads", 0) >= 48:
+            self.latent_format = latent_formats.CogVideoX1_5
+        super().__init__(unet_config)
+
     def get_model(self, state_dict, prefix="", device=None):
         # CogVideoX 1.5 (patch_size_t=2) has different training base dimensions for RoPE
         if self.unet_config.get("patch_size_t") is not None:
@@ -1888,6 +1896,20 @@ class CogVideoX_I2V(CogVideoX_T2V):
     unet_config = {
         "image_model": "cogvideox",
         "in_channels": 32,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        if self.unet_config.get("patch_size_t") is not None:
+            self.unet_config.setdefault("sample_height", 96)
+            self.unet_config.setdefault("sample_width", 170)
+            self.unet_config.setdefault("sample_frames", 81)
+        out = model_base.CogVideoX(self, image_to_video=True, device=device)
+        return out
+
+class CogVideoX_Inpaint(CogVideoX_T2V):
+    unet_config = {
+        "image_model": "cogvideox",
+        "in_channels": 48,
     }
 
     def get_model(self, state_dict, prefix="", device=None):
@@ -1978,6 +2000,7 @@ models = [
     ErnieImage,
     SAM3,
     SAM31,
+    CogVideoX_Inpaint,
     CogVideoX_I2V,
     CogVideoX_T2V,
     SVD_img2vid,
