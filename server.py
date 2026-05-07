@@ -968,6 +968,37 @@ class PromptServer():
                 }
                 return web.json_response({"error": error, "node_errors": {}}, status=400)
 
+        @routes.post("/workflow_to_prompt")
+        async def post_workflow_to_prompt(request):
+            """Convert a frontend workflow JSON into the API prompt format.
+
+            Body: a workflow dict (the shape saved by the UI's "Save"
+            button, with `nodes` and `links` arrays). Returns:
+                {"prompt": <prompt-format dict>}
+
+            Useful when external automation (CLI runners, batch scripts)
+            wants to programmatically tweak workflows and POST them to
+            /prompt without round-tripping through the browser to call
+            graphToPrompt().
+
+            Closes #1112.
+            """
+            from comfy_execution.workflow_to_prompt import workflow_to_prompt
+            try:
+                workflow = await request.json()
+            except Exception as ex:
+                return web.json_response(
+                    {"error": "Invalid JSON body: {}".format(ex)}, status=400)
+            if not isinstance(workflow, dict):
+                return web.json_response(
+                    {"error": "Body must be a workflow JSON object."}, status=400)
+            try:
+                prompt = workflow_to_prompt(workflow)
+            except Exception as ex:
+                return web.json_response(
+                    {"error": "Workflow conversion failed: {}".format(ex)}, status=500)
+            return web.json_response({"prompt": prompt})
+
         @routes.post("/queue")
         async def post_queue(request):
             json_data =  await request.json()
