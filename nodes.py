@@ -11,9 +11,11 @@ import inspect
 
 import traceback
 import math
+import threading
 import time
 import random
 import logging
+from collections import OrderedDict
 
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
@@ -56,6 +58,80 @@ def interrupt_processing(value=True):
 
 MAX_RESOLUTION=16384
 
+
+# Process-wide LRU cache for CLIPTextEncode — re-running a workflow with
+# unchanged prompts (the common case for ADetailer-style detail loops,
+# hires-fix, batch render, ControlNet refresh) skips the CLIP forward
+# entirely after the first hit. Each cached CONDITIONING is typically a
+# few KB on GPU; bound is well under 1 MB at the default cap.
+#
+# Correctness:
+#   - Key is (id(clip), layer_idx, text). Checkpoint swaps return a new
+#     CLIP instance via .clone() (different id), and Clip Skip mutates
+#     layer_idx, so both invalidate naturally.
+#   - Hooked + scheduled CLIPs (AnimateDiff and similar) bypass the cache
+#     because their encode output depends on mutable per-call hook state.
+#   - Outer list and inner dicts are deep-copied on retrieval; tensors
+#     are shared. Comfy's CONDITIONING convention treats the per-cond
+#     tensor as read-only after creation — downstream nodes (e.g.
+#     ConditioningSetMask, ConditioningConcat) all .copy() the dict
+#     before mutating, so the shared-tensor sharing is safe.
+#
+# Configurable via env vars:
+#   COMFY_CLIP_ENCODE_CACHE=0          -> disable entirely
+#   COMFY_CLIP_ENCODE_CACHE_MAX=<int>  -> cap entries (default 64)
+_CLIP_ENCODE_CACHE: "OrderedDict[tuple, list]" = OrderedDict()
+_CLIP_ENCODE_CACHE_LOCK = threading.Lock()
+_CLIP_ENCODE_CACHE_MAX = max(1, int(os.environ.get("COMFY_CLIP_ENCODE_CACHE_MAX", "64")))
+_CLIP_ENCODE_CACHE_ENABLED = os.environ.get("COMFY_CLIP_ENCODE_CACHE", "1") != "0"
+
+
+def _clip_encode_cache_view(cond):
+    """Return a fresh outer list with copied inner dicts. Tensor refs are
+    shared — see the cache-block docstring for the read-only contract."""
+    return [[t, d.copy()] for t, d in cond]
+
+
+def _clip_encode_cached(clip, text):
+    """LRU-cached wrapper around clip.encode_from_tokens_scheduled.
+    Bypasses the cache for hooked + scheduled CLIPs (correctness)."""
+    if not _CLIP_ENCODE_CACHE_ENABLED:
+        tokens = clip.tokenize(text)
+        return clip.encode_from_tokens_scheduled(tokens)
+
+    patcher = getattr(clip, 'patcher', None)
+    has_hooks = patcher is not None and getattr(patcher, 'forced_hooks', None) is not None
+    if has_hooks and getattr(clip, 'use_clip_schedule', False):
+        tokens = clip.tokenize(text)
+        return clip.encode_from_tokens_scheduled(tokens)
+
+    layer_idx = getattr(clip, 'layer_idx', None)
+    key = (id(clip), layer_idx, text)
+
+    with _CLIP_ENCODE_CACHE_LOCK:
+        cached = _CLIP_ENCODE_CACHE.get(key)
+        if cached is not None:
+            _CLIP_ENCODE_CACHE.move_to_end(key)
+            return _clip_encode_cache_view(cached)
+
+    # Encode outside the lock — encode is the expensive part; holding the
+    # lock during it would serialise concurrent encodes from parallel
+    # workflow execution.
+    tokens = clip.tokenize(text)
+    out = clip.encode_from_tokens_scheduled(tokens)
+
+    with _CLIP_ENCODE_CACHE_LOCK:
+        existing = _CLIP_ENCODE_CACHE.get(key)
+        if existing is not None:
+            # Race: another encode finished first. Keep theirs.
+            _CLIP_ENCODE_CACHE.move_to_end(key)
+            return _clip_encode_cache_view(existing)
+        _CLIP_ENCODE_CACHE[key] = out
+        if len(_CLIP_ENCODE_CACHE) > _CLIP_ENCODE_CACHE_MAX:
+            _CLIP_ENCODE_CACHE.popitem(last=False)
+    return _clip_encode_cache_view(out)
+
+
 class CLIPTextEncode(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s) -> InputTypeDict:
@@ -76,8 +152,7 @@ class CLIPTextEncode(ComfyNodeABC):
     def encode(self, clip, text):
         if clip is None:
             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-        tokens = clip.tokenize(text)
-        return (clip.encode_from_tokens_scheduled(tokens), )
+        return (_clip_encode_cached(clip, text), )
 
 
 class ConditioningCombine:
