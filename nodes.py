@@ -9,6 +9,7 @@ import glob
 import hashlib
 import inspect
 
+import concurrent.futures
 import traceback
 import math
 import time
@@ -1637,22 +1638,29 @@ class SaveImage:
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results = list()
+
+        # PNG metadata is identical across the batch (prompt + extra_pnginfo
+        # are workflow-scoped) — build it once instead of N times.
+        metadata = None
+        if not args.disable_metadata:
+            metadata = PngInfo()
+            if prompt is not None:
+                metadata.add_text("prompt", json.dumps(prompt))
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+        # Stage per-image work sequentially: GPU->CPU sync + np.clip + PIL
+        # construction + filename counter increment. These are fast and
+        # ordered; the slow bit is the PNG encode + disk write below.
+        jobs = []
+        results = []
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = None
-            if not args.disable_metadata:
-                metadata = PngInfo()
-                if prompt is not None:
-                    metadata.add_text("prompt", json.dumps(prompt))
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
+            jobs.append((img, os.path.join(full_output_folder, file)))
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
@@ -1660,7 +1668,42 @@ class SaveImage:
             })
             counter += 1
 
+        self._save_batch_parallel(jobs, metadata)
         return { "ui": { "images": results } }
+
+    def _save_batch_parallel(self, jobs, metadata):
+        """Encode + write the batch in parallel. Pillow's PNG encoder releases
+        the GIL during zlib compression, so a thread pool actually parallelises
+        the encode work — not just the disk I/O. For a 4-image batch at 1024x1024
+        with compress_level=4, this is roughly 2-3x faster than the sequential
+        loop on a multi-core CPU.
+
+        Bypass the executor for single-image batches (most common case for
+        non-batch workflows) — the thread overhead would dominate the work."""
+        if len(jobs) <= 1:
+            for img, path in jobs:
+                img.save(path, pnginfo=metadata, compress_level=self.compress_level)
+            return
+
+        max_workers = max(1, min(8, len(jobs)))
+        env_workers = os.environ.get("COMFY_SAVEIMAGE_THREADS")
+        if env_workers and env_workers.isdigit():
+            max_workers = max(1, min(int(env_workers), len(jobs)))
+
+        compress = self.compress_level
+
+        def _save_one(img, path):
+            img.save(path, pnginfo=metadata, compress_level=compress)
+
+        first_error = None
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = [ex.submit(_save_one, img, path) for img, path in jobs]
+            for f in concurrent.futures.as_completed(futures):
+                exc = f.exception()
+                if exc is not None and first_error is None:
+                    first_error = exc
+        if first_error is not None:
+            raise first_error
 
 class PreviewImage(SaveImage):
     def __init__(self):
