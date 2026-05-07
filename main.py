@@ -351,8 +351,9 @@ def prompt_worker(q, server_instance):
         # --no-cache-models unconditionally forces unload+free after every
         # prompt — same effect as the user posting {unload_models, free_memory}
         # to /free after every queue item, but always-on without round-tripping
-        # through the HTTP layer.
-        if args.no_cache_models:
+        # through the HTTP layer. Gate on queue_item so idle ticks (q.get
+        # timeout exits with None) don't repeatedly unload + reset.
+        if args.no_cache_models and queue_item is not None:
             free_memory = True
 
         if flags.get("unload_models", free_memory):
