@@ -203,7 +203,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
             if lowvram_fn is not None:
                 ensure_offload_stream(s, cast_buffer_offset, False)
-                lowvram_fn.prepare(lambda size: get_cast_buffer(size), offload_stream)
+                lowvram_fn.prepare(get_cast_buffer(lowvram_fn.memory_required()), offload_stream)
 
         prefetch["xfer_dest"] = xfer_dest
         prefetch["cast_dest"] = cast_dest
