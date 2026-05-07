@@ -10,146 +10,198 @@ import json
 import os
 
 from comfy.cli_args import args
+from comfy_api.latest import io, ComfyExtension
+from typing_extensions import override
 
-class ModelMergeSimple:
+
+class ModelMergeSimple(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model1": ("MODEL",),
-                              "model2": ("MODEL",),
-                              "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeSimple",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, model1, model2, ratio):
+    @classmethod
+    def execute(cls, model1, model2, ratio) -> io.NodeOutput:
         m = model1.clone()
         kp = model2.get_key_patches("diffusion_model.")
         for k in kp:
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
-        return (m, )
+        return io.NodeOutput(m)
 
-class ModelSubtract:
+    merge = execute  # TODO: remove
+
+
+class ModelSubtract(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model1": ("MODEL",),
-                              "model2": ("MODEL",),
-                              "multiplier": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeSubtract",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, model1, model2, multiplier):
+    @classmethod
+    def execute(cls, model1, model2, multiplier) -> io.NodeOutput:
         m = model1.clone()
         kp = model2.get_key_patches("diffusion_model.")
         for k in kp:
             m.add_patches({k: kp[k]}, - multiplier, multiplier)
-        return (m, )
+        return io.NodeOutput(m)
 
-class ModelAdd:
+    merge = execute  # TODO: remove
+
+
+class ModelAdd(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model1": ("MODEL",),
-                              "model2": ("MODEL",),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeAdd",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, model1, model2):
+    @classmethod
+    def execute(cls, model1, model2) -> io.NodeOutput:
         m = model1.clone()
         kp = model2.get_key_patches("diffusion_model.")
         for k in kp:
             m.add_patches({k: kp[k]}, 1.0, 1.0)
-        return (m, )
+        return io.NodeOutput(m)
+
+    merge = execute  # TODO: remove
 
 
-class CLIPMergeSimple:
+class CLIPMergeSimple(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip1": ("CLIP",),
-                              "clip2": ("CLIP",),
-                              "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("CLIP",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPMergeSimple",
+            category="advanced/model_merging",
+            inputs=[
+                io.Clip.Input("clip1"),
+                io.Clip.Input("clip2"),
+                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                io.Clip.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, clip1, clip2, ratio):
+    @classmethod
+    def execute(cls, clip1, clip2, ratio) -> io.NodeOutput:
         m = clip1.clone()
         kp = clip2.get_key_patches()
         for k in kp:
             if k.endswith(".position_ids") or k.endswith(".logit_scale"):
                 continue
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
-        return (m, )
+        return io.NodeOutput(m)
+
+    merge = execute  # TODO: remove
 
 
-class CLIPSubtract:
-    SEARCH_ALIASES = ["clip difference", "text encoder subtract"]
+class CLIPSubtract(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip1": ("CLIP",),
-                              "clip2": ("CLIP",),
-                              "multiplier": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("CLIP",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPMergeSubtract",
+            search_aliases=["clip difference", "text encoder subtract"],
+            category="advanced/model_merging",
+            inputs=[
+                io.Clip.Input("clip1"),
+                io.Clip.Input("clip2"),
+                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                io.Clip.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, clip1, clip2, multiplier):
+    @classmethod
+    def execute(cls, clip1, clip2, multiplier) -> io.NodeOutput:
         m = clip1.clone()
         kp = clip2.get_key_patches()
         for k in kp:
             if k.endswith(".position_ids") or k.endswith(".logit_scale"):
                 continue
             m.add_patches({k: kp[k]}, - multiplier, multiplier)
-        return (m, )
+        return io.NodeOutput(m)
+
+    merge = execute  # TODO: remove
 
 
-class CLIPAdd:
-    SEARCH_ALIASES = ["combine clip"]
+class CLIPAdd(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip1": ("CLIP",),
-                              "clip2": ("CLIP",),
-                              }}
-    RETURN_TYPES = ("CLIP",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPMergeAdd",
+            search_aliases=["combine clip"],
+            category="advanced/model_merging",
+            inputs=[
+                io.Clip.Input("clip1"),
+                io.Clip.Input("clip2"),
+            ],
+            outputs=[
+                io.Clip.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, clip1, clip2):
+    @classmethod
+    def execute(cls, clip1, clip2) -> io.NodeOutput:
         m = clip1.clone()
         kp = clip2.get_key_patches()
         for k in kp:
             if k.endswith(".position_ids") or k.endswith(".logit_scale"):
                 continue
             m.add_patches({k: kp[k]}, 1.0, 1.0)
-        return (m, )
+        return io.NodeOutput(m)
+
+    merge = execute  # TODO: remove
 
 
-class ModelMergeBlocks:
+class ModelMergeBlocks(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model1": ("MODEL",),
-                              "model2": ("MODEL",),
-                              "input": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              "middle": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              "out": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "merge"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeBlocks",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+                io.Float.Input("input", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("middle", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("out", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model_merging"
-
-    def merge(self, model1, model2, **kwargs):
+    @classmethod
+    def execute(cls, model1, model2, **kwargs) -> io.NodeOutput:
         m = model1.clone()
         kp = model2.get_key_patches("diffusion_model.")
         default_ratio = next(iter(kwargs.values()))
@@ -165,7 +217,10 @@ class ModelMergeBlocks:
                     last_arg_size = len(arg)
 
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
-        return (m, )
+        return io.NodeOutput(m)
+
+    merge = execute  # TODO: remove
+
 
 def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefix=None, output_dir=None, prompt=None, extra_pnginfo=None):
     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir)
@@ -226,59 +281,65 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
 
     comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata, extra_keys=extra_keys)
 
-class CheckpointSave:
-    SEARCH_ALIASES = ["save model", "export checkpoint", "merge save"]
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
+
+class CheckpointSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CheckpointSave",
+            display_name="Save Checkpoint",
+            search_aliases=["save model", "export checkpoint", "merge save"],
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model"),
+                io.Clip.Input("clip"),
+                io.Vae.Input("vae"),
+                io.String.Input("filename_prefix", default="checkpoints/ComfyUI"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "clip": ("CLIP",),
-                              "vae": ("VAE",),
-                              "filename_prefix": ("STRING", {"default": "checkpoints/ComfyUI"}),},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
-    RETURN_TYPES = ()
-    FUNCTION = "save"
-    OUTPUT_NODE = True
+    def execute(cls, model, clip, vae, filename_prefix) -> io.NodeOutput:
+        save_checkpoint(model, clip=clip, vae=vae, filename_prefix=filename_prefix, output_dir=folder_paths.get_output_directory(), prompt=cls.hidden.prompt, extra_pnginfo=cls.hidden.extra_pnginfo)
+        return io.NodeOutput()
 
-    CATEGORY = "advanced/model_merging"
+    save = execute  # TODO: remove
 
-    def save(self, model, clip, vae, filename_prefix, prompt=None, extra_pnginfo=None):
-        save_checkpoint(model, clip=clip, vae=vae, filename_prefix=filename_prefix, output_dir=self.output_dir, prompt=prompt, extra_pnginfo=extra_pnginfo)
-        return {}
 
-class CLIPSave:
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
+class CLIPSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPSave",
+            category="advanced/model_merging",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("filename_prefix", default="clip/ComfyUI"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip": ("CLIP",),
-                              "filename_prefix": ("STRING", {"default": "clip/ComfyUI"}),},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
-    RETURN_TYPES = ()
-    FUNCTION = "save"
-    OUTPUT_NODE = True
-
-    CATEGORY = "advanced/model_merging"
-
-    def save(self, clip, filename_prefix, prompt=None, extra_pnginfo=None):
+    def execute(cls, clip, filename_prefix) -> io.NodeOutput:
         prompt_info = ""
-        if prompt is not None:
-            prompt_info = json.dumps(prompt)
+        if cls.hidden.prompt is not None:
+            prompt_info = json.dumps(cls.hidden.prompt)
 
         metadata = {}
         if not args.disable_metadata:
             metadata["format"] = "pt"
             metadata["prompt"] = prompt_info
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+            if cls.hidden.extra_pnginfo is not None:
+                for x in cls.hidden.extra_pnginfo:
+                    metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
         comfy.model_management.load_models_gpu([clip.load_model()], force_patch_weights=True)
         clip_sd = clip.get_sd()
 
+        output_dir = folder_paths.get_output_directory()
         for prefix in ["clip_l.", "clip_g.", "clip_h.", "t5xxl.", "pile_t5xl.", "mt5xl.", "umt5xxl.", "t5base.", "gemma2_2b.", "llama.", "hydit_clip.", ""]:
             k = list(filter(lambda a: a.startswith(prefix), clip_sd.keys()))
             current_clip_sd = {}
@@ -295,7 +356,7 @@ class CLIPSave:
                 replace_prefix[prefix] = ""
             replace_prefix["transformer."] = ""
 
-            full_output_folder, filename, counter, subfolder, filename_prefix_ = folder_paths.get_save_image_path(filename_prefix_, self.output_dir)
+            full_output_folder, filename, counter, subfolder, filename_prefix_ = folder_paths.get_save_image_path(filename_prefix_, output_dir)
 
             output_checkpoint = f"{filename}_{counter:05}_.safetensors"
             output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
@@ -303,76 +364,88 @@ class CLIPSave:
             current_clip_sd = comfy.utils.state_dict_prefix_replace(current_clip_sd, replace_prefix)
 
             comfy.utils.save_torch_file(current_clip_sd, output_checkpoint, metadata=metadata)
-        return {}
+        return io.NodeOutput()
 
-class VAESave:
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
+    save = execute  # TODO: remove
+
+
+class VAESave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VAESave",
+            category="advanced/model_merging",
+            inputs=[
+                io.Vae.Input("vae"),
+                io.String.Input("filename_prefix", default="vae/ComfyUI_vae"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "vae": ("VAE",),
-                              "filename_prefix": ("STRING", {"default": "vae/ComfyUI_vae"}),},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
-    RETURN_TYPES = ()
-    FUNCTION = "save"
-    OUTPUT_NODE = True
-
-    CATEGORY = "advanced/model_merging"
-
-    def save(self, vae, filename_prefix, prompt=None, extra_pnginfo=None):
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
+    def execute(cls, vae, filename_prefix) -> io.NodeOutput:
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
         prompt_info = ""
-        if prompt is not None:
-            prompt_info = json.dumps(prompt)
+        if cls.hidden.prompt is not None:
+            prompt_info = json.dumps(cls.hidden.prompt)
 
         metadata = {}
         if not args.disable_metadata:
             metadata["prompt"] = prompt_info
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+            if cls.hidden.extra_pnginfo is not None:
+                for x in cls.hidden.extra_pnginfo:
+                    metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
         comfy.utils.save_torch_file(vae.get_sd(), output_checkpoint, metadata=metadata)
-        return {}
+        return io.NodeOutput()
 
-class ModelSave:
-    SEARCH_ALIASES = ["export model", "checkpoint save"]
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
+    save = execute  # TODO: remove
+
+
+class ModelSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelSave",
+            search_aliases=["export model", "checkpoint save"],
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model"),
+                io.String.Input("filename_prefix", default="diffusion_models/ComfyUI"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "filename_prefix": ("STRING", {"default": "diffusion_models/ComfyUI"}),},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
-    RETURN_TYPES = ()
-    FUNCTION = "save"
-    OUTPUT_NODE = True
+    def execute(cls, model, filename_prefix) -> io.NodeOutput:
+        save_checkpoint(model, filename_prefix=filename_prefix, output_dir=folder_paths.get_output_directory(), prompt=cls.hidden.prompt, extra_pnginfo=cls.hidden.extra_pnginfo)
+        return io.NodeOutput()
 
-    CATEGORY = "advanced/model_merging"
+    save = execute  # TODO: remove
 
-    def save(self, model, filename_prefix, prompt=None, extra_pnginfo=None):
-        save_checkpoint(model, filename_prefix=filename_prefix, output_dir=self.output_dir, prompt=prompt, extra_pnginfo=extra_pnginfo)
-        return {}
 
-NODE_CLASS_MAPPINGS = {
-    "ModelMergeSimple": ModelMergeSimple,
-    "ModelMergeBlocks": ModelMergeBlocks,
-    "ModelMergeSubtract": ModelSubtract,
-    "ModelMergeAdd": ModelAdd,
-    "CheckpointSave": CheckpointSave,
-    "CLIPMergeSimple": CLIPMergeSimple,
-    "CLIPMergeSubtract": CLIPSubtract,
-    "CLIPMergeAdd": CLIPAdd,
-    "CLIPSave": CLIPSave,
-    "VAESave": VAESave,
-    "ModelSave": ModelSave,
-}
+class ModelMergingExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            ModelMergeSimple,
+            ModelMergeBlocks,
+            ModelSubtract,
+            ModelAdd,
+            CheckpointSave,
+            CLIPMergeSimple,
+            CLIPSubtract,
+            CLIPAdd,
+            CLIPSave,
+            VAESave,
+            ModelSave,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "CheckpointSave": "Save Checkpoint",
-}
+
+async def comfy_entrypoint() -> ModelMergingExtension:
+    return ModelMergingExtension()
