@@ -1,4 +1,6 @@
+import base64
 import errno
+import hmac
 import os
 import sys
 import asyncio
@@ -200,7 +202,7 @@ def create_block_external_middleware():
     return block_external_middleware  # type: ignore[return-value]
 
 
-def create_basic_auth_middleware(username: str, password: str):
+def create_basic_auth_middleware(username: str, password: str, cors_origin: Optional[str] = None):
     """HTTP Basic auth gate. Both username and password must be non-empty.
 
     Note this is intentionally minimal — Basic auth transmits credentials
@@ -210,10 +212,11 @@ def create_basic_auth_middleware(username: str, password: str):
     instead. This middleware exists because comfy currently has zero
     auth on the HTTP API, and even Basic is a strict improvement over
     that for shared-tenant / network-exposed deployments.
-    """
-    import base64
-    import hmac
 
+    cors_origin: when --enable-cors-header is set, the 401 response needs
+    matching CORS headers or the browser shows an opaque error. Auth runs
+    before the CORS middleware, so we mirror the headers here.
+    """
     expected = "Basic " + base64.b64encode(
         f"{username}:{password}".encode("utf-8")).decode("ascii")
 
@@ -223,6 +226,15 @@ def create_basic_auth_middleware(username: str, password: str):
         # hmac.compare_digest is timing-safe; plain == is not.
         return hmac.compare_digest(header_value, expected)
 
+    def _unauth_response() -> web.Response:
+        headers = {"WWW-Authenticate": 'Basic realm="ComfyUI", charset="UTF-8"'}
+        if cors_origin:
+            headers["Access-Control-Allow-Origin"] = cors_origin
+            headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, PUT, OPTIONS, PATCH"
+            headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            headers["Access-Control-Allow-Credentials"] = "true"
+        return web.Response(status=401, headers=headers, text="Authorization required.")
+
     @web.middleware
     async def basic_auth_middleware(request: web.Request, handler):
         # OPTIONS preflight should always succeed without auth so CORS works.
@@ -230,11 +242,7 @@ def create_basic_auth_middleware(username: str, password: str):
             return await handler(request)
 
         if not _matches(request.headers.get("Authorization", "")):
-            return web.Response(
-                status=401,
-                headers={"WWW-Authenticate": 'Basic realm="ComfyUI", charset="UTF-8"'},
-                text="Authorization required.",
-            )
+            return _unauth_response()
         return await handler(request)
 
     return basic_auth_middleware
@@ -267,7 +275,8 @@ class PromptServer():
         # either alone is treated as 'auth disabled' with a startup
         # warning so the user knows their config didn't apply.
         if args.username and args.password:
-            middlewares.append(create_basic_auth_middleware(args.username, args.password))
+            middlewares.append(create_basic_auth_middleware(
+                args.username, args.password, cors_origin=args.enable_cors_header))
             logging.info("HTTP Basic auth enabled (username=%s)", args.username)
         elif args.username or args.password:
             logging.warning(
