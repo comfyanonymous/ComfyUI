@@ -1005,14 +1005,20 @@ class PromptServer():
 
                 if should_interrupt:
                     nodes.interrupt_processing()
+                    return web.json_response({"interrupted": True, "prompt_id": prompt_id})
                 else:
                     logging.info(f"Prompt {prompt_id} is not currently running, skipping interrupt")
+                    # Return 404 instead of silent 200 so callers (CLI scripts,
+                    # queue managers) can distinguish "wrong id" from "ok".
+                    return web.json_response(
+                        {"interrupted": False, "prompt_id": prompt_id,
+                         "reason": "prompt is not currently running"},
+                        status=404)
             else:
                 # No prompt_id provided, do a global interrupt
                 logging.info("Global interrupt (no prompt_id specified)")
                 nodes.interrupt_processing()
-
-            return web.Response(status=200)
+                return web.json_response({"interrupted": True})
 
         @routes.post("/free")
         async def post_free(request):
