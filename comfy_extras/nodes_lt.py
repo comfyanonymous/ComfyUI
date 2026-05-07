@@ -106,12 +106,12 @@ class LTXVImgToVideoInplace(io.ComfyNode):
         if bypass:
             return (latent,)
 
-        samples = latent["samples"]
+        samples = latent["samples"].clone()
         _, height_scale_factor, width_scale_factor = (
             vae.downscale_index_formula
         )
 
-        batch, _, latent_frames, latent_height, latent_width = samples.shape
+        _, _, _, latent_height, latent_width = samples.shape
         width = latent_width * width_scale_factor
         height = latent_height * height_scale_factor
 
@@ -124,11 +124,7 @@ class LTXVImgToVideoInplace(io.ComfyNode):
 
         samples[:, :, :t.shape[2]] = t
 
-        conditioning_latent_frames_mask = torch.ones(
-            (batch, 1, latent_frames, 1, 1),
-            dtype=torch.float32,
-            device=samples.device,
-        )
+        conditioning_latent_frames_mask = get_noise_mask(latent)
         conditioning_latent_frames_mask[:, :, :t.shape[2]] = 1.0 - strength
 
         return io.NodeOutput({"samples": samples, "noise_mask": conditioning_latent_frames_mask})
