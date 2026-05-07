@@ -78,11 +78,14 @@ MAX_RESOLUTION=16384
 #     ConditioningSetMask, ConditioningConcat) all .copy() the dict
 #     before mutating, so the shared-tensor sharing is safe.
 #
-# Configurable via env vars:
+# Configurable via env vars (read once at import — restart to change):
 #   COMFY_CLIP_ENCODE_CACHE=0          -> disable entirely
 #   COMFY_CLIP_ENCODE_CACHE_MAX=<int>  -> cap entries (default 64)
 _CLIP_ENCODE_CACHE: "OrderedDict[tuple, list]" = OrderedDict()
-_CLIP_ENCODE_CACHE_LOCK = threading.Lock()
+# RLock so a weakref finaliser firing on a thread that already holds the
+# lock (e.g. via _purge_clip_cache_for triggered mid-eviction) can re-enter
+# without deadlocking.
+_CLIP_ENCODE_CACHE_LOCK = threading.RLock()
 # Weakrefs to CLIP instances we've cached, indexed by id(clip). When a CLIP
 # is garbage-collected (e.g. checkpoint swap) the finaliser fires and we
 # purge cache entries keyed on its id — guarding against the case where a
@@ -128,14 +131,15 @@ def _track_clip_lifetime(clip):
     is freed; the finaliser purges entries on collection so a recycled id
     never gives stale results to a fresh CLIP."""
     cid = id(clip)
-    if cid in _CLIP_KEEPALIVE:
-        return
-    try:
-        _CLIP_KEEPALIVE[cid] = weakref.ref(clip, lambda _ref: _purge_clip_cache_for(cid))
-    except TypeError:
-        # Object doesn't support weakref (very unusual). Skip tracking; the
-        # LRU bound still caps the worst-case stale-cache exposure.
-        pass
+    with _CLIP_ENCODE_CACHE_LOCK:
+        if cid in _CLIP_KEEPALIVE:
+            return
+        try:
+            _CLIP_KEEPALIVE[cid] = weakref.ref(clip, lambda _ref: _purge_clip_cache_for(cid))
+        except TypeError:
+            # Object doesn't support weakref (very unusual). Skip tracking; the
+            # LRU bound still caps the worst-case stale-cache exposure.
+            pass
 
 
 def _clip_encode_cached(clip, text):
