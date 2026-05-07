@@ -620,7 +620,13 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             for name, inputs in input_data_all.items():
                 input_data_formatted[name] = [format_value(x) for x in inputs]
 
-        logging.error(f"!!! Exception during processing !!! {ex}")
+        # Lead the log line with which node specifically blew up — the
+        # node_id + class_type pair is the single most useful piece of
+        # context for triaging an error. Without it, users (and bug
+        # reports) commonly say things like 'shape mismatch in my
+        # workflow' with no idea which of 30 nodes is the culprit.
+        logging.error(f"!!! Exception during processing !!! "
+                      f"node_id={real_node_id} class={class_type} :: {ex}")
         logging.error(traceback.format_exc())
         tips = ""
 
@@ -631,6 +637,28 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             comfy.model_management.unload_all_models()
         elif isinstance(ex, RuntimeError) and ("mat1 and mat2 shapes" in str(ex)) and "Sampler" in class_type:
             tips = "\n\nTIPS: If you have any \"Load CLIP\" or \"*CLIP Loader\" nodes in your workflow connected to this sampler node make sure the correct file(s) and type is selected."
+        elif isinstance(ex, RuntimeError) and "mat1 and mat2 shapes" in str(ex):
+            # Same root cause as the Sampler-specific tip above but the
+            # error can surface on any matmul node (CLIPTextEncode, ControlNet
+            # applies, etc.) when the wrong CLIP / encoder is wired in.
+            tips = ("\n\nTIPS: A matmul shape mismatch usually means a model "
+                    "and its text encoder/CLIP came from different checkpoints "
+                    "(e.g. SDXL checkpoint with an SD1.5 CLIP). Verify the "
+                    "model + CLIP wired into the upstream of this node share "
+                    "the same architecture (both SDXL, both SD1.5, etc.).")
+        elif isinstance(ex, RuntimeError) and "Sizes of tensors must match" in str(ex):
+            tips = ("\n\nTIPS: A tensor-size mismatch usually means image / "
+                    "latent batches with different spatial dimensions are "
+                    "being combined. Check that any concat / batch nodes "
+                    "upstream emit images of the same width and height.")
+        elif isinstance(ex, RuntimeError) and ("CUDA out of memory" in str(ex)
+                                                or "HIP out of memory" in str(ex)):
+            # Belt-and-braces: is_oom catches most cases but the literal
+            # CUDA/HIP messages occasionally slip through without it.
+            tips = ("\n\nTIPS: GPU ran out of memory. Try lowering batch size, "
+                    "image resolution, or pass --lowvram to ComfyUI. If you "
+                    "use the SaveImage parallel encode env vars, drop "
+                    "COMFY_SAVEIMAGE_THREADS to 1.")
 
         error_details = {
             "node_id": real_node_id,
