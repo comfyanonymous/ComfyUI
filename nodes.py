@@ -56,6 +56,72 @@ def interrupt_processing(value=True):
 
 MAX_RESOLUTION=16384
 
+
+# Process-wide LoRA state-dict cache shared across all LoraLoader nodes.
+# Two LoraLoader nodes wired to the same file should hit disk once, not
+# twice — which is the common case for stacked LoRA workflows
+# (style + character + detail), where switching one LoRA in the chain
+# should never invalidate the others.
+#
+# Bounded LRU keyed by (path, mtime) so externally-edited files reload.
+# Default cap 4 entries; configurable via env var. Each entry is a small
+# state_dict (LoRAs are typically 30-300 MB), so 4 caps the cache at
+# roughly 1 GB worst case, well within RAM budgets.
+
+import collections
+import threading as _threading
+
+_LORA_CACHE: "collections.OrderedDict[tuple, dict]" = collections.OrderedDict()
+_LORA_CACHE_LOCK = _threading.Lock()
+
+
+def _lora_cache_max() -> int:
+    raw = os.environ.get("COMFY_LORA_CACHE_MAX", "4")
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        logging.warning("COMFY_LORA_CACHE_MAX must be a positive integer "
+                        "(got %r); falling back to 4", raw)
+        return 4
+
+
+_LORA_CACHE_MAX = _lora_cache_max()
+_LORA_CACHE_ENABLED = os.environ.get("COMFY_LORA_CACHE", "1") != "0"
+
+
+def _load_lora_state_dict_cached(lora_path: str) -> dict:
+    """Return the LoRA state dict for `lora_path`, hitting disk only on miss.
+
+    Cache key includes the file mtime so an externally edited / replaced
+    LoRA file reloads naturally. Falls back to direct load when the cache
+    is disabled via COMFY_LORA_CACHE=0.
+    """
+    if not _LORA_CACHE_ENABLED:
+        return comfy.utils.load_torch_file(lora_path, safe_load=True)
+    try:
+        mtime = os.path.getmtime(lora_path)
+    except OSError:
+        # File vanished or not stat-able — let load_torch_file raise.
+        return comfy.utils.load_torch_file(lora_path, safe_load=True)
+    key = (lora_path, mtime)
+    with _LORA_CACHE_LOCK:
+        cached = _LORA_CACHE.get(key)
+        if cached is not None:
+            _LORA_CACHE.move_to_end(key)
+            return cached
+    sd = comfy.utils.load_torch_file(lora_path, safe_load=True)
+    with _LORA_CACHE_LOCK:
+        # Re-check in case another thread populated while we were loading.
+        existing = _LORA_CACHE.get(key)
+        if existing is not None:
+            _LORA_CACHE.move_to_end(key)
+            return existing
+        _LORA_CACHE[key] = sd
+        if len(_LORA_CACHE) > _LORA_CACHE_MAX:
+            _LORA_CACHE.popitem(last=False)
+    return sd
+
+
 class CLIPTextEncode(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s) -> InputTypeDict:
@@ -699,16 +765,10 @@ class LoraLoader:
             return (model, clip)
 
         lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
-        lora = None
-        if self.loaded_lora is not None:
-            if self.loaded_lora[0] == lora_path:
-                lora = self.loaded_lora[1]
-            else:
-                self.loaded_lora = None
-
-        if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-            self.loaded_lora = (lora_path, lora)
+        lora = _load_lora_state_dict_cached(lora_path)
+        # Keep the per-instance reference for the legacy fast path so any
+        # external code reading self.loaded_lora still sees the same shape.
+        self.loaded_lora = (lora_path, lora)
 
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
