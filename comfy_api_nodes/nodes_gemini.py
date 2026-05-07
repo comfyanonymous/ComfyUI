@@ -101,10 +101,18 @@ async def create_image_parts(
 
     # Number of images we'll send as URLs (fileData)
     num_url_images = min(effective_max, 10)  # Vertex API max number of image links
+    upload_kwargs: dict = {"wait_label": "Uploading reference images"}
+    if effective_max > num_url_images:
+        # Split path (e.g. 11+ images): suppress per-image counter to avoid a confusing dual-fraction label.
+        upload_kwargs = {
+            "wait_label": f"Uploading reference images ({effective_max})",
+            "show_batch_index": False,
+        }
     reference_images_urls = await upload_images_to_comfyapi(
         cls,
         images_list,
         max_images=num_url_images,
+        **upload_kwargs,
     )
     for reference_image_url in reference_images_urls:
         image_parts.append(
