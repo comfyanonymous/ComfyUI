@@ -287,9 +287,17 @@ def prompt_worker(q, server_instance):
     if cache_ram < 0:
         cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
 
+    cache_score = args.cache_score
+    if cache_score < 0:
+        cache_score = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
+
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
+    elif cache_score > 0:
+        cache_type = execution.CacheType.SCORE
+        # ScoreCache shares the RAMPressureCache headroom plumbing.
+        cache_ram = cache_score
     elif cache_ram > 0:
         cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:

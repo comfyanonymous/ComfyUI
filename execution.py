@@ -28,6 +28,7 @@ from comfy_execution.caching import (
     HierarchicalCache,
     LRUCache,
     RAMPressureCache,
+    ScoreCache,
 )
 from comfy_execution.graph import (
     DynamicPrompt,
@@ -99,6 +100,7 @@ class IsChangedCache:
 class CacheEntry(NamedTuple):
     ui: dict
     outputs: list
+    exec_time: float = 0.0
 
 
 class CacheType(Enum):
@@ -106,6 +108,7 @@ class CacheType(Enum):
     LRU = 1
     NONE = 2
     RAM_PRESSURE = 3
+    SCORE = 4
 
 
 class CacheSet:
@@ -121,6 +124,9 @@ class CacheSet:
             cache_size = cache_args.get("lru", 0)
             self.init_lru_cache(cache_size)
             logging.info("Using LRU cache")
+        elif cache_type == CacheType.SCORE:
+            self.init_score_cache()
+            logging.info("Using score-based cache (size / exec_time eviction)")
         else:
             self.init_classic_cache()
 
@@ -137,6 +143,10 @@ class CacheSet:
 
     def init_ram_cache(self, min_headroom):
         self.outputs = RAMPressureCache(CacheKeySetInputSignature, enable_providers=True)
+        self.objects = HierarchicalCache(CacheKeySetID)
+
+    def init_score_cache(self):
+        self.outputs = ScoreCache(CacheKeySetInputSignature, enable_providers=True)
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def init_null_cache(self):
@@ -531,6 +541,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
 
+            node_exec_start = time.perf_counter()
             try:
                 output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
             finally:
@@ -598,7 +609,11 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             pending_subgraph_results[unique_id] = cached_outputs
             return (ExecutionResult.PENDING, None, None)
 
-        cache_entry = CacheEntry(ui=ui_outputs.get(unique_id), outputs=output_data)
+        cache_entry = CacheEntry(
+            ui=ui_outputs.get(unique_id),
+            outputs=output_data,
+            exec_time=time.perf_counter() - node_exec_start,
+        )
         execution_list.cache_update(unique_id, cache_entry)
         await caches.outputs.set(unique_id, cache_entry)
 
@@ -727,7 +742,11 @@ class PromptExecutor:
 
         self._notify_prompt_lifecycle("start", prompt_id)
         ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
-        ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
+        ram_release_callback = (
+            self.caches.outputs.ram_release
+            if self.cache_type in (CacheType.RAM_PRESSURE, CacheType.SCORE)
+            else None
+        )
         comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
         try:
@@ -779,7 +798,7 @@ class PromptExecutor:
                     else: # result == ExecutionResult.SUCCESS:
                         execution_list.complete_node_execution()
 
-                    if self.cache_type == CacheType.RAM_PRESSURE:
+                    if self.cache_type in (CacheType.RAM_PRESSURE, CacheType.SCORE):
                         comfy.model_management.free_memory(0, None, pins_required=ram_headroom, ram_required=ram_headroom)
                         ram_release_callback(ram_headroom, free_active=True)
                 else:

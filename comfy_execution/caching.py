@@ -561,3 +561,65 @@ class RAMPressureCache(LRUCache):
             self.used_generation.pop(key, None)
             self.timestamps.pop(key, None)
             self.children.pop(key, None)
+
+
+# Floor on per-entry exec_time so an instantaneous node (timer recorded as 0)
+# doesn't blow up the size/exec_time ratio to infinity.
+SCORE_CACHE_MIN_EXEC_TIME = 0.001
+
+
+class ScoreCache(RAMPressureCache):
+    """RAM-pressure variant that scores entries by `size / exec_time`.
+
+    Closes #8367. The intuition: if memory is tight, evict entries that are
+    cheap to recompute relative to how much memory they hold. A 4 GB cached
+    output that took 0.01 s to produce should go before a 200 MB cached
+    output that took 30 s.
+
+    Compared to `RAMPressureCache` (which scores by age * size), this one
+    additionally weights by recompute cost so expensive-to-rebuild entries
+    survive memory pressure even after they age out of the active workflow.
+    Falls back to the parent's age-aware scoring when an entry has no
+    timing recorded (e.g. legacy callers using CacheEntry without
+    exec_time).
+    """
+
+    def ram_release(self, target, free_active=False):
+        if psutil.virtual_memory().available >= target:
+            return
+
+        clean_list = []
+        for key, cache_entry in self.cache.items():
+            if not free_active and self.used_generation[key] == self.generation:
+                continue
+            age_score = RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
+
+            ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
+
+            def scan_list_for_ram_usage(outputs):
+                nonlocal ram_usage
+                if outputs is None:
+                    return
+                for output in outputs:
+                    if isinstance(output, (list, tuple)):
+                        scan_list_for_ram_usage(output)
+                    elif isinstance(output, torch.Tensor) and output.device.type == 'cpu':
+                        ram_usage += output.numel() * output.element_size()
+                    elif isinstance(output, ModelPatcher) and self.used_generation[key] != self.generation:
+                        ram_usage = 1e30
+            scan_list_for_ram_usage(cache_entry.outputs)
+
+            # Eviction priority: higher score = evict first.
+            # `size / exec_time` punishes large-but-cheap entries; old
+            # workflows still get the age multiplier so they aren't
+            # camping memory forever.
+            exec_time = max(getattr(cache_entry, 'exec_time', 0.0), SCORE_CACHE_MIN_EXEC_TIME)
+            score = age_score * ram_usage / exec_time
+            bisect.insort(clean_list, (score, self.timestamps[key], key))
+
+        while psutil.virtual_memory().available < target and clean_list:
+            _, _, key = clean_list.pop()
+            del self.cache[key]
+            self.used_generation.pop(key, None)
+            self.timestamps.pop(key, None)
+            self.children.pop(key, None)
