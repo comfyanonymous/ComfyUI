@@ -583,7 +583,16 @@ class LoadedModel:
             # eviction has already run, with the same effect. Bounding to
             # current free memory is the cap the dispatcher would have to
             # observe anyway. (#11332)
-            use_more_vram = get_free_memory(self.device)
+            #
+            # DirectML's get_free_memory() returns a 1 GB placeholder
+            # (lowvram_available is also forced False there), so applying
+            # the cap would silently shrink every load to 1 GB. Keep the
+            # historical sentinel for that backend until DirectML grows a
+            # real free-memory query.
+            if directml_enabled:
+                use_more_vram = 1e32
+            else:
+                use_more_vram = get_free_memory(self.device)
         self.model_use_more_vram(use_more_vram, force_patch_weights=force_patch_weights)
 
         real_model = self.model.model
