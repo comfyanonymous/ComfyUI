@@ -31,6 +31,7 @@ from contextlib import nullcontext
 import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
+import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
 
 class VRAMState(Enum):
@@ -1180,8 +1181,10 @@ STREAM_CAST_BUFFERS = {}
 LARGEST_CASTED_WEIGHT = (None, 0)
 STREAM_AIMDO_CAST_BUFFERS = {}
 LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+STREAM_PIN_BUFFERS = {}
 
 DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
+DEFAULT_PIN_BUFFER_PRIME_SIZE = 1024 ** 2
 
 def get_cast_buffer(offload_stream, device, size, ref):
     global LARGEST_CASTED_WEIGHT
@@ -1220,21 +1223,32 @@ def get_aimdo_cast_buffer(offload_stream, device):
     if cast_buffer is None:
         cast_buffer = comfy_aimdo.vram_buffer.VRAMBuffer(DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE, device.index)
         STREAM_AIMDO_CAST_BUFFERS[offload_stream] = cast_buffer
-
     return cast_buffer
+
+def get_pin_buffer(offload_stream):
+    pin_buffer = STREAM_PIN_BUFFERS.get(offload_stream, None)
+    if pin_buffer is None:
+        # A small non-zero default primes HostBuffer's larger virtual reservation.
+        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(DEFAULT_PIN_BUFFER_PRIME_SIZE)
+        STREAM_PIN_BUFFERS[offload_stream] = pin_buffer
+    elif offload_stream is not None:
+        offload_stream.synchronize()
+    return pin_buffer
+
 def reset_cast_buffers():
     global LARGEST_CASTED_WEIGHT
     global LARGEST_AIMDO_CASTED_WEIGHT
 
     LARGEST_CASTED_WEIGHT = (None, 0)
     LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
-    for offload_stream in set(STREAM_CAST_BUFFERS) | set(STREAM_AIMDO_CAST_BUFFERS):
+    for offload_stream in set(STREAM_CAST_BUFFERS) | set(STREAM_AIMDO_CAST_BUFFERS) | set(STREAM_PIN_BUFFERS):
         if offload_stream is not None:
             offload_stream.synchronize()
     synchronize()
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
+    STREAM_PIN_BUFFERS.clear()
     soft_empty_cache()
 
 def get_offload_stream(device):
