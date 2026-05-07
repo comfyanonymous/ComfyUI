@@ -674,8 +674,7 @@ class Decoder(nn.Module):
         patches_batch = self.get_patches_batch(x, _p1) if self.split else x
         _p1 = torch.cat((_p1, self.ipt_blk1(F.interpolate(patches_batch, size=x.shape[2:], mode='bilinear', align_corners=True))), 1)
         p1_out = self.conv_out1(_p1)
-        fake = torch.empty_like(p1_out)
-        return p1_out, fake, fake, fake
+        return p1_out
 
 
 class SimpleConvs(nn.Module):

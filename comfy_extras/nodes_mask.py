@@ -390,29 +390,6 @@ class GrowMask(IO.ComfyNode):
 
     expand_mask = execute  # TODO: remove
 
-class ClipVisionToMask(IO.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return IO.Schema(
-            node_id="ClipVisionToMask",
-            inputs = [
-                IO.ClipVisionOutput.Input("clip_vision_output")
-            ],
-            outputs = [IO.Mask.Output("mask")]
-        )
-    @classmethod
-    def execute(cls, clip_vision_output):
-        if not isinstance(clip_vision_output, torch.Tensor):
-            mask = clip_vision_output["last_hidden_state"]
-        mask = mask.sigmoid()
-        if mask.ndim == 3:
-            mask = mask.unsqueeze(0)
-        if mask.shape[1] != 1:
-            mask = mask.movedim(-1, 1)
-        return IO.NodeOutput(mask)
-
-    clip_vision_to_mask = execute
-
 class ThresholdMask(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -476,7 +453,6 @@ class MaskExtension(ComfyExtension):
             GrowMask,
             ThresholdMask,
             MaskPreview,
-            ClipVisionToMask
         ]
 
 

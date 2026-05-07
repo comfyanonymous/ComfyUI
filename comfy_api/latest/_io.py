@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from spandrel import ImageModelDescriptor
     from comfy.clip_vision import ClipVisionModel
     from comfy.clip_vision import Output as ClipVisionOutput_
+    from comfy.bg_removal_model import BackgroundRemovalModel
     from comfy.controlnet import ControlNet
     from comfy.hooks import HookGroup, HookKeyframeGroup
     from comfy.model_patcher import ModelPatcher
@@ -612,6 +613,11 @@ class Vae(ComfyTypeIO):
 class Model(ComfyTypeIO):
     if TYPE_CHECKING:
         Type = ModelPatcher
+
+@comfytype(io_type="BACKGROUND_REMOVAL")
+class BackgroundRemoval(ComfyTypeIO):
+    if TYPE_CHECKING:
+        Type = BackgroundRemovalModel
 
 @comfytype(io_type="CLIP_VISION")
 class ClipVision(ComfyTypeIO):
@@ -2219,6 +2225,7 @@ __all__ = [
     "ModelPatch",
     "ClipVision",
     "ClipVisionOutput",
+    "BackgroundRemoval",
     "AudioEncoder",
     "AudioEncoderOutput",
     "StyleModel",

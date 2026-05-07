@@ -10,7 +10,6 @@ import comfy.model_management
 import comfy.utils
 import comfy.clip_model
 import comfy.image_encoders.dino2
-import comfy.image_encoders.birefnet
 
 class Output:
     def __getitem__(self, key):
@@ -25,7 +24,6 @@ IMAGE_ENCODERS = {
     "siglip_vision_model": comfy.clip_model.CLIPVisionModelProjection,
     "siglip2_vision_model": comfy.clip_model.CLIPVisionModelProjection,
     "dinov2": comfy.image_encoders.dino2.Dinov2Model,
-    "birefnet": comfy.image_encoders.birefnet.BiRefNet
 }
 
 class ClipVisionModel():
@@ -37,7 +35,6 @@ class ClipVisionModel():
         self.image_mean = config.get("image_mean", [0.48145466, 0.4578275, 0.40821073])
         self.image_std = config.get("image_std", [0.26862954, 0.26130258, 0.27577711])
         self.model_type = config.get("model_type", "clip_vision_model")
-        self.resize_to_original = config.get("resize_to_original", False)
         self.config = config.copy()
         model_class = IMAGE_ENCODERS.get(self.model_type)
         if self.model_type == "siglip_vision_model":
@@ -61,15 +58,11 @@ class ClipVisionModel():
 
     def encode_image(self, image, crop=True):
         comfy.model_management.load_model_gpu(self.patcher)
-        H, W = image.shape[1], image.shape[2]
         if self.model_type == "siglip2_vision_model":
             pixel_values = comfy.clip_model.siglip2_preprocess(image.to(self.load_device), size=self.image_size, patch_size=self.config.get("patch_size", 16), num_patches=self.config.get("num_patches", 256), mean=self.image_mean, std=self.image_std, crop=crop).float()
         else:
             pixel_values = comfy.clip_model.clip_preprocess(image.to(self.load_device), size=self.image_size, mean=self.image_mean, std=self.image_std, crop=crop).float()
         out = self.model(pixel_values=pixel_values, intermediate_output='all' if self.return_all_hidden_states else -2)
-        if self.resize_to_original:
-            resized = torch.nn.functional.interpolate(out[0], size=(H, W), mode="bicubic", antialias=False)
-            out = (resized,) + out[1:]
 
         outputs = Output()
         outputs["last_hidden_state"] = out[0].to(comfy.model_management.intermediate_device())
@@ -136,9 +129,6 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
                 json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336.json")
         else:
             json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
-
-    elif "bb.layers.1.blocks.0.attn.relative_position_index" in sd:
-        json_config = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "image_encoders"), "birefnet.json")
 
     # Dinov2
     elif 'encoder.layer.39.layer_scale2.lambda1' in sd:
