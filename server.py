@@ -1,4 +1,5 @@
 import errno
+import gc
 import os
 import sys
 import asyncio
@@ -1024,6 +1025,91 @@ class PromptServer():
             if free_memory:
                 self.prompt_queue.set_flag("free_memory", free_memory)
             return web.Response(status=200)
+
+        @routes.post("/free_memory")
+        async def post_free_memory(request):
+            """Synchronous memory-free endpoint.
+
+            POST /free_memory with optional JSON body:
+                {
+                    "unload_models": true,   // unload all loaded MODEL/CLIP/VAE objects
+                    "gc": true,              // run gc.collect() after unload
+                    "empty_cache": true      // call torch.cuda.empty_cache() etc.
+                }
+
+            All three default to true. Returns the memory deltas observed
+            during the call:
+                {
+                    "queued": false,
+                    "ram_freed": <bytes>,
+                    "vram_freed": <bytes>,
+                    "ram_free_after": <bytes>,
+                    "vram_free_after": <bytes>,
+                    "duration_ms": <int>
+                }
+
+            If a prompt is currently executing or queued, the work is
+            deferred via the same flag mechanism as POST /free (so we don't
+            yank models out from under an in-flight sample) and the response
+            reports `"queued": true` with no deltas. The prompt-worker loop
+            picks the flags up after the current item completes.
+
+            Compared to POST /free, this endpoint:
+              - Runs synchronously when the queue is idle (the common case
+                for a UI/CLI button that frees memory between sessions).
+              - Returns observed deltas so callers can show "freed N MB" UX.
+              - Defaults to all three operations on; /free defaults to off.
+            """
+            try:
+                payload = await request.json() if request.body_exists else {}
+            except Exception:
+                payload = {}
+            unload_models = bool(payload.get("unload_models", True))
+            do_gc = bool(payload.get("gc", True))
+            empty_cache = bool(payload.get("empty_cache", True))
+
+            # Defer to the prompt-worker flags when something is running so
+            # we never unload mid-sample. The worker honours the same flags
+            # POST /free uses, so we get correct cleanup post-prompt.
+            if self.prompt_queue.get_tasks_remaining() > 0:
+                if unload_models:
+                    self.prompt_queue.set_flag("unload_models", True)
+                if empty_cache or do_gc:
+                    self.prompt_queue.set_flag("free_memory", True)
+                return web.json_response({
+                    "queued": True,
+                    "reason": "prompt is currently executing or queued; "
+                              "memory will be freed after it completes",
+                })
+
+            # Idle: do the work synchronously and report deltas.
+            device = comfy.model_management.get_torch_device()
+            cpu_device = comfy.model_management.torch.device("cpu")
+
+            def _stats():
+                ram_free = comfy.model_management.get_free_memory(cpu_device)
+                vram_free = comfy.model_management.get_free_memory(device)
+                return ram_free, vram_free
+
+            ram_before, vram_before = _stats()
+            t0 = time.perf_counter()
+            if unload_models:
+                comfy.model_management.unload_all_models()
+            if do_gc:
+                gc.collect()
+            if empty_cache:
+                comfy.model_management.soft_empty_cache(force=True)
+            duration_ms = int((time.perf_counter() - t0) * 1000)
+            ram_after, vram_after = _stats()
+
+            return web.json_response({
+                "queued": False,
+                "ram_freed": max(0, ram_after - ram_before),
+                "vram_freed": max(0, vram_after - vram_before),
+                "ram_free_after": ram_after,
+                "vram_free_after": vram_after,
+                "duration_ms": duration_ms,
+            })
 
         @routes.post("/history")
         async def post_history(request):
