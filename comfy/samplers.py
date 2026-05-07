@@ -736,7 +736,12 @@ class KSAMPLER(Sampler):
         model_k = KSamplerX0Inpaint(model_wrap, sigmas)
         model_k.latent_image = latent_image
         if self.inpaint_options.get("random", False): #TODO: Should this be the default?
-            generator = torch.manual_seed(extra_args.get("seed", 41) + 1)
+            # Use a per-call generator so seeding doesn't mutate the
+            # process-wide torch RNG. Same noise bytes for the same seed —
+            # torch.Generator uses the same Mersenne Twister as the default
+            # generator — but downstream torch.randn callers no longer
+            # inherit this seed via the global side effect.
+            generator = torch.Generator(device="cpu").manual_seed(extra_args.get("seed", 41) + 1)
             model_k.noise = torch.randn(noise.shape, generator=generator, device="cpu").to(noise.dtype).to(noise.device)
         else:
             model_k.noise = noise
