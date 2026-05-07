@@ -135,7 +135,17 @@ class PorterDuffImageComposite(io.ComfyNode):
             src_image = source[i]
             dst_image = destination[i]
 
-            assert src_image.shape[2] == dst_image.shape[2] # inputs need to have same number of channels
+            if src_image.shape[2] != dst_image.shape[2]:
+                # `assert` here used to raise a bare AssertionError with no
+                # message, and gets stripped under `python -O`. ValueError
+                # both survives optimisation and tells the user which
+                # channel counts didn't match.
+                raise ValueError(
+                    "PorterDuffImageComposite: source and destination images "
+                    "must have the same number of channels (source={}, "
+                    "destination={}). Convert one with ImageColorChannel or "
+                    "JoinImageWithAlpha before compositing.".format(
+                        src_image.shape[2], dst_image.shape[2]))
 
             src_alpha = source_alpha[i].unsqueeze(2)
             dst_alpha = destination_alpha[i].unsqueeze(2)
