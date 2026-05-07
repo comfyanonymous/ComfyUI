@@ -56,6 +56,61 @@ def interrupt_processing(value=True):
 
 MAX_RESOLUTION=16384
 
+
+# Process-wide LRU cache for VAE state-dicts. Two VAELoader nodes
+# wired to the same .safetensors VAE file (common in workflows that
+# decode at multiple steps for preview + final, or split-aspect
+# pipelines that share a VAE) hit disk once.
+#
+# VAE files are ~330 MB (SDXL) to ~1.2 GB (Flux); cap defaults to 2.
+# Configurable via env vars analogous to the LoRA / ControlNet caches.
+import collections as _vae_collections
+import threading as _vae_threading
+
+_VAE_CACHE: "_vae_collections.OrderedDict[tuple, tuple]" = _vae_collections.OrderedDict()
+_VAE_CACHE_LOCK = _vae_threading.Lock()
+
+
+def _vae_cache_max() -> int:
+    raw = os.environ.get("COMFY_VAE_CACHE_MAX", "2")
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        logging.warning("COMFY_VAE_CACHE_MAX must be a positive integer "
+                        "(got %r); falling back to 2", raw)
+        return 2
+
+
+_VAE_CACHE_MAX = _vae_cache_max()
+_VAE_CACHE_ENABLED = os.environ.get("COMFY_VAE_CACHE", "1") != "0"
+
+
+def _load_vae_state_dict_cached(vae_path: str):
+    """Cached load of a VAE .safetensors file, returns (sd, metadata)."""
+    if not _VAE_CACHE_ENABLED:
+        return comfy.utils.load_torch_file(vae_path, return_metadata=True)
+    try:
+        mtime = os.path.getmtime(vae_path)
+    except OSError:
+        return comfy.utils.load_torch_file(vae_path, return_metadata=True)
+    key = (vae_path, mtime)
+    with _VAE_CACHE_LOCK:
+        cached = _VAE_CACHE.get(key)
+        if cached is not None:
+            _VAE_CACHE.move_to_end(key)
+            return cached
+    result = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+    with _VAE_CACHE_LOCK:
+        existing = _VAE_CACHE.get(key)
+        if existing is not None:
+            _VAE_CACHE.move_to_end(key)
+            return existing
+        _VAE_CACHE[key] = result
+        if len(_VAE_CACHE) > _VAE_CACHE_MAX:
+            _VAE_CACHE.popitem(last=False)
+    return result
+
+
 class CLIPTextEncode(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s) -> InputTypeDict:
@@ -802,7 +857,7 @@ class VAELoader:
                 vae_path = folder_paths.get_full_path_or_raise("vae_approx", vae_name)
             else:
                 vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
-            sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+            sd, metadata = _load_vae_state_dict_cached(vae_path)
         if vae_name == "taef2":
             if metadata is None:
                 metadata = {"tae_latent_channels": 128}
