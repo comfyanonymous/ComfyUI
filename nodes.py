@@ -1619,6 +1619,10 @@ class SaveImage:
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
                 "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
             },
+            "optional": {
+                "format": (["png", "jpg", "webp"], {"default": "png", "tooltip": "Image format. PNG (lossless, embeds workflow); JPG (smaller, EXIF metadata); WEBP (small + alpha)."}),
+                "quality": ("INT", {"default": 90, "min": 1, "max": 100, "step": 1, "tooltip": "Quality for jpg/webp (1-100). Ignored for png."}),
+            },
             "hidden": {
                 "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
             },
@@ -1634,25 +1638,57 @@ class SaveImage:
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
     SEARCH_ALIASES = ["save", "save image", "export image", "output image", "write image", "download"]
 
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", format="png", quality=90, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
+        # Build a JSON blob of the workflow once — embedded into every image
+        # (PNG via PngInfo text chunk; jpg/webp via EXIF UserComment for the
+        # frontend to read back on drag-and-drop).
+        workflow_json = None
+        if not args.disable_metadata:
+            workflow_pieces = {}
+            if prompt is not None:
+                workflow_pieces["prompt"] = prompt
+            if extra_pnginfo is not None:
+                workflow_pieces.update(extra_pnginfo)
+            if workflow_pieces:
+                workflow_json = json.dumps(workflow_pieces)
+
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = None
-            if not args.disable_metadata:
-                metadata = PngInfo()
-                if prompt is not None:
-                    metadata.add_text("prompt", json.dumps(prompt))
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
+            ext = format if format != "jpg" else "jpeg"  # PIL wants 'jpeg' not 'jpg'
+            file = f"{filename_with_batch_num}_{counter:05}_.{format}"
+            target = os.path.join(full_output_folder, file)
+
+            if format == "png":
+                metadata = None
+                if not args.disable_metadata:
+                    metadata = PngInfo()
+                    if prompt is not None:
+                        metadata.add_text("prompt", json.dumps(prompt))
+                    if extra_pnginfo is not None:
+                        for x in extra_pnginfo:
+                            metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                img.save(target, pnginfo=metadata, compress_level=self.compress_level)
+            else:
+                # JPG can't carry alpha; WebP handles RGBA natively.
+                if format == "jpg" and img.mode == "RGBA":
+                    img = img.convert("RGB")
+                save_kwargs = {"format": ext, "quality": int(quality)}
+                if workflow_json is not None:
+                    # Encode workflow as EXIF UserComment (tag 0x9286). Both
+                    # JPG and WEBP carry EXIF; the frontend reads it on
+                    # drag-and-drop the same way as PNG text chunks.
+                    exif = img.getexif()
+                    # 0x9286 is UserComment; first 8 bytes are charset header.
+                    exif[0x9286] = b"UNICODE\0" + workflow_json.encode("utf-16-be")
+                    save_kwargs["exif"] = exif.tobytes()
+                img.save(target, **save_kwargs)
+
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
