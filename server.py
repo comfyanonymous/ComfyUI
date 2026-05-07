@@ -1070,19 +1070,30 @@ class PromptServer():
 
             # Defer to the prompt-worker flags when something is running so
             # we never unload mid-sample. The worker honours the same flags
-            # POST /free uses, so we get correct cleanup post-prompt.
-            if self.prompt_queue.get_tasks_remaining() > 0:
+            # POST /free uses, so we get correct cleanup post-prompt. Note
+            # that the worker treats "free_memory" as a coarse trigger:
+            # setting it also runs unload + gc + empty_cache regardless of
+            # the caller's per-flag preference. We document that here rather
+            # than introduce new worker flags just for this endpoint.
+            def _defer_to_worker():
                 if unload_models:
                     self.prompt_queue.set_flag("unload_models", True)
                 if empty_cache or do_gc:
                     self.prompt_queue.set_flag("free_memory", True)
+
+            if self.prompt_queue.get_tasks_remaining() > 0:
+                _defer_to_worker()
                 return web.json_response({
                     "queued": True,
                     "reason": "prompt is currently executing or queued; "
-                              "memory will be freed after it completes",
+                              "memory will be freed after it completes "
+                              "(deferred mode unloads + gc + empty_cache "
+                              "together due to worker flag semantics)",
                 })
 
-            # Idle: do the work synchronously and report deltas.
+            # Idle: do the work in a worker thread so we don't block the
+            # event loop while unload + gc + empty_cache run (each can take
+            # 100s of ms, and we don't want to stall other HTTP handlers).
             device = comfy.model_management.get_torch_device()
             cpu_device = comfy.model_management.torch.device("cpu")
 
@@ -1091,16 +1102,32 @@ class PromptServer():
                 vram_free = comfy.model_management.get_free_memory(device)
                 return ram_free, vram_free
 
-            ram_before, vram_before = _stats()
-            t0 = time.perf_counter()
-            if unload_models:
-                comfy.model_management.unload_all_models()
-            if do_gc:
-                gc.collect()
-            if empty_cache:
-                comfy.model_management.soft_empty_cache(force=True)
-            duration_ms = int((time.perf_counter() - t0) * 1000)
-            ram_after, vram_after = _stats()
+            def _do_free_blocking():
+                ram_before, vram_before = _stats()
+                t0 = time.perf_counter()
+                if unload_models:
+                    comfy.model_management.unload_all_models()
+                if do_gc:
+                    gc.collect()
+                if empty_cache:
+                    comfy.model_management.soft_empty_cache(force=True)
+                duration_ms = int((time.perf_counter() - t0) * 1000)
+                ram_after, vram_after = _stats()
+                return ram_before, vram_before, ram_after, vram_after, duration_ms
+
+            # Re-check task count just before running — covers the TOCTOU
+            # window where a prompt arrived between our first check and now.
+            if self.prompt_queue.get_tasks_remaining() > 0:
+                _defer_to_worker()
+                return web.json_response({
+                    "queued": True,
+                    "reason": "prompt arrived during dispatch; "
+                              "memory will be freed after it completes",
+                })
+
+            ram_before, vram_before, ram_after, vram_after, duration_ms = (
+                await asyncio.to_thread(_do_free_blocking)
+            )
 
             return web.json_response({
                 "queued": False,
