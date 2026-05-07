@@ -1678,11 +1678,50 @@ class PreviewImage(SaveImage):
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
+def _list_input_files_recursive(input_dir, max_files=20000):
+    """Walk `input_dir` recursively and return a sorted list of relative file
+    paths (forward-slash separators for cross-platform consistency).
+
+    Skips hidden directories / files (anything starting with `.`), follows no
+    symlinks, and bounds the result at `max_files` so a misconfigured input
+    folder can't make the node-info response take forever. Existing
+    `folder_paths.get_annotated_filepath` already handles `subdir/file.ext`
+    paths via os.path.join, so the resolver side needs no change."""
+    files = []
+    if not os.path.isdir(input_dir):
+        return files
+    truncated = False
+    for root, dirs, names in os.walk(input_dir, followlinks=False):
+        # Filter hidden in-place so os.walk doesn't descend into them.
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        rel_root = os.path.relpath(root, input_dir)
+        for name in names:
+            if name.startswith('.'):
+                continue
+            full = os.path.join(root, name)
+            if not os.path.isfile(full):
+                continue
+            rel = name if rel_root == '.' else os.path.join(rel_root, name)
+            files.append(rel.replace(os.sep, '/'))
+            if len(files) >= max_files:
+                truncated = True
+                break
+        if truncated:
+            break
+    if truncated:
+        logging.warning(
+            "LoadImage: input directory has more than %d files; truncating "
+            "dropdown. Raise the cap by patching _list_input_files_recursive "
+            "if you need every file.", max_files)
+    files.sort()
+    return files
+
+
 class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = _list_input_files_recursive(input_dir)
         files = folder_paths.filter_files_content_types(files, ["image"])
         return {"required":
                     {"image": (sorted(files), {"image_upload": True})},
