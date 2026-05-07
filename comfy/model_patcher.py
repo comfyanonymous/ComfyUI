@@ -1557,8 +1557,8 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.dynamic_pins = {}
         if self.load_device not in self.model.dynamic_pins:
             self.model.dynamic_pins[self.load_device] = {
-                "hostbuf": comfy_aimdo.host_buffer.HostBuffer(0),
-                "stack": [],
+                "weights": (comfy_aimdo.host_buffer.HostBuffer(0), []),
+                "patches": (comfy_aimdo.host_buffer.HostBuffer(0), []),
                 "failed": False,
                 "active": False,
             }
@@ -1756,25 +1756,26 @@ class ModelPatcherDynamic(ModelPatcher):
         return freed
 
     def pinned_memory_size(self):
-        return self.model.dynamic_pins[self.load_device]["hostbuf"].size
+        return (self.model.dynamic_pins[self.load_device]["weights"][0].size +
+                self.model.dynamic_pins[self.load_device]["patches"][0].size)
 
-    def partially_unload_ram(self, ram_to_unload):
+    def partially_unload_ram(self, ram_to_unload, subsets=[ "weights", "patches" ]):
         freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
-        hostbuf = pin_state["hostbuf"]
-        stack = pin_state["stack"]
-        while len(stack) > 0:
-            module, offset = stack.pop()
-            size = module._pin.numel() * module._pin.element_size()
-            del module._pin
-            hostbuf.truncate(offset)
-            comfy.model_management.TOTAL_PINNED_MEMORY -= size
-            if comfy.model_management.TOTAL_PINNED_MEMORY < 0:
-                comfy.model_management.TOTAL_PINNED_MEMORY = 0
-            freed += size
-            ram_to_unload -= size
-            if ram_to_unload <= 0:
-                return freed
+        for subset in subsets:
+            hostbuf, stack = pin_state[subset]
+            while len(stack) > 0:
+                module, offset = stack.pop()
+                size = module._pin.numel() * module._pin.element_size()
+                del module._pin
+                hostbuf.truncate(offset)
+                comfy.model_management.TOTAL_PINNED_MEMORY -= size
+                if comfy.model_management.TOTAL_PINNED_MEMORY < 0:
+                    comfy.model_management.TOTAL_PINNED_MEMORY = 0
+                freed += size
+                ram_to_unload -= size
+                if ram_to_unload <= 0:
+                    return freed
         return freed
 
     def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):

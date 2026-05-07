@@ -1238,6 +1238,8 @@ def reset_cast_buffers():
         model = loaded_model.model
         if model is not None and model.is_dynamic():
             model.dynamic_pins[model.load_device]["active"] = False
+            model.partially_unload_ram(1e30, subsets=[ "patches" ])
+            model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0), [])
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
