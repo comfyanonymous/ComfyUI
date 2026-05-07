@@ -16,6 +16,58 @@ try:
 except:
     pass
 
+
+# Process-wide LRU cache for upscale model state-dicts. Two
+# UpscaleModelLoader nodes wired to the same .pth/.safetensors file
+# (e.g. the same ESRGAN/SwinIR loaded once for image preview and once
+# for final upscale) currently each load the file from disk.
+import collections as _coll
+import os as _os
+import threading as _thr
+
+_UPSCALE_CACHE: "_coll.OrderedDict[tuple, dict]" = _coll.OrderedDict()
+_UPSCALE_CACHE_LOCK = _thr.Lock()
+
+
+def _upscale_cache_max() -> int:
+    raw = _os.environ.get("COMFY_UPSCALE_CACHE_MAX", "2")
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        logging.warning("COMFY_UPSCALE_CACHE_MAX must be a positive integer "
+                        "(got %r); falling back to 2", raw)
+        return 2
+
+
+_UPSCALE_CACHE_MAX = _upscale_cache_max()
+_UPSCALE_CACHE_ENABLED = _os.environ.get("COMFY_UPSCALE_CACHE", "1") != "0"
+
+
+def _load_upscale_state_dict_cached(model_path: str) -> dict:
+    if not _UPSCALE_CACHE_ENABLED:
+        return comfy.utils.load_torch_file(model_path, safe_load=True)
+    try:
+        mtime = _os.path.getmtime(model_path)
+    except OSError:
+        return comfy.utils.load_torch_file(model_path, safe_load=True)
+    key = (model_path, mtime)
+    with _UPSCALE_CACHE_LOCK:
+        cached = _UPSCALE_CACHE.get(key)
+        if cached is not None:
+            _UPSCALE_CACHE.move_to_end(key)
+            return cached
+    sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+    with _UPSCALE_CACHE_LOCK:
+        existing = _UPSCALE_CACHE.get(key)
+        if existing is not None:
+            _UPSCALE_CACHE.move_to_end(key)
+            return existing
+        _UPSCALE_CACHE[key] = sd
+        if len(_UPSCALE_CACHE) > _UPSCALE_CACHE_MAX:
+            _UPSCALE_CACHE.popitem(last=False)
+    return sd
+
+
 class UpscaleModelLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -34,7 +86,7 @@ class UpscaleModelLoader(io.ComfyNode):
     @classmethod
     def execute(cls, model_name) -> io.NodeOutput:
         model_path = folder_paths.get_full_path_or_raise("upscale_models", model_name)
-        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+        sd = _load_upscale_state_dict_cached(model_path)
         if "module.layers.0.residual_group.blocks.0.norm1.weight" in sd:
             sd = comfy.utils.state_dict_prefix_replace(sd, {"module.":""})
         out = ModelLoader().load_from_state_dict(sd).eval()
