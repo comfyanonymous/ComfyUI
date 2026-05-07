@@ -15,6 +15,7 @@ import threading
 import time
 import random
 import logging
+import weakref
 from collections import OrderedDict
 
 from PIL import Image, ImageOps, ImageSequence
@@ -82,7 +83,24 @@ MAX_RESOLUTION=16384
 #   COMFY_CLIP_ENCODE_CACHE_MAX=<int>  -> cap entries (default 64)
 _CLIP_ENCODE_CACHE: "OrderedDict[tuple, list]" = OrderedDict()
 _CLIP_ENCODE_CACHE_LOCK = threading.Lock()
-_CLIP_ENCODE_CACHE_MAX = max(1, int(os.environ.get("COMFY_CLIP_ENCODE_CACHE_MAX", "64")))
+# Weakrefs to CLIP instances we've cached, indexed by id(clip). When a CLIP
+# is garbage-collected (e.g. checkpoint swap) the finaliser fires and we
+# purge cache entries keyed on its id — guarding against the case where a
+# new CLIP allocation happens to reuse a freed address.
+_CLIP_KEEPALIVE: "dict[int, weakref.ref]" = {}
+
+
+def _clip_cache_max() -> int:
+    raw = os.environ.get("COMFY_CLIP_ENCODE_CACHE_MAX", "64")
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        logging.warning("COMFY_CLIP_ENCODE_CACHE_MAX must be a positive integer "
+                         "(got %r); falling back to 64", raw)
+        return 64
+
+
+_CLIP_ENCODE_CACHE_MAX = _clip_cache_max()
 _CLIP_ENCODE_CACHE_ENABLED = os.environ.get("COMFY_CLIP_ENCODE_CACHE", "1") != "0"
 
 
@@ -90,6 +108,34 @@ def _clip_encode_cache_view(cond):
     """Return a fresh outer list with copied inner dicts. Tensor refs are
     shared — see the cache-block docstring for the read-only contract."""
     return [[t, d.copy()] for t, d in cond]
+
+
+def _purge_clip_cache_for(clip_id):
+    """Drop every cache entry that belongs to the given clip identity.
+    Called from the weakref finaliser when a CLIP is garbage-collected, so
+    a new allocation that happens to land at the same id() can never see
+    the previous CLIP's cached encodings."""
+    with _CLIP_ENCODE_CACHE_LOCK:
+        stale = [k for k in _CLIP_ENCODE_CACHE if k[0] == clip_id]
+        for k in stale:
+            _CLIP_ENCODE_CACHE.pop(k, None)
+        _CLIP_KEEPALIVE.pop(clip_id, None)
+
+
+def _track_clip_lifetime(clip):
+    """Attach a weakref finaliser to clip if we haven't already. The cache
+    is keyed by id(clip), and id() can recycle once the underlying object
+    is freed; the finaliser purges entries on collection so a recycled id
+    never gives stale results to a fresh CLIP."""
+    cid = id(clip)
+    if cid in _CLIP_KEEPALIVE:
+        return
+    try:
+        _CLIP_KEEPALIVE[cid] = weakref.ref(clip, lambda _ref: _purge_clip_cache_for(cid))
+    except TypeError:
+        # Object doesn't support weakref (very unusual). Skip tracking; the
+        # LRU bound still caps the worst-case stale-cache exposure.
+        pass
 
 
 def _clip_encode_cached(clip, text):
@@ -119,6 +165,10 @@ def _clip_encode_cached(clip, text):
     # workflow execution.
     tokens = clip.tokenize(text)
     out = clip.encode_from_tokens_scheduled(tokens)
+
+    # Track lifetime *before* publishing the entry so the finaliser is in
+    # place by the time anything could observe a stale id.
+    _track_clip_lifetime(clip)
 
     with _CLIP_ENCODE_CACHE_LOCK:
         existing = _CLIP_ENCODE_CACHE.get(key)

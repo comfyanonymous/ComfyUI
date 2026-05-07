@@ -142,6 +142,37 @@ class CLIPEncodeCacheTests(unittest.TestCase):
         finally:
             nodes._CLIP_ENCODE_CACHE_MAX = original_max
 
+    def test_garbage_collected_clip_purges_cache(self):
+        # After a CLIP is collected, its cache entries must vanish so a new
+        # CLIP that happens to land at the same id() can't see stale data.
+        import gc
+        clip = _FakeCLIP()
+        nodes._clip_encode_cached(clip, "x")
+        cid = id(clip)
+        keys = {k[0] for k in nodes._CLIP_ENCODE_CACHE.keys()}
+        self.assertIn(cid, keys, "entry was not stored")
+
+        del clip
+        gc.collect()  # force the weakref finaliser to fire
+
+        keys_after = {k[0] for k in nodes._CLIP_ENCODE_CACHE.keys()}
+        self.assertNotIn(cid, keys_after,
+                          "cache entries for collected clip must be purged")
+        self.assertNotIn(cid, nodes._CLIP_KEEPALIVE,
+                          "keepalive ref must be dropped on collect")
+
+    def test_invalid_env_var_falls_back_safely(self):
+        # _clip_cache_max must not crash on a non-integer env var
+        with mock.patch.dict(os.environ, {"COMFY_CLIP_ENCODE_CACHE_MAX": "abc"}):
+            self.assertEqual(nodes._clip_cache_max(), 64)
+        with mock.patch.dict(os.environ, {"COMFY_CLIP_ENCODE_CACHE_MAX": "64.5"}):
+            self.assertEqual(nodes._clip_cache_max(), 64)
+        with mock.patch.dict(os.environ, {"COMFY_CLIP_ENCODE_CACHE_MAX": "0"}):
+            # 0 clamps to 1 (we always want at least one slot)
+            self.assertEqual(nodes._clip_cache_max(), 1)
+        with mock.patch.dict(os.environ, {"COMFY_CLIP_ENCODE_CACHE_MAX": "128"}):
+            self.assertEqual(nodes._clip_cache_max(), 128)
+
     def test_lru_recency_on_hit(self):
         # Re-hitting a key promotes it; oldest gets evicted instead.
         original_max = nodes._CLIP_ENCODE_CACHE_MAX
