@@ -138,6 +138,8 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
 
         if stream_pin_hostbuf is None:
             stream_pin_hostbuf = comfy.model_management.get_pin_buffer(offload_stream)
+            if stream_pin_hostbuf is None:
+                return None
 
         offset = stream_pin_offset
         stream_pin_offset += buffer_size
@@ -213,8 +215,10 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         stream_pin_hostbuf_size = getattr(stream_pin_hostbuf, "_comfy_stream_pin_size", stream_pin_hostbuf.size)
         if stream_pin_hostbuf_size < stream_pin_offset:
             stream_pin_hostbuf_size = stream_pin_offset + STREAM_PIN_BUFFER_HEADROOM
-            stream_pin_hostbuf.extend(size=stream_pin_hostbuf_size, reallocate=True)
-            stream_pin_hostbuf._comfy_stream_pin_size = stream_pin_hostbuf_size
+            if not comfy.model_management.resize_pin_buffer(stream_pin_hostbuf, stream_pin_hostbuf_size):
+                for xfer_source, _, _, xfer_dest in stream_pin_queue:
+                    comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
+                return offload_stream
         stream_pin_tensor = comfy_aimdo.torch.hostbuf_to_tensor(stream_pin_hostbuf, size=stream_pin_offset)
         stream_pin_tensor.untyped_storage()._comfy_hostbuf = stream_pin_hostbuf
         for xfer_source, pin_offset, pin_size, xfer_dest in stream_pin_queue:

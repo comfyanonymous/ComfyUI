@@ -16,9 +16,7 @@ def pin_memory(module):
     hostbuf = pin_state["hostbuf"]
     size = comfy.memory_management.vram_aligned_size([ module.weight, module.bias ])
     offset = hostbuf.size
-    if comfy.model_management.MAX_PINNED_MEMORY <= 0 or (comfy.model_management.TOTAL_PINNED_MEMORY + size) > comfy.model_management.MAX_PINNED_MEMORY:
-        pin_state["failed"] = True
-        return False
+    comfy.model_management.ensure_pin_budget(size)
 
     try:
         hostbuf.extend(size=size)

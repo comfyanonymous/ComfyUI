@@ -1117,7 +1117,7 @@ class ModelPatcher:
         return 0
 
     def partially_unload_ram(self, ram_to_unload):
-        pass
+        return 0
 
     def detach(self, unpatch_all=True):
         self.eject_model()
@@ -1544,7 +1544,12 @@ class ModelPatcherDynamic(ModelPatcher):
         if not hasattr(self.model, "dynamic_pins"):
             self.model.dynamic_pins = {}
         if self.load_device not in self.model.dynamic_pins:
-            self.model.dynamic_pins[self.load_device] = {"hostbuf": comfy_aimdo.host_buffer.HostBuffer(0), "stack": [], "failed": False}
+            self.model.dynamic_pins[self.load_device] = {
+                "hostbuf": comfy_aimdo.host_buffer.HostBuffer(0),
+                "stack": [],
+                "failed": False,
+                "active": False,
+            }
         self.non_dynamic_delegate_model = None
         assert load_device is not None
 
@@ -1608,6 +1613,7 @@ class ModelPatcherDynamic(ModelPatcher):
             vbar = self._vbar_get(create=True)
             pin_state = self.model.dynamic_pins[self.load_device]
             pin_state["failed"] = False
+            pin_state["active"] = True
             if vbar is not None:
                 vbar.prioritize()
 
@@ -1741,9 +1747,10 @@ class ModelPatcherDynamic(ModelPatcher):
         return self.model.dynamic_pins[self.load_device]["hostbuf"].size
 
     def partially_unload_ram(self, ram_to_unload):
+        freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
         hostbuf = pin_state["hostbuf"]
-        stack = self.model.dynamic_pins[self.load_device]["stack"]
+        stack = pin_state["stack"]
         while len(stack) > 0:
             module, offset = stack.pop()
             size = module._pin.numel() * module._pin.element_size()
@@ -1752,9 +1759,11 @@ class ModelPatcherDynamic(ModelPatcher):
             comfy.model_management.TOTAL_PINNED_MEMORY -= size
             if comfy.model_management.TOTAL_PINNED_MEMORY < 0:
                 comfy.model_management.TOTAL_PINNED_MEMORY = 0
+            freed += size
             ram_to_unload -= size
             if ram_to_unload <= 0:
-                return
+                return freed
+        return freed
 
     def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
         #This isn't used by the core at all and can only be to load a model out of

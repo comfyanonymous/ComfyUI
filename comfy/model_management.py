@@ -498,6 +498,8 @@ current_loaded_models = []
 
 DIRTY_MMAPS = set()
 
+PIN_PRESSURE_HYSTERESIS = 128 * 1024 * 1024
+
 def module_size(module):
     module_mem = 0
     sd = module.state_dict()
@@ -511,6 +513,21 @@ def mark_mmap_dirty(storage):
     if mmap_refs is not None:
         DIRTY_MMAPS.add(mmap_refs[0])
 
+def ensure_pin_budget(size, evict_active=False):
+    if MAX_PINNED_MEMORY <= 0:
+        return
+
+    shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
+    if shortfall <= 0:
+        return
+
+    shortfall += PIN_PRESSURE_HYSTERESIS
+    for loaded_model in reversed(current_loaded_models):
+        model = loaded_model.model
+        if model is not None and model.is_dynamic() and (evict_active or not model.dynamic_pins[model.load_device]["active"]):
+            shortfall -= model.partially_unload_ram(shortfall)
+            if shortfall <= 0:
+                break
 
 class LoadedModel:
     def __init__(self, model):
@@ -1133,7 +1150,6 @@ LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
 STREAM_PIN_BUFFERS = {}
 
 DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
-DEFAULT_PIN_BUFFER_PRIME_SIZE = 1024 ** 2
 
 def get_cast_buffer(offload_stream, device, size, ref):
     global LARGEST_CASTED_WEIGHT
@@ -1177,14 +1193,29 @@ def get_aimdo_cast_buffer(offload_stream, device):
 def get_pin_buffer(offload_stream):
     pin_buffer = STREAM_PIN_BUFFERS.get(offload_stream, None)
     if pin_buffer is None:
-        # A small non-zero default primes HostBuffer's larger virtual reservation.
-        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(DEFAULT_PIN_BUFFER_PRIME_SIZE)
+        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(0)
         STREAM_PIN_BUFFERS[offload_stream] = pin_buffer
     elif offload_stream is not None:
         offload_stream.synchronize()
     return pin_buffer
 
+def resize_pin_buffer(pin_buffer, size):
+    global TOTAL_PINNED_MEMORY
+    old_size = getattr(pin_buffer, "_comfy_stream_pin_size", 0)
+    if size <= old_size:
+        return True
+    growth = size - old_size
+    ensure_pin_budget(growth, evict_active=True)
+    try:
+        pin_buffer.extend(size=size, reallocate=True)
+    except RuntimeError:
+        return False
+    pin_buffer._comfy_stream_pin_size = size
+    TOTAL_PINNED_MEMORY += growth
+    return True
+
 def reset_cast_buffers():
+    global TOTAL_PINNED_MEMORY
     global LARGEST_CASTED_WEIGHT
     global LARGEST_AIMDO_CASTED_WEIGHT
 
@@ -1197,8 +1228,18 @@ def reset_cast_buffers():
 
     for mmap_obj in DIRTY_MMAPS:
         mmap_obj.bounce()
-
     DIRTY_MMAPS.clear()
+
+    for pin_buffer in STREAM_PIN_BUFFERS.values():
+        TOTAL_PINNED_MEMORY -= getattr(pin_buffer, "_comfy_stream_pin_size", 0)
+    if TOTAL_PINNED_MEMORY < 0:
+        TOTAL_PINNED_MEMORY = 0
+
+    for loaded_model in current_loaded_models:
+        model = loaded_model.model
+        if model is not None and model.is_dynamic():
+            model.dynamic_pins[model.load_device]["active"] = False
+
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
     STREAM_PIN_BUFFERS.clear()
@@ -1344,8 +1385,7 @@ def pin_memory(tensor):
         return False
 
     size = tensor.nbytes
-    if (TOTAL_PINNED_MEMORY + size) > MAX_PINNED_MEMORY:
-        return False
+    ensure_pin_budget(size)
 
     ptr = tensor.data_ptr()
     if ptr == 0:
