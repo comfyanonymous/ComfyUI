@@ -105,7 +105,7 @@ async def create_image_parts(
     if effective_max > num_url_images:
         # Split path (e.g. 11+ images): suppress per-image counter to avoid a confusing dual-fraction label.
         upload_kwargs = {
-            "wait_label": f"Uploading reference images ({effective_max})",
+            "wait_label": f"Uploading reference images ({num_url_images}+)",
             "show_batch_index": False,
         }
     reference_images_urls = await upload_images_to_comfyapi(
