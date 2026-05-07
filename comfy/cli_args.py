@@ -159,6 +159,8 @@ parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
+parser.add_argument("--username", type=str, default=None, help="HTTP Basic auth username. Both --username and --password must be set for auth to be enabled. Note: HTTP Basic transmits credentials base64-encoded in plaintext — only safe over TLS (--tls-keyfile/--tls-certfile) or a trusted local network.")
+parser.add_argument("--password", type=str, default=None, help="HTTP Basic auth password. See --username.")
 
 class PerformanceFeature(enum.Enum):
     Fp16Accumulation = "fp16_accumulation"

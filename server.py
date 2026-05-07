@@ -197,7 +197,47 @@ def create_block_external_middleware():
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data:; frame-src 'self'; object-src 'self';"
         return response
 
-    return block_external_middleware
+    return block_external_middleware  # type: ignore[return-value]
+
+
+def create_basic_auth_middleware(username: str, password: str):
+    """HTTP Basic auth gate. Both username and password must be non-empty.
+
+    Note this is intentionally minimal — Basic auth transmits credentials
+    base64-encoded in plaintext, so it's only safe over TLS or on a
+    trusted local network. Users wanting per-user sessions / token-based
+    auth / rate limiting should layer a reverse proxy (nginx, caddy)
+    instead. This middleware exists because comfy currently has zero
+    auth on the HTTP API, and even Basic is a strict improvement over
+    that for shared-tenant / network-exposed deployments.
+    """
+    import base64
+    import hmac
+
+    expected = "Basic " + base64.b64encode(
+        f"{username}:{password}".encode("utf-8")).decode("ascii")
+
+    def _matches(header_value: str) -> bool:
+        if not header_value or not header_value.startswith("Basic "):
+            return False
+        # hmac.compare_digest is timing-safe; plain == is not.
+        return hmac.compare_digest(header_value, expected)
+
+    @web.middleware
+    async def basic_auth_middleware(request: web.Request, handler):
+        # OPTIONS preflight should always succeed without auth so CORS works.
+        if request.method == "OPTIONS":
+            return await handler(request)
+
+        if not _matches(request.headers.get("Authorization", "")):
+            return web.Response(
+                status=401,
+                headers={"WWW-Authenticate": 'Basic realm="ComfyUI", charset="UTF-8"'},
+                text="Authorization required.",
+            )
+        return await handler(request)
+
+    return basic_auth_middleware
 
 
 class PromptServer():
@@ -220,6 +260,20 @@ class PromptServer():
         middlewares = [cache_control, deprecation_warning]
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
+
+        # Auth runs early — before CORS / origin checks — so an
+        # unauthenticated request gets a clean 401 instead of being
+        # silently 403'd by the origin guard. Both flags must be set;
+        # either alone is treated as 'auth disabled' with a startup
+        # warning so the user knows their config didn't apply.
+        if args.username and args.password:
+            middlewares.append(create_basic_auth_middleware(args.username, args.password))
+            logging.info("HTTP Basic auth enabled (username=%s)", args.username)
+        elif args.username or args.password:
+            logging.warning(
+                "HTTP Basic auth NOT enabled: both --username AND --password "
+                "must be set. (got username=%s, password=%s)",
+                bool(args.username), bool(args.password))
 
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
