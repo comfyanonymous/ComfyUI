@@ -178,7 +178,14 @@ class ImageAddNoise(IO.ComfyNode):
 
     @classmethod
     def execute(cls, image, seed, strength) -> IO.NodeOutput:
-        generator = torch.manual_seed(seed)
+        # Use a per-call generator so seeding doesn't mutate the process-wide
+        # torch RNG. The previous `torch.manual_seed(seed)` call replaced the
+        # default generator's state, which leaked into any downstream node
+        # that called torch.randn / torch.randn_like without an explicit
+        # generator argument (CFG noise injection, certain LoRA inits, etc.).
+        # Output bytes are identical to the old path because torch.Generator
+        # and the global default generator share the same RNG implementation.
+        generator = torch.Generator(device="cpu").manual_seed(seed)
         s = torch.clip((image + strength * torch.randn(image.size(), generator=generator, device="cpu").to(image)), min=0.0, max=1.0)
         return IO.NodeOutput(s)
 
