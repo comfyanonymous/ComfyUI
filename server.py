@@ -639,7 +639,17 @@ class PromptServer():
             out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
             if out is None:
                 return web.Response(status=404)
-            dt = json.loads(out)
+            try:
+                dt = json.loads(out)
+            except json.JSONDecodeError as ex:
+                # A truncated or corrupted .safetensors file produces a
+                # header that won't decode — return 422 with a clear error
+                # rather than letting the bare JSONDecodeError become a 500.
+                logging.warning("view_metadata: %s has malformed safetensors header: %s",
+                                safetensors_path, ex)
+                return web.json_response(
+                    {"error": "Malformed safetensors header (file may be truncated or corrupted)"},
+                    status=422)
             if "__metadata__" not in dt:
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
