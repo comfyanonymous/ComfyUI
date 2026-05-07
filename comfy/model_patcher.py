@@ -26,6 +26,7 @@ import uuid
 from typing import Callable, Optional
 
 import torch
+import tqdm
 
 import comfy.float
 import comfy.hooks
@@ -1651,7 +1652,11 @@ class ModelPatcherDynamic(ModelPatcher):
                 self.model.model_loaded_weight_memory += casted_buf.numel() * casted_buf.element_size()
 
             force_load_stat = f" Force pre-loaded {len(self.backup)} weights: {self.model.model_loaded_weight_memory // 1024} KB." if len(self.backup) > 0 else ""
-            logging.info(f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.{force_load_stat}")
+            log_key = (self.patches_uuid, allocated_size, num_patches, len(self.backup), self.model.model_loaded_weight_memory)
+            in_loop = bool(getattr(tqdm.tqdm, "_instances", None))
+            level = logging.DEBUG if in_loop and getattr(self, "_last_prepare_log_key", None) == log_key else logging.INFO
+            self._last_prepare_log_key = log_key
+            logging.log(level, f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.{force_load_stat}")
 
             self.model.device = device_to
             self.model.current_weight_patches_uuid = self.patches_uuid
