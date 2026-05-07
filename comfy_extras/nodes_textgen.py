@@ -26,7 +26,7 @@ class TextGenerate(io.ComfyNode):
 
         return io.Schema(
             node_id="TextGenerate",
-            category="textgen",
+            category="text",
             search_aliases=["LLM", "gemma"],
             inputs=[
                 io.Clip.Input("clip"),
