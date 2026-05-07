@@ -276,6 +276,7 @@ class TripoTask(BaseModel):
     create_time: Optional[int] = Field(None, description='The creation time of the task')
     running_left_time: Optional[int] = Field(None, description='The estimated time left for the task')
     queue_position: Optional[int] = Field(None, description='The position in the queue')
+    consumed_credit: int | None = Field(None)
 
 class TripoTaskResponse(BaseModel):
     code: int = Field(0, description='The response code')
