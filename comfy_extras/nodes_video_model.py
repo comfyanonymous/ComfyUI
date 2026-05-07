@@ -56,7 +56,7 @@ class ImageOnlyCheckpointLoaderDevice:
                 model_options["load_device"] = model_options["offload_device"] = resolved_model
             else:
                 model_options["load_device"] = resolved_model
-        
+
         cv_model_options = {}
         resolved_clip = comfy.model_management.resolve_gpu_device_option(clip_vision_device)
         if resolved_clip is not None:
