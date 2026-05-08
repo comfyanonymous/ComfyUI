@@ -1557,8 +1557,8 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.dynamic_pins = {}
         if self.load_device not in self.model.dynamic_pins:
             self.model.dynamic_pins[self.load_device] = {
-                "weights": (comfy_aimdo.host_buffer.HostBuffer(0), []),
-                "patches": (comfy_aimdo.host_buffer.HostBuffer(0), []),
+                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024), []),
+                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024), []),
                 "failed": False,
                 "active": False,
             }
@@ -1651,7 +1651,9 @@ class ModelPatcherDynamic(ModelPatcher):
                     if key in self.patches:
                         if comfy.lora.calculate_shape(self.patches[key], weight, key) != weight.shape:
                             return (True, 0)
-                        setattr(m, param_key + "_lowvram_function", LowVramPatch(key, self.patches))
+                        lowvram_patch = LowVramPatch(key, self.patches)
+                        lowvram_patch._pin_state = pin_state
+                        setattr(m, param_key + "_lowvram_function", lowvram_patch)
                         num_patches += 1
                     else:
                         setattr(m, param_key + "_lowvram_function", None)

@@ -524,7 +524,7 @@ def ensure_pin_budget(size, evict_active=False):
     shortfall += PIN_PRESSURE_HYSTERESIS
     for loaded_model in reversed(current_loaded_models):
         model = loaded_model.model
-        if model is not None and model.is_dynamic() and (evict_active or not model.dynamic_pins[model.load_device]["active"]):
+        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
             shortfall -= model.partially_unload_ram(shortfall)
             if shortfall <= 0:
                 break
@@ -1237,9 +1237,9 @@ def reset_cast_buffers():
     for loaded_model in current_loaded_models:
         model = loaded_model.model
         if model is not None and model.is_dynamic():
-            model.dynamic_pins[model.load_device]["active"] = False
+            model.model.dynamic_pins[model.load_device]["active"] = False
             model.partially_unload_ram(1e30, subsets=[ "patches" ])
-            model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0), [])
+            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024), [])
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()

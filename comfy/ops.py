@@ -183,46 +183,51 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         if xfer_dest is None:
             xfer_dest = get_cast_buffer(dest_size)
 
-        if pin is None:
-            if signature is None:
-                comfy.pinned_memory.pin_memory(s)
-                pin = comfy.pinned_memory.get_pin(s)
-                if pin is not None:
-                    comfy.model_management.cast_to_gathered(xfer_source, pin)
-                    xfer_source = [ pin ]
-            if pin is None:
-                pin_offset = get_stream_pin_buffer_offset(dest_size)
-                if pin_offset is not None:
-                    stream_pin_queue.append((xfer_source, pin_offset, dest_size, xfer_dest))
-                    xfer_source = None
+        def cast_maybe_lowvram_patch(xfer_source, xfer_dest, stream):
+            if xfer_source is not None:
+                if getattr(xfer_source, "is_lowvram_patch", False):
+                    xfer_source.prepare(xfer_dest, stream, copy=True, commit=False)
+                else:
+                    comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=stream)
 
-        if xfer_source is not None:
-            comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
+        def handle_pin_miss(m, source, dest, subset="weights", size=None):
+            pin = None
+            if signature is None:
+                comfy.pinned_memory.pin_memory(m, subset=subset, size=size)
+                pin = comfy.pinned_memory.get_pin(m, subset=subset)
+                if pin is not None:
+                    cast_maybe_lowvram_patch(source, pin, None)
+                    return [ pin ]
+            if pin is None:
+                pin_offset = get_stream_pin_buffer_offset(size)
+                if pin_offset is not None:
+                    stream_pin_queue.append((source, pin_offset, size, dest))
+                    return None
+            return source
+
+        if pin is None:
+            xfer_source = handle_pin_miss(s, xfer_source, xfer_dest, size=dest_size)
+
+        cast_maybe_lowvram_patch(xfer_source, xfer_dest, offload_stream)
 
         for param_key in ("weight", "bias"):
-            lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
-            if lowvram_fn is not None:
+            lowvram_source = getattr(s, param_key + "_lowvram_function", None)
+            if lowvram_source is not None:
                 ensure_offload_stream(s, cast_buffer_offset, False)
-                lowvram_size = lowvram_fn.memory_required()
+                lowvram_size = lowvram_source.memory_required()
                 lowvram_dest = get_cast_buffer(lowvram_size)
-                lowvram_fn.prepare(lowvram_dest, None, copy=False, commit=True)
-                pin_offset = get_stream_pin_buffer_offset(lowvram_size)
-                if pin_offset is not None:
-                    stream_pin_queue.append((lowvram_fn, pin_offset, lowvram_size, lowvram_dest))
-                else:
-                    lowvram_fn.prepare(lowvram_dest, offload_stream, copy=True, commit=True)
+                lowvram_source.prepare(lowvram_dest, None, copy=False, commit=True)
+
+                pin = comfy.pinned_memory.get_pin(lowvram_source, subset="patches")
+                lowvram_source = handle_pin_miss(lowvram_source, lowvram_source, lowvram_dest, subset="patches", size=lowvram_size) if pin is None else [ pin ]
+
+                cast_maybe_lowvram_patch(lowvram_source, lowvram_dest, offload_stream)
 
         prefetch["xfer_dest"] = xfer_dest
         prefetch["cast_dest"] = cast_dest
         prefetch["cast_geometry"] = cast_geometry
         prefetch["needs_cast"] = needs_cast
         s._prefetch = prefetch
-
-    def cast_maybe_lowvram_patch(xfer_source, xfer_dest, stream):
-        if getattr(xfer_source, "is_lowvram_patch", False):
-            xfer_source.prepare(xfer_dest, stream, copy=True, commit=False)
-        else:
-            comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=stream)
 
     if stream_pin_offset > 0:
         if stream_pin_hostbuf.size < stream_pin_offset:
