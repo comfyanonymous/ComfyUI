@@ -594,7 +594,8 @@ class LTXVPreprocess(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVPreprocess",
-            category="image",
+            display_name="LTXV Preprocess",
+            category="video/preprocessors",
             inputs=[
                 io.Image.Input("image"),
                 io.Int.Input(

@@ -1361,7 +1361,7 @@ class SaveLoRA(io.ComfyNode):
             node_id="SaveLoRA",
             search_aliases=["export lora"],
             display_name="Save LoRA Weights",
-            category="loaders",
+            category="advanced/model_merging",
             is_experimental=True,
             is_output_node=True,
             inputs=[
