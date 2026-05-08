@@ -488,10 +488,30 @@ async def _diagnose_connectivity() -> dict[str, bool]:
         "api_accessible": False,
     }
     timeout = aiohttp.ClientTimeout(total=5.0)
+
+    # Probe Google and Baidu in parallel: Google is blocked by the GFW in mainland China, so a Baidu probe is required
+    # to correctly detect that Chinese users with working internet do have working internet.
+    internet_probe_urls = ("https://www.google.com", "https://www.baidu.com")
+
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        with contextlib.suppress(ClientError, OSError):
-            async with session.get("https://www.google.com") as resp:
-                results["internet_accessible"] = resp.status < 500
+        async def _probe(url: str) -> bool:
+            try:
+                async with session.get(url) as resp:
+                    return resp.status < 500
+            except (ClientError, OSError, asyncio.TimeoutError):
+                return False
+
+        probe_tasks = [asyncio.create_task(_probe(u)) for u in internet_probe_urls]
+        try:
+            for fut in asyncio.as_completed(probe_tasks):
+                if await fut:
+                    results["internet_accessible"] = True
+                    break
+        finally:
+            for t in probe_tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*probe_tasks, return_exceptions=True)
         if not results["internet_accessible"]:
             return results
 
