@@ -20,8 +20,8 @@ class LoadBackgroundRemovalModel(IO.ComfyNode):
             ]
         )
     @classmethod
-    def execute(cls, background_removal_name):
-        path = folder_paths.get_full_path_or_raise("background_removal", background_removal_name)
+    def execute(cls, bg_removal_name):
+        path = folder_paths.get_full_path_or_raise("background_removal", bg_removal_name)
         bg = load(path)
         if bg is None:
             raise RuntimeError("ERROR: background model file is invalid and does not contain a valid background removal model.")
