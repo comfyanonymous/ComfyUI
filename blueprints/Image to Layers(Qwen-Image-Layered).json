@@ -1587,7 +1587,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Image to layers",
-        "description": "Decomposes an image into separate layers using Qwen-Image."
+        "description": "Decomposes an image into separate layers (foreground/background) using Qwen-Image-Layered."
       }
     ]
   },

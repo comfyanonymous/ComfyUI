@@ -1055,7 +1055,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Text to image",
-        "description": "Generates an image from a text prompt using Z-Image-Turbo."
+        "description": "Generates images from text prompts using Z-Image-Turbo for fast text-to-image generation."
       }
     ]
   },

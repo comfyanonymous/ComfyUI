@@ -1469,7 +1469,7 @@
           "VHS_KeepIntermediate": true
         },
         "category": "Image generation and editing/Edit image",
-        "description": "Edits an image based on a text instruction using Qwen (11-2025)."
+        "description": "Edits images via text instructions using Qwen-Image (11-2025 release), Alibaba's instruction-following model."
       }
     ]
   },

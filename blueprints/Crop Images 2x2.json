@@ -1610,7 +1610,7 @@
         ],
         "extra": {},
         "category": "Image Tools/Crop",
-        "description": "Crops an image into a 2\u00d72 grid of four equal tiles."
+        "description": "Splits an image into a 2×2 grid of four equal tiles for batch processing or composition."
       }
     ]
   },

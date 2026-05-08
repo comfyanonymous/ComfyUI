@@ -4287,7 +4287,7 @@
           "workflowRendererVersion": "Vue-corrected"
         },
         "category": "Video generation and editing/Text to video",
-        "description": "Generates a video from a text prompt using LTX-2.3."
+        "description": "Generates video from text prompts using LTX-2.3, a lightweight transformer-based video diffusion model."
       }
     ]
   },

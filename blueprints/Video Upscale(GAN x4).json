@@ -413,7 +413,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Enhance video",
-        "description": "Upscales a video to 4\u00d7 resolution using GAN-based model."
+        "description": "Upscales video to 4× resolution using GAN-based real-time video upscaling."
       }
     ]
   },

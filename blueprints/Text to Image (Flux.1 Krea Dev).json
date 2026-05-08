@@ -1024,7 +1024,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Text to image",
-        "description": "Generates an image from a text prompt using Flux.1 Krea Dev."
+        "description": "Generates images from text prompts using Flux.1 Krea Dev, Krea's fine-tuned variant of Flux Dev."
       }
     ]
   },

@@ -368,7 +368,7 @@
                 ]
               }
             ],
-            "title": "Math Expression \uff08Width\uff09",
+            "title": "Math Expression （Width）",
             "properties": {
               "ue_properties": {
                 "widget_ue_connectable": {},
@@ -2947,7 +2947,7 @@
         ],
         "extra": {},
         "category": "Image Tools/Crop",
-        "description": "Crops an image into a 3\u00d73 grid of nine equal tiles."
+        "description": "Splits an image into a 3×3 grid of nine equal tiles for batch processing or composition."
       }
     ]
   },

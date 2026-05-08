@@ -1874,7 +1874,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Text to image",
-        "description": "Generates an image from a text prompt using Qwen-Image."
+        "description": "Generates images from text prompts using Qwen-Image, Alibaba's multimodal text-to-image model."
       }
     ]
   },

@@ -1299,7 +1299,7 @@
           "VHS_KeepIntermediate": true
         },
         "category": "Image generation and editing/Pose to image",
-        "description": "Generates an image from a pose reference using Z-Image-Turbo."
+        "description": "Generates an image from pose keypoint reference using Z-Image-Turbo with text conditioning."
       }
     ]
   },

@@ -271,7 +271,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Text generation/Prompt enhance",
-        "description": "Enhances and expands a text prompt for better generation quality."
+        "description": "Enhances and expands short text prompts into detailed descriptions using a text generation model."
       }
     ]
   },

@@ -1418,7 +1418,7 @@
         ],
         "extra": {},
         "category": "Image generation and editing/Edit image",
-        "description": "Edits an image based on a text instruction using LongCat Image Edit."
+        "description": "Edits images via text instructions using LongCat Image Edit instruction-following diffusion model."
       }
     ]
   },

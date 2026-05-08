@@ -753,7 +753,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image Tools/Color adjust",
-        "description": "Adjusts the hue, saturation, and lightness of an image."
+        "description": "Adjusts hue, saturation, and lightness of an image via real-time GPU shader."
       }
     ]
   }

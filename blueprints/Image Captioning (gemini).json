@@ -311,7 +311,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Text generation/Image Captioning",
-        "description": "Generates a descriptive caption for an input image using Gemini."
+        "description": "Generates descriptive captions for input images using Google Gemini multimodal LLM."
       }
     ]
   }

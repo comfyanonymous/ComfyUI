@@ -1580,7 +1580,7 @@
           "VHS_KeepIntermediate": true
         },
         "category": "Image generation and editing/Depth to image",
-        "description": "Generates an image from a depth map using Z-Image-Turbo."
+        "description": "Generates an image from a depth map using Z-Image-Turbo with text conditioning."
       },
       {
         "id": "458bdf3c-4b58-421c-af50-c9c663a4d74c",
@@ -2463,7 +2463,7 @@
           },
           "workflowRendererVersion": "LG"
         },
-        "description": "Generates a depth map from an input image using Lotus."
+        "description": "Estimates a monocular depth map from an input image using the Lotus depth estimation model."
       }
     ]
   },

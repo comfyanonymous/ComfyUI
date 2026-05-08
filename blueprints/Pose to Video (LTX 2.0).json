@@ -3871,7 +3871,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Pose to video",
-        "description": "Generates a video from pose reference frames using LTX 2.0."
+        "description": "Generates video from pose reference frames using LTX 2.0 with text conditioning."
       }
     ]
   },

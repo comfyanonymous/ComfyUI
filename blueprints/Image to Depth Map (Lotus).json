@@ -949,7 +949,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Depth to image",
-        "description": "Generates a depth map from an input image using Lotus."
+        "description": "Estimates a monocular depth map from an input image using the Lotus depth estimation model."
       }
     ]
   },

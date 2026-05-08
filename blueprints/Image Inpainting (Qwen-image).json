@@ -1549,7 +1549,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Inpaint image",
-        "description": "Inpaints masked regions of an image using Qwen-Image."
+        "description": "Inpaints masked image regions using Qwen-Image, Alibaba's multimodal generation model."
       },
       {
         "id": "56a1f603-fbd2-40ed-94ef-c9ecbd96aca8",
@@ -1909,7 +1909,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "description": "Expands and blurs a mask for smoother edge transitions."
+        "description": "Expands and softens mask edges to reduce visible seams after inpainting."
       }
     ]
   },
