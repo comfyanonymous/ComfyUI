@@ -351,7 +351,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
-                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Boolean.Input("quad", default=False, optional=True, advanced=True, tooltip="This parameter is deprecated and does nothing."),
                 IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
             ],
             outputs=[
@@ -372,7 +372,6 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                         "model_version",
                         "texture",
                         "pbr",
-                        "quad",
                         "texture_quality",
                         "geometry_quality",
                     ],
@@ -386,7 +385,6 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                   $isDetailedGeometry := (widgets.geometry_quality = "detailed");
                   $credits := $isV14 ? 30 : (
                     ($withTexture ? 30 : 20)
-                    + (widgets.quad ? 5 : 0)
                     + ($isHdTexture ? 10 : 0)
                     + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
                   );
@@ -450,7 +448,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 geometry_quality=geometry_quality,
                 texture_alignment=texture_alignment,
                 face_limit=face_limit if face_limit != -1 else None,
-                quad=quad,
+                quad=None,
             ),
         )
         return await poll_until_finished(cls, response, average_duration=80)
