@@ -23,7 +23,7 @@ class LoadBackGroundRemovalModel(IO.ComfyNode):
         path = folder_paths.get_full_path_or_raise("background_removal", background_removal_name)
         bg = load(path)
         if bg is None:
-            raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
+            raise RuntimeError("ERROR: background model file is invalid and does not contain a valid background removal model.")
         return IO.NodeOutput(bg)
 
 class RemoveBackGround(IO.ComfyNode):
