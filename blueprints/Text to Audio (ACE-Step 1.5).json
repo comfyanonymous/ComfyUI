@@ -222,7 +222,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Text to Audio (ACE-Step 1.5)",
+        "name": "Text to Audio (ACE-Step 1.5)",
         "inputNode": {
           "id": -10,
           "bounding": [

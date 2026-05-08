@@ -132,7 +132,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image Edit (Qwen 2511)",
+        "name": "Image Edit (Qwen 2511)",
         "inputNode": {
           "id": -10,
           "bounding": [

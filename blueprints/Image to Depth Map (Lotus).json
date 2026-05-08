@@ -99,7 +99,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image to Depth Map (Lotus)",
+        "name": "Image to Depth Map (Lotus)",
         "inputNode": {
           "id": -10,
           "bounding": [

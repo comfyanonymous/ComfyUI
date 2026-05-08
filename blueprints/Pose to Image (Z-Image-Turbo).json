@@ -134,7 +134,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Pose to Image (Z-Image-Turbo)",
+        "name": "Pose to Image (Z-Image-Turbo)",
         "inputNode": {
           "id": -10,
           "bounding": [

@@ -72,7 +72,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image to Model (Hunyuan3d 2.1)",
+        "name": "Image to Model (Hunyuan3d 2.1)",
         "inputNode": {
           "id": -10,
           "bounding": [

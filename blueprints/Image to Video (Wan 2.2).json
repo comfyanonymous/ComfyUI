@@ -206,7 +206,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image to Video (Wan 2.2)",
+        "name": "Image to Video (Wan 2.2)",
         "inputNode": {
           "id": -10,
           "bounding": [

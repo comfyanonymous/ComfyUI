@@ -165,7 +165,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Video Inpaint(Wan2.1 VACE)",
+        "name": "Video Inpaint(Wan2.1 VACE)",
         "inputNode": {
           "id": -10,
           "bounding": [

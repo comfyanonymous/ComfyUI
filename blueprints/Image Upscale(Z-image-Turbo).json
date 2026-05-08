@@ -141,7 +141,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Image Upscale(Z-image-Turbo)",
+        "name": "Image Upscale(Z-image-Turbo)",
         "inputNode": {
           "id": -10,
           "bounding": [
