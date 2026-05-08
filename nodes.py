@@ -330,7 +330,7 @@ class VAEDecodeTiled:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def decode(self, vae, samples, tile_size, overlap=64, temporal_size=64, temporal_overlap=8):
         if tile_size < overlap * 4:
@@ -377,7 +377,7 @@ class VAEEncodeTiled:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def encode(self, vae, pixels, tile_size, overlap, temporal_size=64, temporal_overlap=8):
         t = vae.encode_tiled(pixels, tile_x=tile_size, tile_y=tile_size, overlap=overlap, tile_t=temporal_size, overlap_t=temporal_overlap)
@@ -493,7 +493,7 @@ class SaveLatent:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def save(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -538,7 +538,7 @@ class LoadLatent:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
         return {"required": {"latent": [sorted(files), ]}, }
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     RETURN_TYPES = ("LATENT", )
     FUNCTION = "load"
@@ -1443,7 +1443,7 @@ class LatentBlend:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "blend"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def blend(self, samples1, samples2, blend_factor:float, blend_mode: str="normal"):
 
@@ -2092,6 +2092,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StyleModelLoader": "Load Style Model",
     "CLIPVisionLoader": "Load CLIP Vision",
     "UNETLoader": "Load Diffusion Model",
+    "unCLIPCheckpointLoader": "Load unCLIP Checkpoint",
+    "GLIGENLoader": "Load GLIGEN Model",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
     "StyleModelApply": "Apply Style Model",
@@ -2140,7 +2142,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageSharpen": "Sharpen Image",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     "GetImageSize": "Get Image Size",
-    # _for_testing
+    # experimental
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }

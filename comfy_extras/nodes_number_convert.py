@@ -21,7 +21,7 @@ class NumberConvertNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyNumberConvert",
             display_name="Number Convert",
-            category="math",
+            category="utils",
             search_aliases=[
                 "int to float", "float to int", "number convert",
                 "int2float", "float2int", "cast", "parse number",
