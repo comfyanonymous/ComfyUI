@@ -54,5 +54,5 @@ class BackGroundRemovalExtension(ComfyExtension):
         ]
 
 
-async def comfy_entrypoint() -> BackGroundRemovalExtension:
+async def comfy_entrypoint() -> BackgroundRemovalExtension:
     return BackgroundRemovalExtension()
