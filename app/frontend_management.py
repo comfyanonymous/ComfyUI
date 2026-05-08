@@ -27,7 +27,7 @@ def frontend_install_warning_message():
     return f"""
 {get_missing_requirements_message()}
 
-This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
+The ComfyUI frontend is shipped in a pip package so it needs to be updated separately from the ComfyUI code.
 """.strip()
 
 def parse_version(version: str) -> tuple[int, int, int]:

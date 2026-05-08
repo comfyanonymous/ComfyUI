@@ -54,7 +54,12 @@ class GrokImageNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["grok-imagine-image-pro", "grok-imagine-image", "grok-imagine-image-beta"],
+                    options=[
+                        "grok-imagine-image-quality",
+                        "grok-imagine-image-pro",
+                        "grok-imagine-image",
+                        "grok-imagine-image-beta",
+                    ],
                 ),
                 IO.String.Input(
                     "prompt",
@@ -111,10 +116,12 @@ class GrokImageNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images", "resolution"]),
                 expr="""
                 (
-                  $rate := $contains(widgets.model, "pro") ? 0.07 : 0.02;
+                  $rate := widgets.model = "grok-imagine-image-quality"
+                    ? (widgets.resolution = "1k" ? 0.05 : 0.07)
+                    : ($contains(widgets.model, "pro") ? 0.07 : 0.02);
                   {"type":"usd","usd": $rate * widgets.number_of_images}
                 )
                 """,
@@ -167,7 +174,12 @@ class GrokImageEditNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["grok-imagine-image-pro", "grok-imagine-image", "grok-imagine-image-beta"],
+                    options=[
+                        "grok-imagine-image-quality",
+                        "grok-imagine-image-pro",
+                        "grok-imagine-image",
+                        "grok-imagine-image-beta",
+                    ],
                 ),
                 IO.Image.Input("image", display_name="images"),
                 IO.String.Input(
@@ -228,11 +240,19 @@ class GrokImageEditNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images", "resolution"]),
                 expr="""
                 (
-                  $rate := $contains(widgets.model, "pro") ? 0.07 : 0.02;
-                  {"type":"usd","usd": 0.002 + $rate * widgets.number_of_images}
+                  $isQualityModel := widgets.model = "grok-imagine-image-quality";
+                  $isPro := $contains(widgets.model, "pro");
+                  $rate := $isQualityModel
+                    ? (widgets.resolution = "1k" ? 0.05 : 0.07)
+                    : ($isPro ? 0.07 : 0.02);
+                  $base := $isQualityModel ? 0.01 : 0.002;
+                  $output := $rate * widgets.number_of_images;
+                  $isPro
+                    ? {"type":"usd","usd": $base + $output}
+                    : {"type":"range_usd","min_usd": $base + $output, "max_usd": 3 * $base + $output}
                 )
                 """,
             ),
