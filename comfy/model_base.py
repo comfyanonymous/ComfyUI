@@ -42,6 +42,7 @@ import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
+import comfy.ldm.wan.ar_model
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -52,6 +53,7 @@ import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
 import comfy.ldm.ace.ace_step15
+import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
 import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
@@ -81,6 +83,7 @@ class ModelType(Enum):
     IMG_TO_IMG = 9
     FLOW_COSMOS = 10
     IMG_TO_IMG_FLOW = 11
+    V_PREDICTION_DDPM = 12
 
 
 def model_sampling(model_config, model_type):
@@ -115,6 +118,8 @@ def model_sampling(model_config, model_type):
         s = comfy.model_sampling.ModelSamplingCosmosRFlow
     elif model_type == ModelType.IMG_TO_IMG_FLOW:
         c = comfy.model_sampling.IMG_TO_IMG_FLOW
+    elif model_type == ModelType.V_PREDICTION_DDPM:
+        c = comfy.model_sampling.V_PREDICTION_DDPM
 
     class ModelSampling(s, c):
         pass
@@ -209,6 +214,11 @@ class BaseModel(torch.nn.Module):
         t = self.process_timestep(t, x=x, **extra_conds)
         if "latent_shapes" in extra_conds:
             xc = utils.unpack_latents(xc, extra_conds.pop("latent_shapes"))
+
+        transformer_options = transformer_options.copy()
+        transformer_options["prefetch_dynamic_vbars"] = (
+            self.current_patcher is not None and self.current_patcher.is_dynamic()
+        )
 
         model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds)
         if len(model_output) > 1 and not torch.is_tensor(model_output):
@@ -1356,6 +1366,13 @@ class WAN21(BaseModel):
         return out
 
 
+class WAN21_CausalAR(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device,
+                                    unet_model=comfy.ldm.wan.ar_model.CausalWanModel)
+        self.image_to_video = False
+
+
 class WAN21_Vace(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.VaceWanModel)
@@ -1979,3 +1996,59 @@ class ErnieImage(BaseModel):
 class SAM3(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.sam3.detector.SAM3Model)
+
+class CogVideoX(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.V_PREDICTION_DDPM, image_to_video=False, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.cogvideo.model.CogVideoXTransformer3DModel)
+        self.image_to_video = image_to_video
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        # Detect extra channels needed (e.g. 32 - 16 = 16 for ref latent)
+        extra_channels = self.diffusion_model.in_channels - noise.shape[1]
+        if extra_channels == 0:
+            return None
+
+        image = kwargs.get("concat_latent_image", None)
+        device = kwargs["device"]
+
+        if image is None:
+            shape = list(noise.shape)
+            shape[1] = extra_channels
+            return torch.zeros(shape, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+
+        latent_dim = self.latent_format.latent_channels
+        image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+        if noise.ndim == 5 and image.ndim == 5:
+            if image.shape[-3] < noise.shape[-3]:
+                image = torch.nn.functional.pad(image, (0, 0, 0, 0, 0, noise.shape[-3] - image.shape[-3]), "constant", 0)
+            elif image.shape[-3] > noise.shape[-3]:
+                image = image[:, :, :noise.shape[-3]]
+
+        for i in range(0, image.shape[1], latent_dim):
+            image[:, i:i + latent_dim] = self.process_latent_in(image[:, i:i + latent_dim])
+        image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        if image.shape[1] > extra_channels:
+            image = image[:, :extra_channels]
+        elif image.shape[1] < extra_channels:
+            repeats = extra_channels // image.shape[1]
+            remainder = extra_channels % image.shape[1]
+            parts = [image] * repeats
+            if remainder > 0:
+                parts.append(image[:, :remainder])
+            image = torch.cat(parts, dim=1)
+
+        return image
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        # OFS embedding (CogVideoX 1.5 I2V), default 2.0 as used by SparkVSR
+        if self.diffusion_model.ofs_proj_dim is not None:
+            ofs = kwargs.get("ofs", None)
+            if ofs is None:
+                noise = kwargs.get("noise", None)
+                ofs = torch.full((noise.shape[0],), 2.0, device=noise.device, dtype=noise.dtype)
+            out['ofs'] = comfy.conds.CONDRegular(ofs)
+        return out
