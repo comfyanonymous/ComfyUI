@@ -1859,6 +1859,23 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
     output = torch.zeros_like(x)
     s_in = x.new_ones([x.shape[0]])
     current_start_frame = 0
+
+    # I2V: seed KV cache with the initial image latent before the denoising loop
+    initial_latent = transformer_options.get("ar_config", {}).get("initial_latent", None)
+    if initial_latent is not None:
+        initial_latent = inner_model.process_latent_in(initial_latent).to(device=device, dtype=model_dtype)
+        n_init = initial_latent.shape[2]
+        output[:, :, :n_init] = initial_latent
+
+        ar_state = {"start_frame": 0, "kv_caches": kv_caches, "crossattn_caches": crossattn_caches}
+        transformer_options["ar_state"] = ar_state
+        zero_sigma = sigmas.new_zeros([1])
+        _ = model(initial_latent, zero_sigma * s_in, **extra_args)
+
+        current_start_frame = n_init
+        remaining = lat_t - n_init
+        num_blocks = -(-remaining // num_frame_per_block)
+
     num_sigma_steps = len(sigmas) - 1
     total_real_steps = num_blocks * num_sigma_steps
     step_count = 0

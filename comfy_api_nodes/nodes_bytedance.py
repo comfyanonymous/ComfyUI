@@ -1271,7 +1271,7 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
 )
 
 
-def _seedance2_text_inputs(resolutions: list[str]):
+def _seedance2_text_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     return [
         IO.String.Input(
             "prompt",
@@ -1287,6 +1287,7 @@ def _seedance2_text_inputs(resolutions: list[str]):
         IO.Combo.Input(
             "ratio",
             options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+            default=default_ratio,
             tooltip="Aspect ratio of the output video.",
         ),
         IO.Int.Input(
@@ -1420,8 +1421,14 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p"])),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0",
+                            _seedance2_text_inputs(["480p", "720p", "1080p"], default_ratio="adaptive"),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0 Fast",
+                            _seedance2_text_inputs(["480p", "720p"], default_ratio="adaptive"),
+                        ),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
@@ -1588,9 +1595,9 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
-def _seedance2_reference_inputs(resolutions: list[str]):
+def _seedance2_reference_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     return [
-        *_seedance2_text_inputs(resolutions),
+        *_seedance2_text_inputs(resolutions, default_ratio=default_ratio),
         IO.Autogrow.Input(
             "reference_images",
             template=IO.Autogrow.TemplateNames(
@@ -1668,8 +1675,14 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_reference_inputs(["480p", "720p", "1080p"])),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_reference_inputs(["480p", "720p"])),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0",
+                            _seedance2_reference_inputs(["480p", "720p", "1080p"], default_ratio="adaptive"),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0 Fast",
+                            _seedance2_reference_inputs(["480p", "720p"], default_ratio="adaptive"),
+                        ),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
