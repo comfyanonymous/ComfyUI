@@ -4,12 +4,12 @@ from comfy_api.latest import ComfyExtension, IO
 from comfy.bg_removal_model import load
 
 
-class LoadBackGroundRemovalModel(IO.ComfyNode):
+class LoadBackgroundRemovalModel(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         files = folder_paths.get_filename_list("background_removal")
         return IO.Schema(
-            node_id="LoadBackGroundRemovalModel",
+            node_id="LoadBackgroundRemovalModel",
             category="loaders",
             inputs=[
                 IO.Combo.Input("bg_removal_name", options=sorted(files)),
@@ -26,7 +26,7 @@ class LoadBackGroundRemovalModel(IO.ComfyNode):
             raise RuntimeError("ERROR: background model file is invalid and does not contain a valid background removal model.")
         return IO.NodeOutput(bg)
 
-class RemoveBackGround(IO.ComfyNode):
+class RemoveBackground(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
