@@ -12,7 +12,7 @@ class LoadBackGroundRemovalModel(IO.ComfyNode):
             node_id="LoadBackGroundRemovalModel",
             category="loaders",
             inputs=[
-                IO.Combo.Input("background_removal_name", options=sorted(files)),
+                IO.Combo.Input("bg_removal_name", options=sorted(files)),
             ],
             outputs=[
                 IO.BackgroundRemoval.Output("bg_model")
