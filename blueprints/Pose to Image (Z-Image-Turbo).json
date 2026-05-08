@@ -1298,7 +1298,8 @@
           "VHS_MetadataImage": true,
           "VHS_KeepIntermediate": true
         },
-        "category": "Image generation and editing/Pose to image"
+        "category": "Image generation and editing/Pose to image",
+        "description": "Generates an image from a pose reference using Z-Image-Turbo."
       }
     ]
   },

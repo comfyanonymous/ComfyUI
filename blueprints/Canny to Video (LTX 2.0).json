@@ -3600,7 +3600,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Video generation and editing/Canny to video"
+        "category": "Video generation and editing/Canny to video",
+        "description": "Generates a video from Canny edge maps using LTX 2.0."
       }
     ]
   },

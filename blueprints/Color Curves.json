@@ -608,7 +608,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image Tools/Color adjust"
+        "category": "Image Tools/Color adjust",
+        "description": "Fine-tune image tone and color using curve adjustments per channel."
       }
     ]
   }

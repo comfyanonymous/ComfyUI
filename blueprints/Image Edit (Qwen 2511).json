@@ -1468,7 +1468,8 @@
           "VHS_MetadataImage": true,
           "VHS_KeepIntermediate": true
         },
-        "category": "Image generation and editing/Edit image"
+        "category": "Image generation and editing/Edit image",
+        "description": "Edits an image based on a text instruction using Qwen (11-2025)."
       }
     ]
   },

@@ -1548,7 +1548,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Inpaint image"
+        "category": "Image generation and editing/Inpaint image",
+        "description": "Inpaints masked regions of an image using Qwen-Image."
       },
       {
         "id": "56a1f603-fbd2-40ed-94ef-c9ecbd96aca8",
@@ -1907,7 +1908,8 @@
         ],
         "extra": {
           "workflowRendererVersion": "LG"
-        }
+        },
+        "description": "Expands and blurs a mask for smoother edge transitions."
       }
     ]
   },

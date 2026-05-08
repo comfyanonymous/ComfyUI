@@ -307,7 +307,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Text generation/Video Captioning"
+        "category": "Text generation/Video Captioning",
+        "description": "Generates a descriptive caption for an input video using Gemini."
       }
     ]
   }

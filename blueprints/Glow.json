@@ -575,7 +575,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image Tools/Color adjust"
+        "category": "Image Tools/Color adjust",
+        "description": "Adds a glow or bloom effect around bright areas of an image."
       }
     ]
   }

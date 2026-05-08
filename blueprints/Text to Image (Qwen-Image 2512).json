@@ -751,7 +751,7 @@
               "secondTabWidth": 65
             },
             "widgets_values": [
-              "低分辨率，低画质，肢体畸形，手指畸形，画面过饱和，蜡像感，人脸无细节，过度光滑，画面具有AI感。构图混乱。文字模糊，扭曲"
+              "\u4f4e\u5206\u8fa8\u7387\uff0c\u4f4e\u753b\u8d28\uff0c\u80a2\u4f53\u7578\u5f62\uff0c\u624b\u6307\u7578\u5f62\uff0c\u753b\u9762\u8fc7\u9971\u548c\uff0c\u8721\u50cf\u611f\uff0c\u4eba\u8138\u65e0\u7ec6\u8282\uff0c\u8fc7\u5ea6\u5149\u6ed1\uff0c\u753b\u9762\u5177\u6709AI\u611f\u3002\u6784\u56fe\u6df7\u4e71\u3002\u6587\u5b57\u6a21\u7cca\uff0c\u626d\u66f2"
             ],
             "color": "#322",
             "bgcolor": "#533"
@@ -1941,7 +1941,8 @@
         "extra": {
           "workflowRendererVersion": "Vue-corrected"
         },
-        "category": "Image generation and editing/Text to image"
+        "category": "Image generation and editing/Text to image",
+        "description": "Generates an image from a text prompt using Qwen-Image (12-2025)."
       }
     ]
   },

@@ -948,7 +948,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Depth to image"
+        "category": "Image generation and editing/Depth to image",
+        "description": "Generates a depth map from an input image using Lotus."
       }
     ]
   },

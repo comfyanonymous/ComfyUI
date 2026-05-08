@@ -1129,7 +1129,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image Tools/Color adjust"
+        "category": "Image Tools/Color adjust",
+        "description": "Balances image colors across shadows, midtones, and highlights."
       }
     ]
   }

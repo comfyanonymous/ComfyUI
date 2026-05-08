@@ -310,7 +310,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Text generation/Image Captioning"
+        "category": "Text generation/Image Captioning",
+        "description": "Generates a descriptive caption for an input image using Gemini."
       }
     ]
   }

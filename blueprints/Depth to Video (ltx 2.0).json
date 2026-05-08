@@ -4233,7 +4233,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Video generation and editing/Depth to video"
+        "category": "Video generation and editing/Depth to video",
+        "description": "Generates a video from a depth map sequence using LTX 2.0."
       },
       {
         "id": "38b60539-50a7-42f9-a5fe-bdeca26272e2",
@@ -5192,7 +5193,8 @@
         ],
         "extra": {
           "workflowRendererVersion": "LG"
-        }
+        },
+        "description": "Generates a depth map from an input image using Lotus."
       }
     ]
   },

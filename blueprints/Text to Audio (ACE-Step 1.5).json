@@ -1502,7 +1502,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Audio/Music generation"
+        "category": "Audio/Music generation",
+        "description": "Generates audio from a text prompt using ACE-Step 1.5."
       }
     ]
   },

@@ -765,7 +765,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "3D/Image to 3D Model"
+        "category": "3D/Image to 3D Model",
+        "description": "Generates a 3D model from an input image using Hunyuan3D 2.1."
       }
     ]
   },

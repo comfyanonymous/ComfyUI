@@ -1029,7 +1029,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Text to image"
+        "category": "Image generation and editing/Text to image",
+        "description": "Generates an image from a text prompt using Flux.1 Dev."
       }
     ]
   },

@@ -374,7 +374,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image Tools/Blur"
+        "category": "Image Tools/Blur",
+        "description": "Applies gaussian blur to soften an image or create depth-of-field effects."
       }
     ]
   }

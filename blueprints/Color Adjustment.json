@@ -596,7 +596,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image Tools/Color adjust"
+        "category": "Image Tools/Color adjust",
+        "description": "Adjusts color properties including saturation, temperature, and tint."
       }
     ]
   }
