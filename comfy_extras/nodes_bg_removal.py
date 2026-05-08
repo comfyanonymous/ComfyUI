@@ -45,7 +45,7 @@ class RemoveBackGround(IO.ComfyNode):
         mask = bg_removal_model.encode_image(image)
         return IO.NodeOutput(mask)
 
-class BackGroundRemovalExtension(ComfyExtension):
+class BackgroundRemovalExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
