@@ -435,7 +435,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image Tools/Sharpen",
-        "description": "Enhances edge contrast using unsharp masking for a sharper image appearance."
+        "description": "Enhances edge contrast via unsharp masking for a sharper image appearance."
       }
     ]
   }

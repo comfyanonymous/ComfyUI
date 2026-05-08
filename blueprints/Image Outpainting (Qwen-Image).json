@@ -1920,7 +1920,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Outpaint image",
-        "description": "Extends image content beyond original boundaries using Qwen-Image outpainting."
+        "description": "Outpaints beyond image boundaries using Qwen-Image's outpainting capabilities."
       },
       {
         "id": "f93c215e-c393-460e-9534-ed2c3d8a652e",
@@ -2280,7 +2280,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "description": "Expands and softens mask edges to reduce visible seams after processing."
+        "description": "Expands and softens mask edges to reduce visible seams after image processing."
       },
       {
         "id": "2a4b2cc0-db37-4302-a067-da392f38f06b",
@@ -2736,7 +2736,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "description": "Scales both image and mask together while preserving alignment for outpainting workflows."
+        "description": "Scales both image and mask together while preserving alignment for editing workflows."
       }
     ]
   },

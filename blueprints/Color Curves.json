@@ -609,7 +609,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image Tools/Color adjust",
-        "description": "Fine-tunes image tone and color using per-channel curve adjustments via real-time GPU shader."
+        "description": "Fine-tunes tone and color with per-channel curve adjustments using a real-time GPU fragment shader."
       }
     ]
   }

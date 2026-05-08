@@ -432,7 +432,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image Tools/Color adjust",
-        "description": "Adjusts image brightness and contrast using real-time GPU shader processing."
+        "description": "Adjusts image brightness and contrast using a real-time GPU fragment shader."
       }
     ]
   },

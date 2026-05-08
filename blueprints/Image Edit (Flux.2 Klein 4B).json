@@ -1473,7 +1473,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Edit image",
-        "description": "Edits images via text instructions using Flux.2 Klein 4B, a distilled 4B parameter model with efficient prompting."
+        "description": "Edits images via text instructions using FLUX.2 [klein] 4B, the fastest Flux model unifying T2I and editing in one compact distilled architecture."
       },
       {
         "id": "6007e698-2ebd-4917-84d8-299b35d7b7ab",
@@ -1823,7 +1823,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "description": "Applies reference image conditioning for style/identity transfer using Flux.2 Klein 4B."
+        "description": "Applies reference image conditioning for style and identity transfer (Flux.2 Klein 4B)."
       }
     ]
   },

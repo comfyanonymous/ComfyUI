@@ -316,7 +316,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image Tools/Color adjust",
-        "description": "Manipulates individual RGBA image channels for masking, compositing, and channel effects."
+        "description": "Manipulates individual RGBA channels for masking, compositing, and channel effects."
       }
     ]
   }

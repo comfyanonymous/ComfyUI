@@ -1554,7 +1554,7 @@
           "VHS_KeepIntermediate": true
         },
         "category": "Image generation and editing/Canny to image",
-        "description": "Generates an image from a Canny edge map using Z-Image-Turbo, optimized for fast text-conditioned edge-to-image generation."
+        "description": "Generates an image from a Canny edge map using Z-Image-Turbo, with text conditioning and fast inference."
       }
     ]
   },

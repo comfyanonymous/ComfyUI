@@ -1030,7 +1030,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Text to image",
-        "description": "Generates images from text prompts using Flux.1 Dev, BFL's 12B parameter open-weights diffusion model."
+        "description": "Generates images from text prompts using Flux.1 [dev], BFL's 12B open-weights diffusion model with Pro-level quality."
       }
     ]
   },

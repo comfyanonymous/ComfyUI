@@ -1105,7 +1105,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Text to image",
-        "description": "Generates anime-style images from text prompts using NetaYume Lumina, an illustration-optimized model."
+        "description": "Generates images from text prompts using NetaYume Lumina, a Lumina-Next variant fine-tuned for anime-style and illustration generation."
       },
       {
         "id": "a07fdf06-1bda-4dac-bdbd-63ee8ebca1c9",
@@ -1460,7 +1460,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "description": "Encodes a negative text prompt using CLIP for classifier-free guidance in anime-style generation."
+        "description": "Encodes a negative text prompt via CLIP for classifier-free guidance in anime-style generation (NetaYume Lumina)."
       }
     ]
   },

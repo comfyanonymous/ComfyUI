@@ -585,7 +585,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video Tools/Stitch videos",
-        "description": "Stitches multiple video clips together into a single sequential video file."
+        "description": "Stitches multiple video clips into a single sequential video file."
       }
     ]
   }

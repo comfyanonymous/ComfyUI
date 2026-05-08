@@ -743,7 +743,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image Tools/Color adjust",
-        "description": "Adjusts black point, white point, and gamma for precise tonal range control."
+        "description": "Adjusts black point, white point, and gamma for tonal range control via GPU shader."
       }
     ]
   },

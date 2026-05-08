@@ -3601,7 +3601,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Canny to video",
-        "description": "Generates video frames from Canny edge maps using LTX 2.0 with text conditioning."
+        "description": "Generates synchronised video+audio from Canny edge maps using LTX-2, Lightricks' 19B DiT audio-video foundation model."
       }
     ]
   },
