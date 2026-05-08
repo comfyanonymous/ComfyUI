@@ -31,7 +31,7 @@ class RemoveBackGround(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RemoveBackGround",
-            category="encode",
+            category="image/background removal",
             inputs=[
                 IO.Image.Input("image"),
                 IO.BackgroundRemoval.Input("bg_removal_model")
