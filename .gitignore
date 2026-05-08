@@ -11,7 +11,7 @@ extra_model_paths.yaml
 /.vs
 .vscode/
 .idea/
-venv/
+venv*/
 .venv/
 /web/extensions/*
 !/web/extensions/logging.js.example
@@ -21,6 +21,6 @@ venv/
 *.log
 web_custom_versions/
 .DS_Store
-openapi.yaml
 filtered-openapi.yaml
 uv.lock
+.comfy_environment

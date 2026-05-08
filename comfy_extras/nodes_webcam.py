@@ -5,6 +5,7 @@ MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
 
 class WebcamCapture(nodes.LoadImage):
+    SEARCH_ALIASES = ["camera input", "live capture", "camera feed", "snapshot"]
     @classmethod
     def INPUT_TYPES(s):
         return {

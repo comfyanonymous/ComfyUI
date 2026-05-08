@@ -12,6 +12,7 @@ class Morphology(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Morphology",
+            search_aliases=["erode", "dilate"],
             display_name="ImageMorphology",
             category="image/postprocessing",
             inputs=[
@@ -57,7 +58,9 @@ class ImageRGBToYUV(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageRGBToYUV",
-            category="image/batch",
+            search_aliases=["color space conversion"],
+            display_name="Image RGB to YUV",
+            category="image/color",
             inputs=[
                 io.Image.Input("image"),
             ],
@@ -78,7 +81,9 @@ class ImageYUVToRGB(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageYUVToRGB",
-            category="image/batch",
+            search_aliases=["color space conversion"],
+            display_name="Image YUV to RGB",
+            category="image/color",
             inputs=[
                 io.Image.Input("Y"),
                 io.Image.Input("U"),

@@ -8,7 +8,7 @@ class CLIPTextEncodeControlnet(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="CLIPTextEncodeControlnet",
-            category="_for_testing/conditioning",
+            category="experimental/conditioning",
             inputs=[
                 io.Clip.Input("clip"),
                 io.Conditioning.Input("conditioning"),
@@ -35,11 +35,11 @@ class T5TokenizerOptions(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="T5TokenizerOptions",
-            category="_for_testing/conditioning",
+            category="experimental/conditioning",
             inputs=[
                 io.Clip.Input("clip"),
-                io.Int.Input("min_padding", default=0, min=0, max=10000, step=1),
-                io.Int.Input("min_length", default=0, min=0, max=10000, step=1),
+                io.Int.Input("min_padding", default=0, min=0, max=10000, step=1, advanced=True),
+                io.Int.Input("min_length", default=0, min=0, max=10000, step=1, advanced=True),
             ],
             outputs=[io.Clip.Output()],
             is_experimental=True,

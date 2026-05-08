@@ -48,6 +48,7 @@ class ChromaRadianceOptions(io.ComfyNode):
                     min=0.0,
                     max=1.0,
                     tooltip="First sigma that these options will be in effect.",
+                    advanced=True,
                 ),
                 io.Float.Input(
                     id="end_sigma",
@@ -55,12 +56,14 @@ class ChromaRadianceOptions(io.ComfyNode):
                     min=0.0,
                     max=1.0,
                     tooltip="Last sigma that these options will be in effect.",
+                    advanced=True,
                 ),
                 io.Int.Input(
                     id="nerf_tile_size",
                     default=-1,
                     min=-1,
                     tooltip="Allows overriding the default NeRF tile size. -1 means use the default (32). 0 means use non-tiling mode (may require a lot of VRAM).",
+                    advanced=True,
                 ),
             ],
             outputs=[io.Model.Output()],

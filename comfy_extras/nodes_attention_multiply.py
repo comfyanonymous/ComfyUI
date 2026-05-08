@@ -25,13 +25,13 @@ class UNetSelfAttentionMultiply(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="UNetSelfAttentionMultiply",
-            category="_for_testing/attention_experiments",
+            category="experimental/attention_experiments",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
             ],
             outputs=[io.Model.Output()],
             is_experimental=True,
@@ -48,13 +48,13 @@ class UNetCrossAttentionMultiply(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="UNetCrossAttentionMultiply",
-            category="_for_testing/attention_experiments",
+            category="experimental/attention_experiments",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
             ],
             outputs=[io.Model.Output()],
             is_experimental=True,
@@ -71,13 +71,14 @@ class CLIPAttentionMultiply(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="CLIPAttentionMultiply",
-            category="_for_testing/attention_experiments",
+            search_aliases=["clip attention scale", "text encoder attention"],
+            category="experimental/attention_experiments",
             inputs=[
                 io.Clip.Input("clip"),
-                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
             ],
             outputs=[io.Clip.Output()],
             is_experimental=True,
@@ -105,13 +106,13 @@ class UNetTemporalAttentionMultiply(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="UNetTemporalAttentionMultiply",
-            category="_for_testing/attention_experiments",
+            category="experimental/attention_experiments",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("self_structural", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("self_temporal", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("cross_structural", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("cross_temporal", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("self_structural", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("self_temporal", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("cross_structural", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
+                io.Float.Input("cross_temporal", default=1.0, min=0.0, max=10.0, step=0.01, advanced=True),
             ],
             outputs=[io.Model.Output()],
             is_experimental=True,

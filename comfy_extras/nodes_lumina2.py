@@ -12,8 +12,8 @@ class RenormCFG(io.ComfyNode):
             category="advanced/model",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("cfg_trunc", default=100, min=0.0, max=100.0, step=0.01),
-                io.Float.Input("renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("cfg_trunc", default=100, min=0.0, max=100.0, step=0.01, advanced=True),
+                io.Float.Input("renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),
@@ -79,6 +79,7 @@ class CLIPTextEncodeLumina2(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CLIPTextEncodeLumina2",
+            search_aliases=["lumina prompt"],
             display_name="CLIP Text Encode for Lumina2",
             category="conditioning",
             description="Encodes a system prompt and a user prompt using a CLIP model into an embedding "

@@ -4,6 +4,7 @@ from torch import Tensor
 
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
+import logging
 
 
 def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transformer_options={}) -> Tensor:
@@ -13,10 +14,9 @@ def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transforme
     x = optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask, transformer_options=transformer_options)
     return x
 
-
 def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
     assert dim % 2 == 0
-    if comfy.model_management.is_device_mps(pos.device) or comfy.model_management.is_intel_xpu() or comfy.model_management.is_directml_enabled():
+    if not comfy.model_management.supports_fp64(pos.device):
         device = torch.device("cpu")
     else:
         device = pos.device
@@ -28,13 +28,37 @@ def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
     out = rearrange(out, "b n d (i j) -> b n d i j", i=2, j=2)
     return out.to(dtype=torch.float32, device=pos.device)
 
-def apply_rope1(x: Tensor, freqs_cis: Tensor):
+
+def _apply_rope1(x: Tensor, freqs_cis: Tensor):
     x_ = x.to(dtype=freqs_cis.dtype).reshape(*x.shape[:-1], -1, 1, 2)
+    if x_.shape[2] != 1 and freqs_cis.shape[2] != 1 and x_.shape[2] != freqs_cis.shape[2]:
+        freqs_cis = freqs_cis[:, :, :x_.shape[2]]
 
     x_out = freqs_cis[..., 0] * x_[..., 0]
     x_out.addcmul_(freqs_cis[..., 1], x_[..., 1])
 
     return x_out.reshape(*x.shape).type_as(x)
 
-def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor):
+
+def _apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor):
     return apply_rope1(xq, freqs_cis), apply_rope1(xk, freqs_cis)
+
+
+try:
+    import comfy.quant_ops
+    q_apply_rope = comfy.quant_ops.ck.apply_rope
+    q_apply_rope1 = comfy.quant_ops.ck.apply_rope1
+    def apply_rope(xq, xk, freqs_cis):
+        if comfy.model_management.in_training:
+            return _apply_rope(xq, xk, freqs_cis)
+        else:
+            return apply_rope1(xq, freqs_cis), apply_rope1(xk, freqs_cis)
+    def apply_rope1(x, freqs_cis):
+        if comfy.model_management.in_training:
+            return _apply_rope1(x, freqs_cis)
+        else:
+            return q_apply_rope1(x, freqs_cis)
+except:
+    logging.warning("No comfy kitchen, using old apply_rope functions.")
+    apply_rope = _apply_rope
+    apply_rope1 = _apply_rope1

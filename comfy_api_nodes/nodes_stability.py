@@ -3,7 +3,7 @@ from typing import Optional
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, Input, IO
-from comfy_api_nodes.apis.stability_api import (
+from comfy_api_nodes.apis.stability import (
     StabilityUpscaleConservativeRequest,
     StabilityUpscaleCreativeRequest,
     StabilityAsyncResponse,
@@ -86,6 +86,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -107,6 +108,7 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                     tooltip="A blurb of text describing what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "image_denoise",
@@ -127,6 +129,9 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.08}""",
+            ),
         )
 
     @classmethod
@@ -215,6 +220,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "cfg_scale",
@@ -244,6 +250,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "image_denoise",
@@ -264,6 +271,16 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $contains(widgets.model,"large")
+                    ? {"type":"usd","usd":0.065}
+                    : {"type":"usd","usd":0.035}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -371,6 +388,7 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -382,6 +400,9 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -458,6 +479,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                     "style_preset",
                     options=get_stability_style_presets(),
                     tooltip="Optional desired style of generated image.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -475,6 +497,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                     tooltip="Keywords of what you do not wish to see in the output image. This is an advanced feature.",
                     force_input=True,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -486,6 +509,9 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.6}""",
+            ),
         )
 
     @classmethod
@@ -566,6 +592,9 @@ class StabilityUpscaleFastNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.02}""",
+            ),
         )
 
     @classmethod
@@ -602,6 +631,7 @@ class StabilityTextToAudio(IO.ComfyNode):
             node_id="StabilityTextToAudio",
             display_name="Stability AI Text To Audio",
             category="api node/audio/Stability AI",
+            essentials_category="Audio",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Combo.Input(
@@ -637,6 +667,7 @@ class StabilityTextToAudio(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -648,6 +679,9 @@ class StabilityTextToAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.2}""",
+            ),
         )
 
     @classmethod
@@ -711,6 +745,7 @@ class StabilityAudioToAudio(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Float.Input(
                     "strength",
@@ -732,6 +767,9 @@ class StabilityAudioToAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.2}""",
+            ),
         )
 
     @classmethod
@@ -801,6 +839,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     step=1,
                     tooltip="Controls the number of sampling steps.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "mask_start",
@@ -809,6 +848,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     max=190,
                     step=1,
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "mask_end",
@@ -817,6 +857,7 @@ class StabilityAudioInpaint(IO.ComfyNode):
                     max=190,
                     step=1,
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -828,6 +869,9 @@ class StabilityAudioInpaint(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.2}""",
+            ),
         )
 
     @classmethod

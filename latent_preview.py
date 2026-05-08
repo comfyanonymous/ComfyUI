@@ -8,8 +8,10 @@ import folder_paths
 import comfy.utils
 import logging
 
+default_preview_method = args.preview_method
+
 MAX_PREVIEW_RESOLUTION = args.preview_size
-VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5"]
+VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
 
 def preview_to_image(latent_image, do_scale=True):
         if do_scale:
@@ -124,4 +126,12 @@ def prepare_callback(model, steps, x0_output_dict=None):
             preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
     return callback
+
+def set_preview_method(override: str = None):
+    if override and override != "default":
+        method = LatentPreviewMethod.from_string(override)
+        if method is not None:
+            args.preview_method = method
+            return
+    args.preview_method = default_preview_method
 

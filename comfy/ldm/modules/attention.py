@@ -14,6 +14,8 @@ from .sub_quadratic_attention import efficient_dot_product_attention
 
 from comfy import model_management
 
+TORCH_HAS_GQA = model_management.torch_version_numeric >= (2, 5)
+
 if model_management.xformers_enabled():
     import xformers
     import xformers.ops
@@ -29,6 +31,13 @@ except ImportError as e:
         else:
             raise e
         exit(-1)
+
+SAGE_ATTENTION3_IS_AVAILABLE = False
+try:
+    from sageattn3 import sageattn3_blackwell
+    SAGE_ATTENTION3_IS_AVAILABLE = True
+except ImportError:
+    pass
 
 FLASH_ATTENTION_IS_AVAILABLE = False
 try:
@@ -143,7 +152,12 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
         b, _, dim_head = q.shape
         dim_head //= heads
 
-    scale = dim_head ** -0.5
+    if kwargs.get("enable_gqa", False) and q.shape[-3] != k.shape[-3]:
+        n_rep = q.shape[-3] // k.shape[-3]
+        k = k.repeat_interleave(n_rep, dim=-3)
+        v = v.repeat_interleave(n_rep, dim=-3)
+
+    scale = kwargs.get("scale", dim_head ** -0.5)
 
     h = heads
     if skip_reshape:
@@ -211,6 +225,10 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
     else:
         b, _, dim_head = query.shape
         dim_head //= heads
+
+    if "scale" in kwargs:
+        # Pre-scale query to match requested scale (cancels internal 1/sqrt(dim_head))
+        query = query * (kwargs["scale"] * dim_head ** 0.5)
 
     if skip_reshape:
         query = query.reshape(b * heads, -1, dim_head)
@@ -283,7 +301,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
         b, _, dim_head = q.shape
         dim_head //= heads
 
-    scale = dim_head ** -0.5
+    scale = kwargs.get("scale", dim_head ** -0.5)
 
     if skip_reshape:
          q, k, v = map(
@@ -365,7 +383,8 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
                 del s2
             break
-        except model_management.OOM_EXCEPTION as e:
+        except Exception as e:
+            model_management.raise_non_oom(e)
             if first_op_done == False:
                 model_management.soft_empty_cache(True)
                 if cleared_cache == False:
@@ -492,8 +511,13 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
         if mask.ndim == 3:
             mask = mask.unsqueeze(1)
 
+    # Pass through extra SDPA kwargs (scale, enable_gqa) if provided
+    # enable_gqa requires PyTorch 2.5+; older versions use manual KV expansion above
+    sdpa_keys = ("scale", "enable_gqa") if TORCH_HAS_GQA else ("scale",)
+    sdpa_extra = {k: v for k, v in kwargs.items() if k in sdpa_keys}
+
     if SDP_BATCH_LIMIT >= b:
-        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False, **sdpa_extra)
         if not skip_output_reshape:
             out = (
                 out.transpose(1, 2).reshape(b, -1, heads * dim_head)
@@ -511,12 +535,16 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
                 k[i : i + SDP_BATCH_LIMIT],
                 v[i : i + SDP_BATCH_LIMIT],
                 attn_mask=m,
-                dropout_p=0.0, is_causal=False
+                dropout_p=0.0, is_causal=False, **sdpa_extra
             ).transpose(1, 2).reshape(-1, q.shape[2], heads * dim_head)
     return out
 
 @wrap_attn
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if kwargs.get("low_precision_attention", True) is False:
+        return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
+
+    exception_fallback = False
     if skip_reshape:
         b, _, _, dim_head = q.shape
         tensor_layout = "HND"
@@ -541,6 +569,8 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
         out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
     except Exception as e:
         logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
+        exception_fallback = True
+    if exception_fallback:
         if tensor_layout == "NHD":
             q, k, v = map(
                 lambda t: t.transpose(1, 2),
@@ -560,6 +590,93 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
             out = out.reshape(b, -1, heads * dim_head)
     return out
 
+@wrap_attn
+def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    exception_fallback = False
+    if (q.device.type != "cuda" or
+        q.dtype not in (torch.float16, torch.bfloat16) or
+        mask is not None):
+        return attention_pytorch(
+            q, k, v, heads,
+            mask=mask,
+            attn_precision=attn_precision,
+            skip_reshape=skip_reshape,
+            skip_output_reshape=skip_output_reshape,
+            **kwargs
+        )
+
+    if skip_reshape:
+        B, H, L, D = q.shape
+        if H != heads:
+            return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=True,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+        q_s, k_s, v_s = q, k, v
+        N = q.shape[2]
+        dim_head = D
+    else:
+        B, N, inner_dim = q.shape
+        if inner_dim % heads != 0:
+            return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=False,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+        dim_head = inner_dim // heads
+
+    if dim_head >= 256 or N <= 1024:
+        return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=skip_reshape,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+
+    if not skip_reshape:
+        q_s, k_s, v_s = map(
+            lambda t: t.view(B, -1, heads, dim_head).permute(0, 2, 1, 3).contiguous(),
+            (q, k, v),
+        )
+        B, H, L, D = q_s.shape
+
+    try:
+        out = sageattn3_blackwell(q_s, k_s, v_s, is_causal=False)
+    except Exception as e:
+        exception_fallback = True
+        logging.error("Error running SageAttention3: %s, falling back to pytorch attention.", e)
+
+    if exception_fallback:
+        if not skip_reshape:
+            del q_s, k_s, v_s
+        return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=False,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+
+    if skip_reshape:
+        if not skip_output_reshape:
+            out = out.permute(0, 2, 1, 3).reshape(B, L, H * D)
+    else:
+        if skip_output_reshape:
+            pass
+        else:
+            out = out.permute(0, 2, 1, 3).reshape(B, L, H * D)
+
+    return out
 
 try:
     @torch.library.custom_op("flash_attention::flash_attn", mutates_args=())
@@ -647,6 +764,8 @@ optimized_attention_masked = optimized_attention
 # register core-supported attention functions
 if SAGE_ATTENTION_IS_AVAILABLE:
     register_attention_function("sage", attention_sage)
+if SAGE_ATTENTION3_IS_AVAILABLE:
+    register_attention_function("sage3", attention3_sage)
 if FLASH_ATTENTION_IS_AVAILABLE:
     register_attention_function("flash", attention_flash)
 if model_management.xformers_enabled():

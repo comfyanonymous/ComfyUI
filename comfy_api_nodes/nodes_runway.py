@@ -11,13 +11,12 @@ User Guides:
 
 """
 
-from typing import Union, Optional
-from typing_extensions import override
 from enum import Enum
 
-import torch
+from typing_extensions import override
 
-from comfy_api_nodes.apis import (
+from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
+from comfy_api_nodes.apis.runway import (
     RunwayImageToVideoRequest,
     RunwayImageToVideoResponse,
     RunwayTaskStatusResponse as TaskStatusResponse,
@@ -44,8 +43,6 @@ from comfy_api_nodes.util import (
     sync_op,
     poll_op,
 )
-from comfy_api.input_impl import VideoFromFile
-from comfy_api.latest import ComfyExtension, IO
 
 PATH_IMAGE_TO_VIDEO = "/proxy/runway/image_to_video"
 PATH_TEXT_TO_IMAGE = "/proxy/runway/text_to_image"
@@ -80,7 +77,7 @@ class RunwayGen3aAspectRatio(str, Enum):
     field_1280_768 = "1280:768"
 
 
-def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, None]:
+def get_video_url_from_task_status(response: TaskStatusResponse) -> str | None:
     """Returns the video URL from the task status response if it exists."""
     if hasattr(response, "output") and len(response.output) > 0:
         return response.output[0]
@@ -89,13 +86,13 @@ def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, N
 
 def extract_progress_from_task_status(
     response: TaskStatusResponse,
-) -> Union[float, None]:
+) -> float | None:
     if hasattr(response, "progress") and response.progress is not None:
         return response.progress * 100
     return None
 
 
-def get_image_url_from_task_status(response: TaskStatusResponse) -> Union[str, None]:
+def get_image_url_from_task_status(response: TaskStatusResponse) -> str | None:
     """Returns the image URL from the task status response if it exists."""
     if hasattr(response, "output") and len(response.output) > 0:
         return response.output[0]
@@ -103,7 +100,7 @@ def get_image_url_from_task_status(response: TaskStatusResponse) -> Union[str, N
 
 
 async def get_response(
-    cls: type[IO.ComfyNode], task_id: str, estimated_duration: Optional[int] = None
+    cls: type[IO.ComfyNode], task_id: str, estimated_duration: int | None = None
 ) -> TaskStatusResponse:
     """Poll the task status until it is finished then get the response."""
     return await poll_op(
@@ -119,8 +116,8 @@ async def get_response(
 async def generate_video(
     cls: type[IO.ComfyNode],
     request: RunwayImageToVideoRequest,
-    estimated_duration: Optional[int] = None,
-) -> VideoFromFile:
+    estimated_duration: int | None = None,
+) -> InputImpl.VideoFromFile:
     initial_response = await sync_op(
         cls,
         endpoint=ApiEndpoint(path=PATH_IMAGE_TO_VIDEO, method="POST"),
@@ -187,13 +184,17 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration}""",
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
         prompt: str,
-        start_frame: torch.Tensor,
+        start_frame: Input.Image,
         duration: str,
         ratio: str,
         seed: int,
@@ -277,13 +278,17 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration}""",
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
         prompt: str,
-        start_frame: torch.Tensor,
+        start_frame: Input.Image,
         duration: str,
         ratio: str,
         seed: int,
@@ -375,14 +380,18 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration}""",
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
         prompt: str,
-        start_frame: torch.Tensor,
-        end_frame: torch.Tensor,
+        start_frame: Input.Image,
+        end_frame: Input.Image,
         duration: str,
         ratio: str,
         seed: int,
@@ -460,6 +469,9 @@ class RunwayTextToImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.11}""",
+            ),
         )
 
     @classmethod
@@ -467,7 +479,7 @@ class RunwayTextToImageNode(IO.ComfyNode):
         cls,
         prompt: str,
         ratio: str,
-        reference_image: Optional[torch.Tensor] = None,
+        reference_image: Input.Image | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1)
 

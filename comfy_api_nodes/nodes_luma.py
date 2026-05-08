@@ -1,10 +1,11 @@
-from typing import Optional
-
 import torch
 from typing_extensions import override
 
-from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apis.luma_api import (
+from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api_nodes.apis.luma import (
+    Luma2Generation,
+    Luma2GenerationRequest,
+    Luma2ImageRef,
     LumaAspectRatio,
     LumaCharacterRef,
     LumaConceptChain,
@@ -30,6 +31,7 @@ from comfy_api_nodes.util import (
     download_url_to_video_output,
     poll_op,
     sync_op,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     validate_string,
 )
@@ -189,6 +191,19 @@ class LumaImageGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m,"photon-flash-1")
+                    ? {"type":"usd","usd":0.0027}
+                    : $contains($m,"photon-1")
+                      ? {"type":"usd","usd":0.0104}
+                      : {"type":"usd","usd":0.0246}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -199,9 +214,9 @@ class LumaImageGenerationNode(IO.ComfyNode):
         aspect_ratio: str,
         seed,
         style_image_weight: float,
-        image_luma_ref: Optional[LumaReferenceChain] = None,
-        style_image: Optional[torch.Tensor] = None,
-        character_image: Optional[torch.Tensor] = None,
+        image_luma_ref: LumaReferenceChain | None = None,
+        style_image: torch.Tensor | None = None,
+        character_image: torch.Tensor | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=3)
         # handle image_luma_ref
@@ -303,6 +318,19 @@ class LumaImageModifyNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m,"photon-flash-1")
+                    ? {"type":"usd","usd":0.0027}
+                    : $contains($m,"photon-1")
+                      ? {"type":"usd","usd":0.0104}
+                      : {"type":"usd","usd":0.0246}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -395,6 +423,7 @@ class LumaTextToVideoGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -407,7 +436,7 @@ class LumaTextToVideoGenerationNode(IO.ComfyNode):
         duration: str,
         loop: bool,
         seed,
-        luma_concepts: Optional[LumaConceptChain] = None,
+        luma_concepts: LumaConceptChain | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False, min_length=3)
         duration = duration if model != LumaVideoModel.ray_1_6 else None
@@ -505,6 +534,7 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -568,6 +598,340 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
         return LumaKeyframes(frame0=frame0, frame1=frame1)
 
 
+PRICE_BADGE_VIDEO = IO.PriceBadge(
+    depends_on=IO.PriceBadgeDepends(widgets=["model", "resolution", "duration"]),
+    expr="""
+    (
+      $p := {
+        "ray-flash-2": {
+          "5s": {"4k":3.13,"1080p":0.79,"720p":0.34,"540p":0.2},
+          "9s": {"4k":5.65,"1080p":1.42,"720p":0.61,"540p":0.36}
+        },
+        "ray-2": {
+          "5s": {"4k":9.11,"1080p":2.27,"720p":1.02,"540p":0.57},
+          "9s": {"4k":16.4,"1080p":4.1,"720p":1.83,"540p":1.03}
+        }
+      };
+
+      $m := widgets.model;
+      $d := widgets.duration;
+      $r := widgets.resolution;
+
+      $modelKey :=
+        $contains($m,"ray-flash-2") ? "ray-flash-2" :
+        $contains($m,"ray-2") ? "ray-2" :
+        $contains($m,"ray-1-6") ? "ray-1-6" :
+        "other";
+
+      $durKey := $contains($d,"5s") ? "5s" : $contains($d,"9s") ? "9s" : "";
+      $resKey :=
+        $contains($r,"4k") ? "4k" :
+        $contains($r,"1080p") ? "1080p" :
+        $contains($r,"720p") ? "720p" :
+        $contains($r,"540p") ? "540p" : "";
+
+      $modelPrices := $lookup($p, $modelKey);
+      $durPrices := $lookup($modelPrices, $durKey);
+      $v := $lookup($durPrices, $resKey);
+
+      $price :=
+        ($modelKey = "ray-1-6") ? 0.5 :
+        ($modelKey = "other") ? 0.79 :
+        ($exists($v) ? $v : 0.79);
+
+      {"type":"usd","usd": $price}
+    )
+    """,
+)
+
+
+def _luma2_uni1_common_inputs(max_image_refs: int) -> list:
+    return [
+        IO.Combo.Input(
+            "style",
+            options=["auto", "manga"],
+            default="auto",
+            tooltip="Style preset. 'auto' picks based on the prompt; "
+            "'manga' applies a manga/anime aesthetic and requires a portrait "
+            "aspect ratio (2:3, 9:16, 1:2, 1:3).",
+        ),
+        IO.Boolean.Input(
+            "web_search",
+            default=False,
+            tooltip="Search the web for visual references before generating.",
+        ),
+        IO.Autogrow.Input(
+            "image_ref",
+            template=IO.Autogrow.TemplateNames(
+                IO.Image.Input("image"),
+                names=[f"image_{i}" for i in range(1, max_image_refs + 1)],
+                min=0,
+            ),
+            optional=True,
+            tooltip=f"Up to {max_image_refs} reference images for style/content guidance.",
+        ),
+    ]
+
+
+async def _luma2_upload_image_refs(
+    cls: type[IO.ComfyNode],
+    refs: dict | None,
+    max_count: int,
+) -> list[Luma2ImageRef] | None:
+    if not refs:
+        return None
+    out: list[Luma2ImageRef] = []
+    for key in refs:
+        url = await upload_image_to_comfyapi(cls, refs[key])
+        out.append(Luma2ImageRef(url=url))
+    if len(out) > max_count:
+        raise ValueError(f"Maximum {max_count} reference images are allowed.")
+    return out or None
+
+
+async def _luma2_submit_and_poll(
+    cls: type[IO.ComfyNode],
+    request: Luma2GenerationRequest,
+) -> Input.Image:
+    initial = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/luma_2/generations", method="POST"),
+        response_model=Luma2Generation,
+        data=request,
+    )
+    if not initial.id:
+        raise RuntimeError("Luma 2 API did not return a generation id.")
+    final = await poll_op(
+        cls,
+        ApiEndpoint(path=f"/proxy/luma_2/generations/{initial.id}", method="GET"),
+        response_model=Luma2Generation,
+        status_extractor=lambda r: r.state,
+        progress_extractor=lambda r: None,
+    )
+    if not final.output:
+        msg = final.failure_reason or "no output returned"
+        raise RuntimeError(f"Luma 2 generation failed: {msg}")
+    url = final.output[0].url
+    if not url:
+        raise RuntimeError("Luma 2 generation completed without an output URL.")
+    return await download_url_to_image_tensor(url)
+
+
+class LumaImageNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="LumaImageNode2",
+            display_name="Luma UNI-1 Image",
+            category="api node/image/Luma",
+            description="Generate images from text using the Luma UNI-1 model.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text description of the desired image. 1–6000 characters.",
+                ),
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "uni-1",
+                            [
+                                IO.Combo.Input(
+                                    "aspect_ratio",
+                                    options=[
+                                        "auto",
+                                        "3:1",
+                                        "2:1",
+                                        "16:9",
+                                        "3:2",
+                                        "1:1",
+                                        "2:3",
+                                        "9:16",
+                                        "1:2",
+                                        "1:3",
+                                    ],
+                                    default="auto",
+                                    tooltip="Output image aspect ratio. 'auto' lets "
+                                    "the model pick based on the prompt.",
+                                ),
+                                *_luma2_uni1_common_inputs(max_image_refs=9),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "uni-1-max",
+                            [
+                                IO.Combo.Input(
+                                    "aspect_ratio",
+                                    options=[
+                                        "auto",
+                                        "3:1",
+                                        "2:1",
+                                        "16:9",
+                                        "3:2",
+                                        "1:1",
+                                        "2:3",
+                                        "9:16",
+                                        "1:2",
+                                        "1:3",
+                                    ],
+                                    default="auto",
+                                    tooltip="Output image aspect ratio. 'auto' lets "
+                                    "the model pick based on the prompt.",
+                                ),
+                                *_luma2_uni1_common_inputs(max_image_refs=9),
+                            ],
+                        ),
+                    ],
+                    tooltip="Model to use for generation.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"], input_groups=["model.image_ref"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $refs := $lookup(inputGroups, "model.image_ref");
+                  $base := $m = "uni-1-max" ? 0.1 : 0.0404;
+                  {"type":"usd","usd": $round($base + 0.003 * $refs, 4)}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        model: dict,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, min_length=1, max_length=6000)
+        aspect_ratio = model["aspect_ratio"]
+        style = model["style"]
+        allowed_manga_ratios = {"2:3", "9:16", "1:2", "1:3"}
+        if style == "manga" and aspect_ratio != "auto" and aspect_ratio not in allowed_manga_ratios:
+            raise ValueError(
+                f"'manga' style requires a portrait aspect ratio "
+                f"({', '.join(sorted(allowed_manga_ratios))}) or 'auto'; got '{aspect_ratio}'."
+            )
+        request = Luma2GenerationRequest(
+            prompt=prompt,
+            model=model["model"],
+            type="image",
+            aspect_ratio=aspect_ratio if aspect_ratio != "auto" else None,
+            style=style if style != "auto" else None,
+            output_format="png",
+            web_search=model["web_search"],
+            image_ref=await _luma2_upload_image_refs(cls, model.get("image_ref"), max_count=9),
+        )
+        return IO.NodeOutput(await _luma2_submit_and_poll(cls, request))
+
+
+class LumaImageEditNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="LumaImageEditNode2",
+            display_name="Luma UNI-1 Image Edit",
+            category="api node/image/Luma",
+            description="Edit an existing image with a text prompt using the Luma UNI-1 model.",
+            inputs=[
+                IO.Image.Input(
+                    "source",
+                    tooltip="Source image to edit.",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Description of the desired edit. 1–6000 characters.",
+                ),
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "uni-1",
+                            _luma2_uni1_common_inputs(max_image_refs=8),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "uni-1-max",
+                            _luma2_uni1_common_inputs(max_image_refs=8),
+                        ),
+                    ],
+                    tooltip="Model to use for editing.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"], input_groups=["model.image_ref"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $refs := $lookup(inputGroups, "model.image_ref");
+                  $base := $m = "uni-1-max" ? 0.103 : 0.0434;
+                  {"type":"usd","usd": $round($base + 0.003 * $refs, 4)}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        source: Input.Image,
+        prompt: str,
+        model: dict,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, min_length=1, max_length=6000)
+        request = Luma2GenerationRequest(
+            prompt=prompt,
+            model=model["model"],
+            type="image_edit",
+            source=Luma2ImageRef(url=await upload_image_to_comfyapi(cls, source)),
+            style=model["style"] if model["style"] != "auto" else None,
+            output_format="png",
+            web_search=model["web_search"],
+            image_ref=await _luma2_upload_image_refs(cls, model.get("image_ref"), max_count=8),
+        )
+        return IO.NodeOutput(await _luma2_submit_and_poll(cls, request))
+
+
 class LumaExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -578,6 +942,8 @@ class LumaExtension(ComfyExtension):
             LumaImageToVideoGenerationNode,
             LumaReferenceNode,
             LumaConceptsNode,
+            LumaImageNode,
+            LumaImageEditNode,
         ]
 
 

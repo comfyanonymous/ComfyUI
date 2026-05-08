@@ -109,6 +109,7 @@ class PorterDuffImageComposite(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PorterDuffImageComposite",
+            search_aliases=["alpha composite", "blend modes", "layer blend", "transparency blend"],
             display_name="Porter-Duff Image Composite",
             category="mask/compositing",
             inputs=[
@@ -165,6 +166,7 @@ class SplitImageWithAlpha(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SplitImageWithAlpha",
+            search_aliases=["extract alpha", "separate transparency", "remove alpha"],
             display_name="Split Image with Alpha",
             category="mask/compositing",
             inputs=[
@@ -188,6 +190,7 @@ class JoinImageWithAlpha(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="JoinImageWithAlpha",
+            search_aliases=["add transparency", "apply alpha", "composite alpha", "RGBA"],
             display_name="Join Image with Alpha",
             category="mask/compositing",
             inputs=[
@@ -199,14 +202,11 @@ class JoinImageWithAlpha(io.ComfyNode):
 
     @classmethod
     def execute(cls, image: torch.Tensor, alpha: torch.Tensor) -> io.NodeOutput:
-        batch_size = min(len(image), len(alpha))
-        out_images = []
-
+        batch_size = max(len(image), len(alpha))
         alpha = 1.0 - resize_mask(alpha, image.shape[1:])
-        for i in range(batch_size):
-           out_images.append(torch.cat((image[i][:,:,:3], alpha[i].unsqueeze(2)), dim=2))
-
-        return io.NodeOutput(torch.stack(out_images))
+        alpha = comfy.utils.repeat_to_batch_size(alpha, batch_size)
+        image = comfy.utils.repeat_to_batch_size(image, batch_size)
+        return io.NodeOutput(torch.cat((image[..., :3], alpha.unsqueeze(-1)), dim=-1))
 
 
 class CompositingExtension(ComfyExtension):

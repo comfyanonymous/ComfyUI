@@ -8,6 +8,8 @@ class LatentFormat:
     latent_rgb_factors_bias = None
     latent_rgb_factors_reshape = None
     taesd_decoder_name = None
+    spacial_downscale_ratio = 8
+    temporal_downscale_ratio = 1
 
     def process_in(self, latent):
         return latent * self.scale_factor
@@ -80,6 +82,7 @@ class SD_X4(LatentFormat):
 
 class SC_Prior(LatentFormat):
     latent_channels = 16
+    spacial_downscale_ratio = 42
     def __init__(self):
         self.scale_factor = 1.0
         self.latent_rgb_factors = [
@@ -102,6 +105,7 @@ class SC_Prior(LatentFormat):
         ]
 
 class SC_B(LatentFormat):
+    spacial_downscale_ratio = 4
     def __init__(self):
         self.scale_factor = 1.0 / 0.43
         self.latent_rgb_factors = [
@@ -181,6 +185,7 @@ class Flux(SD3):
 
 class Flux2(LatentFormat):
     latent_channels = 128
+    spacial_downscale_ratio = 16
 
     def __init__(self):
         self.latent_rgb_factors =[
@@ -220,6 +225,7 @@ class Flux2(LatentFormat):
 
         self.latent_rgb_factors_bias = [-0.0329, -0.0718, -0.0851]
         self.latent_rgb_factors_reshape = lambda t: t.reshape(t.shape[0], 32, 2, 2, t.shape[-2], t.shape[-1]).permute(0, 1, 4, 2, 5, 3).reshape(t.shape[0], 32, t.shape[-2] * 2, t.shape[-1] * 2)
+        self.taesd_decoder_name = "taef2_decoder"
 
     def process_in(self, latent):
         return latent
@@ -230,6 +236,7 @@ class Flux2(LatentFormat):
 class Mochi(LatentFormat):
     latent_channels = 12
     latent_dimensions = 3
+    temporal_downscale_ratio = 6
 
     def __init__(self):
         self.scale_factor = 1.0
@@ -272,6 +279,8 @@ class Mochi(LatentFormat):
 class LTXV(LatentFormat):
     latent_channels = 128
     latent_dimensions = 3
+    spacial_downscale_ratio = 32
+    temporal_downscale_ratio = 8
 
     def __init__(self):
         self.latent_rgb_factors = [
@@ -407,9 +416,15 @@ class LTXV(LatentFormat):
 
         self.latent_rgb_factors_bias = [-0.0571, -0.1657, -0.2512]
 
+class LTXAV(LTXV):
+    def __init__(self):
+        self.latent_rgb_factors = None
+        self.latent_rgb_factors_bias = None
+
 class HunyuanVideo(LatentFormat):
     latent_channels = 16
     latent_dimensions = 3
+    temporal_downscale_ratio = 4
     scale_factor = 0.476986
     latent_rgb_factors = [
         [-0.0395, -0.0331,  0.0445],
@@ -436,6 +451,7 @@ class HunyuanVideo(LatentFormat):
 class Cosmos1CV8x8x8(LatentFormat):
     latent_channels = 16
     latent_dimensions = 3
+    temporal_downscale_ratio = 8
 
     latent_rgb_factors = [
         [ 0.1817,  0.2284,  0.2423],
@@ -461,6 +477,7 @@ class Cosmos1CV8x8x8(LatentFormat):
 class Wan21(LatentFormat):
     latent_channels = 16
     latent_dimensions = 3
+    temporal_downscale_ratio = 4
 
     latent_rgb_factors = [
             [-0.1299, -0.1692,  0.2932],
@@ -510,6 +527,7 @@ class Wan21(LatentFormat):
 class Wan22(Wan21):
     latent_channels = 48
     latent_dimensions = 3
+    spacial_downscale_ratio = 16
 
     latent_rgb_factors = [
             [ 0.0119,  0.0103,  0.0046],
@@ -587,6 +605,7 @@ class Wan22(Wan21):
 class HunyuanImage21(LatentFormat):
     latent_channels = 64
     latent_dimensions = 2
+    spacial_downscale_ratio = 32
     scale_factor = 0.75289
 
     latent_rgb_factors = [
@@ -720,6 +739,8 @@ class HunyuanVideo15(LatentFormat):
     latent_rgb_factors_bias = [ 0.0456, -0.0202, -0.0644]
     latent_channels = 32
     latent_dimensions = 3
+    spacial_downscale_ratio = 16
+    temporal_downscale_ratio = 4
     scale_factor = 1.03682
     taesd_decoder_name = "lighttaehy1_5"
 
@@ -742,8 +763,13 @@ class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
 
+class ACEAudio15(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 1
+
 class ChromaRadiance(LatentFormat):
     latent_channels = 3
+    spacial_downscale_ratio = 1
 
     def __init__(self):
         self.latent_rgb_factors = [
@@ -758,3 +784,36 @@ class ChromaRadiance(LatentFormat):
 
     def process_out(self, latent):
         return latent
+
+
+class ZImagePixelSpace(ChromaRadiance):
+    """Pixel-space latent format for ZImage DCT variant.
+    No VAE encoding/decoding — the model operates directly on RGB pixels.
+    """
+    pass
+
+class CogVideoX(LatentFormat):
+    """Latent format for CogVideoX-2b (THUDM/CogVideoX-2b).
+
+    scale_factor matches the vae/config.json scaling_factor for the 2b variant.
+    The 5b-class checkpoints (CogVideoX-5b, CogVideoX-1.5-5B, CogVideoX-Fun-V1.5-*)
+    use a different value; see CogVideoX1_5 below.
+    """
+    latent_channels = 16
+    latent_dimensions = 3
+    temporal_downscale_ratio = 4
+
+    def __init__(self):
+        self.scale_factor = 1.15258426
+
+
+class CogVideoX1_5(CogVideoX):
+    """Latent format for 5b-class CogVideoX checkpoints.
+
+    Covers THUDM/CogVideoX-5b, THUDM/CogVideoX-1.5-5B, and the CogVideoX-Fun
+    V1.5-5b family (including VOID inpainting). All of these have
+    scaling_factor=0.7 in their vae/config.json. Auto-selected in
+    supported_models.CogVideoX_T2V based on transformer hidden dim.
+    """
+    def __init__(self):
+        self.scale_factor = 0.7

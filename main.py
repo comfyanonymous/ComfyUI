@@ -1,26 +1,104 @@
 import comfy.options
 comfy.options.enable_args_parsing()
 
+from comfy.cli_args import args
+
+if args.list_feature_flags:
+    import json
+    from comfy_api.feature_flags import CLI_FEATURE_FLAG_REGISTRY
+    print(json.dumps(CLI_FEATURE_FLAG_REGISTRY, indent=2))  # noqa: T201
+    raise SystemExit(0)
+
 import os
 import importlib.util
+import shutil
+import importlib.metadata
 import folder_paths
 import time
-from comfy.cli_args import args
+from comfy.cli_args import enables_dynamic_vram
 from app.logger import setup_logger
+setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
+from app.assets.seeder import asset_seeder
+from app.assets.services import register_output_files
 import itertools
 import utils.extra_config
+from utils.mime_types import init_mime_types
+import faulthandler
 import logging
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
+from app.database.db import init_db, dependencies_available
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+faulthandler.enable(file=sys.stderr, all_threads=False)
+
+import comfy_aimdo.control
+
+if enables_dynamic_vram():
+    comfy_aimdo.control.init()
+
+if os.name == "nt":
+    os.environ['MIMALLOC_PURGE_DELAY'] = '0'
+
+if __name__ == "__main__":
+    os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
+    if args.default_device is not None:
+        default_dev = args.default_device
+        devices = list(range(32))
+        devices.remove(default_dev)
+        devices.insert(0, default_dev)
+        devices = ','.join(map(str, devices))
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
+
+    if args.cuda_device is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
+        logging.info("Set cuda device to: {}".format(args.cuda_device))
+
+    if args.oneapi_device_selector is not None:
+        os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
+        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
+
+    if args.deterministic:
+        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
+            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
+    import cuda_malloc
+    if "rocm" in cuda_malloc.get_torch_version_noimport():
+        os.environ['OCL_SET_SVM_SIZE'] = '262144'  # set at the request of AMD
+
+
+def handle_comfyui_manager_unavailable():
+    manager_req_path = os.path.join(os.path.dirname(os.path.abspath(folder_paths.__file__)), "manager_requirements.txt")
+    uv_available = shutil.which("uv") is not None
+
+    pip_cmd = f"{sys.executable} -m pip install -r {manager_req_path}"
+    msg = f"\n\nTo use the `--enable-manager` feature, the `comfyui-manager` package must be installed first.\ncommand:\n\t{pip_cmd}"
+    if uv_available:
+        msg += f"\nor using uv:\n\tuv pip install -r {manager_req_path}"
+    msg += "\n"
+    logging.warning(msg)
+    args.enable_manager = False
+
+
+if args.enable_manager:
+    if importlib.util.find_spec("comfyui_manager"):
+        import comfyui_manager
+
+        if not comfyui_manager.__file__ or not comfyui_manager.__file__.endswith('__init__.py'):
+            handle_comfyui_manager_unavailable()
+    else:
+        handle_comfyui_manager_unavailable()
+
 
 def apply_custom_paths():
     # extra model paths
@@ -79,6 +157,11 @@ def execute_prestartup_script():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
+
+            if args.enable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    continue
+
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
                 continue
 
@@ -101,48 +184,22 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+init_mime_types()
+
+if args.enable_manager:
+    comfyui_manager.prestartup()
+
 execute_prestartup_script()
 
 
 # Main code
 import asyncio
-import shutil
 import threading
 import gc
 
-
-if os.name == "nt":
-    os.environ['MIMALLOC_PURGE_DELAY'] = '0'
-
-if __name__ == "__main__":
-    os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
-    if args.default_device is not None:
-        default_dev = args.default_device
-        devices = list(range(32))
-        devices.remove(default_dev)
-        devices.insert(0, default_dev)
-        devices = ','.join(map(str, devices))
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
-        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
-
-    if args.cuda_device is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
-        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
-        logging.info("Set cuda device to: {}".format(args.cuda_device))
-
-    if args.oneapi_device_selector is not None:
-        os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
-        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
-
-    if args.deterministic:
-        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
-            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
-
-    import cuda_malloc
-
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
+
 
 import comfy.utils
 
@@ -154,6 +211,31 @@ import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
+
+import comfy.memory_management
+import comfy.model_patcher
+
+if args.enable_dynamic_vram or (enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl()):
+    if (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
+        logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+    elif comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
+        if args.verbose == 'DEBUG':
+            comfy_aimdo.control.set_log_debug()
+        elif args.verbose == 'CRITICAL':
+            comfy_aimdo.control.set_log_critical()
+        elif args.verbose == 'ERROR':
+            comfy_aimdo.control.set_log_error()
+        elif args.verbose == 'WARNING':
+            comfy_aimdo.control.set_log_warning()
+        else: #INFO
+            comfy_aimdo.control.set_log_info()
+
+        comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
+        comfy.memory_management.aimdo_enabled = True
+        logging.info("DynamicVRAM support detected and enabled")
+    else:
+        logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -167,17 +249,53 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
+def _collect_output_absolute_paths(history_result: dict) -> list[str]:
+    """Extract absolute file paths for output items from a history result."""
+    paths: list[str] = []
+    seen: set[str] = set()
+    for node_output in history_result.get("outputs", {}).values():
+        for items in node_output.values():
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                item_type = item.get("type")
+                if item_type not in ("output", "temp"):
+                    continue
+                base_dir = folder_paths.get_directory_by_type(item_type)
+                if base_dir is None:
+                    continue
+                base_dir = os.path.abspath(base_dir)
+                filename = item.get("filename")
+                if not filename:
+                    continue
+                abs_path = os.path.abspath(
+                    os.path.join(base_dir, item.get("subfolder", ""), filename)
+                )
+                if not abs_path.startswith(base_dir + os.sep) and abs_path != base_dir:
+                    continue
+                if abs_path not in seen:
+                    seen.add(abs_path)
+                    paths.append(abs_path)
+    return paths
+
+
 def prompt_worker(q, server_instance):
     current_time: float = 0.0
+    cache_ram = args.cache_ram
+    if cache_ram < 0:
+        cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
+
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
-    elif args.cache_ram > 0:
+    elif cache_ram > 0:
         cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:
         cache_type = execution.CacheType.NONE
 
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : args.cache_ram } )
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : cache_ram } )
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -199,7 +317,9 @@ def prompt_worker(q, server_instance):
             for k in sensitive:
                 extra_data[k] = sensitive[k]
 
+            asset_seeder.pause()
             e.execute(item[2], prompt_id, extra_data, item[4])
+
             need_gc = True
 
             remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
@@ -222,6 +342,10 @@ def prompt_worker(q, server_instance):
             else:
                 logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
+            if not asset_seeder.is_disabled():
+                paths = _collect_output_absolute_paths(e.history_result)
+                register_output_files(paths, job_id=prompt_id)
+
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
 
@@ -243,6 +367,10 @@ def prompt_worker(q, server_instance):
                 last_gc_collect = current_time
                 need_gc = False
                 hook_breaker_ac10a0.restore_functions()
+
+                if not asset_seeder.is_disabled():
+                    asset_seeder.enqueue_enrich(roots=("output",), compute_hashes=True)
+                asset_seeder.resume()
 
 
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
@@ -293,10 +421,29 @@ def cleanup_temp():
 
 def setup_database():
     try:
-        from app.database.db import init_db, dependencies_available
         if dependencies_available():
             init_db()
+            if args.enable_assets:
+                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=True):
+                    logging.info("Background asset scan initiated for models, input, output")
     except Exception as e:
+        if "database is locked" in str(e):
+            logging.error(
+                "Database is locked. Another ComfyUI process is already using this database.\n"
+                "To resolve this, specify a separate database file for this instance:\n"
+                "  --database-url sqlite:///path/to/another.db"
+            )
+            sys.exit(1)
+        if args.enable_assets:
+            logging.error(
+                f"Failed to initialize database: {e}\n"
+                "The --enable-assets flag requires a working database connection.\n"
+                "To resolve this, try one of the following:\n"
+                "  1. Install the latest requirements: pip install -r requirements.txt\n"
+                "  2. Specify an alternative database URL: --database-url sqlite:///path/to/your.db\n"
+                "  3. Use an in-memory database: --database-url sqlite:///:memory:"
+            )
+            sys.exit(1)
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
 
@@ -322,6 +469,9 @@ def start_comfyui(asyncio_loop=None):
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
+
+    if args.enable_manager and not args.disable_manager_ui:
+        comfyui_manager.start()
 
     hook_breaker_ac10a0.save_functions()
     asyncio_loop.run_until_complete(nodes.init_extra_nodes(
@@ -365,9 +515,17 @@ if __name__ == "__main__":
     # Running directly, just start ComfyUI.
     logging.info("Python version: {}".format(sys.version))
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
+    for package in ("comfy-aimdo", "comfy-kitchen"):
+        try:
+            logging.info("{} version: {}".format(package, importlib.metadata.version(package)))
+        except:
+            pass
 
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
+
+    if args.disable_dynamic_vram:
+        logging.warning("Dynamic vram disabled with argument. If you have any issues with dynamic vram enabled please give us a detailed reports as this argument will be removed soon.")
 
     event_loop, _, start_all_func = start_comfyui()
     try:
@@ -376,5 +534,6 @@ if __name__ == "__main__":
         event_loop.run_until_complete(x)
     except KeyboardInterrupt:
         logging.info("\nStopped server")
-
-    cleanup_temp()
+    finally:
+        asset_seeder.shutdown()
+        cleanup_temp()

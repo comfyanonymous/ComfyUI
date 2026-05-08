@@ -54,6 +54,30 @@ class V_PREDICTION(EPS):
         sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) - model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
+class V_PREDICTION_DDPM:
+    """CogVideoX v-prediction: model receives raw x_t (unscaled), predicts velocity v.
+    x_0 = sqrt(alpha) * x_t - sqrt(1-alpha) * v
+        = x_t / sqrt(sigma^2 + 1) - v * sigma / sqrt(sigma^2 + 1)
+    """
+    def calculate_input(self, sigma, noise):
+        return noise
+
+    def calculate_denoised(self, sigma, model_output, model_input):
+        sigma = reshape_sigma(sigma, model_output.ndim)
+        return model_input / (sigma ** 2 + 1.0) ** 0.5 - model_output * sigma / (sigma ** 2 + 1.0) ** 0.5
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
+        if max_denoise:
+            noise = noise * torch.sqrt(1.0 + sigma ** 2.0)
+        else:
+            noise = noise * sigma
+        noise += latent_image
+        return noise
+
+    def inverse_noise_scaling(self, sigma, latent):
+        return latent
+
 class EDM(V_PREDICTION):
     def calculate_denoised(self, sigma, model_output, model_input):
         sigma = reshape_sigma(sigma, model_output.ndim)
@@ -82,6 +106,16 @@ class X0(EPS):
 class IMG_TO_IMG(X0):
     def calculate_input(self, sigma, noise):
         return noise
+
+class IMG_TO_IMG_FLOW(CONST):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        return model_output
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        return latent_image
+
+    def inverse_noise_scaling(self, sigma, latent):
+        return 1.0 - latent
 
 class COSMOS_RFLOW:
     def calculate_input(self, sigma, noise):

@@ -142,14 +142,14 @@ class HiDreamTEModel(torch.nn.Module):
             return self.llama.load_sd(sd)
 
 
-def hidream_clip(clip_l=True, clip_g=True, t5=True, llama=True, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None):
+def hidream_clip(clip_l=True, clip_g=True, t5=True, llama=True, dtype_t5=None, dtype_llama=None, t5_quantization_metadata=None, llama_quantization_metadata=None):
     class HiDreamTEModel_(HiDreamTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
+            if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
-            if llama_scaled_fp8 is not None and "llama_scaled_fp8" not in model_options:
+                model_options["t5xxl_quantization_metadata"] = t5_quantization_metadata
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["llama_scaled_fp8"] = llama_scaled_fp8
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
             super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, llama=llama, dtype_t5=dtype_t5, dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
     return HiDreamTEModel_

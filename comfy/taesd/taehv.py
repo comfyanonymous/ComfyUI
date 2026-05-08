@@ -7,6 +7,7 @@ from tqdm.auto import tqdm
 from collections import namedtuple, deque
 
 import comfy.ops
+import comfy.model_management
 operations=comfy.ops.disable_weight_init
 
 DecoderResult = namedtuple("DecoderResult", ("frame", "memory"))
@@ -47,11 +48,14 @@ class TGrow(nn.Module):
         x = self.conv(x)
         return x.reshape(-1, C, H, W)
 
-def apply_model_with_memblocks(model, x, parallel, show_progress_bar):
+def apply_model_with_memblocks(model, x, parallel, show_progress_bar, output_device=None,
+                               patch_size=1, decode=False):
 
     B, T, C, H, W = x.shape
     if parallel:
         x = x.reshape(B*T, C, H, W)
+        if not decode and patch_size > 1:
+            x = F.pixel_unshuffle(x, patch_size)
         # parallel over input timesteps, iterate over blocks
         for b in tqdm(model, disable=not show_progress_bar):
             if isinstance(b, MemBlock):
@@ -62,20 +66,27 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar):
                 x = b(x, mem)
             else:
                 x = b(x)
-        BT, C, H, W = x.shape
-        T = BT // B
-        x = x.view(B, T, C, H, W)
+        if decode and patch_size > 1:
+            x = F.pixel_shuffle(x, patch_size)
+        x = x.view(B, x.shape[0] // B, *x.shape[1:])
+        x = x.to(output_device)
     else:
         out = []
-        work_queue = deque([TWorkItem(xt, 0) for t, xt in enumerate(x.reshape(B, T * C, H, W).chunk(T, dim=1))])
+        # Chunk along the time dim directly (chunks are [B,1,C,H,W] views, squeeze to [B,C,H,W] views).
+        # Avoids forcing a contiguous copy when x is non-contiguous (e.g. after movedim in encode/decode).
+        work_queue = deque([TWorkItem(xt.squeeze(1), 0) for xt in x.chunk(T, dim=1)])
         progress_bar = tqdm(range(T), disable=not show_progress_bar)
         mem = [None] * len(model)
         while work_queue:
             xt, i = work_queue.popleft()
             if i == 0:
                 progress_bar.update(1)
+                if not decode and patch_size > 1:
+                    xt = F.pixel_unshuffle(xt, patch_size)
             if i == len(model):
-                out.append(xt)
+                if decode and patch_size > 1:
+                    xt = F.pixel_shuffle(xt, patch_size)
+                out.append(xt.to(output_device))
                 del xt
             else:
                 b = model[i]
@@ -112,7 +123,8 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar):
 
 
 class TAEHV(nn.Module):
-    def __init__(self, latent_channels, parallel=False, decoder_time_upscale=(True, True), decoder_space_upscale=(True, True, True), latent_format=None, show_progress_bar=True):
+    def __init__(self, latent_channels, parallel=False, encoder_time_downscale=(True, True, False), decoder_time_upscale=(False, True, True), decoder_space_upscale=(True, True, True),
+                 latent_format=None, show_progress_bar=False):
         super().__init__()
         self.image_channels = 3
         self.patch_size = 1
@@ -124,6 +136,9 @@ class TAEHV(nn.Module):
         self.process_out = latent_format().process_out if latent_format is not None else (lambda x: x)
         if self.latent_channels in [48, 32]: # Wan 2.2 and HunyuanVideo1.5
             self.patch_size = 2
+        elif self.latent_channels == 128: # LTX2
+            self.patch_size, self.latent_channels, encoder_time_downscale, decoder_time_upscale = 4, 128, (True, True, True), (True, True, True)
+
         if self.latent_channels == 32: # HunyuanVideo1.5
             act_func = nn.LeakyReLU(0.2, inplace=True)
         else: # HunyuanVideo, Wan 2.1
@@ -131,41 +146,50 @@ class TAEHV(nn.Module):
 
         self.encoder = nn.Sequential(
             conv(self.image_channels*self.patch_size**2, 64), act_func,
-            TPool(64, 2), conv(64, 64, stride=2, bias=False), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func),
-            TPool(64, 2), conv(64, 64, stride=2, bias=False), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func),
-            TPool(64, 1), conv(64, 64, stride=2, bias=False), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func),
+            TPool(64, 2 if encoder_time_downscale[0] else 1), conv(64, 64, stride=2, bias=False), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func),
+            TPool(64, 2 if encoder_time_downscale[1] else 1), conv(64, 64, stride=2, bias=False), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func),
+            TPool(64, 2 if encoder_time_downscale[2] else 1), conv(64, 64, stride=2, bias=False), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func), MemBlock(64, 64, act_func),
             conv(64, self.latent_channels),
         )
         n_f = [256, 128, 64, 64]
-        self.frames_to_trim = 2**sum(decoder_time_upscale) - 1
+
         self.decoder = nn.Sequential(
             Clamp(), conv(self.latent_channels, n_f[0]), act_func,
-            MemBlock(n_f[0], n_f[0], act_func), MemBlock(n_f[0], n_f[0], act_func), MemBlock(n_f[0], n_f[0], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[0] else 1), TGrow(n_f[0], 1), conv(n_f[0], n_f[1], bias=False),
-            MemBlock(n_f[1], n_f[1], act_func), MemBlock(n_f[1], n_f[1], act_func), MemBlock(n_f[1], n_f[1], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[1] else 1), TGrow(n_f[1], 2 if decoder_time_upscale[0] else 1), conv(n_f[1], n_f[2], bias=False),
-            MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[2] else 1), TGrow(n_f[2], 2 if decoder_time_upscale[1] else 1), conv(n_f[2], n_f[3], bias=False),
+            MemBlock(n_f[0], n_f[0], act_func), MemBlock(n_f[0], n_f[0], act_func), MemBlock(n_f[0], n_f[0], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[0] else 1), TGrow(n_f[0], 2 if decoder_time_upscale[0] else 1), conv(n_f[0], n_f[1], bias=False),
+            MemBlock(n_f[1], n_f[1], act_func), MemBlock(n_f[1], n_f[1], act_func), MemBlock(n_f[1], n_f[1], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[1] else 1), TGrow(n_f[1], 2 if decoder_time_upscale[1] else 1), conv(n_f[1], n_f[2], bias=False),
+            MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[2] else 1), TGrow(n_f[2], 2 if decoder_time_upscale[2] else 1), conv(n_f[2], n_f[3], bias=False),
             act_func, conv(n_f[3], self.image_channels*self.patch_size**2),
         )
-        @property
-        def show_progress_bar(self):
-            return self._show_progress_bar
 
-        @show_progress_bar.setter
-        def show_progress_bar(self, value):
-            self._show_progress_bar = value
+        self.t_downscale = 2**sum(t.stride == 2 for t in self.encoder if isinstance(t, TPool))
+        self.t_upscale = 2**sum(t.stride == 2 for t in self.decoder if isinstance(t, TGrow))
+        self.frames_to_trim = self.t_upscale - 1
+        self._show_progress_bar = show_progress_bar
+
+    @property
+    def show_progress_bar(self):
+        return self._show_progress_bar
+
+    @show_progress_bar.setter
+    def show_progress_bar(self, value):
+        self._show_progress_bar = value
 
     def encode(self, x, **kwargs):
-        if self.patch_size > 1: x = F.pixel_unshuffle(x, self.patch_size)
         x = x.movedim(2, 1)  # [B, C, T, H, W] -> [B, T, C, H, W]
-        if x.shape[1] % 4 != 0:
-            # pad at end to multiple of 4
-            n_pad = 4 - x.shape[1] % 4
+        if x.shape[1] % self.t_downscale != 0:
+            # pad at end to multiple of t_downscale
+            n_pad = self.t_downscale - x.shape[1] % self.t_downscale
             padding = x[:, -1:].repeat_interleave(n_pad, dim=1)
             x = torch.cat([x, padding], 1)
-        x = apply_model_with_memblocks(self.encoder, x, self.parallel, self.show_progress_bar).movedim(2, 1)
+        x = apply_model_with_memblocks(self.encoder, x, self.parallel, self.show_progress_bar,
+                                        patch_size=self.patch_size).movedim(2, 1)
         return self.process_out(x)
 
     def decode(self, x, **kwargs):
+        x = x.unsqueeze(0) if x.ndim == 4 else x  # [T, C, H, W] -> [1, T, C, H, W]
+        x = x.movedim(1, 2) if x.shape[1] != self.latent_channels else x  # [B, T, C, H, W] or [B, C, T, H, W]
         x = self.process_in(x).movedim(2, 1)  # [B, C, T, H, W] -> [B, T, C, H, W]
-        x = apply_model_with_memblocks(self.decoder, x, self.parallel, self.show_progress_bar)
-        if self.patch_size > 1: x = F.pixel_shuffle(x, self.patch_size)
+        x = apply_model_with_memblocks(self.decoder, x, self.parallel, self.show_progress_bar,
+                                        output_device=comfy.model_management.intermediate_device(),
+                                        patch_size=self.patch_size, decode=True)
         return x[:, self.frames_to_trim:].movedim(2, 1)

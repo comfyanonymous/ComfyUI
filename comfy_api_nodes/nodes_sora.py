@@ -33,9 +33,13 @@ class OpenAIVideoSora2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIVideoSora2",
-            display_name="OpenAI Sora - Video",
+            display_name="OpenAI Sora - Video (DEPRECATED)",
             category="api node/video/Sora",
-            description="OpenAI video and audio generation.",
+            description=(
+                "OpenAI video and audio generation.\n\n"
+                "DEPRECATION NOTICE: OpenAI will stop serving the Sora v2 API in September 2026. "
+                "This node will be removed from ComfyUI at that time."
+            ),
             inputs=[
                 IO.Combo.Input(
                     "model",
@@ -89,6 +93,24 @@ class OpenAIVideoSora2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "size", "duration"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $size := widgets.size;
+                  $dur := widgets.duration;
+                  $isPro := $contains($m, "sora-2-pro");
+                  $isSora2 := $contains($m, "sora-2");
+                  $isProSize := ($size = "1024x1792" or $size = "1792x1024");
+                  $perSec :=
+                    $isPro ? ($isProSize ? 0.5 : 0.3) :
+                    $isSora2 ? 0.1 :
+                    ($isProSize ? 0.5 : 0.1);
+                  {"type":"usd","usd": $round($perSec * $dur, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -131,7 +153,6 @@ class OpenAIVideoSora2(IO.ComfyNode):
             response_model=Sora2GenerationResponse,
             status_extractor=lambda x: x.status,
             poll_interval=8.0,
-            max_poll_attempts=160,
             estimated_duration=int(45 * (duration / 4) * model_time_multiplier),
         )
         return IO.NodeOutput(

@@ -11,8 +11,9 @@ class DifferentialDiffusion(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="DifferentialDiffusion",
+            search_aliases=["inpaint gradient", "variable denoise strength"],
             display_name="Differential Diffusion",
-            category="_for_testing",
+            category="experimental",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input(

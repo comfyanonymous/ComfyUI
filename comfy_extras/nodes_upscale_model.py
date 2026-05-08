@@ -6,6 +6,7 @@ import comfy.utils
 import folder_paths
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+import comfy.model_management
 
 try:
     from spandrel_extra_arches import EXTRA_REGISTRY
@@ -53,6 +54,7 @@ class ImageUpscaleWithModel(io.ComfyNode):
             node_id="ImageUpscaleWithModel",
             display_name="Upscale Image (using Model)",
             category="image/upscaling",
+            search_aliases=["upscale", "upscaler", "upsc", "enlarge image", "super resolution", "hires", "superres", "increase resolution"],
             inputs=[
                 io.UpscaleModel.Input("upscale_model"),
                 io.Image.Input("image"),
@@ -77,20 +79,25 @@ class ImageUpscaleWithModel(io.ComfyNode):
         tile = 512
         overlap = 32
 
-        oom = True
-        while oom:
-            try:
-                steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
-                pbar = comfy.utils.ProgressBar(steps)
-                s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
-                oom = False
-            except model_management.OOM_EXCEPTION as e:
-                tile //= 2
-                if tile < 128:
-                    raise e
+        output_device = comfy.model_management.intermediate_device()
 
-        upscale_model.to("cpu")
-        s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
+        oom = True
+        try:
+            while oom:
+                try:
+                    steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
+                    pbar = comfy.utils.ProgressBar(steps)
+                    s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a.float()), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar, output_device=output_device)
+                    oom = False
+                except Exception as e:
+                    model_management.raise_non_oom(e)
+                    tile //= 2
+                    if tile < 128:
+                        raise e
+        finally:
+            upscale_model.to("cpu")
+
+        s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0).to(comfy.model_management.intermediate_dtype())
         return io.NodeOutput(s)
 
     upscale = execute  # TODO: remove

@@ -4,15 +4,13 @@ import logging
 import time
 import uuid
 from io import BytesIO
-from typing import Optional
 from urllib.parse import urlparse
 
 import aiohttp
 import torch
 from pydantic import BaseModel, Field
 
-from comfy_api.latest import IO, Input
-from comfy_api.util import VideoCodec, VideoContainer
+from comfy_api.latest import IO, Input, Types
 
 from . import request_logger
 from ._helpers import is_processing_interrupted, sleep_with_interrupt
@@ -32,7 +30,7 @@ from .conversions import (
 
 class UploadRequest(BaseModel):
     file_name: str = Field(..., description="Filename to upload")
-    content_type: Optional[str] = Field(
+    content_type: str | None = Field(
         None,
         description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.",
     )
@@ -45,27 +43,41 @@ class UploadResponse(BaseModel):
 
 async def upload_images_to_comfyapi(
     cls: type[IO.ComfyNode],
-    image: torch.Tensor,
+    image: torch.Tensor | list[torch.Tensor],
     *,
     max_images: int = 8,
     mime_type: str | None = None,
     wait_label: str | None = "Uploading",
     show_batch_index: bool = True,
+    total_pixels: int | None = 2048 * 2048,
 ) -> list[str]:
     """
     Uploads images to ComfyUI API and returns download URLs.
     To upload multiple images, stack them in the batch dimension first.
     """
-    # if batch, try to upload each file if max_images is greater than 0
+    tensors: list[torch.Tensor] = []
+    if isinstance(image, list):
+        for img in image:
+            is_batch = len(img.shape) > 3
+            if is_batch:
+                tensors.extend(img[i] for i in range(img.shape[0]))
+            else:
+                tensors.append(img)
+    else:
+        is_batch = len(image.shape) > 3
+        if is_batch:
+            tensors.extend(image[i] for i in range(image.shape[0]))
+        else:
+            tensors.append(image)
+
+    # if batched, try to upload each file if max_images is greater than 0
     download_urls: list[str] = []
-    is_batch = len(image.shape) > 3
-    batch_len = image.shape[0] if is_batch else 1
-    num_to_upload = min(batch_len, max_images)
+    num_to_upload = min(len(tensors), max_images)
     batch_start_ts = time.monotonic()
 
     for idx in range(num_to_upload):
-        tensor = image[idx] if is_batch else image
-        img_io = tensor_to_bytesio(tensor, mime_type=mime_type)
+        tensor = tensors[idx]
+        img_io = tensor_to_bytesio(tensor, total_pixels=total_pixels, mime_type=mime_type)
 
         effective_label = wait_label
         if wait_label and show_batch_index and num_to_upload > 1:
@@ -76,6 +88,28 @@ async def upload_images_to_comfyapi(
     return download_urls
 
 
+async def upload_image_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    image: torch.Tensor,
+    *,
+    mime_type: str | None = None,
+    wait_label: str | None = "Uploading",
+    total_pixels: int | None = 2048 * 2048,
+) -> str:
+    """Uploads a single image to ComfyUI API and returns its download URL."""
+    return (
+        await upload_images_to_comfyapi(
+            cls,
+            image,
+            max_images=1,
+            mime_type=mime_type,
+            wait_label=wait_label,
+            show_batch_index=False,
+            total_pixels=total_pixels,
+        )
+    )[0]
+
+
 async def upload_audio_to_comfyapi(
     cls: type[IO.ComfyNode],
     audio: Input.Audio,
@@ -83,7 +117,6 @@ async def upload_audio_to_comfyapi(
     container_format: str = "mp4",
     codec_name: str = "aac",
     mime_type: str = "audio/mp4",
-    filename: str = "uploaded_audio.mp4",
 ) -> str:
     """
     Uploads a single audio input to ComfyUI API and returns its download URL.
@@ -93,16 +126,17 @@ async def upload_audio_to_comfyapi(
     waveform: torch.Tensor = audio["waveform"]
     audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
     audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, sample_rate, container_format, codec_name)
-    return await upload_file_to_comfyapi(cls, audio_bytes_io, filename, mime_type)
+    return await upload_file_to_comfyapi(cls, audio_bytes_io, f"{uuid.uuid4()}.{container_format}", mime_type)
 
 
 async def upload_video_to_comfyapi(
     cls: type[IO.ComfyNode],
     video: Input.Video,
     *,
-    container: VideoContainer = VideoContainer.MP4,
-    codec: VideoCodec = VideoCodec.H264,
-    max_duration: Optional[int] = None,
+    container: Types.VideoContainer = Types.VideoContainer.MP4,
+    codec: Types.VideoCodec = Types.VideoCodec.H264,
+    max_duration: int | None = None,
+    wait_label: str | None = "Uploading",
 ) -> str:
     """
     Uploads a single video to ComfyUI API and returns its download URL.
@@ -120,14 +154,35 @@ async def upload_video_to_comfyapi(
             raise ValueError(f"Could not verify video duration from source: {e}") from e
 
     upload_mime_type = f"video/{container.value.lower()}"
-    filename = f"uploaded_video.{container.value.lower()}"
+    filename = f"{uuid.uuid4()}.{container.value.lower()}"
 
     # Convert VideoInput to BytesIO using specified container/codec
     video_bytes_io = BytesIO()
     video.save_to(video_bytes_io, format=container, codec=codec)
     video_bytes_io.seek(0)
 
-    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type)
+    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type, wait_label)
+
+
+_3D_MIME_TYPES = {
+    "glb": "model/gltf-binary",
+    "obj": "model/obj",
+    "fbx": "application/octet-stream",
+}
+
+
+async def upload_3d_model_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    model_3d: Types.File3D,
+    file_format: str,
+) -> str:
+    """Uploads a 3D model file to ComfyUI API and returns its download URL."""
+    return await upload_file_to_comfyapi(
+        cls,
+        model_3d.get_data(),
+        f"{uuid.uuid4()}.{file_format}",
+        _3D_MIME_TYPES.get(file_format, "application/octet-stream"),
+    )
 
 
 async def upload_file_to_comfyapi(
@@ -219,19 +274,16 @@ async def upload_file(
                 return
 
         monitor_task = asyncio.create_task(_monitor())
-        sess: Optional[aiohttp.ClientSession] = None
+        sess: aiohttp.ClientSession | None = None
         try:
-            try:
-                request_logger.log_request_response(
-                    operation_id=operation_id,
-                    request_method="PUT",
-                    request_url=upload_url,
-                    request_headers=headers or None,
-                    request_params=None,
-                    request_data=f"[File data {len(data)} bytes]",
-                )
-            except Exception as e:
-                logging.debug("[DEBUG] upload request logging failed: %s", e)
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method="PUT",
+                request_url=upload_url,
+                request_headers=headers or None,
+                request_params=None,
+                request_data=f"[File data {len(data)} bytes]",
+            )
 
             sess = aiohttp.ClientSession(timeout=timeout)
             req = sess.put(upload_url, data=data, headers=headers, skip_auto_headers=skip_auto_headers)
@@ -277,31 +329,27 @@ async def upload_file(
                         delay *= retry_backoff
                         continue
                     raise Exception(f"Failed to upload (HTTP {resp.status}).")
-                try:
-                    request_logger.log_request_response(
-                        operation_id=operation_id,
-                        request_method="PUT",
-                        request_url=upload_url,
-                        response_status_code=resp.status,
-                        response_headers=dict(resp.headers),
-                        response_content="File uploaded successfully.",
-                    )
-                except Exception as e:
-                    logging.debug("[DEBUG] upload response logging failed: %s", e)
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT",
+                    request_url=upload_url,
+                    response_status_code=resp.status,
+                    response_headers=dict(resp.headers),
+                    response_content="File uploaded successfully.",
+                )
                 return
         except asyncio.CancelledError:
             raise ProcessingInterrupted("Task cancelled") from None
         except (aiohttp.ClientError, OSError) as e:
             if attempt <= max_retries:
-                with contextlib.suppress(Exception):
-                    request_logger.log_request_response(
-                        operation_id=operation_id,
-                        request_method="PUT",
-                        request_url=upload_url,
-                        request_headers=headers or None,
-                        request_data=f"[File data {len(data)} bytes]",
-                        error_message=f"{type(e).__name__}: {str(e)} (will retry)",
-                    )
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT",
+                    request_url=upload_url,
+                    request_headers=headers or None,
+                    request_data=f"[File data {len(data)} bytes]",
+                    error_message=f"{type(e).__name__}: {str(e)} (will retry)",
+                )
                 await sleep_with_interrupt(
                     delay,
                     cls,

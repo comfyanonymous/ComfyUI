@@ -5,7 +5,9 @@ import comfy.model_management
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 from comfy.ldm.hunyuan_video.upsampler import HunyuanVideo15SRModel
+from comfy.ldm.lightricks.latent_upsampler import LatentUpsampler
 import folder_paths
+import json
 
 class CLIPTextEncodeHunyuanDiT(io.ComfyNode):
     @classmethod
@@ -54,7 +56,7 @@ class EmptyHunyuanLatentVideo(io.ComfyNode):
     @classmethod
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples":latent})
+        return io.NodeOutput({"samples": latent, "downscale_ratio_spacial": 8})
 
     generate = execute  # TODO: remove
 
@@ -71,7 +73,7 @@ class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         # Using scale factor of 16 instead of 8
         latent = torch.zeros([batch_size, 32, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples": latent})
+        return io.NodeOutput({"samples": latent, "downscale_ratio_spacial": 16})
 
 
 class HunyuanVideo15ImageToVideo(io.ComfyNode):
@@ -129,6 +131,8 @@ class HunyuanVideo15SuperResolution(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="HunyuanVideo15SuperResolution",
+            display_name="Hunyuan Video 1.5 Super Resolution",
+            category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -136,7 +140,7 @@ class HunyuanVideo15SuperResolution(io.ComfyNode):
                 io.Image.Input("start_image", optional=True),
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True),
                 io.Latent.Input("latent"),
-                io.Float.Input("noise_augmentation", default=0.70, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("noise_augmentation", default=0.70, min=0.0, max=1.0, step=0.01, advanced=True),
 
             ],
             outputs=[
@@ -186,7 +190,7 @@ class LatentUpscaleModelLoader(io.ComfyNode):
     @classmethod
     def execute(cls, model_name) -> io.NodeOutput:
         model_path = folder_paths.get_full_path_or_raise("latent_upscale_models", model_name)
-        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+        sd, metadata = comfy.utils.load_torch_file(model_path, safe_load=True, return_metadata=True)
 
         if "blocks.0.block.0.conv.weight" in sd:
             config = {
@@ -197,6 +201,8 @@ class LatentUpscaleModelLoader(io.ComfyNode):
                 "global_residual": False,
             }
             model_type = "720p"
+            model = HunyuanVideo15SRModel(model_type, config)
+            model.load_sd(sd)
         elif "up.0.block.0.conv1.conv.weight" in sd:
             sd = {key.replace("nin_shortcut", "nin_shortcut.conv", 1): value for key, value in sd.items()}
             config = {
@@ -205,9 +211,12 @@ class LatentUpscaleModelLoader(io.ComfyNode):
                 "block_out_channels": tuple(sd[f"up.{i}.block.0.conv1.conv.weight"].shape[0] for i in range(len([k for k in sd.keys() if k.startswith("up.") and k.endswith(".block.0.conv1.conv.weight")]))),
             }
             model_type = "1080p"
-
-        model = HunyuanVideo15SRModel(model_type, config)
-        model.load_sd(sd)
+            model = HunyuanVideo15SRModel(model_type, config)
+            model.load_sd(sd)
+        elif "post_upsample_res_blocks.0.conv2.bias" in sd:
+            config = json.loads(metadata["config"])
+            model = LatentUpsampler.from_config(config).to(dtype=comfy.model_management.vae_dtype(allowed_dtypes=[torch.bfloat16, torch.float32]))
+            model.load_state_dict(sd)
 
         return io.NodeOutput(model)
 
@@ -278,6 +287,7 @@ class TextEncodeHunyuanVideo_ImageToVideo(io.ComfyNode):
                     min=1,
                     max=512,
                     tooltip="How much the image influences things vs the text prompt. Higher number means more influence from the text prompt.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -306,7 +316,7 @@ class HunyuanImageToVideo(io.ComfyNode):
                 io.Int.Input("height", default=480, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("length", default=53, min=1, max=nodes.MAX_RESOLUTION, step=4),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
-                io.Combo.Input("guidance_type", options=["v1 (concat)", "v2 (replace)", "custom"]),
+                io.Combo.Input("guidance_type", options=["v1 (concat)", "v2 (replace)", "custom"], advanced=True),
                 io.Image.Input("start_image", optional=True),
             ],
             outputs=[
@@ -373,11 +383,13 @@ class HunyuanRefinerLatent(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="HunyuanRefinerLatent",
+            display_name="Hunyuan Latent Refiner",
+            category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
                 io.Latent.Input("latent"),
-                io.Float.Input("noise_augmentation", default=0.10, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("noise_augmentation", default=0.10, min=0.0, max=1.0, step=0.01, advanced=True),
 
             ],
             outputs=[

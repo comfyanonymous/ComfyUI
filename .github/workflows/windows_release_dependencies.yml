@@ -29,7 +29,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "9"
+        default: "11"
 #  push:
 #    branches:
 #      - master
