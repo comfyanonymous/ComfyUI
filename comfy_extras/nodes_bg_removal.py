@@ -50,7 +50,7 @@ class BackGroundRemovalExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             LoadBackGroundRemovalModel,
-            RemoveBackGround
+            RemoveBackground
         ]
 
 
