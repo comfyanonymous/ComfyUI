@@ -4224,7 +4224,7 @@
           "workflowRendererVersion": "Vue-corrected"
         },
         "category": "Video generation and editing/Image to video",
-        "description": "Generates a video from a single input image using LTX-2.3, with enhanced fine details and prompt understanding."
+        "description": "Generates video from a single input image using LTX-2.3."
       }
     ]
   },

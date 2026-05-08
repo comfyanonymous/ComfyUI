@@ -1503,7 +1503,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Audio/Music generation",
-        "description": "Generates commercial-quality music from text prompts using ACE-Step 1.5, with ~1s generation for a full song on RTX 5090."
+        "description": "Generates audio/music from text prompts using ACE-Step 1.5, a diffusion-based audio generation model."
       }
     ]
   },

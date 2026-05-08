@@ -1573,7 +1573,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Text to video",
-        "description": "Generates video from text prompts using Wan2.2, Alibaba's open-source diffusion video model with 14B/1.3B parameter variants."
+        "description": "Generates video from text prompts using Wan2.2, Alibaba's diffusion video model."
       }
     ]
   },

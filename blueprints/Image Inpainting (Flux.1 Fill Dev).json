@@ -1189,7 +1189,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Inpaint image",
-        "description": "Inpaints masked image regions using Flux.1 fill [dev], BFL's 12B inpainting/outpainting model with precise prompt following."
+        "description": "Inpaints masked image regions using Flux.1 fill [dev], BFL's inpainting/outpainting model."
       }
     ]
   },

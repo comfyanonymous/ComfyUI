@@ -766,7 +766,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "3D/Image to 3D Model",
-        "description": "Generates high-fidelity 3D meshes with textures from a single input image using Hunyuan3D 2.0/2.1."
+        "description": "Generates 3D mesh models from a single input image using Hunyuan3D 2.0/2.1."
       }
     ]
   },

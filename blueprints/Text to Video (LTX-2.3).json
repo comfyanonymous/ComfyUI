@@ -4287,7 +4287,7 @@
           "workflowRendererVersion": "Vue-corrected"
         },
         "category": "Video generation and editing/Text to video",
-        "description": "Generates video from text prompts using LTX-2.3, Lightricks' open-source DiT with improved details, portrait support, and audio-video sync."
+        "description": "Generates video from text prompts using LTX-2.3, Lightricks' video diffusion model."
       }
     ]
   },

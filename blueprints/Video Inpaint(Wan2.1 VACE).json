@@ -2369,7 +2369,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Inpaint video",
-        "description": "Inpaints masked regions in video using Wan2.1 VACE for frame-consistent video inpainting."
+        "description": "Inpaints masked regions in video frames using Wan2.1 VACE."
       }
     ]
   },
