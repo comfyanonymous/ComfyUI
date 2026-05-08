@@ -12,7 +12,7 @@ class LoadBackGroundRemovalModel(IO.ComfyNode):
             node_id="LoadBackGroundRemovalModel",
             category="loaders",
             inputs=[
-                IO.Combo.Input("background_removal_name", options=sorted(files)),
+                IO.Combo.Input("bg_removal_name", options=sorted(files)),
             ],
             outputs=[
                 IO.BackgroundRemoval.Output("bg_model")
@@ -30,8 +30,9 @@ class RemoveBackGround(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="RemoveBackGround",
-            category="encode",
+            node_id="RemoveBackground",
+            display_name="Remove Background",
+            category="image/background removal",
             inputs=[
                 IO.Image.Input("image"),
                 IO.BackgroundRemoval.Input("bg_removal_model")
@@ -45,14 +46,14 @@ class RemoveBackGround(IO.ComfyNode):
         mask = bg_removal_model.encode_image(image)
         return IO.NodeOutput(mask)
 
-class BackGroundRemovalExtension(ComfyExtension):
+class BackgroundRemovalExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            LoadBackGroundRemovalModel,
-            RemoveBackGround
+            LoadBackgroundRemovalModel,
+            RemoveBackground
         ]
 
 
-async def comfy_entrypoint() -> BackGroundRemovalExtension:
-    return BackGroundRemovalExtension()
+async def comfy_entrypoint() -> BackgroundRemovalExtension:
+    return BackgroundRemovalExtension()
