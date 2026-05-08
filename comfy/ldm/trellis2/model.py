@@ -802,6 +802,11 @@ class Trellis2(nn.Module):
             mode = "structure_generation"
             not_struct_mode = False
 
+        if not not_struct_mode:
+            bsz = x.size(0)
+            x = x[:, :8]
+            x = x.view(bsz, 8, 16, 16, 16)
+
         if is_1024 and not_struct_mode and not is_512_run:
             context = embeds
 
@@ -821,7 +826,7 @@ class Trellis2(nn.Module):
             orig_bsz = x.shape[0]
             rule = txt_rule if mode == "texture_generation" else shape_rule
 
-            # 1. CFG Bypass Slicing
+            # CFG Bypass Slicing
             if rule and orig_bsz > 1:
                 half = orig_bsz // 2
                 x_eval = x[half:]
@@ -834,7 +839,7 @@ class Trellis2(nn.Module):
 
             B, N, C = x_eval.shape
 
-            # 2. Vectorized SparseTensor Construction (NO FOR LOOPS!)
+            # Vectorized SparseTensor Construction
             if mode in ["shape_generation", "texture_generation"]:
                 if coord_counts is not None:
                     logical_batch = coord_counts.shape[0]
@@ -880,14 +885,14 @@ class Trellis2(nn.Module):
             if slat is None:
                 raise ValueError("shape_slat can't be None")
 
-            slat_feats = slat.feats
+            slat_feats = slat
             # Duplicate shape context if CFG is active
             if coord_counts is not None and B > coord_counts.shape[0]:
                 slat_feats = torch.cat([slat_feats, slat_feats], dim=0)
             elif coord_counts is None:
-                slat_feats = slat.feats[:N].repeat(B, 1)
+                slat_feats = slat_feats[:N].repeat(B, 1)
 
-            x_st = x_st.replace(feats=torch.cat([x_st.feats, slat_feats], dim=-1))
+            x_st = x_st.replace(feats=torch.cat([x_st.feats, slat_feats.to(x_st.feats.device)], dim=-1))
             out = self.shape2txt(x_st, t_eval, c_eval)
 
         else: # structure
@@ -901,9 +906,6 @@ class Trellis2(nn.Module):
             else:
                 out = self.structure_model(x, timestep, context)
 
-        # ==================================================
-        # RE-PAD AND FORMAT OUTPUT
-        # ==================================================
         if not_struct_mode:
             if mask is not None:
                 # Instantly scatter the valid tokens back into a padded rectangular tensor
@@ -916,7 +918,7 @@ class Trellis2(nn.Module):
             if rule and orig_bsz > 1:
                 out_tensor = out_tensor.repeat(2, 1, 1, 1)
             return out_tensor
-        #else:
-        #    out = torch.nn.functional.pad(out, (0, 0, 0, 0, 0, 0, 24, 0))
+        else:
+            out = torch.nn.functional.pad(out, (0, 0, 0, 0, 0, 0, 0, 24))
 
         return out
