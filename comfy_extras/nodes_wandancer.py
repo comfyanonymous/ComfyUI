@@ -981,7 +981,7 @@ class WanDancerPadKeyframes(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images, segment_length, segment_index, audio=None) -> io.NodeOutput:
+    def do_execute(cls, images, segment_length, segment_index, audio=None):
         B, H, W, C = images.shape
         fps = 30
 
@@ -1043,7 +1043,36 @@ class WanDancerPadKeyframes(io.ComfyNode):
             "sample_rate": sample_rate
         }
 
-        return io.NodeOutput(keyframes, mask, audio_segment)
+        return keyframes, mask, audio_segment
+
+    @classmethod
+    def execute(cls, images, segment_length, segment_index, audio=None) -> io.NodeOutput:
+        return io.NodeOutput(*cls.do_execute(images, segment_length, segment_index, audio))
+
+class WanDancerPadKeyframesList(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="WanDancerPadKeyframesList",
+            category="image/video",
+            inputs=[
+                io.Image.Input("images"),
+                io.Int.Input("segment_length", default=149, min=1, max=10000, tooltip="Length of each segment (usually 149 frames)"),
+                io.Int.Input("num_segments", default=1, min=1, max=100, tooltip="How many padded segments to emit as lists."),
+                io.Audio.Input("audio", tooltip="Audio to slice for each emitted segment."),
+            ],
+            outputs=[
+                io.Image.Output(display_name="keyframes_sequence", tooltip="Padded keyframe sequences", is_output_list=True),
+                io.Mask.Output(display_name="keyframes_mask", tooltip="Masks indicating valid frames", is_output_list=True),
+                io.Audio.Output(display_name="audio_segment", tooltip="Audio segment for each video segment", is_output_list=True),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, images, segment_length, num_segments, audio=None) -> io.NodeOutput:
+        outputs = [WanDancerPadKeyframes.do_execute(images, segment_length, i, audio) for i in range(num_segments)]
+        keyframes, masks, audio_segments = zip(*outputs)
+        return io.NodeOutput(list(keyframes), list(masks), list(audio_segments))
 
 class WanDancerExtension(ComfyExtension):
     @override
@@ -1054,6 +1083,7 @@ class WanDancerExtension(ComfyExtension):
             WanDancerEncodeAudio,
             WanDancerEncodeAudioLibrosa,
             WanDancerPadKeyframes,
+            WanDancerPadKeyframesList,
         ]
 
 async def comfy_entrypoint() -> WanDancerExtension:
