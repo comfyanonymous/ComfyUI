@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import math
 import re
@@ -20,6 +21,7 @@ from comfy_api_nodes.apis.bytedance import (
     SeedanceCreateAssetResponse,
     SeedanceCreateVisualValidateSessionResponse,
     SeedanceGetVisualValidateSessionResponse,
+    SeedanceVirtualLibraryCreateAssetRequest,
     Seedream4Options,
     Seedream4TaskCreationRequest,
     TaskAudioContent,
@@ -269,6 +271,30 @@ async def _wait_for_asset_active(cls: type[IO.ComfyNode], asset_id: str, group_i
         max_poll_attempts=1200,
         extra_text=f"Waiting for asset pre-processing...\n\nasset_id: {asset_id}\n\ngroup_id: {group_id}",
     )
+
+
+async def _seedance_virtual_library_upload_image_asset(
+    cls: type[IO.ComfyNode],
+    image: torch.Tensor,
+    *,
+    wait_label: str = "Uploading image",
+) -> str:
+    """Upload an image into the caller's per-customer Seedance virtual library."""
+    public_url = await upload_image_to_comfyapi(cls, image, wait_label=wait_label)
+    normalized = image.detach().cpu().contiguous().to(torch.float32)
+    digest = hashlib.sha256()
+    digest.update(str(tuple(normalized.shape)).encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(normalized.numpy().tobytes())
+    image_hash = digest.hexdigest()
+    create_resp = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/seedance/virtual-library/assets", method="POST"),
+        response_model=SeedanceCreateAssetResponse,
+        data=SeedanceVirtualLibraryCreateAssetRequest(url=public_url, hash=image_hash),
+    )
+    await _wait_for_asset_active(cls, create_resp.asset_id, group_id="virtual-library")
+    return f"asset://{create_resp.asset_id}"
 
 
 def _seedance2_price_extractor(model_id: str, has_video_input: bool):
@@ -1245,7 +1271,7 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
 )
 
 
-def _seedance2_text_inputs(resolutions: list[str]):
+def _seedance2_text_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     return [
         IO.String.Input(
             "prompt",
@@ -1261,6 +1287,7 @@ def _seedance2_text_inputs(resolutions: list[str]):
         IO.Combo.Input(
             "ratio",
             options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+            default=default_ratio,
             tooltip="Aspect ratio of the output video.",
         ),
         IO.Int.Input(
@@ -1377,7 +1404,6 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=False),
             poll_interval=9,
-            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -1395,8 +1421,14 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p"])),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0",
+                            _seedance2_text_inputs(["480p", "720p", "1080p"], default_ratio="adaptive"),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0 Fast",
+                            _seedance2_text_inputs(["480p", "720p"], default_ratio="adaptive"),
+                        ),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
@@ -1507,7 +1539,9 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         if first_frame_asset_id:
             first_frame_url = image_assets[first_frame_asset_id]
         else:
-            first_frame_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame.")
+            first_frame_url = await _seedance_virtual_library_upload_image_asset(
+                cls, first_frame, wait_label="Uploading first frame."
+            )
 
         content: list[TaskTextContent | TaskImageContent] = [
             TaskTextContent(text=model["prompt"]),
@@ -1527,7 +1561,9 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
             content.append(
                 TaskImageContent(
                     image_url=TaskImageContentUrl(
-                        url=await upload_image_to_comfyapi(cls, last_frame, wait_label="Uploading last frame.")
+                        url=await _seedance_virtual_library_upload_image_asset(
+                            cls, last_frame, wait_label="Uploading last frame."
+                        )
                     ),
                     role="last_frame",
                 ),
@@ -1555,14 +1591,13 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=False),
             poll_interval=9,
-            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
-def _seedance2_reference_inputs(resolutions: list[str]):
+def _seedance2_reference_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     return [
-        *_seedance2_text_inputs(resolutions),
+        *_seedance2_text_inputs(resolutions, default_ratio=default_ratio),
         IO.Autogrow.Input(
             "reference_images",
             template=IO.Autogrow.TemplateNames(
@@ -1640,8 +1675,14 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
-                        IO.DynamicCombo.Option("Seedance 2.0", _seedance2_reference_inputs(["480p", "720p", "1080p"])),
-                        IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_reference_inputs(["480p", "720p"])),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0",
+                            _seedance2_reference_inputs(["480p", "720p", "1080p"], default_ratio="adaptive"),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0 Fast",
+                            _seedance2_reference_inputs(["480p", "720p"], default_ratio="adaptive"),
+                        ),
                     ],
                     tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
                 ),
@@ -1805,9 +1846,9 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             content.append(
                 TaskImageContent(
                     image_url=TaskImageContentUrl(
-                        url=await upload_image_to_comfyapi(
+                        url=await _seedance_virtual_library_upload_image_asset(
                             cls,
-                            image=reference_images[key],
+                            reference_images[key],
                             wait_label=f"Uploading image {i}",
                         ),
                     ),
@@ -1877,7 +1918,6 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             price_extractor=_seedance2_price_extractor(model_id, has_video_input=has_video_input),
             poll_interval=9,
-            max_poll_attempts=180,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 

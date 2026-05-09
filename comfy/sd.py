@@ -18,6 +18,7 @@ import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
+import comfy.ldm.cogvideo.vae
 import comfy.ldm.hunyuan_video.vae
 import comfy.ldm.mmaudio.vae.autoencoder
 import comfy.pixel_space_convert
@@ -64,6 +65,8 @@ import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
 import comfy.text_encoders.ernie
+import comfy.text_encoders.gemma4
+import comfy.text_encoders.cogvideo
 
 import comfy.model_patcher
 import comfy.lora
@@ -478,7 +481,10 @@ class VAE:
                                                             encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
                                                             decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
             elif "taesd_decoder.1.weight" in sd:
-                self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
+                if isinstance(metadata, dict) and "tae_latent_channels" in metadata:
+                    self.latent_channels = metadata["tae_latent_channels"]
+                else:
+                    self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
                 self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels)
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
@@ -652,6 +658,17 @@ class VAE:
 
                 self.memory_used_encode = lambda shape, dtype: (1400 * 9 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (3600 * 4 * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
+            elif "decoder.conv_in.conv.weight" in sd and "decoder.mid_block.resnets.0.norm1.norm_layer.weight" in sd:  # CogVideoX VAE
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                self.upscale_index_formula = (4, 8, 8)
+                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                self.downscale_index_formula = (4, 8, 8)
+                self.latent_dim = 3
+                self.latent_channels = sd["encoder.conv_out.conv.weight"].shape[0] // 2
+                self.first_stage_model = comfy.ldm.cogvideo.vae.AutoencoderKLCogVideoX(latent_channels=self.latent_channels)
+                self.memory_used_decode = lambda shape, dtype: (2800 * max(2, ((shape[2] - 1) * 4) + 1) * shape[3] * shape[4] * (8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1400 * max(1, shape[2]) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
             elif "decoder.conv_in.conv.weight" in sd:
                 ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 ddconfig["conv3d"] = True
@@ -1208,6 +1225,7 @@ class CLIPType(Enum):
     NEWBIE = 24
     FLUX2 = 25
     LONGCAT_IMAGE = 26
+    COGVIDEOX = 27
 
 
 
@@ -1256,6 +1274,9 @@ class TEModel(Enum):
     QWEN35_9B = 26
     QWEN35_27B = 27
     MINISTRAL_3_3B = 28
+    GEMMA_4_E4B = 29
+    GEMMA_4_E2B = 30
+    GEMMA_4_31B = 31
 
 
 def detect_te_model(sd):
@@ -1281,6 +1302,12 @@ def detect_te_model(sd):
             return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        if 'model.layers.59.self_attn.q_norm.weight' in sd:
+            return TEModel.GEMMA_4_31B
+        if 'model.layers.41.self_attn.q_norm.weight' in sd and 'model.layers.47.self_attn.q_norm.weight' not in sd:
+            return TEModel.GEMMA_4_E4B
+        if 'model.layers.34.self_attn.q_norm.weight' in sd and 'model.layers.41.self_attn.q_norm.weight' not in sd:
+            return TEModel.GEMMA_4_E2B
         if 'model.layers.47.self_attn.q_norm.weight' in sd:
             return TEModel.GEMMA_3_12B
         if 'model.layers.0.self_attn.q_norm.weight' in sd:
@@ -1403,6 +1430,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
+            elif clip_type == CLIPType.COGVIDEOX:
+                clip_target.clip = comfy.text_encoders.cogvideo.cogvideo_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.cogvideo.CogVideoXTokenizer
             else: #CLIPType.MOCHI
                 clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer
@@ -1420,6 +1450,13 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             else:
                 clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
                 clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
+        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B):
+            variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
+                       TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
+                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B}[te_model]
+            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
+            clip_target.tokenizer = variant.tokenizer
+            tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
