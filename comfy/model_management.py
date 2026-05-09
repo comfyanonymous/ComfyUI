@@ -1196,7 +1196,10 @@ def get_pin_buffer(offload_stream):
         pin_buffer = comfy_aimdo.host_buffer.HostBuffer(0)
         STREAM_PIN_BUFFERS[offload_stream] = pin_buffer
     elif offload_stream is not None:
-        offload_stream.synchronize()
+        event = getattr(pin_buffer, "_comfy_event", None)
+        if event is not None:
+            event.synchronize()
+            delattr(pin_buffer, "_comfy_event")
     return pin_buffer
 
 def resize_pin_buffer(pin_buffer, size):

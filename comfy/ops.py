@@ -241,6 +241,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             pin = stream_pin_tensor[pin_offset:pin_offset + pin_size]
             cast_maybe_lowvram_patch(xfer_source, pin, None)
             comfy.model_management.cast_to_gathered([ pin ], xfer_dest, non_blocking=non_blocking, stream=offload_stream)
+        stream_pin_hostbuf._comfy_event = offload_stream.record_event()
 
     return offload_stream
 
