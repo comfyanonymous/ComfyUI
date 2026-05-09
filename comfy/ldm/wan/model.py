@@ -142,20 +142,16 @@ class WanI2VCrossAttention(WanSelfAttention):
 
         # compute query, key, value
         q = self.norm_q(self.q(x))
-
+        k = self.norm_k(self.k(context))
+        v = self.v(context)
         k_img = self.norm_k_img(self.k_img(context_img))
         v_img = self.v_img(context_img)
         img_x = optimized_attention(q, k_img, v_img, heads=self.num_heads, transformer_options=transformer_options)
-        del k_img, v_img, context_img
         # compute attention
-        k = self.norm_k(self.k(context))
-        v = self.v(context)
         x = optimized_attention(q, k, v, heads=self.num_heads, transformer_options=transformer_options)
-        del q, k, v
 
         # output
         x = x + img_x
-        del img_x
         x = self.o(x)
         return x
 
@@ -1153,9 +1149,9 @@ class AudioInjector_WAN(nn.Module):
         else:
             attn_hidden_states = self.injector_pre_norm_feat[audio_attn_id](input_hidden_states)
 
-        if audio_emb.dim() == 3:
+        if audio_emb.dim() == 3: # WanDancer case
             attn_audio_emb = rearrange(audio_emb, "b t c -> (b t) 1 c", t=num_frames)
-        else:
+        else: # S2V case
             attn_audio_emb = rearrange(audio_emb, "b t n c -> (b t) n c", t=num_frames)
 
         residual_out = self.injector[audio_attn_id](x=attn_hidden_states, context=attn_audio_emb)

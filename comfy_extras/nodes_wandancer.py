@@ -679,18 +679,8 @@ def track_beats(onset_env, tempo, sr, hop_length, tightness=100, trim=True):
 
     return np.flatnonzero(beats).astype(np.int32)
 
-def compute_onset_envelope(data, model_sr, n_fft=2048, hop_length=512):
-    """Compute onset strength envelope from audio signal."""
-    mel_spec = _compute_mel_spectrogram(data, model_sr, n_fft, hop_length, n_mels=128)
-
-    amin = 1e-10
-    top_db = 80.0
-    mel_spec_db = power_to_db(mel_spec, amin=amin, top_db=top_db, ref=1.0)
-    mel_spec_db -= 10.0 * np.log10(np.maximum(amin, 1.0))
-
-    if top_db is not None:
-        mel_spec_db = np.maximum(mel_spec_db, mel_spec_db.max() - top_db)
-
+def compute_onset_envelope(mel_spec_db, n_fft=2048, hop_length=512):
+    """Compute onset strength envelope from a log-mel spectrogram (dB)."""
     lag = 1
     onset_diff = mel_spec_db[:, lag:] - mel_spec_db[:, :-lag]
     onset_diff = np.maximum(0.0, onset_diff)
@@ -702,19 +692,9 @@ def compute_onset_envelope(data, model_sr, n_fft=2048, hop_length=512):
 
     return envelope
 
-def compute_mfcc(data, model_sr, n_fft=2048, hop_length=512, n_mfcc=20):
-    """Compute MFCC features from audio signal."""
-    mel_spec = _compute_mel_spectrogram(data, model_sr, n_fft, hop_length, n_mels=128)
-
-    amin = 1e-10
-    top_db = 80.0
-    log_spec = power_to_db(mel_spec, amin=amin, top_db=top_db, ref=1.0)
-    log_spec -= 10.0 * np.log10(np.maximum(amin, 1.0))
-
-    if top_db is not None:
-        log_spec = np.maximum(log_spec, log_spec.max() - top_db)
-
-    mfcc = scipy.fft.dct(log_spec, axis=0, type=2, norm='ortho')[:n_mfcc].T
+def compute_mfcc(mel_spec_db, n_mfcc=20):
+    """Compute MFCC features from a log-mel spectrogram (dB)."""
+    mfcc = scipy.fft.dct(mel_spec_db, axis=0, type=2, norm='ortho')[:n_mfcc].T
     return mfcc.astype(np.float32)
 
 
@@ -735,7 +715,7 @@ class WanDancerEncodeAudio(io.ComfyNode):
             node_id="WanDancerEncodeAudio",
             category="conditioning/video_models",
             inputs=[
-                io.Audio.Input("audio", optional=True),
+                io.Audio.Input("audio"),
                 io.Int.Input("video_frames", default=149, min=1, max=nodes.MAX_RESOLUTION, step=4),
                 io.Float.Input("audio_inject_scale", default=1.0, min=0.0, max=10.0, step=0.01, tooltip="The scale for the audio features when injected into the video model."),
             ],
@@ -746,7 +726,7 @@ class WanDancerEncodeAudio(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, video_frames, audio_inject_scale, audio=None) -> io.NodeOutput:
+    def execute(cls, video_frames, audio_inject_scale, audio) -> io.NodeOutput:
         waveform = audio["waveform"][0]
         sample_rate = audio["sample_rate"]
         base_fps = 30
@@ -765,8 +745,10 @@ class WanDancerEncodeAudio(io.ComfyNode):
         waveform = torchaudio.functional.resample(waveform, sample_rate, resample_sr)
 
         waveform_np = waveform.cpu().numpy().squeeze()
-        envelope = compute_onset_envelope(waveform_np, model_sr, n_fft, hop_length)
-        mfcc = compute_mfcc(waveform_np, model_sr, n_fft, hop_length, n_mfcc=20)
+        mel_spec = _compute_mel_spectrogram(waveform_np, model_sr, n_fft, hop_length, n_mels=128)
+        mel_spec_db = power_to_db(mel_spec, amin=1e-10, top_db=80.0, ref=1.0)
+        envelope = compute_onset_envelope(mel_spec_db, n_fft, hop_length)
+        mfcc = compute_mfcc(mel_spec_db, n_mfcc=20)
         chroma = compute_chroma_cens(y=waveform_np, sr=model_sr, hop_length=hop_length).T
         # detect peaks
         peak_idxs = detect_onset_peaks(envelope, sr=model_sr, hop_length=hop_length)
@@ -813,7 +795,6 @@ class WanDancerVideo(io.ComfyNode):
                 io.Int.Input("width", default=480, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=832, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("length", default=149, min=1, max=nodes.MAX_RESOLUTION, step=4, tooltip="The number of frames in the generated video. Should stay 149 for WanDancer."),
-                io.Int.Input("batch_size", default=1, min=1, max=4096),
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True, tooltip="The CLIP vision embeds for the first frame."),
                 io.ClipVisionOutput.Input("clip_vision_output_ref", optional=True, tooltip="The CLIP vision embeds for the reference image."),
                 io.Image.Input("start_image", optional=True, tooltip="The initial image(s) to be encoded, can be any number of frames."),
@@ -828,8 +809,8 @@ class WanDancerVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, positive, negative, vae, width, height, length, batch_size, start_image=None, mask=None, clip_vision_output=None, clip_vision_output_ref=None, audio_encoder_output=None) -> io.NodeOutput:
-        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+    def execute(cls, positive, negative, vae, width, height, length, start_image=None, mask=None, clip_vision_output=None, clip_vision_output_ref=None, audio_encoder_output=None) -> io.NodeOutput:
+        latent = torch.zeros([1, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             image = torch.zeros((length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
@@ -911,7 +892,7 @@ class WanDancerPadKeyframes(io.ComfyNode):
         )
 
     @classmethod
-    def do_execute(cls, images, segment_length, segment_index, audio=None):
+    def do_execute(cls, images, segment_length, segment_index, audio):
         B, H, W, C = images.shape
         fps = 30
 
@@ -922,41 +903,43 @@ class WanDancerPadKeyframes(io.ComfyNode):
         num_segments = int((audio_duration - buffer) / segment_duration) + 1 if audio_duration > buffer else 0
         total_frames = num_segments * segment_length
 
-        frame_interval = float(total_frames) / B
-        seg_num = int(math.ceil(total_frames / segment_length))
-        is_last_segment = (segment_index == seg_num - 1)
-
-        positions = []
-        images_before_this_segment = 0
-
-        # count images consumed by previous segments
-        for seg_idx in range(segment_index):
-            end_idx = (total_frames - segment_length * seg_idx - 1) if seg_idx == seg_num - 1 else (segment_length - 1)
-            cnt = 0
-            while cnt * frame_interval < end_idx - frame_interval:
-                cnt += 1
-            images_before_this_segment += cnt
-
-        # positions for current segment
-        end_index = (total_frames - segment_length * segment_index - 1) if is_last_segment else (segment_length - 1)
-        cnt = 0
-        while cnt * frame_interval < end_index - frame_interval:
-            pos = int(math.ceil(frame_interval * cnt))
-            positions.append((pos, images_before_this_segment + cnt))
-            cnt += 1
-        positions.append((end_index, images_before_this_segment + cnt))
-
-        # fill keyframes and mask using torch indexing
         mask = torch.zeros((segment_length, H, W), device=images.device, dtype=images.dtype)
         keyframes = torch.zeros((segment_length, H, W, C), dtype=images.dtype, device=images.device)
 
-        valid_positions = [(pos, idx) for pos, idx in positions if idx < B and pos < segment_length]
+        # guard: with no audio or no images, nothing to place — leave keyframes/mask zeroed
+        if total_frames > 0 and B > 0:
+            frame_interval = float(total_frames) / B
+            seg_num = int(math.ceil(total_frames / segment_length))
+            is_last_segment = (segment_index == seg_num - 1)
 
-        seg_positions, img_indices = zip(*valid_positions)
-        seg_positions = torch.tensor(seg_positions, dtype=torch.long, device=images.device)
-        img_indices = torch.tensor(img_indices, dtype=torch.long, device=images.device)
-        mask[seg_positions] = 1
-        keyframes[seg_positions] = images[img_indices]
+            positions = []
+            images_before_this_segment = 0
+
+            # count images consumed by previous segments
+            for seg_idx in range(segment_index):
+                end_idx = (total_frames - segment_length * seg_idx - 1) if seg_idx == seg_num - 1 else (segment_length - 1)
+                cnt = 0
+                while cnt * frame_interval < end_idx - frame_interval:
+                    cnt += 1
+                images_before_this_segment += cnt
+
+            # positions for current segment
+            end_index = (total_frames - segment_length * segment_index - 1) if is_last_segment else (segment_length - 1)
+            cnt = 0
+            while cnt * frame_interval < end_index - frame_interval:
+                pos = int(math.ceil(frame_interval * cnt))
+                positions.append((pos, images_before_this_segment + cnt))
+                cnt += 1
+            positions.append((end_index, images_before_this_segment + cnt))
+
+            valid_positions = [(pos, idx) for pos, idx in positions if idx < B and pos < segment_length]
+
+            if valid_positions:
+                seg_positions, img_indices = zip(*valid_positions)
+                seg_positions = torch.tensor(seg_positions, dtype=torch.long, device=images.device)
+                img_indices = torch.tensor(img_indices, dtype=torch.long, device=images.device)
+                mask[seg_positions] = 1
+                keyframes[seg_positions] = images[img_indices]
 
         # extract audio segment
         segment_duration = segment_length / fps
