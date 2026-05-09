@@ -44,4 +44,4 @@ prompts.db*
 pyproject.toml.backup
 styles/
 .comfy_environment
-windows_downloads/
+windows_downloads
