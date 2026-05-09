@@ -92,7 +92,10 @@ def compute_cqt(y, sr=22050, hop_length=512, fmin=None, n_bins=84, bins_per_octa
     def _resample_half(y):
         ratio = 0.5
         n_samples = int(np.ceil(len(y) * ratio))
-        y_hat = scipy.signal.resample_poly(y.astype(np.float32), 1, 2)
+        # Kaiser-windowed FIR matches librosa/soxr more closely than scipy's default Hamming filter
+        L = 2
+        h = scipy.signal.firwin(160 * L + 1, 0.96 / L, window=('kaiser', 6.5))
+        y_hat = scipy.signal.resample_poly(y.astype(np.float32), 1, 2, window=h)
         if len(y_hat) > n_samples:
             y_hat = y_hat[:n_samples]
         elif len(y_hat) < n_samples:
