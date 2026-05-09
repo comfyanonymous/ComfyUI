@@ -60,6 +60,7 @@ async def poll_until_finished(
         ],
         status_extractor=lambda x: x.data.status,
         progress_extractor=lambda x: x.data.progress,
+        price_extractor=lambda x: x.data.consumed_credit * 0.01 if x.data.consumed_credit else None,
         estimated_duration=average_duration,
     )
     if response_poll.data.status == TripoTaskStatus.SUCCESS:
@@ -113,7 +114,6 @@ class TripoTextToModelNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(
                     widgets=[
                         "model_version",
-                        "style",
                         "texture",
                         "pbr",
                         "quad",
@@ -124,20 +124,17 @@ class TripoTextToModelNode(IO.ComfyNode):
                 expr="""
                 (
                   $isV14 := $contains(widgets.model_version,"v1.4");
-                  $style := widgets.style;
-                  $hasStyle := ($style != "" and $style != "none");
+                  $isV3OrLater := $contains(widgets.model_version,"v3.");
                   $withTexture := widgets.texture or widgets.pbr;
                   $isHdTexture := (widgets.texture_quality = "detailed");
                   $isDetailedGeometry := (widgets.geometry_quality = "detailed");
-                  $baseCredits :=
-                    $isV14 ? 20 : ($withTexture ? 20 : 10);
-                  $credits :=
-                    $baseCredits
-                    + ($hasStyle ? 5 : 0)
+                  $credits := $isV14 ? 20 : (
+                    ($withTexture ? 20 : 10)
                     + (widgets.quad ? 5 : 0)
                     + ($isHdTexture ? 10 : 0)
-                    + ($isDetailedGeometry ? 20 : 0);
-                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                    + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
+                  );
+                  {"type":"usd","usd": $round($credits * 0.01, 2), "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -239,7 +236,6 @@ class TripoImageToModelNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(
                     widgets=[
                         "model_version",
-                        "style",
                         "texture",
                         "pbr",
                         "quad",
@@ -250,20 +246,17 @@ class TripoImageToModelNode(IO.ComfyNode):
                 expr="""
                 (
                   $isV14 := $contains(widgets.model_version,"v1.4");
-                  $style := widgets.style;
-                  $hasStyle := ($style != "" and $style != "none");
+                  $isV3OrLater := $contains(widgets.model_version,"v3.");
                   $withTexture := widgets.texture or widgets.pbr;
                   $isHdTexture := (widgets.texture_quality = "detailed");
                   $isDetailedGeometry := (widgets.geometry_quality = "detailed");
-                  $baseCredits :=
-                    $isV14 ? 30 : ($withTexture ? 30 : 20);
-                  $credits :=
-                    $baseCredits
-                    + ($hasStyle ? 5 : 0)
+                  $credits := $isV14 ? 30 : (
+                    ($withTexture ? 30 : 20)
                     + (widgets.quad ? 5 : 0)
                     + ($isHdTexture ? 10 : 0)
-                    + ($isDetailedGeometry ? 20 : 0);
-                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                    + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
+                  );
+                  {"type":"usd","usd": $round($credits * 0.01, 2), "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -358,7 +351,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
-                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Boolean.Input("quad", default=False, optional=True, advanced=True, tooltip="This parameter is deprecated and does nothing."),
                 IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
             ],
             outputs=[
@@ -379,7 +372,6 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                         "model_version",
                         "texture",
                         "pbr",
-                        "quad",
                         "texture_quality",
                         "geometry_quality",
                     ],
@@ -387,17 +379,16 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 expr="""
                 (
                   $isV14 := $contains(widgets.model_version,"v1.4");
+                  $isV3OrLater := $contains(widgets.model_version,"v3.");
                   $withTexture := widgets.texture or widgets.pbr;
                   $isHdTexture := (widgets.texture_quality = "detailed");
                   $isDetailedGeometry := (widgets.geometry_quality = "detailed");
-                  $baseCredits :=
-                    $isV14 ? 30 : ($withTexture ? 30 : 20);
-                  $credits :=
-                    $baseCredits
-                    + (widgets.quad ? 5 : 0)
+                  $credits := $isV14 ? 30 : (
+                    ($withTexture ? 30 : 20)
                     + ($isHdTexture ? 10 : 0)
-                    + ($isDetailedGeometry ? 20 : 0);
-                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                    + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
+                  );
+                  {"type":"usd","usd": $round($credits * 0.01, 2), "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -457,7 +448,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 geometry_quality=geometry_quality,
                 texture_alignment=texture_alignment,
                 face_limit=face_limit if face_limit != -1 else None,
-                quad=quad,
+                quad=None,
             ),
         )
         return await poll_until_finished(cls, response, average_duration=80)
@@ -498,7 +489,7 @@ class TripoTextureNode(IO.ComfyNode):
                 expr="""
                 (
                   $tq := widgets.texture_quality;
-                  {"type":"usd","usd": ($contains($tq,"detailed") ? 0.2 : 0.1)}
+                  {"type":"usd","usd": ($contains($tq,"detailed") ? 0.2 : 0.1), "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -555,7 +546,7 @@ class TripoRefineNode(IO.ComfyNode):
             is_api_node=True,
             is_output_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.3}""",
+                expr="""{"type":"usd","usd":0.3, "format": {"approximate": true}}""",
             ),
         )
 
@@ -592,7 +583,7 @@ class TripoRigNode(IO.ComfyNode):
             is_api_node=True,
             is_output_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
+                expr="""{"type":"usd","usd":0.25, "format": {"approximate": true}}""",
             ),
         )
 
@@ -652,7 +643,7 @@ class TripoRetargetNode(IO.ComfyNode):
             is_api_node=True,
             is_output_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.1}""",
+                expr="""{"type":"usd","usd":0.1, "format": {"approximate": true}}""",
             ),
         )
 
@@ -761,19 +752,10 @@ class TripoConversionNode(IO.ComfyNode):
                         "face_limit",
                         "texture_size",
                         "texture_format",
-                        "force_symmetry",
                         "flatten_bottom",
                         "flatten_bottom_threshold",
                         "pivot_to_center_bottom",
                         "scale_factor",
-                        "with_animation",
-                        "pack_uv",
-                        "bake",
-                        "part_names",
-                        "fbx_preset",
-                        "export_vertex_colors",
-                        "export_orientation",
-                        "animate_in_place",
                     ],
                 ),
                 expr="""
@@ -783,28 +765,16 @@ class TripoConversionNode(IO.ComfyNode):
                     $flatThresh := (widgets.flatten_bottom_threshold != null) ? widgets.flatten_bottom_threshold : 0;
                     $scale := (widgets.scale_factor != null) ? widgets.scale_factor : 1;
                     $texFmt := (widgets.texture_format != "" ? widgets.texture_format : "jpeg");
-                    $part := widgets.part_names;
-                    $fbx := (widgets.fbx_preset != "" ? widgets.fbx_preset : "blender");
-                    $orient := (widgets.export_orientation != "" ? widgets.export_orientation : "default");
                     $advanced :=
                       widgets.quad or
-                      widgets.force_symmetry or
                       widgets.flatten_bottom or
                       widgets.pivot_to_center_bottom or
-                      widgets.with_animation or
-                      widgets.pack_uv or
-                      widgets.bake or
-                      widgets.export_vertex_colors or
-                      widgets.animate_in_place or
                       ($face != -1) or
                       ($texSize != 4096) or
                       ($flatThresh != 0) or
                       ($scale != 1) or
-                      ($texFmt != "jpeg") or
-                      ($part != "") or
-                      ($fbx != "blender") or
-                      ($orient != "default");
-                    {"type":"usd","usd": ($advanced ? 0.1 : 0.05)}
+                      ($texFmt != "jpeg");
+                    {"type":"usd","usd": ($advanced ? 0.1 : 0.05), "format": {"approximate": true}}
                 )
                 """,
             ),
