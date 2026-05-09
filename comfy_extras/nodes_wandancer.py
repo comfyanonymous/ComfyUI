@@ -842,36 +842,6 @@ class WanDancerVideo(io.ComfyNode):
         return io.NodeOutput(positive, negative, out_latent)
 
 
-class VAEDecodeVideoFramewise(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="VAEDecodeVideoFramewise",
-            category="latent",
-            description="Decodes video latents one latent at a time.",
-            search_aliases=["decode", "decode latent", "latent to image", "render latent"],
-            inputs=[
-                io.Latent.Input("samples", tooltip="The latent to be decoded."),
-                io.Vae.Input("vae", tooltip="The VAE model used for decoding the latent."),
-            ],
-            outputs=[
-                io.Image.Output(tooltip="The decoded images."),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, vae, samples) -> io.NodeOutput:
-        latent = samples["samples"]
-        if latent.is_nested:
-            latent = latent.unbind()[0]
-
-        # reshape temporal dimension into batch
-        B, C, T, H, W = latent.shape
-        latent_batched = latent.transpose(1, 2).reshape(B * T, C, 1, H, W)
-        images = vae.decode(latent_batched).squeeze(1)
-
-        return io.NodeOutput(images)
-
 class WanDancerPadKeyframes(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -992,7 +962,6 @@ class WanDancerExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             WanDancerVideo,
-            VAEDecodeVideoFramewise,
             WanDancerEncodeAudio,
             WanDancerPadKeyframes,
             WanDancerPadKeyframesList,
