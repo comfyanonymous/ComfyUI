@@ -74,6 +74,8 @@ tags:
     description: Cloud workflow management and versioning (cloud-only)
   - name: task
     description: Background task management (cloud-only)
+  - name: runtime-only
+    description: Operations served exclusively by the cloud runtime with no local equivalent
 
 paths:
   # ---------------------------------------------------------------------------
@@ -2573,35 +2575,38 @@ paths:
   # ---------------------------------------------------------------------------
   /api/experiment/nodes:
     get:
-      operationId: listCloudNodes
-      tags: [node]
-      summary: List installed custom nodes
-      description: "[cloud-only] Returns the list of custom node packages installed in the cloud runtime."
+      operationId: getNodeInfoSchema
+      tags: [runtime-only]
+      summary: Get pre-rendered node info schema
+      description: "[cloud-only] Returns the static ComfyUI object_info schema, identical for every caller, rendered once at startup with empty model/user-file context. Served by a raw HTTP handler that writes pre-rendered bytes with ETag + Cache-Control validators for RFC 7232 conditional GETs."
       x-runtime: [cloud]
       parameters:
-        - name: limit
-          in: query
+        - name: If-None-Match
+          in: header
+          required: false
           schema:
-            type: integer
-          description: Maximum number of results
-        - name: offset
-          in: query
-          schema:
-            type: integer
-          description: Pagination offset
+            type: string
+          description: Entity tag previously returned by this endpoint. When present and matching, the server returns 304 Not Modified.
       responses:
         "200":
-          description: Custom node list
+          description: Node info schema
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: Entity tag for conditional request validation
+            Cache-Control:
+              schema:
+                type: string
+              description: Cache directives for the response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudNodeList"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CloudError"
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/NodeInfo"
+        "304":
+          description: Not Modified — returned when the client sends a matching If-None-Match header
     post:
       operationId: installCloudNode
       tags: [node]
@@ -2651,10 +2656,10 @@ paths:
 
   /api/experiment/nodes/{id}:
     get:
-      operationId: getCloudNode
-      tags: [node]
-      summary: Get details of an installed custom node
-      description: "[cloud-only] Returns details about a specific installed custom node package."
+      operationId: getNodeByID
+      tags: [runtime-only]
+      summary: Get a single node definition by ID
+      description: "[cloud-only] Returns one node's definition from the pre-indexed object_info schema. Served by a raw HTTP handler that writes pre-rendered bytes with ETag + Cache-Control validators for RFC 7232 conditional GETs."
       x-runtime: [cloud]
       parameters:
         - name: id
@@ -2662,26 +2667,33 @@ paths:
           required: true
           schema:
             type: string
-          description: Custom node package ID
+          description: Node class identifier
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Entity tag previously returned by this endpoint. When present and matching, the server returns 304 Not Modified.
       responses:
         "200":
-          description: Node detail
+          description: Single node definition
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: Entity tag for conditional request validation
+            Cache-Control:
+              schema:
+                type: string
+              description: Cache directives for the response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudNode"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CloudError"
+                $ref: "#/components/schemas/NodeInfo"
+        "304":
+          description: Not Modified — returned when the client sends a matching If-None-Match header
         "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CloudError"
+          description: Node not found
     delete:
       operationId: uninstallCloudNode
       tags: [node]
@@ -7098,22 +7110,6 @@ components:
           type: string
           format: date-time
         enabled:
-          type: boolean
-
-    CloudNodeList:
-      type: object
-      x-runtime: [cloud]
-      description: "[cloud-only] Paginated list of installed custom node packages."
-      required:
-        - nodes
-      properties:
-        nodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/CloudNode"
-        total:
-          type: integer
-        has_more:
           type: boolean
 
     HubLabel:
