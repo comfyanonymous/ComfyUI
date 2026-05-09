@@ -799,79 +799,6 @@ class WanDancerEncodeAudio(io.ComfyNode):
 
         return io.NodeOutput(audio_encoder_output, fps_string)
 
-class WanDancerEncodeAudioLibrosa(io.ComfyNode): # temporary original librosa version for comparison/debugging
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="WanDancerEncodeAudioLibrosa",
-            category="conditioning/video_models",
-            inputs=[
-                io.Audio.Input("audio", optional=True),
-                io.Int.Input("video_frames", default=149, min=1, max=nodes.MAX_RESOLUTION, step=4),
-                io.Float.Input("audio_inject_scale", default=1.0, min=0.0, max=10.0, step=0.01, tooltip="The scale for the audio features when injected into the video model."),
-            ],
-            outputs=[
-                io.AudioEncoderOutput.Output(display_name="audio_encoder_output"),
-                io.String.Output(display_name="fps_string")
-            ],
-        )
-
-    @classmethod
-    def execute(cls, video_frames, audio_inject_scale, audio=None) -> io.NodeOutput:
-        import librosa
-        waveform = audio["waveform"][0]
-        sample_rate = audio["sample_rate"]
-        base_fps = 30
-        hop_length = 512
-        model_sr = 22050
-
-        if waveform.shape[0] > 1:
-            waveform = waveform.mean(dim=0, keepdim=False)
-
-        # original code gets tempo from the original sample rate audio, not the resampled one
-        start_bpm = librosa.feature.tempo(y=waveform.squeeze().cpu().numpy(), sr=sample_rate)[0]
-
-        resample_sr = base_fps * hop_length
-        waveform = torchaudio.functional.resample(waveform, sample_rate, resample_sr)
-
-        waveform_np = waveform.squeeze().cpu().numpy()
-        envelope = librosa.onset.onset_strength(y=waveform_np, sr=model_sr)
-        mfcc = librosa.feature.mfcc(y=waveform_np, sr=model_sr, n_mfcc=20).T
-        chroma = librosa.feature.chroma_cens(y=waveform_np, sr=model_sr, hop_length=hop_length, n_chroma=12).T
-
-        peak_idxs = librosa.onset.onset_detect(onset_envelope=envelope, sr=model_sr, hop_length=hop_length)
-        peak_onehot = np.zeros_like(envelope, dtype=np.float32)
-        peak_onehot[peak_idxs] = 1.0
-
-        _, beat_idxs = librosa.beat.beat_track(
-            onset_envelope=envelope,
-            sr=model_sr,
-            hop_length=hop_length,
-            start_bpm=start_bpm,
-            tightness=100,
-        )
-        beat_onehot = np.zeros_like(envelope, dtype=np.float32)
-        beat_onehot[beat_idxs] = 1.0
-        audio_feature = np.concatenate(
-            [envelope[:, None], mfcc, chroma, peak_onehot[:, None], beat_onehot[:, None]],
-            axis=-1,
-        )
-        audio_feature = torch.from_numpy(audio_feature).unsqueeze(0).to(comfy.model_management.intermediate_device())
-
-        fps = float(base_fps / int(audio_feature.shape[1] / video_frames + 0.5))
-
-        audio_encoder_output = {
-            "audio_feature": audio_feature,
-            "fps": fps,
-            "audio_inject_scale": audio_inject_scale,
-        }
-
-        if int(fps + 0.5) != 30:
-            fps_string = " 帧率是{:.4f}".format(fps) # "frame rate is" in Chinese, as it was in the original pipeline
-        else:
-            fps_string = ", 帧率是30fps。" # to match the reference pipeline when the fps is 30
-
-        return io.NodeOutput(audio_encoder_output, fps_string)
 
 class WanDancerVideo(io.ComfyNode):
     @classmethod
@@ -1084,7 +1011,6 @@ class WanDancerExtension(ComfyExtension):
             WanDancerVideo,
             VAEDecodeVideoFramewise,
             WanDancerEncodeAudio,
-            WanDancerEncodeAudioLibrosa,
             WanDancerPadKeyframes,
             WanDancerPadKeyframesList,
         ]
