@@ -818,7 +818,6 @@ class WanReferenceVideoApi(IO.ComfyNode):
             response_model=VideoTaskStatusResponse,
             status_extractor=lambda x: x.output.task_status,
             poll_interval=6,
-            max_poll_attempts=280,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.output.video_url))
 
