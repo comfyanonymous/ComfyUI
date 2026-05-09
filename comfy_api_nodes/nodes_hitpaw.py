@@ -178,7 +178,6 @@ class HitPawGeneralImageEnhance(IO.ComfyNode):
             status_extractor=lambda x: x.data.status,
             price_extractor=lambda x: request_price,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.data.res_url))
 
@@ -324,7 +323,6 @@ class HitPawVideoEnhance(IO.ComfyNode):
             status_extractor=lambda x: x.data.status,
             price_extractor=lambda x: request_price,
             poll_interval=10.0,
-            max_poll_attempts=320,
         )
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.res_url))
 
