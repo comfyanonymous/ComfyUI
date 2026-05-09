@@ -43,5 +43,5 @@ comfy_extras/nodes_qwen.py.backup
 prompts.db*
 pyproject.toml.backup
 styles/
-
 .comfy_environment
+windows_downloads/
