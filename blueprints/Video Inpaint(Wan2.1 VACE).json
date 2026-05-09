@@ -165,7 +165,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Video Inpaint(Wan2.1 VACE)",
+        "name": "Video Inpaint (Wan 2.1 VACE)",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -2369,7 +2369,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Inpaint video",
-        "description": "Inpaints masked regions in video frames using Wan2.1 VACE."
+        "description": "Inpaints masked regions in video frames using Wan 2.1 VACE."
       }
     ]
   },

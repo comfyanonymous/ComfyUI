@@ -2028,7 +2028,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Video generation and editing/Image to video",
-        "description": "Generates video from an image and text prompt using Wan2.2, supporting T2V and I2V."
+        "description": "Generates video from an image and text prompt using Wan 2.2, supporting T2V and I2V."
       }
     ]
   },
