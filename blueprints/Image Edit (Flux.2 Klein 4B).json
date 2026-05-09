@@ -1473,7 +1473,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Edit image",
-        "description": "Edits images via text instructions using FLUX.2 [klein] 4B, supporting both T2I and image editing."
+        "description": "Edits an input image via text instructions using FLUX.2 [klein] 4B."
       },
       {
         "id": "6007e698-2ebd-4917-84d8-299b35d7b7ab",
