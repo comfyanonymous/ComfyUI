@@ -88,17 +88,12 @@ class HiDreamO1Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 class HiDreamO1TE(torch.nn.Module):
-    """Passthrough TE: emits int token ids; the Qwen3-VL backbone in
-    diffusion_model.* does the actual encoding.
-
-    dtypes advertises uint8 as a routing hint: supports_cast(cuda, uint8)
-    is False, so CLIP.__init__ downgrades load_device to CPU, which makes
-    CoreModelPatcher skip the VBAR allocator (it would fail on a zero-param TE).
-    """
+    """Passthrough TE: emits int token ids; the Qwen3-VL backbone in diffusion_model does the actual encoding."""
 
     def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__()
-        self.dtypes = {torch.uint8}
+        self.dtypes = {torch.float32}
+        self.disable_offload = True # skips dynamic VRAM management for this zero-parameter module
         self.device = torch.device("cpu") if device is None else torch.device(device)
 
     def encode_token_weights(self, token_weight_pairs):
