@@ -11,35 +11,8 @@ import torch
 from PIL import Image
 
 
-PREDEFINED_RESOLUTIONS = [
-    (2048, 2048),
-    (2304, 1728),
-    (1728, 2304),
-    (2560, 1440),
-    (1440, 2560),
-    (2496, 1664),
-    (1664, 2496),
-    (3104, 1312),
-    (1312, 3104),
-    (2304, 1792),
-    (1792, 2304),
-]
-
 PATCH_SIZE = 32
 CONDITION_IMAGE_SIZE = 384  # ViT-side base size for ref images
-
-
-def find_closest_resolution(width, height):
-    """Closest (W, H) in PREDEFINED_RESOLUTIONS by aspect ratio."""
-    img_ratio = width / height
-    best = None
-    min_diff = float("inf")
-    for w, h in PREDEFINED_RESOLUTIONS:
-        diff = abs(w / h - img_ratio)
-        if diff < min_diff:
-            min_diff = diff
-            best = (w, h)
-    return best
 
 
 def resize_pilimage(pil_image, image_size, patch_size=16, resampler=Image.BICUBIC):

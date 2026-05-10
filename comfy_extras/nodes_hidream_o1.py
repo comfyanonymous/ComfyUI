@@ -6,8 +6,6 @@ import comfy.model_management
 import node_helpers
 from comfy_api.latest import ComfyExtension, io
 
-from comfy.ldm.hidream_o1.utils import find_closest_resolution
-
 
 class EmptyHiDreamO1LatentImage(io.ComfyNode):
     @classmethod
@@ -17,35 +15,22 @@ class EmptyHiDreamO1LatentImage(io.ComfyNode):
             display_name="Empty HiDream-O1 Latent Image",
             category="latent/image",
             description=(
-                "Empty pixel-space latent for HiDream-O1-Image. When "
-                "snap_to_predefined is on, dimensions are matched (by aspect "
-                "ratio) to the upstream HiDream-O1 PREDEFINED_RESOLUTIONS list."
+                "Empty pixel-space latent for HiDream-O1-Image. The model was "
+                "trained at ~4 megapixels; lower resolutions go off-distribution "
+                "and quality regresses noticeably. Trained resolutions: "
+                "2048x2048, 2304x1728, 1728x2304, 2560x1440, 1440x2560, "
+                "2496x1664, 1664x2496, 3104x1312, 1312x3104, 2304x1792, 1792x2304."
             ),
             inputs=[
                 io.Int.Input(id="width", default=2048, min=64, max=4096, step=32),
                 io.Int.Input(id="height", default=2048, min=64, max=4096, step=32),
                 io.Int.Input(id="batch_size", default=1, min=1, max=64),
-                io.Boolean.Input(
-                    id="snap_to_predefined",
-                    default=True,
-                    tooltip=(
-                        "Snap (W, H) to the closest aspect ratio in HiDream-O1's "
-                        "PREDEFINED_RESOLUTIONS table for best parity with the "
-                        "upstream CLI. Disable for arbitrary 32-aligned sizes."
-                    ),
-                ),
             ],
             outputs=[io.Latent().Output()],
         )
 
     @classmethod
-    def execute(cls, *, width: int, height: int, batch_size: int = 1,
-                snap_to_predefined: bool = True) -> io.NodeOutput:
-        if snap_to_predefined: #TODO: better way to handle this
-            sw, sh = find_closest_resolution(width, height)
-            width, height = sw, sh
-        width = (width // 32) * 32
-        height = (height // 32) * 32
+    def execute(cls, *, width: int, height: int, batch_size: int = 1) -> io.NodeOutput:
         latent = torch.zeros(
             (batch_size, 3, height, width),
             device=comfy.model_management.intermediate_device(),
@@ -76,9 +61,7 @@ class HiDreamO1ReferenceImages(io.ComfyNode):
                         names=[f"image_{i}" for i in range(1, 11)],
                         min=1,
                     ),
-                    tooltip=(
-                        "Reference images. K=1 -> instruction edit; "
-                        "K=2..10 -> subject-driven personalization."
+                    tooltip=("Reference images. 1 image = instruction edit; 2-10 images = multi reference."
                     ),
                 ),
             ],
