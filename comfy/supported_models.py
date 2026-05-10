@@ -28,6 +28,7 @@ import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.ernie
 import comfy.text_encoders.cogvideo
+import comfy.text_encoders.hidream_o1
 
 from . import supported_models_base
 from . import latent_formats
@@ -1449,6 +1450,49 @@ class ChromaRadiance(Chroma):
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ChromaRadiance(self, device=device)
 
+class HiDreamO1(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hidream_o1",
+    }
+
+    sampling_settings = {
+        "shift": 3.0,
+        "s_noise": 8.0,
+    }
+
+    latent_format = latent_formats.HiDreamO1Pixel
+    memory_usage_factor = 0.6
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    optimizations = {"fp8": False}
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.HiDreamO1(self, device=device)
+
+    def process_unet_state_dict(self, state_dict):
+        # Drop unused Qwen3-VL deepstack merger weights; upstream discards them at inference.
+        for key in list(state_dict.keys()):
+            if "visual.deepstack_merger_list" in key:
+                del state_dict[key]
+        return state_dict
+
+    def process_vae_state_dict(self, state_dict):
+        # Pixel-space model: inject sentinel so VAE construction picks PixelspaceConversionVAE.
+        return {"pixel_space_vae": torch.tensor(1.0)}
+
+    def process_clip_state_dict(self, state_dict):
+        # Tokenizer-only TE: inject sentinel so load_state_dict_guess_config triggers CLIP init.
+        return {"_hidream_o1_te_sentinel": torch.zeros(1)}
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(
+            comfy.text_encoders.hidream_o1.HiDreamO1Tokenizer,
+            comfy.text_encoders.hidream_o1.HiDreamO1TE,
+        )
+
 class ACEStep(supported_models_base.BASE):
     unet_config = {
         "audio_model": "ace",
@@ -1986,6 +2030,7 @@ models = [
     Hunyuan3Dv2,
     Hunyuan3Dv2_1,
     HiDream,
+    HiDreamO1,
     Chroma,
     ChromaRadiance,
     ACEStep,

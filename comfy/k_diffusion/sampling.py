@@ -264,6 +264,51 @@ def sample_euler_ancestral_RF(model, x, sigmas, extra_args=None, callback=None, 
                 x = (alpha_ip1 / alpha_down) * x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * renoise_coeff
     return x
 
+
+@torch.no_grad()
+def sample_euler_flash_flowmatch(model, x, sigmas, extra_args=None, callback=None, disable=None,
+                                 s_noise=7.5, s_noise_end=None, noise_clip_std=2.5,
+                                 noise_sampler=None):
+    """HiDream-O1-Image-Dev "flash" sampler.
+
+    Step: x_next = sigma_next * noise * s_noise_i + (1 - sigma_next) * denoised,
+    with noise clamped to noise_clip_std stddevs and s_noise_i linearly
+    interpolated from s_noise to s_noise_end across steps. Equivalent to
+    sample_lcm + CONST_SCALED_NOISE when s_noise_end is None and noise_clip_std
+    is 0.
+    """
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+    in_dtype = x.dtype
+    n_steps = max(1, len(sigmas) - 1)
+    s_start = float(s_noise)
+    s_end = float(s_noise if s_noise_end is None else s_noise_end)
+    for i in trange(n_steps, disable=disable):
+        sigma = sigmas[i]
+        sigma_next = sigmas[i + 1]
+        denoised = model(x, sigma * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigma, 'sigma_hat': sigma, 'denoised': denoised})
+        if sigma_next == 0:
+            x = denoised.to(in_dtype)
+            continue
+        noise = noise_sampler(sigma, sigma_next)
+        if noise_clip_std > 0:
+            clip_val = noise_clip_std * noise.std()
+            noise = noise.clamp(min=-clip_val, max=clip_val)
+        # Linear interpolation start -> end across steps, matching upstream
+        # pipeline.py's noise_scale_schedule construction.
+        t = (i / (n_steps - 1)) if n_steps > 1 else 0.0
+        s_noise_i = s_start + (s_end - s_start) * t
+        # Match upstream FlashFlowMatchEulerDiscreteScheduler.step: do the step
+        # math in fp32 to avoid bf16 accumulation drift across 28 steps.
+        x = (sigma_next * noise.float() * s_noise_i
+             + (1.0 - sigma_next) * denoised.float()).to(in_dtype)
+    return x
+
+
 @torch.no_grad()
 def sample_heun(model, x, sigmas, extra_args=None, callback=None, disable=None, s_churn=0., s_tmin=0., s_tmax=float('inf'), s_noise=1.):
     """Implements Algorithm 2 (Heun steps) from Karras et al. (2022)."""

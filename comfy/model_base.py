@@ -57,6 +57,7 @@ import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
 import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
+import comfy.ldm.hidream_o1.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1664,6 +1665,43 @@ class Chroma(Flux):
 class ChromaRadiance(Chroma):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma_radiance.model.ChromaRadiance)
+
+
+class HiDreamO1(BaseModel):
+    """HiDream-O1-Image: pixel-space DiT (no VAE). Refs from HiDreamO1ReferenceImages and tokens from the stub TE flow through
+    extra_conds; the heavy preprocessing lives in comfy.ldm.hidream_o1.conditioning."""
+    PATCH_SIZE = 32
+
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device,
+                         unet_model=comfy.ldm.hidream_o1.model.HiDreamO1Transformer)
+        # HiDream-O1 trains with x_t = (1-t) x_clean + t * s_noise * noise
+        s_noise = float((model_config.sampling_settings or {}).get("s_noise", 8.0))
+
+        class _HiDreamO1Sampling(
+            comfy.model_sampling.ModelSamplingDiscreteFlow,
+            comfy.model_sampling.CONST_SCALED_NOISE,
+        ):
+            pass
+        ms = _HiDreamO1Sampling(model_config)
+        ms._s_noise = s_noise
+        self.model_sampling = ms
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        text_input_ids = kwargs.get("text_input_ids", None)
+        noise = kwargs.get("noise", None)
+        if text_input_ids is None or noise is None:
+            return out
+        from comfy.ldm.hidream_o1.conditioning import build_extra_conds
+        conds = build_extra_conds(
+            text_input_ids, noise,
+            ref_images=kwargs.get("hidream_o1_ref_images", None),
+            target_patch_size=self.PATCH_SIZE,
+        )
+        for k, v in conds.items():
+            out[k] = comfy.conds.CONDRegular(v)
+        return out
 
 class ACEStep(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

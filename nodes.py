@@ -2434,6 +2434,7 @@ async def init_builtin_extra_nodes():
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
         "nodes_void.py",
+        "nodes_hidream_o1.py",
     ]
 
     import_failed = []

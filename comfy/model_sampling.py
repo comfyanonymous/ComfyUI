@@ -99,6 +99,18 @@ class CONST:
         sigma = reshape_sigma(sigma, latent.ndim)
         return latent / (1.0 - sigma)
 
+
+class CONST_SCALED_NOISE(CONST):
+    """CONST variant for flow-match models trained with x_t = (1-t)*x_clean +
+    t*s_noise*noise. Set _s_noise to the recipe value; default 1.0 == plain CONST.
+    """
+
+    _s_noise = 1.0
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
+        return sigma * (self._s_noise * noise) + (1.0 - sigma) * latent_image
+
 class X0(EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
         return model_output
