@@ -117,12 +117,12 @@ def set_temp_directory(temp_dir: str) -> None:
 
 def set_input_directory(input_dir: str) -> None:
     global input_directory
+    try:
+        os.makedirs(input_dir, exist_ok=True)
+    except OSError:
+        logging.exception("Failed to create input directory: %s", input_dir)
+        raise
     input_directory = input_dir
-    if not os.path.exists(input_directory):
-        try:
-            os.makedirs(input_directory)
-        except:
-            logging.error("Failed to create input directory")
 
 def get_output_directory() -> str:
     global output_directory
