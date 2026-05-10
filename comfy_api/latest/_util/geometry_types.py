@@ -12,9 +12,16 @@ class VOXEL:
 
 
 class MESH:
-    def __init__(self, vertices: torch.Tensor, faces: torch.Tensor):
-        self.vertices = vertices
-        self.faces = faces
+    def __init__(self, vertices: torch.Tensor, faces: torch.Tensor,
+                 uvs: torch.Tensor | None = None,
+                 vertex_colors: torch.Tensor | None = None,
+                 texture: torch.Tensor | None = None):
+
+        self.vertices = vertices            # vertices: (B, N, 3)
+        self.faces = faces                  # faces: (B, M, 3)
+        self.uvs = uvs                      # uvs: (B, N, 2)
+        self.vertex_colors = vertex_colors  # vertex_colors: (B, N, 3 or 4)
+        self.texture = texture              # texture: (B, H, W, 3)
 
 
 class File3D:
