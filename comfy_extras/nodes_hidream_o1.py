@@ -91,13 +91,13 @@ class HiDreamO1Sampling(io.ComfyNode):
             description=(
                 "Patch HiDream-O1's sigma shift and noise scaling factor. "
                 "Base model defaults: shift=3.0, s_noise=8.0. "
-                "Dev/flash sampler defaults: shift=1.0, s_noise=7.5."
+                "Dev/flash sampler defaults: shift=3.0, 'normal' scheduler, s_noise=7.5."
             ),
             inputs=[
                 io.Model.Input(id="model"),
                 io.Float.Input(
                     id="shift", default=3.0, min=0.0, max=100.0, step=0.01,
-                    tooltip="Flow-match sigma shift. Defaults: 3.0 for base, 1.0 for dev.",
+                    tooltip="Flow-match sigma shift.",
                 ),
                 io.Float.Input(
                     id="s_noise", default=8.0, min=0.0, max=64.0, step=0.1,
