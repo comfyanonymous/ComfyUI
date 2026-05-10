@@ -1196,7 +1196,7 @@ def model_trange(*args, **kwargs):
             pbar.i1_time = time.time()
             pbar.set_postfix_str(" Model Initialization complete!  ")
         elif pbar._i == 2:
-            #bring forward the effective start time based the the diff between first and second iteration
+            #bring forward the effective start time based the diff between first and second iteration
             #to attempt to remove load overhead from the final step rate estimate.
             pbar.start_t = pbar.i1_time - (time.time() - pbar.i1_time)
             pbar.set_postfix_str("")
