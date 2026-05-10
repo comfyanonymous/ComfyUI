@@ -125,7 +125,12 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         return buffer
 
     for s in comfy_modules:
-        signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
+        try:
+            signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
+        except RuntimeError as e:
+            # VRAM allocation failure (e.g., "Fault failed: 2" on non-OOM conditions)
+            # Treat as not-resident and fall back to standard cast path instead of crashing
+            signature = None
         resident = comfy_aimdo.model_vbar.vbar_signature_compare(signature, s._v_signature)
         prefetch = {
             "signature": signature,
