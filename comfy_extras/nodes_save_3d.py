@@ -100,11 +100,29 @@ def save_glb(vertices, faces, filepath, metadata=None,
 
     # Convert tensors to numpy arrays
     vertices_np = vertices.cpu().numpy().astype(np.float32)
-    faces_np = faces.cpu().numpy().astype(np.uint32)
+    faces_signed = faces.cpu().numpy().astype(np.int64)
     uvs_np = uvs.cpu().numpy().astype(np.float32) if uvs is not None else None
     colors_np = vertex_colors.cpu().numpy().astype(np.float32) if vertex_colors is not None else None
     if colors_np is not None:
         colors_np = np.clip(colors_np, 0.0, 1.0)
+
+    n_verts = vertices_np.shape[0]
+    if faces_signed.size > 0:
+        fmin = int(faces_signed.min())
+        fmax = int(faces_signed.max())
+        if fmin < 0 or fmax >= n_verts:
+            raise ValueError(
+                f"save_glb: face index out of range [0, {n_verts}): min={fmin}, max={fmax}"
+            )
+    if uvs_np is not None and uvs_np.shape[0] != n_verts:
+        raise ValueError(
+            f"save_glb: uvs has {uvs_np.shape[0]} entries but vertex count is {n_verts}"
+        )
+    if colors_np is not None and colors_np.shape[0] != n_verts:
+        raise ValueError(
+            f"save_glb: vertex_colors has {colors_np.shape[0]} entries but vertex count is {n_verts}"
+        )
+    faces_np = faces_signed.astype(np.uint32)
     texture_png_bytes = None
     if texture_image is not None:
         import io as _io
