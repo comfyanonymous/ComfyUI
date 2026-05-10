@@ -17,10 +17,11 @@ from comfy.cli_args import args
 from comfy_api.latest import ComfyExtension, IO, Types
 
 
-def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None):
+def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None):
     # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
     # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
     # uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
+    # texture is (B, H, W, 3) — passed through unchanged since it doesn't need ragged packing.
     batch_size = len(vertices)
     max_vertices = max(v.shape[0] for v in vertices)
     max_faces = max(f.shape[0] for f in faces)
@@ -49,7 +50,7 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None):
         for i, u in enumerate(uvs):
             packed_uvs[i, :u.shape[0]] = u
 
-    mesh = Types.MESH(packed_vertices, packed_faces, uvs=packed_uvs, vertex_colors=packed_colors)
+    mesh = Types.MESH(packed_vertices, packed_faces, uvs=packed_uvs, vertex_colors=packed_colors, texture=texture)
     mesh.vertex_counts = vertex_counts
     mesh.face_counts = face_counts
     if color_counts is not None:
