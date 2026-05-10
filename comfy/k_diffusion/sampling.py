@@ -1083,6 +1083,7 @@ def sample_heunpp2(model, x, sigmas, extra_args=None, callback=None, disable=Non
 def dy_sampling_step(x, model, dt, sigma_hat, **extra_args):
 
     original_shape = x.shape
+    b, ch = original_shape[0], original_shape[1]
     m, n = original_shape[2] // 2, original_shape[3] // 2
     extra_row = x.shape[2] % 2 == 1
     extra_col = x.shape[3] % 2 == 1
@@ -1094,16 +1095,16 @@ def dy_sampling_step(x, model, dt, sigma_hat, **extra_args):
         extra_col_content = x[:, :, :, -1:]
         x = x[:, :, :, :-1]
 
-    a_list = x.unfold(2, 2, 2).unfold(3, 2, 2).contiguous().view(1, 4, m * n, 2, 2)
-    c = a_list[:, :, :, 1, 1].view(1, 4, m, n)
+    a_list = x.unfold(2, 2, 2).unfold(3, 2, 2).contiguous().view(b, ch, m * n, 2, 2)
+    c_tile = a_list[:, :, :, 1, 1].view(b, ch, m, n)
 
-    denoised = model(c, sigma_hat * c.new_ones([c.shape[0]]), **extra_args)
-    d = to_d(c, sigma_hat, denoised)
-    c = c + d * dt
+    denoised = model(c_tile, sigma_hat * c_tile.new_ones([c_tile.shape[0]]), **extra_args)
+    d = to_d(c_tile, sigma_hat, denoised)
+    c_tile = c_tile + d * dt
 
-    d_list = c.view(1, 4, m * n, 1, 1)
+    d_list = c_tile.view(b, ch, m * n, 1, 1)
     a_list[:, :, :, 1, 1] = d_list[:, :, :, 0, 0]
-    x = a_list.view(1, 4, m, n, 2, 2).permute(0, 1, 2, 4, 3, 5).reshape(1, 4, 2 * m, 2 * n)
+    x = a_list.view(b, ch, m, n, 2, 2).permute(0, 1, 2, 4, 3, 5).reshape(b, ch, 2 * m, 2 * n)
 
     if extra_row or extra_col:
         x_expanded = torch.zeros(original_shape, dtype=x.dtype, device=x.device)
