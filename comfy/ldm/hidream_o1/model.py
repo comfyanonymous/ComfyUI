@@ -14,6 +14,7 @@ import einops
 import torch
 import torch.nn as nn
 
+import comfy.patcher_extension
 from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder
 from comfy.text_encoders.llama import Llama2_
 from comfy.text_encoders.qwen35 import Qwen35VisionModel
@@ -126,11 +127,18 @@ class HiDreamO1Transformer(nn.Module):
             out_channels=self.in_channels, device=device, dtype=dtype, ops=operations,
         )
 
-    def forward(self, x, timesteps, context=None, transformer_options={},
-                input_ids=None, attention_mask=None, position_ids=None,
-                token_types=None, vinput_mask=None,
-                ref_pixel_values=None, ref_image_grid_thw=None, ref_patches=None,
-                **kwargs):
+    def forward(self, x, timesteps, context=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timesteps, context, transformer_options, **kwargs)
+
+    def _forward(self, x, timesteps, context=None, transformer_options={},
+                 input_ids=None, attention_mask=None, position_ids=None,
+                 token_types=None, vinput_mask=None,
+                 ref_pixel_values=None, ref_image_grid_thw=None, ref_patches=None,
+                 **kwargs):
         """Returns flow-match velocity (x - x_pred) / sigma"""
         if input_ids is None or position_ids is None:
             raise ValueError("HiDreamO1Transformer requires input_ids and position_ids in conditioning")
@@ -200,14 +208,37 @@ class HiDreamO1Transformer(nn.Module):
         freqs_cis = self.language_model.compute_freqs_cis(position_ids, x.device)
         freqs_cis = tuple(t.to(x.dtype) for t in freqs_cis)
 
-        two_pass_attn = make_two_pass_attention(ar_len)
+        two_pass_attn = make_two_pass_attention(ar_len, transformer_options=transformer_options)
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.language_model.layers)
+        transformer_options["block_type"] = "layer"
+
         hidden_states = inputs_embeds
-        for layer in self.language_model.layers:
-            hidden_states, _ = layer(
-                x=hidden_states, attention_mask=None,
-                freqs_cis=freqs_cis, optimized_attention=two_pass_attn,
-                past_key_value=None,
-            )
+        for i, layer in enumerate(self.language_model.layers):
+            transformer_options["block_index"] = i
+            if ("layer", i) in blocks_replace:
+                def block_wrap(args, _layer=layer):
+                    out = {}
+                    out["x"], _ = _layer(
+                        x=args["x"], attention_mask=args.get("attention_mask"),
+                        freqs_cis=args["freqs_cis"], optimized_attention=args["optimized_attention"],
+                        past_key_value=None,
+                    )
+                    return out
+                out = blocks_replace[("layer", i)](
+                    {"x": hidden_states, "attention_mask": None,
+                     "freqs_cis": freqs_cis, "optimized_attention": two_pass_attn,
+                     "transformer_options": transformer_options},
+                    {"original_block": block_wrap},
+                )
+                hidden_states = out["x"]
+            else:
+                hidden_states, _ = layer(
+                    x=hidden_states, attention_mask=None,
+                    freqs_cis=freqs_cis, optimized_attention=two_pass_attn,
+                    past_key_value=None,
+                )
         if self.language_model.norm is not None:
             hidden_states = self.language_model.norm(hidden_states)
 

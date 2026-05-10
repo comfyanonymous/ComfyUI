@@ -10,8 +10,10 @@ import comfy.ops
 from comfy.ldm.modules.attention import optimized_attention
 
 
-def make_two_pass_attention(ar_len: int):
+def make_two_pass_attention(ar_len: int, transformer_options=None):
     """Build a two-pass attention callable. AR pass uses SDPA-causal directly, gen pass routes through optimized_attention.
+
+    The AR pass goes through SDPA directand bypasses wrappers, it is only ~1% of T at typical edit sizes.
     """
     def two_pass_attention(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
         if skip_reshape:
@@ -27,7 +29,7 @@ def make_two_pass_attention(ar_len: int):
         if ar_len >= T:
             out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True)
         elif ar_len <= 0:
-            out = optimized_attention(q, k, v, heads, mask=None, skip_reshape=True, skip_output_reshape=True)
+            out = optimized_attention(q, k, v, heads, mask=None, skip_reshape=True, skip_output_reshape=True, transformer_options=transformer_options)
         else:
             out_ar = comfy.ops.scaled_dot_product_attention(
                 q[:, :, :ar_len], k[:, :, :ar_len], v[:, :, :ar_len],
@@ -36,6 +38,7 @@ def make_two_pass_attention(ar_len: int):
             out_gen = optimized_attention(
                 q[:, :, ar_len:], k, v, heads,
                 mask=None, skip_reshape=True, skip_output_reshape=True,
+                transformer_options=transformer_options,
             )
             out = torch.cat([out_ar, out_gen], dim=2)
 
