@@ -1167,6 +1167,25 @@ class WAN21_T2V(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}umt5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.wan.WanT5Tokenizer, comfy.text_encoders.wan.te(**t5_detect))
 
+class WAN21_CausalAR_T2V(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "t2v",
+        "causal_ar": True,
+    }
+
+    sampling_settings = {
+        "shift": 5.0,
+    }
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.unet_config.pop("causal_ar", None)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.WAN21_CausalAR(self, device=device)
+
+
 class WAN21_I2V(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1293,6 +1312,37 @@ class WAN21_SCAIL(WAN21_T2V):
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.WAN21_SCAIL(self, image_to_video=False, device=device)
         return out
+
+class WAN22_WanDancer(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "wandancer",
+        "in_dim": 36,
+    }
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = 1.8
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN22_WanDancer(self, image_to_video=True, device=device)
+        return out
+
+    def process_unet_state_dict(self, state_dict):
+        out_sd = {}
+        for k in list(state_dict.keys()):
+            # split music_encoder in_proj into q_proj, k_proj, v_proj
+            if "music_encoder" in k and "self_attn.in_proj" in k:
+                suffix = "weight" if k.endswith("weight") else "bias"
+                tensor = state_dict[k]
+                d = tensor.shape[0] // 3
+                prefix = k.replace(f"in_proj_{suffix}", "")
+                out_sd[f"{prefix}q_proj.{suffix}"] = tensor[:d]
+                out_sd[f"{prefix}k_proj.{suffix}"] = tensor[d:2*d]
+                out_sd[f"{prefix}v_proj.{suffix}"] = tensor[2*d:]
+            else:
+                out_sd[k] = state_dict[k]
+        return out_sd
 
 class Hunyuan3Dv2(supported_models_base.BASE):
     unet_config = {
@@ -1853,6 +1903,14 @@ class CogVideoX_T2V(supported_models_base.BASE):
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
 
+    def __init__(self, unet_config):
+        # 2b-class (dim=1920, heads=30) uses scale_factor=1.15258426.
+        # 5b-class (dim=3072, heads=48) — incl. CogVideoX-5b, 1.5-5B, and
+        # Fun-V1.5 inpainting — uses scale_factor=0.7 per vae/config.json.
+        if unet_config.get("num_attention_heads", 0) >= 48:
+            self.latent_format = latent_formats.CogVideoX1_5
+        super().__init__(unet_config)
+
     def get_model(self, state_dict, prefix="", device=None):
         # CogVideoX 1.5 (patch_size_t=2) has different training base dimensions for RoPE
         if self.unet_config.get("patch_size_t") is not None:
@@ -1869,6 +1927,20 @@ class CogVideoX_I2V(CogVideoX_T2V):
     unet_config = {
         "image_model": "cogvideox",
         "in_channels": 32,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        if self.unet_config.get("patch_size_t") is not None:
+            self.unet_config.setdefault("sample_height", 96)
+            self.unet_config.setdefault("sample_width", 170)
+            self.unet_config.setdefault("sample_frames", 81)
+        out = model_base.CogVideoX(self, image_to_video=True, device=device)
+        return out
+
+class CogVideoX_Inpaint(CogVideoX_T2V):
+    unet_config = {
+        "image_model": "cogvideox",
+        "in_channels": 48,
     }
 
     def get_model(self, state_dict, prefix="", device=None):
@@ -1929,6 +2001,7 @@ models = [
     ZImage,
     Lumina2,
     WAN22_T2V,
+    WAN21_CausalAR_T2V,
     WAN21_T2V,
     WAN21_I2V,
     WAN21_FunControl2V,
@@ -1940,6 +2013,7 @@ models = [
     WAN22_Animate,
     WAN21_FlowRVS,
     WAN21_SCAIL,
+    WAN22_WanDancer,
     Hunyuan3Dv2mini,
     Hunyuan3Dv2,
     Hunyuan3Dv2_1,
@@ -1958,6 +2032,7 @@ models = [
     ErnieImage,
     SAM3,
     SAM31,
+    CogVideoX_Inpaint,
     CogVideoX_I2V,
     CogVideoX_T2V,
     SVD_img2vid,

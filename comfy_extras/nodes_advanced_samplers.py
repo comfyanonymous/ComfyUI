@@ -92,7 +92,7 @@ class SamplerEulerCFGpp(io.ComfyNode):
         return io.Schema(
             node_id="SamplerEulerCFGpp",
             display_name="SamplerEulerCFG++",
-            category="_for_testing",  # "sampling/custom_sampling/samplers"
+            category="experimental",  # "sampling/custom_sampling/samplers"
             inputs=[
                 io.Combo.Input("version", options=["regular", "alternative"], advanced=True),
             ],

@@ -149,7 +149,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "local-Text to Image (Z-Image-Turbo)",
+        "name": "Text to Image (Z-Image-Turbo)",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -1054,7 +1054,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Text to image"
+        "category": "Image generation and editing/Text to image",
+        "description": "Generates images from text prompts using Z-Image-Turbo, Alibaba's distilled 6B DiT model."
       }
     ]
   },

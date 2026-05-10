@@ -66,6 +66,7 @@ import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
 import comfy.text_encoders.ernie
 import comfy.text_encoders.gemma4
+import comfy.text_encoders.cogvideo
 
 import comfy.model_patcher
 import comfy.lora
@@ -1224,6 +1225,7 @@ class CLIPType(Enum):
     NEWBIE = 24
     FLUX2 = 25
     LONGCAT_IMAGE = 26
+    COGVIDEOX = 27
 
 
 
@@ -1428,6 +1430,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
+            elif clip_type == CLIPType.COGVIDEOX:
+                clip_target.clip = comfy.text_encoders.cogvideo.cogvideo_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.cogvideo.CogVideoXTokenizer
             else: #CLIPType.MOCHI
                 clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer
