@@ -1081,6 +1081,9 @@ def sample_heunpp2(model, x, sigmas, extra_args=None, callback=None, disable=Non
 
 @torch.no_grad()
 def dy_sampling_step(x, model, dt, sigma_hat, **extra_args):
+    # Algorithm is defined for 4D (N, C, H, W) latents only; skip otherwise.
+    if x.ndim != 4:
+        return x
 
     original_shape = x.shape
     b, ch = original_shape[0], original_shape[1]
@@ -1148,6 +1151,9 @@ def sample_euler_dy(model, x, sigmas, extra_args=None, callback=None, disable=No
 
 @torch.no_grad()
 def smea_sampling_step(x, model, dt, sigma_hat, **extra_args):
+    # Algorithm is defined for 4D (N, C, H, W) latents only; skip otherwise.
+    if x.ndim != 4:
+        return x
     m, n = x.shape[2], x.shape[3]
     x = torch.nn.functional.interpolate(input=x, size=None, scale_factor=(1.25, 1.25), mode='nearest',
                                     align_corners=None,recompute_scale_factor=None)
