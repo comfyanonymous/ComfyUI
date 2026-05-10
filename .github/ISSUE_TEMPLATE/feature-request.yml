@@ -1,0 +1,32 @@
+name: Feature Request
+description: "You have an idea for something new you would like to see added to ComfyUI's core."
+labels: [ "Feature" ]
+body:
+    - type: markdown
+      attributes:
+        value: |
+                Before submitting a **Feature Request**, please ensure the following:
+
+                **1:** You are running the latest version of ComfyUI.
+                **2:** You have looked to make sure there is not already a feature that does what you need, and there is not already a Feature Request listed for the same idea.
+                **3:** This is something that makes sense to add to ComfyUI Core, and wouldn't make more sense as a custom node.
+
+                If unsure, ask on the [ComfyUI Matrix Space](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) or the [Comfy Org Discord](https://discord.gg/comfyorg) first.
+    - type: textarea
+      attributes:
+            label: Feature Idea
+            description: "Describe the feature you want to see."
+      validations:
+            required: true
+    - type: textarea
+      attributes:
+                label: Existing Solutions
+                description: "Please search through available custom nodes / extensions to see if there are existing custom solutions for this. If so, please link the options you found here as a reference."
+      validations:
+                required: false
+    - type: textarea
+      attributes:
+                label: Other
+                description: "Any other additional information you think might be helpful."
+      validations:
+                required: false

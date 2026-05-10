@@ -28,17 +28,17 @@ def pull(repo, remote_name='origin', branch='master'):
 
                 if repo.index.conflicts is not None:
                     for conflict in repo.index.conflicts:
-                        print('Conflicts found in:', conflict[0].path)
+                        print('Conflicts found in:', conflict[0].path)  # noqa: T201
                     raise AssertionError('Conflicts, ahhhhh!!')
 
                 user = repo.default_signature
                 tree = repo.index.write_tree()
-                commit = repo.create_commit('HEAD',
-                                            user,
-                                            user,
-                                            'Merge!',
-                                            tree,
-                                            [repo.head.target, remote_master_id])
+                repo.create_commit('HEAD',
+                                    user,
+                                    user,
+                                    'Merge!',
+                                    tree,
+                                    [repo.head.target, remote_master_id])
                 # We need to do this or git CLI will think we are still merging.
                 repo.state_cleanup()
             else:
@@ -49,26 +49,69 @@ repo_path = str(sys.argv[1])
 repo = pygit2.Repository(repo_path)
 ident = pygit2.Signature('comfyui', 'comfy@ui')
 try:
-    print("stashing current changes")
+    print("stashing current changes")  # noqa: T201
     repo.stash(ident)
 except KeyError:
-    print("nothing to stash")
+    print("nothing to stash")  # noqa: T201
+except:
+    print("Could not stash, cleaning index and trying again.")  # noqa: T201
+    repo.state_cleanup()
+    repo.index.read_tree(repo.head.peel().tree)
+    repo.index.write()
+    try:
+        repo.stash(ident)
+    except KeyError:
+        print("nothing to stash.")  # noqa: T201
+
 backup_branch_name = 'backup_branch_{}'.format(datetime.today().strftime('%Y-%m-%d_%H_%M_%S'))
-print("creating backup branch: {}".format(backup_branch_name))
+print("creating backup branch: {}".format(backup_branch_name))  # noqa: T201
 try:
     repo.branches.local.create(backup_branch_name, repo.head.peel())
 except:
     pass
 
-print("checking out master branch")
+print("checking out master branch")  # noqa: T201
 branch = repo.lookup_branch('master')
-ref = repo.lookup_reference(branch.name)
-repo.checkout(ref)
+if branch is None:
+    try:
+        ref = repo.lookup_reference('refs/remotes/origin/master')
+    except:
+        print("fetching.")  # noqa: T201
+        for remote in repo.remotes:
+            if remote.name == "origin":
+                remote.fetch()
+        ref = repo.lookup_reference('refs/remotes/origin/master')
+    repo.checkout(ref)
+    branch = repo.lookup_branch('master')
+    if branch is None:
+        repo.create_branch('master', repo.get(ref.target))
+else:
+    ref = repo.lookup_reference(branch.name)
+    repo.checkout(ref)
 
-print("pulling latest changes")
+print("pulling latest changes")  # noqa: T201
 pull(repo)
 
-print("Done!")
+if "--stable" in sys.argv:
+    def latest_tag(repo):
+        versions = []
+        for k in repo.references:
+            try:
+                prefix = "refs/tags/v"
+                if k.startswith(prefix):
+                    version = list(map(int, k[len(prefix):].split(".")))
+                    versions.append((version[0] * 10000000000 + version[1] * 100000 + version[2], k))
+            except:
+                pass
+        versions.sort()
+        if len(versions) > 0:
+            return versions[-1][1]
+        return None
+    latest_tag = latest_tag(repo)
+    if latest_tag is not None:
+        repo.checkout(latest_tag)
+
+print("Done!")  # noqa: T201
 
 self_update = True
 if len(sys.argv) > 2:
@@ -108,3 +151,14 @@ if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
         shutil.copy(repo_req_path, req_path)
     except:
         pass
+
+
+stable_update_script = os.path.join(repo_path, ".ci/update_windows/update_comfyui_stable.bat")
+stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
+
+try:
+    if not file_size(stable_update_script_to) > 10:
+        shutil.copy(stable_update_script, stable_update_script_to)
+except:
+    pass
+

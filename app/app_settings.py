@@ -1,6 +1,7 @@
 import os
 import json
 from aiohttp import web
+import logging
 
 
 class AppSettings():
@@ -8,11 +9,21 @@ class AppSettings():
         self.user_manager = user_manager
 
     def get_settings(self, request):
-        file = self.user_manager.get_request_user_filepath(
-            request, "comfy.settings.json")
+        try:
+            file = self.user_manager.get_request_user_filepath(
+                request,
+                "comfy.settings.json"
+            )
+        except KeyError as e:
+            logging.error("User settings not found.")
+            raise web.HTTPUnauthorized() from e
         if os.path.isfile(file):
-            with open(file) as f:
-                return json.load(f)
+            try:
+                with open(file) as f:
+                    return json.load(f)
+            except:
+                logging.error(f"The user settings file is corrupted: {file}")
+                return {}
         else:
             return {}
 

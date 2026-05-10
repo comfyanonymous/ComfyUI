@@ -19,6 +19,9 @@ import torch
 import torchvision
 from torch import nn
 
+import comfy.ops
+
+ops = comfy.ops.disable_weight_init
 
 # EfficientNet
 class EfficientNetEncoder(nn.Module):
@@ -26,7 +29,7 @@ class EfficientNetEncoder(nn.Module):
         super().__init__()
         self.backbone = torchvision.models.efficientnet_v2_s().features.eval()
         self.mapper = nn.Sequential(
-            nn.Conv2d(1280, c_latent, kernel_size=1, bias=False),
+            ops.Conv2d(1280, c_latent, kernel_size=1, bias=False),
             nn.BatchNorm2d(c_latent, affine=False),  # then normalize them to have mean 0 and std 1
         )
         self.mean = nn.Parameter(torch.tensor([0.485, 0.456, 0.406]))
@@ -34,7 +37,7 @@ class EfficientNetEncoder(nn.Module):
 
     def forward(self, x):
         x = x * 0.5 + 0.5
-        x = (x - self.mean.view([3,1,1])) / self.std.view([3,1,1])
+        x = (x - self.mean.view([3,1,1]).to(device=x.device, dtype=x.dtype)) / self.std.view([3,1,1]).to(device=x.device, dtype=x.dtype)
         o = self.mapper(self.backbone(x))
         return o
 
@@ -44,39 +47,39 @@ class Previewer(nn.Module):
     def __init__(self, c_in=16, c_hidden=512, c_out=3):
         super().__init__()
         self.blocks = nn.Sequential(
-            nn.Conv2d(c_in, c_hidden, kernel_size=1),  # 16 channels to 512 channels
+            ops.Conv2d(c_in, c_hidden, kernel_size=1),  # 16 channels to 512 channels
             nn.GELU(),
             nn.BatchNorm2d(c_hidden),
 
-            nn.Conv2d(c_hidden, c_hidden, kernel_size=3, padding=1),
+            ops.Conv2d(c_hidden, c_hidden, kernel_size=3, padding=1),
             nn.GELU(),
             nn.BatchNorm2d(c_hidden),
 
-            nn.ConvTranspose2d(c_hidden, c_hidden // 2, kernel_size=2, stride=2),  # 16 -> 32
+            ops.ConvTranspose2d(c_hidden, c_hidden // 2, kernel_size=2, stride=2),  # 16 -> 32
             nn.GELU(),
             nn.BatchNorm2d(c_hidden // 2),
 
-            nn.Conv2d(c_hidden // 2, c_hidden // 2, kernel_size=3, padding=1),
+            ops.Conv2d(c_hidden // 2, c_hidden // 2, kernel_size=3, padding=1),
             nn.GELU(),
             nn.BatchNorm2d(c_hidden // 2),
 
-            nn.ConvTranspose2d(c_hidden // 2, c_hidden // 4, kernel_size=2, stride=2),  # 32 -> 64
+            ops.ConvTranspose2d(c_hidden // 2, c_hidden // 4, kernel_size=2, stride=2),  # 32 -> 64
             nn.GELU(),
             nn.BatchNorm2d(c_hidden // 4),
 
-            nn.Conv2d(c_hidden // 4, c_hidden // 4, kernel_size=3, padding=1),
+            ops.Conv2d(c_hidden // 4, c_hidden // 4, kernel_size=3, padding=1),
             nn.GELU(),
             nn.BatchNorm2d(c_hidden // 4),
 
-            nn.ConvTranspose2d(c_hidden // 4, c_hidden // 4, kernel_size=2, stride=2),  # 64 -> 128
+            ops.ConvTranspose2d(c_hidden // 4, c_hidden // 4, kernel_size=2, stride=2),  # 64 -> 128
             nn.GELU(),
             nn.BatchNorm2d(c_hidden // 4),
 
-            nn.Conv2d(c_hidden // 4, c_hidden // 4, kernel_size=3, padding=1),
+            ops.Conv2d(c_hidden // 4, c_hidden // 4, kernel_size=3, padding=1),
             nn.GELU(),
             nn.BatchNorm2d(c_hidden // 4),
 
-            nn.Conv2d(c_hidden // 4, c_out, kernel_size=1),
+            ops.Conv2d(c_hidden // 4, c_out, kernel_size=1),
         )
 
     def forward(self, x):

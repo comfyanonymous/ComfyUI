@@ -81,7 +81,7 @@ prompt_text = """
     "4": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {
-            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+            "ckpt_name": "v1-5-pruned-emaonly.safetensors"
         }
     },
     "5": {
@@ -147,7 +147,7 @@ prompt["3"]["inputs"]["seed"] = 5
 ws = websocket.WebSocket()
 ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 images = get_images(ws, prompt)
-
+ws.close() # for in case this example is used in an environment where it will be repeatedly called, like in a Gradio app. otherwise, you'll randomly receive connection timeouts
 #Commented out code to display the output images:
 
 # for node_id in images:

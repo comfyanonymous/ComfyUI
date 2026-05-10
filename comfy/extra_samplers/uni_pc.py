@@ -1,10 +1,10 @@
 #code taken from: https://github.com/wl-zhao/UniPC and modified
 
 import torch
-import torch.nn.functional as F
 import math
+import logging
 
-from tqdm.auto import trange, tqdm
+from tqdm.auto import trange
 
 
 class NoiseScheduleVP:
@@ -16,7 +16,7 @@ class NoiseScheduleVP:
             continuous_beta_0=0.1,
             continuous_beta_1=20.,
         ):
-        """Create a wrapper class for the forward SDE (VP type).
+        r"""Create a wrapper class for the forward SDE (VP type).
 
         ***
         Update: We support discrete-time diffusion models by implementing a picewise linear interpolation for log_alpha_t.
@@ -80,7 +80,7 @@ class NoiseScheduleVP:
                     'linear' or 'cosine' for continuous-time DPMs.
         Returns:
             A wrapper object of the forward SDE (VP type).
-        
+
         ===============================================================
 
         Example:
@@ -208,7 +208,7 @@ def model_wrapper(
                 arXiv preprint arXiv:2202.00512 (2022).
             [2] Ho, Jonathan, et al. "Imagen Video: High Definition Video Generation with Diffusion Models."
                 arXiv preprint arXiv:2210.02303 (2022).
-    
+
         4. "score": marginal score function. (Trained by denoising score matching).
             Note that the score function and the noise prediction model follows a simple relationship:
             ```
@@ -226,7 +226,7 @@ def model_wrapper(
             The input `model` has the following format:
             ``
                 model(x, t_input, **model_kwargs) -> noise | x_start | v | score
-            `` 
+            ``
 
             The input `classifier_fn` has the following format:
             ``
@@ -240,12 +240,12 @@ def model_wrapper(
             The input `model` has the following format:
             ``
                 model(x, t_input, cond, **model_kwargs) -> noise | x_start | v | score
-            `` 
+            ``
             And if cond == `unconditional_condition`, the model output is the unconditional DPM output.
 
             [4] Ho, Jonathan, and Tim Salimans. "Classifier-free diffusion guidance."
                 arXiv preprint arXiv:2207.12598 (2022).
-        
+
 
     The `t_input` is the time label of the model, which may be discrete-time labels (i.e. 0 to 999)
     or continuous-time labels (i.e. epsilon to T).
@@ -254,7 +254,7 @@ def model_wrapper(
     ``
         def model_fn(x, t_continuous) -> noise:
             t_input = get_model_input_time(t_continuous)
-            return noise_pred(model, x, t_input, **model_kwargs)         
+            return noise_pred(model, x, t_input, **model_kwargs)
     ``
     where `t_continuous` is the continuous time labels (i.e. epsilon to T). And we use `model_fn` for DPM-Solver.
 
@@ -359,7 +359,7 @@ class UniPC:
         max_val=1.,
         variant='bh1',
     ):
-        """Construct a UniPC. 
+        """Construct a UniPC.
 
         We support both data_prediction and noise_prediction.
         """
@@ -372,7 +372,7 @@ class UniPC:
 
     def dynamic_thresholding_fn(self, x0, t=None):
         """
-        The dynamic thresholding method. 
+        The dynamic thresholding method.
         """
         dims = x0.dim()
         p = self.dynamic_thresholding_ratio
@@ -404,7 +404,7 @@ class UniPC:
 
     def model_fn(self, x, t):
         """
-        Convert the model to the noise prediction model or the data prediction model. 
+        Convert the model to the noise prediction model or the data prediction model.
         """
         if self.predict_x0:
             return self.data_prediction_fn(x, t)
@@ -461,7 +461,7 @@ class UniPC:
 
     def denoise_to_zero_fn(self, x, s):
         """
-        Denoise at the final step, which is equivalent to solve the ODE from lambda_s to infty by first-order discretization. 
+        Denoise at the final step, which is equivalent to solve the ODE from lambda_s to infty by first-order discretization.
         """
         return self.data_prediction_fn(x, s)
 
@@ -475,7 +475,7 @@ class UniPC:
             return self.multistep_uni_pc_vary_update(x, model_prev_list, t_prev_list, t, order, **kwargs)
 
     def multistep_uni_pc_vary_update(self, x, model_prev_list, t_prev_list, t, order, use_corrector=True):
-        print(f'using unified predictor-corrector with order {order} (solver type: vary coeff)')
+        logging.info(f'using unified predictor-corrector with order {order} (solver type: vary coeff)')
         ns = self.noise_schedule
         assert order <= len(model_prev_list)
 
@@ -510,7 +510,7 @@ class UniPC:
         col = torch.ones_like(rks)
         for k in range(1, K + 1):
             C.append(col)
-            col = col * rks / (k + 1) 
+            col = col * rks / (k + 1)
         C = torch.stack(C, dim=1)
 
         if len(D1s) > 0:
@@ -519,7 +519,6 @@ class UniPC:
             A_p = C_inv_p
 
         if use_corrector:
-            print('using corrector')
             C_inv = torch.linalg.inv(C)
             A_c = C_inv
 
@@ -622,12 +621,12 @@ class UniPC:
             B_h = torch.expm1(hh)
         else:
             raise NotImplementedError()
-            
+
         for i in range(1, order + 1):
             R.append(torch.pow(rks, i - 1))
             b.append(h_phi_k * factorial_i / B_h)
             factorial_i *= (i + 1)
-            h_phi_k = h_phi_k / hh - 1 / factorial_i 
+            h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
         b = torch.tensor(b, device=x.device)
@@ -662,7 +661,7 @@ class UniPC:
 
             if x_t is None:
                 if use_predictor:
-                    pred_res = torch.einsum('k,bkchw->bchw', rhos_p, D1s)
+                    pred_res = torch.tensordot(D1s, rhos_p, dims=([1], [0]))  # torch.einsum('k,bkchw->bchw', rhos_p, D1s)
                 else:
                     pred_res = 0
                 x_t = x_t_ - expand_dims(alpha_t * B_h, dims) * pred_res
@@ -670,7 +669,7 @@ class UniPC:
             if use_corrector:
                 model_t = self.model_fn(x_t, t)
                 if D1s is not None:
-                    corr_res = torch.einsum('k,bkchw->bchw', rhos_c[:-1], D1s)
+                    corr_res = torch.tensordot(D1s, rhos_c[:-1], dims=([1], [0]))  # torch.einsum('k,bkchw->bchw', rhos_c[:-1], D1s)
                 else:
                     corr_res = 0
                 D1_t = (model_t - model_prev_0)
@@ -704,7 +703,6 @@ class UniPC:
     ):
         # t_0 = 1. / self.noise_schedule.total_N if t_end is None else t_end
         # t_T = self.noise_schedule.T if t_start is None else t_start
-        device = x.device
         steps = len(timesteps) - 1
         if method == 'multistep':
             assert steps >= order

@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import torch
 import torchvision
 from torch import nn
 from .common import LayerNorm2d_op
@@ -90,4 +89,4 @@ class ControlNet(nn.Module):
         proj_outputs = [None for _ in range(max(self.proj_blocks) + 1)]
         for i, idx in enumerate(self.proj_blocks):
             proj_outputs[idx] = self.projections[i](x)
-        return proj_outputs
+        return {"input": proj_outputs[::-1]}

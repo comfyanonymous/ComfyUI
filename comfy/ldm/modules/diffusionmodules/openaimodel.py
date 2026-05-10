@@ -9,14 +9,16 @@ import logging
 from .util import (
     checkpoint,
     avg_pool_nd,
-    zero_module,
     timestep_embedding,
     AlphaBlender,
 )
 from ..attention import SpatialTransformer, SpatialVideoTransformer, default
 from comfy.ldm.util import exists
+import comfy.patcher_extension
 import comfy.ops
 ops = comfy.ops.disable_weight_init
+
+from ..sdpose import HeatmapHead
 
 class TimestepBlock(nn.Module):
     """
@@ -32,6 +34,16 @@ class TimestepBlock(nn.Module):
 #This is needed because accelerate makes a copy of transformer_options which breaks "transformer_index"
 def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, output_shape=None, time_context=None, num_video_frames=None, image_only_indicator=None):
     for layer in ts:
+        if "patches" in transformer_options and "forward_timestep_embed_patch" in transformer_options["patches"]:
+            found_patched = False
+            for class_type, handler in transformer_options["patches"]["forward_timestep_embed_patch"]:
+                if isinstance(layer, class_type):
+                    x = handler(layer, x, emb, context, transformer_options, output_shape, time_context, num_video_frames, image_only_indicator)
+                    found_patched = True
+                    break
+            if found_patched:
+                continue
+
         if isinstance(layer, VideoResBlock):
             x = layer(x, emb, num_video_frames, image_only_indicator)
         elif isinstance(layer, TimestepBlock):
@@ -258,7 +270,7 @@ class ResBlock(TimestepBlock):
         else:
             if emb_out is not None:
                 if self.exchange_temb_dims:
-                    emb_out = rearrange(emb_out, "b t c ... -> b c t ...")
+                    emb_out = emb_out.movedim(1, 2)
                 h = h + emb_out
             h = self.out_layers(h)
         return self.skip_connection(x) + h
@@ -431,6 +443,8 @@ class UNetModel(nn.Module):
         video_kernel_size=None,
         disable_temporal_crossattention=False,
         max_ddpm_temb_period=10000,
+        attn_precision=None,
+        heatmap_head=False,
         device=None,
         operations=ops,
     ):
@@ -550,13 +564,14 @@ class UNetModel(nn.Module):
                     disable_self_attn=disable_self_attn,
                     disable_temporal_crossattention=disable_temporal_crossattention,
                     max_time_embed_period=max_ddpm_temb_period,
+                    attn_precision=attn_precision,
                     dtype=self.dtype, device=device, operations=operations
                 )
             else:
                 return SpatialTransformer(
                                 ch, num_heads, dim_head, depth=depth, context_dim=context_dim,
                                 disable_self_attn=disable_self_attn, use_linear=use_linear_in_transformer,
-                                use_checkpoint=use_checkpoint, dtype=self.dtype, device=device, operations=operations
+                                use_checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=self.dtype, device=device, operations=operations
                             )
 
         def get_resblock(
@@ -807,7 +822,7 @@ class UNetModel(nn.Module):
         self.out = nn.Sequential(
             operations.GroupNorm(32, ch, dtype=self.dtype, device=device),
             nn.SiLU(),
-            zero_module(operations.conv_nd(dims, model_channels, out_channels, 3, padding=1, dtype=self.dtype, device=device)),
+            operations.conv_nd(dims, model_channels, out_channels, 3, padding=1, dtype=self.dtype, device=device),
         )
         if self.predict_codebook_ids:
             self.id_predictor = nn.Sequential(
@@ -816,7 +831,17 @@ class UNetModel(nn.Module):
             #nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
         )
 
+        if heatmap_head:
+            self.heatmap_head = HeatmapHead(device=device, dtype=self.dtype, operations=operations)
+
     def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timesteps, context, y, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -839,6 +864,11 @@ class UNetModel(nn.Module):
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
         emb = self.time_embed(t_emb)
+
+        if "emb_patch" in transformer_patches:
+            patch = transformer_patches["emb_patch"]
+            for p in patch:
+                emb = p(emb, self.model_channels, transformer_options)
 
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]
@@ -865,6 +895,12 @@ class UNetModel(nn.Module):
             h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options, time_context=time_context, num_video_frames=num_video_frames, image_only_indicator=image_only_indicator)
         h = apply_control(h, control, 'middle')
 
+        if "middle_block_after_patch" in transformer_patches:
+            patch = transformer_patches["middle_block_after_patch"]
+            for p in patch:
+                out = p({"h": h, "x": x, "emb": emb, "context": context, "y": y,
+                         "timesteps": timesteps, "transformer_options": transformer_options})
+                h = out["h"]
 
         for id, module in enumerate(self.output_blocks):
             transformer_options["block"] = ("output", id)
@@ -876,8 +912,9 @@ class UNetModel(nn.Module):
                 for p in patch:
                     h, hsp = p(h, hsp, transformer_options)
 
-            h = th.cat([h, hsp], dim=1)
-            del hsp
+            if hsp is not None:
+                h = th.cat([h, hsp], dim=1)
+                del hsp
             if len(hs) > 0:
                 output_shape = hs[-1].shape
             else:

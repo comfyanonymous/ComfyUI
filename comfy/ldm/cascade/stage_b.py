@@ -17,7 +17,6 @@
 """
 
 import math
-import numpy as np
 import torch
 from torch import nn
 from .common import AttnBlock, LayerNorm2d_op, ResBlock, FeedForwardBlock, TimestepBlock
@@ -139,7 +138,7 @@ class StageB(nn.Module):
     #     nn.init.normal_(self.pixels_mapper[2].weight, std=0.02)  # conditionings
     #     torch.nn.init.xavier_uniform_(self.embedding[1].weight, 0.02)  # inputs
     #     nn.init.constant_(self.clf[1].weight, 0)  # outputs
-    # 
+    #
     #     # blocks
     #     for level_block in self.down_blocks + self.up_blocks:
     #         for block in level_block:
@@ -149,7 +148,7 @@ class StageB(nn.Module):
     #                 for layer in block.modules():
     #                     if isinstance(layer, nn.Linear):
     #                         nn.init.constant_(layer.weight, 0)
-    # 
+    #
     # def _init_weights(self, m):
     #     if isinstance(m, (nn.Conv2d, nn.Linear)):
     #         torch.nn.init.xavier_uniform_(m.weight)
@@ -174,7 +173,7 @@ class StageB(nn.Module):
         clip = self.clip_norm(clip)
         return clip
 
-    def _down_encode(self, x, r_embed, clip):
+    def _down_encode(self, x, r_embed, clip, transformer_options={}):
         level_outputs = []
         block_group = zip(self.down_blocks, self.down_downscalers, self.down_repeat_mappers)
         for down_block, downscaler, repmap in block_group:
@@ -188,7 +187,7 @@ class StageB(nn.Module):
                     elif isinstance(block, AttnBlock) or (
                             hasattr(block, '_fsdp_wrapped_module') and isinstance(block._fsdp_wrapped_module,
                                                                                   AttnBlock)):
-                        x = block(x, clip)
+                        x = block(x, clip, transformer_options=transformer_options)
                     elif isinstance(block, TimestepBlock) or (
                             hasattr(block, '_fsdp_wrapped_module') and isinstance(block._fsdp_wrapped_module,
                                                                                   TimestepBlock)):
@@ -200,7 +199,7 @@ class StageB(nn.Module):
             level_outputs.insert(0, x)
         return level_outputs
 
-    def _up_decode(self, level_outputs, r_embed, clip):
+    def _up_decode(self, level_outputs, r_embed, clip, transformer_options={}):
         x = level_outputs[0]
         block_group = zip(self.up_blocks, self.up_upscalers, self.up_repeat_mappers)
         for i, (up_block, upscaler, repmap) in enumerate(block_group):
@@ -217,7 +216,7 @@ class StageB(nn.Module):
                     elif isinstance(block, AttnBlock) or (
                             hasattr(block, '_fsdp_wrapped_module') and isinstance(block._fsdp_wrapped_module,
                                                                                   AttnBlock)):
-                        x = block(x, clip)
+                        x = block(x, clip, transformer_options=transformer_options)
                     elif isinstance(block, TimestepBlock) or (
                             hasattr(block, '_fsdp_wrapped_module') and isinstance(block._fsdp_wrapped_module,
                                                                                   TimestepBlock)):
@@ -229,7 +228,7 @@ class StageB(nn.Module):
             x = upscaler(x)
         return x
 
-    def forward(self, x, r, effnet, clip, pixels=None, **kwargs):
+    def forward(self, x, r, effnet, clip, pixels=None, transformer_options={}, **kwargs):
         if pixels is None:
             pixels = x.new_zeros(x.size(0), 3, 8, 8)
 
@@ -246,8 +245,8 @@ class StageB(nn.Module):
             nn.functional.interpolate(effnet, size=x.shape[-2:], mode='bilinear', align_corners=True))
         x = x + nn.functional.interpolate(self.pixels_mapper(pixels), size=x.shape[-2:], mode='bilinear',
                                           align_corners=True)
-        level_outputs = self._down_encode(x, r_embed, clip)
-        x = self._up_decode(level_outputs, r_embed, clip)
+        level_outputs = self._down_encode(x, r_embed, clip, transformer_options=transformer_options)
+        x = self._up_decode(level_outputs, r_embed, clip, transformer_options=transformer_options)
         return self.clf(x)
 
     def update_weights_ema(self, src_model, beta=0.999):
