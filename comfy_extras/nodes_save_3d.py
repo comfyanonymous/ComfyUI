@@ -9,6 +9,7 @@ import os
 import struct
 
 import numpy as np
+from PIL import Image
 import torch
 from typing_extensions import override
 
@@ -20,7 +21,7 @@ from comfy_api.latest import ComfyExtension, IO, Types
 def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None):
     # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
     # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
-    # uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
+    # colors and uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
     # texture is (B, H, W, 3) — passed through unchanged since it doesn't need ragged packing.
     batch_size = len(vertices)
     max_vertices = max(v.shape[0] for v in vertices)
@@ -36,51 +37,45 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=Non
         packed_faces[i, :f.shape[0]] = f
 
     packed_colors = None
-    color_counts = None
     if colors is not None:
-        max_colors = max(c.shape[0] for c in colors)
-        packed_colors = colors[0].new_zeros((batch_size, max_colors, colors[0].shape[1]))
-        color_counts = torch.tensor([c.shape[0] for c in colors], device=colors[0].device, dtype=torch.int64)
+        packed_colors = colors[0].new_zeros((batch_size, max_vertices, colors[0].shape[1]))
         for i, c in enumerate(colors):
+            assert c.shape[0] == vertices[i].shape[0], (
+                f"vertex_colors[{i}] has {c.shape[0]} entries, expected {vertices[i].shape[0]} (1:1 with vertices)"
+            )
             packed_colors[i, :c.shape[0]] = c
 
     packed_uvs = None
     if uvs is not None:
         packed_uvs = uvs[0].new_zeros((batch_size, max_vertices, uvs[0].shape[1]))
         for i, u in enumerate(uvs):
+            assert u.shape[0] == vertices[i].shape[0], (
+                f"uvs[{i}] has {u.shape[0]} entries, expected {vertices[i].shape[0]} (1:1 with vertices)"
+            )
             packed_uvs[i, :u.shape[0]] = u
 
-    mesh = Types.MESH(packed_vertices, packed_faces, uvs=packed_uvs, vertex_colors=packed_colors, texture=texture)
-    mesh.vertex_counts = vertex_counts
-    mesh.face_counts = face_counts
-    if color_counts is not None:
-        mesh.color_counts = color_counts
-    return mesh
+    return Types.MESH(packed_vertices, packed_faces,
+                      uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
+                      vertex_counts=vertex_counts, face_counts=face_counts)
 
 
 def get_mesh_batch_item(mesh, index):
-    # Returns (vertices, faces, colors) for batch index, slicing to real lengths
-    # if pack_variable_mesh_batch added per-item counts.
-    if hasattr(mesh, "vertex_counts"):
+    # Returns (vertices, faces, colors, uvs) for batch index, slicing to real lengths
+    # if the mesh carries per-item counts (variable-size batch).
+    v_colors = getattr(mesh, "vertex_colors", None)
+    v_uvs = getattr(mesh, "uvs", None)
+    if getattr(mesh, "vertex_counts", None) is not None:
         vertex_count = int(mesh.vertex_counts[index].item())
         face_count = int(mesh.face_counts[index].item())
         vertices = mesh.vertices[index, :vertex_count]
         faces = mesh.faces[index, :face_count]
-        colors = None
-        v_colors = getattr(mesh, "vertex_colors", None)
-        if v_colors is not None:
-            if hasattr(mesh, "color_counts"):
-                color_count = int(mesh.color_counts[index].item())
-                colors = v_colors[index, :color_count]
-            else:
-                colors = v_colors[index, :vertex_count]
-        return vertices, faces, colors
+        colors = v_colors[index, :vertex_count] if v_colors is not None else None
+        uvs = v_uvs[index, :vertex_count] if v_uvs is not None else None
+        return vertices, faces, colors, uvs
 
-    colors = None
-    v_colors = getattr(mesh, "vertex_colors", None)
-    if v_colors is not None:
-        colors = v_colors[index]
-    return mesh.vertices[index], mesh.faces[index], colors
+    colors = v_colors[index] if v_colors is not None else None
+    uvs = v_uvs[index] if v_uvs is not None else None
+    return mesh.vertices[index], mesh.faces[index], colors, uvs
 
 
 def save_glb(vertices, faces, filepath, metadata=None,
@@ -107,6 +102,8 @@ def save_glb(vertices, faces, filepath, metadata=None,
         colors_np = np.clip(colors_np, 0.0, 1.0)
 
     n_verts = vertices_np.shape[0]
+    if n_verts == 0:
+        raise ValueError("save_glb: vertices is empty")
     if faces_signed.size > 0:
         fmin = int(faces_signed.min())
         fmax = int(faces_signed.max())
@@ -360,20 +357,18 @@ class SaveGLB(IO.ComfyNode):
             })
         else:
             # Handle Mesh input - save vertices and faces as GLB; carry optional UVs / colors / texture.
-            uvs_b = getattr(mesh, "uvs", None)
             texture_b = getattr(mesh, "texture", None)
             for i in range(mesh.vertices.shape[0]):
-                vertices_i, faces_i, v_colors = get_mesh_batch_item(mesh, i)
+                vertices_i, faces_i, v_colors, uvs_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
-                uvs_i = None
-                if uvs_b is not None:
-                    uvs_i = uvs_b[i, :vertices_i.shape[0]] if hasattr(mesh, "vertex_counts") else uvs_b[i]
                 tex_img = None
                 if texture_b is not None:
-                    from PIL import Image
                     arr = (texture_b[i].clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                    assert arr.ndim == 3 and arr.shape[-1] == 3, (
+                        f"texture[{i}] must be (H, W, 3) RGB, got shape {tuple(arr.shape)}"
+                    )
                     tex_img = Image.fromarray(arr, mode="RGB")
                 f = f"{filename}_{counter:05}_.glb"
                 save_glb(vertices_i, faces_i, os.path.join(full_output_folder, f), metadata,
