@@ -14,7 +14,8 @@ class EmptyHiDreamO1LatentImage(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="EmptyHiDreamO1LatentImage",
-            category="latent/hidream_o1",
+            display_name="Empty HiDream-O1 Latent Image",
+            category="latent/image",
             description=(
                 "Empty pixel-space latent for HiDream-O1-Image. When "
                 "snap_to_predefined is on, dimensions are matched (by aspect "
@@ -40,7 +41,7 @@ class EmptyHiDreamO1LatentImage(io.ComfyNode):
     @classmethod
     def execute(cls, *, width: int, height: int, batch_size: int = 1,
                 snap_to_predefined: bool = True) -> io.NodeOutput:
-        if snap_to_predefined:
+        if snap_to_predefined: #TODO: better way to handle this
             sw, sh = find_closest_resolution(width, height)
             width, height = sw, sh
         width = (width // 32) * 32
@@ -53,24 +54,17 @@ class EmptyHiDreamO1LatentImage(io.ComfyNode):
 
 
 class HiDreamO1ReferenceImages(io.ComfyNode):
-    """Attach reference images to both positive and negative conditioning.
-
-    Refs are model-level inputs, not per-prompt CONDITIONING — they must ride
-    on both CFG branches, otherwise CFG amplifies "with-refs vs no-refs"
-    instead of "edit prompt vs empty prompt with same refs" and saturation
-    blows out.
-    """
+    """Attach reference images to both positive and negative conditioning."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="HiDreamO1ReferenceImages",
-            category="conditioning/hidream_o1",
+            display_name="HiDream-O1 Reference Images",
+            category="conditioning/image",
             description=(
-                "Attach 1-10 reference images to BOTH positive and negative "
-                "conditioning for HiDream-O1 edit (K=1) or subject-driven "
-                "personalization (K=2..10). Refs must ride on both CFG "
-                "branches; this node enforces that."
+                "Attach 1-10 reference images to conditioning, one for edit instruction"
+                "or multiple for subject-driven personalization."
             ),
             inputs=[
                 io.Conditioning.Input(id="positive"),
@@ -96,14 +90,9 @@ class HiDreamO1ReferenceImages(io.ComfyNode):
 
     @classmethod
     def execute(cls, *, positive, negative, images: io.Autogrow.Type) -> io.NodeOutput:
-        # Numeric-suffix order; alphabetic sort would give image_1, image_10, image_2, ...
         refs = [images[f"image_{i}"] for i in range(1, 11) if f"image_{i}" in images]
-        positive = node_helpers.conditioning_set_values(
-            positive, {"hidream_o1_ref_images": refs},
-        )
-        negative = node_helpers.conditioning_set_values(
-            negative, {"hidream_o1_ref_images": refs},
-        )
+        positive = node_helpers.conditioning_set_values(positive, {"hidream_o1_ref_images": refs})
+        negative = node_helpers.conditioning_set_values(negative, {"hidream_o1_ref_images": refs})
         return io.NodeOutput(positive, negative)
 
 
@@ -114,23 +103,22 @@ class HiDreamO1Sampling(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="HiDreamO1Sampling",
-            category="advanced/model/hidream_o1",
+            display_name="HiDream-O1 Sampling",
+            category="advanced/model",
             description=(
                 "Patch HiDream-O1's sigma shift and noise scaling factor. "
-                "Full recipe: shift=3.0, s_noise=8.0. "
-                "Dev/flash recipe: shift=1.0, s_noise=7.5."
+                "Base model defaults: shift=3.0, s_noise=8.0. "
+                "Dev/flash sampler defaults: shift=1.0, s_noise=7.5."
             ),
             inputs=[
                 io.Model.Input(id="model"),
                 io.Float.Input(
                     id="shift", default=3.0, min=0.0, max=100.0, step=0.01,
-                    tooltip="Flow-match sigma shift. 3.0 for full, 1.0 for dev.",
+                    tooltip="Flow-match sigma shift. Defaults: 3.0 for base, 1.0 for dev.",
                 ),
                 io.Float.Input(
                     id="s_noise", default=8.0, min=0.0, max=64.0, step=0.1,
-                    tooltip=(
-                        "HiDream-O1 noise scale (CONST_SCALED_NOISE._s_noise). "
-                        "8.0 for full, 7.5 for dev/flash."
+                    tooltip=("HiDream-O1 noise scale (CONST_SCALED_NOISE). Defaults: 8.0 for base, 7.5 for dev/flash."
                     ),
                 ),
             ],
@@ -160,11 +148,9 @@ class SamplerEulerFlashFlowmatch(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SamplerEulerFlashFlowmatch",
+            display_name="Sampler Euler Flash Flowmatch",
             category="sampling/custom_sampling/samplers",
-            description=(
-                "HiDream-O1 dev/flash sampler with tunable per-step noise "
-                "schedule (start, end, clip_std). Wire into SamplerCustom."
-            ),
+            description=("HiDream-O1 dev/flash sampler with tunable per-step noise"),
             inputs=[
                 io.Float.Input(
                     id="s_noise_start", default=7.5, min=0.0, max=64.0, step=0.1,
@@ -173,17 +159,13 @@ class SamplerEulerFlashFlowmatch(io.ComfyNode):
                 io.Float.Input(
                     id="s_noise_end", default=7.5, min=0.0, max=64.0, step=0.1,
                     tooltip=(
-                        "Per-step noise scale at the last step. Equals "
-                        "s_noise_start for upstream-default behaviour; differ "
-                        "to ramp the noise across the trajectory."
+                        "Per-step noise scale at the last step. Default: 7.5 for dev/flash. "
+                        "Differ from s_noise_start to linearly ramp noise across steps."
                     ),
                 ),
                 io.Float.Input(
                     id="noise_clip_std", default=2.5, min=0.0, max=10.0, step=0.1,
-                    tooltip=(
-                        "Clamp per-step noise to +/- N*std. 0 disables. "
-                        "Upstream dev recipe: 2.5."
-                    ),
+                    tooltip=("Clamp per-step noise to +/- N*std. 0 disables.")
                 ),
             ],
             outputs=[io.Sampler.Output()],
