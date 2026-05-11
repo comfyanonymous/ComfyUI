@@ -889,22 +889,22 @@ class PromptServer():
         @routes.get("/history")
         async def get_history(request):
             max_items = request.rel_url.query.get("max_items", None)
-        if max_items is not None:
-            try:
-                max_items = int(max_items)
-                if max_items <= 0:
-                    return web.json_response({"error": "max_items must be a positive integer"}, status=400)
-            except (ValueError, TypeError):
-                return web.json_response({"error": "max_items must be an integer"}, status=400)
-        
-        offset = request.rel_url.query.get("offset", None)
-        if offset is not None:
-            try:
-                offset = int(offset)
-            except (ValueError, TypeError):
-                return web.json_response({"error": "offset must be an integer"}, status=400)
-        else:
-            offset = -1
+            if max_items is not None:
+                try:
+                    max_items = int(max_items)
+                    if max_items <= 0:
+                        return web.json_response({"error": "max_items must be a positive integer"}, status=400)
+                except (ValueError, TypeError):
+                    return web.json_response({"error": "max_items must be an integer"}, status=400)
+            
+            offset = request.rel_url.query.get("offset", None)
+            if offset is not None:
+                try:
+                    offset = int(offset)
+                except (ValueError, TypeError):
+                    return web.json_response({"error": "offset must be an integer"}, status=400)
+            else:
+                offset = -1
 
             return web.json_response(self.prompt_queue.get_history(max_items=max_items, offset=offset))
 
