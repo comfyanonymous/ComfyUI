@@ -1313,6 +1313,37 @@ class WAN21_SCAIL(WAN21_T2V):
         out = model_base.WAN21_SCAIL(self, image_to_video=False, device=device)
         return out
 
+class WAN22_WanDancer(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "wandancer",
+        "in_dim": 36,
+    }
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = 1.8
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN22_WanDancer(self, image_to_video=True, device=device)
+        return out
+
+    def process_unet_state_dict(self, state_dict):
+        out_sd = {}
+        for k in list(state_dict.keys()):
+            # split music_encoder in_proj into q_proj, k_proj, v_proj
+            if "music_encoder" in k and "self_attn.in_proj" in k:
+                suffix = "weight" if k.endswith("weight") else "bias"
+                tensor = state_dict[k]
+                d = tensor.shape[0] // 3
+                prefix = k.replace(f"in_proj_{suffix}", "")
+                out_sd[f"{prefix}q_proj.{suffix}"] = tensor[:d]
+                out_sd[f"{prefix}k_proj.{suffix}"] = tensor[d:2*d]
+                out_sd[f"{prefix}v_proj.{suffix}"] = tensor[2*d:]
+            else:
+                out_sd[k] = state_dict[k]
+        return out_sd
+
 class Hunyuan3Dv2(supported_models_base.BASE):
     unet_config = {
         "image_model": "hunyuan3d2",
@@ -1982,6 +2013,7 @@ models = [
     WAN22_Animate,
     WAN21_FlowRVS,
     WAN21_SCAIL,
+    WAN22_WanDancer,
     Hunyuan3Dv2mini,
     Hunyuan3Dv2,
     Hunyuan3Dv2_1,
