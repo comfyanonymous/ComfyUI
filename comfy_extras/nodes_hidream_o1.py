@@ -242,59 +242,13 @@ class HiDreamO1PatchSeamSmoothing(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-class SamplerEulerFlashFlowmatch(io.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="SamplerEulerFlashFlowmatch",
-            display_name="Sampler Euler Flash Flowmatch",
-            category="sampling/custom_sampling/samplers",
-            description=("HiDream-O1 dev/flash sampler with tunable per-step noise"),
-            inputs=[
-                io.Float.Input(
-                    id="s_noise_start", default=7.5, min=0.0, max=64.0, step=0.1,
-                    tooltip="Per-step noise scale at the first sampling step.",
-                ),
-                io.Float.Input(
-                    id="s_noise_end", default=7.5, min=0.0, max=64.0, step=0.1,
-                    tooltip=(
-                        "Per-step noise scale at the last step. Default: 7.5 for dev/flash. "
-                        "Differ from s_noise_start to linearly ramp noise across steps."
-                    ),
-                ),
-                io.Float.Input(
-                    id="noise_clip_std", default=2.5, min=0.0, max=10.0, step=0.1,
-                    tooltip=("Clamp per-step noise to +/- N*std. 0 disables.")
-                ),
-            ],
-            outputs=[io.Sampler.Output()],
-        )
-
-    @classmethod
-    def execute(cls, *, s_noise_start: float, s_noise_end: float,
-                noise_clip_std: float) -> io.NodeOutput:
-        import comfy.samplers
-        import comfy.k_diffusion.sampling
-        sampler = comfy.samplers.KSAMPLER(
-            comfy.k_diffusion.sampling.sample_euler_flash_flowmatch,
-            extra_options={
-                "s_noise": float(s_noise_start),
-                "s_noise_end": float(s_noise_end),
-                "noise_clip_std": float(noise_clip_std),
-            },
-        )
-        return io.NodeOutput(sampler)
-
-
 class HiDreamO1Extension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             EmptyHiDreamO1LatentImage,
             HiDreamO1ReferenceImages,
-            HiDreamO1Sampling,
             HiDreamO1PatchSeamSmoothing,
-            SamplerEulerFlashFlowmatch,
         ]
 
 
