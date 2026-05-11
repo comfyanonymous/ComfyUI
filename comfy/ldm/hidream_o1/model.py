@@ -136,7 +136,7 @@ class HiDreamO1Transformer(nn.Module):
 
     def _forward(self, x, timesteps, context=None, transformer_options={},
                  input_ids=None, attention_mask=None, position_ids=None,
-                 token_types=None, vinput_mask=None,
+                 token_types=None, vinput_mask=None, ar_len=None,
                  ref_pixel_values=None, ref_image_grid_thw=None, ref_patches=None,
                  **kwargs):
         """Returns flow-match velocity (x - x_pred) / sigma"""
@@ -159,24 +159,29 @@ class HiDreamO1Transformer(nn.Module):
         inputs_embeds = self.language_model.embed_tokens(input_ids).to(x.dtype)
 
         if ref_pixel_values is not None and ref_image_grid_thw is not None:
-            ref_pv = ref_pixel_values.to(inputs_embeds.device)
-            ref_grid = ref_image_grid_thw.to(inputs_embeds.device).long()
-            # Refs are model-level (same for cond/uncond), wrapped with a leading batch dim by extra_conds; [0] always recovers them.
-            if ref_pv.dim() == 3:
-                ref_pv = ref_pv[0]
-            if ref_grid.dim() == 3:
-                ref_grid = ref_grid[0]
-            image_embeds = self.visual(ref_pv, ref_grid).to(inputs_embeds.dtype)
-            image_mask = (input_ids == IMAGE_TOKEN_ID)
-            if image_mask[0].sum().item() != image_embeds.shape[0]:
+            # ViT output is constant across sampling steps within a generation;
+            # identity-key by the input tensor so refs don't recompute every step.
+            cached = getattr(self, "_visual_cache", None)
+            if cached is not None and cached[0] is ref_pixel_values:
+                image_embeds = cached[1]
+            else:
+                ref_pv = ref_pixel_values.to(inputs_embeds.device)
+                ref_grid = ref_image_grid_thw.to(inputs_embeds.device).long()
+                # extra_conds wraps with a leading batch dim; refs are model-level so [0] always recovers them.
+                if ref_pv.dim() == 3:
+                    ref_pv = ref_pv[0]
+                if ref_grid.dim() == 3:
+                    ref_grid = ref_grid[0]
+                image_embeds = self.visual(ref_pv, ref_grid).to(inputs_embeds.dtype)
+                self._visual_cache = (ref_pixel_values, image_embeds)
+            # image_pad positions identical across batch (input_ids shared cond/uncond).
+            image_idx = (input_ids[0] == IMAGE_TOKEN_ID).nonzero(as_tuple=True)[0]
+            if image_idx.shape[0] != image_embeds.shape[0]:
                 raise ValueError(
-                    f"Image-token count {image_mask[0].sum().item()} != ViT output count "
+                    f"Image-token count {image_idx.shape[0]} != ViT output count "
                     f"{image_embeds.shape[0]}; check tokenizer/processor alignment."
                 )
-            image_embeds_b = image_embeds.unsqueeze(0).expand(B, -1, -1).reshape(-1, image_embeds.shape[-1])
-            inputs_embeds = inputs_embeds.masked_scatter(
-                image_mask.unsqueeze(-1).expand_as(inputs_embeds), image_embeds_b,
-            )
+            inputs_embeds[:, image_idx] = image_embeds.unsqueeze(0).expand(B, -1, -1)
 
         sigma = timesteps.float() / 1000.0
         t_pixeldit = 1.0 - sigma
@@ -186,20 +191,15 @@ class HiDreamO1Transformer(nn.Module):
 
         vinputs_embedded = self.x_embedder(vinputs.to(inputs_embeds.dtype))
         inputs_embeds = torch.cat([inputs_embeds, vinputs_embedded], dim=1)
-        total_seq_len = inputs_embeds.shape[1]
 
-        # AR (text) tokens are contiguous at the start, so (==0).sum() gives ar_len.
-        if token_types is None:
-            txt_seq_len = input_ids.shape[1]
-            token_types = torch.zeros(B, total_seq_len, dtype=torch.long, device=x.device)
-            token_types[:, txt_seq_len:] = 1
-        else:
-            token_types = token_types.to(x.device)
-            if token_types.dim() == 1:
-                token_types = token_types.unsqueeze(0)
-            if token_types.shape[0] == 1 and B > 1:
-                token_types = token_types.expand(B, -1)
-        ar_len = int((token_types[0] == 0).sum().item())
+        # AR (text) tokens are contiguous at the start. Prefer the precomputed
+        # int from extra_conds, fall back to GPU compute if not present
+        if ar_len is None:
+            if token_types is None:
+                ar_len = input_ids.shape[1]
+            else:
+                token_types_b0 = token_types[0] if token_types.dim() > 1 else token_types
+                ar_len = int((token_types_b0 == 0).sum().item())
 
         # position_ids may arrive as (3, T) or wrapped (1, 3, T) / (3, 1, T) by CONDRegular.
         position_ids = position_ids.to(x.device).long()
@@ -242,17 +242,18 @@ class HiDreamO1Transformer(nn.Module):
         if self.language_model.norm is not None:
             hidden_states = self.language_model.norm(hidden_states)
 
-        x_pred = self.final_layer2(hidden_states)
+        # Slice target-image positions before the final projection so the Linear only runs on tgt_image_len tokens
         if vinput_mask is not None:
             vmask = vinput_mask.to(x.device).bool()
             if vmask.dim() == 1:
                 vmask = vmask.unsqueeze(0)
             if vmask.shape[0] == 1 and B > 1:
                 vmask = vmask.expand(B, -1)
-            x_pred_tgt = x_pred[vmask].view(B, -1, x_pred.shape[-1])[:, :tgt_image_len]
+            target_hidden = hidden_states[vmask].view(B, -1, hidden_states.shape[-1])[:, :tgt_image_len]
         else:
             txt_seq_len = input_ids.shape[1]
-            x_pred_tgt = x_pred[:, txt_seq_len:txt_seq_len + tgt_image_len]
+            target_hidden = hidden_states[:, txt_seq_len:txt_seq_len + tgt_image_len]
+        x_pred_tgt = self.final_layer2(target_hidden)
 
         # fp32 final subtraction, bf16 here noticeably degrades samples.
         x_pred_img = einops.rearrange(

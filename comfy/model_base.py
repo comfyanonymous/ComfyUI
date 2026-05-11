@@ -1725,7 +1725,9 @@ class HiDreamO1(BaseModel):
             target_patch_size=self.PATCH_SIZE,
         )
         for k, v in conds.items():
-            out[k] = comfy.conds.CONDRegular(v)
+            # ar_len is a Python int (precomputed to avoid a GPU sync in forward).
+            cls = comfy.conds.CONDConstant if k == "ar_len" else comfy.conds.CONDRegular
+            out[k] = cls(v)
         return out
 
 class ACEStep(BaseModel):

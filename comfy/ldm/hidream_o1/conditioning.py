@@ -69,9 +69,8 @@ def prepare_ref_images(
 ):
     """Build the dual-path tensors for K reference images at (target_h, target_w).
 
-    Returns None for K=0, else a dict with ref_patches,
-    ref_pixel_values, ref_image_grid_thw, per_ref_vit_tokens,
-    per_ref_patch_grids.
+    Returns None for K=0, else a dict with ref_patches, ref_pixel_values,
+    ref_image_grid_thw, per_ref_vit_tokens, per_ref_patch_grids.
     """
     K = len(ref_images)
     if K == 0:
@@ -114,8 +113,7 @@ def prepare_ref_images(
         pv, grid_thw = _process_vit_image(pil_v, device, dtype)
         pv_list.append(pv)
         grid_list.append(grid_thw)
-        # Post-merge token count = number of <|image_pad|> tokens this image
-        # expands to in input_ids.
+        # Post-merge token count = number of <|image_pad|> tokens this image expands to in input_ids.
         gh, gw = int(grid_thw[1].item()), int(grid_thw[2].item())
         per_ref_vit_tokens.append((gh // VIT_MERGE) * (gw // VIT_MERGE))
 
@@ -136,7 +134,7 @@ def build_ref_input_ids(
     vision_end_id: int,
 ):
     """Splice [vision_start, image_pad*N, vision_end] blocks into input_ids
-    after the [im_start, user, \\n] prefix (matches upstream chat template).
+    after the [im_start, user, \\n] prefix (matches original chat template).
     """
     ids = text_input_ids[0].tolist()
     inserted = []
@@ -228,19 +226,18 @@ def build_extra_conds(
 
         # tms + target_image + ref_patches are all gen.
         tms_pos = new_txt_len - 1
+        ar_len = tms_pos
         token_types = torch.zeros(B, total_len, dtype=torch.long, device=noise.device)
         token_types[:, tms_pos:] = 1
         vinput_mask = torch.zeros(B, total_len, dtype=torch.bool, device=noise.device)
         vinput_mask[:, new_txt_len:] = True
 
-        # Leading batch dim sidesteps CONDRegular.process_cond's
-        # repeat_to_batch_size truncation (which narrows dim 0 to B).
+        # Leading batch dim sidesteps CONDRegular.process_cond's repeat_to_batch_size truncation
         out["ref_pixel_values"] = ref["ref_pixel_values"].unsqueeze(0)
         out["ref_image_grid_thw"] = ref["ref_image_grid_thw"].unsqueeze(0)
         out["ref_patches"] = ref["ref_patches"]
     else:
-        # T2I: text + noised target only. vision_start replaces the first
-        # image token (upstream pipeline.py:51).
+        # T2I: text + noised target only, vision_start replaces the first image token
         txt_len = text_input_ids.shape[1]
         total_len = txt_len + image_len
         vision_tokens = torch.full((B, image_len), IMAGE_TOKEN_ID,
@@ -255,15 +252,15 @@ def build_extra_conds(
             video_grid_thw=None, attention_mask=None,
             skip_vision_start_token=[1],
         )
+        ar_len = txt_len - 1
         token_types = torch.zeros(B, total_len, dtype=torch.long, device=noise.device)
-        token_types[:, txt_len - 1:] = 1
+        token_types[:, ar_len:] = 1
         vinput_mask = torch.zeros(B, total_len, dtype=torch.bool, device=noise.device)
         vinput_mask[:, txt_len:] = True
 
-    # Collapse position_ids batch and add a leading dim so CONDRegular's
-    # batch-resize doesn't truncate the 3-axis MRoPE dim.
     out["input_ids"] = text_input_ids
-    out["position_ids"] = position_ids[:, 0].unsqueeze(0)
+    out["position_ids"] = position_ids[:, 0].unsqueeze(0) # Collapse position_ids batch and add a leading dim so CONDRegular's batch-resize doesn't truncate the 3-axis MRoPE dim
     out["token_types"] = token_types
     out["vinput_mask"] = vinput_mask
+    out["ar_len"] = ar_len
     return out
