@@ -105,10 +105,10 @@ def get_rope_index_fix_point(
             3, input_ids.shape[0], input_ids.shape[1],
             dtype=input_ids.dtype, device=input_ids.device,
         )
-        image_index = 0
         attention_mask = attention_mask.to(total_input_ids.device)
         for i, input_ids_b in enumerate(total_input_ids):
             fp = fix_point
+            image_index = 0
             input_ids_b = input_ids_b[attention_mask[i] == 1]
             vision_start_indices = torch.argwhere(input_ids_b == vision_start_token_id).squeeze(1)
             vision_tokens = input_ids_b[vision_start_indices + 1]
