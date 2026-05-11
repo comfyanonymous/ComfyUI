@@ -651,7 +651,7 @@ class Qwen35VisionModel(nn.Module):
         x = self.patch_embed(x)
         pos_embeds = self.fast_pos_embed_interpolate(grid_thw).to(x.device)
         x = x + pos_embeds
-        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        rotary_pos_emb = self.rot_pos_emb(grid_thw).to(x.device)
         seq_len = x.shape[0]
         x = x.reshape(seq_len, -1)
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
