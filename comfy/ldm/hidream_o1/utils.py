@@ -89,21 +89,15 @@ def cond_image_size(k):
 def get_rope_index_fix_point(
     spatial_merge_size: int,
     image_token_id: int,
-    video_token_id: int,
     vision_start_token_id: int,
     input_ids: Optional[torch.LongTensor] = None,
     image_grid_thw: Optional[torch.LongTensor] = None,
-    video_grid_thw: Optional[torch.LongTensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
     skip_vision_start_token=None,
     fix_point: int = 4096,
 ):
-    if video_grid_thw is not None:
-        video_grid_thw = torch.repeat_interleave(video_grid_thw, video_grid_thw[:, 0], dim=0)
-        video_grid_thw[:, 0] = 1
-
     mrope_position_deltas = []
-    if input_ids is not None and (image_grid_thw is not None or video_grid_thw is not None):
+    if input_ids is not None and image_grid_thw is not None:
         total_input_ids = input_ids
         if attention_mask is None:
             attention_mask = torch.ones_like(total_input_ids)
@@ -111,41 +105,28 @@ def get_rope_index_fix_point(
             3, input_ids.shape[0], input_ids.shape[1],
             dtype=input_ids.dtype, device=input_ids.device,
         )
-        image_index, video_index = 0, 0
+        image_index = 0
         attention_mask = attention_mask.to(total_input_ids.device)
         for i, input_ids_b in enumerate(total_input_ids):
+            fp = fix_point
             input_ids_b = input_ids_b[attention_mask[i] == 1]
             vision_start_indices = torch.argwhere(input_ids_b == vision_start_token_id).squeeze(1)
             vision_tokens = input_ids_b[vision_start_indices + 1]
             image_nums = (vision_tokens == image_token_id).sum()
-            video_nums = (vision_tokens == video_token_id).sum()
             input_tokens = input_ids_b.tolist()
             llm_pos_ids_list = []
             st = 0
-            remain_images, remain_videos = image_nums, video_nums
-            for _ in range(image_nums + video_nums):
+            remain_images = image_nums
+            for _ in range(image_nums):
                 if image_token_id in input_tokens and remain_images > 0:
-                    ed_image = input_tokens.index(image_token_id, st)
+                    ed = input_tokens.index(image_token_id, st)
                 else:
-                    ed_image = len(input_tokens) + 1
-                if video_token_id in input_tokens and remain_videos > 0:
-                    ed_video = input_tokens.index(video_token_id, st)
-                else:
-                    ed_video = len(input_tokens) + 1
-                if ed_image < ed_video:
-                    t = image_grid_thw[image_index][0]
-                    h = image_grid_thw[image_index][1]
-                    w = image_grid_thw[image_index][2]
-                    image_index += 1
-                    remain_images -= 1
-                    ed = ed_image
-                else:
-                    t = video_grid_thw[video_index][0]
-                    h = video_grid_thw[video_index][1]
-                    w = video_grid_thw[video_index][2]
-                    video_index += 1
-                    remain_videos -= 1
-                    ed = ed_video
+                    ed = len(input_tokens) + 1
+                t = image_grid_thw[image_index][0]
+                h = image_grid_thw[image_index][1]
+                w = image_grid_thw[image_index][2]
+                image_index += 1
+                remain_images -= 1
                 llm_grid_t = t.item()
                 llm_grid_h = h.item() // spatial_merge_size
                 llm_grid_w = w.item() // spatial_merge_size
@@ -160,10 +141,10 @@ def get_rope_index_fix_point(
                 w_index = torch.arange(llm_grid_w).view(1, 1, -1).expand(llm_grid_t, llm_grid_h, -1).flatten()
 
                 if skip_vision_start_token[image_index - 1]:
-                    if fix_point > 0:
-                        fix_point = fix_point - st_idx
-                    llm_pos_ids_list.append(torch.stack([t_index, h_index, w_index]) + fix_point + st_idx)
-                    fix_point = 0
+                    if fp > 0:
+                        fp = fp - st_idx
+                    llm_pos_ids_list.append(torch.stack([t_index, h_index, w_index]) + fp + st_idx)
+                    fp = 0
                 else:
                     llm_pos_ids_list.append(torch.stack([t_index, h_index, w_index]) + text_len + st_idx)
                 st = ed + llm_grid_t * llm_grid_h * llm_grid_w

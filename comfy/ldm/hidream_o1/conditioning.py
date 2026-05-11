@@ -157,7 +157,7 @@ def build_extra_conds(
     """
     from .utils import get_rope_index_fix_point
     from comfy.text_encoders.hidream_o1 import (
-        IMAGE_TOKEN_ID, VIDEO_TOKEN_ID, VISION_START_ID, VISION_END_ID,
+        IMAGE_TOKEN_ID, VISION_START_ID, VISION_END_ID,
     )
 
     if text_input_ids.dim() == 1:
@@ -216,10 +216,10 @@ def build_extra_conds(
         ], dim=0)
         position_ids, _ = get_rope_index_fix_point(
             spatial_merge_size=1,
-            image_token_id=IMAGE_TOKEN_ID, video_token_id=VIDEO_TOKEN_ID,
+            image_token_id=IMAGE_TOKEN_ID,
             vision_start_token_id=VISION_START_ID,
             input_ids=input_ids_pad, image_grid_thw=igthw_all,
-            video_grid_thw=None, attention_mask=None,
+            attention_mask=None,
             skip_vision_start_token=[0] * K + [1] + [1] * K,
             fix_point=4096,
         )
@@ -246,10 +246,10 @@ def build_extra_conds(
         input_ids_pad = torch.cat([text_input_ids, vision_tokens], dim=-1)
         position_ids, _ = get_rope_index_fix_point(
             spatial_merge_size=1,
-            image_token_id=IMAGE_TOKEN_ID, video_token_id=VIDEO_TOKEN_ID,
+            image_token_id=IMAGE_TOKEN_ID,
             vision_start_token_id=VISION_START_ID,
             input_ids=input_ids_pad, image_grid_thw=image_grid_thw_tgt,
-            video_grid_thw=None, attention_mask=None,
+            attention_mask=None,
             skip_vision_start_token=[1],
         )
         ar_len = txt_len - 1
