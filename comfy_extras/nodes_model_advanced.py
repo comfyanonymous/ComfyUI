@@ -315,9 +315,11 @@ class ModelNoiseScale:
 
     def patch(self, model, noise_scale):
         m = model.clone()
-        model_sampling = type(m.model.model_sampling)(m.model.model_config)
-        model_sampling.set_noise_scale(noise_scale)
-        m.add_object_patch("model_sampling", model_sampling)
+        original = m.model.model_sampling
+        ms = type(original)(m.model.model_config)
+        ms.set_parameters(shift=original.shift, multiplier=original.multiplier)
+        ms.set_noise_scale(noise_scale)
+        m.add_object_patch("model_sampling", ms)
         return (m, )
 
 
