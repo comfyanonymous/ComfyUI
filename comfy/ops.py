@@ -235,7 +235,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
                 for xfer_source, _, _, xfer_dest in stream_pin_queue:
                     cast_maybe_lowvram_patch(xfer_source, xfer_dest, offload_stream)
                 return offload_stream
-        stream_pin_tensor = comfy_aimdo.torch.hostbuf_to_tensor(stream_pin_hostbuf, size=stream_pin_offset)
+        stream_pin_tensor = comfy_aimdo.torch.hostbuf_to_tensor(stream_pin_hostbuf)
         stream_pin_tensor.untyped_storage()._comfy_hostbuf = stream_pin_hostbuf
         for xfer_source, pin_offset, pin_size, xfer_dest in stream_pin_queue:
             pin = stream_pin_tensor[pin_offset:pin_offset + pin_size]
