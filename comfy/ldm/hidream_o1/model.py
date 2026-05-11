@@ -203,10 +203,12 @@ class HiDreamO1Transformer(nn.Module):
         transformer_options["total_blocks"] = len(self.language_model.layers)
         transformer_options["block_type"] = "layer"
 
-        # K/V at AR positions is timestep-invariant — PrefixLM keeps TMS out of the prefix
-        # so we can cache across steps. Content-keyed since cond/uncond concat rebuilds input_ids per step.
+        # Cache prefix K/V across steps. Key includes input_ids (prompt), ref_id
+        # (refs scatter into inputs_embeds), and position_ids (RoPE baked into cached K).
         can_cache = not blocks_replace and ar_len > 0
         cache_len = ar_len if can_cache else 0
+        ref_id = id(ref_pixel_values) if ref_pixel_values is not None else None
+        pos_ids_key = position_ids[..., :cache_len] if can_cache else position_ids
         cache_entries = self._kv_cache_entries
         # Drop stale entries from a previous device (model was unloaded and reloaded).
         if cache_entries and cache_entries[0]["input_ids"].device != input_ids.device:
@@ -216,7 +218,11 @@ class HiDreamO1Transformer(nn.Module):
         if can_cache:
             for entry in cache_entries:
                 ck = entry["input_ids"]
-                if entry["cache_len"] == cache_len and ck.shape == input_ids.shape and torch.equal(ck, input_ids):
+                ep = entry["position_ids"]
+                if (entry["cache_len"] == cache_len
+                        and ck.shape == input_ids.shape and torch.equal(ck, input_ids)
+                        and entry["ref_id"] == ref_id
+                        and ep.shape == pos_ids_key.shape and torch.equal(ep, pos_ids_key)):
                     kv_cache = entry
                     break
 
@@ -266,7 +272,13 @@ class HiDreamO1Transformer(nn.Module):
                                           V[:, :, :cache_len].contiguous()))
             if snapshots is not None:
                 # Cap at 2 entries (cond + uncond). Multi-cond workflows LRU-evict.
-                new_entry = {"input_ids": input_ids.clone(), "cache_len": cache_len, "kv": snapshots}
+                new_entry = {
+                    "input_ids": input_ids.clone(),
+                    "cache_len": cache_len,
+                    "kv": snapshots,
+                    "ref_id": ref_id,
+                    "position_ids": pos_ids_key.clone(),
+                }
                 self._kv_cache_entries = (cache_entries + [new_entry])[-2:]
 
         if self.language_model.norm is not None:
