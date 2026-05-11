@@ -8,7 +8,6 @@ into input_ids at <|image_pad|> positions.
 from typing import List, Tuple
 
 import einops
-import numpy as np
 import torch
 from PIL import Image
 
@@ -24,8 +23,8 @@ VIT_IMAGE_STD = [0.5, 0.5, 0.5]
 
 def _process_vit_image(pil: Image.Image, device, dtype) -> Tuple[torch.Tensor, torch.Tensor]:
     """Qwen3-VL ViT preprocessing: returns (flatten_patches, image_grid_thw)."""
-    arr = np.asarray(pil, dtype=np.float32) / 255.0
-    img_t = torch.from_numpy(arr).permute(2, 0, 1).contiguous()
+    img_t = torch.frombuffer(bytearray(pil.tobytes()), dtype=torch.uint8).reshape(pil.height, pil.width, 3)
+    img_t = img_t.permute(2, 0, 1).contiguous().float() / 255.0
     h, w = img_t.shape[-2:]
 
     # H/W must be multiples of patch*merge.
@@ -80,16 +79,16 @@ def prepare_ref_images(
 
     pils = []
     for img in ref_images:
-        arr = np.round(img[0].clamp(0, 1).cpu().float().numpy() * 255).clip(0, 255).astype(np.uint8)
-        pils.append(Image.fromarray(arr, "RGB"))
+        u8 = (img[0].clamp(0, 1).cpu().float() * 255).round().clamp(0, 255).to(torch.uint8).contiguous()
+        pils.append(Image.frombytes("RGB", (u8.shape[1], u8.shape[0]), u8.numpy().tobytes()))
     pils_resized = [resize_pilimage(p, max_size, PATCH_SIZE) for p in pils]
 
     # 32-patch path.
     ref_patches_per = []
     per_ref_patch_grids = []
     for pil_r in pils_resized:
-        arr = np.asarray(pil_r, dtype=np.float32) / 255.0
-        t = torch.from_numpy(arr).permute(2, 0, 1).contiguous()
+        t = torch.frombuffer(bytearray(pil_r.tobytes()), dtype=torch.uint8).reshape(pil_r.height, pil_r.width, 3)
+        t = t.permute(2, 0, 1).contiguous().float() / 255.0
         t = (t - 0.5) / 0.5  # -> [-1, 1]
         h_p, w_p = pil_r.height // PATCH_SIZE, pil_r.width // PATCH_SIZE
         per_ref_patch_grids.append((h_p, w_p))
