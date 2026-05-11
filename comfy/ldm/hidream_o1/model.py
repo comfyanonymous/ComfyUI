@@ -136,7 +136,7 @@ class HiDreamO1Transformer(nn.Module):
 
     def _forward(self, x, timesteps, context=None, transformer_options={},
                  input_ids=None, attention_mask=None, position_ids=None,
-                 token_types=None, vinput_mask=None, ar_len=None,
+                 vinput_mask=None, ar_len=None,
                  ref_pixel_values=None, ref_image_grid_thw=None, ref_patches=None,
                  **kwargs):
         """Returns flow-match velocity (x - x_pred) / sigma"""
@@ -191,15 +191,6 @@ class HiDreamO1Transformer(nn.Module):
 
         vinputs_embedded = self.x_embedder(vinputs.to(inputs_embeds.dtype))
         inputs_embeds = torch.cat([inputs_embeds, vinputs_embedded], dim=1)
-
-        # AR (text) tokens are contiguous at the start. Prefer the precomputed
-        # int from extra_conds, fall back to GPU compute if not present
-        if ar_len is None:
-            if token_types is None:
-                ar_len = input_ids.shape[1]
-            else:
-                token_types_b0 = token_types[0] if token_types.dim() > 1 else token_types
-                ar_len = int((token_types_b0 == 0).sum().item())
 
         # position_ids may arrive as (3, T) or wrapped (1, 3, T) / (3, 1, T) by CONDRegular.
         position_ids = position_ids.to(x.device).long()
