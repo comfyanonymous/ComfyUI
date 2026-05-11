@@ -1196,7 +1196,7 @@ def model_trange(*args, **kwargs):
             pbar.i1_time = time.time()
             pbar.set_postfix_str(" Model Initialization complete!  ")
         elif pbar._i == 2:
-            #bring forward the effective start time based the the diff between first and second iteration
+            #bring forward the effective start time based the diff between first and second iteration
             #to attempt to remove load overhead from the final step rate estimate.
             pbar.start_t = pbar.i1_time - (time.time() - pbar.i1_time)
             pbar.set_postfix_str("")
@@ -1390,7 +1390,7 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
                     k_out = "{}.weight_scale".format(layer)
 
                 if layer is not None:
-                    layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                    layer_conf = {"format": "float8_e4m3fn"}
                     if full_precision_matrix_mult:
                         layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
                     layers[layer] = layer_conf
@@ -1446,10 +1446,3 @@ def deepcopy_list_dict(obj, memo=None):
     memo[obj_id] = res
     return res
 
-def normalize_image_embeddings(embeds, embeds_info, scale_factor):
-    """Normalize image embeddings to match text embedding scale"""
-    for info in embeds_info:
-        if info.get("type") == "image":
-            start_idx = info["index"]
-            end_idx = start_idx + info["size"]
-            embeds[:, start_idx:end_idx, :] /= scale_factor

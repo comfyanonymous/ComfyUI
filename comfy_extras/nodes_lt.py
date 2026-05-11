@@ -1,6 +1,7 @@
 import nodes
 import node_helpers
 import torch
+import torchaudio
 import comfy.model_management
 import comfy.model_sampling
 import comfy.samplers
@@ -105,12 +106,12 @@ class LTXVImgToVideoInplace(io.ComfyNode):
         if bypass:
             return (latent,)
 
-        samples = latent["samples"]
+        samples = latent["samples"].clone()
         _, height_scale_factor, width_scale_factor = (
             vae.downscale_index_formula
         )
 
-        batch, _, latent_frames, latent_height, latent_width = samples.shape
+        _, _, _, latent_height, latent_width = samples.shape
         width = latent_width * width_scale_factor
         height = latent_height * height_scale_factor
 
@@ -123,11 +124,7 @@ class LTXVImgToVideoInplace(io.ComfyNode):
 
         samples[:, :, :t.shape[2]] = t
 
-        conditioning_latent_frames_mask = torch.ones(
-            (batch, 1, latent_frames, 1, 1),
-            dtype=torch.float32,
-            device=samples.device,
-        )
+        conditioning_latent_frames_mask = get_noise_mask(latent)
         conditioning_latent_frames_mask[:, :, :t.shape[2]] = 1.0 - strength
 
         return io.NodeOutput({"samples": samples, "noise_mask": conditioning_latent_frames_mask})
@@ -235,7 +232,7 @@ class LTXVAddGuide(io.ComfyNode):
     def encode(cls, vae, latent_width, latent_height, images, scale_factors):
         time_scale_factor, width_scale_factor, height_scale_factor = scale_factors
         images = images[:(images.shape[0] - 1) // time_scale_factor * time_scale_factor + 1]
-        pixels = comfy.utils.common_upscale(images.movedim(-1, 1), latent_width * width_scale_factor, latent_height * height_scale_factor, "bilinear", crop="disabled").movedim(1, -1)
+        pixels = comfy.utils.common_upscale(images.movedim(-1, 1), latent_width * width_scale_factor, latent_height * height_scale_factor, "bilinear", crop="center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)
         return encode_pixels, t
@@ -593,7 +590,8 @@ class LTXVPreprocess(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVPreprocess",
-            category="image",
+            display_name="LTXV Preprocess",
+            category="video/preprocessors",
             inputs=[
                 io.Image.Input("image"),
                 io.Int.Input(
@@ -711,7 +709,14 @@ class LTXVReferenceAudio(io.ComfyNode):
     @classmethod
     def execute(cls, model, positive, negative, reference_audio, audio_vae, identity_guidance_scale, start_percent, end_percent) -> io.NodeOutput:
         # Encode reference audio to latents and patchify
-        audio_latents = audio_vae.encode(reference_audio)
+        sample_rate = reference_audio["sample_rate"]
+        vae_sample_rate = getattr(audio_vae, "audio_sample_rate", 44100)
+        if vae_sample_rate != sample_rate:
+            waveform = torchaudio.functional.resample(reference_audio["waveform"], sample_rate, vae_sample_rate)
+        else:
+            waveform = reference_audio["waveform"]
+
+        audio_latents = audio_vae.encode(waveform.movedim(1, -1))
         b, c, t, f = audio_latents.shape
         ref_tokens = audio_latents.permute(0, 2, 1, 3).reshape(b, t, c * f)
         ref_audio = {"tokens": ref_tokens}

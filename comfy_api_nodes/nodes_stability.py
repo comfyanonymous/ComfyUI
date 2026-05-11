@@ -401,7 +401,7 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
+                expr="""{"type":"usd","usd":0.4}""",
             ),
         )
 
@@ -510,7 +510,7 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
+                expr="""{"type":"usd","usd":0.6}""",
             ),
         )
 
@@ -593,7 +593,7 @@ class StabilityUpscaleFastNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.01}""",
+                expr="""{"type":"usd","usd":0.02}""",
             ),
         )
 

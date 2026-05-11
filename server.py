@@ -1,3 +1,4 @@
+import errno
 import os
 import sys
 import asyncio
@@ -146,6 +147,10 @@ def is_loopback(host):
 def create_origin_only_middleware():
     @web.middleware
     async def origin_only_middleware(request: web.Request, handler):
+        if 'Sec-Fetch-Site' in request.headers:
+            sec_fetch_site = request.headers['Sec-Fetch-Site']
+            if sec_fetch_site == 'cross-site':
+                return web.Response(status=403)
         #this code is used to prevent the case where a random website can queue comfy workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
         #in that case the Host and Origin hostnames won't match
         #I know the proper fix would be to add a cookie but this should take care of the problem in the meantime
@@ -1241,7 +1246,13 @@ class PromptServer():
             address = addr[0]
             port = addr[1]
             site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-            await site.start()
+            try:
+                await site.start()
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logging.error(f"Port {port} is already in use on address {address}. Please close the other application or use a different port with --port.")
+                    raise SystemExit(1)
+                raise
 
             if not hasattr(self, 'address'):
                 self.address = address #TODO: remove this

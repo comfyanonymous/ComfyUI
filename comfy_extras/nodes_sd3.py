@@ -54,7 +54,7 @@ class EmptySD3LatentImage(io.ComfyNode):
 
     @classmethod
     def execute(cls, width, height, batch_size=1) -> io.NodeOutput:
-        latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
         return io.NodeOutput({"samples": latent, "downscale_ratio_spacial": 8})
 
     generate = execute  # TODO: remove
