@@ -84,8 +84,7 @@ class FinalLayer(nn.Module):
     # 4096 -> 3072 (LLM hidden -> flat pixel patch).
     def __init__(self, hidden_size, patch_size=32, out_channels=3, device=None, dtype=None, ops=None):
         super().__init__()
-        self.linear = ops.Linear(hidden_size, patch_size * patch_size * out_channels, bias=True,
-                                 device=device, dtype=dtype)
+        self.linear = ops.Linear(hidden_size, patch_size * patch_size * out_channels, bias=True, device=device, dtype=dtype)
 
     def forward(self, x):
         return self.linear(x)
@@ -127,6 +126,13 @@ class HiDreamO1Transformer(nn.Module):
             out_channels=self.in_channels, device=device, dtype=dtype, ops=operations,
         )
 
+        self._visual_cache = None
+        self._kv_cache_entries = []
+
+    def clear_kv_cache(self):
+        self._kv_cache_entries = []
+        self._visual_cache = None
+
     def forward(self, x, timesteps, context=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
@@ -134,12 +140,10 @@ class HiDreamO1Transformer(nn.Module):
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timesteps, context, transformer_options, **kwargs)
 
-    def _forward(self, x, timesteps, context=None, transformer_options={},
-                 input_ids=None, attention_mask=None, position_ids=None,
-                 vinput_mask=None, ar_len=None,
-                 ref_pixel_values=None, ref_image_grid_thw=None, ref_patches=None,
-                 **kwargs):
+    def _forward(self, x, timesteps, context=None, transformer_options={}, input_ids=None, attention_mask=None, position_ids=None,
+                 vinput_mask=None, ar_len=None, ref_pixel_values=None, ref_image_grid_thw=None, ref_patches=None, **kwargs):
         """Returns flow-match velocity (x - x_pred) / sigma"""
+
         if input_ids is None or position_ids is None:
             raise ValueError("HiDreamO1Transformer requires input_ids and position_ids in conditioning")
 
@@ -153,15 +157,12 @@ class HiDreamO1Transformer(nn.Module):
         )
         vinputs = torch.cat([z, ref_patches.to(z.dtype)], dim=1) if ref_patches is not None else z
 
-        if input_ids.dim() == 3:
-            input_ids = input_ids.squeeze(-1)
-        input_ids = input_ids.long()
         inputs_embeds = self.language_model.embed_tokens(input_ids).to(x.dtype)
 
         if ref_pixel_values is not None and ref_image_grid_thw is not None:
-            # ViT output is constant across sampling steps within a generation;
+            # ViT output is constant across sampling steps within a generation
             # identity-key by the input tensor so refs don't recompute every step.
-            cached = getattr(self, "_visual_cache", None)
+            cached = self._visual_cache
             if cached is not None and cached[0] is ref_pixel_values:
                 image_embeds = cached[1]
             else:
@@ -192,11 +193,8 @@ class HiDreamO1Transformer(nn.Module):
         vinputs_embedded = self.x_embedder(vinputs.to(inputs_embeds.dtype))
         inputs_embeds = torch.cat([inputs_embeds, vinputs_embedded], dim=1)
 
-        # position_ids may arrive as (3, T) or wrapped (1, 3, T) / (3, 1, T) by CONDRegular.
-        position_ids = position_ids.to(x.device).long()
-        if position_ids.dim() == 3:
-            position_ids = position_ids[0] if position_ids.shape[1] == 3 else position_ids[:, 0]
-        freqs_cis = self.language_model.compute_freqs_cis(position_ids, x.device)
+        # extra_conds stores position_ids as (1, 3, T); process_cond repeats dim 0 to B. Take row 0.
+        freqs_cis = self.language_model.compute_freqs_cis(position_ids[0].to(x.device), x.device)
         freqs_cis = tuple(t.to(x.dtype) for t in freqs_cis)
 
         two_pass_attn = make_two_pass_attention(ar_len, transformer_options=transformer_options)
@@ -205,45 +203,87 @@ class HiDreamO1Transformer(nn.Module):
         transformer_options["total_blocks"] = len(self.language_model.layers)
         transformer_options["block_type"] = "layer"
 
-        hidden_states = inputs_embeds
-        for i, layer in enumerate(self.language_model.layers):
-            transformer_options["block_index"] = i
-            if ("layer", i) in blocks_replace:
-                def block_wrap(args, _layer=layer):
-                    out = {}
-                    out["x"], _ = _layer(
-                        x=args["x"], attention_mask=args.get("attention_mask"),
-                        freqs_cis=args["freqs_cis"], optimized_attention=args["optimized_attention"],
-                        past_key_value=None,
-                    )
-                    return out
-                out = blocks_replace[("layer", i)](
-                    {"x": hidden_states, "attention_mask": None,
-                     "freqs_cis": freqs_cis, "optimized_attention": two_pass_attn,
-                     "transformer_options": transformer_options},
-                    {"original_block": block_wrap},
-                )
-                hidden_states = out["x"]
-            else:
+        # K/V at AR positions is timestep-invariant — PrefixLM keeps TMS out of the prefix
+        # so we can cache across steps. Content-keyed since cond/uncond concat rebuilds input_ids per step.
+        can_cache = not blocks_replace and ar_len > 0
+        cache_len = ar_len if can_cache else 0
+        cache_entries = self._kv_cache_entries
+        # Drop stale entries from a previous device (model was unloaded and reloaded).
+        if cache_entries and cache_entries[0]["input_ids"].device != input_ids.device:
+            cache_entries = []
+            self._kv_cache_entries = []
+        kv_cache = None
+        if can_cache:
+            for entry in cache_entries:
+                ck = entry["input_ids"]
+                if entry["cache_len"] == cache_len and ck.shape == input_ids.shape and torch.equal(ck, input_ids):
+                    kv_cache = entry
+                    break
+
+        if kv_cache is not None:
+            # Hot path: project Q/K/V only for fresh positions; past_key_value prepends cached AR K/V.
+            hidden_states = inputs_embeds[:, cache_len:]
+            sliced_freqs = tuple(t[..., cache_len:, :] for t in freqs_cis)
+            for i, layer in enumerate(self.language_model.layers):
+                transformer_options["block_index"] = i
+                K_i, V_i = kv_cache["kv"][i]
                 hidden_states, _ = layer(
-                    x=hidden_states, attention_mask=None,
-                    freqs_cis=freqs_cis, optimized_attention=two_pass_attn,
-                    past_key_value=None,
+                    x=hidden_states, attention_mask=None, freqs_cis=sliced_freqs, optimized_attention=two_pass_attn,
+                    past_key_value=(K_i, V_i, cache_len),
                 )
+        else:
+            # Cold path: run full sequence; if cacheable, snapshot K/V at AR positions.
+            snapshots = [] if can_cache else None
+            past_kv_cold = () if can_cache else None
+            hidden_states = inputs_embeds
+            for i, layer in enumerate(self.language_model.layers):
+                transformer_options["block_index"] = i
+                if ("layer", i) in blocks_replace:
+                    def block_wrap(args, _layer=layer):
+                        out = {}
+                        out["x"], _ = _layer(
+                            x=args["x"], attention_mask=args.get("attention_mask"),
+                            freqs_cis=args["freqs_cis"], optimized_attention=args["optimized_attention"],
+                            past_key_value=None,
+                        )
+                        return out
+                    out = blocks_replace[("layer", i)](
+                        {"x": hidden_states, "attention_mask": None,
+                         "freqs_cis": freqs_cis, "optimized_attention": two_pass_attn,
+                         "transformer_options": transformer_options},
+                        {"original_block": block_wrap},
+                    )
+                    hidden_states = out["x"]
+                else:
+                    hidden_states, present_kv = layer(
+                        x=hidden_states, attention_mask=None,
+                        freqs_cis=freqs_cis, optimized_attention=two_pass_attn,
+                        past_key_value=past_kv_cold,
+                    )
+                    if snapshots is not None:
+                        K, V, _ = present_kv
+                        snapshots.append((K[:, :, :cache_len].contiguous(),
+                                          V[:, :, :cache_len].contiguous()))
+            if snapshots is not None:
+                # Cap at 2 entries (cond + uncond). Multi-cond workflows LRU-evict.
+                new_entry = {"input_ids": input_ids.clone(), "cache_len": cache_len, "kv": snapshots}
+                self._kv_cache_entries = (cache_entries + [new_entry])[-2:]
+
         if self.language_model.norm is not None:
             hidden_states = self.language_model.norm(hidden_states)
 
-        # Slice target-image positions before the final projection so the Linear only runs on tgt_image_len tokens
+        # Slice target-image positions before the final projection so the Linear only runs on tgt_image_len tokens.
+        # In the hot path hidden_states starts at original position cache_len, so masks/indices shift by cache_len.
+        sliced_offset = cache_len if kv_cache is not None else 0
         if vinput_mask is not None:
             vmask = vinput_mask.to(x.device).bool()
-            if vmask.dim() == 1:
-                vmask = vmask.unsqueeze(0)
-            if vmask.shape[0] == 1 and B > 1:
-                vmask = vmask.expand(B, -1)
+            if sliced_offset > 0:
+                vmask = vmask[:, sliced_offset:]
             target_hidden = hidden_states[vmask].view(B, -1, hidden_states.shape[-1])[:, :tgt_image_len]
         else:
             txt_seq_len = input_ids.shape[1]
-            target_hidden = hidden_states[:, txt_seq_len:txt_seq_len + tgt_image_len]
+            start = txt_seq_len - sliced_offset
+            target_hidden = hidden_states[:, start:start + tgt_image_len]
         x_pred_tgt = self.final_layer2(target_hidden)
 
         # fp32 final subtraction, bf16 here noticeably degrades samples.
