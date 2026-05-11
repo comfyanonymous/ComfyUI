@@ -5,58 +5,20 @@ to the noised target, and a Qwen3-VL ViT path producing tokens that scatter
 into input_ids at <|image_pad|> positions.
 """
 
-from typing import List, Tuple
+from typing import List
 
-import einops
 import torch
-from PIL import Image
 
-from .utils import (PATCH_SIZE, calculate_dimensions, cond_image_size, ref_max_size, resize_pilimage)
+import comfy.utils
+from comfy.text_encoders.qwen_vl import process_qwen2vl_images
+
+from .utils import (PATCH_SIZE, calculate_dimensions, cond_image_size, ref_max_size, resize_tensor)
 
 # Qwen3-VL ViT preprocessing constants (preprocessor_config.json).
 VIT_PATCH = 16
 VIT_MERGE = 2
-VIT_TEMPORAL_PATCH = 2
 VIT_IMAGE_MEAN = [0.5, 0.5, 0.5]
 VIT_IMAGE_STD = [0.5, 0.5, 0.5]
-
-
-def _process_vit_image(pil: Image.Image, device, dtype) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Qwen3-VL ViT preprocessing: returns (flatten_patches, image_grid_thw)."""
-    img_t = torch.frombuffer(bytearray(pil.tobytes()), dtype=torch.uint8).reshape(pil.height, pil.width, 3)
-    img_t = img_t.permute(2, 0, 1).contiguous().float() / 255.0
-    h, w = img_t.shape[-2:]
-
-    # H/W must be multiples of patch*merge.
-    factor = VIT_PATCH * VIT_MERGE
-    h_bar = max(round(h / factor) * factor, factor)
-    w_bar = max(round(w / factor) * factor, factor)
-    if (h, w) != (h_bar, w_bar):
-        img_t = torch.nn.functional.interpolate(
-            img_t.unsqueeze(0), size=(h_bar, w_bar), mode="bilinear", align_corners=False,
-        ).squeeze(0)
-
-    mean = torch.tensor(VIT_IMAGE_MEAN).view(3, 1, 1)
-    std = torch.tensor(VIT_IMAGE_STD).view(3, 1, 1)
-    normalized = (img_t - mean) / std
-
-    grid_h = h_bar // VIT_PATCH
-    grid_w = w_bar // VIT_PATCH
-    grid_thw = torch.tensor([1, grid_h, grid_w], dtype=torch.long)
-
-    # Stack 2 copies for the temporal_patch dim, then patchify.
-    pixel_values = normalized.unsqueeze(0).repeat(VIT_TEMPORAL_PATCH, 1, 1, 1)
-    patches = pixel_values.reshape(
-        1, VIT_TEMPORAL_PATCH, 3,
-        grid_h // VIT_MERGE, VIT_MERGE, VIT_PATCH,
-        grid_w // VIT_MERGE, VIT_MERGE, VIT_PATCH,
-    )
-    patches = patches.permute(0, 3, 6, 4, 7, 2, 1, 5, 8)
-    flatten_patches = patches.reshape(
-        grid_h * grid_w,
-        3 * VIT_TEMPORAL_PATCH * VIT_PATCH * VIT_PATCH,
-    )
-    return flatten_patches.to(device=device, dtype=dtype), grid_thw.to(device=device)
 
 
 def prepare_ref_images(
@@ -77,41 +39,44 @@ def prepare_ref_images(
     max_size = ref_max_size(max(target_h, target_w), K)
     cis = cond_image_size(K)
 
-    pils = []
-    for img in ref_images:
-        u8 = (img[0].clamp(0, 1).cpu().float() * 255).round().clamp(0, 255).to(torch.uint8).contiguous()
-        pils.append(Image.frombytes("RGB", (u8.shape[1], u8.shape[0]), u8.numpy().tobytes()))
-    pils_resized = [resize_pilimage(p, max_size, PATCH_SIZE) for p in pils]
+    refs_t = [img[0].clamp(0, 1).permute(2, 0, 1).unsqueeze(0).contiguous().float() for img in ref_images]
+    refs_t = [resize_tensor(t, max_size, PATCH_SIZE) for t in refs_t]
 
     # 32-patch path.
     ref_patches_per = []
     per_ref_patch_grids = []
-    for pil_r in pils_resized:
-        t = torch.frombuffer(bytearray(pil_r.tobytes()), dtype=torch.uint8).reshape(pil_r.height, pil_r.width, 3)
-        t = t.permute(2, 0, 1).contiguous().float() / 255.0
-        t = (t - 0.5) / 0.5  # -> [-1, 1]
-        h_p, w_p = pil_r.height // PATCH_SIZE, pil_r.width // PATCH_SIZE
+    for t in refs_t:
+        t_norm = (t.squeeze(0) - 0.5) / 0.5  # (3, H, W) in [-1, 1]
+        h_p, w_p = t_norm.shape[-2] // PATCH_SIZE, t_norm.shape[-1] // PATCH_SIZE
         per_ref_patch_grids.append((h_p, w_p))
-        patches = einops.rearrange(
-            t, "C (H p1) (W p2) -> (H W) (C p1 p2)",
-            p1=PATCH_SIZE, p2=PATCH_SIZE,
+        patches = (
+            t_norm.reshape(3, h_p, PATCH_SIZE, w_p, PATCH_SIZE)
+            .permute(1, 3, 0, 2, 4)
+            .reshape(h_p * w_p, 3 * PATCH_SIZE * PATCH_SIZE)
         )
         ref_patches_per.append(patches)
     ref_patches = torch.cat(ref_patches_per, dim=0).unsqueeze(0).to(device=device, dtype=dtype)
 
     # ViT path.
-    pils_vlm = []
-    for pil_r in pils_resized:
-        cond_w, cond_h = calculate_dimensions(cis, pil_r.width / pil_r.height)
+    refs_vlm_t = []
+    for t in refs_t:
+        _, _, h, w = t.shape
+        cond_w, cond_h = calculate_dimensions(cis, w / h)
         cond_w = max(cond_w, VIT_PATCH * VIT_MERGE)
         cond_h = max(cond_h, VIT_PATCH * VIT_MERGE)
-        pils_vlm.append(pil_r.resize((cond_w, cond_h), resample=Image.LANCZOS))
+        refs_vlm_t.append(comfy.utils.common_upscale(t, cond_w, cond_h, "lanczos", "disabled"))
 
     pv_list, grid_list, per_ref_vit_tokens = [], [], []
-    for pil_v in pils_vlm:
-        pv, grid_thw = _process_vit_image(pil_v, device, dtype)
-        pv_list.append(pv)
-        grid_list.append(grid_thw)
+    for t_v in refs_vlm_t:
+        pv, grid_thw = process_qwen2vl_images(
+            t_v.permute(0, 2, 3, 1),
+            min_pixels=0, max_pixels=10**12,
+            patch_size=VIT_PATCH, merge_size=VIT_MERGE,
+            image_mean=VIT_IMAGE_MEAN, image_std=VIT_IMAGE_STD,
+        )
+        grid_thw = grid_thw[0]
+        pv_list.append(pv.to(device=device, dtype=dtype))
+        grid_list.append(grid_thw.to(device=device))
         # Post-merge token count = number of <|image_pad|> tokens this image expands to in input_ids.
         gh, gw = int(grid_thw[1].item()), int(grid_thw[2].item())
         per_ref_vit_tokens.append((gh // VIT_MERGE) * (gw // VIT_MERGE))

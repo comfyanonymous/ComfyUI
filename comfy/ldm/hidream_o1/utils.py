@@ -8,24 +8,20 @@ import math
 from typing import Optional
 
 import torch
-from PIL import Image
 
 
 PATCH_SIZE = 32
 CONDITION_IMAGE_SIZE = 384  # ViT-side base size for ref images
 
 
-def resize_pilimage(pil_image, image_size, patch_size=16, resampler=Image.BICUBIC):
-    """Resize to fit image_size**2 area, patch-aligned, center-cropped. Pre-halves
-    with BOX filter while the image is still very large.
-    """
-    while min(*pil_image.size) >= 2 * image_size:
-        pil_image = pil_image.resize(
-            tuple(x // 2 for x in pil_image.size), resample=Image.BOX,
-        )
+def resize_tensor(img_t, image_size, patch_size=16):
+    """img_t: (1, 3, H, W) float [0, 1]. Fit to image_size**2 area, patch-aligned, center-cropped."""
 
+    while min(img_t.shape[-2], img_t.shape[-1]) >= 2 * image_size: # Pre-halves with 2x2 box averaging while the image is still very large
+        img_t = torch.nn.functional.avg_pool2d(img_t, kernel_size=2, stride=2)
+
+    _, _, height, width = img_t.shape
     m = patch_size
-    width, height = pil_image.width, pil_image.height
     s_max = image_size * image_size
     scale = math.sqrt(s_max / (width * height))
 
@@ -42,17 +38,17 @@ def resize_pilimage(pil_image, image_size, patch_size=16, resampler=Image.BICUBI
             new_size = c
             break
 
-    s1 = width / new_size[0]
-    s2 = height / new_size[1]
+    new_w, new_h = new_size
+    s1 = width / new_w
+    s2 = height / new_h
     if s1 < s2:
-        pil_image = pil_image.resize([new_size[0], round(height / s1)], resample=resampler)
-        top = (round(height / s1) - new_size[1]) // 2
-        pil_image = pil_image.crop((0, top, new_size[0], top + new_size[1]))
+        resize_w, resize_h = new_w, round(height / s1)
     else:
-        pil_image = pil_image.resize([round(width / s2), new_size[1]], resample=resampler)
-        left = (round(width / s2) - new_size[0]) // 2
-        pil_image = pil_image.crop((left, 0, left + new_size[0], new_size[1]))
-    return pil_image
+        resize_w, resize_h = round(width / s2), new_h
+    img_t = torch.nn.functional.interpolate(img_t, size=(resize_h, resize_w), mode="bicubic")
+    top = (resize_h - new_h) // 2
+    left = (resize_w - new_w) // 2
+    return img_t[..., top:top + new_h, left:left + new_w]
 
 
 def calculate_dimensions(max_size, ratio):
