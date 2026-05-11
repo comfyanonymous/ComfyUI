@@ -43,6 +43,7 @@ import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
 import comfy.ldm.wan.ar_model
+import comfy.ldm.wan.model_wandancer
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -1597,6 +1598,30 @@ class WAN21_SCAIL(WAN21):
         if pose_latents is not None:
             out['pose_latents'] = [pose_latents.shape[0], 20, *pose_latents.shape[2:]]
 
+        return out
+
+class WAN22_WanDancer(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=True, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model_wandancer.WanDancerModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        audio_embed = kwargs.get("audio_embed", None)
+        if audio_embed is not None:
+            out['audio_embed'] = comfy.conds.CONDRegular(audio_embed)
+
+        clip_vision_output_ref = kwargs.get("clip_vision_output_ref", None)
+        if clip_vision_output_ref is not None:
+            out['clip_fea_ref'] = comfy.conds.CONDRegular(clip_vision_output_ref.penultimate_hidden_states)
+
+        fps = kwargs.get("fps", None)
+        if fps is not None:
+            out['fps'] = comfy.conds.CONDRegular(torch.FloatTensor([fps]))
+
+        audio_inject_scale = kwargs.get("audio_inject_scale", None)
+        if audio_inject_scale is not None:
+            out['audio_inject_scale'] = comfy.conds.CONDRegular(torch.FloatTensor([audio_inject_scale]))
         return out
 
 class Hunyuan3Dv2(BaseModel):
