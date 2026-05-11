@@ -201,7 +201,7 @@ class HiDreamO1Transformer(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.language_model.layers)
-        transformer_options["block_type"] = "layer"
+        transformer_options["block_type"] = "double"
 
         # Cache prefix K/V across steps. Key includes input_ids (prompt), ref_id
         # (refs scatter into inputs_embeds), and position_ids (RoPE baked into cached K).
@@ -244,7 +244,7 @@ class HiDreamO1Transformer(nn.Module):
             hidden_states = inputs_embeds
             for i, layer in enumerate(self.language_model.layers):
                 transformer_options["block_index"] = i
-                if ("layer", i) in blocks_replace:
+                if ("double_block", i) in blocks_replace:
                     def block_wrap(args, _layer=layer):
                         out = {}
                         out["x"], _ = _layer(
@@ -253,7 +253,7 @@ class HiDreamO1Transformer(nn.Module):
                             past_key_value=None,
                         )
                         return out
-                    out = blocks_replace[("layer", i)](
+                    out = blocks_replace[("double_block", i)](
                         {"x": hidden_states, "attention_mask": None,
                          "freqs_cis": freqs_cis, "optimized_attention": two_pass_attn,
                          "transformer_options": transformer_options},
