@@ -1675,42 +1675,13 @@ class HiDream(BaseModel):
             out['image_cond'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_cond))
         return out
 
-class Chroma(Flux):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.chroma.model.Chroma):
-        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
-
-    def extra_conds(self, **kwargs):
-        out = super().extra_conds(**kwargs)
-
-        guidance = kwargs.get("guidance", 0)
-        if guidance is not None:
-            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
-        return out
-
-class ChromaRadiance(Chroma):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma_radiance.model.ChromaRadiance)
-
-
 class HiDreamO1(BaseModel):
     """HiDream-O1-Image: pixel-space DiT (no VAE). Refs from HiDreamO1ReferenceImages and tokens from the stub TE flow through
     extra_conds; the heavy preprocessing lives in comfy.ldm.hidream_o1.conditioning."""
     PATCH_SIZE = 32
 
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device=device,
-                         unet_model=comfy.ldm.hidream_o1.model.HiDreamO1Transformer)
-        # HiDream-O1 trains with x_t = (1-t) x_clean + t * s_noise * noise
-        s_noise = float((model_config.sampling_settings or {}).get("s_noise", 8.0))
-
-        class _HiDreamO1Sampling(
-            comfy.model_sampling.ModelSamplingDiscreteFlow,
-            comfy.model_sampling.CONST_SCALED_NOISE,
-        ):
-            pass
-        ms = _HiDreamO1Sampling(model_config)
-        ms._s_noise = s_noise
-        self.model_sampling = ms
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hidream_o1.model.HiDreamO1Transformer)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -1729,6 +1700,22 @@ class HiDreamO1(BaseModel):
             cls = comfy.conds.CONDConstant if k == "ar_len" else comfy.conds.CONDRegular
             out[k] = cls(v)
         return out
+
+class Chroma(Flux):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.chroma.model.Chroma):
+        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        guidance = kwargs.get("guidance", 0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+        return out
+
+class ChromaRadiance(Chroma):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma_radiance.model.ChromaRadiance)
 
 class ACEStep(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

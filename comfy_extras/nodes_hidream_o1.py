@@ -80,53 +80,6 @@ class HiDreamO1ReferenceImages(io.ComfyNode):
         return io.NodeOutput(positive, negative)
 
 
-class HiDreamO1Sampling(io.ComfyNode):
-    """Adjust HiDream-O1's flow-match sigma shift and noise scale together."""
-
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="HiDreamO1Sampling",
-            display_name="HiDream-O1 Sampling",
-            category="advanced/model",
-            description=(
-                "Patch HiDream-O1's sigma shift and noise scaling factor. "
-                "Base model defaults: shift=3.0, s_noise=8.0. "
-                "Dev/flash sampler defaults: shift=3.0, 'normal' scheduler, s_noise=7.5."
-            ),
-            inputs=[
-                io.Model.Input(id="model"),
-                io.Float.Input(
-                    id="shift", default=3.0, min=0.0, max=100.0, step=0.01,
-                    tooltip="Flow-match sigma shift.",
-                ),
-                io.Float.Input(
-                    id="s_noise", default=8.0, min=0.0, max=64.0, step=0.1,
-                    tooltip=("HiDream-O1 noise scale (CONST_SCALED_NOISE). Defaults: 8.0 for base, 7.5 for dev/flash."
-                    ),
-                ),
-            ],
-            outputs=[io.Model.Output()],
-        )
-
-    @classmethod
-    def execute(cls, *, model, shift: float, s_noise: float) -> io.NodeOutput:
-        import comfy.model_sampling
-        m = model.clone()
-
-        class _HiDreamO1SamplingPatched(
-            comfy.model_sampling.ModelSamplingDiscreteFlow,
-            comfy.model_sampling.CONST_SCALED_NOISE,
-        ):
-            pass
-
-        ms = _HiDreamO1SamplingPatched(m.model.model_config)
-        ms.set_parameters(shift=float(shift), multiplier=1000)
-        ms._s_noise = float(s_noise)
-        m.add_object_patch("model_sampling", ms)
-        return io.NodeOutput(m)
-
-
 class HiDreamO1PatchSeamSmoothing(io.ComfyNode):
     PATCH_SIZE = 32
     EDGE_FEATHER = 4
