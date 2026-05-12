@@ -75,8 +75,8 @@ class HiDreamO1ReferenceImages(io.ComfyNode):
     @classmethod
     def execute(cls, *, positive, negative, images: io.Autogrow.Type) -> io.NodeOutput:
         refs = [images[f"image_{i}"] for i in range(1, 11) if f"image_{i}" in images]
-        positive = node_helpers.conditioning_set_values(positive, {"hidream_o1_ref_images": refs})
-        negative = node_helpers.conditioning_set_values(negative, {"hidream_o1_ref_images": refs})
+        positive = node_helpers.conditioning_set_values(positive, {"reference_latents": refs}, append=True)
+        negative = node_helpers.conditioning_set_values(negative, {"reference_latents": refs}, append=True)
         return io.NodeOutput(positive, negative)
 
 

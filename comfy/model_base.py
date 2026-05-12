@@ -59,6 +59,7 @@ import comfy.ldm.rt_detr.rtdetr_v4
 import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
 import comfy.ldm.hidream_o1.model
+from comfy.ldm.hidream_o1.conditioning import build_extra_conds
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1689,10 +1690,10 @@ class HiDreamO1(BaseModel):
         noise = kwargs.get("noise", None)
         if text_input_ids is None or noise is None:
             return out
-        from comfy.ldm.hidream_o1.conditioning import build_extra_conds
+
         conds = build_extra_conds(
             text_input_ids, noise,
-            ref_images=kwargs.get("hidream_o1_ref_images", None),
+            ref_images=kwargs.get("reference_latents", None),
             target_patch_size=self.PATCH_SIZE,
         )
         for k, v in conds.items():
