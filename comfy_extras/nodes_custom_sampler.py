@@ -11,6 +11,142 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 import re
 
+def video_latent_composite(destination, source, x, y, mask=None, multiplier=8, resize_source=False):
+    # destination/source shape: [B, C, F, H, W]
+    source = source.to(destination.device)
+
+    if resize_source:
+        target_size = (source.shape[2], destination.shape[3], destination.shape[4])
+        source = torch.nn.functional.interpolate(
+            source, 
+            size=target_size, 
+            mode="trilinear", 
+            align_corners=False
+        )
+
+    x_latent = x // multiplier
+    y_latent = y // multiplier
+
+    if mask is None:
+        mask = torch.ones_like(source)
+    else:
+        mask = mask.to(destination.device, copy=True)
+        mask = mask.unsqueeze(0).unsqueeze(0)
+        mask_target_size = (mask.shape[2], source.shape[3], source.shape[4])
+        mask = torch.nn.functional.interpolate(
+            mask, 
+            size=mask_target_size, 
+            mode="trilinear", 
+            align_corners=False
+        )
+
+    dst_h, dst_w = destination.shape[3], destination.shape[4]
+    src_h, src_w = source.shape[3], source.shape[4]
+
+    visible_h = max(0, min(y_latent + src_h, dst_h) - max(0, y_latent))
+    visible_w = max(0, min(x_latent + src_w, dst_w) - max(0, x_latent))
+
+    if visible_h <= 0 or visible_w <= 0:
+        return destination
+
+    src_top = max(0, -y_latent)
+    src_left = max(0, -x_latent)
+    dst_top = max(0, y_latent)
+    dst_left = max(0, x_latent)
+
+    m = mask[:, :, :, src_top:src_top+visible_h, src_left:src_left+visible_w]
+    s = source[:, :, :, src_top:src_top+visible_h, src_left:src_left+visible_w]
+    d = destination[:, :, :, dst_top:dst_top+visible_h, dst_left:dst_left+visible_w]
+
+    destination[:, :, :, dst_top:dst_top+visible_h, dst_left:dst_left+visible_w] = (m * s) + ((1.0 - m) * d)
+    
+    return destination
+
+def time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask, denoise=1.0, start_step=None, time_to_move_last_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
+
+    sampler = comfy.samplers.KSampler(model, steps=steps, device=model.load_device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+    model_sampling = model.get_model_object("model_sampling")
+    process_latent_out = model.get_model_object("process_latent_out")
+    process_latent_in = model.get_model_object("process_latent_in")
+    
+    reference_latent_image = latent_image.clone()
+    
+    reference_sigmas = sampler.sigmas
+    reference_noise = noise.clone()
+    
+    if last_step == None or last_step > steps:
+        last_step = steps
+
+    if time_to_move_last_step == None or time_to_move_last_step > last_step:
+        time_to_move_last_step = last_step
+
+    if start_step == None:
+        start_step = 0
+
+    total_iterations = min(last_step, steps) - start_step
+    if total_iterations <= 0:
+        return latent_image.to(
+            device=comfy.model_management.intermediate_device(),
+            dtype=comfy.model_management.intermediate_dtype(),
+        )
+
+    for i in range(total_iterations):
+        if i > 0:
+            #don't add new noise to samples after first step taken
+            noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+
+        temp_start = start_step + i
+
+        if temp_start < last_step - 1:
+            temp_force_full_denoise = False
+        else:
+            temp_force_full_denoise = force_full_denoise
+
+        samples = sampler.sample(noise, positive, negative, cfg=cfg, latent_image=latent_image, start_step=temp_start, last_step=temp_start + 1, force_full_denoise=temp_force_full_denoise, denoise_mask=noise_mask, sigmas=sigmas, callback=callback, disable_pbar=disable_pbar, seed=seed)
+
+        if temp_start < time_to_move_last_step:
+            scale = reference_sigmas[temp_start + 1].to(noise.device)
+            
+            if torch.count_nonzero(reference_latent_image) > 0: #Don't shift the empty latent image.
+                noisy = model_sampling.noise_scaling(scale, reference_noise, process_latent_in(reference_latent_image))
+                noisy = model_sampling.inverse_noise_scaling(scale, noisy)
+                noisy = process_latent_out(noisy)
+            else:
+                noisy = reference_latent_image
+            
+            noisy.to(samples.device)            
+            
+            samples = video_latent_composite(samples, noisy, 0, 0, latent_mask, multiplier=1, resize_source=True)
+
+        latent_image = samples
+        
+    samples = samples.to(device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
+    return samples
+
+
+def time_to_move_common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, latent_mask, denoise=1.0, disable_noise=False, start_step=None, time_to_move_last_step = None, last_step=None, force_full_denoise=False):
+    latent_image = latent["samples"]
+    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
+
+    if disable_noise:
+        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+    else:
+        batch_inds = latent["batch_index"] if "batch_index" in latent else None
+        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
+
+    noise_mask = None
+    if "noise_mask" in latent:
+        noise_mask = latent["noise_mask"]
+
+    callback = latent_preview.prepare_callback(model, steps)
+    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
+    samples = time_to_move_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask,
+                                  denoise=denoise, start_step=start_step, time_to_move_last_step = time_to_move_last_step, last_step=last_step,
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
+    out = latent.copy()
+    out.pop("downscale_ratio_spacial", None)
+    out["samples"] = samples
+    return (out, )
 
 class BasicScheduler(io.ComfyNode):
     @classmethod
@@ -978,6 +1114,46 @@ class SamplerCustomAdvanced(io.ComfyNode):
         return io.NodeOutput(out, out_denoised)
 
     sample = execute
+    
+class TimeToMoveKSamplerAdvanced(io.ComfyNode):
+    @classmethod
+
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TimeToMoveKSamplerAdvanced",
+            category="sampling/time_to_move",
+            inputs=[
+                io.Model.Input("model"),
+                io.Combo.Input("add_noise", options=["enable", "disable"], advanced=True),
+                io.Int.Input("noise_seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True),
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Combo.Input("sampler_name", options = comfy.samplers.KSampler.SAMPLERS),
+                io.Combo.Input("scheduler", options = comfy.samplers.KSampler.SCHEDULERS),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Latent.Input("latent_image"),
+                io.Mask.Input("latent_mask", tooltip = "Make sure mask is the same length as the latents rather than the original video."),
+                io.Int.Input("start_at_step", default = 0, min = 0, max = 10000, advanced = True, tooltip = "Generally should set at a step greater than 0."),
+                io.Int.Input("time_to_move_end_at_step", default = 0, min = 0, max = 10000, advanced = True, tooltip = "Generally should set at a step greater than 0 and less than total number of steps."),
+                io.Int.Input("end_at_step", default = 10000, min = 0, max = 10000, advanced = True, tooltip = "Use just like typical end_at_step with normal KSamplerAdvanced"),
+                io.Combo.Input("return_with_leftover_noise",  options=["disable", "enable"], advanced = True),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="latent"),
+            ]
+        )
+
+    @classmethod
+    def execute(cls, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask, start_at_step, time_to_move_end_at_step, end_at_step, return_with_leftover_noise, denoise=1.0) -> io.NodeOutput:
+        force_full_denoise = True
+        if return_with_leftover_noise == "enable":
+            force_full_denoise = False
+        disable_noise = False
+        if add_noise == "disable":
+            disable_noise = True          
+
+        return time_to_move_common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, latent_mask, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, time_to_move_last_step = time_to_move_end_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
 class AddNoise(io.ComfyNode):
     @classmethod
@@ -1087,6 +1263,7 @@ class CustomSamplersExtension(ComfyExtension):
             DisableNoise,
             AddNoise,
             SamplerCustomAdvanced,
+            TimeToMoveKSamplerAdvanced,
             ManualSigmas,
         ]
 

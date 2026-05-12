@@ -57,6 +57,42 @@ def composite(destination, source, x, y, mask = None, multiplier = 8, resize_sou
 
     return destination
 
+def convert_rgb_mask_to_latent_mask(
+    mask: torch.Tensor, 
+    k: int, 
+    spatial_downsample_h: int,
+    spatial_downsample_w: int
+) -> torch.Tensor: 
+    """ 
+    Converts [T, H, W] mask to [T_latent, H_latent, W_latent].
+    Handles non-square spatial downsampling.
+    """ 
+    # 1. Temporal Sampling
+    # Select first frame and every k-th frame thereafter
+    mask0 = mask[0:1]           
+    mask1 = mask[1::k]          
+    sampled = torch.cat([mask0, mask1], dim=0)  # [T_latent, H, W] 
+
+    # 2. Prepare for Spatial Interpolation
+    # Shape: [Batch=1, Channels=1, Depth=T_latent, Height=H, Width=W]
+    sampled = sampled.unsqueeze(0).unsqueeze(0)
+
+    # 3. Calculate New Spatial Dimensions
+    h_latent = sampled.shape[-2] // spatial_downsample_h
+    w_latent = sampled.shape[-1] // spatial_downsample_w
+    
+    # 4. Interpolate
+    # We maintain the temporal count (sampled.shape[2]) 
+    # but resize H and W independently
+    pooled = torch.nn.functional.interpolate(
+        sampled, 
+        size=(sampled.shape[2], h_latent, w_latent), 
+        mode="nearest"
+    ) 
+
+    # 5. Return to [T_latent, H_latent, W_latent]
+    return pooled.squeeze(0).squeeze(0)
+
 class LatentCompositeMasked(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -84,8 +120,7 @@ class LatentCompositeMasked(IO.ComfyNode):
         return IO.NodeOutput(output)
 
     composite = execute  # TODO: remove
-
-
+    
 class ImageCompositeMasked(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -418,6 +453,30 @@ class ThresholdMask(IO.ComfyNode):
 
     image_to_mask = execute  # TODO: remove
 
+class RGBMaskToLatentMask(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="RGBMasktoLatentMask",
+            search_aliases=["rgb mask to latent mask", "rgb mask", "latent mask"],
+            description="Converts an RGB mask to a latent-space mask for use with causal Video VAEs (e.g., Wan).",
+            category="latent",
+            inputs=[
+                IO.Mask.Input("mask", optional=False),
+                IO.Vae.Input("vae", optional=False),
+            ],
+            outputs=[IO.Mask.Output()],
+        )
+
+    @classmethod
+    def execute(cls, mask, vae) -> IO.NodeOutput:
+        # Ensure we work on a copy of the mask to remain non-destructive
+        mask_copy = mask.clone()
+        downscale_ratio = vae.downscale_ratio
+        if not isinstance(downscale_ratio, tuple) or len(downscale_ratio) < 3:
+            raise ValueError("RGBMaskToLatentMask requires a causal Video VAE (e.g., Wan). The provided VAE does not have a compatible downscale_ratio.")
+        k = (mask.shape[0] - 1) // (downscale_ratio[0](mask.shape[0]) - 1) if (downscale_ratio[0](mask.shape[0]) - 1) > 1 else 1
+        return IO.NodeOutput(convert_rgb_mask_to_latent_mask(mask_copy, k, spatial_downsample_h = downscale_ratio[1], spatial_downsample_w = downscale_ratio[2]))
 
 # Mask Preview - original implement from
 # https://github.com/cubiq/ComfyUI_essentials/blob/9d9f4bedfc9f0321c19faf71855e228c93bd0dc9/mask.py#L81
@@ -459,6 +518,7 @@ class MaskExtension(ComfyExtension):
             FeatherMask,
             GrowMask,
             ThresholdMask,
+            RGBMaskToLatentMask,
             MaskPreview,
         ]
 
