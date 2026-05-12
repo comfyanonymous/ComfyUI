@@ -147,7 +147,7 @@ class ImageFromBatch(IO.ComfyNode):
         s_in = image
         if batch_index < 0:
             batch_index += s_in.shape[0]
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s = s_in[batch_index:batch_index + length].clone()
         return IO.NodeOutput(s)
