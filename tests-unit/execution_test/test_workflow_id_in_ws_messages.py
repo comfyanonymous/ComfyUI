@@ -138,7 +138,8 @@ class TestExecutionMessagePayloadsContainWorkflowId:
     def _assert_workflow_id_in_every_prompt_id_dict(self, file_path: str):
         from pathlib import Path
 
-        source = Path(file_path).read_text()
+        repo_root = Path(__file__).resolve().parents[2]
+        source = (repo_root / file_path).read_text()
         offenders = []
         for node, keys in self._emitting_dicts(source):
             if "workflow_id" not in keys:
@@ -241,7 +242,8 @@ class TestTerminalExecutingResetInMainPy:
         import ast
         from pathlib import Path
 
-        source = Path("main.py").read_text()
+        repo_root = Path(__file__).resolve().parents[2]
+        source = (repo_root / "main.py").read_text()
         tree = ast.parse(source)
 
         worker = next(
@@ -262,6 +264,7 @@ class TestTerminalExecutingResetInMainPy:
             "in finally)."
         )
 
+        matched_terminal_executing_send = False
         for node in ast.walk(worker):
             if not isinstance(node, ast.Call):
                 continue
@@ -276,6 +279,7 @@ class TestTerminalExecutingResetInMainPy:
                 and isinstance(node.args[1], ast.Dict)
             ):
                 continue
+            matched_terminal_executing_send = True
             payload = node.args[1]
             for key, value in zip(payload.keys, payload.values):
                 if isinstance(key, ast.Constant) and key.value == "workflow_id":
@@ -285,3 +289,9 @@ class TestTerminalExecutingResetInMainPy:
                         "server.last_workflow_id; the executor clears it in its "
                         "finally block. Use a locally captured workflow_id instead."
                     )
+
+        assert matched_terminal_executing_send, (
+            "main.py:prompt_worker no longer has an inline "
+            'send_sync("executing", {...}) payload; update this regression test '
+            "so it still verifies the terminal workflow_id source."
+        )
