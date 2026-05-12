@@ -24,6 +24,10 @@ import scipy.stats
 import numpy
 
 
+def _issue241_marker(message: str):
+    logging.info("][ ISSUE241 %s", message)
+
+
 def add_area_dims(area, num_dims):
     while (len(area) // 2) < num_dims:
         area = [2147483648] + area[:len(area) // 2] + [0] + area[len(area) // 2:]
@@ -353,6 +357,9 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
     return out_conds
 
 def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]):
+    _issue241_marker(
+        f"calc_cond_batch_multigpu enter | x_shape={tuple(x_in.shape)} | timestep_shape={tuple(timestep.shape)} | devices={list(model_options['multigpu_clones'].keys())}"
+    )
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
@@ -394,7 +401,8 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
     total_conds = 0
     for to_run in hooked_to_run.values():
         total_conds += len(to_run)
-    conds_per_device = max(1, math.ceil(total_conds//len(devices)))
+    conds_per_device = max(1, math.ceil(total_conds / len(devices)))
+    _issue241_marker(f"calc_cond_batch_multigpu schedule | total_conds={total_conds} | conds_per_device={conds_per_device}")
     index_device = 0
     current_device = devices[index_device]
     # run every hooked_to_run separately
@@ -406,14 +414,21 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
             batched_to_run_length = 0
             for btr in batched_to_run:
                 batched_to_run_length += len(btr[1])
+            remaining_capacity = conds_per_device - batched_to_run_length
+            if remaining_capacity <= 0:
+                _issue241_marker(f"calc_cond_batch_multigpu device full | device={current_device} | device_total={batched_to_run_length}")
+                index_device += 1
+                continue
 
             first = to_run[0]
             first_shape = first[0][0].shape
             to_batch_temp = []
             # make sure not over conds_per_device limit when creating temp batch
             for x in range(len(to_run)):
-                if can_concat_cond(to_run[x][0], first[0]) and len(to_batch_temp) < (conds_per_device - batched_to_run_length):
+                if can_concat_cond(to_run[x][0], first[0]) and len(to_batch_temp) < remaining_capacity:
                     to_batch_temp += [x]
+            if len(to_batch_temp) == 0:
+                raise RuntimeError(f"MultiGPU scheduler could not schedule any conditions on {current_device}.")
 
             to_batch_temp.reverse()
             to_batch = to_batch_temp[:1]
@@ -431,6 +446,9 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
             batched_to_run_length += len(conds_to_batch)
 
             batched_to_run.append((hooks, conds_to_batch))
+            _issue241_marker(
+                f"calc_cond_batch_multigpu scheduled | device={current_device} | batch_len={len(conds_to_batch)} | device_total={batched_to_run_length}"
+            )
             if batched_to_run_length >= conds_per_device:
                 index_device += 1
 
@@ -444,11 +462,14 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
 
     def _handle_batch(device: torch.device, batch_tuple: tuple[comfy.hooks.HookGroup, tuple], results: list[thread_result]):
         try:
+            _issue241_marker(f"handle_batch enter | device={device} | groups={len(batch_tuple)}")
             torch.cuda.set_device(device)
+            _issue241_marker(f"handle_batch set_device done | device={device}")
             model_current: BaseModel = model_options["multigpu_clones"][device].model
             # run every hooked_to_run separately
             with torch.no_grad():
-                for hooks, to_batch in batch_tuple:
+                for batch_index, (hooks, to_batch) in enumerate(batch_tuple):
+                    _issue241_marker(f"handle_batch group enter | device={device} | batch_index={batch_index} | to_batch={len(to_batch)}")
                     input_x = []
                     mult = []
                     c = []
@@ -471,8 +492,11 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
 
                     batch_chunks = len(cond_or_uncond)
                     input_x = torch.cat(input_x).to(device)
+                    _issue241_marker(f"handle_batch input_x ready | device={device} | shape={tuple(input_x.shape)} | dtype={input_x.dtype}")
                     c = cond_cat(c, device=device)
+                    _issue241_marker(f"handle_batch cond_cat ready | device={device} | keys={sorted(c.keys())}")
                     timestep_ = torch.cat([timestep.to(device)] * batch_chunks)
+                    _issue241_marker(f"handle_batch timestep ready | device={device} | shape={tuple(timestep_.shape)} | dtype={timestep_.dtype}")
 
                     transformer_options = model_current.current_patcher.apply_hooks(hooks=hooks)
                     if 'transformer_options' in model_options:
@@ -493,20 +517,30 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
                     transformer_options["multigpu_thread_device"] = device
 
                     cast_transformer_options(transformer_options, device=device)
+                    _issue241_marker(f"handle_batch transformer_options ready | device={device} | keys={sorted(transformer_options.keys())}")
                     c['transformer_options'] = transformer_options
 
                     if control is not None:
+                        _issue241_marker(f"handle_batch control enter | device={device}")
                         device_control = control.get_instance_for_device(device)
                         c['control'] = device_control.get_control(input_x, timestep_, c, len(cond_or_uncond), transformer_options)
+                        _issue241_marker(f"handle_batch control done | device={device}")
 
                     if 'model_function_wrapper' in model_options:
+                        _issue241_marker(f"handle_batch apply_model wrapper enter | device={device}")
                         output = model_options['model_function_wrapper'](model_current.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).to(output_device).chunk(batch_chunks)
+                        _issue241_marker(f"handle_batch apply_model wrapper done | device={device}")
                     else:
+                        _issue241_marker(f"handle_batch apply_model enter | device={device}")
                         output = model_current.apply_model(input_x, timestep_, **c).to(output_device).chunk(batch_chunks)
+                        _issue241_marker(f"handle_batch apply_model done | device={device}")
                     results.append(thread_result(output, mult, area, batch_chunks, cond_or_uncond))
+                    _issue241_marker(f"handle_batch group done | device={device} | batch_index={batch_index}")
         except Exception as e:
+            _issue241_marker(f"handle_batch error | device={device} | error={e!r}")
             results.append(thread_result(None, None, None, None, None, error=e))
             raise
+        _issue241_marker(f"handle_batch done | device={device}")
 
 
     def _handle_batch_pooled(device, batch_tuple):
@@ -521,15 +555,19 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
     pool_devices = []
     for device, batch_tuple in device_batched_hooked_to_run.items():
         if thread_pool is not None:
+            _issue241_marker(f"thread_pool submit | device={device} | groups={len(batch_tuple)}")
             thread_pool.submit(device, _handle_batch_pooled, device, batch_tuple)
             pool_devices.append(device)
         else:
             # Fallback: no pool, run everything on main thread
+            _issue241_marker(f"main_thread handle_batch | device={device} | groups={len(batch_tuple)}")
             _handle_batch(device, batch_tuple, results)
 
     # Collect results from pool workers
     for device in pool_devices:
+        _issue241_marker(f"thread_pool get_result enter | device={device}")
         worker_results, error = thread_pool.get_result(device)
+        _issue241_marker(f"thread_pool get_result done | device={device} | error={error!r} | result_groups={0 if worker_results is None else len(worker_results)}")
         if error is not None:
             raise error
         results.extend(worker_results)

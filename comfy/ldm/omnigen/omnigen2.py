@@ -2,6 +2,7 @@
 
 from typing import Optional, Tuple
 
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,6 +12,10 @@ from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.modules.attention import optimized_attention_masked
 import comfy.model_management
 import comfy.ldm.common_dit
+
+
+def _issue241_marker(message: str):
+    logging.info("][ ISSUE241 %s", message)
 
 
 def apply_rotary_emb(x, freqs_cis):
@@ -416,8 +421,13 @@ class OmniGen2Transformer2DModel(nn.Module):
         return hidden_states
 
     def forward(self, x, timesteps, context, num_tokens, ref_latents=None, attention_mask=None, transformer_options={}, **kwargs):
+        thread_device = transformer_options.get("multigpu_thread_device", None)
+        _issue241_marker(
+            f"omnigen2 forward enter | thread_device={thread_device} | x_shape={tuple(x.shape)} | x_device={x.device} | t_device={timesteps.device} | context_shape={tuple(context.shape)} | context_device={context.device} | num_tokens={num_tokens}"
+        )
         B, C, H, W = x.shape
         hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
+        _issue241_marker(f"omnigen2 pad done | thread_device={thread_device} | hidden_shape={tuple(hidden_states.shape)} | hidden_device={hidden_states.device}")
         _, _, H_padded, W_padded = hidden_states.shape
         timestep = 1.0 - timesteps
         text_hidden_states = context
@@ -426,6 +436,7 @@ class OmniGen2Transformer2DModel(nn.Module):
         device = hidden_states.device
 
         temb, text_hidden_states = self.time_caption_embed(timestep, text_hidden_states, hidden_states[0].dtype)
+        _issue241_marker(f"omnigen2 time_caption done | thread_device={thread_device} | temb_shape={tuple(temb.shape)} | text_shape={tuple(text_hidden_states.shape)}")
 
         (
             hidden_states, ref_image_hidden_states,
@@ -433,6 +444,9 @@ class OmniGen2Transformer2DModel(nn.Module):
             l_effective_ref_img_len, l_effective_img_len,
             ref_img_sizes, img_sizes,
         ) = self.flat_and_pad_to_seq(hidden_states, ref_image_hidden_states)
+        _issue241_marker(
+            f"omnigen2 flat done | thread_device={thread_device} | hidden_shape={tuple(hidden_states.shape)} | ref_none={ref_image_hidden_states is None}"
+        )
 
         (
             context_rotary_emb, ref_img_rotary_emb, noise_rotary_emb,
@@ -442,11 +456,17 @@ class OmniGen2Transformer2DModel(nn.Module):
             l_effective_ref_img_len, l_effective_img_len,
             ref_img_sizes, img_sizes, device,
         )
+        _issue241_marker(
+            f"omnigen2 rope done | thread_device={thread_device} | rotary_shape={tuple(rotary_emb.shape)} | encoder_seq_lengths={encoder_seq_lengths} | seq_lengths={seq_lengths}"
+        )
 
-        for layer in self.context_refiner:
+        for layer_index, layer in enumerate(self.context_refiner):
+            _issue241_marker(f"omnigen2 context_refiner enter | thread_device={thread_device} | layer={layer_index}")
             text_hidden_states = layer(text_hidden_states, text_attention_mask, context_rotary_emb, transformer_options=transformer_options)
+            _issue241_marker(f"omnigen2 context_refiner done | thread_device={thread_device} | layer={layer_index}")
 
         img_len = hidden_states.shape[1]
+        _issue241_marker(f"omnigen2 img_refine enter | thread_device={thread_device} | img_len={img_len}")
         combined_img_hidden_states = self.img_patch_embed_and_refine(
             hidden_states, ref_image_hidden_states,
             img_mask, ref_img_mask,
@@ -455,16 +475,22 @@ class OmniGen2Transformer2DModel(nn.Module):
             temb,
             transformer_options=transformer_options,
         )
+        _issue241_marker(f"omnigen2 img_refine done | thread_device={thread_device} | combined_shape={tuple(combined_img_hidden_states.shape)}")
 
         hidden_states = torch.cat([text_hidden_states, combined_img_hidden_states], dim=1)
         attention_mask = None
 
-        for layer in self.layers:
+        for layer_index, layer in enumerate(self.layers):
+            _issue241_marker(f"omnigen2 main_layer enter | thread_device={thread_device} | layer={layer_index}")
             hidden_states = layer(hidden_states, attention_mask, rotary_emb, temb, transformer_options=transformer_options)
+            _issue241_marker(f"omnigen2 main_layer done | thread_device={thread_device} | layer={layer_index}")
 
+        _issue241_marker(f"omnigen2 norm_out enter | thread_device={thread_device}")
         hidden_states = self.norm_out(hidden_states, temb)
+        _issue241_marker(f"omnigen2 norm_out done | thread_device={thread_device}")
 
         p = self.patch_size
         output = rearrange(hidden_states[:, -img_len:], 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)',  h=H_padded // p, w=W_padded// p, p1=p, p2=p)[:, :, :H, :W]
 
+        _issue241_marker(f"omnigen2 forward done | thread_device={thread_device} | output_shape={tuple(output.shape)} | output_device={output.device}")
         return -output
