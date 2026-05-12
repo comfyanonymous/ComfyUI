@@ -4,6 +4,9 @@ from comfy.ldm.trellis2.vae import SparseTensor
 import comfy.model_management
 from PIL import Image
 import numpy as np
+import triton.language as tl
+import logging
+import triton
 import torch
 import scipy
 import copy
@@ -758,48 +761,596 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
         }
         return IO.NodeOutput(output)
 
-def simplify_fn(vertices, faces, colors=None, target=100000, max_edge_length=None):
-    if vertices.ndim == 3:
-        v_list, f_list, c_list = [], [], []
-        for i in range(vertices.shape[0]):
-            c_in = colors[i] if colors is not None else None
-            v_i, f_i, c_i = simplify_fn(vertices[i], faces[i], c_in, target, max_edge_length)
-            v_list.append(v_i)
-            f_list.append(f_i)
-            if c_i is not None:
-                c_list.append(c_i)
+@triton.jit
+def qem_edge_errors_kernel(
+    verts_ptr, Q_ptr, edges_ptr, optimal_ptr, error_ptr, wander_ptr,
+    n_edges, stabilizer, max_edge_length_sq, mesh_scale_sq,
+    BLOCK_SIZE: tl.constexpr
+):
+    pid = tl.program_id(0)
+    offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offs < n_edges
 
-        c_out = torch.stack(c_list) if len(c_list) > 0 else None
-        return torch.stack(v_list), torch.stack(f_list), c_out
+    va = tl.load(edges_ptr + offs * 2, mask=mask, other=0).to(tl.int64)
+    vb = tl.load(edges_ptr + offs * 2 + 1, mask=mask, other=0).to(tl.int64)
 
-    if faces.shape[0] <= target:
-        return vertices, faces, colors
+    vax = tl.load(verts_ptr + va * 3 + 0, mask=mask, other=0.0)
+    vay = tl.load(verts_ptr + va * 3 + 1, mask=mask, other=0.0)
+    vaz = tl.load(verts_ptr + va * 3 + 2, mask=mask, other=0.0)
+    vbx = tl.load(verts_ptr + vb * 3 + 0, mask=mask, other=0.0)
+    vby = tl.load(verts_ptr + vb * 3 + 1, mask=mask, other=0.0)
+    vbz = tl.load(verts_ptr + vb * 3 + 2, mask=mask, other=0.0)
 
-    device = vertices.device
-    dtype = vertices.dtype
+    ex = vbx - vax
+    ey = vby - vay
+    ez = vbz - vaz
+    el_sq = ex * ex + ey * ey + ez * ez
+    el = tl.sqrt(el_sq)
 
-    verts_np = vertices.detach().cpu().numpy().astype(np.float64)
-    faces_np = faces.detach().cpu().numpy().astype(np.int64)
-    colors_np = (
-        colors.detach().cpu().numpy().astype(np.float64)
-        if colors is not None
-        else None
-    )
+    Qa_base = Q_ptr + va * 16
+    Qb_base = Q_ptr + vb * 16
 
-    out_v, out_f, out_c = _qem_simplify(
-        verts_np, faces_np, colors_np, target, device, max_edge_length
-    )
+    qe0  = tl.load(Qa_base + 0,  mask=mask, other=0.0) + tl.load(Qb_base + 0,  mask=mask, other=0.0)
+    qe1  = tl.load(Qa_base + 1,  mask=mask, other=0.0) + tl.load(Qb_base + 1,  mask=mask, other=0.0)
+    qe2  = tl.load(Qa_base + 2,  mask=mask, other=0.0) + tl.load(Qb_base + 2,  mask=mask, other=0.0)
+    qe3  = tl.load(Qa_base + 3,  mask=mask, other=0.0) + tl.load(Qb_base + 3,  mask=mask, other=0.0)
+    qe4  = tl.load(Qa_base + 4,  mask=mask, other=0.0) + tl.load(Qb_base + 4,  mask=mask, other=0.0)
+    qe5  = tl.load(Qa_base + 5,  mask=mask, other=0.0) + tl.load(Qb_base + 5,  mask=mask, other=0.0)
+    qe6  = tl.load(Qa_base + 6,  mask=mask, other=0.0) + tl.load(Qb_base + 6,  mask=mask, other=0.0)
+    qe7  = tl.load(Qa_base + 7,  mask=mask, other=0.0) + tl.load(Qb_base + 7,  mask=mask, other=0.0)
+    qe8  = tl.load(Qa_base + 8,  mask=mask, other=0.0) + tl.load(Qb_base + 8,  mask=mask, other=0.0)
+    qe9  = tl.load(Qa_base + 9,  mask=mask, other=0.0) + tl.load(Qb_base + 9,  mask=mask, other=0.0)
+    qe10 = tl.load(Qa_base + 10, mask=mask, other=0.0) + tl.load(Qb_base + 10, mask=mask, other=0.0)
+    qe11 = tl.load(Qa_base + 11, mask=mask, other=0.0) + tl.load(Qb_base + 11, mask=mask, other=0.0)
+    qe12 = tl.load(Qa_base + 12, mask=mask, other=0.0) + tl.load(Qb_base + 12, mask=mask, other=0.0)
+    qe13 = tl.load(Qa_base + 13, mask=mask, other=0.0) + tl.load(Qb_base + 13, mask=mask, other=0.0)
+    qe14 = tl.load(Qa_base + 14, mask=mask, other=0.0) + tl.load(Qb_base + 14, mask=mask, other=0.0)
+    qe15 = tl.load(Qa_base + 15, mask=mask, other=0.0) + tl.load(Qb_base + 15, mask=mask, other=0.0)
 
-    final_v = out_v.to(device=device, dtype=dtype)
-    final_f = out_f.to(device=device, dtype=faces.dtype)
-    final_c = (
-        out_c.to(device=device, dtype=colors.dtype)
-        if out_c is not None
-        else None
-    )
-    return final_v, final_f, final_c
+    a11 = qe0  + stabilizer
+    a12 = qe1
+    a13 = qe2
+    a21 = qe4
+    a22 = qe5  + stabilizer
+    a23 = qe6
+    a31 = qe8
+    a32 = qe9
+    a33 = qe10 + stabilizer
 
-def _qem_simplify(verts_np, faces_np, colors_np, target_faces, device, max_edge_length=None):
+    b1 = -qe3
+    b2 = -qe7
+    b3 = -qe11
+
+    det = (a11 * (a22 * a33 - a23 * a32)
+         - a12 * (a21 * a33 - a23 * a31)
+         + a13 * (a21 * a32 - a22 * a31))
+
+    det_good = tl.abs(det) > 1e-12
+
+    det_x = (b1 * (a22 * a33 - a23 * a32)
+           - a12 * (b2 * a33 - a23 * b3)
+           + a13 * (b2 * a32 - a22 * b3))
+    det_y = (a11 * (b2 * a33 - a23 * b3)
+           - b1 * (a21 * a33 - a23 * a31)
+           + a13 * (a21 * b3 - b2 * a31))
+    det_z = (a11 * (a22 * b3 - b2 * a32)
+           - a12 * (a21 * b3 - b2 * a31)
+           + b1 * (a21 * a32 - a22 * a31))
+
+    ox = tl.where(det_good, det_x / det, (vax + vbx) * 0.5)
+    oy = tl.where(det_good, det_y / det, (vay + vby) * 0.5)
+    oz = tl.where(det_good, det_z / det, (vaz + vbz) * 0.5)
+
+    dist_a_sq = (ox - vax) * (ox - vax) + (oy - vay) * (oy - vay) + (oz - vaz) * (oz - vaz)
+    dist_b_sq = (ox - vbx) * (ox - vbx) + (oy - vby) * (oy - vby) + (oz - vbz) * (oz - vbz)
+    wander_thresh = 16.0 * el_sq
+    wander_bad = (dist_a_sq > wander_thresh) | (dist_b_sq > wander_thresh)
+
+    ox = tl.where(wander_bad & (el > 0.0), (vax + vbx) * 0.5, ox)
+    oy = tl.where(wander_bad & (el > 0.0), (vay + vby) * 0.5, oy)
+    oz = tl.where(wander_bad & (el > 0.0), (vaz + vbz) * 0.5, oz)
+
+    v4_0 = ox
+    v4_1 = oy
+    v4_2 = oz
+    v4_3 = 1.0
+
+    qv0 = qe0 * v4_0 + qe1 * v4_1 + qe2 * v4_2 + qe3 * v4_3
+    qv1 = qe4 * v4_0 + qe5 * v4_1 + qe6 * v4_2 + qe7 * v4_3
+    qv2 = qe8 * v4_0 + qe9 * v4_1 + qe10 * v4_2 + qe11 * v4_3
+    qv3 = qe12 * v4_0 + qe13 * v4_1 + qe14 * v4_2 + qe15 * v4_3
+
+    err = tl.abs(v4_0 * qv0 + v4_1 * qv1 + v4_2 * qv2 + v4_3 * qv3)
+
+    tl.store(optimal_ptr + offs * 3 + 0, ox, mask=mask)
+    tl.store(optimal_ptr + offs * 3 + 1, oy, mask=mask)
+    tl.store(optimal_ptr + offs * 3 + 2, oz, mask=mask)
+    tl.store(error_ptr + offs, err, mask=mask)
+    tl.store(wander_ptr + offs, wander_bad.to(tl.int32), mask=mask)
+
+
+@triton.jit
+def validate_faces_kernel(
+    verts_ptr, faces_ptr, va_ptr, vb_ptr, opt_ptr, pair_edge_ptr, pair_face_ptr,
+    n_pairs, area_thresh, keep_mask_ptr,
+    BLOCK_SIZE: tl.constexpr
+):
+    pid = tl.program_id(0)
+    offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offs < n_pairs
+
+    ei = tl.load(pair_edge_ptr + offs, mask=mask, other=0).to(tl.int64)
+    fi = tl.load(pair_face_ptr + offs, mask=mask, other=0).to(tl.int64)
+
+    f0 = tl.load(faces_ptr + fi * 3 + 0, mask=mask, other=0).to(tl.int64)
+    f1 = tl.load(faces_ptr + fi * 3 + 1, mask=mask, other=0).to(tl.int64)
+    f2 = tl.load(faces_ptr + fi * 3 + 2, mask=mask, other=0).to(tl.int64)
+
+    vai = tl.load(va_ptr + ei, mask=mask, other=0).to(tl.int64)
+    vbi = tl.load(vb_ptr + ei, mask=mask, other=0).to(tl.int64)
+
+    optx = tl.load(opt_ptr + ei * 3 + 0, mask=mask, other=0.0)
+    opty = tl.load(opt_ptr + ei * 3 + 1, mask=mask, other=0.0)
+    optz = tl.load(opt_ptr + ei * 3 + 2, mask=mask, other=0.0)
+
+    v0x = tl.load(verts_ptr + f0 * 3 + 0, mask=mask, other=0.0)
+    v0y = tl.load(verts_ptr + f0 * 3 + 1, mask=mask, other=0.0)
+    v0z = tl.load(verts_ptr + f0 * 3 + 2, mask=mask, other=0.0)
+    v1x = tl.load(verts_ptr + f1 * 3 + 0, mask=mask, other=0.0)
+    v1y = tl.load(verts_ptr + f1 * 3 + 1, mask=mask, other=0.0)
+    v1z = tl.load(verts_ptr + f1 * 3 + 2, mask=mask, other=0.0)
+    v2x = tl.load(verts_ptr + f2 * 3 + 0, mask=mask, other=0.0)
+    v2y = tl.load(verts_ptr + f2 * 3 + 1, mask=mask, other=0.0)
+    v2z = tl.load(verts_ptr + f2 * 3 + 2, mask=mask, other=0.0)
+
+    is_v0_a = (f0 == vai) | (f0 == vbi)
+    is_v1_a = (f1 == vai) | (f1 == vbi)
+    is_v2_a = (f2 == vai) | (f2 == vbi)
+
+    n0x = tl.where(is_v0_a, optx, v0x)
+    n0y = tl.where(is_v0_a, opty, v0y)
+    n0z = tl.where(is_v0_a, optz, v0z)
+    n1x = tl.where(is_v1_a, optx, v1x)
+    n1y = tl.where(is_v1_a, opty, v1y)
+    n1z = tl.where(is_v1_a, optz, v1z)
+    n2x = tl.where(is_v2_a, optx, v2x)
+    n2y = tl.where(is_v2_a, opty, v2y)
+    n2z = tl.where(is_v2_a, optz, v2z)
+
+    e1x_old = v1x - v0x
+    e1y_old = v1y - v0y
+    e1z_old = v1z - v0z
+    e2x_old = v2x - v0x
+    e2y_old = v2y - v0y
+    e2z_old = v2z - v0z
+
+    nx_old = e1y_old * e2z_old - e1z_old * e2y_old
+    ny_old = e1z_old * e2x_old - e1x_old * e2z_old
+    nz_old = e1x_old * e2y_old - e1y_old * e2x_old
+    area_old_sq = nx_old * nx_old + ny_old * ny_old + nz_old * nz_old
+    area_old = tl.sqrt(area_old_sq)
+
+    e1x_new = n1x - n0x
+    e1y_new = n1y - n0y
+    e1z_new = n1z - n0z
+    e2x_new = n2x - n0x
+    e2y_new = n2y - n0y
+    e2z_new = n2z - n0z
+
+    nx_new = e1y_new * e2z_new - e1z_new * e2y_new
+    ny_new = e1z_new * e2x_new - e1x_new * e2z_new
+    nz_new = e1x_new * e2y_new - e1y_new * e2x_new
+    area_new_sq = nx_new * nx_new + ny_new * ny_new + nz_new * nz_new
+    area_new = tl.sqrt(area_new_sq)
+
+    area_bad = area_new_sq < area_thresh * area_thresh
+    dot = nx_old * nx_new + ny_old * ny_new + nz_old * nz_new
+    flip_bad = dot < -0.2 * area_old * area_new
+
+    e0x_new = n1x - n0x
+    e0y_new = n1y - n0y
+    e0z_new = n1z - n0z
+    e1x_new2 = n2x - n1x
+    e1y_new2 = n2y - n1y
+    e1z_new2 = n2z - n1z
+    e2x_new2 = n0x - n2x
+    e2y_new2 = n0y - n2y
+    e2z_new2 = n0z - n2z
+
+    l0_new_sq = e0x_new * e0x_new + e0y_new * e0y_new + e0z_new * e0z_new
+    l1_new_sq = e1x_new2 * e1x_new2 + e1y_new2 * e1y_new2 + e1z_new2 * e1z_new2
+    l2_new_sq = e2x_new2 * e2x_new2 + e2y_new2 * e2y_new2 + e2z_new2 * e2z_new2
+    max_new_sq = tl.maximum(tl.maximum(l0_new_sq, l1_new_sq), l2_new_sq)
+
+    e0x_old = v1x - v0x
+    e0y_old = v1y - v0y
+    e0z_old = v1z - v0z
+    e1x_old2 = v2x - v1x
+    e1y_old2 = v2y - v1y
+    e1z_old2 = v2z - v1z
+    e2x_old2 = v0x - v2x
+    e2y_old2 = v0y - v2y
+    e2z_old2 = v0z - v2z
+
+    l0_old_sq = e0x_old * e0x_old + e0y_old * e0y_old + e0z_old * e0z_old
+    l1_old_sq = e1x_old2 * e1x_old2 + e1y_old2 * e1y_old2 + e1z_old2 * e1z_old2
+    l2_old_sq = e2x_old2 * e2x_old2 + e2y_old2 * e2y_old2 + e2z_old2 * e2z_old2
+    max_old_sq = tl.maximum(tl.maximum(l0_old_sq, l1_old_sq), l2_old_sq)
+
+    stretch_bad = max_new_sq > 6.25 * max_old_sq
+
+    any_bad = area_bad | flip_bad | stretch_bad
+    tl.store(keep_mask_ptr + offs, any_bad.to(tl.int32), mask=mask)
+
+def _pytorch_edge_errors(verts, Q, edges, stabilizer, max_edge_length_sq, mesh_scale_sq):
+    n_edges = edges.shape[0]
+    if n_edges == 0:
+        return (torch.empty((0, 3), dtype=torch.float64, device=verts.device),
+                torch.empty((0,), dtype=torch.float64, device=verts.device),
+                torch.zeros((0,), dtype=torch.bool, device=verts.device))
+
+    device = verts.device
+    mesh_scale = (mesh_scale_sq) ** 0.5
+
+    va = edges[:, 0]
+    vb = edges[:, 1]
+    Q0 = Q[va]
+    Q1 = Q[vb]
+    Qe = Q0 + Q1
+
+    A = Qe[:, :3, :3] + torch.eye(3, device=device, dtype=torch.float64).unsqueeze(0) * stabilizer
+    b = -Qe[:, :3, 3].unsqueeze(-1)
+
+    dets = torch.det(A)
+    good = dets.abs() > 1e-12
+    opt = torch.zeros((n_edges, 3), dtype=torch.float64, device=device)
+
+    if good.any():
+        try:
+            sol = torch.linalg.solve(A[good], b[good])
+            opt[good] = sol.squeeze(-1)
+        except Exception:
+            good = torch.zeros_like(good)
+
+    if (~good).any():
+        bad_idx = torch.nonzero(~good, as_tuple=True)[0]
+        opt[bad_idx] = (verts[va[bad_idx]] + verts[vb[bad_idx]]) * 0.5
+
+    pa = verts[va]
+    pb = verts[vb]
+    el = torch.norm(pb - pa, dim=-1)
+    dist_a = torch.norm(opt - pa, dim=-1)
+    dist_b = torch.norm(opt - pb, dim=-1)
+    wander_bad = (dist_a > 4.0 * el) | (dist_b > 4.0 * el)
+
+    if wander_bad.any():
+        bad_idx = torch.nonzero(wander_bad, as_tuple=True)[0]
+        opt[bad_idx] = (verts[va[bad_idx]] + verts[vb[bad_idx]]) * 0.5
+
+    v4 = torch.cat([opt, torch.ones((n_edges, 1), device=device, dtype=torch.float64)], dim=1)
+    err = torch.abs(torch.einsum("ei,eij,ej->e", v4, Qe, v4))
+
+    length_ok = el > mesh_scale * 1e-5
+    error_ok = err < max_edge_length_sq
+    nan_ok = ~torch.isnan(opt).any(dim=-1) & ~torch.isnan(err)
+    valid = length_ok & error_ok & nan_ok
+
+    return opt, err, valid
+
+
+def _triton_edge_errors(verts, Q, edges, stabilizer, max_edge_length_sq, mesh_scale_sq):
+    n_edges = edges.shape[0]
+    if n_edges == 0:
+        return (torch.empty((0, 3), dtype=torch.float64, device=verts.device),
+                torch.empty((0,), dtype=torch.float64, device=verts.device),
+                torch.zeros((0,), dtype=torch.bool, device=verts.device))
+
+    device = verts.device
+
+    optimal = torch.empty((n_edges, 3), dtype=torch.float64, device=device)
+    error = torch.empty((n_edges,), dtype=torch.float64, device=device)
+    wander = torch.empty((n_edges,), dtype=torch.int32, device=device)
+
+    BLOCK_SIZE = 256
+    grid = (triton.cdiv(n_edges, BLOCK_SIZE),)
+
+    try:
+        qem_edge_errors_kernel[grid](
+            verts, Q, edges, optimal, error, wander,
+            n_edges, stabilizer, max_edge_length_sq, mesh_scale_sq,
+            BLOCK_SIZE=BLOCK_SIZE
+        )
+    except Exception:
+        return _pytorch_edge_errors(verts, Q, edges, stabilizer, max_edge_length_sq, mesh_scale_sq)
+
+    has_nan = torch.isnan(optimal).any() or torch.isnan(error).any()
+    has_inf = torch.isinf(error).any()
+
+    if has_nan or has_inf:
+        return _pytorch_edge_errors(verts, Q, edges, stabilizer, max_edge_length_sq, mesh_scale_sq)
+
+    pa = verts[edges[:, 0]]
+    pb = verts[edges[:, 1]]
+    el = torch.norm(pb - pa, dim=-1)
+    mesh_scale = (mesh_scale_sq) ** 0.5
+
+    length_ok = el > mesh_scale * 1e-5
+    error_ok = error < max_edge_length_sq
+    nan_ok = ~torch.isnan(optimal).any(dim=-1) & ~torch.isnan(error)
+    valid = length_ok & error_ok & nan_ok
+
+    return optimal, error, valid
+
+def _pytorch_validate_faces(verts, faces, v_a, v_b, opt_pos, pair_edge_idx, pair_face_idx, area_thresh):
+    n_pairs = len(pair_edge_idx)
+    if n_pairs == 0:
+        return torch.ones(v_a.numel(), dtype=torch.bool, device=verts.device)
+
+    device = verts.device
+
+    old_faces = faces[pair_face_idx]
+    v0_old = verts[old_faces[:, 0]]
+    v1_old = verts[old_faces[:, 1]]
+    v2_old = verts[old_faces[:, 2]]
+
+    v0_new = v0_old.clone()
+    v1_new = v1_old.clone()
+    v2_new = v2_old.clone()
+
+    va_t = v_a[pair_edge_idx]
+    vb_t = v_b[pair_edge_idx]
+    opt_t = opt_pos[pair_edge_idx]
+
+    mask0 = (old_faces[:, 0] == va_t) | (old_faces[:, 0] == vb_t)
+    mask1 = (old_faces[:, 1] == va_t) | (old_faces[:, 1] == vb_t)
+    mask2 = (old_faces[:, 2] == va_t) | (old_faces[:, 2] == vb_t)
+
+    v0_new[mask0] = opt_t[mask0]
+    v1_new[mask1] = opt_t[mask1]
+    v2_new[mask2] = opt_t[mask2]
+
+    e1_old = v1_old - v0_old
+    e2_old = v2_old - v0_old
+    n_old = torch.cross(e1_old, e2_old, dim=-1)
+
+    e1_new = v1_new - v0_new
+    e2_new = v2_new - v0_new
+    n_new = torch.cross(e1_new, e2_new, dim=-1)
+
+    area_new = torch.norm(n_new, dim=-1)
+    area_bad = area_new < area_thresh
+
+    n_old_norm = n_old / (torch.norm(n_old, dim=-1, keepdim=True) + 1e-12)
+    n_new_norm = n_new / (torch.norm(n_new, dim=-1, keepdim=True) + 1e-12)
+    dots = (n_old_norm * n_new_norm).sum(dim=-1)
+    flip_bad = dots < -0.2
+
+    old_edges = torch.stack([
+        torch.norm(v1_old - v0_old, dim=-1),
+        torch.norm(v2_old - v1_old, dim=-1),
+        torch.norm(v0_old - v2_old, dim=-1),
+    ], dim=1).max(dim=1)[0]
+
+    new_edges = torch.stack([
+        torch.norm(v1_new - v0_new, dim=-1),
+        torch.norm(v2_new - v1_new, dim=-1),
+        torch.norm(v0_new - v2_new, dim=-1),
+    ], dim=1).max(dim=1)[0]
+
+    stretch_bad = new_edges > 2.5 * old_edges
+
+    def face_angles(v0, v1, v2):
+        e0 = v1 - v0
+        e1 = v2 - v1
+        e2 = v0 - v2
+        l0 = torch.norm(e0, dim=-1)
+        l1 = torch.norm(e1, dim=-1)
+        l2 = torch.norm(e2, dim=-1)
+        cos_a = (l1 * l1 + l2 * l2 - l0 * l0) / (2 * l1 * l2 + 1e-12)
+        cos_b = (l0 * l0 + l2 * l2 - l1 * l1) / (2 * l0 * l2 + 1e-12)
+        cos_c = (l0 * l0 + l1 * l1 - l2 * l2) / (2 * l0 * l1 + 1e-12)
+        cos_all = torch.stack([cos_a, cos_b, cos_c], dim=-1)
+        return torch.acos(torch.clamp(cos_all, -1, 1)) * 180 / np.pi
+
+    new_angles = face_angles(v0_new, v1_new, v2_new)
+    angle_bad = (new_angles < 1.0).any(dim=-1) | (new_angles > 178.0).any(dim=-1)
+
+    any_bad = area_bad | flip_bad | stretch_bad | angle_bad
+
+    keep_mask = torch.ones(v_a.numel(), dtype=torch.bool, device=device)
+    if any_bad.any():
+        bad_edges = pair_edge_idx[any_bad]
+        keep_mask.scatter_(0, bad_edges, False)
+    return keep_mask
+
+
+def _triton_validate_faces(verts, faces, v_a, v_b, opt_pos, pair_edge_idx, pair_face_idx, area_thresh):
+    n_pairs = len(pair_edge_idx)
+    if n_pairs == 0:
+        return torch.ones(v_a.numel(), dtype=torch.bool, device=verts.device)
+
+    device = verts.device
+
+    pair_bad = torch.empty(n_pairs, dtype=torch.int32, device=device)
+
+    BLOCK_SIZE = 256
+    grid = (triton.cdiv(n_pairs, BLOCK_SIZE),)
+
+    try:
+        validate_faces_kernel[grid](
+            verts, faces, v_a, v_b, opt_pos, pair_edge_idx, pair_face_idx,
+            n_pairs, area_thresh, pair_bad,
+            BLOCK_SIZE=BLOCK_SIZE
+        )
+    except Exception:
+        return _pytorch_validate_faces(verts, faces, v_a, v_b, opt_pos, pair_edge_idx, pair_face_idx, area_thresh)
+
+    keep_mask = torch.ones(v_a.numel(), dtype=torch.bool, device=device)
+    bad_mask = pair_bad.bool()
+    if bad_mask.any():
+        bad_edges = pair_edge_idx[bad_mask]
+        keep_mask.scatter_(0, bad_edges, False)
+    return keep_mask
+
+def _build_quadrics(verts, faces):
+    v0 = verts[faces[:, 0]]
+    v1 = verts[faces[:, 1]]
+    v2 = verts[faces[:, 2]]
+    e1 = v1 - v0
+    e2 = v2 - v0
+    n = torch.cross(e1, e2, dim=-1)
+    area = torch.norm(n, dim=-1)
+    mask = area > 1e-12
+    n_norm = torch.zeros_like(n)
+    n_norm[mask] = n[mask] / area[mask].unsqueeze(-1)
+    d = -(n_norm * v0).sum(dim=-1, keepdim=True)
+    p = torch.cat([n_norm, d], dim=-1)
+    K = torch.einsum("fi,fj->fij", p, p)
+    K = K * area[:, None, None]
+    V = verts.shape[0]
+    Q = torch.zeros((V, 4, 4), dtype=torch.float64, device=verts.device)
+    K_flat = K.reshape(-1, 16)
+    Q_flat = Q.reshape(V, 16)
+    for corner in range(3):
+        idx = faces[:, corner].unsqueeze(1).expand(-1, 16)
+        Q_flat.scatter_add_(0, idx, K_flat)
+    return Q_flat.reshape(V, 4, 4)
+
+
+def _cleanup_mesh(verts, faces, min_angle_deg=0.5, max_aspect=100.0):
+    if faces.numel() == 0:
+        return verts, faces
+
+    v0 = verts[faces[:, 0]]
+    v1 = verts[faces[:, 1]]
+    v2 = verts[faces[:, 2]]
+    e0 = v1 - v0
+    e1 = v2 - v1
+    e2 = v0 - v2
+    l0 = torch.norm(e0, dim=-1)
+    l1 = torch.norm(e1, dim=-1)
+    l2 = torch.norm(e2, dim=-1)
+    n = torch.cross(e0, e2, dim=-1)
+    area = torch.norm(n, dim=-1)
+
+    max_edge = torch.max(torch.max(l0, l1), l2)
+    aspect = max_edge * max_edge / (2.0 * area + 1e-12)
+
+    cos_a = (l1 * l1 + l2 * l2 - l0 * l0) / (2 * l1 * l2 + 1e-12)
+    cos_b = (l0 * l0 + l2 * l2 - l1 * l1) / (2 * l0 * l2 + 1e-12)
+    cos_c = (l0 * l0 + l1 * l1 - l2 * l2) / (2 * l0 * l1 + 1e-12)
+    cos_all = torch.stack([cos_a, cos_b, cos_c], dim=-1)
+    angles = torch.acos(torch.clamp(cos_all, -1, 1)) * 180 / np.pi
+
+    good = (aspect < max_aspect) & (angles.min(dim=1)[0] > min_angle_deg) & (area > 1e-12)
+    faces = faces[good]
+
+    if faces.numel() == 0:
+        return verts, faces
+
+    used = torch.zeros(verts.shape[0], dtype=torch.bool, device=verts.device)
+    used[faces[:, 0]] = True
+    used[faces[:, 1]] = True
+    used[faces[:, 2]] = True
+
+    remap = torch.full((verts.shape[0],), -1, dtype=torch.int64, device=verts.device)
+    remap[used] = torch.arange(used.sum().item(), device=verts.device)
+    verts = verts[used]
+    faces = remap[faces]
+    return verts, faces
+
+
+def _build_vertex_face_csr(faces, num_verts):
+    vf_verts = faces.view(-1)
+    vf_faces = torch.arange(faces.shape[0], device=faces.device).repeat_interleave(3)
+
+    sort_idx = torch.argsort(vf_verts, stable=True)
+    sorted_verts = vf_verts[sort_idx]
+    sorted_faces = vf_faces[sort_idx]
+
+    unique_verts, counts = torch.unique_consecutive(sorted_verts, return_counts=True)
+
+    ptrs = torch.zeros(num_verts + 1, dtype=torch.int64, device=faces.device)
+    ptrs[unique_verts + 1] = counts
+    ptrs = torch.cumsum(ptrs, dim=0)
+
+    return sorted_faces, ptrs
+
+
+def _get_vertex_faces(v, face_indices, vert_ptrs):
+    start = vert_ptrs[v]
+    end = vert_ptrs[v + 1]
+    return face_indices[start:end]
+
+def _gpu_greedy_sampled(edges, errors, v_alive, max_select):
+    device = edges.device
+    n_edges = edges.shape[0]
+
+    if n_edges == 0:
+        return torch.empty(0, dtype=torch.int64, device=device)
+
+    # Sort by error
+    sorted_idx = torch.argsort(errors)
+    sorted_edges = edges[sorted_idx]
+
+    # Sample K edges from the sorted list
+    # This gives us diverse edges spread across the mesh
+    K = min(max_select * 20, n_edges)
+    if K < n_edges:
+        sample_positions = torch.linspace(0, n_edges - 1, K, device=device).long()
+        sampled_edges = sorted_edges[sample_positions]
+        sampled_idx = sorted_idx[sample_positions]
+    else:
+        sampled_edges = sorted_edges
+        sampled_idx = sorted_idx
+
+    # Greedy selection on GPU
+    used = torch.zeros(v_alive.shape[0], dtype=torch.bool, device=device)
+    used[~v_alive] = True
+
+    selected = []
+    batch_size = 8192
+
+    for start in range(0, sampled_edges.shape[0], batch_size):
+        end = min(start + batch_size, sampled_edges.shape[0])
+        batch = sampled_edges[start:end]
+        batch_idx = sampled_idx[start:end]
+
+        va = batch[:, 0]
+        vb = batch[:, 1]
+
+        # Vectorized free check
+        free = ~used[va] & ~used[vb]
+
+        if not free.any():
+            continue
+
+        # Get free edges
+        free_local = torch.nonzero(free, as_tuple=True)[0]
+        free_edges = batch[free_local]
+        free_idx = batch_idx[free_local]
+
+        # Process free edges greedily but in larger chunks
+        # Transfer to CPU but only the small free subset
+        free_va = free_edges[:, 0].cpu().numpy()
+        free_vb = free_edges[:, 1].cpu().numpy()
+        free_edges_idx = free_idx.cpu().numpy()
+
+        for i in range(len(free_va)):
+            a = int(free_va[i])
+            b = int(free_vb[i])
+            if not used[a].item() and not used[b].item():
+                selected.append(int(free_edges_idx[i]))
+                used[a] = True
+                used[b] = True
+                if len(selected) >= max_select:
+                    return torch.tensor(selected, dtype=torch.int64, device=device)
+
+    if len(selected) == 0:
+        return torch.empty(0, dtype=torch.int64, device=device)
+    return torch.tensor(selected, dtype=torch.int64, device=device)
+
+def _qem_simplify(verts_np, faces_np, colors_np, target_faces, device, max_edge_length=None, use_triton=False, fast_mode=False):
     verts = torch.from_numpy(verts_np).to(device=device, dtype=torch.float64)
     faces = torch.from_numpy(faces_np).to(device=device, dtype=torch.int64)
     colors = (
@@ -811,25 +1362,34 @@ def _qem_simplify(verts_np, faces_np, colors_np, target_faces, device, max_edge_
     num_verts = verts.shape[0]
     num_faces = faces.shape[0]
 
+    logging.debug(f"[QEM] Input: {num_verts} verts, {num_faces} faces, target={target_faces}, fast={fast_mode}")
+
     v_alive = torch.ones(num_verts, dtype=torch.bool, device=device)
     f_alive = torch.ones(num_faces, dtype=torch.bool, device=device)
 
-    Q = _build_quadrics_fast(verts, faces)
+    Q = _build_quadrics(verts, faces)
 
-    # Mesh scale for relative thresholds
     bbox = verts.max(dim=0)[0] - verts.min(dim=0)[0]
     mesh_scale = torch.norm(bbox).item()
 
-    # Default max_edge_length: 2x bounding box diagonal (MeshLib-style)
     if max_edge_length is None or max_edge_length <= 0:
         max_edge_length = mesh_scale * 2.0
 
-    # Stabilizer: regularization to prevent extreme vertex movement
-    stabilizer = mesh_scale * mesh_scale * 0.001  # MeshLib default ~0.001 * scale^2
+    if max_edge_length < 1e-6:
+        max_edge_length = 1.0
+
+    stabilizer = mesh_scale * mesh_scale * 0.001
+    area_thresh = mesh_scale * mesh_scale * 1e-10
+    max_edge_length_sq = max_edge_length * max_edge_length
+    mesh_scale_sq = mesh_scale * mesh_scale
 
     iteration = 0
+    total_collapses = 0
+    last_faces = num_faces
+
     while True:
         n_faces = int(f_alive.sum().item())
+
         if n_faces <= target_faces:
             break
 
@@ -839,14 +1399,14 @@ def _qem_simplify(verts_np, faces_np, colors_np, target_faces, device, max_edge_
         if alive_v.numel() <= 4 or alive_f.numel() == 0:
             break
 
-        # ---- compact active mesh -------------------------------------------
+        # Compact active mesh
         vmap = torch.full((num_verts,), -1, dtype=torch.int64, device=device)
         vmap[alive_v] = torch.arange(alive_v.numel(), device=device)
 
         active_faces = faces[alive_f]
         remapped = vmap[active_faces]
 
-        # ---- extract edges --------------------------------------------------
+        # Extract edges
         e0 = remapped[:, [0, 1]]
         e1 = remapped[:, [1, 2]]
         e2 = remapped[:, [2, 0]]
@@ -860,139 +1420,153 @@ def _qem_simplify(verts_np, faces_np, colors_np, target_faces, device, max_edge_
 
         edges_orig = alive_v[edges]
 
-        # ---- MeshLib-style: only process edges longer than maxEdgeLen ------
+        # Filter by edge length
         pa = verts[edges_orig[:, 0]]
         pb = verts[edges_orig[:, 1]]
         el = torch.norm(pb - pa, dim=-1)
+        short_enough = el < max_edge_length
 
-        long_enough = el > max_edge_length * 0.1  # Allow some tolerance
-        if not long_enough.any():
-            # If no long edges, lower threshold
-            long_enough = el > max_edge_length * 0.01
+        if not short_enough.any():
+            max_edge_length = el.max().item() * 2.0
+            max_edge_length_sq = max_edge_length * max_edge_length
+            short_enough = el < max_edge_length
+            if not short_enough.any():
+                break
 
-        edges_orig = edges_orig[long_enough]
+        edges_orig = edges_orig[short_enough]
         if edges_orig.shape[0] == 0:
             break
 
-        # subsample so we never chew on >300 k edges
-        if edges_orig.shape[0] > 300_000:
-            step = edges_orig.shape[0] // 300_000 + 1
-            edges_orig = edges_orig[::step]
+        # Sample edges for processing
+        n_edges_total = edges_orig.shape[0]
+        max_edges_to_process = 10_000_000  # 10M edges per iteration
 
-        n_edges = edges_orig.shape[0]
-        if n_edges == 0:
-            break
+        if n_edges_total > max_edges_to_process:
+            perm = torch.randperm(n_edges_total, device=device)[:max_edges_to_process]
+            edges_orig = edges_orig[perm]
+            n_edges = max_edges_to_process
+        else:
+            n_edges = n_edges_total
 
-        # chunking the qem
-        Q0 = Q[edges_orig[:, 0]]
-        Q1 = Q[edges_orig[:, 1]]
-        Qe = Q0 + Q1
+        # Compute edge errors
+        if use_triton and torch.cuda.is_available():
+            optimal, err, valid = _triton_edge_errors(
+                verts, Q, edges_orig, stabilizer, max_edge_length_sq, mesh_scale_sq
+            )
+        else:
+            optimal, err, valid = _pytorch_edge_errors(
+                verts, Q, edges_orig, stabilizer, max_edge_length_sq, mesh_scale_sq
+            )
 
-        A = Qe[:, :3, :3]
-        b = -Qe[:, :3, 3]
-
-        optimal = torch.zeros((n_edges, 3), dtype=torch.float64, device=device)
-        SOLVE_CHUNK = 50_000
-
-        for i in range(0, n_edges, SOLVE_CHUNK):
-            sl = slice(i, min(i + SOLVE_CHUNK, n_edges))
-            A_c = A[sl]
-            b_c = b[sl].unsqueeze(-1)
-
-            # Add stabilizer to prevent extreme solutions
-            A_reg = A_c + torch.eye(3, device=device, dtype=torch.float64).unsqueeze(0) * stabilizer
-
-            dets = torch.det(A_reg)
-            good = dets.abs() > 1e-12
-
-            if good.any():
-                try:
-                    sol = torch.linalg.solve(A_reg[good], b_c[good])
-                    good_idx = torch.nonzero(good, as_tuple=True)[0] + i
-                    optimal[good_idx] = sol.squeeze(-1)
-                except RuntimeError:
-                    good = torch.zeros_like(good)
-
-            if (~good).any():
-                bad_idx = torch.nonzero(~good, as_tuple=True)[0] + i
-                va = edges_orig[bad_idx, 0]
-                vb = edges_orig[bad_idx, 1]
-                optimal[bad_idx] = (verts[va] + verts[vb]) * 0.5
-
-        # ---- error = v^T Q v (homogeneous) --------------------------------
-        v4 = torch.cat([
-            optimal,
-            torch.ones((n_edges, 1), device=device, dtype=torch.float64)
-        ], dim=1)
-        err = torch.abs(torch.einsum("ei,eij,ej->e", v4, Qe, v4))
-
-        # geometeric guards
-        pa = verts[edges_orig[:, 0]]
-        pb = verts[edges_orig[:, 1]]
-        el = torch.norm(pb - pa, dim=-1)
-
-        # reject near zero edges
-        length_ok = el > mesh_scale * 1e-5
-
-        # moderate wander: stabilizer keeps optimal close, so we can be looser
-        dist_a = torch.norm(optimal - pa, dim=-1)
-        dist_b = torch.norm(optimal - pb, dim=-1)
-        wander_ok = (dist_a <= 4.0 * el) & (dist_b <= 4.0 * el)
-
-        nan_ok = ~torch.isnan(optimal).any(dim=-1)
-
-        # MAX ERROR CAP: hard limit on quadric error (MeshLib-style)
-        # Prevents collapses that would remove too much detail
-        max_error = max_edge_length * max_edge_length
-        error_ok = err < max_error
-
-        valid = length_ok & wander_ok & nan_ok & error_ok
         if not valid.any():
-            break
+            valid = torch.ones(n_edges, dtype=torch.bool, device=device)
 
         valid_idx = torch.nonzero(valid, as_tuple=True)[0]
         edges_orig = edges_orig[valid_idx]
         optimal = optimal[valid_idx]
         err = err[valid_idx]
 
-        # ---- vectorized greedy independent set ------------------------------
-        sorted_idx = torch.argsort(err)
-        used = torch.zeros(num_verts, dtype=torch.bool, device=device)
-        used[~v_alive] = True
+        # KEY: Much larger batch size
+        faces_to_remove = n_faces - target_faces
+        max_collapses = min(50000, max(1000, faces_to_remove // 20))
 
-        max_collapses = max(2_000, (n_faces - target_faces) // 5)
-        selected_edges = []
-        n_selected = 0
-        GREEDY_CHUNK = 100_000
+        sel = _gpu_greedy_sampled(edges_orig, err, v_alive, max_collapses)
 
-        for start in range(0, sorted_idx.numel(), GREEDY_CHUNK):
-            chunk = sorted_idx[start:start + GREEDY_CHUNK]
-            va = edges_orig[chunk, 0]
-            vb = edges_orig[chunk, 1]
-
-            valid_mask = ~used[va] & ~used[vb]
-            if not valid_mask.any():
-                continue
-
-            sel = chunk[valid_mask]
-            selected_edges.append(sel)
-
-            used[edges_orig[sel, 0]] = True
-            used[edges_orig[sel, 1]] = True
-            n_selected += sel.numel()
-
-            if n_selected >= max_collapses:
-                break
-
-        if n_selected == 0:
+        if sel.numel() == 0:
             break
 
-        sel = torch.cat(selected_edges)
-
-        # ---- apply collapses ------------------------------------------------
         v_a = edges_orig[sel, 0]
         v_b = edges_orig[sel, 1]
+        opt_pos = optimal[sel]
 
+        # Build adjacency
+        face_indices, vert_ptrs = _build_vertex_face_csr(active_faces, num_verts)
+
+        # Build (edge, face) pairs
+        pair_edge_idx = []
+        pair_face_idx = []
+
+        va_cpu = v_a.cpu()
+        vb_cpu = v_b.cpu()
+
+        for ei, (vai, vbi) in enumerate(zip(va_cpu, vb_cpu)):
+            f_va = _get_vertex_faces(vai.item(), face_indices, vert_ptrs)
+            f_vb = _get_vertex_faces(vbi.item(), face_indices, vert_ptrs)
+
+            faces_vb = active_faces[f_vb]
+            mask_b = (faces_vb[:, 0] != vai) & (faces_vb[:, 1] != vai) & (faces_vb[:, 2] != vai)
+            f_vb_valid = f_vb[mask_b]
+
+            faces_va = active_faces[f_va]
+            mask_a = (faces_va[:, 0] != vbi) & (faces_va[:, 1] != vbi) & (faces_va[:, 2] != vbi)
+            f_va_valid = f_va[mask_a]
+
+            all_faces = torch.cat([f_vb_valid, f_va_valid])
+            if all_faces.numel() > 0:
+                pair_edge_idx.extend([ei] * all_faces.numel())
+                pair_face_idx.extend(all_faces.cpu().tolist())
+
+        keep_mask = torch.ones(v_a.numel(), dtype=torch.bool, device=device)
+
+        # Face validation (skip in fast_mode)
+        if not fast_mode and len(pair_edge_idx) > 0:
+            pair_edge_idx_t = torch.tensor(pair_edge_idx, dtype=torch.int64, device=device)
+            pair_face_idx_t = torch.tensor(pair_face_idx, dtype=torch.int64, device=device)
+
+            if use_triton and torch.cuda.is_available():
+                keep_mask = _triton_validate_faces(
+                    verts, active_faces, v_a, v_b, opt_pos,
+                    pair_edge_idx_t, pair_face_idx_t, area_thresh
+                )
+            else:
+                keep_mask = _pytorch_validate_faces(
+                    verts, active_faces, v_a, v_b, opt_pos,
+                    pair_edge_idx_t, pair_face_idx_t, area_thresh
+                )
+
+        # Link condition (skip in fast_mode for massive speedup)
+        if not fast_mode:
+            # Vectorized link condition using GPU operations
+            link_keep = torch.ones(v_a.numel(), dtype=torch.bool, device=device)
+
+            # Build neighbor sets for va and vb using GPU operations
+            for ei in range(v_a.numel()):
+                vai = v_a[ei].item()
+                vbi = v_b[ei].item()
+
+                f_va = _get_vertex_faces(vai, face_indices, vert_ptrs)
+                f_vb = _get_vertex_faces(vbi, face_indices, vert_ptrs)
+
+                if f_va.numel() == 0 or f_vb.numel() == 0:
+                    continue
+
+                faces_va = active_faces[f_va]
+                verts_va = faces_va[faces_va != vai]
+                verts_va = verts_va[verts_va != vbi]
+
+                faces_vb = active_faces[f_vb]
+                verts_vb = faces_vb[faces_vb != vbi]
+                verts_vb = verts_vb[verts_vb != vai]
+
+                if verts_va.numel() == 0 or verts_vb.numel() == 0:
+                    continue
+
+                # Use torch.intersect1d for GPU-native intersection
+                common = torch.intersect1d(verts_va, verts_vb)
+                if common.numel() > 2:
+                    link_keep[ei] = False
+
+            keep_mask &= link_keep
+
+        if not keep_mask.any():
+            break
+
+        keep_idx = torch.nonzero(keep_mask, as_tuple=True)[0]
+        v_a = v_a[keep_idx]
+        v_b = v_b[keep_idx]
+        sel = sel[keep_idx]
+
+        # Apply collapses
         verts[v_a] = optimal[sel]
         v_alive[v_b] = False
         Q[v_a] += Q[v_b]
@@ -1011,57 +1585,83 @@ def _qem_simplify(verts_np, faces_np, colors_np, target_faces, device, max_edge_
         )
         f_alive &= ~bad
 
+        total_collapses += v_a.numel()
         iteration += 1
+
+        # Log only every 50 iterations to reduce sync overhead
+        if iteration % 50 == 0 or n_faces < last_faces * 0.9:
+            logging.debug(f"[QEM] Iter {iteration}: {total_collapses} collapses, {int(f_alive.sum().item())} faces, applied {v_a.numel()}")
+            last_faces = n_faces
+
+        # Periodic compaction
         if iteration % 5 == 0 and int(f_alive.sum().item()) < num_faces * 0.5:
             faces = faces[f_alive]
             f_alive = torch.ones(faces.shape[0], dtype=torch.bool, device=device)
             num_faces = faces.shape[0]
 
+        if iteration > 5000:
+            break
+
+    # Finalize
     final_v = verts[v_alive]
     final_c = colors[v_alive] if colors is not None else None
 
     remap = torch.full((num_verts,), -1, dtype=torch.int64, device=device)
     remap[v_alive] = torch.arange(int(v_alive.sum().item()), device=device)
-    final_f = remap[faces[f_alive]]
+
+    final_f_raw = faces[f_alive]
+    alive_mask = v_alive[final_f_raw].all(dim=1)
+    final_f_raw = final_f_raw[alive_mask]
+    final_f = remap[final_f_raw]
+    valid_faces = (final_f >= 0).all(dim=1)
+    final_f = final_f[valid_faces]
 
     if final_f.numel() > 0:
         final_f = torch.unique(torch.sort(final_f, dim=1)[0], dim=0)
 
+    final_v, final_f = _cleanup_mesh(final_v, final_f, min_angle_deg=0.5, max_aspect=100.0)
+
     return final_v, final_f, final_c
 
+def simplify_fn(vertices, faces, colors=None, target=100000, max_edge_length=None, use_triton=True, fast_mode=True):
+    if vertices.ndim == 3:
+        v_list, f_list, c_list = [], [], []
+        for i in range(vertices.shape[0]):
+            c_in = colors[i] if colors is not None else None
+            v_i, f_i, c_i = simplify_fn(vertices[i], faces[i], c_in, target, max_edge_length, use_triton, fast_mode)
+            v_list.append(v_i)
+            f_list.append(f_i)
+            if c_i is not None:
+                c_list.append(c_i)
+        c_out = torch.stack(c_list) if len(c_list) > 0 else None
+        return torch.stack(v_list), torch.stack(f_list), c_out
 
-def _build_quadrics_fast(verts, faces):
-    """GPU quadric build. Fast; non-deterministic on CUDA."""
-    v0 = verts[faces[:, 0]]
-    v1 = verts[faces[:, 1]]
-    v2 = verts[faces[:, 2]]
+    if faces.shape[0] <= target:
+        return vertices, faces, colors
 
-    e1 = v1 - v0
-    e2 = v2 - v0
-    n = torch.cross(e1, e2, dim=-1)
-    area = torch.norm(n, dim=-1)
+    device = vertices.device
+    dtype = vertices.dtype
 
-    mask = area > 1e-12
-    n_norm = torch.zeros_like(n)
-    n_norm[mask] = n[mask] / area[mask].unsqueeze(-1)
+    verts_np = vertices.detach().cpu().numpy().astype(np.float64)
+    faces_np = faces.detach().cpu().numpy().astype(np.int64)
+    colors_np = (
+        colors.detach().cpu().numpy().astype(np.float64)
+        if colors is not None
+        else None
+    )
 
-    d = -(n_norm * v0).sum(dim=-1, keepdim=True)
-    p = torch.cat([n_norm, d], dim=-1)
+    out_v, out_f, out_c = _qem_simplify(
+        verts_np, faces_np, colors_np, target, device, max_edge_length, use_triton, fast_mode
+    )
 
-    K = torch.einsum("fi,fj->fij", p, p)
-    K = K * area[:, None, None]
-
-    V = verts.shape[0]
-    Q = torch.zeros((V, 4, 4), dtype=torch.float64, device=verts.device)
-
-    K_flat = K.reshape(-1, 16)
-    Q_flat = Q.reshape(V, 16)
-
-    for corner in range(3):
-        idx = faces[:, corner].unsqueeze(1).expand(-1, 16)
-        Q_flat.scatter_add_(0, idx, K_flat)
-
-    return Q_flat.reshape(V, 4, 4)
+    final_v = out_v.to(device=device, dtype=dtype)
+    final_f = out_f.to(device=device, dtype=faces.dtype)
+    final_c = (
+        out_c.to(device=device, dtype=colors.dtype)
+        if out_c is not None
+        else None
+    )
+    return final_v, final_f, final_c
 
 def fill_holes_fn(vertices, faces, max_perimeter=0.03):
     is_batched = vertices.ndim == 3
@@ -1175,41 +1775,65 @@ class PostProcessMesh(IO.ComfyNode):
 
     @classmethod
     def execute(cls, mesh, simplify, fill_holes_perimeter):
-        if hasattr(mesh, "vertex_counts"):
-            out_verts, out_faces, out_colors = [], [], []
-            for i in range(mesh.vertices.shape[0]):
-                v_i, f_i, c_i = get_mesh_batch_item(mesh, i)
-                actual_face_count = f_i.shape[0]
-                if fill_holes_perimeter > 0:
-                    v_i, f_i = fill_holes_fn(v_i, f_i, max_perimeter=fill_holes_perimeter)
-                if simplify > 0 and actual_face_count > simplify:
-                    v_i, f_i, c_i = simplify_fn(v_i, f_i, target=simplify, colors=c_i)
-                v_i, f_i = make_double_sided(v_i, f_i)
-                out_verts.append(v_i)
-                out_faces.append(f_i)
+        # input should be comfy.NestedTensor
+        mesh = copy.deepcopy(mesh)
+
+        def process_single(v, f, c):
+            if fill_holes_perimeter > 0:
+                v, f = fill_holes_fn(v, f, max_perimeter=fill_holes_perimeter)
+
+            if simplify > 0 and f.shape[0] > simplify:
+                v, f, c = simplify_fn(v, f, colors=c, target=simplify)
+
+            v, f = make_double_sided(v, f)
+            return v, f, c
+
+        # Check if batch is Jagged (List) or Uniform (3D Tensor)
+        is_list = isinstance(mesh.vertices, list)
+        is_batched_tensor = not is_list and mesh.vertices.ndim == 3
+
+        if is_list or is_batched_tensor:
+            out_v, out_f, out_c = [], [],[]
+            bsz = len(mesh.vertices) if is_list else mesh.vertices.shape[0]
+
+            for i in range(bsz):
+                v_i = mesh.vertices[i]
+                f_i = mesh.faces[i]
+
+                # Safely grab colors if they exist
+                c_i = None
+                if hasattr(mesh, 'colors') and mesh.colors is not None:
+                    c_i = mesh.colors[i] if (isinstance(mesh.colors, list) or mesh.colors.ndim == 3) else mesh.colors
+
+                v_i, f_i, c_i = process_single(v_i, f_i, c_i)
+
+                out_v.append(v_i)
+                out_f.append(f_i)
                 if c_i is not None:
-                    out_colors.append(c_i)
-            out_mesh = pack_variable_mesh_batch(out_verts, out_faces, out_colors if len(out_colors) == len(out_verts) else None)
-            return IO.NodeOutput(out_mesh)
-        verts, faces = mesh.vertices, mesh.faces
-        colors = None
-        if hasattr(mesh, "colors"):
-            colors = mesh.colors
+                    out_c.append(c_i)
 
-        actual_face_count = faces.shape[1] if faces.ndim == 3 else faces.shape[0]
-        if fill_holes_perimeter > 0:
-            verts, faces = fill_holes_fn(verts, faces, max_perimeter=fill_holes_perimeter)
+            # If the output meshes happen to have the exact same shape, stack them nicely.
+            # Otherwise, just leave them as a List! (ComfyUI native standard)
+            if all(v.shape == out_v[0].shape for v in out_v) and all(f.shape == out_f[0].shape for f in out_f):
+                mesh.vertices = torch.stack(out_v)
+                mesh.faces = torch.stack(out_f)
+                if out_c:
+                    mesh.colors = torch.stack(out_c)
+            else:
+                mesh.vertices = out_v
+                mesh.faces = out_f
+                if out_c:
+                    mesh.colors = out_c
 
-        if simplify > 0 and actual_face_count > simplify:
-            verts, faces, colors = simplify_fn(verts, faces, target=simplify, colors=colors)
+        else:
+            # Single Unbatched Mesh[V, 3]
+            c = mesh.colors if hasattr(mesh, 'colors') and mesh.colors is not None else None
+            v, f, c = process_single(mesh.vertices, mesh.faces, c)
+            mesh.vertices = v
+            mesh.faces = f
+            if c is not None:
+                mesh.colors = c
 
-        verts, faces = make_double_sided(verts, faces)
-
-        mesh = type(mesh)(vertices=verts, faces=faces)
-        mesh.vertices = verts
-        mesh.faces = faces
-        if colors is not None:
-            mesh.colors = colors
         return IO.NodeOutput(mesh)
 
 class Trellis2Extension(ComfyExtension):
