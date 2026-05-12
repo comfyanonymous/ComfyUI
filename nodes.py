@@ -2435,6 +2435,7 @@ async def init_builtin_extra_nodes():
         "nodes_sam3.py",
         "nodes_void.py",
         "nodes_wandancer.py",
+        "nodes_hidream_o1.py",
         "nodes_save_3d.py",
     ]
 
