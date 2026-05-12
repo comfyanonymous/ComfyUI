@@ -17,6 +17,7 @@ def pin_memory(module, subset="weights", size=None):
     if size is None:
         size = comfy.memory_management.vram_aligned_size([ module.weight, module.bias ])
     offset = hostbuf.size
+    comfy.memory_management.extra_ram_release(comfy.memory_management.RAM_CACHE_HEADROOM)
     comfy.model_management.ensure_pin_budget(size)
 
     try:

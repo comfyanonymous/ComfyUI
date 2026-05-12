@@ -1208,6 +1208,7 @@ def resize_pin_buffer(pin_buffer, size):
     if size <= old_size:
         return True
     growth = size - old_size
+    comfy.memory_management.extra_ram_release(comfy.memory_management.RAM_CACHE_HEADROOM, free_active=True)
     ensure_pin_budget(growth, evict_active=True)
     try:
         pin_buffer.extend(size=size, reallocate=True)
@@ -1389,6 +1390,7 @@ def pin_memory(tensor):
         return False
 
     size = tensor.nbytes
+    comfy.memory_management.extra_ram_release(comfy.memory_management.RAM_CACHE_HEADROOM)
     ensure_pin_budget(size)
 
     ptr = tensor.data_ptr()
