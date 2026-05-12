@@ -219,3 +219,69 @@ class TestPreviewImageMetadataPayload:
         _, metadata = payload
         assert metadata["prompt_id"] == "p1"
         assert metadata["workflow_id"] == "wf-1"
+
+
+
+class TestTerminalExecutingResetInMainPy:
+    """Regression test for the main.py prompt_worker terminal 'executing' reset.
+
+    The executor clears server.last_workflow_id in its finally block, so
+    main.py must capture the workflow id *before* calling e.execute() and use
+    that local value, not read server.last_workflow_id afterwards.
+
+    Rather than importing main.py (which triggers torch CUDA init in this
+    environment), we statically assert the contract via AST: somewhere
+    between the `extra_data = item[3].copy()` line and the
+    `e.execute(item[2], ...)` call, the function must extract workflow_id
+    from extra_data into a local, and the subsequent send_sync("executing",
+    ...) must reference that local rather than server.last_workflow_id.
+    """
+
+    def test_terminal_executing_uses_locally_captured_workflow_id(self):
+        import ast
+        from pathlib import Path
+
+        source = Path("main.py").read_text()
+        tree = ast.parse(source)
+
+        worker = next(
+            (
+                n
+                for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef) and n.name == "prompt_worker"
+            ),
+            None,
+        )
+        assert worker is not None, "prompt_worker function not found in main.py"
+
+        worker_src = ast.get_source_segment(source, worker) or ""
+
+        assert "extract_workflow_id(extra_data)" in worker_src, (
+            "main.py:prompt_worker must capture workflow_id locally from extra_data "
+            "before calling e.execute() (the executor clears server.last_workflow_id "
+            "in finally)."
+        )
+
+        for node in ast.walk(worker):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and func.attr == "send_sync"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and node.args[0].value == "executing"
+                and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Dict)
+            ):
+                continue
+            payload = node.args[1]
+            for key, value in zip(payload.keys, payload.values):
+                if isinstance(key, ast.Constant) and key.value == "workflow_id":
+                    rendered = ast.unparse(value)
+                    assert "last_workflow_id" not in rendered, (
+                        "main.py terminal 'executing' must not read "
+                        "server.last_workflow_id; the executor clears it in its "
+                        "finally block. Use a locally captured workflow_id instead."
+                    )

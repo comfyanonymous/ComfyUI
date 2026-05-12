@@ -21,6 +21,7 @@ import logging
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
+from comfy_execution.jobs import extract_workflow_id
 from comfy_api import feature_flags
 from app.database.db import init_db, dependencies_available
 
@@ -309,6 +310,12 @@ def prompt_worker(q, server_instance):
             for k in sensitive:
                 extra_data[k] = sensitive[k]
 
+            # Capture the workflow id for this prompt before execution: the
+            # executor clears server.last_workflow_id in its finally block, so
+            # reading it after e.execute() returns would emit workflow_id=None
+            # on the terminal "executing" reset below.
+            workflow_id = extract_workflow_id(extra_data)
+
             asset_seeder.pause()
             e.execute(item[2], prompt_id, extra_data, item[4])
 
@@ -322,7 +329,7 @@ def prompt_worker(q, server_instance):
                             completed=e.success,
                             messages=e.status_messages), process_item=remove_sensitive)
             if server_instance.client_id is not None:
-                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id, "workflow_id": getattr(server_instance, 'last_workflow_id', None)}, server_instance.client_id)
+                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id, "workflow_id": workflow_id}, server_instance.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
