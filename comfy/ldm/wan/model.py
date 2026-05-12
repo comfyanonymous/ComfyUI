@@ -1135,7 +1135,7 @@ class AudioInjector_WAN(nn.Module):
                 self.injector_adain_output_layers = nn.ModuleList(
                     [operations.Linear(dim, dim, dtype=dtype, device=device) for _ in range(audio_injector_id)])
 
-    def forward(self, x, block_id, audio_emb, audio_emb_global, seq_len):
+    def forward(self, x, block_id, audio_emb, audio_emb_global, seq_len, scale=1.0):
         audio_attn_id = self.injected_block_id.get(block_id, None)
         if audio_attn_id is None:
             return x
@@ -1148,12 +1148,15 @@ class AudioInjector_WAN(nn.Module):
             attn_hidden_states = adain_hidden_states
         else:
             attn_hidden_states = self.injector_pre_norm_feat[audio_attn_id](input_hidden_states)
-        audio_emb = rearrange(audio_emb, "b t n c -> (b t) n c", t=num_frames)
-        attn_audio_emb = audio_emb
+
+        if audio_emb.dim() == 3: # WanDancer case
+            attn_audio_emb = rearrange(audio_emb, "b t c -> (b t) 1 c", t=num_frames)
+        else: # S2V case
+            attn_audio_emb = rearrange(audio_emb, "b t n c -> (b t) n c", t=num_frames)
+
         residual_out = self.injector[audio_attn_id](x=attn_hidden_states, context=attn_audio_emb)
-        residual_out = rearrange(
-            residual_out, "(b t) n c -> b (t n) c", t=num_frames)
-        x[:, :seq_len] = x[:, :seq_len] + residual_out
+        residual_out = rearrange(residual_out, "(b t) n c -> b (t n) c", t=num_frames)
+        x[:, :seq_len] = x[:, :seq_len] + residual_out * scale
         return x
 
 

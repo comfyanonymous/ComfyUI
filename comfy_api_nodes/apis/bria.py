@@ -23,7 +23,7 @@ class BriaEditImageRequest(BaseModel):
         None,
         description="Mask image (black and white). Black areas will be preserved, white areas will be edited. "
         "If omitted, the edit applies to the entire image. "
-        "The input image and the the input mask must be of the same size.",
+        "The input image and the input mask must be of the same size.",
     )
     negative_prompt: str | None = Field(None)
     guidance_scale: float = Field(...)

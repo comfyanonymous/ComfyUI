@@ -1,10 +1,11 @@
-from __future__ import annotations
 from enum import Enum
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, Any
 
 from pydantic import BaseModel, Field, RootModel
 
+
 class TripoModelVersion(str, Enum):
+    v3_1_20260211 = 'v3.1-20260211'
     v3_0_20250812 = 'v3.0-20250812'
     v2_5_20250123 = 'v2.5-20250123'
     v2_0_20240919 = 'v2.0-20240919'
@@ -142,7 +143,7 @@ class TripoFileEmptyReference(BaseModel):
     pass
 
 class TripoFileReference(RootModel):
-    root: Union[TripoFileTokenReference, TripoUrlReference, TripoObjectReference, TripoFileEmptyReference]
+    root: TripoFileTokenReference | TripoUrlReference | TripoObjectReference | TripoFileEmptyReference
 
 class TripoGetStsTokenRequest(BaseModel):
     format: str = Field(..., description='The format of the image')
@@ -183,7 +184,7 @@ class TripoImageToModelRequest(BaseModel):
 
 class TripoMultiviewToModelRequest(BaseModel):
     type: TripoTaskType = TripoTaskType.MULTIVIEW_TO_MODEL
-    files: List[TripoFileReference] = Field(..., description='The file references to convert to a model')
+    files: list[TripoFileReference] = Field(..., description='The file references to convert to a model')
     model_version: Optional[TripoModelVersion] = Field(None, description='The model version to use for generation')
     orthographic_projection: Optional[bool] = Field(False, description='Whether to use orthographic projection')
     face_limit: Optional[int] = Field(None, description='The number of faces to limit the generation to')
@@ -251,26 +252,12 @@ class TripoConvertModelRequest(BaseModel):
     with_animation: Optional[bool] = Field(None, description='Whether to include animations')
     pack_uv: Optional[bool] = Field(None, description='Whether to pack the UVs')
     bake: Optional[bool] = Field(None, description='Whether to bake the model')
-    part_names: Optional[List[str]] = Field(None, description='The names of the parts to include')
+    part_names: Optional[list[str]] = Field(None, description='The names of the parts to include')
     fbx_preset: Optional[TripoFbxPreset] = Field(None, description='The preset for the FBX export')
     export_vertex_colors: Optional[bool] = Field(None, description='Whether to export the vertex colors')
     export_orientation: Optional[TripoOrientation] = Field(None, description='The orientation for the export')
     animate_in_place: Optional[bool] = Field(None, description='Whether to animate in place')
 
-
-class TripoTaskRequest(RootModel):
-    root: Union[
-        TripoTextToModelRequest,
-        TripoImageToModelRequest,
-        TripoMultiviewToModelRequest,
-        TripoTextureModelRequest,
-        TripoRefineModelRequest,
-        TripoAnimatePrerigcheckRequest,
-        TripoAnimateRigRequest,
-        TripoAnimateRetargetRequest,
-        TripoStylizeModelRequest,
-        TripoConvertModelRequest
-    ]
 
 class TripoTaskOutput(BaseModel):
     model: Optional[str] = Field(None, description='URL to the model')
@@ -283,12 +270,13 @@ class TripoTask(BaseModel):
     task_id: str = Field(..., description='The task ID')
     type: Optional[str] = Field(None, description='The type of task')
     status: Optional[TripoTaskStatus] = Field(None, description='The status of the task')
-    input: Optional[Dict[str, Any]] = Field(None, description='The input parameters for the task')
+    input: Optional[dict[str, Any]] = Field(None, description='The input parameters for the task')
     output: Optional[TripoTaskOutput] = Field(None, description='The output of the task')
     progress: Optional[int] = Field(None, description='The progress of the task', ge=0, le=100)
     create_time: Optional[int] = Field(None, description='The creation time of the task')
     running_left_time: Optional[int] = Field(None, description='The estimated time left for the task')
     queue_position: Optional[int] = Field(None, description='The position in the queue')
+    consumed_credit: int | None = Field(None)
 
 class TripoTaskResponse(BaseModel):
     code: int = Field(0, description='The response code')
@@ -296,7 +284,7 @@ class TripoTaskResponse(BaseModel):
 
 class TripoGeneralResponse(BaseModel):
     code: int = Field(0, description='The response code')
-    data: Dict[str, str] = Field(..., description='The task ID data')
+    data: dict[str, str] = Field(..., description='The task ID data')
 
 class TripoBalanceData(BaseModel):
     balance: float = Field(..., description='The account balance')

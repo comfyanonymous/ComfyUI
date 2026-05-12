@@ -562,6 +562,25 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
+    class BatchNorm2d(torch.nn.BatchNorm2d, CastWeightBiasOp):
+        def reset_parameters(self):
+            return None
+
+        def forward_comfy_cast_weights(self, input):
+            weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
+            running_mean = self.running_mean.to(device=input.device, dtype=weight.dtype) if self.running_mean is not None else None
+            running_var = self.running_var.to(device=input.device, dtype=weight.dtype) if self.running_var is not None else None
+            x = torch.nn.functional.batch_norm(input, running_mean, running_var, weight, bias, self.training, self.momentum, self.eps)
+            uncast_bias_weight(self, weight, bias, offload_stream)
+            return x
+
+        def forward(self, *args, **kwargs):
+            run_every_op()
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                return self.forward_comfy_cast_weights(*args, **kwargs)
+            else:
+                return super().forward(*args, **kwargs)
+
     class LayerNorm(torch.nn.LayerNorm, CastWeightBiasOp):
         def reset_parameters(self):
             return None
@@ -747,6 +766,9 @@ class manual_cast(disable_weight_init):
         comfy_cast_weights = True
 
     class Conv3d(disable_weight_init.Conv3d):
+        comfy_cast_weights = True
+
+    class BatchNorm2d(disable_weight_init.BatchNorm2d):
         comfy_cast_weights = True
 
     class GroupNorm(disable_weight_init.GroupNorm):
@@ -1263,7 +1285,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 if quant_format in ["float8_e4m3fn", "float8_e5m2"] and weight_key in state_dict:
                     self.quant_format = quant_format
                     qconfig = QUANT_ALGOS[quant_format]
-                    layout_cls = get_layout_class(qconfig["comfy_tensor_layout"])
+                    self.layout_type = qconfig["comfy_tensor_layout"]
+                    layout_cls = get_layout_class(self.layout_type)
                     weight = state_dict.pop(weight_key)
                     manually_loaded_keys = [weight_key]
 

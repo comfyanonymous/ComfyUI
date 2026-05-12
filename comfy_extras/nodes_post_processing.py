@@ -116,6 +116,7 @@ class Quantize(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageQuantize",
+            display_name="Quantize Image",
             category="image/postprocessing",
             inputs=[
                 io.Image.Input("image"),
@@ -181,6 +182,7 @@ class Sharpen(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageSharpen",
+            display_name="Sharpen Image",
             category="image/postprocessing",
             inputs=[
                 io.Image.Input("image"),
@@ -436,7 +438,7 @@ class ResizeImageMaskNode(io.ComfyNode):
             node_id="ResizeImageMaskNode",
             display_name="Resize Image/Mask",
             description="Resize an image or mask using various scaling methods.",
-            category="transform",
+            category="image/transform",
             search_aliases=["resize", "resize image", "resize mask", "scale", "scale image", "scale mask", "image resize", "change size", "dimensions", "shrink", "enlarge"],
             inputs=[
                 io.MatchType.Input("input", template=template),

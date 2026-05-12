@@ -239,7 +239,8 @@ class CLIP:
         model_management.archive_model_dtypes(self.cond_stage_model)
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        ModelPatcher = comfy.model_patcher.ModelPatcher if disable_dynamic else comfy.model_patcher.CoreModelPatcher
+        te_disable_dynamic = disable_dynamic or getattr(self.cond_stage_model, "disable_offload", False)
+        ModelPatcher = comfy.model_patcher.ModelPatcher if te_disable_dynamic else comfy.model_patcher.CoreModelPatcher
         self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         #Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
@@ -776,6 +777,7 @@ class VAE:
                 self.latent_channels = 3
                 self.latent_dim = 2
                 self.output_channels = 3
+                self.disable_offload = True
             elif "vocoder.activation_post.downsample.lowpass.filter" in sd: #MMAudio VAE
                 sample_rate = 16000
                 if sample_rate == 16000:
