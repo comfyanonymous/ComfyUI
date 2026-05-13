@@ -57,8 +57,8 @@ def _claude_model_inputs():
 
 def _model_price_per_million(model: str) -> tuple[float, float] | None:
     """Return (input_per_1M, output_per_1M) USD for a Claude model, or None if unknown."""
-    if "opus-4" in model:
-        return 15.0, 75.0
+    if "opus-4-7" in model or "opus-4-6" in model or "opus-4-5" in model:
+        return 5.0, 25.0
     if "sonnet-4" in model:
         return 3.0, 15.0
     if "haiku-4-5" in model:
@@ -177,7 +177,7 @@ class ClaudeNode(IO.ComfyNode):
                   $m := widgets.model;
                   $contains($m, "opus") ? {
                     "type": "list_usd",
-                    "usd": [0.015, 0.075],
+                    "usd": [0.005, 0.025],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : $contains($m, "sonnet") ? {
