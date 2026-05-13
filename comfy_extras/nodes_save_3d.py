@@ -1,12 +1,10 @@
-"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB node.
-
-Pairs with nodes_load_3d.py (load-side counterpart).
-"""
+"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB node."""
 
 import json
 import logging
 import os
 import struct
+from io import BytesIO
 
 import numpy as np
 from PIL import Image
@@ -22,7 +20,7 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=Non
     # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
     # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
     # colors and uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
-    # texture is (B, H, W, 3) — passed through unchanged since it doesn't need ragged packing.
+    # texture is (B, H, W, 3) — passed through unchanged
     batch_size = len(vertices)
     max_vertices = max(v.shape[0] for v in vertices)
     max_faces = max(f.shape[0] for f in faces)
@@ -122,8 +120,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     faces_np = faces_signed.astype(np.uint32)
     texture_png_bytes = None
     if texture_image is not None:
-        import io as _io
-        buf = _io.BytesIO()
+        buf = BytesIO()
         texture_image.save(buf, format="PNG")
         texture_png_bytes = buf.getvalue()
 
@@ -143,8 +140,13 @@ def save_glb(vertices, faces, filepath, metadata=None,
     colors_buffer_padded = pad_to_4_bytes(colors_buffer)
     texture_buffer_padded = pad_to_4_bytes(texture_buffer)
 
-    buffer_data = (vertices_buffer_padded + indices_buffer_padded
-                   + uvs_buffer_padded + colors_buffer_padded + texture_buffer_padded)
+    buffer_data = b"".join([
+        vertices_buffer_padded,
+        indices_buffer_padded,
+        uvs_buffer_padded,
+        colors_buffer_padded,
+        texture_buffer_padded,
+    ])
 
     vertices_byte_length = len(vertices_buffer)
     vertices_byte_offset = 0
@@ -270,7 +272,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     if materials:
         gltf["materials"] = materials
 
-    if metadata is not None:
+    if metadata:
         gltf["asset"]["extras"] = metadata
 
     # Convert the JSON to bytes
@@ -282,8 +284,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
 
     gltf_json_padded = pad_json_to_4_bytes(gltf_json)
 
-    # Create the GLB header
-    # Magic glTF
+    # Create the GLB header (a 4-byte ASCII magic identifier glTF)
     glb_header = struct.pack('<4sII', b'glTF', 2, 12 + 8 + len(gltf_json_padded) + 8 + len(buffer_data))
 
     # Create JSON chunk header (chunk type 0)
@@ -355,21 +356,22 @@ class SaveGLB(IO.ComfyNode):
                 "subfolder": subfolder,
                 "type": "output"
             })
+            counter += 1
         else:
             # Handle Mesh input - save vertices and faces as GLB; carry optional UVs / colors / texture.
             texture_b = getattr(mesh, "texture", None)
+            texture_np = None
+            if texture_b is not None:
+                texture_np = (texture_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                assert texture_np.ndim == 4 and texture_np.shape[-1] == 3, (
+                    f"texture must be (B, H, W, 3) RGB, got shape {tuple(texture_np.shape)}"
+                )
             for i in range(mesh.vertices.shape[0]):
                 vertices_i, faces_i, v_colors, uvs_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
-                tex_img = None
-                if texture_b is not None:
-                    arr = (texture_b[i].clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
-                    assert arr.ndim == 3 and arr.shape[-1] == 3, (
-                        f"texture[{i}] must be (H, W, 3) RGB, got shape {tuple(arr.shape)}"
-                    )
-                    tex_img = Image.fromarray(arr, mode="RGB")
+                tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
                 f = f"{filename}_{counter:05}_.glb"
                 save_glb(vertices_i, faces_i, os.path.join(full_output_folder, f), metadata,
                          uvs=uvs_i,
