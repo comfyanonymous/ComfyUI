@@ -1443,7 +1443,7 @@ class HiDreamO1(supported_models_base.BASE):
     }
 
     latent_format = latent_formats.HiDreamO1Pixel
-    memory_usage_factor = 0.6
+    memory_usage_factor = 0.033
     # fp16 not supported: LM MLP down_proj activations fp16 overflow, causing NaNs
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
