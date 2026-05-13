@@ -123,6 +123,7 @@ class CreateVideo(io.ComfyNode):
             search_aliases=["images to video"],
             display_name="Create Video",
             category="video",
+            essentials_category="Video Tools",
             description="Create a video from images.",
             inputs=[
                 io.Image.Input("images", tooltip="The images to create a video from."),
