@@ -220,6 +220,14 @@ class LTXVAddGuide(io.ComfyNode):
                             "down to the nearest multiple of 8. Negative values are counted from the end of the video.",
                 ),
                 io.Float.Input("strength", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Model.Input(
+                    "ic_lora",
+                    optional=True,
+                    tooltip="Optional connection from an IC-LoRA loader. If the LoRA's safetensors metadata "
+                            "contains 'reference_downscale_factor', the guide image will be encoded at "
+                            "1/factor resolution and dilated back to full size (for IC-LoRAs trained on small grids). "
+                            "Defaults to 1 (no downscale) when absent.",
+                ),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -229,13 +237,43 @@ class LTXVAddGuide(io.ComfyNode):
         )
 
     @classmethod
-    def encode(cls, vae, latent_width, latent_height, images, scale_factors):
+    def encode(cls, vae, latent_width, latent_height, images, scale_factors, latent_downscale_factor=1):
         time_scale_factor, width_scale_factor, height_scale_factor = scale_factors
         images = images[:(images.shape[0] - 1) // time_scale_factor * time_scale_factor + 1]
-        pixels = comfy.utils.common_upscale(images.movedim(-1, 1), latent_width * width_scale_factor, latent_height * height_scale_factor, "bilinear", crop="center").movedim(1, -1)
+        target_width = int(latent_width * width_scale_factor / latent_downscale_factor)
+        target_height = int(latent_height * height_scale_factor / latent_downscale_factor)
+        pixels = comfy.utils.common_upscale(images.movedim(-1, 1), target_width, target_height, "bilinear", crop="center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)
         return encode_pixels, t
+
+    @classmethod
+    def dilate_latent(cls, guide_latent, latent_downscale_factor):
+        if latent_downscale_factor <= 1:
+            return guide_latent, None
+        scale = int(latent_downscale_factor)
+        dilated_shape = guide_latent.shape[:3] + (guide_latent.shape[3] * scale, guide_latent.shape[4] * scale)
+        dilated = torch.zeros(dilated_shape, device=guide_latent.device, dtype=guide_latent.dtype)
+        dilated[..., ::scale, ::scale] = guide_latent
+        dilated_mask = torch.full(
+            (dilated.shape[0], 1, dilated.shape[2], dilated.shape[3], dilated.shape[4]),
+            -1.0, device=guide_latent.device, dtype=guide_latent.dtype,
+        )
+        dilated_mask[..., ::scale, ::scale] = 1.0
+        return dilated, dilated_mask
+
+    @classmethod
+    def get_reference_downscale_factor(cls, ic_lora):
+        if ic_lora is None:
+            return 1
+        metadata = ic_lora.get_attachment("lora_metadata")
+        if not metadata:
+            return 1
+        try:
+            factor = max(1, round(float(metadata.get("reference_downscale_factor", 1))))
+        except (TypeError, ValueError):
+            factor = 1
+        return factor
 
     @classmethod
     def get_latent_index(cls, cond, latent_length, guide_length, frame_idx, scale_factors):
@@ -332,12 +370,20 @@ class LTXVAddGuide(io.ComfyNode):
         return latent_image, noise_mask
 
     @classmethod
-    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength) -> io.NodeOutput:
+    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, ic_lora=None) -> io.NodeOutput:
         scale_factors = vae.downscale_index_formula
         latent_image = latent["samples"]
         noise_mask = get_noise_mask(latent)
 
         _, _, latent_length, latent_height, latent_width = latent_image.shape
+
+        latent_downscale_factor = cls.get_reference_downscale_factor(ic_lora)
+        if latent_downscale_factor > 1:
+            if latent_width % latent_downscale_factor != 0 or latent_height % latent_downscale_factor != 0:
+                raise ValueError(
+                    f"Latent spatial size {latent_width}x{latent_height} must be divisible by "
+                    f"reference_downscale_factor {latent_downscale_factor} from the ic_lora metadata."
+                )
 
         # For mid-video multi-frame guides, prepend+strip a throwaway first frame so the VAE's "first latent = 1 pixel frame" asymmetry lands on the discarded slot
         time_scale_factor = scale_factors[0]
@@ -351,11 +397,16 @@ class LTXVAddGuide(io.ComfyNode):
         if not causal_fix:
             image = torch.cat([image[:1], image], dim=0)
 
-        image, t = cls.encode(vae, latent_width, latent_height, image, scale_factors)
+        image, t = cls.encode(vae, latent_width, latent_height, image, scale_factors, latent_downscale_factor)
 
         if not causal_fix:
             t = t[:, :, 1:, :, :]
             image = image[1:]
+
+        guide_latent_shape = list(t.shape[2:])  # pre-dilation [F, H, W] for spatial-mask downsampling
+        guide_mask = None
+        if latent_downscale_factor > 1:
+            t, guide_mask = cls.dilate_latent(t, latent_downscale_factor)
 
         frame_idx, latent_idx = cls.get_latent_index(positive, latent_length, len(image), frame_idx, scale_factors)
         assert latent_idx + t.shape[2] <= latent_length, "Conditioning frames exceed the length of the latent sequence."
@@ -369,12 +420,13 @@ class LTXVAddGuide(io.ComfyNode):
             t,
             strength,
             scale_factors,
+            guide_mask=guide_mask,
+            latent_downscale_factor=latent_downscale_factor,
             causal_fix=causal_fix,
         )
 
         # Track this guide for per-reference attention control.
         pre_filter_count = t.shape[2] * t.shape[3] * t.shape[4]
-        guide_latent_shape = list(t.shape[2:])  # [F, H, W]
         positive, negative = _append_guide_attention_entry(
             positive, negative, pre_filter_count, guide_latent_shape, strength=strength,
         )
