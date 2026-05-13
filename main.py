@@ -285,7 +285,7 @@ def prompt_worker(q, server_instance):
     current_time: float = 0.0
     cache_ram = 0
     cache_ram_inactive = 0
-    if args.cache_ram is not None:
+    if not args.cache_classic and not args.cache_none and args.cache_lru <= 0:
         cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
         cache_ram_inactive = min(96.0, max(12.0, comfy.model_management.total_ram * 0.75 / 1024.0))
         if len(args.cache_ram) > 0:
@@ -293,11 +293,11 @@ def prompt_worker(q, server_instance):
         if len(args.cache_ram) > 1:
             cache_ram_inactive = args.cache_ram[1]
 
-    cache_type = execution.CacheType.CLASSIC
-    if args.cache_lru > 0:
+    cache_type = execution.CacheType.RAM_PRESSURE
+    if args.cache_classic:
+        cache_type = execution.CacheType.CLASSIC
+    elif args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
-    elif max(cache_ram, cache_ram_inactive) > 0:
-        cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:
         cache_type = execution.CacheType.NONE
 
