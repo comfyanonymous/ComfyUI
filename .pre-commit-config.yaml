@@ -1,0 +1,13 @@
+repos:
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.241  # Use the desired version of Ruff
+    hooks:
+      - id: ruff
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run Pytest
+        entry: pytest
+        language: system
+        types: [python] 
