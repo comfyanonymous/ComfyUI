@@ -36,8 +36,8 @@ class ResidualConvBlock(nn.Module):
         super().__init__()
         hidden_channels = hidden_channels if hidden_channels is not None else channels
 
-        in_norm_layer = operations.GroupNorm(1, channels) if in_norm == "layer_norm" else nn.Identity()
-        hidden_norm_layer = (operations.GroupNorm(max(hidden_channels // 32, 1), hidden_channels)
+        in_norm_layer = operations.GroupNorm(1, channels, dtype=dtype, device=device) if in_norm == "layer_norm" else nn.Identity()
+        hidden_norm_layer = (operations.GroupNorm(max(hidden_channels // 32, 1), hidden_channels, dtype=dtype, device=device)
                              if hidden_norm == "group_norm" else nn.Identity())
 
         self.layers = nn.Sequential(
