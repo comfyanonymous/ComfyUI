@@ -84,7 +84,12 @@ class InternalRoutes:
         if remote is None:
             raise web.HTTPForbidden(reason="Internal endpoints are only accessible from localhost")
         try:
-            if not ipaddress.ip_address(remote).is_loopback:
+            addr = ipaddress.ip_address(remote)
+            # Unwrap IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1) so that
+            # is_loopback correctly evaluates the underlying IPv4 address.
+            if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+                addr = addr.ipv4_mapped
+            if not addr.is_loopback:
                 raise web.HTTPForbidden(reason="Internal endpoints are only accessible from localhost")
         except ValueError:
             raise web.HTTPForbidden(reason="Internal endpoints are only accessible from localhost")
