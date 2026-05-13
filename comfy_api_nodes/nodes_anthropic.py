@@ -5,7 +5,7 @@ from typing_extensions import override
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.anthropic import (
     AnthropicImageContent,
-    AnthropicImageSourceBase64,
+    AnthropicImageSourceUrl,
     AnthropicMessage,
     AnthropicMessagesRequest,
     AnthropicMessagesResponse,
@@ -14,16 +14,15 @@ from comfy_api_nodes.apis.anthropic import (
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
-    downscale_image_tensor,
     get_number_of_images,
     sync_op,
-    tensor_to_base64_string,
+    upload_images_to_comfyapi,
     validate_string,
 )
 
 ANTHROPIC_MESSAGES_ENDPOINT = "/proxy/anthropic/v1/messages"
-ANTHROPIC_IMAGE_MAX_PIXELS = 1568 * 1568  # Anthropic recommends max ~1568px on the longest edge
-CLAUDE_MAX_IMAGES = 20  # Anthropic supports up to 20 images per request
+ANTHROPIC_IMAGE_MAX_PIXELS = 1568 * 1568
+CLAUDE_MAX_IMAGES = 20
 
 CLAUDE_MODELS: dict[str, str] = {
     "Opus 4.7": "claude-opus-4-7",
@@ -99,22 +98,18 @@ def _get_text_from_response(response: AnthropicMessagesResponse) -> str:
     return "\n".join(block.text for block in response.content if block.text)
 
 
-def _build_image_content_blocks(image_tensors: list[Input.Image]) -> list[AnthropicImageContent]:
-    """Convert image tensors (possibly batched) into Anthropic content blocks (base64 PNG)."""
-    blocks: list[AnthropicImageContent] = []
-    for tensor in image_tensors:
-        batch = tensor if len(tensor.shape) == 4 else tensor.unsqueeze(0)
-        for i in range(batch.shape[0]):
-            scaled = downscale_image_tensor(batch[i : i + 1], total_pixels=ANTHROPIC_IMAGE_MAX_PIXELS)
-            blocks.append(
-                AnthropicImageContent(
-                    source=AnthropicImageSourceBase64(
-                        media_type="image/png",
-                        data=tensor_to_base64_string(scaled),
-                    ),
-                )
-            )
-    return blocks
+async def _build_image_content_blocks(
+    cls: type[IO.ComfyNode],
+    image_tensors: list[Input.Image],
+) -> list[AnthropicImageContent]:
+    urls = await upload_images_to_comfyapi(
+        cls,
+        image_tensors,
+        max_images=CLAUDE_MAX_IMAGES,
+        total_pixels=ANTHROPIC_IMAGE_MAX_PIXELS,
+        wait_label="Uploading reference images",
+    )
+    return [AnthropicImageContent(source=AnthropicImageSourceUrl(url=url)) for url in urls]
 
 
 class ClaudeNode(IO.ComfyNode):
@@ -221,7 +216,7 @@ class ClaudeNode(IO.ComfyNode):
 
         content: list[AnthropicTextContent | AnthropicImageContent] = []
         if image_tensors:
-            content.extend(_build_image_content_blocks(image_tensors))
+            content.extend(await _build_image_content_blocks(cls, image_tensors))
         content.append(AnthropicTextContent(text=prompt))
 
         response = await sync_op(

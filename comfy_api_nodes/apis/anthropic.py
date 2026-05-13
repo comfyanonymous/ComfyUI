@@ -20,9 +20,14 @@ class AnthropicImageSourceBase64(BaseModel):
     data: str = Field(..., description="Base64-encoded image data")
 
 
+class AnthropicImageSourceUrl(BaseModel):
+    type: Literal["url"] = "url"
+    url: str = Field(...)
+
+
 class AnthropicImageContent(BaseModel):
     type: Literal["image"] = "image"
-    source: AnthropicImageSourceBase64 = Field(...)
+    source: AnthropicImageSourceBase64 | AnthropicImageSourceUrl = Field(...)
 
 
 class AnthropicMessage(BaseModel):
