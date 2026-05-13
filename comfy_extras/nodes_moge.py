@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
-
 import torch
 
 import comfy.utils
@@ -14,19 +11,21 @@ from typing_extensions import override
 
 from comfy.ldm.moge.model import MoGeModel
 from comfy.ldm.moge.geometry import triangulate_grid_mesh
+from comfy.ldm.moge.panorama import get_panorama_cameras, split_panorama_image, merge_panorama_depth, spherical_uv_to_directions, _uv_grid
+import comfy.model_management
+from tqdm.auto import tqdm
 
 MoGeModelType = io.Custom("MOGE_MODEL")
 MoGeGeometry = io.Custom("MOGE_GEOMETRY")
 
 
-@dataclass
-class _MoGeGeometryPayload:
-    points: Optional[torch.Tensor]      # (B, H, W, 3)
-    depth: Optional[torch.Tensor]       # (B, H, W)
-    intrinsics: Optional[torch.Tensor]  # (B, 3, 3)
-    mask: Optional[torch.Tensor]        # (B, H, W) bool
-    normal: Optional[torch.Tensor]      # (B, H, W, 3) or None for v1
-    image: torch.Tensor                 # (B, H, W, 3) in [0, 1], CPU
+# MOGE_GEOMETRY is a dict with these optional keys (absent when the upstream model didn't produce them):
+#   "points":     torch.Tensor (B, H, W, 3)
+#   "depth":      torch.Tensor (B, H, W)
+#   "intrinsics": torch.Tensor (B, 3, 3)   -- perspective only
+#   "mask":       torch.Tensor (B, H, W) bool
+#   "normal":     torch.Tensor (B, H, W, 3) -- v2 only
+#   "image":      torch.Tensor (B, H, W, 3) in [0, 1], CPU (always present)
 
 
 def _turbo(x: torch.Tensor) -> torch.Tensor:
@@ -137,15 +136,7 @@ class MoGePanoramaInference(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, moge_model, image, resolution_level,
-                split_resolution, merge_resolution, batch_size) -> io.NodeOutput:
-        from comfy.ldm.moge.panorama import (
-            get_panorama_cameras, split_panorama_image, merge_panorama_depth,
-            spherical_uv_to_directions, _uv_grid,
-        )
-        import comfy.model_management as cmm
-        import numpy as np
-        from tqdm.auto import tqdm
+    def execute(cls, moge_model, image, resolution_level, split_resolution, merge_resolution, batch_size) -> io.NodeOutput:
 
         if image.shape[0] != 1:
             raise ValueError(f"MoGePanoramaInference takes a single image (got batch of {image.shape[0]})")
@@ -156,7 +147,7 @@ class MoGePanoramaInference(io.ComfyNode):
 
         extrinsics, intrinsics = get_panorama_cameras()
 
-        cmm.load_model_gpu(moge_model.patcher)
+        comfy.model_management.load_model_gpu(moge_model.patcher)
         device = moge_model.load_device
         img_chw = image[0].movedim(-1, -3).to(device=device, dtype=moge_model.dtype)
         splits = split_panorama_image(img_chw, extrinsics, intrinsics, split_resolution)
@@ -218,34 +209,25 @@ class MoGePanoramaInference(io.ComfyNode):
                 merge_w, merge_h, distance_maps, masks, list(extrinsics), intrinsics,
                 on_view=_on_merge_view, on_solve_start=_on_solve_start, on_solve_end=_on_solve_end)
 
+        pano_depth = torch.from_numpy(pano_depth)
+        pano_mask = torch.from_numpy(pano_mask)
+
         if (merge_h, merge_w) != (H, W):
-            t = torch.from_numpy(pano_depth).unsqueeze(0).unsqueeze(0)
-            pano_depth = torch.nn.functional.interpolate(t, size=(H, W), mode="bilinear",
-                                                         align_corners=False).squeeze().numpy().astype(np.float32)
-            t = torch.from_numpy(pano_mask.astype(np.uint8)).unsqueeze(0).unsqueeze(0).float()
-            pano_mask = (torch.nn.functional.interpolate(t, size=(H, W), mode="nearest").squeeze().numpy() > 0)
+            pano_depth = torch.nn.functional.interpolate(pano_depth[None, None], size=(H, W), mode="bilinear", align_corners=False).squeeze()
+            pano_mask = torch.nn.functional.interpolate(pano_mask[None, None].float(), size=(H, W), mode="nearest").squeeze() > 0
 
-        # Pixels uncovered by any view's predicted foreground are unconstrained in the lsmr solve
-        # and stay at log_depth=0 (depth=1) -- without this push-out they form a sphere shell
-        # woven through the foreground; here we lift them to a far skybox radius instead.
+        # Pixels uncovered by any view's predicted foreground are unconstrained in the lsmr solve and stay at log_depth=0 (depth=1)
         if pano_mask.any() and not pano_mask.all():
-            far = float(np.quantile(pano_depth[pano_mask], 0.95)) * 5.0
-            pano_depth = np.where(pano_mask, pano_depth, far).astype(np.float32)
+            far = torch.quantile(pano_depth[pano_mask], 0.95) * 5.0
+            pano_depth = torch.where(pano_mask, pano_depth, far)
 
-        uv = _uv_grid(H, W)
-        directions = spherical_uv_to_directions(uv)
-        points_np = directions * pano_depth[..., None]
+        directions = torch.from_numpy(spherical_uv_to_directions(_uv_grid(H, W)))
+        points = (directions * pano_depth[..., None]).unsqueeze(0)
+        depth = pano_depth.unsqueeze(0)
+        mask = pano_mask.unsqueeze(0)
 
-        points = torch.from_numpy(points_np).unsqueeze(0).float()
-        depth = torch.from_numpy(pano_depth).unsqueeze(0).float()
-        mask = torch.from_numpy(pano_mask).unsqueeze(0)
-
-        # Points stay in MoGe spherical coords; MoGePointMapToMesh applies the spherical->glTF rotation
-        # after triangulation -- rotating before would scramble the rtol depth-edge check.
-        geometry = _MoGeGeometryPayload(
-            points=points, depth=depth, intrinsics=None, mask=mask, normal=None,
-            image=image.detach().cpu(),
-        )
+        # Points stay in MoGe spherical coords; MoGePointMapToMesh applies the spherical->glTF rotation after triangulation
+        geometry = {"points": points, "depth": depth, "mask": mask, "image": image.cpu()}
         return io.NodeOutput(geometry)
 
 
@@ -273,9 +255,7 @@ class MoGeInference(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, moge_model, image, resolution_level, fov_x_degrees,
-                batch_size, force_projection, apply_mask) -> io.NodeOutput:
-        from tqdm.auto import tqdm
+    def execute(cls, moge_model, image, resolution_level, fov_x_degrees, batch_size, force_projection, apply_mask) -> io.NodeOutput:
 
         bchw = image.movedim(-1, -3).contiguous()
         B = bchw.shape[0]
@@ -295,18 +275,12 @@ class MoGeInference(io.ComfyNode):
             vals = [c[field] for c in chunks if field in c]
             return torch.cat(vals, dim=0) if vals else None
 
-        geometry = _MoGeGeometryPayload(
-            points=stack("points"),
-            depth=stack("depth"),
-            intrinsics=stack("intrinsics"),
-            mask=stack("mask"),
-            normal=stack("normal"),
-            image=image.detach().cpu(),
-        )
+        geometry = {"image": image.cpu()}
+        for field in ("points", "depth", "intrinsics", "mask", "normal"):
+            v = stack(field)
+            if v is not None:
+                geometry[field] = v
         return io.NodeOutput(geometry)
-
-
-_RENDER_MODES = ["depth", "depth_colored", "normal", "normal_screen", "mask"]
 
 
 class MoGeRender(io.ComfyNode):
@@ -320,35 +294,31 @@ class MoGeRender(io.ComfyNode):
             category="image/geometry",
             inputs=[
                 MoGeGeometry.Input("geometry"),
-                io.Combo.Input("output", options=_RENDER_MODES, default="depth_colored"),
+                io.Combo.Input("output", options=["depth", "depth_colored", "normal", "normal_screen", "mask"], default="depth"),
             ],
             outputs=[io.Image.Output()],
         )
 
     @classmethod
     def execute(cls, geometry, output) -> io.NodeOutput:
-        from tqdm.auto import tqdm
-
         # Pick the input tensor for the chosen mode and validate availability.
         if output in ("depth", "depth_colored", "normal_screen"):
-            if geometry.depth is None:
+            if "depth" not in geometry:
                 raise ValueError("MoGeGeometry has no depth output.")
-            src = geometry.depth
+            src = geometry["depth"]
         elif output == "normal":
-            if geometry.normal is not None:
-                src = geometry.normal
-            elif geometry.points is not None:
-                src = geometry.points
+            if "normal" in geometry:
+                src = geometry["normal"]
+            elif "points" in geometry:
+                src = geometry["points"]
             else:
                 raise ValueError("MoGeGeometry has neither normals nor points to derive normals from.")
         elif output == "mask":
-            if geometry.mask is None:
+            if "mask" not in geometry:
                 raise ValueError("MoGeGeometry has no mask output.")
-            src = geometry.mask
+            src = geometry["mask"]
         else:
             raise ValueError(f"Unknown output mode: {output}")
-
-        import comfy.model_management as cmm
 
         B = src.shape[0]
         pbar = comfy.utils.ProgressBar(B)
@@ -361,7 +331,7 @@ class MoGeRender(io.ComfyNode):
                     out.append(_turbo(d) if output == "depth_colored"
                                else d.unsqueeze(-1).expand(*d.shape, 3).contiguous())
                 elif output == "normal":
-                    n = slc if geometry.normal is not None else _normals_from_points(slc)
+                    n = slc if "normal" in geometry else _normals_from_points(slc)
                     out.append((n * 0.5 + 0.5).clamp(0.0, 1.0))
                 elif output == "normal_screen":
                     n = _screen_normals_from_depth(slc)
@@ -370,7 +340,7 @@ class MoGeRender(io.ComfyNode):
                     out.append(slc.unsqueeze(-1).expand(*slc.shape, 3).contiguous())
                 pbar.update_absolute(i + 1)
                 tq.update(1)
-        result = torch.cat(out, dim=0).to(device=cmm.intermediate_device(), dtype=cmm.intermediate_dtype())
+        result = torch.cat(out, dim=0).to(device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
         return io.NodeOutput(result)
 
 
@@ -385,7 +355,7 @@ class MoGePointMapToMesh(io.ComfyNode):
             category="3d",
             inputs=[
                 MoGeGeometry.Input("geometry"),
-                io.Int.Input("batch_index", default=0, min=0, max=64,
+                io.Int.Input("batch_index", default=0, min=0, max=4096,
                              tooltip="Which image of a batched MoGe geometry to mesh. Per-image vertex counts "
                                      "differ, so batches can't be stacked into a single MESH."),
                 io.Int.Input("decimation", default=1, min=1, max=8,
@@ -400,32 +370,32 @@ class MoGePointMapToMesh(io.ComfyNode):
 
     @classmethod
     def execute(cls, geometry, batch_index, decimation, discontinuity_threshold, texture) -> io.NodeOutput:
-        if geometry.points is None:
+        if "points" not in geometry:
             raise ValueError("MoGeGeometry has no points output.")
-        B = geometry.points.shape[0]
+        points = geometry["points"]
+        B = points.shape[0]
         if batch_index >= B:
             raise ValueError(f"batch_index {batch_index} out of range; geometry has batch size {B}.")
 
-        # Pass geometry.depth so the rtol edge check sees radial depth -- for panoramas
+        # Pass depth so the rtol edge check sees radial depth -- for panoramas
         # points[..., 2] = cos(phi)*r goes negative below the equator and the rtol clamp would drop the bottom half.
-        edge_depth = geometry.depth[batch_index] if geometry.depth is not None else None
+        edge_depth = geometry["depth"][batch_index] if "depth" in geometry else None
         verts, faces, uvs = triangulate_grid_mesh(
-            geometry.points[batch_index], decimation=decimation,
+            points[batch_index], decimation=decimation,
             discontinuity_threshold=discontinuity_threshold, depth=edge_depth,
         )
         if verts.shape[0] == 0 or faces.shape[0] == 0:
             raise ValueError("MoGe produced an empty mesh; try discontinuity_threshold=0 or apply_mask=False.")
 
-        if geometry.intrinsics is None:
-            # Panorama: rotate MoGe spherical (Z up) -> glTF (Y up, Z back). Pure rotation
-            # preserves the natural inward winding (correct for inside-the-sphere viewing).
+        if "intrinsics" not in geometry:
+            # Panorama: rotate MoGe spherical (Z up) -> glTF (Y up, Z back), correct for inside-the-sphere viewing)
             verts = verts[:, [1, 2, 0]].contiguous()
         else:
             # Perspective MoGe (X right, Y down, Z forward) -> glTF; face flip keeps winding CCW after the Y/Z flip.
             verts = verts * torch.tensor([1.0, -1.0, -1.0], dtype=verts.dtype)
             faces = faces[:, [0, 2, 1]].contiguous()
 
-        tex = geometry.image[batch_index:batch_index + 1] if texture and geometry.image is not None else None
+        tex = geometry["image"][batch_index:batch_index + 1] if texture else None
         mesh = Types.MESH(
             vertices=verts.unsqueeze(0),
             faces=faces.unsqueeze(0),

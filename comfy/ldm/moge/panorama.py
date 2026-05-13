@@ -3,7 +3,7 @@
 Splits an equirect into 12 perspective views via an icosahedron camera rig, runs
 the model per view, and stitches per-view distance maps back into a single
 equirect distance map via a multi-scale Poisson + gradient sparse solve.
-Image sampling uses ``F.grid_sample`` (GPU); the sparse solve uses ``lsmr`` (CPU).
+Image sampling uses F.grid_sample (GPU); the sparse solve uses lsmr (CPU).
 """
 
 from __future__ import annotations
@@ -13,6 +13,10 @@ from typing import Callable, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+from scipy.ndimage import convolve, map_coordinates
+from scipy.sparse import vstack, csr_array
+from scipy.sparse.linalg import lsmr
 
 
 def _icosahedron_directions() -> np.ndarray:
@@ -122,7 +126,7 @@ def _project_cv(points: np.ndarray, extrinsics: np.ndarray, intrinsics: np.ndarr
 
 
 def _grid_sample_uv(img_bchw: torch.Tensor, uv: torch.Tensor, mode: str = "bilinear") -> torch.Tensor:
-    """Sample img_bchw at UV-in-[0,1] coords ``uv`` of shape (B, H, W, 2); replicate-border."""
+    """Sample img_bchw at UV-in-[0,1] coords uv of shape (B, H, W, 2); replicate-border."""
     grid = uv * 2.0 - 1.0
     return F.grid_sample(img_bchw, grid, mode=mode, padding_mode="border", align_corners=False)
 
@@ -145,7 +149,6 @@ def split_panorama_image(image: torch.Tensor, extrinsics: np.ndarray, intrinsics
 
 def _poisson_equation(W: int, H: int, wrap_x: bool = False, wrap_y: bool = False):
     """Sparse Laplacian operator over the H x W grid."""
-    from scipy.sparse import csr_array
     grid_index = np.arange(H * W).reshape(H, W)
     grid_index = np.pad(grid_index, ((0, 0), (1, 1)), mode="wrap" if wrap_x else "edge")
     grid_index = np.pad(grid_index, ((1, 1), (0, 0)), mode="wrap" if wrap_y else "edge")
@@ -162,7 +165,6 @@ def _poisson_equation(W: int, H: int, wrap_x: bool = False, wrap_y: bool = False
 
 def _grad_equation(W: int, H: int, wrap_x: bool = False, wrap_y: bool = False):
     """Sparse forward-difference operator over the H x W grid."""
-    from scipy.sparse import csr_array
     grid_index = np.arange(W * H).reshape(H, W)
     if wrap_x:
         grid_index = np.pad(grid_index, ((0, 0), (0, 1)), mode="wrap")
@@ -191,7 +193,6 @@ def _grad_equation(W: int, H: int, wrap_x: bool = False, wrap_y: bool = False):
 
 def _scipy_remap_bilinear(img: np.ndarray, sample_pixels: np.ndarray, mode: str = "bilinear") -> np.ndarray:
     """Bilinear/nearest sampling at fractional pixel coords; out-of-range clamps to nearest border."""
-    from scipy.ndimage import map_coordinates
     H, W = img.shape[:2]
     yy = np.clip(sample_pixels[..., 1], 0, H - 1)
     xx = np.clip(sample_pixels[..., 0], 0, W - 1)
@@ -218,9 +219,6 @@ def merge_panorama_depth(width: int, height: int,
     for the full-resolution solve. Optional callbacks fire per view processed and around each
     lsmr solve so callers can drive a progress bar.
     """
-    from scipy.ndimage import convolve
-    from scipy.sparse import vstack
-    from scipy.sparse.linalg import lsmr
 
     if max(width, height) > 256:
         coarse_depth, _ = merge_panorama_depth(width // 2, height // 2,

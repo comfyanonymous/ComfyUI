@@ -86,10 +86,10 @@ def _solve_optimal_shift(uv: np.ndarray, xyz: np.ndarray, focal: float) -> float
 def recover_focal_shift(points: torch.Tensor, mask: Optional[torch.Tensor] = None,
                         focal: Optional[torch.Tensor] = None, downsample_size: Tuple[int, int] = (64, 64)
                         ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Recover the focal length and z-shift that turn ``points`` into a metric point map.
+    """Recover the focal length and z-shift that turn points into a metric point map.
 
     Optical center is at the image center; returned focal is relative to half the image diagonal.
-    Returns ``(focal, shift)`` on the same device/dtype as ``points``.
+    Returns (focal, shift) on the same device/dtype as points.
     """
     shape = points.shape
     H, W = shape[-3], shape[-2]
@@ -155,11 +155,11 @@ def depth_map_edge(depth: torch.Tensor, atol: Optional[float] = None, rtol: Opti
 
 def triangulate_grid_mesh(points: torch.Tensor, mask: Optional[torch.Tensor] = None, decimation: int = 1, discontinuity_threshold: float = 0.04,
                           depth: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Triangulate a (H, W, 3) point map into ``(vertices, faces, uvs)`` on CPU.
+    """Triangulate a (H, W, 3) point map into (vertices, faces, uvs) on CPU.
 
-    Vertices: pixels with finite coords (passing optional ``mask``).  Quads with four valid corners
-    become two triangles.  ``depth`` overrides the scalar used for the rtol edge check; pass radial
-    depth for panoramas (the default ``points[..., 2]`` goes negative below the equator).
+    Vertices: pixels with finite coords (passing optional mask).  Quads with four valid corners
+    become two triangles.  depth overrides the scalar used for the rtol edge check; pass radial
+    depth for panoramas (the default points[..., 2] goes negative below the equator).
     """
     points = points.detach().cpu()
     finite = torch.isfinite(points).all(dim=-1)

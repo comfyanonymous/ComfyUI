@@ -24,7 +24,7 @@ from .modules import ConvStack, DINOv2Encoder, HeadV1, MLP, _view_plane_uv_grid
 
 
 def _remap_points(points: torch.Tensor) -> torch.Tensor:
-    """Apply the ``exp`` remap: z -> exp(z), xy stays linear and gets scaled by the new z."""
+    """Apply the exp remap: z -> exp(z), xy stays linear and gets scaled by the new z."""
     xy, z = points.split([2, 1], dim=-1)
     z = torch.exp(z)
     return torch.cat([xy * z, z], dim=-1)
@@ -156,7 +156,7 @@ class MoGeModelV2(nn.Module):
 
     @classmethod
     def from_state_dict(cls, sd, dtype=None, device=None, operations=comfy.ops.manual_cast):
-        """Detect the v2 encoder/neck/heads config from ``sd``, build a model, and load weights."""
+        """Detect the v2 encoder/neck/heads config from sd, build a model, and load weights."""
         sd = _remap_state_dict(sd)
         backbone = _detect_dinov2(sd, prefix="encoder.backbone.")
         depth = backbone["num_hidden_layers"]
@@ -184,7 +184,7 @@ class MoGeModelV2(nn.Module):
 
     @staticmethod
     def _detect_convstack(sd: dict, prefix: str) -> Dict[str, Any]:
-        """Reconstruct a ConvStack config from the keys under ``prefix``"""
+        """Reconstruct a ConvStack config from the keys under prefix"""
         in_keys = [k for k in sd if k.startswith(f"{prefix}input_blocks.") and k.endswith(".weight")]
         n = 1 + max(int(k[len(f"{prefix}input_blocks."):].split(".")[0]) for k in in_keys)
 
@@ -230,7 +230,6 @@ _DINOV2_BLOCK_RENAMES = [
 
 
 def _remap_state_dict(sd: dict) -> dict:
-    """Unwrap the upstream ``{"model": ..., "model_config": ...}`` envelope and remap DINOv2 keys"""
     if "model" in sd and "model_config" in sd:
         sd = sd["model"]
     prefix = "encoder.backbone." if any(k.startswith("encoder.backbone.") for k in sd) else "backbone."
@@ -272,6 +271,7 @@ class MoGeModel:
     """Loaded MoGe model + ComfyUI memory management."""
 
     def __init__(self, state_dict: dict):
+        # text encoder dtype closest match
         self.load_device = comfy.model_management.text_encoder_device()
         offload_device = comfy.model_management.text_encoder_offload_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
@@ -288,7 +288,7 @@ class MoGeModel:
               force_projection: bool = True, apply_mask: bool = True,
               apply_metric_scale: bool = True
               ) -> Dict[str, torch.Tensor]:
-        """Run a single MoGe forward + post-process pass. ``image`` is (B, 3, H, W) in [0, 1]."""
+        """Run a single MoGe forward + post-process pass. image is (B, 3, H, W) in [0, 1]."""
         comfy.model_management.load_model_gpu(self.patcher)
         image = image.to(device=self.load_device, dtype=self.dtype)
         H, W = image.shape[-2:]
