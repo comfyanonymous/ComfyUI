@@ -1285,7 +1285,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 if quant_format in ["float8_e4m3fn", "float8_e5m2"] and weight_key in state_dict:
                     self.quant_format = quant_format
                     qconfig = QUANT_ALGOS[quant_format]
-                    layout_cls = get_layout_class(qconfig["comfy_tensor_layout"])
+                    self.layout_type = qconfig["comfy_tensor_layout"]
+                    layout_cls = get_layout_class(self.layout_type)
                     weight = state_dict.pop(weight_key)
                     manually_loaded_keys = [weight_key]
 
