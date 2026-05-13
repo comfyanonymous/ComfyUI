@@ -728,6 +728,7 @@ class PromptExecutor:
 
         self._notify_prompt_lifecycle("start", prompt_id)
         ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
+        ram_inactive_headroom = int(self.cache_args["ram_inactive"] * (1024 ** 3))
         ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
         comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
@@ -781,7 +782,7 @@ class PromptExecutor:
                         execution_list.complete_node_execution()
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
-                        ram_release_callback(ram_headroom)
+                        ram_release_callback(ram_inactive_headroom)
                         ram_shortfall = ram_headroom - psutil.virtual_memory().available
                         comfy.model_management.free_pins(ram_shortfall)
                         ram_release_callback(ram_headroom, free_active=True)
