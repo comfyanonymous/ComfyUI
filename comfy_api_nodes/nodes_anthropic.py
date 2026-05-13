@@ -141,6 +141,15 @@ class ClaudeNode(IO.ComfyNode):
                     options=[IO.DynamicCombo.Option(label, _claude_model_inputs()) for label in CLAUDE_MODELS],
                     tooltip="The Claude model used to generate the response.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
                 IO.Autogrow.Input(
                     "images",
                     template=IO.Autogrow.TemplateNames(
@@ -197,10 +206,11 @@ class ClaudeNode(IO.ComfyNode):
         cls,
         prompt: str,
         model: dict,
+        seed: int,
         images: dict | None = None,
         system_prompt: str = "",
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False, min_length=1)
+        validate_string(prompt, strip_whitespace=True, min_length=1)
         model_label = model["model"]
         max_tokens = model["max_tokens"]
         temperature = model["temperature"]
