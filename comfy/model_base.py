@@ -58,6 +58,8 @@ import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
 import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
+import comfy.ldm.hidream_o1.model
+from comfy.ldm.hidream_o1.conditioning import build_extra_conds
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1672,6 +1674,32 @@ class HiDream(BaseModel):
         image_cond = kwargs.get("concat_latent_image", None)
         if image_cond is not None:
             out['image_cond'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_cond))
+        return out
+
+class HiDreamO1(BaseModel):
+    """HiDream-O1-Image: pixel-space DiT (no VAE). Refs from HiDreamO1ReferenceImages and tokens from the stub TE flow through
+    extra_conds; the heavy preprocessing lives in comfy.ldm.hidream_o1.conditioning."""
+    PATCH_SIZE = 32
+
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hidream_o1.model.HiDreamO1Transformer)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        text_input_ids = kwargs.get("text_input_ids", None)
+        noise = kwargs.get("noise", None)
+        if text_input_ids is None or noise is None:
+            return out
+
+        conds = build_extra_conds(
+            text_input_ids, noise,
+            ref_images=kwargs.get("reference_latents", None),
+            target_patch_size=self.PATCH_SIZE,
+        )
+        for k, v in conds.items():
+            # ar_len is a Python int (precomputed to avoid a GPU sync in forward).
+            cls = comfy.conds.CONDConstant if k == "ar_len" else comfy.conds.CONDRegular
+            out[k] = cls(v)
         return out
 
 class Chroma(Flux):
