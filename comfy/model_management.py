@@ -513,6 +513,17 @@ def mark_mmap_dirty(storage):
     if mmap_refs is not None:
         DIRTY_MMAPS.add(mmap_refs[0])
 
+def free_pins(size, evict_active=False):
+    if size <= 0:
+        return
+
+    for loaded_model in reversed(current_loaded_models):
+        model = loaded_model.model
+        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
+            size -= model.partially_unload_ram(size)
+            if size <= 0:
+                break
+
 def ensure_pin_budget(size, evict_active=False):
     if MAX_PINNED_MEMORY <= 0:
         return
@@ -521,13 +532,7 @@ def ensure_pin_budget(size, evict_active=False):
     if shortfall <= 0:
         return
 
-    shortfall += PIN_PRESSURE_HYSTERESIS
-    for loaded_model in reversed(current_loaded_models):
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
-            shortfall -= model.partially_unload_ram(shortfall)
-            if shortfall <= 0:
-                break
+    free_pins(shortfall + PIN_PRESSURE_HYSTERESIS, evict_active=evict_active)
 
 class LoadedModel:
     def __init__(self, model):

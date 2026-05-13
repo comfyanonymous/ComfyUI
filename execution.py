@@ -2,6 +2,7 @@ import copy
 import heapq
 import inspect
 import logging
+import psutil
 import sys
 import threading
 import time
@@ -780,7 +781,9 @@ class PromptExecutor:
                         execution_list.complete_node_execution()
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
-                        comfy.model_management.free_memory(0, None, pins_required=ram_headroom, ram_required=ram_headroom)
+                        ram_release_callback(ram_headroom)
+                        ram_shortfall = ram_headroom - psutil.virtual_memory().available
+                        comfy.model_management.free_pins(ram_shortfall)
                         ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
