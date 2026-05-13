@@ -1,14 +1,13 @@
-"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB node.
-
-Pairs with nodes_load_3d.py (load-side counterpart).
-"""
+"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB node."""
 
 import json
 import logging
 import os
 import struct
+from io import BytesIO
 
 import numpy as np
+from PIL import Image
 import torch
 from typing_extensions import override
 
@@ -17,10 +16,11 @@ from comfy.cli_args import args
 from comfy_api.latest import ComfyExtension, IO, Types
 
 
-def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None):
+def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None):
     # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
     # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
-    # uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
+    # colors and uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
+    # texture is (B, H, W, 3) — passed through unchanged
     batch_size = len(vertices)
     max_vertices = max(v.shape[0] for v in vertices)
     max_faces = max(f.shape[0] for f in faces)
@@ -35,51 +35,45 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None):
         packed_faces[i, :f.shape[0]] = f
 
     packed_colors = None
-    color_counts = None
     if colors is not None:
-        max_colors = max(c.shape[0] for c in colors)
-        packed_colors = colors[0].new_zeros((batch_size, max_colors, colors[0].shape[1]))
-        color_counts = torch.tensor([c.shape[0] for c in colors], device=colors[0].device, dtype=torch.int64)
+        packed_colors = colors[0].new_zeros((batch_size, max_vertices, colors[0].shape[1]))
         for i, c in enumerate(colors):
+            assert c.shape[0] == vertices[i].shape[0], (
+                f"vertex_colors[{i}] has {c.shape[0]} entries, expected {vertices[i].shape[0]} (1:1 with vertices)"
+            )
             packed_colors[i, :c.shape[0]] = c
 
     packed_uvs = None
     if uvs is not None:
         packed_uvs = uvs[0].new_zeros((batch_size, max_vertices, uvs[0].shape[1]))
         for i, u in enumerate(uvs):
+            assert u.shape[0] == vertices[i].shape[0], (
+                f"uvs[{i}] has {u.shape[0]} entries, expected {vertices[i].shape[0]} (1:1 with vertices)"
+            )
             packed_uvs[i, :u.shape[0]] = u
 
-    mesh = Types.MESH(packed_vertices, packed_faces, uvs=packed_uvs, vertex_colors=packed_colors)
-    mesh.vertex_counts = vertex_counts
-    mesh.face_counts = face_counts
-    if color_counts is not None:
-        mesh.color_counts = color_counts
-    return mesh
+    return Types.MESH(packed_vertices, packed_faces,
+                      uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
+                      vertex_counts=vertex_counts, face_counts=face_counts)
 
 
 def get_mesh_batch_item(mesh, index):
-    # Returns (vertices, faces, colors) for batch index, slicing to real lengths
-    # if pack_variable_mesh_batch added per-item counts.
-    if hasattr(mesh, "vertex_counts"):
+    # Returns (vertices, faces, colors, uvs) for batch index, slicing to real lengths
+    # if the mesh carries per-item counts (variable-size batch).
+    v_colors = getattr(mesh, "vertex_colors", None)
+    v_uvs = getattr(mesh, "uvs", None)
+    if getattr(mesh, "vertex_counts", None) is not None:
         vertex_count = int(mesh.vertex_counts[index].item())
         face_count = int(mesh.face_counts[index].item())
         vertices = mesh.vertices[index, :vertex_count]
         faces = mesh.faces[index, :face_count]
-        colors = None
-        v_colors = getattr(mesh, "vertex_colors", None)
-        if v_colors is not None:
-            if hasattr(mesh, "color_counts"):
-                color_count = int(mesh.color_counts[index].item())
-                colors = v_colors[index, :color_count]
-            else:
-                colors = v_colors[index, :vertex_count]
-        return vertices, faces, colors
+        colors = v_colors[index, :vertex_count] if v_colors is not None else None
+        uvs = v_uvs[index, :vertex_count] if v_uvs is not None else None
+        return vertices, faces, colors, uvs
 
-    colors = None
-    v_colors = getattr(mesh, "vertex_colors", None)
-    if v_colors is not None:
-        colors = v_colors[index]
-    return mesh.vertices[index], mesh.faces[index], colors
+    colors = v_colors[index] if v_colors is not None else None
+    uvs = v_uvs[index] if v_uvs is not None else None
+    return mesh.vertices[index], mesh.faces[index], colors, uvs
 
 
 def save_glb(vertices, faces, filepath, metadata=None,
@@ -99,15 +93,34 @@ def save_glb(vertices, faces, filepath, metadata=None,
 
     # Convert tensors to numpy arrays
     vertices_np = vertices.cpu().numpy().astype(np.float32)
-    faces_np = faces.cpu().numpy().astype(np.uint32)
+    faces_signed = faces.cpu().numpy().astype(np.int64)
     uvs_np = uvs.cpu().numpy().astype(np.float32) if uvs is not None else None
     colors_np = vertex_colors.cpu().numpy().astype(np.float32) if vertex_colors is not None else None
     if colors_np is not None:
         colors_np = np.clip(colors_np, 0.0, 1.0)
+
+    n_verts = vertices_np.shape[0]
+    if n_verts == 0:
+        raise ValueError("save_glb: vertices is empty")
+    if faces_signed.size > 0:
+        fmin = int(faces_signed.min())
+        fmax = int(faces_signed.max())
+        if fmin < 0 or fmax >= n_verts:
+            raise ValueError(
+                f"save_glb: face index out of range [0, {n_verts}): min={fmin}, max={fmax}"
+            )
+    if uvs_np is not None and uvs_np.shape[0] != n_verts:
+        raise ValueError(
+            f"save_glb: uvs has {uvs_np.shape[0]} entries but vertex count is {n_verts}"
+        )
+    if colors_np is not None and colors_np.shape[0] != n_verts:
+        raise ValueError(
+            f"save_glb: vertex_colors has {colors_np.shape[0]} entries but vertex count is {n_verts}"
+        )
+    faces_np = faces_signed.astype(np.uint32)
     texture_png_bytes = None
     if texture_image is not None:
-        import io as _io
-        buf = _io.BytesIO()
+        buf = BytesIO()
         texture_image.save(buf, format="PNG")
         texture_png_bytes = buf.getvalue()
 
@@ -127,8 +140,13 @@ def save_glb(vertices, faces, filepath, metadata=None,
     colors_buffer_padded = pad_to_4_bytes(colors_buffer)
     texture_buffer_padded = pad_to_4_bytes(texture_buffer)
 
-    buffer_data = (vertices_buffer_padded + indices_buffer_padded
-                   + uvs_buffer_padded + colors_buffer_padded + texture_buffer_padded)
+    buffer_data = b"".join([
+        vertices_buffer_padded,
+        indices_buffer_padded,
+        uvs_buffer_padded,
+        colors_buffer_padded,
+        texture_buffer_padded,
+    ])
 
     vertices_byte_length = len(vertices_buffer)
     vertices_byte_offset = 0
@@ -254,7 +272,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     if materials:
         gltf["materials"] = materials
 
-    if metadata is not None:
+    if metadata:
         gltf["asset"]["extras"] = metadata
 
     # Convert the JSON to bytes
@@ -266,8 +284,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
 
     gltf_json_padded = pad_json_to_4_bytes(gltf_json)
 
-    # Create the GLB header
-    # Magic glTF
+    # Create the GLB header (a 4-byte ASCII magic identifier glTF)
     glb_header = struct.pack('<4sII', b'glTF', 2, 12 + 8 + len(gltf_json_padded) + 8 + len(buffer_data))
 
     # Create JSON chunk header (chunk type 0)
@@ -339,23 +356,22 @@ class SaveGLB(IO.ComfyNode):
                 "subfolder": subfolder,
                 "type": "output"
             })
+            counter += 1
         else:
             # Handle Mesh input - save vertices and faces as GLB; carry optional UVs / colors / texture.
-            uvs_b = getattr(mesh, "uvs", None)
             texture_b = getattr(mesh, "texture", None)
+            texture_np = None
+            if texture_b is not None:
+                texture_np = (texture_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                assert texture_np.ndim == 4 and texture_np.shape[-1] == 3, (
+                    f"texture must be (B, H, W, 3) RGB, got shape {tuple(texture_np.shape)}"
+                )
             for i in range(mesh.vertices.shape[0]):
-                vertices_i, faces_i, v_colors = get_mesh_batch_item(mesh, i)
+                vertices_i, faces_i, v_colors, uvs_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
-                uvs_i = None
-                if uvs_b is not None:
-                    uvs_i = uvs_b[i, :vertices_i.shape[0]] if hasattr(mesh, "vertex_counts") else uvs_b[i]
-                tex_img = None
-                if texture_b is not None:
-                    from PIL import Image
-                    arr = (texture_b[i].clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
-                    tex_img = Image.fromarray(arr, mode="RGB")
+                tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
                 f = f"{filename}_{counter:05}_.glb"
                 save_glb(vertices_i, faces_i, os.path.join(full_output_folder, f), metadata,
                          uvs=uvs_i,

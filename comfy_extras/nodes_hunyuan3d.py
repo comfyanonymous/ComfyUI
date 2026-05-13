@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from comfy.ldm.modules.diffusionmodules.mmdit import get_1d_sincos_pos_embed_from_grid_torch
 import comfy.model_management
 from comfy_extras.nodes_save_3d import pack_variable_mesh_batch
