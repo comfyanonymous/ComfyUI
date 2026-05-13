@@ -88,7 +88,6 @@ class MoGeModelV1(nn.Module):
     @classmethod
     def from_state_dict(cls, sd, dtype=None, device=None, operations=comfy.ops.manual_cast):
         """Detect the v1 head config from sd, build a model, and load weights."""
-        sd = _remap_state_dict(sd)
         n_up = 1 + max(int(k.split(".")[2]) for k in sd if k.startswith("head.upsample_blocks."))
         dim_upsample = [sd[f"head.upsample_blocks.{i}.0.0.weight"].shape[1] for i in range(n_up)]
         # Each upsample stage is Sequential[upsampler, *res_blocks]; count res blocks at level 0.
@@ -157,7 +156,6 @@ class MoGeModelV2(nn.Module):
     @classmethod
     def from_state_dict(cls, sd, dtype=None, device=None, operations=comfy.ops.manual_cast):
         """Detect the v2 encoder/neck/heads config from sd, build a model, and load weights."""
-        sd = _remap_state_dict(sd)
         backbone = _detect_dinov2(sd, prefix="encoder.backbone.")
         depth = backbone["num_hidden_layers"]
         n = cls.intermediate_layers
