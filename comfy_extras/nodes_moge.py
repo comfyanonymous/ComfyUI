@@ -81,14 +81,14 @@ class LoadMoGeModel(io.ComfyNode):
             display_name="Load MoGe Model",
             category="loaders",
             inputs=[
-                io.Combo.Input("model_name", options=folder_paths.get_filename_list("moge")),
+                io.Combo.Input("model_name", options=folder_paths.get_filename_list("geometry_estimation")),
             ],
             outputs=[MoGeModelType.Output()],
         )
 
     @classmethod
     def execute(cls, model_name) -> io.NodeOutput:
-        path = folder_paths.get_full_path_or_raise("moge", model_name)
+        path = folder_paths.get_full_path_or_raise("geometry_estimation", model_name)
         sd = comfy.utils.load_torch_file(path, safe_load=True)
         return io.NodeOutput(MoGeModel(sd))
 
@@ -104,12 +104,12 @@ class MoGePanoramaInference(io.ComfyNode):
         return io.Schema(
             node_id="MoGePanoramaInference",
             display_name="MoGe Panorama Inference",
-            category="image/geometry",
+            category="image/geometry_estimation",
             inputs=[
                 MoGeModelType.Input("moge_model"),
                 io.Image.Input("image", tooltip="Equirectangular panorama (any aspect)."),
                 io.Int.Input("resolution_level", default=9, min=0, max=9,
-                             tooltip="Per-view detail (0 = fast, 9 = slow)."),
+                             tooltip="Per-view detail (0 = fastest, 9 = most detailed)."),
                 io.Int.Input("split_resolution", default=512, min=256, max=1024,
                              tooltip="Resolution of each perspective split."),
                 io.Int.Input("merge_resolution", default=1920, min=256, max=8192,
@@ -117,7 +117,7 @@ class MoGePanoramaInference(io.ComfyNode):
                 io.Int.Input("batch_size", default=4, min=1, max=12,
                              tooltip="Views per inference batch (12 splits total)."),
             ],
-            outputs=[MoGeGeometry.Output(display_name="geometry")],
+            outputs=[MoGeGeometry.Output(display_name="moge_geometry")],
         )
 
     @classmethod
@@ -213,8 +213,8 @@ class MoGePanoramaInference(io.ComfyNode):
         mask = pano_mask.unsqueeze(0)
 
         # Points stay in MoGe spherical coords; MoGePointMapToMesh applies the spherical->glTF rotation after triangulation
-        geometry = {"points": points, "depth": depth, "mask": mask, "image": image.cpu()}
-        return io.NodeOutput(geometry)
+        moge_geometry = {"points": points, "depth": depth, "mask": mask, "image": image.cpu()}
+        return io.NodeOutput(moge_geometry)
 
 
 class MoGeInference(io.ComfyNode):
@@ -223,7 +223,7 @@ class MoGeInference(io.ComfyNode):
         return io.Schema(
             node_id="MoGeInference",
             display_name="MoGe Inference",
-            category="image/geometry",
+            category="image/geometry_estimation",
             inputs=[
                 MoGeModelType.Input("moge_model"),
                 io.Image.Input("image"),
@@ -237,7 +237,7 @@ class MoGeInference(io.ComfyNode):
                 io.Boolean.Input("apply_mask", default=True,
                                  tooltip="Set masked-out (sky / invalid) pixels to inf in points and depth so meshing culls them. Disable to keep the raw predicted geometry everywhere; the mask is still returned separately."),
             ],
-            outputs=[MoGeGeometry.Output(display_name="geometry")],
+            outputs=[MoGeGeometry.Output(display_name="moge_geometry")],
         )
 
     @classmethod
@@ -262,12 +262,12 @@ class MoGeInference(io.ComfyNode):
             vals = [c[field] for c in chunks if field in c]
             return torch.cat(vals, dim=0) if vals else None
 
-        geometry = {"image": image.cpu()}
+        moge_geometry = {"image": image.cpu()}
         for field in ("points", "depth", "intrinsics", "mask", "normal"):
             v = stack(field)
             if v is not None:
-                geometry[field] = v
-        return io.NodeOutput(geometry)
+                moge_geometry[field] = v
+        return io.NodeOutput(moge_geometry)
 
 
 class MoGeRender(io.ComfyNode):
@@ -278,9 +278,9 @@ class MoGeRender(io.ComfyNode):
         return io.Schema(
             node_id="MoGeRender",
             display_name="MoGe Render",
-            category="image/geometry",
+            category="image/geometry_estimation",
             inputs=[
-                MoGeGeometry.Input("geometry"),
+                MoGeGeometry.Input("moge_geometry"),
                 io.Combo.Input("output", options=["depth", "depth_colored", "normal_opengl", "normal_directx", "mask"], default="depth",
                     tooltip="DirectX vs OpenGL controls the normal-map green-channel convention. DirectX: green = -Y down (Unreal). OpenGL: green = +Y up (Blender, Substance, Unity, glTF)."),
             ],
@@ -288,26 +288,26 @@ class MoGeRender(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, geometry, output) -> io.NodeOutput:
+    def execute(cls, moge_geometry, output) -> io.NodeOutput:
         is_normal = output in ("normal_directx", "normal_opengl")
         opengl = output.endswith("_opengl")
 
         # Pick the input tensor for the chosen mode and validate availability.
         if output in ("depth", "depth_colored"):
-            if "depth" not in geometry:
-                raise ValueError("MoGeGeometry has no depth output.")
-            src = geometry["depth"]
+            if "depth" not in moge_geometry:
+                raise ValueError("moge_geometry has no depth output.")
+            src = moge_geometry["depth"]
         elif is_normal:
-            if "normal" in geometry:
-                src = geometry["normal"]
-            elif "points" in geometry:
-                src = geometry["points"]
+            if "normal" in moge_geometry:
+                src = moge_geometry["normal"]
+            elif "points" in moge_geometry:
+                src = moge_geometry["points"]
             else:
-                raise ValueError("MoGeGeometry has neither normals nor points to derive normals from.")
+                raise ValueError("moge_geometry has neither normals nor points to derive normals from.")
         elif output == "mask":
-            if "mask" not in geometry:
-                raise ValueError("MoGeGeometry has no mask output.")
-            src = geometry["mask"]
+            if "mask" not in moge_geometry:
+                raise ValueError("moge_geometry has no mask output.")
+            src = moge_geometry["mask"]
         else:
             raise ValueError(f"Unknown output mode: {output}")
 
@@ -322,7 +322,7 @@ class MoGeRender(io.ComfyNode):
                     out.append(_turbo(d) if output == "depth_colored"
                                else d.unsqueeze(-1).expand(*d.shape, 3).contiguous())
                 elif is_normal:
-                    n = slc if "normal" in geometry else _normals_from_points(slc)
+                    n = slc if "normal" in moge_geometry else _normals_from_points(slc)
                     # MoGe is OpenCV (Z+ into scene); normal-map convention is Z+ out of surface, so flip Z.
                     y_sign = -1.0 if opengl else 1.0
                     n = n * n.new_tensor([1.0, y_sign, -1.0])
@@ -345,7 +345,7 @@ class MoGePointMapToMesh(io.ComfyNode):
             display_name="MoGe Point Map to Mesh",
             category="3d",
             inputs=[
-                MoGeGeometry.Input("geometry"),
+                MoGeGeometry.Input("moge_geometry"),
                 io.Int.Input("batch_index", default=0, min=0, max=4096,
                              tooltip="Which image of a batched MoGe geometry to mesh. Per-image vertex counts "
                                      "differ, so batches can't be stacked into a single MESH."),
@@ -360,17 +360,17 @@ class MoGePointMapToMesh(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, geometry, batch_index, decimation, discontinuity_threshold, texture) -> io.NodeOutput:
-        if "points" not in geometry:
-            raise ValueError("MoGeGeometry has no points output.")
-        points = geometry["points"]
+    def execute(cls, moge_geometry, batch_index, decimation, discontinuity_threshold, texture) -> io.NodeOutput:
+        if "points" not in moge_geometry:
+            raise ValueError("moge_geometry has no points output.")
+        points = moge_geometry["points"]
         B = points.shape[0]
         if batch_index >= B:
-            raise ValueError(f"batch_index {batch_index} out of range; geometry has batch size {B}.")
+            raise ValueError(f"batch_index {batch_index} out of range; moge_geometry has batch size {B}.")
 
         # Pass depth so the rtol edge check sees radial depth -- for panoramas
         # points[..., 2] = cos(phi)*r goes negative below the equator and the rtol clamp would drop the bottom half.
-        edge_depth = geometry["depth"][batch_index] if "depth" in geometry else None
+        edge_depth = moge_geometry["depth"][batch_index] if "depth" in moge_geometry else None
         verts, faces, uvs = triangulate_grid_mesh(
             points[batch_index], decimation=decimation,
             discontinuity_threshold=discontinuity_threshold, depth=edge_depth,
@@ -378,7 +378,7 @@ class MoGePointMapToMesh(io.ComfyNode):
         if verts.shape[0] == 0 or faces.shape[0] == 0:
             raise ValueError("MoGe produced an empty mesh; try discontinuity_threshold=0 or apply_mask=False.")
 
-        if "intrinsics" not in geometry:
+        if "intrinsics" not in moge_geometry:
             # Panorama: rotate MoGe spherical (Z up) -> glTF (Y up, Z back), correct for inside-the-sphere viewing)
             verts = verts[:, [1, 2, 0]].contiguous()
         else:
@@ -386,7 +386,7 @@ class MoGePointMapToMesh(io.ComfyNode):
             verts = verts * torch.tensor([1.0, -1.0, -1.0], dtype=verts.dtype)
             faces = faces[:, [0, 2, 1]].contiguous()
 
-        tex = geometry["image"][batch_index:batch_index + 1] if texture else None
+        tex = moge_geometry["image"][batch_index:batch_index + 1] if texture else None
         mesh = Types.MESH(
             vertices=verts.unsqueeze(0),
             faces=faces.unsqueeze(0),
