@@ -54,7 +54,12 @@ class GrokImageNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["grok-imagine-image-pro", "grok-imagine-image", "grok-imagine-image-beta"],
+                    options=[
+                        "grok-imagine-image-quality",
+                        "grok-imagine-image-pro",
+                        "grok-imagine-image",
+                        "grok-imagine-image-beta",
+                    ],
                 ),
                 IO.String.Input(
                     "prompt",
@@ -111,10 +116,12 @@ class GrokImageNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images", "resolution"]),
                 expr="""
                 (
-                  $rate := $contains(widgets.model, "pro") ? 0.07 : 0.02;
+                  $rate := widgets.model = "grok-imagine-image-quality"
+                    ? (widgets.resolution = "1k" ? 0.05 : 0.07)
+                    : ($contains(widgets.model, "pro") ? 0.07 : 0.02);
                   {"type":"usd","usd": $rate * widgets.number_of_images}
                 )
                 """,
@@ -155,6 +162,61 @@ class GrokImageNode(IO.ComfyNode):
         )
 
 
+_GROK_IMAGE_EDIT_ASPECT_RATIO_OPTIONS = [
+    "auto",
+    "1:1",
+    "2:3",
+    "3:2",
+    "3:4",
+    "4:3",
+    "9:16",
+    "16:9",
+    "9:19.5",
+    "19.5:9",
+    "9:20",
+    "20:9",
+    "1:2",
+    "2:1",
+]
+
+
+def _grok_image_edit_model_inputs(*, max_ref_images: int, with_aspect_ratio: bool):
+    inputs = [
+        IO.Autogrow.Input(
+            "images",
+            template=IO.Autogrow.TemplateNames(
+                IO.Image.Input("image"),
+                names=[f"image_{i}" for i in range(1, max_ref_images + 1)],
+                min=1,
+            ),
+            tooltip=(
+                "Reference image to edit."
+                if max_ref_images == 1
+                else f"Reference image(s) to edit. Up to {max_ref_images} images."
+            ),
+        ),
+        IO.Combo.Input("resolution", options=["1K", "2K"]),
+        IO.Int.Input(
+            "number_of_images",
+            default=1,
+            min=1,
+            max=10,
+            step=1,
+            tooltip="Number of edited images to generate",
+            display_mode=IO.NumberDisplay.number,
+        ),
+    ]
+    if with_aspect_ratio:
+        inputs.append(
+            IO.Combo.Input(
+                "aspect_ratio",
+                options=_GROK_IMAGE_EDIT_ASPECT_RATIO_OPTIONS,
+                tooltip="Only allowed when multiple images are connected.",
+            )
+        )
+    return inputs
+
+
 class GrokImageEditNode(IO.ComfyNode):
 
     @classmethod
@@ -167,7 +229,12 @@ class GrokImageEditNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["grok-imagine-image-pro", "grok-imagine-image", "grok-imagine-image-beta"],
+                    options=[
+                        "grok-imagine-image-quality",
+                        "grok-imagine-image-pro",
+                        "grok-imagine-image",
+                        "grok-imagine-image-beta",
+                    ],
                 ),
                 IO.Image.Input("image", display_name="images"),
                 IO.String.Input(
@@ -228,14 +295,23 @@ class GrokImageEditNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "number_of_images", "resolution"]),
                 expr="""
                 (
-                  $rate := $contains(widgets.model, "pro") ? 0.07 : 0.02;
-                  {"type":"usd","usd": 0.002 + $rate * widgets.number_of_images}
+                  $isQualityModel := widgets.model = "grok-imagine-image-quality";
+                  $isPro := $contains(widgets.model, "pro");
+                  $rate := $isQualityModel
+                    ? (widgets.resolution = "1k" ? 0.05 : 0.07)
+                    : ($isPro ? 0.07 : 0.02);
+                  $base := $isQualityModel ? 0.01 : 0.002;
+                  $output := $rate * widgets.number_of_images;
+                  $isPro
+                    ? {"type":"usd","usd": $base + $output}
+                    : {"type":"range_usd","min_usd": $base + $output, "max_usd": 3 * $base + $output}
                 )
                 """,
             ),
+            is_deprecated=True,
         )
 
     @classmethod
@@ -265,6 +341,143 @@ class GrokImageEditNode(IO.ComfyNode):
             data=ImageEditRequest(
                 model=model,
                 images=[InputUrlObject(url=f"data:image/png;base64,{tensor_to_base64_string(i)}") for i in image],
+                prompt=prompt,
+                resolution=resolution.lower(),
+                n=number_of_images,
+                seed=seed,
+                aspect_ratio=None if aspect_ratio == "auto" else aspect_ratio,
+            ),
+            response_model=ImageGenerationResponse,
+            price_extractor=_extract_grok_price,
+        )
+        if len(response.data) == 1:
+            return IO.NodeOutput(await download_url_to_image_tensor(response.data[0].url))
+        return IO.NodeOutput(
+            torch.cat(
+                [await download_url_to_image_tensor(i) for i in [str(d.url) for d in response.data if d.url]],
+            )
+        )
+
+
+class GrokImageEditNodeV2(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GrokImageEditNodeV2",
+            display_name="Grok Image Edit",
+            category="api node/image/Grok",
+            description="Modify an existing image based on a text prompt",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="The text prompt used to generate the image",
+                ),
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "grok-imagine-image-quality",
+                            _grok_image_edit_model_inputs(max_ref_images=3, with_aspect_ratio=True),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "grok-imagine-image-pro",
+                            _grok_image_edit_model_inputs(max_ref_images=1, with_aspect_ratio=False),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "grok-imagine-image",
+                            _grok_image_edit_model_inputs(max_ref_images=3, with_aspect_ratio=True),
+                        ),
+                    ],
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to determine if node should re-run; "
+                    "actual results are nondeterministic regardless of seed.",
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=["model", "model.resolution", "model.number_of_images"],
+                ),
+                expr="""
+                (
+                  $isQualityModel := widgets.model = "grok-imagine-image-quality";
+                  $isPro := $contains(widgets.model, "pro");
+                  $res := $lookup(widgets, "model.resolution");
+                  $n := $lookup(widgets, "model.number_of_images");
+                  $rate := $isQualityModel
+                    ? ($res = "1k" ? 0.05 : 0.07)
+                    : ($isPro ? 0.07 : 0.02);
+                  $base := $isQualityModel ? 0.01 : 0.002;
+                  $output := $rate * $n;
+                  $isPro
+                    ? {"type":"usd","usd": $base + $output}
+                    : {"type":"range_usd","min_usd": $base + $output, "max_usd": 3 * $base + $output}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        model: dict,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        model_id = model["model"]
+        resolution = model["resolution"]
+        number_of_images = model["number_of_images"]
+        images_dict = model.get("images") or {}
+        aspect_ratio = model.get("aspect_ratio", "auto")
+
+        image_tensors: list[Input.Image] = [t for t in images_dict.values() if t is not None]
+        n_images = sum(get_number_of_images(t) for t in image_tensors)
+        if n_images < 1:
+            raise ValueError("At least one image is required for editing.")
+        if model_id == "grok-imagine-image-pro" and n_images > 1:
+            raise ValueError("The pro model supports only 1 input image.")
+        if model_id != "grok-imagine-image-pro" and n_images > 3:
+            raise ValueError("A maximum of 3 input images is supported.")
+        if aspect_ratio != "auto" and n_images == 1:
+            raise ValueError(
+                "Custom aspect ratio is only allowed when multiple images are connected to the image input."
+            )
+
+        flat_tensors: list[torch.Tensor] = []
+        for tensor in image_tensors:
+            if len(tensor.shape) == 4:
+                flat_tensors.extend(tensor[i] for i in range(tensor.shape[0]))
+            else:
+                flat_tensors.append(tensor)
+
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/xai/v1/images/edits", method="POST"),
+            data=ImageEditRequest(
+                model=model_id,
+                images=[
+                    InputUrlObject(url=f"data:image/png;base64,{tensor_to_base64_string(i)}") for i in flat_tensors
+                ],
                 prompt=prompt,
                 resolution=resolution.lower(),
                 n=number_of_images,
@@ -717,6 +930,7 @@ class GrokExtension(ComfyExtension):
         return [
             GrokImageNode,
             GrokImageEditNode,
+            GrokImageEditNodeV2,
             GrokVideoNode,
             GrokVideoReferenceNode,
             GrokVideoEditNode,

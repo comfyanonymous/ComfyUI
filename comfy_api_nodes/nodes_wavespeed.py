@@ -84,7 +84,6 @@ class WavespeedFlashVSRNode(IO.ComfyNode):
             response_model=TaskResultResponse,
             status_extractor=lambda x: "failed" if x.data is None else x.data.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         if final_response.code != 200:
             raise ValueError(
@@ -156,7 +155,6 @@ class WavespeedImageUpscaleNode(IO.ComfyNode):
             response_model=TaskResultResponse,
             status_extractor=lambda x: "failed" if x.data is None else x.data.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         if final_response.code != 200:
             raise ValueError(

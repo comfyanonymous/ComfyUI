@@ -129,22 +129,38 @@ def pil_to_bytesio(img: Image.Image, mime_type: str = "image/png") -> BytesIO:
     return img_byte_arr
 
 
+def _compute_downscale_dims(src_w: int, src_h: int, total_pixels: int) -> tuple[int, int] | None:
+    """Return downscaled (w, h) with even dims fitting ``total_pixels``, or None if already fits.
+
+    Source aspect ratio is preserved; output may drift by a fraction of a percent because both dimensions
+    are rounded down to even values (many  codecs require divisible-by-2).
+    """
+    pixels = src_w * src_h
+    if pixels <= total_pixels:
+        return None
+    scale = math.sqrt(total_pixels / pixels)
+    new_w = max(2, int(src_w * scale))
+    new_h = max(2, int(src_h * scale))
+    new_w -= new_w % 2
+    new_h -= new_h % 2
+    return new_w, new_h
+
+
 def downscale_image_tensor(image: torch.Tensor, total_pixels: int = 1536 * 1024) -> torch.Tensor:
-    """Downscale input image tensor to roughly the specified total pixels."""
+    """Downscale input image tensor to roughly the specified total pixels.
+
+    Output dimensions are rounded down to even values so that the result is guaranteed to fit within ``total_pixels``
+    and is compatible with codecs that require even dimensions (e.g. yuv420p).
+    """
     samples = image.movedim(-1, 1)
-    total = int(total_pixels)
-    scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
-    if scale_by >= 1:
+    dims = _compute_downscale_dims(samples.shape[3], samples.shape[2], int(total_pixels))
+    if dims is None:
         return image
-    width = round(samples.shape[3] * scale_by)
-    height = round(samples.shape[2] * scale_by)
-
-    s = common_upscale(samples, width, height, "lanczos", "disabled")
-    s = s.movedim(1, -1)
-    return s
+    new_w, new_h = dims
+    return common_upscale(samples, new_w, new_h, "lanczos", "disabled").movedim(1, -1)
 
 
-def downscale_image_tensor_by_max_side(image: torch.Tensor, *,  max_side: int) -> torch.Tensor:
+def downscale_image_tensor_by_max_side(image: torch.Tensor, *, max_side: int) -> torch.Tensor:
     """Downscale input image tensor so the largest dimension is at most max_side pixels."""
     samples = image.movedim(-1, 1)
     height, width = samples.shape[2], samples.shape[3]
@@ -397,6 +413,72 @@ def trim_video(video: Input.Video, duration_sec: float) -> Input.Video:
         if output_container is not None:
             output_container.close()
         raise RuntimeError(f"Failed to trim video: {str(e)}") from e
+
+
+def resize_video_to_pixel_budget(video: Input.Video, total_pixels: int) -> Input.Video:
+    """Downscale a video to fit within ``total_pixels`` (w * h), preserving aspect ratio.
+
+    Returns the original video object untouched when it already fits. Preserves frame rate, duration, and audio.
+    Aspect ratio is preserved up to a fraction of a percent (even-dim rounding).
+    """
+    src_w, src_h = video.get_dimensions()
+    scale_dims = _compute_downscale_dims(src_w, src_h, total_pixels)
+    if scale_dims is None:
+        return video
+    return _apply_video_scale(video, scale_dims)
+
+
+def _apply_video_scale(video: Input.Video, scale_dims: tuple[int, int]) -> Input.Video:
+    """Re-encode ``video`` scaled to ``scale_dims`` with a single decode/encode pass."""
+    out_w, out_h = scale_dims
+    output_buffer = BytesIO()
+    input_container = None
+    output_container = None
+
+    try:
+        input_source = video.get_stream_source()
+        input_container = av.open(input_source, mode="r")
+        output_container = av.open(output_buffer, mode="w", format="mp4")
+
+        video_stream = output_container.add_stream("h264", rate=video.get_frame_rate())
+        video_stream.width = out_w
+        video_stream.height = out_h
+        video_stream.pix_fmt = "yuv420p"
+
+        audio_stream = None
+        for stream in input_container.streams:
+            if isinstance(stream, av.AudioStream):
+                audio_stream = output_container.add_stream("aac", rate=stream.sample_rate)
+                audio_stream.sample_rate = stream.sample_rate
+                audio_stream.layout = stream.layout
+                break
+
+        for frame in input_container.decode(video=0):
+            frame = frame.reformat(width=out_w, height=out_h, format="yuv420p")
+            for packet in video_stream.encode(frame):
+                output_container.mux(packet)
+        for packet in video_stream.encode():
+            output_container.mux(packet)
+
+        if audio_stream is not None:
+            input_container.seek(0)
+            for audio_frame in input_container.decode(audio=0):
+                for packet in audio_stream.encode(audio_frame):
+                    output_container.mux(packet)
+            for packet in audio_stream.encode():
+                output_container.mux(packet)
+
+        output_container.close()
+        input_container.close()
+        output_buffer.seek(0)
+        return InputImpl.VideoFromFile(output_buffer)
+
+    except Exception as e:
+        if input_container is not None:
+            input_container.close()
+        if output_container is not None:
+            output_container.close()
+        raise RuntimeError(f"Failed to resize video: {str(e)}") from e
 
 
 def _f32_pcm(wav: torch.Tensor) -> torch.Tensor:
