@@ -101,7 +101,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
         new_clip = clip.clone()
         k1 = new_clip.add_patches(loaded, strength_clip)
         if lora_metadata:
-            new_clip.set_attachments("lora_metadata", lora_metadata)
+            new_clip.patcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k1 = ()
         new_clip = None
