@@ -1266,6 +1266,9 @@ class PromptServer():
             if verbose:
                 logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address_print, port))
 
+        if verbose:
+            logging.info("psst — we're hiring! https://www.comfy.org/careers")
+
         if call_on_start is not None:
             call_on_start(scheme, self.address, self.port)
 
