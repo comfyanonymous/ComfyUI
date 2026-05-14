@@ -4,6 +4,7 @@ from comfy.ldm.trellis2.vae import SparseTensor
 import comfy.model_management
 from PIL import Image
 import numpy as np
+import comfy.utils
 import logging
 import torch
 import scipy
@@ -1330,11 +1331,19 @@ class PostProcessMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="PostProcessMesh",
             category="latent/3d",
+            description=(
+            "Applies a sequence of mesh post-processing operations including optional hole filling"
+            " and mesh simplification to a target face count."
+            ),
             inputs=[
                 IO.Mesh.Input("mesh"),
                 IO.Int.Input("target_face_count", default=1_000_000, min=0, max=50_000_000,
                              tooltip="Target maximum number of faces after mesh simplification. Set to 0 to disable simplification."),
-                IO.Float.Input("fill_holes_perimeter", default=0.03, min=0.0, step=0.0001)
+                IO.Float.Input("fill_holes_perimeter", default=0.03, min=0.0, step=0.0001,
+                               tooltip=(
+                                "Maximum hole perimeter threshold for filling holes in the mesh. "
+                                "Smaller values only fill tiny holes, larger values fill larger gaps. "
+                                "Set to 0 to disable hole filling."))
             ],
             outputs=[
                 IO.Mesh.Output("output_mesh"),
@@ -1349,11 +1358,14 @@ class PostProcessMesh(IO.ComfyNode):
         def process_single(v, f, c):
             if fill_holes_perimeter > 0:
                 v, f = fill_holes_fn(v, f, max_perimeter=fill_holes_perimeter)
+            bar.update(1)
 
             if target_face_count > 0 and f.shape[0] > target_face_count:
                 v, f, c = simplify_fn(v, f, colors=c, target=target_face_count)
+            bar.update(1)
 
             v, f = make_double_sided(v, f)
+            bar.update(1)
             return v, f, c
 
         # Check if batch is Jagged (List) or Uniform (3D Tensor)
@@ -1363,6 +1375,7 @@ class PostProcessMesh(IO.ComfyNode):
         if is_list or is_batched_tensor:
             out_v, out_f, out_c = [], [],[]
             bsz = len(mesh.vertices) if is_list else mesh.vertices.shape[0]
+            bar = comfy.utils.ProgressBar(3 * bsz)
 
             for i in range(bsz):
                 v_i = mesh.vertices[i]
@@ -1373,7 +1386,7 @@ class PostProcessMesh(IO.ComfyNode):
                 if hasattr(mesh, 'colors') and mesh.colors is not None:
                     c_i = mesh.colors[i] if (isinstance(mesh.colors, list) or mesh.colors.ndim == 3) else mesh.colors
 
-                v_i, f_i, c_i = process_single(v_i, f_i, c_i)
+                v_i, f_i, c_i = process_single(v_i, f_i, c_i, bar)
 
                 out_v.append(v_i)
                 out_f.append(f_i)
