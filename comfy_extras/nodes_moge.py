@@ -343,7 +343,7 @@ class MoGePointMapToMesh(io.ComfyNode):
         return io.Schema(
             node_id="MoGePointMapToMesh",
             display_name="MoGe Point Map to Mesh",
-            category="3d",
+            category="image/geometry_estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
                 io.Int.Input("batch_index", default=0, min=0, max=4096,
