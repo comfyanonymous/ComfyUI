@@ -694,7 +694,7 @@ class EmptyTrellis2LatentTexture(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="EmptyTextureLatentTrellis2",
+            node_id="EmptyTrellis2LatentTexture",
             category="latent/3d",
             inputs=[
                 IO.Voxel.Input("structure_or_coords"),
