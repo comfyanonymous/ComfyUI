@@ -141,6 +141,7 @@ class MoGePanoramaInference(io.ComfyNode):
         if image.shape[0] != 1:
             raise ValueError(f"MoGePanoramaInference takes a single image (got batch of {image.shape[0]})")
 
+        image = image[..., :3]
         H, W = int(image.shape[1]), int(image.shape[2])
         scale = min(merge_resolution / max(H, W), 1.0)
         merge_h, merge_w = max(int(H * scale), 32), max(int(W * scale), 32)
@@ -257,6 +258,7 @@ class MoGeInference(io.ComfyNode):
     @classmethod
     def execute(cls, moge_model, image, resolution_level, fov_x_degrees, batch_size, force_projection, apply_mask) -> io.NodeOutput:
 
+        image = image[..., :3]
         bchw = image.movedim(-1, -3).contiguous()
         B = bchw.shape[0]
         fov = None if fov_x_degrees <= 0 else float(fov_x_degrees)
