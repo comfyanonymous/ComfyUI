@@ -1419,6 +1419,7 @@ class Vae(nn.Module):
             num_res_blocks_middle=2,
             channels=[512, 128, 32],
         )
+        self.register_buffer("resolution", torch.tensor(1024.0), persistent=False)
 
     @torch.no_grad()
     def decode_shape_slat(self, slat, resolution: int):
