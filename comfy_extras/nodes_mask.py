@@ -46,6 +46,7 @@ def composite(destination, source, x, y, mask = None, multiplier = 8, resize_sou
     destination[..., top:bottom, left:right] = source_portion + destination_portion
     return destination
 
+
 class LatentCompositeMasked(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -80,7 +81,8 @@ class ImageCompositeMasked(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageCompositeMasked",
-            search_aliases=["paste image", "overlay", "layer"],
+            search_aliases=["overlay", "layer", "paste image", "images composition"],
+            display_name="Image Composite Masked",
             category="image",
             inputs=[
                 IO.Image.Input("destination"),
@@ -201,6 +203,7 @@ class InvertMask(IO.ComfyNode):
         return IO.Schema(
             node_id="InvertMask",
             search_aliases=["reverse mask", "flip mask"],
+            display_name="Invert Mask",
             category="mask",
             inputs=[
                 IO.Mask.Input("mask"),
@@ -222,6 +225,7 @@ class CropMask(IO.ComfyNode):
         return IO.Schema(
             node_id="CropMask",
             search_aliases=["cut mask", "extract mask region", "mask slice"],
+            display_name="Crop Mask",
             category="mask",
             inputs=[
                 IO.Mask.Input("mask"),
@@ -247,7 +251,8 @@ class MaskComposite(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="MaskComposite",
-            search_aliases=["combine masks", "blend masks", "layer masks"],
+            search_aliases=["combine masks", "blend masks", "layer masks", "masks composition"],
+            display_name="Combine Masks",
             category="mask",
             inputs=[
                 IO.Mask.Input("destination"),
@@ -298,6 +303,7 @@ class FeatherMask(IO.ComfyNode):
         return IO.Schema(
             node_id="FeatherMask",
             search_aliases=["soft edge mask", "blur mask edges", "gradient mask edge"],
+            display_name="Feather Mask",
             category="mask",
             inputs=[
                 IO.Mask.Input("mask"),
@@ -375,7 +381,6 @@ class GrowMask(IO.ComfyNode):
         return IO.NodeOutput(torch.stack(out, dim=0))
 
     expand_mask = execute  # TODO: remove
-
 
 class ThresholdMask(IO.ComfyNode):
     @classmethod

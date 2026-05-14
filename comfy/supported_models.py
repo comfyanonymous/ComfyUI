@@ -28,6 +28,7 @@ import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.ernie
 import comfy.text_encoders.cogvideo
+import comfy.text_encoders.hidream_o1
 
 from . import supported_models_base
 from . import latent_formats
@@ -1167,6 +1168,25 @@ class WAN21_T2V(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}umt5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.wan.WanT5Tokenizer, comfy.text_encoders.wan.te(**t5_detect))
 
+class WAN21_CausalAR_T2V(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "t2v",
+        "causal_ar": True,
+    }
+
+    sampling_settings = {
+        "shift": 5.0,
+    }
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.unet_config.pop("causal_ar", None)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.WAN21_CausalAR(self, device=device)
+
+
 class WAN21_I2V(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1294,6 +1314,37 @@ class WAN21_SCAIL(WAN21_T2V):
         out = model_base.WAN21_SCAIL(self, image_to_video=False, device=device)
         return out
 
+class WAN22_WanDancer(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "wandancer",
+        "in_dim": 36,
+    }
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = 1.8
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN22_WanDancer(self, image_to_video=True, device=device)
+        return out
+
+    def process_unet_state_dict(self, state_dict):
+        out_sd = {}
+        for k in list(state_dict.keys()):
+            # split music_encoder in_proj into q_proj, k_proj, v_proj
+            if "music_encoder" in k and "self_attn.in_proj" in k:
+                suffix = "weight" if k.endswith("weight") else "bias"
+                tensor = state_dict[k]
+                d = tensor.shape[0] // 3
+                prefix = k.replace(f"in_proj_{suffix}", "")
+                out_sd[f"{prefix}q_proj.{suffix}"] = tensor[:d]
+                out_sd[f"{prefix}k_proj.{suffix}"] = tensor[d:2*d]
+                out_sd[f"{prefix}v_proj.{suffix}"] = tensor[2*d:]
+            else:
+                out_sd[k] = state_dict[k]
+        return out_sd
+
 class Hunyuan3Dv2(supported_models_base.BASE):
     unet_config = {
         "image_model": "hunyuan3d2",
@@ -1380,6 +1431,50 @@ class HiDream(supported_models_base.BASE):
 
     def clip_target(self, state_dict={}):
         return None #  TODO
+
+class HiDreamO1(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hidream_o1",
+    }
+
+    sampling_settings = {
+        "shift": 3.0,
+        "noise_scale": 8.0,
+    }
+
+    latent_format = latent_formats.HiDreamO1Pixel
+    memory_usage_factor = 0.033
+    # fp16 not supported: LM MLP down_proj activations fp16 overflow, causing NaNs
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    optimizations = {"fp8": False}
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.HiDreamO1(self, device=device)
+
+    def process_unet_state_dict(self, state_dict):
+        # Drop unused Qwen3-VL deepstack merger weights; upstream discards them at inference.
+        for key in list(state_dict.keys()):
+            if "visual.deepstack_merger_list" in key:
+                del state_dict[key]
+        return state_dict
+
+    def process_vae_state_dict(self, state_dict):
+        # Pixel-space model: inject sentinel so VAE construction picks PixelspaceConversionVAE.
+        return {"pixel_space_vae": torch.tensor(1.0)}
+
+    def process_clip_state_dict(self, state_dict):
+        # Tokenizer-only TE: inject sentinel so load_state_dict_guess_config triggers CLIP init.
+        return {"_hidream_o1_te_sentinel": torch.zeros(1)}
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(
+            comfy.text_encoders.hidream_o1.HiDreamO1Tokenizer,
+            comfy.text_encoders.hidream_o1.HiDreamO1TE,
+        )
 
 class Chroma(supported_models_base.BASE):
     unet_config = {
@@ -1853,6 +1948,14 @@ class CogVideoX_T2V(supported_models_base.BASE):
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
 
+    def __init__(self, unet_config):
+        # 2b-class (dim=1920, heads=30) uses scale_factor=1.15258426.
+        # 5b-class (dim=3072, heads=48) — incl. CogVideoX-5b, 1.5-5B, and
+        # Fun-V1.5 inpainting — uses scale_factor=0.7 per vae/config.json.
+        if unet_config.get("num_attention_heads", 0) >= 48:
+            self.latent_format = latent_formats.CogVideoX1_5
+        super().__init__(unet_config)
+
     def get_model(self, state_dict, prefix="", device=None):
         # CogVideoX 1.5 (patch_size_t=2) has different training base dimensions for RoPE
         if self.unet_config.get("patch_size_t") is not None:
@@ -1879,6 +1982,104 @@ class CogVideoX_I2V(CogVideoX_T2V):
         out = model_base.CogVideoX(self, image_to_video=True, device=device)
         return out
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, LongCatImage, FluxSchnell, GenmoMochi, LTXV, LTXAV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImagePixelSpace, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, WAN21_FlowRVS, WAN21_SCAIL, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, ACEStep15, Omnigen2, QwenImage, Flux2, Kandinsky5Image, Kandinsky5, Anima, RT_DETR_v4, ErnieImage, SAM3, SAM31, CogVideoX_I2V, CogVideoX_T2V]
+class CogVideoX_Inpaint(CogVideoX_T2V):
+    unet_config = {
+        "image_model": "cogvideox",
+        "in_channels": 48,
+    }
 
-models += [SVD_img2vid]
+    def get_model(self, state_dict, prefix="", device=None):
+        if self.unet_config.get("patch_size_t") is not None:
+            self.unet_config.setdefault("sample_height", 96)
+            self.unet_config.setdefault("sample_width", 170)
+            self.unet_config.setdefault("sample_frames", 81)
+        out = model_base.CogVideoX(self, image_to_video=True, device=device)
+        return out
+
+
+models = [
+    LotusD,
+    Stable_Zero123,
+    SD15_instructpix2pix,
+    SD15,
+    SD20,
+    SD21UnclipL,
+    SD21UnclipH,
+    SDXL_instructpix2pix,
+    SDXLRefiner,
+    SDXL,
+    SSD1B,
+    KOALA_700M,
+    KOALA_1B,
+    Segmind_Vega,
+    SD_X4Upscaler,
+    Stable_Cascade_C,
+    Stable_Cascade_B,
+    SV3D_u,
+    SV3D_p,
+    SD3,
+    StableAudio,
+    AuraFlow,
+    PixArtAlpha,
+    PixArtSigma,
+    HunyuanDiT,
+    HunyuanDiT1,
+    FluxInpaint,
+    Flux,
+    LongCatImage,
+    FluxSchnell,
+    GenmoMochi,
+    LTXV,
+    LTXAV,
+    HunyuanVideo15_SR_Distilled,
+    HunyuanVideo15,
+    HunyuanImage21Refiner,
+    HunyuanImage21,
+    HunyuanVideoSkyreelsI2V,
+    HunyuanVideoI2V,
+    HunyuanVideo,
+    CosmosT2V,
+    CosmosI2V,
+    CosmosT2IPredict2,
+    CosmosI2VPredict2,
+    ZImagePixelSpace,
+    ZImage,
+    Lumina2,
+    WAN22_T2V,
+    WAN21_CausalAR_T2V,
+    WAN21_T2V,
+    WAN21_I2V,
+    WAN21_FunControl2V,
+    WAN21_Vace,
+    WAN21_Camera,
+    WAN22_Camera,
+    WAN22_S2V,
+    WAN21_HuMo,
+    WAN22_Animate,
+    WAN21_FlowRVS,
+    WAN21_SCAIL,
+    WAN22_WanDancer,
+    Hunyuan3Dv2mini,
+    Hunyuan3Dv2,
+    Hunyuan3Dv2_1,
+    HiDream,
+    HiDreamO1,
+    Chroma,
+    ChromaRadiance,
+    ACEStep,
+    ACEStep15,
+    Omnigen2,
+    QwenImage,
+    Flux2,
+    Kandinsky5Image,
+    Kandinsky5,
+    Anima,
+    RT_DETR_v4,
+    ErnieImage,
+    SAM3,
+    SAM31,
+    CogVideoX_Inpaint,
+    CogVideoX_I2V,
+    CogVideoX_T2V,
+    SVD_img2vid,
+]

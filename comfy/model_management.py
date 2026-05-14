@@ -31,6 +31,7 @@ from contextlib import nullcontext
 import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
+import comfy_aimdo.vram_buffer
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -112,10 +113,6 @@ if args.directml is not None:
     # torch_directml.disable_tiled_resources(True)
     lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
-try:
-    import intel_extension_for_pytorch as ipex  # noqa: F401
-except:
-    pass
 
 try:
     _ = torch.xpu.device_count()
@@ -583,9 +580,6 @@ class LoadedModel:
 
         real_model = self.model.model
 
-        if is_intel_xpu() and not args.disable_ipex_optimize and 'ipex' in globals() and real_model is not None:
-            with torch.no_grad():
-                real_model = ipex.optimize(real_model.eval(), inplace=True, graph_mode=True, concat_linear=True)
 
         self.real_model = weakref.ref(real_model)
         self.model_finalizer = weakref.finalize(real_model, cleanup_models)
@@ -727,13 +721,15 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     else:
         minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory())
 
-    models_temp = set()
+    # Order-preserving dedup. A plain set() would randomize iteration order across runs
+    models_temp = {}
     for m in models:
-        models_temp.add(m)
+        models_temp[m] = None
         for mm in m.model_patches_models():
-            models_temp.add(mm)
+            models_temp[mm] = None
 
-    models = models_temp
+    models = list(models_temp)
+    models.reverse()
 
     models_to_load = []
 
@@ -1182,6 +1178,10 @@ stream_counters = {}
 
 STREAM_CAST_BUFFERS = {}
 LARGEST_CASTED_WEIGHT = (None, 0)
+STREAM_AIMDO_CAST_BUFFERS = {}
+LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+
+DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
 
 def get_cast_buffer(offload_stream, device, size, ref):
     global LARGEST_CASTED_WEIGHT
@@ -1215,13 +1215,26 @@ def get_cast_buffer(offload_stream, device, size, ref):
 
     return cast_buffer
 
+def get_aimdo_cast_buffer(offload_stream, device):
+    cast_buffer = STREAM_AIMDO_CAST_BUFFERS.get(offload_stream, None)
+    if cast_buffer is None:
+        cast_buffer = comfy_aimdo.vram_buffer.VRAMBuffer(DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE, device.index)
+        STREAM_AIMDO_CAST_BUFFERS[offload_stream] = cast_buffer
+
+    return cast_buffer
 def reset_cast_buffers():
     global LARGEST_CASTED_WEIGHT
+    global LARGEST_AIMDO_CASTED_WEIGHT
+
     LARGEST_CASTED_WEIGHT = (None, 0)
-    for offload_stream in STREAM_CAST_BUFFERS:
-        offload_stream.synchronize()
+    LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+    for offload_stream in set(STREAM_CAST_BUFFERS) | set(STREAM_AIMDO_CAST_BUFFERS):
+        if offload_stream is not None:
+            offload_stream.synchronize()
     synchronize()
+
     STREAM_CAST_BUFFERS.clear()
+    STREAM_AIMDO_CAST_BUFFERS.clear()
     soft_empty_cache()
 
 def get_offload_stream(device):
@@ -1581,10 +1594,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        if torch_version_numeric < (2, 3):
-            return True
-        else:
-            return torch.xpu.get_device_properties(device).has_fp16
+        return torch.xpu.get_device_properties(device).has_fp16
 
     if is_ascend_npu():
         return True
@@ -1650,10 +1660,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        if torch_version_numeric < (2, 3):
-            return True
-        else:
-            return torch.xpu.is_bf16_supported()
+        return torch.xpu.is_bf16_supported()
 
     if is_ascend_npu():
         return True
@@ -1784,6 +1791,7 @@ def soft_empty_cache(force=False):
     if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
     elif is_intel_xpu():
+        torch.xpu.synchronize()
         torch.xpu.empty_cache()
     elif is_ascend_npu():
         torch.npu.empty_cache()

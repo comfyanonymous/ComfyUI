@@ -276,7 +276,6 @@ async def finish_omni_video_task(cls: type[IO.ComfyNode], response: TaskStatusRe
         cls,
         ApiEndpoint(path=f"/proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
         response_model=TaskStatusResponse,
-        max_poll_attempts=280,
         status_extractor=lambda r: (r.data.task_status if r.data else None),
     )
     return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
@@ -2788,11 +2787,15 @@ class MotionControl(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model"]),
                 expr="""
                 (
-                  $prices := {"std": 0.07, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
+                  $prices := {
+                    "kling-v3": {"std": 0.126, "pro": 0.168},
+                    "kling-v2-6": {"std": 0.07, "pro": 0.112}
+                  };
+                  $modelPrices := $lookup($prices, widgets.model);
+                  {"type":"usd","usd": $lookup($modelPrices, widgets.mode), "format":{"suffix":"/second"}}
                 )
                 """,
             ),
@@ -3062,7 +3065,6 @@ class KlingVideoNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path=poll_path),
             response_model=TaskStatusResponse,
-            max_poll_attempts=280,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
@@ -3188,7 +3190,6 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path=f"/proxy/kling/v1/videos/image2video/{response.data.task_id}"),
             response_model=TaskStatusResponse,
-            max_poll_attempts=280,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))

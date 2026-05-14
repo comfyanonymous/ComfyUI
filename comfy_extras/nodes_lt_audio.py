@@ -147,7 +147,6 @@ class LTXVEmptyLatentAudio(io.ComfyNode):
 
         z_channels = audio_vae.latent_channels
         audio_freq = audio_vae.first_stage_model.latent_frequency_bins
-        sampling_rate = int(audio_vae.first_stage_model.sample_rate)
 
         num_audio_latents = audio_vae.first_stage_model.num_of_latents_from_frames(frames_number, frame_rate)
 
@@ -159,7 +158,6 @@ class LTXVEmptyLatentAudio(io.ComfyNode):
         return io.NodeOutput(
             {
                 "samples": audio_latents,
-                "sample_rate": sampling_rate,
                 "type": "audio",
             }
         )
