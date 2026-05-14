@@ -640,7 +640,7 @@ class Trellis2Conditioning(IO.ComfyNode):
         negative = [[neg_cond_batched, {"embeds": neg_embeds_batched}]]
         return IO.NodeOutput(positive, negative)
 
-class EmptyShapeLatentTrellis2(IO.ComfyNode):
+class EmptyTrellis2ShapeLatent(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
