@@ -1841,12 +1841,12 @@ class Trellis2Extension(ComfyExtension):
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             Trellis2Conditioning,
-            EmptyShapeLatentTrellis2,
-            EmptyStructureLatentTrellis2,
-            EmptyTextureLatentTrellis2,
-            VaeDecodeTrellis2Texture,
-            VaeDecodeTrellis2Shape,
-            VaeDecodeTrellis2Structure,
+            EmptyTrellis2ShapeLatent,
+            EmptyTrellis2LatentStructure,
+            EmptyTrellis2LatentTexture,
+            VaeDecodeTextureTrellis,
+            VaeDecodeShapeTrellis,
+            VaeDecodeStructureTrellis2,
             Trellis2UpsampleCascade,
             PostProcessMesh
         ]
