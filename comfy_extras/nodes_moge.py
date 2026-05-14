@@ -49,23 +49,8 @@ def _normals_from_points(points: torch.Tensor) -> torch.Tensor:
     dy = pts[..., 2:, :, :] - pts[..., :-2, :, :]
     dx = torch.nn.functional.pad(dx.permute(0, 3, 1, 2), (1, 1, 0, 0)).permute(0, 2, 3, 1)
     dy = torch.nn.functional.pad(dy.permute(0, 3, 1, 2), (0, 0, 1, 1)).permute(0, 2, 3, 1)
-    n = torch.cross(dx, dy, dim=-1)
-    n = torch.nn.functional.normalize(n, dim=-1)
-    return torch.where(finite.unsqueeze(-1), n, torch.zeros_like(n))
-
-
-def _screen_normals_from_depth(depth: torch.Tensor) -> torch.Tensor:
-    """Screen-space surface normals (X right, Y down, Z into scene)."""
-    finite = torch.isfinite(depth) & (depth > 0)
-    d = torch.where(finite, depth, torch.zeros_like(depth))
-    H, W = d.shape[-2:]
-    d4d = d.unsqueeze(1)
-    # Scale gradients to normalized image coords so a 45 deg tilt lands as a 45 deg normal regardless of resolution.
-    dz_dx = (d4d[..., :, 2:] - d4d[..., :, :-2]) * (W / 2.0)
-    dz_dy = (d4d[..., 2:, :] - d4d[..., :-2, :]) * (H / 2.0)
-    dz_dx = torch.nn.functional.pad(dz_dx, (1, 1, 0, 0)).squeeze(1)
-    dz_dy = torch.nn.functional.pad(dz_dy, (0, 0, 1, 1)).squeeze(1)
-    n = torch.stack([-dz_dx, -dz_dy, torch.ones_like(d)], dim=-1)
+    # dy x dx (not dx x dy) so the result is outward-facing in OpenCV (Y-down flips the right-hand rule), matching v2's predicted normals.
+    n = torch.cross(dy, dx, dim=-1)
     n = torch.nn.functional.normalize(n, dim=-1)
     return torch.where(finite.unsqueeze(-1), n, torch.zeros_like(n))
 
@@ -296,19 +281,23 @@ class MoGeRender(io.ComfyNode):
             category="image/geometry",
             inputs=[
                 MoGeGeometry.Input("geometry"),
-                io.Combo.Input("output", options=["depth", "depth_colored", "normal", "normal_screen", "mask"], default="depth"),
+                io.Combo.Input("output", options=["depth", "depth_colored", "normal_opengl", "normal_directx", "mask"], default="depth",
+                    tooltip="DirectX vs OpenGL controls the normal-map green-channel convention. DirectX: green = -Y down (Unreal). OpenGL: green = +Y up (Blender, Substance, Unity, glTF)."),
             ],
             outputs=[io.Image.Output()],
         )
 
     @classmethod
     def execute(cls, geometry, output) -> io.NodeOutput:
+        is_normal = output in ("normal_directx", "normal_opengl")
+        opengl = output.endswith("_opengl")
+
         # Pick the input tensor for the chosen mode and validate availability.
-        if output in ("depth", "depth_colored", "normal_screen"):
+        if output in ("depth", "depth_colored"):
             if "depth" not in geometry:
                 raise ValueError("MoGeGeometry has no depth output.")
             src = geometry["depth"]
-        elif output == "normal":
+        elif is_normal:
             if "normal" in geometry:
                 src = geometry["normal"]
             elif "points" in geometry:
@@ -332,11 +321,11 @@ class MoGeRender(io.ComfyNode):
                     d = _normalize_disparity(slc)
                     out.append(_turbo(d) if output == "depth_colored"
                                else d.unsqueeze(-1).expand(*d.shape, 3).contiguous())
-                elif output == "normal":
+                elif is_normal:
                     n = slc if "normal" in geometry else _normals_from_points(slc)
-                    out.append((n * 0.5 + 0.5).clamp(0.0, 1.0))
-                elif output == "normal_screen":
-                    n = _screen_normals_from_depth(slc)
+                    # MoGe is OpenCV (Z+ into scene); normal-map convention is Z+ out of surface, so flip Z.
+                    y_sign = -1.0 if opengl else 1.0
+                    n = n * n.new_tensor([1.0, y_sign, -1.0])
                     out.append((n * 0.5 + 0.5).clamp(0.0, 1.0))
                 elif output == "mask":
                     out.append(slc.unsqueeze(-1).expand(*slc.shape, 3).contiguous())
