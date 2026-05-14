@@ -1355,7 +1355,7 @@ class PostProcessMesh(IO.ComfyNode):
         # input should be comfy.NestedTensor
         mesh = copy.deepcopy(mesh)
 
-        def process_single(v, f, c):
+        def process_single(v, f, c, bar):
             if fill_holes_perimeter > 0:
                 v, f = fill_holes_fn(v, f, max_perimeter=fill_holes_perimeter)
             bar.update(1)
