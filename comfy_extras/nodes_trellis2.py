@@ -741,7 +741,7 @@ class EmptyTrellis2LatentStructure(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="EmptyStructureLatentTrellis2",
+            node_id="EmptyTrellis2LatentStructure",
             category="latent/3d",
             inputs=[
                 IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
