@@ -397,7 +397,7 @@ class RMSNorm(nn.Module):
 
 
 
-def precompute_freqs_cis(head_dim, position_ids, theta, rope_scale=None, rope_dims=None, device=None):
+def precompute_freqs_cis(head_dim, position_ids, theta, rope_scale=None, rope_dims=None, device=None, interleaved_mrope=False):
     if not isinstance(theta, list):
         theta = [theta]
 
@@ -415,16 +415,27 @@ def precompute_freqs_cis(head_dim, position_ids, theta, rope_scale=None, rope_di
         inv_freq_expanded = inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
         position_ids_expanded = position_ids[:, None, :].float()
         freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
-        emb = torch.cat((freqs, freqs), dim=-1)
-        cos = emb.cos()
-        sin = emb.sin()
-        if rope_dims is not None and position_ids.shape[0] > 1:
-            mrope_section = rope_dims * 2
-            cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
-            sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
+        if rope_dims is not None and position_ids.shape[0] > 1 and interleaved_mrope:
+            # Qwen3-VL interleaved MRoPE: T-freqs by default, H/W replace every 3rd dim.
+            freqs_inter = freqs[0].clone()
+            for axis_idx, offset in ((1, 1), (2, 2)):
+                length = rope_dims[axis_idx] * 3
+                idx = slice(offset, length, 3)
+                freqs_inter[..., idx] = freqs[axis_idx, ..., idx]
+            emb = torch.cat((freqs_inter, freqs_inter), dim=-1)
+            cos = emb.cos().unsqueeze(0)
+            sin = emb.sin().unsqueeze(0)
         else:
-            cos = cos.unsqueeze(1)
-            sin = sin.unsqueeze(1)
+            emb = torch.cat((freqs, freqs), dim=-1)
+            cos = emb.cos()
+            sin = emb.sin()
+            if rope_dims is not None and position_ids.shape[0] > 1:
+                mrope_section = rope_dims * 2
+                cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
+                sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
+            else:
+                cos = cos.unsqueeze(1)
+                sin = sin.unsqueeze(1)
         sin_split = sin.shape[-1] // 2
         out.append((cos, sin[..., : sin_split], -sin[..., sin_split :]))
 
@@ -689,6 +700,7 @@ class Llama2_(nn.Module):
                                     self.config.rope_theta,
                                     self.config.rope_scale,
                                     self.config.rope_dims,
+                                    interleaved_mrope=getattr(self.config, "interleaved_mrope", False),
                                     device=device)
 
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[], past_key_values=None, input_ids=None):
