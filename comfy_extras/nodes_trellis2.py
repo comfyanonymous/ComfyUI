@@ -1844,9 +1844,9 @@ class Trellis2Extension(ComfyExtension):
             EmptyShapeLatentTrellis2,
             EmptyStructureLatentTrellis2,
             EmptyTextureLatentTrellis2,
-            VaeDecodeTextureTrellis,
-            VaeDecodeShapeTrellis,
-            VaeDecodeStructureTrellis2,
+            VaeDecodeTrellis2Texture,
+            VaeDecodeTrellis2Shape,
+            VaeDecodeTrellis2Structure,
             Trellis2UpsampleCascade,
             PostProcessMesh
         ]
