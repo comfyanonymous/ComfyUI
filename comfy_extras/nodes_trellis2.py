@@ -690,7 +690,7 @@ class EmptyTrellis2ShapeLatent(IO.ComfyNode):
             model.model_options["transformer_options"]["generation_mode"] = "shape_generation"
         return IO.NodeOutput({"samples": latent, "coords": coords, "coords_counts": counts, "type": "trellis2"}, model)
 
-class EmptyTextureLatentTrellis2(IO.ComfyNode):
+class EmptyTrellis2LatentTexture(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
