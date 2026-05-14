@@ -244,7 +244,6 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
-                IO.Combo.Input("resolution", options=["512", "1024"], default="1024")
             ],
             outputs=[
                 IO.Mesh.Output("mesh"),
@@ -253,9 +252,9 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, vae, resolution):
+    def execute(cls, samples, vae):
 
-        resolution = int(resolution)
+        resolution = int(vae.resolution.item())
         sample_tensor = samples["samples"]
         device = comfy.model_management.get_torch_device()
         coords = samples["coords"]
@@ -306,7 +305,6 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
                 IO.AnyType.Input("shape_subs"),
-                IO.Combo.Input("resolution", options=["512", "1024"], default="1024")
             ],
             outputs=[
                 IO.Mesh.Output("mesh"),
@@ -314,10 +312,10 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mesh, samples, vae, shape_subs, resolution):
+    def execute(cls, mesh, samples, vae, shape_subs):
         shape_mesh = mesh
         sample_tensor = samples["samples"]
-        resolution = int(resolution)
+        resolution = int(vae.resolution.item())
         device = comfy.model_management.get_torch_device()
         coords = samples["coords"]
         prepare_trellis_vae_for_decode(vae, sample_tensor.shape)
