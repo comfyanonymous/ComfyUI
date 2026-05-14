@@ -403,8 +403,10 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
         return IO.Schema(
             node_id="Trellis2UpsampleCascade",
             category="latent/3d",
+            display_name="Trellis2 Upsample Cascade",
+            description="Upsamples low-resolution Trellis2 shape latents into higher resolution coordinates while respecting the maximum token budget.",
             inputs=[
-                IO.Latent.Input("shape_latent_512"),
+                IO.Latent.Input("shape_latent"),
                 IO.Vae.Input("vae"),
                 IO.Combo.Input("target_resolution", options=["1024", "1536"], default="1024"),
                 IO.Int.Input("max_tokens", default=49152, min=1024, max=100000)
@@ -415,7 +417,8 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, shape_latent_512, vae, target_resolution, max_tokens):
+    def execute(cls, shape_latent, vae, target_resolution, max_tokens):
+        shape_latent_512 = shape_latent
         device = comfy.model_management.get_torch_device()
         prepare_trellis_vae_for_decode(vae, shape_latent_512["samples"].shape)
 
@@ -1329,7 +1332,8 @@ class PostProcessMesh(IO.ComfyNode):
             category="latent/3d",
             inputs=[
                 IO.Mesh.Input("mesh"),
-                IO.Int.Input("simplify", default=1_000_000, min=0, max=50_000_000),
+                IO.Int.Input("target_face_count", default=1_000_000, min=0, max=50_000_000,
+                             tooltip="Target maximum number of faces after mesh simplification. Set to 0 to disable simplification."),
                 IO.Float.Input("fill_holes_perimeter", default=0.03, min=0.0, step=0.0001)
             ],
             outputs=[
@@ -1338,7 +1342,7 @@ class PostProcessMesh(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mesh, simplify, fill_holes_perimeter):
+    def execute(cls, mesh, target_face_count, fill_holes_perimeter):
         # input should be comfy.NestedTensor
         mesh = copy.deepcopy(mesh)
 
@@ -1346,8 +1350,8 @@ class PostProcessMesh(IO.ComfyNode):
             if fill_holes_perimeter > 0:
                 v, f = fill_holes_fn(v, f, max_perimeter=fill_holes_perimeter)
 
-            if simplify > 0 and f.shape[0] > simplify:
-                v, f, c = simplify_fn(v, f, colors=c, target=simplify)
+            if target_face_count > 0 and f.shape[0] > target_face_count:
+                v, f, c = simplify_fn(v, f, colors=c, target=target_face_count)
 
             v, f = make_double_sided(v, f)
             return v, f, c
