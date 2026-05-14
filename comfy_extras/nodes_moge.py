@@ -233,7 +233,7 @@ class MoGeInference(io.ComfyNode):
                                tooltip="Horizontal field of view of the source camera. Sets the focal length used to unproject the depth map into 3D. 0 = auto-recover from the predicted points."),
                 io.Int.Input("batch_size", default=4, min=1, max=64,
                              tooltip="Images per inference call. Lower if you OOM on a long video / image set."),
-                io.Boolean.Input("force_projection", default=True, advanced=True), 
+                io.Boolean.Input("force_projection", default=True, advanced=True),
                 io.Boolean.Input("apply_mask", default=True, advanced=True,
                                  tooltip="Set masked-out (sky / invalid) pixels to inf in points and depth so meshing culls them. Disable to keep the raw predicted geometry everywhere; the mask is still returned separately."),
             ],
