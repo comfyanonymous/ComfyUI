@@ -48,7 +48,7 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
         return io.Schema(
             node_id="LoadImageDataSetFromFolder",
             display_name="Load Image Dataset from Folder",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             inputs=[
                 io.Combo.Input(
@@ -85,7 +85,7 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
         return io.Schema(
             node_id="LoadImageTextDataSetFromFolder",
             display_name="Load Image and Text Dataset from Folder",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             inputs=[
                 io.Combo.Input(
@@ -207,7 +207,7 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
         return io.Schema(
             node_id="SaveImageDataSetToFolder",
             display_name="Save Image Dataset to Folder",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             is_output_node=True,
             is_input_list=True,  # Receive images as list
@@ -247,7 +247,7 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
         return io.Schema(
             node_id="SaveImageTextDataSetToFolder",
             display_name="Save Image and Text Dataset to Folder",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             is_output_node=True,
             is_input_list=True,  # Receive both images and texts as lists
@@ -403,7 +403,7 @@ class ImageProcessingNode(io.ComfyNode):
         return io.Schema(
             node_id=cls.node_id,
             display_name=cls.display_name or cls.node_id,
-            category="training/dataset/image",
+            category="dataset/image",
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
@@ -552,7 +552,7 @@ class TextProcessingNode(io.ComfyNode):
         return io.Schema(
             node_id=cls.node_id,
             display_name=cls.display_name or cls.node_id,
-            category="training/dataset/text",
+            category="dataset/text",
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
@@ -824,7 +824,7 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
         return io.Schema(
             node_id="ShuffleImageTextDataset",
             display_name="Shuffle Image-Text Dataset",
-            category="training/dataset/image",
+            category="dataset/image",
             is_experimental=True,
             is_input_list=True,
             inputs=[
@@ -1143,7 +1143,7 @@ class ResolutionBucket(io.ComfyNode):
         return io.Schema(
             node_id="ResolutionBucket",
             display_name="Resolution Bucket",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             is_input_list=True,
             inputs=[
@@ -1236,7 +1236,7 @@ class MakeTrainingDataset(io.ComfyNode):
             node_id="MakeTrainingDataset",
             search_aliases=["encode dataset"],
             display_name="Make Training Dataset",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             is_input_list=True,  # images and texts as lists
             inputs=[
@@ -1322,7 +1322,7 @@ class SaveTrainingDataset(io.ComfyNode):
             node_id="SaveTrainingDataset",
             search_aliases=["export training data"],
             display_name="Save Training Dataset",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             is_output_node=True,
             is_input_list=True,  # Receive lists
@@ -1424,7 +1424,7 @@ class LoadTrainingDataset(io.ComfyNode):
             node_id="LoadTrainingDataset",
             search_aliases=["import dataset", "training data"],
             display_name="Load Training Dataset",
-            category="training/dataset",
+            category="dataset",
             is_experimental=True,
             inputs=[
                 io.String.Input(
