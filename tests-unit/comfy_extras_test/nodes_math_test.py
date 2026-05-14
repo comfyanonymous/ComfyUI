@@ -124,9 +124,11 @@ class TestMathExpressionExecute:
         with pytest.raises(Exception, match="not defined"):
             self._exec("str(a)", a=42)
 
-    def test_boolean_result_raises(self):
-        with pytest.raises(ValueError, match="got bool"):
-            self._exec("a > b", a=5, b=3)
+    def test_boolean_result(self):
+        result = self._exec("a > b", a=5, b=3)
+        assert result[2] is True
+        result = self._exec("a > b", a=3, b=5)
+        assert result[2] is False
 
     def test_empty_expression_raises(self):
         with pytest.raises(ValueError, match="Expression cannot be empty"):
