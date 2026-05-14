@@ -149,7 +149,7 @@ class HiDreamO1Transformer(nn.Module):
 
         B, _, H, W = x.shape
 
-        if H % self.patch_size!=0 or w% self.patch_size!=0:
+        if H % self.patch_size!=0 or W% self.patch_size!=0:
             raise ValueError(
                 f"Input dimensions ({H},{W}) must be divisible"
                 f"by patch size{self.patch_size}"
