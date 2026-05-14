@@ -93,27 +93,6 @@ def _create_text_preview(value: str) -> dict:
     }
 
 
-def extract_workflow_id(extra_data: Optional[dict]) -> Optional[str]:
-    """Extract the workflow id from a prompt's ``extra_data``.
-
-    The frontend stores the id at ``extra_data["extra_pnginfo"]["workflow"]["id"]``
-    when a prompt is queued. Any value that is not a non-empty string is treated as
-    missing so callers can rely on the return being either ``None`` or a string.
-    """
-    if not isinstance(extra_data, dict):
-        return None
-    extra_pnginfo = extra_data.get('extra_pnginfo')
-    if not isinstance(extra_pnginfo, dict):
-        return None
-    workflow = extra_pnginfo.get('workflow')
-    if not isinstance(workflow, dict):
-        return None
-    workflow_id = workflow.get('id')
-    if isinstance(workflow_id, str) and workflow_id:
-        return workflow_id
-    return None
-
-
 def _extract_job_metadata(extra_data: dict) -> tuple[Optional[int], Optional[str]]:
     """Extract create_time and workflow_id from extra_data.
 
@@ -121,7 +100,8 @@ def _extract_job_metadata(extra_data: dict) -> tuple[Optional[int], Optional[str
         tuple: (create_time, workflow_id)
     """
     create_time = extra_data.get('create_time')
-    workflow_id = extract_workflow_id(extra_data)
+    extra_pnginfo = extra_data.get('extra_pnginfo', {})
+    workflow_id = extra_pnginfo.get('workflow', {}).get('id')
     return create_time, workflow_id
 
 

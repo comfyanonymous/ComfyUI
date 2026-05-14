@@ -275,11 +275,7 @@ class PromptServer():
                 await self.send("status", {"status": self.get_queue_info(), "sid": sid}, sid)
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
-                    await self.send("executing", {
-                        "node": self.last_node_id,
-                        "prompt_id": getattr(self, "last_prompt_id", None),
-                        "workflow_id": getattr(self, "last_workflow_id", None),
-                    }, sid)
+                    await self.send("executing", { "node": self.last_node_id }, sid)
 
                 # Flag to track if we've received the first message
                 first_message = True

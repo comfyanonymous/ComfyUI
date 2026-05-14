@@ -10,42 +10,7 @@ from comfy_execution.jobs import (
     get_outputs_summary,
     apply_sorting,
     has_3d_extension,
-    extract_workflow_id,
 )
-
-
-class TestExtractWorkflowId:
-    """Unit tests for extract_workflow_id()."""
-
-    def test_returns_id_from_extra_pnginfo(self):
-        assert extract_workflow_id({'extra_pnginfo': {'workflow': {'id': 'wf-123'}}}) == 'wf-123'
-
-    def test_missing_extra_data_returns_none(self):
-        assert extract_workflow_id(None) is None
-
-    def test_non_dict_extra_data_returns_none(self):
-        assert extract_workflow_id('not-a-dict') is None
-
-    def test_missing_extra_pnginfo_returns_none(self):
-        assert extract_workflow_id({}) is None
-
-    def test_missing_workflow_returns_none(self):
-        assert extract_workflow_id({'extra_pnginfo': {}}) is None
-
-    def test_missing_id_returns_none(self):
-        assert extract_workflow_id({'extra_pnginfo': {'workflow': {}}}) is None
-
-    def test_empty_string_id_returns_none(self):
-        assert extract_workflow_id({'extra_pnginfo': {'workflow': {'id': ''}}}) is None
-
-    def test_non_string_id_returns_none(self):
-        assert extract_workflow_id({'extra_pnginfo': {'workflow': {'id': 42}}}) is None
-
-    def test_non_dict_workflow_returns_none(self):
-        assert extract_workflow_id({'extra_pnginfo': {'workflow': 'not-a-dict'}}) is None
-
-    def test_non_dict_extra_pnginfo_returns_none(self):
-        assert extract_workflow_id({'extra_pnginfo': 'not-a-dict'}) is None
 
 
 class TestJobStatus:

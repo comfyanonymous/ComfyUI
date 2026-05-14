@@ -38,7 +38,6 @@ from comfy_execution.graph import (
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
-from comfy_execution.jobs import extract_workflow_id
 from comfy_execution.utils import CurrentNodeContext
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io, _io
@@ -418,15 +417,15 @@ def _is_intermediate_output(dynprompt, node_id):
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     return getattr(class_def, 'HAS_INTERMEDIATE_OUTPUT', False)
 
-def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, workflow_id, ui_outputs):
+def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
     if server.client_id is None:
         return
     cached_ui = cached.ui or {}
-    server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id, "workflow_id": workflow_id }, server.client_id)
+    server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, server.client_id)
     if cached.ui is not None:
         ui_outputs[node_id] = cached.ui
 
-async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, workflow_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
+async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -436,7 +435,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     cached = await caches.outputs.get(unique_id)
     if cached is not None:
-        _send_cached_ui(server, unique_id, display_node_id, cached, prompt_id, workflow_id, ui_outputs)
+        _send_cached_ui(server, unique_id, display_node_id, cached, prompt_id, ui_outputs)
         get_progress_state().finish_progress(unique_id)
         execution_list.cache_update(unique_id, cached)
         return (ExecutionResult.SUCCESS, None, None)
@@ -484,7 +483,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             input_data_all, missing_keys, v3_data = get_input_data(inputs, class_def, unique_id, execution_list, dynprompt, extra_data)
             if server.client_id is not None:
                 server.last_node_id = display_node_id
-                server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id, "workflow_id": workflow_id }, server.client_id)
+                server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
 
             obj = await caches.objects.get(unique_id)
             if obj is None:
@@ -514,7 +513,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 if block.message is not None:
                     mes = {
                         "prompt_id": prompt_id,
-                        "workflow_id": workflow_id,
                         "node_id": unique_id,
                         "node_type": class_type,
                         "executed": list(executed),
@@ -563,7 +561,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 "output": output_ui
             }
             if server.client_id is not None:
-                server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id, "workflow_id": workflow_id }, server.client_id)
+                server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
         if has_subgraph:
             cached_outputs = []
             new_node_ids = []
@@ -660,7 +658,6 @@ class PromptExecutor:
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
         self.status_messages = []
         self.success = True
-        self.workflow_id = None
 
     def add_message(self, event, data: dict, broadcast: bool):
         data = {
@@ -680,7 +677,6 @@ class PromptExecutor:
         if isinstance(ex, comfy.model_management.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
-                "workflow_id": self.workflow_id,
                 "node_id": node_id,
                 "node_type": class_type,
                 "executed": list(executed),
@@ -689,7 +685,6 @@ class PromptExecutor:
         else:
             mes = {
                 "prompt_id": prompt_id,
-                "workflow_id": self.workflow_id,
                 "node_id": node_id,
                 "node_type": class_type,
                 "executed": list(executed),
@@ -728,9 +723,7 @@ class PromptExecutor:
             self.server.client_id = None
 
         self.status_messages = []
-        self.workflow_id = extract_workflow_id(extra_data)
-        self.server.last_workflow_id = self.workflow_id
-        self.add_message("execution_start", { "prompt_id": prompt_id, "workflow_id": self.workflow_id }, broadcast=False)
+        self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         self._notify_prompt_lifecycle("start", prompt_id)
         ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
@@ -740,7 +733,7 @@ class PromptExecutor:
         try:
             with torch.inference_mode():
                 dynamic_prompt = DynamicPrompt(prompt)
-                reset_progress_state(prompt_id, dynamic_prompt, self.workflow_id)
+                reset_progress_state(prompt_id, dynamic_prompt)
                 add_progress_handler(WebUIProgressHandler(self.server))
                 is_changed_cache = IsChangedCache(prompt_id, dynamic_prompt, self.caches.outputs)
                 for cache in self.caches.all:
@@ -758,7 +751,7 @@ class PromptExecutor:
 
                 comfy.model_management.cleanup_models_gc()
                 self.add_message("execution_cached",
-                              { "nodes": cached_nodes, "prompt_id": prompt_id, "workflow_id": self.workflow_id },
+                              { "nodes": cached_nodes, "prompt_id": prompt_id},
                               broadcast=False)
                 pending_subgraph_results = {}
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
@@ -776,7 +769,7 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, self.workflow_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
+                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -800,8 +793,8 @@ class PromptExecutor:
                         cached = await self.caches.outputs.get(node_id)
                         if cached is not None:
                             display_node_id = dynamic_prompt.get_display_node_id(node_id)
-                            _send_cached_ui(self.server, node_id, display_node_id, cached, prompt_id, self.workflow_id, ui_node_outputs)
-                    self.add_message("execution_success", { "prompt_id": prompt_id, "workflow_id": self.workflow_id }, broadcast=False)
+                            _send_cached_ui(self.server, node_id, display_node_id, cached, prompt_id, ui_node_outputs)
+                    self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
                 ui_outputs = {}
                 meta_outputs = {}
@@ -818,8 +811,6 @@ class PromptExecutor:
         finally:
             comfy.memory_management.set_ram_cache_release_state(None, 0)
             self._notify_prompt_lifecycle("end", prompt_id)
-            self.server.last_workflow_id = None
-            self.workflow_id = None
 
 
 async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
