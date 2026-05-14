@@ -644,7 +644,7 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="EmptyShapeLatentTrellis2",
+            node_id="EmptyTrellis2ShapeLatent",
             category="latent/3d",
             inputs=[
                 IO.AnyType.Input("structure_or_coords"),
