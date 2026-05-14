@@ -1164,12 +1164,18 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
             o = out
             o_d = out_div
+            ps_view = ps
+            mask_view = mask
             for d in range(dims):
-                o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
-                o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+                l = min(ps_view.shape[d + 2], o.shape[d + 2] - upscaled[d])
+                o = o.narrow(d + 2, upscaled[d], l)
+                o_d = o_d.narrow(d + 2, upscaled[d], l)
+                if l < ps_view.shape[d + 2]:
+                    ps_view = ps_view.narrow(d + 2, 0, l)
+                    mask_view = mask_view.narrow(d + 2, 0, l)
 
-            o.add_(ps * mask)
-            o_d.add_(mask)
+            o.add_(ps_view * mask_view)
+            o_d.add_(mask_view)
 
             if pbar is not None:
                 pbar.update(1)
