@@ -49,7 +49,7 @@ def pack_variable_mesh_batch(vertices, faces, colors=None):
         color_counts = torch.tensor([c.shape[0] for c in colors], device=colors[0].device, dtype=torch.int64)
         for i, c in enumerate(colors):
             packed_colors[i, :c.shape[0]] = c
-        mesh.colors = packed_colors
+        mesh.vertex_colors = packed_colors
         mesh.color_counts = color_counts
 
     return mesh
@@ -223,7 +223,7 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     final_colors = linear_colors.unsqueeze(0)
 
     out_mesh = copy.deepcopy(mesh)
-    out_mesh.colors = final_colors
+    out_mesh.vertex_colors = final_colors
 
     return out_mesh
 
@@ -231,7 +231,7 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
 def paint_mesh_default_colors(mesh):
     out_mesh = copy.copy(mesh)
     vertex_count = mesh.vertices.shape[1]
-    out_mesh.colors = mesh.vertices.new_zeros((1, vertex_count, 3))
+    out_mesh.vertex_colors = mesh.vertices.new_zeros((1, vertex_count, 3))
     return out_mesh
 
 class VaeDecodeShapeTrellis(IO.ComfyNode):
@@ -1382,12 +1382,12 @@ class PostProcessMesh(IO.ComfyNode):
                 mesh.vertices = torch.stack(out_v)
                 mesh.faces = torch.stack(out_f)
                 if out_c:
-                    mesh.colors = torch.stack(out_c)
+                    mesh.vertex_colors = torch.stack(out_c)
             else:
                 mesh.vertices = out_v
                 mesh.faces = out_f
                 if out_c:
-                    mesh.colors = out_c
+                    mesh.vertex_colors = out_c
 
         else:
             # Single Unbatched Mesh[V, 3]
@@ -1396,7 +1396,7 @@ class PostProcessMesh(IO.ComfyNode):
             mesh.vertices = v
             mesh.faces = f
             if c is not None:
-                mesh.colors = c
+                mesh.vertex_colors = c
 
         return IO.NodeOutput(mesh)
 
