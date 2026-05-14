@@ -670,7 +670,7 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
             coords = structure_or_coords.int()
             is_512_pass = False
         else:
-            raise ValueError(f"Invalid input to EmptyShapeLatent: {type(structure_or_coords)}")
+            raise ValueError(f"Invalid input to EmptyTrellis2ShapeLatent: {type(structure_or_coords)}")
 
         batch_size, counts, max_tokens = infer_batched_coord_layout(coords)
         in_channels = 32
