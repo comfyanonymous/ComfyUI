@@ -247,7 +247,7 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
             ],
             outputs=[
                 IO.Mesh.Output("mesh"),
-                IO.AnyType.Output("shape_subs"),
+                IO.AnyType.Output("shape_subdivides"),
             ]
         )
 
@@ -304,7 +304,11 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
                 IO.Mesh.Input("mesh"),
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
-                IO.AnyType.Input("shape_subs"),
+                IO.AnyType.Input("shape_subdivides",
+                                 tooltip=(
+                                    "Shape information used to guide higher-detail reconstruction during decoding. "
+                                    "Helps preserve structure consistency at higher resolutions."
+                                 )),
             ],
             outputs=[
                 IO.Mesh.Output("mesh"),
@@ -312,7 +316,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mesh, samples, vae, shape_subs):
+    def execute(cls, mesh, samples, vae, shape_subdivides):
         shape_mesh = mesh
         sample_tensor = samples["samples"]
         resolution = int(vae.resolution.item())
@@ -330,7 +334,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         samples = SparseTensor(feats = samples, coords=coords.to(device))
         samples = samples * std + mean
 
-        voxel = trellis_vae.decode_tex_slat(samples, shape_subs)
+        voxel = trellis_vae.decode_tex_slat(samples, shape_subdivides)
         color_feats = voxel.feats[:, :3]
         voxel_coords = voxel.coords[:, 1:]
         voxel_batch_idx = voxel.coords[:, 0]
@@ -407,11 +411,21 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
             inputs=[
                 IO.Latent.Input("shape_latent"),
                 IO.Vae.Input("vae"),
-                IO.Combo.Input("target_resolution", options=["1024", "1536"], default="1024"),
-                IO.Int.Input("max_tokens", default=49152, min=1024, max=100000)
+                IO.Combo.Input("target_resolution", options=["1024", "1536"], default="1024", tooltip="Controls output detail level for upsampling."),
+                IO.Int.Input("max_tokens", default=49152, min=1024, max=100000,
+                             tooltip=(
+                                "Maximum number of output elements (coordinates) allowed after upsampling. "
+                                "Used to limit memory usage and control mesh density."
+                            ))
             ],
             outputs=[
-                IO.AnyType.Output("hr_coords"),
+                IO.AnyType.Output(
+                "high_res_coords",
+                tooltip=(
+                    "High-resolution sparse coordinates produced after cascade upsampling. "
+                    "Represents the refined 3D structure at target resolution."
+                )
+            )
             ]
         )
 
@@ -647,12 +661,12 @@ class EmptyTrellis2ShapeLatent(IO.ComfyNode):
             inputs=[
                 IO.Model.Input("model"),
                 IO.MultiType.Input(
-                "shape_structure",
-                types=[IO.Voxel, IO.AnyType],
-                tooltip=(
-                    "Shape structure input. Accepts either a voxel structure "
-                    "or upsampled coordinates from a previous cascade stage."
-                )
+                    "shape_structure",
+                    types=[IO.Voxel, IO.AnyType],
+                    tooltip=(
+                        "Shape structure input. Accepts either a voxel structure "
+                        "or upsampled coordinates from a previous cascade stage."
+                    )
             )
             ],
             outputs=[
