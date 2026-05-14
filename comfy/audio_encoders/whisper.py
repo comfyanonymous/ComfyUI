@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchaudio
+try:
+    import torchaudio
+except (ImportError, OSError):
+    torchaudio = None
 from typing import Optional
 from comfy.ldm.modules.attention import optimized_attention_masked
 import comfy.ops

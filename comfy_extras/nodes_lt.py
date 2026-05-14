@@ -1,7 +1,10 @@
 import nodes
 import node_helpers
 import torch
-import torchaudio
+try:
+    import torchaudio
+except (ImportError, OSError):
+    torchaudio = None
 import comfy.model_management
 import comfy.model_sampling
 import comfy.samplers

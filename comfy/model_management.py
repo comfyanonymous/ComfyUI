@@ -101,7 +101,7 @@ if args.deterministic:
 
 directml_enabled = False
 if args.directml is not None:
-    logging.warning("WARNING: torch-directml barely works, is very slow, has not been updated in over 1 year and might be removed soon, please don't use it, there are better options.")
+    logging.info("DirectML backend active (AMD/Intel GPU on Windows, no CUDA/ROCm required).")
     import torch_directml
     directml_enabled = True
     device_index = args.directml
@@ -213,7 +213,40 @@ def get_total_memory(dev=None, torch_total_too=False):
         mem_total_torch = mem_total
     else:
         if directml_enabled:
-            mem_total = 1024 * 1024 * 1024 #TODO
+            # Query real VRAM from Windows registry (qwMemorySize is 64-bit, AdapterRAM caps at 4GB)
+            # Falls back to COMFYUI_DIRECTML_VRAM_MB env var, then 6GB default
+            _dml_vram = 0
+            try:
+                _override = os.environ.get("COMFYUI_DIRECTML_VRAM_MB")
+                if _override:
+                    _dml_vram = int(_override) * 1024 * 1024
+            except Exception:
+                pass
+            if _dml_vram <= 0:
+                try:
+                    import winreg as _winreg
+                    _base = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+                    with _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, _base) as _hbase:
+                        _i = 0
+                        while True:
+                            try:
+                                _sub = _winreg.EnumKey(_hbase, _i)
+                                _i += 1
+                                try:
+                                    with _winreg.OpenKey(_hbase, _sub) as _hdev:
+                                        _mem, _ = _winreg.QueryValueEx(_hdev, "HardwareInformation.qwMemorySize")
+                                        if isinstance(_mem, int) and _mem > 128 * 1024 * 1024:
+                                            _dml_vram = _mem
+                                            break
+                                except Exception:
+                                    pass
+                            except OSError:
+                                break
+                except Exception:
+                    pass
+            if _dml_vram <= 0:
+                _dml_vram = 6 * 1024 * 1024 * 1024  # 6GB safe default for modern AMD cards
+            mem_total = _dml_vram
             mem_total_torch = mem_total
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
@@ -1504,7 +1537,16 @@ def get_free_memory(dev=None, torch_free_too=False):
         mem_free_torch = mem_free_total
     else:
         if directml_enabled:
-            mem_free_total = 1024 * 1024 * 1024 #TODO
+            # gpu_memory(0) returns a list of per-tile usage fractions [0.0–1.0]
+            # total_vram (module-level) is the registry-queried real VRAM in MB
+            try:
+                import torch_directml as _tdml
+                _usage_fracs = _tdml.gpu_memory(0)
+                _usage_pct = max(_usage_fracs) if _usage_fracs else 0.0
+                _total = int(total_vram * 1024 * 1024)
+                mem_free_total = max(0, int(_total * (1.0 - _usage_pct)))
+            except Exception:
+                mem_free_total = int(total_vram * 1024 * 1024)
             mem_free_torch = mem_free_total
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
