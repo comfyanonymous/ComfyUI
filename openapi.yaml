@@ -2071,7 +2071,6 @@ paths:
                     type: integer
                     description: Number of assets marked as missing
 
-
   # ===========================================================================
   # Cloud-runtime FE-facing operations
   #
@@ -2122,7 +2121,11 @@ paths:
       operationId: getCloudJobStatus
       tags: [queue]
       summary: Get status of a cloud job
-      description: "[cloud-only] Returns the current execution status of a cloud job."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is superseded by `GET /api/jobs/{job_id}`.
+        Clients should migrate; the endpoint is retained for backward
+        compatibility but will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: job_id
@@ -2192,7 +2195,11 @@ paths:
       operationId: getHistoryV2
       tags: [history]
       summary: Get paginated execution history (v2)
-      description: "[cloud-only] Returns a paginated list of execution history entries in the v2 format, with richer metadata than the legacy history endpoint."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is superseded by `GET /api/jobs`.
+        Clients should migrate; the endpoint is retained for backward
+        compatibility but will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: limit
@@ -2231,7 +2238,11 @@ paths:
       operationId: getHistoryV2ByPromptId
       tags: [history]
       summary: Get v2 history for a specific prompt
-      description: "[cloud-only] Returns the v2 history entry for a specific prompt execution."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is superseded by `GET /api/jobs/{prompt_id}`.
+        Clients should migrate; the endpoint is retained for backward
+        compatibility but will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: prompt_id
@@ -2266,7 +2277,12 @@ paths:
       operationId: getCloudLogs
       tags: [system]
       summary: Get cloud execution logs
-      description: "[cloud-only] Returns execution logs for the authenticated user's cloud jobs."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint returns a static placeholder response and
+        provides no real log data. It is retained only to avoid breaking clients
+        that still call it. Clients should remove their dependency; the endpoint
+        will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: job_id
@@ -5370,7 +5386,12 @@ paths:
       operationId: viewVideo
       tags: [view]
       summary: View or download a video file
-      description: "[cloud-only] Serves a video file from the output directory. Used by the frontend video player."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is an alias of `GET /api/view` added for
+        legacy history-queue video playback. Callers should use `/api/view`
+        directly; the endpoint is retained for backward compatibility but will
+        be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: filename
@@ -5522,7 +5543,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
-
 
 components:
   parameters:
@@ -6874,7 +6894,6 @@ components:
           enum: [created, running, completed, failed]
         error:
           type: string
-
 
     # -------------------------------------------------------------------
     # Cloud-runtime schemas
