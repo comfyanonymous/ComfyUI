@@ -336,6 +336,10 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     steps = 1
 
 
+    if mem_free_total <= 0:
+        # DirectML doesn't expose free VRAM — assume 4GB free as a safe fallback for 6GB cards
+        mem_free_total = 4 * (1024 ** 3)
+
     if mem_required > mem_free_total:
         steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
         # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
