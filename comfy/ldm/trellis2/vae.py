@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from fractions import Fraction
 from dataclasses import dataclass
 from typing import List, Any, Dict, Optional, overload, Union, Tuple
-from comfy.ldm.trellis2.cumesh import TorchHashMap, Mesh, sparse_submanifold_conv3d
+from comfy.ldm.trellis2.flexgemm import TorchHashMap, Mesh, sparse_submanifold_conv3d
 
 
 def pixel_shuffle_3d(x: torch.Tensor, scale_factor: int) -> torch.Tensor:
