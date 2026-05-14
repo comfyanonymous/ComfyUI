@@ -737,7 +737,7 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         return IO.NodeOutput({"samples": latent, "coords": coords, "coords_counts": counts, "type": "trellis2"}, model)
 
 
-class EmptyStructureLatentTrellis2(IO.ComfyNode):
+class EmptyTrellis2LatentStructure(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
