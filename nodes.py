@@ -1221,7 +1221,7 @@ class LatentFromBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              "batch_index": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                               "length": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
     RETURN_TYPES = ("LATENT",)
@@ -1232,7 +1232,9 @@ class LatentFromBatch:
     def frombatch(self, samples, batch_index, length):
         s = samples.copy()
         s_in = samples["samples"]
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        if batch_index < 0:
+            batch_index += s_in.shape[0]
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s["samples"] = s_in[batch_index:batch_index + length].clone()
         if "noise_mask" in samples:
@@ -2434,6 +2436,10 @@ async def init_builtin_extra_nodes():
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
         "nodes_void.py",
+        "nodes_wandancer.py",
+        "nodes_hidream_o1.py",
+        "nodes_save_3d.py",
+        "nodes_moge.py",
     ]
 
     import_failed = []
