@@ -779,15 +779,18 @@ class Trellis2(nn.Module):
 
     def forward(self, x, timestep, context, **kwargs):
         transformer_options = kwargs.get("transformer_options", {})
+        model_options = {}
+        if hasattr(self, "meta"):
+            model_options = self.meta
         timestep = timestep.to(x.dtype)
         embeds = kwargs.get("embeds")
         if embeds is None:
             raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
 
         is_1024 = self.img2shape.resolution == 1024
-        coords = transformer_options.get("coords", None)
-        coord_counts = transformer_options.get("coord_counts", None)
-        mode = transformer_options.get("generation_mode", "structure_generation")
+        coords = model_options.get("coords", None)
+        coord_counts = model_options.get("coord_counts", None)
+        mode = model_options.get("generation_mode", "structure_generation")
 
         is_512_run = False
         if mode == "shape_generation_512":
@@ -881,7 +884,7 @@ class Trellis2(nn.Module):
         elif mode == "texture_generation":
             if self.shape2txt is None:
                 raise ValueError("Checkpoint for Trellis2 doesn't include texture generation!")
-            slat = transformer_options.get("shape_slat")
+            slat = model_options.get("shape_slat")
             if slat is None:
                 raise ValueError("shape_slat can't be None")
 
