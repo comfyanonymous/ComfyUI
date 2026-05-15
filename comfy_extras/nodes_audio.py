@@ -242,6 +242,75 @@ class SaveAudioOpus(IO.ComfyNode):
 
     save_opus = execute  # TODO: remove
 
+class SaveAudioWAV(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveAudioWAV",
+            search_aliases=["export wav", "export wave"],
+            display_name="Save Audio (WAV)",
+            category="audio",
+            essentials_category="Audio",
+            inputs=[
+                IO.Audio.Input("audio"),
+                IO.String.Input("filename_prefix", default="audio/ComfyUI"),
+                IO.Combo.Input(
+                    "bit_depth",
+                    options=["pcm_16", "pcm_24", "pcm_32", "pcm_f32"],
+                    default="pcm_16",
+                    tooltip="Bit depth: pcm_16 = CD quality, pcm_24 = studio, pcm_32 = mastering, pcm_f32 = float 32-bit.",
+                ),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, audio, filename_prefix="ComfyUI", bit_depth="pcm_16") -> IO.NodeOutput:
+        if audio is None:
+            raise ValueError("SaveAudioWAV: input audio is None.")
+
+        waveform = audio["waveform"].squeeze(0)  # [channels, samples]
+        sample_rate = audio["sample_rate"]
+
+        codec_map = {
+            "pcm_16":  ("pcm_s16le", "s16p"),
+            "pcm_24":  ("pcm_s24le", "s32p"),
+            "pcm_32":  ("pcm_s32le", "s32p"),
+            "pcm_f32": ("pcm_f32le", "fltp"),
+        }
+
+        codec_name, av_format = codec_map[bit_depth]
+
+        full_output_folder, filename, counter, subfolder, _ = \
+            folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
+
+        file = f"{filename}_{counter:05}_.wav"
+        filepath = os.path.join(full_output_folder, file)
+
+        with av.open(filepath, "w", format="wav") as container:
+            n_channels = waveform.shape[0]
+            stream = container.add_stream(codec_name, rate=sample_rate, layout="stereo" if n_channels == 2 else "mono")
+
+            # convert tensor → numpy right format
+            if av_format == "s16p":
+                data = (waveform * 32767).clamp(-32768, 32767).to(torch.int16).numpy()
+            elif av_format == "s32p":
+                data = (waveform * 2147483647).clamp(-2147483648, 2147483647).to(torch.int32).numpy()
+            else:  # fltp
+                data = waveform.numpy()
+
+            frame = av.AudioFrame.from_ndarray(data, format=av_format, layout="stereo" if n_channels == 2 else "mono")
+
+            frame.sample_rate = sample_rate
+            for packet in stream.encode(frame):
+                container.mux(packet)
+            for packet in stream.encode(None):  # flush
+                container.mux(packet)
+
+        return IO.NodeOutput(ui={"audio": [{"filename": file, "subfolder": subfolder, "type": "output"}]})
+
+    save_wav = execute  # TODO: remove
 
 class PreviewAudio(IO.ComfyNode):
     @classmethod
@@ -823,6 +892,7 @@ class AudioExtension(ComfyExtension):
             SaveAudio,
             SaveAudioMP3,
             SaveAudioOpus,
+            SaveAudioWAV,
             LoadAudio,
             PreviewAudio,
             ConditioningStableAudio,
