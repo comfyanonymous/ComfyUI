@@ -1670,6 +1670,9 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 def force_load_param(self, param_key, device_to):
                     key = key_param_name_to_key(n, param_key)
+                    weight, _, _ = get_key_weight(self.model, key)
+                    if weight is None:
+                        return
                     if key in self.backup:
                         comfy.utils.set_attr_param(self.model, key, self.backup[key].weight)
                     self.patch_weight_to_device(key, device_to=device_to, force_cast=True)
@@ -1683,13 +1686,19 @@ class ModelPatcherDynamic(ModelPatcher):
                     m._pin_state = pin_state
                     set_dirty(m, dirty)
 
-                    force_load, v_weight_size = setup_param(self, m, n, "weight")
-                    force_load_bias, v_weight_bias = setup_param(self, m, n, "bias")
-                    force_load = force_load or force_load_bias
-                    v_weight_size += v_weight_bias
+                    #Models that mix tiny and giant weights can causing lopsided stream buffer
+                    #rotations and stall. force the tinys over.
+                    if module_mem > 16 * 1024:
+                        force_load, v_weight_size = setup_param(self, m, n, "weight")
+                        force_load_bias, v_weight_bias = setup_param(self, m, n, "bias")
+                        force_load = force_load or force_load_bias
+                        v_weight_size += v_weight_bias
+                        if force_load:
+                            logging.info(f"Module {n} has resizing Lora - force loading")
+                    else:
+                        force_load=True
 
                     if force_load:
-                        logging.info(f"Module {n} has resizing Lora - force loading")
                         force_load_param(self, "weight", device_to)
                         force_load_param(self, "bias", device_to)
                     else:
