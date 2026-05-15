@@ -134,8 +134,11 @@ class ModelSamplingSD3:
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
+        original = m.get_model_object("model_sampling")
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
         model_sampling.set_parameters(shift=shift, multiplier=multiplier)
+        if hasattr(original, "noise_scale"):
+            model_sampling.set_noise_scale(original.noise_scale)
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
 
@@ -315,7 +318,7 @@ class ModelNoiseScale:
 
     def patch(self, model, noise_scale):
         m = model.clone()
-        original = m.model.model_sampling
+        original = m.get_model_object("model_sampling")
         ms = type(original)(m.model.model_config)
         ms.set_parameters(shift=original.shift, multiplier=original.multiplier)
         ms.set_noise_scale(noise_scale)
