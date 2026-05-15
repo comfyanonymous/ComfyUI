@@ -6030,6 +6030,24 @@ components:
               type: string
               nullable: true
               description: Minimum required workflow templates version for this ComfyUI build
+            comfy_package_versions:
+              type: array
+              description: Installed and required versions for every comfy* package pinned in requirements.txt
+              items:
+                type: object
+                required:
+                  - name
+                  - installed
+                  - required
+                properties:
+                  name:
+                    type: string
+                  installed:
+                    type: string
+                    nullable: true
+                  required:
+                    type: string
+                    nullable: true
         devices:
           type: array
           items:
