@@ -544,11 +544,12 @@ def module_mmap_residency(module, free=False):
     for k in sd:
         t = sd[k]
         module_mem += t.nbytes
-        try:
-            storage = t._qdata.untyped_storage() if isinstance(t, comfy.quant_ops.QuantizedTensor) else t.untyped_storage()
-        except NotImplementedError:
-            # DirectML (AMD) tensors are opaque — no host storage to inspect; skip mmap tracking
+        # DirectML tensors (device.type == 'privateuseone') are backed by OpaqueTensorImpl
+        # and do not expose host storage. Mmap tracking is meaningless for GPU-side tensors;
+        # skip entirely. See: github.com/Comfy-Org/ComfyUI/issues/8347
+        if hasattr(t, 'device') and t.device.type == 'privateuseone':
             continue
+        storage = t._qdata.untyped_storage() if isinstance(t, comfy.quant_ops.QuantizedTensor) else t.untyped_storage()
         if not getattr(storage, "_comfy_tensor_mmap_touched", False):
             continue
         mmap_touched_mem += t.nbytes
@@ -1332,12 +1333,12 @@ def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
                 continue
             if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view):
                 continue
-            try:
-                storage = tensor._qdata.untyped_storage() if isinstance(tensor, comfy.quant_ops.QuantizedTensor) else tensor.untyped_storage()
-            except NotImplementedError:
-                # DirectML tensors are opaque — skip mmap marking, just copy
+            # DirectML tensors are OpaqueTensorImpl — no host storage to mark.
+            # Skip mmap tracking and perform the copy directly.
+            if hasattr(tensor, 'device') and tensor.device.type == 'privateuseone':
                 dest_view.copy_(tensor, non_blocking=non_blocking)
                 continue
+            storage = tensor._qdata.untyped_storage() if isinstance(tensor, comfy.quant_ops.QuantizedTensor) else tensor.untyped_storage()
             if hasattr(storage, "_comfy_tensor_mmap_touched"):
                 storage._comfy_tensor_mmap_touched = True
             dest_view.copy_(tensor, non_blocking=non_blocking)
