@@ -15,8 +15,8 @@ from folder_paths import get_annotated_filepath, set_input_directory
     "subdir/../../../etc/shadow",
     "/absolute/path/to/file.txt",
     "..\\..\\..\\windows\\system32\\config",
+    "subdir\\..\\..\\..\\etc\\passwd",  # Windows backslash bypass
     "foo/../../../../etc/hostname",
-    ".../.../.../etc/passwd",
     None,
     "",
     12345,
