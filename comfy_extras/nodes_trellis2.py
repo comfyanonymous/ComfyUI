@@ -375,7 +375,7 @@ class VaeDecodeStructureTrellis2(IO.ComfyNode):
                 IO.Combo.Input("resolution", options=["32", "64"], default="32")
             ],
             outputs=[
-                IO.Voxel.Output("structure_output"),
+                IO.Voxel.Output("voxel"),
             ]
         )
 
@@ -420,7 +420,7 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
             ],
             outputs=[
                 IO.AnyType.Output(
-                "high_res_coords",
+                "high_res_voxel",
                 tooltip=(
                     "High-resolution sparse coordinates produced after cascade upsampling. "
                     "Represents the refined 3D structure at target resolution."
@@ -661,11 +661,11 @@ class EmptyTrellis2ShapeLatent(IO.ComfyNode):
             inputs=[
                 IO.Model.Input("model"),
                 IO.MultiType.Input(
-                    "shape_structure",
+                    "voxel",
                     types=[IO.Voxel, IO.AnyType],
                     tooltip=(
                         "Shape structure input. Accepts either a voxel structure "
-                        "or upsampled coordinates from a previous cascade stage."
+                        "or upsampled voxel coordinates from a previous cascade stage."
                     )
             )
             ],
