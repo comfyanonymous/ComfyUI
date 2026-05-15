@@ -157,6 +157,18 @@ def create_origin_only_middleware():
         if 'Host' in request.headers and 'Origin' in request.headers:
             host = request.headers['Host']
             origin = request.headers['Origin']
+
+            # SECURITY: Reject null origin — it is sent by sandboxed iframes
+            # and privacy-focused browsers. Null origin cannot be verified and
+            # indicates a potential CSRF attack. Without this check, the
+            # urlparse('null') call below returns empty netloc, bypassing the
+            # entire host/origin comparison.
+            if origin == 'null':
+                logging.warning(
+                    "WARNING: Rejected request with null Origin (CSRF protection)"
+                )
+                return web.Response(status=403)
+
             host_domain = host.lower()
             parsed = urllib.parse.urlparse(origin)
             origin_domain = parsed.netloc.lower()
