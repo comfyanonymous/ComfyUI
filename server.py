@@ -121,25 +121,28 @@ def create_cors_middleware(allowed_origin: str):
 def is_loopback(host):
     if host is None:
         return False
-    try:
-        if ipaddress.ip_address(host).is_loopback:
-            return True
-        else:
-            return False
-    except:
-        pass
+    if not isinstance(host, str) or not host:
+        return False
 
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        pass  # Not a raw IP — proceed to DNS resolution
+
+    # DNS resolution: ALL resolved addresses must be loopback
     loopback = False
     for family in (socket.AF_INET, socket.AF_INET6):
         try:
             r = socket.getaddrinfo(host, None, family, socket.SOCK_STREAM)
             for family, _, _, _, sockaddr in r:
-                if not ipaddress.ip_address(sockaddr[0]).is_loopback:
-                    return loopback
+                addr = ipaddress.ip_address(sockaddr[0])
+                if not addr.is_loopback:
+                    return False  # Found non-loopback — not exclusively loopback
                 else:
                     loopback = True
-        except socket.gaierror:
-            pass
+        except socket.gaierror as e:
+            logging.debug(f"DNS resolution failed for {host}: {e}")
+            continue
 
     return loopback
 
