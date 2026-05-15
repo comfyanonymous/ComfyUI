@@ -144,11 +144,15 @@ def is_loopback(host):
         try:
             r = socket.getaddrinfo(host, None, family, socket.SOCK_STREAM)
             for family, _, _, _, sockaddr in r:
-                addr = ipaddress.ip_address(sockaddr[0])
+                try:
+                    addr = ipaddress.ip_address(sockaddr[0])
+                except ValueError:
+                    # Malformed address (e.g. IPv6 scope id) — fail-closed
+                    logging.debug(f"Unparseable address {sockaddr[0]!r} for {host}")
+                    return False
                 if not addr.is_loopback:
                     return False  # Found non-loopback — not exclusively loopback
-                else:
-                    loopback = True
+                loopback = True
         except socket.gaierror as e:
             logging.debug(f"DNS resolution failed for {host}: {e}")
             continue
