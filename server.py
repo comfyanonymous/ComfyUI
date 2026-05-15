@@ -119,6 +119,15 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 def is_loopback(host):
+    """Check if a hostname resolves exclusively to loopback addresses.
+
+    Returns True only when:
+    - host is a loopback IP (127.0.0.1, ::1), OR
+    - host is a DNS name that resolves ONLY to loopback IPs (all families)
+
+    Returns False for None, empty strings, non-string input, public IPs,
+    and mixed-resolution hostnames.
+    """
     if host is None:
         return False
     if not isinstance(host, str) or not host:
