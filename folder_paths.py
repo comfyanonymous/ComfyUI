@@ -265,15 +265,23 @@ def annotated_filepath(name: str) -> tuple[str, str | None]:
     return name, base_dir
 
 
-def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
-    # SECURITY: Validate input BEFORE calling annotated_filepath (which crashes
-    # on None/non-string input). Block path traversal attempts.
+def _validate_path_notraversal(name: str) -> None:
+    """Validate that name does not contain path traversal.
+
+    Must be called BEFORE annotated_filepath() which crashes on non-string input.
+    Normalizes backslashes to forward slashes first (posixpath treats \ as literal).
+    """
     if not name or not isinstance(name, str):
         raise ValueError(f"Invalid file path: must be a non-empty string")
-    normalized = posixpath.normpath(name)
+    # Normalize backslashes to forward slashes for posixpath safety
+    name_posix = name.replace('\\', '/')
+    normalized = posixpath.normpath(name_posix)
     if normalized.startswith('..') or posixpath.isabs(normalized):
         raise ValueError(f"Path traversal detected: {name}")
 
+
+def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
+    _validate_path_notraversal(name)
     name, base_dir = annotated_filepath(name)
 
     if base_dir is None:
@@ -286,6 +294,7 @@ def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
 
 
 def exists_annotated_filepath(name) -> bool:
+    _validate_path_notraversal(name)
     name, base_dir = annotated_filepath(name)
 
     if base_dir is None:
