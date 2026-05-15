@@ -8,7 +8,12 @@ from server import create_origin_only_middleware, is_loopback
 
 
 class TestOriginNullCheck:
-    """Verify the Origin:null check exists and returns 403."""
+    """Verify the Origin:null check exists in create_origin_only_middleware.
+
+    Confirms that the middleware function contains a guard for the 'null'
+    origin value and that this check is positioned before the urlparse()
+    call (preventing the empty-netloc bypass).
+    """
 
     def test_middleware_contains_null_check(self):
         """The middleware function must check for origin == 'null'."""
@@ -20,7 +25,12 @@ class TestOriginNullCheck:
             "Middleware must return HTTP 403 for null origin"
 
     def test_middleware_check_before_urlparse(self):
-        """The null check must happen before urlparse to prevent empty netloc."""
+        """Verify the null origin check runs before the urlparse() call.
+
+        If urlparse() is called with 'null', it returns an empty netloc
+        which bypasses the host/origin comparison. The null check must
+        prevent this by rejecting the request before parsing occurs.
+        """
         middleware = create_origin_only_middleware()
         source = inspect.getsource(middleware)
         null_line = None
@@ -37,7 +47,12 @@ class TestOriginNullCheck:
 
 
 class TestIsLoopback:
-    """Verify is_loopback() handles edge cases without exceptions."""
+    """Verify is_loopback() handles edge cases without exceptions.
+
+    Covers: invalid input types, loopback addresses (127.0.0.1, ::1,
+    localhost), public addresses (8.8.8.8, example.com), and confirms
+    that no bare 'except:' clause is used in the implementation.
+    """
 
     @pytest.mark.parametrize("host,expected", [
         (None, False),
