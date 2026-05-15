@@ -1318,7 +1318,7 @@ def sync_stream(device, stream):
     current_stream(device).wait_stream(stream)
 
 
-def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
+def cast_to_gathered(tensors, r, non_blocking=False, stream=None, r2=None):
     wf_context = nullcontext()
     if stream is not None:
        wf_context = stream
@@ -1326,16 +1326,20 @@ def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
            wf_context = wf_context.as_context(stream)
 
     dest_views = comfy.memory_management.interpret_gathered_like(tensors, r)
+    dest2_views = comfy.memory_management.interpret_gathered_like(tensors, r2) if r2 is not None else None
     with wf_context:
         for tensor in tensors:
             dest_view = dest_views.pop(0)
+            dest2_view = dest2_views.pop(0) if dest2_views is not None else None
             if tensor is None:
                 continue
-            if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view):
+            if comfy.memory_management.read_tensor_file_slice_into(tensor, dest_view, stream=stream, destination2=dest2_view):
                 continue
             storage = tensor._qdata.untyped_storage() if isinstance(tensor, comfy.quant_ops.QuantizedTensor) else tensor.untyped_storage()
             mark_mmap_dirty(storage)
             dest_view.copy_(tensor, non_blocking=non_blocking)
+            if dest2_view is not None:
+                dest2_view.copy_(dest_view, non_blocking=non_blocking)
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None, r=None):
