@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import posixpath
 import time
 import mimetypes
 import logging
@@ -265,6 +266,14 @@ def annotated_filepath(name: str) -> tuple[str, str | None]:
 
 
 def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
+    # SECURITY: Validate input BEFORE calling annotated_filepath (which crashes
+    # on None/non-string input). Block path traversal attempts.
+    if not name or not isinstance(name, str):
+        raise ValueError(f"Invalid file path: must be a non-empty string")
+    normalized = posixpath.normpath(name)
+    if normalized.startswith('..') or posixpath.isabs(normalized):
+        raise ValueError(f"Path traversal detected: {name}")
+
     name, base_dir = annotated_filepath(name)
 
     if base_dir is None:
