@@ -26,6 +26,7 @@ import uuid
 from typing import Callable, Optional
 
 import torch
+import tqdm
 
 import comfy.float
 import comfy.hooks
@@ -239,6 +240,37 @@ class LazyCastingParam(torch.nn.Parameter):
     #all weights getting garbage collected per-weight
     def to(self, *args, **kwargs):
         return self.model.patch_weight_to_device(self.key, device_to=self.model.load_device, return_weight=True).to("cpu")
+
+
+class LazyCastingQuantizedParam:
+    def __init__(self, model, key):
+        self.model = model
+        self.key = key
+        self.cpu_state_dict = None
+
+    def state_dict_tensor(self, state_dict_key):
+        if self.cpu_state_dict is None:
+            weight = self.model.patch_weight_to_device(self.key, device_to=self.model.load_device, return_weight=True)
+            self.cpu_state_dict = {k: v.to("cpu") for k, v in weight.state_dict(self.key).items()}
+        return self.cpu_state_dict[state_dict_key]
+
+
+class LazyCastingParamPiece(torch.nn.Parameter):
+    def __new__(cls, caster, state_dict_key, tensor):
+        return super().__new__(cls, tensor)
+
+    def __init__(self, caster, state_dict_key, tensor):
+        self.caster = caster
+        self.state_dict_key = state_dict_key
+
+    @property
+    def device(self):
+        return CustomTorchDevice
+
+    def to(self, *args, **kwargs):
+        caster = self.caster
+        del self.caster
+        return caster.state_dict_tensor(self.state_dict_key)
 
 
 class ModelPatcher:
@@ -1462,20 +1494,37 @@ class ModelPatcher:
         self.clear_cached_hook_weights()
 
     def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
-        unet_state_dict = self.model.diffusion_model.state_dict()
-        for k, v in unet_state_dict.items():
+        original_state_dict = self.model.diffusion_model.state_dict()
+        unet_state_dict = {}
+        keys = list(original_state_dict)
+        while len(keys) > 0:
+            k = keys.pop(0)
+            v = original_state_dict[k]
             op_keys = k.rsplit('.', 1)
             if (len(op_keys) < 2) or op_keys[1] not in ["weight", "bias"]:
+                unet_state_dict[k] = v
                 continue
             try:
                 op = comfy.utils.get_attr(self.model.diffusion_model, op_keys[0])
             except:
+                unet_state_dict[k] = v
                 continue
             if not op or not hasattr(op, "comfy_cast_weights") or \
                 (hasattr(op, "comfy_patched_weights") and op.comfy_patched_weights == True):
+                unet_state_dict[k] = v
                 continue
             key = "diffusion_model." + k
-            unet_state_dict[k] = LazyCastingParam(self, key, comfy.utils.get_attr(self.model, key))
+            weight = comfy.utils.get_attr(self.model, key)
+            if isinstance(weight, QuantizedTensor) and k in original_state_dict:
+                qt_state_dict = weight.state_dict(k)
+                caster = LazyCastingQuantizedParam(self, key)
+                for group_key in (x for x in qt_state_dict if x in original_state_dict):
+                    if group_key in keys:
+                        keys.remove(group_key)
+                    unet_state_dict.pop(group_key, "")
+                    unet_state_dict[group_key] = LazyCastingParamPiece(caster, "diffusion_model." + group_key, original_state_dict[group_key])
+                continue
+            unet_state_dict[k] = LazyCastingParam(self, key, weight)
         return self.model.state_dict_for_saving(unet_state_dict, clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
 
     def __del__(self):
@@ -1651,7 +1700,11 @@ class ModelPatcherDynamic(ModelPatcher):
                 self.model.model_loaded_weight_memory += casted_buf.numel() * casted_buf.element_size()
 
             force_load_stat = f" Force pre-loaded {len(self.backup)} weights: {self.model.model_loaded_weight_memory // 1024} KB." if len(self.backup) > 0 else ""
-            logging.info(f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.{force_load_stat}")
+            log_key = (self.patches_uuid, allocated_size, num_patches, len(self.backup), self.model.model_loaded_weight_memory)
+            in_loop = bool(getattr(tqdm.tqdm, "_instances", None))
+            level = logging.DEBUG if in_loop and getattr(self, "_last_prepare_log_key", None) == log_key else logging.INFO
+            self._last_prepare_log_key = log_key
+            logging.log(level, f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.{force_load_stat}")
 
             self.model.device = device_to
             self.model.current_weight_patches_uuid = self.patches_uuid

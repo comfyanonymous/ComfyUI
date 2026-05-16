@@ -63,7 +63,11 @@ class IndexListContextWindow(ContextWindowABC):
             dim = self.dim
         if dim == 0 and full.shape[dim] == 1:
             return full
-        idx = tuple([slice(None)] * dim + [self.index_list])
+        indices = self.index_list
+        anchor_idx = getattr(self, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            indices = [anchor_idx] + list(indices)
+        idx = tuple([slice(None)] * dim + [indices])
         window = full[idx]
         if retain_index_list:
             idx = tuple([slice(None)] * dim + [retain_index_list])
@@ -113,7 +117,14 @@ def slice_cond(cond_value, window: IndexListContextWindow, x_in: torch.Tensor, d
 
     # skip leading latent positions that have no corresponding conditioning (e.g. reference frames)
     if temporal_offset > 0:
-        indices = [i - temporal_offset for i in window.index_list[temporal_offset:]]
+        anchor_idx = getattr(window, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            # anchor occupies one of the no-cond positions, so skip one fewer from window.index_list
+            skip_count = temporal_offset - 1
+        else:
+            skip_count = temporal_offset
+
+        indices = [i - temporal_offset for i in window.index_list[skip_count:]]
         indices = [i for i in indices if 0 <= i]
     else:
         indices = list(window.index_list)
@@ -150,7 +161,8 @@ class ContextFuseMethod:
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
-                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False):
+                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False,
+                 causal_window_fix: bool=True):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -162,6 +174,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self.freenoise = freenoise
         self.cond_retain_index_list = [int(x.strip()) for x in cond_retain_index_list.split(",")] if cond_retain_index_list else []
         self.split_conds_to_windows = split_conds_to_windows
+        self.causal_window_fix = causal_window_fix
 
         self.callbacks = {}
 
@@ -318,6 +331,14 @@ class IndexListContextHandler(ContextHandlerABC):
             # allow processing to end between context window executions for faster Cancel
             comfy.model_management.throw_exception_if_processing_interrupted()
 
+            # causal_window_fix: prepend a pre-window frame that will be stripped post-forward
+            anchor_applied = False
+            if self.causal_window_fix:
+                anchor_idx = window.index_list[0] - 1
+                if 0 <= anchor_idx < x_in.size(self.dim):
+                    window.causal_anchor_index = anchor_idx
+                    anchor_applied = True
+
             for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EVALUATE_CONTEXT_WINDOWS, self.callbacks):
                 callback(self, model, x_in, conds, timestep, model_options, window_idx, window, model_options, device, first_device)
 
@@ -332,6 +353,12 @@ class IndexListContextHandler(ContextHandlerABC):
             if device is not None:
                 for i in range(len(sub_conds_out)):
                     sub_conds_out[i] = sub_conds_out[i].to(x_in.device)
+
+            # strip causal_window_fix anchor if applied
+            if anchor_applied:
+                for i in range(len(sub_conds_out)):
+                    sub_conds_out[i] = sub_conds_out[i].narrow(self.dim, 1, sub_conds_out[i].shape[self.dim] - 1)
+
             results.append(ContextResults(window_idx, sub_conds_out, sub_conds, window))
         return results
 
