@@ -23,6 +23,8 @@ class GetICLoRAParameters(io.ComfyNode):
         return io.Schema(
             node_id="GetICLoRAParameters",
             display_name="Get IC-LoRA Parameters",
+            description="Extracts IC-LoRA parameters from the safetensors metadata of a LoRA-loaded "
+                        "model and outputs them for LTXVAddGuide (eg. reference_downscale_factor).",
             category="conditioning/video_models",
             search_aliases=["ic-lora", "ic lora", "iclora", "downscale factor", "reference downscale"],
             inputs=[
@@ -37,7 +39,7 @@ class GetICLoRAParameters(io.ComfyNode):
                     "iclora_parameters",
                     tooltip="IC-LoRA parameters extracted from the LoRA metadata "
                             "(eg. reference_downscale_factor). Connect to LTXVAddGuide "
-                            "if the LoRA requires special handling of the guides."
+                            "if the LoRA requires special handling of the guides.",
                 ),
             ],
         )
