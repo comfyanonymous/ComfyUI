@@ -17,6 +17,7 @@
 """
 
 from __future__ import annotations
+import comfy.memory_management
 import comfy.utils
 import comfy.model_management
 import comfy.model_base
@@ -96,12 +97,14 @@ def load_lora(lora, to_load, log_missing=True):
 
 def model_lora_keys_clip(model, key_map={}):
     sdk = model.state_dict().keys()
+    prefix_set = set()
     for k in sdk:
         if k.endswith(".weight"):
             key_map["text_encoders.{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
             tp = k.find(".transformer.") #also map without wrapper prefix for composite text encoder models
             if tp > 0 and not k.startswith("clip_"):
                 key_map["text_encoders.{}".format(k[tp + 1:-len(".weight")])] = k
+            prefix_set.add(k.split('.')[0])
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
@@ -162,6 +165,13 @@ def model_lora_keys_clip(model, key_map={}):
                 lora_key = "lora_te1_{}".format(l_key.replace(".", "_"))
                 key_map[lora_key] = k
 
+    if len(prefix_set) == 1:
+        full_prefix = "{}.transformer.model.".format(next(iter(prefix_set)))  # kohya anima and maybe other single TE models that use a single llama arch based te
+        for k in sdk:
+            if k.endswith(".weight"):
+                if k.startswith(full_prefix):
+                    l_key = k[len(full_prefix):-len(".weight")]
+                    key_map["lora_te_{}".format(l_key.replace(".", "_"))] = k
 
     k = "clip_g.transformer.text_projection.weight"
     if k in sdk:
@@ -342,6 +352,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # LyCORIS/LoKR format
 
+    if isinstance(model, comfy.model_base.ErnieImage):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["transformer.{}".format(key_lora)] = k
+
     return key_map
 
 
@@ -467,3 +483,17 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
             weight = old_weight
 
     return weight
+
+def prefetch_prepared_value(value, allocate_buffer, stream):
+    if isinstance(value, torch.Tensor):
+        dest = allocate_buffer(comfy.memory_management.vram_aligned_size(value))
+        comfy.model_management.cast_to_gathered([value], dest, non_blocking=True, stream=stream)
+        return comfy.memory_management.interpret_gathered_like([value], dest)[0]
+    elif isinstance(value, weight_adapter.WeightAdapterBase):
+        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, allocate_buffer, stream))
+    elif isinstance(value, tuple):
+        return tuple(prefetch_prepared_value(item, allocate_buffer, stream) for item in value)
+    elif isinstance(value, list):
+        return [prefetch_prepared_value(item, allocate_buffer, stream) for item in value]
+
+    return value

@@ -19,6 +19,8 @@ from comfy import utils
 from comfy_api.latest import IO
 from server import PromptServer
 
+from comfy.deploy_environment import get_deploy_environment
+
 from . import request_logger
 from ._helpers import (
     default_base_url,
@@ -148,7 +150,7 @@ async def poll_op(
     queued_statuses: list[str | int] | None = None,
     data: BaseModel | None = None,
     poll_interval: float = 5.0,
-    max_poll_attempts: int = 160,
+    max_poll_attempts: int = 480,
     timeout_per_poll: float = 120.0,
     max_retries_per_poll: int = 10,
     retry_delay_per_poll: float = 1.0,
@@ -156,6 +158,7 @@ async def poll_op(
     estimated_duration: int | None = None,
     cancel_endpoint: ApiEndpoint | None = None,
     cancel_timeout: float = 10.0,
+    extra_text: str | None = None,
 ) -> M:
     raw = await poll_op_raw(
         cls,
@@ -176,6 +179,7 @@ async def poll_op(
         estimated_duration=estimated_duration,
         cancel_endpoint=cancel_endpoint,
         cancel_timeout=cancel_timeout,
+        extra_text=extra_text,
     )
     if not isinstance(raw, dict):
         raise Exception("Expected JSON response to validate into a Pydantic model, got non-JSON (binary or text).")
@@ -252,7 +256,7 @@ async def poll_op_raw(
     queued_statuses: list[str | int] | None = None,
     data: dict[str, Any] | BaseModel | None = None,
     poll_interval: float = 5.0,
-    max_poll_attempts: int = 160,
+    max_poll_attempts: int = 480,
     timeout_per_poll: float = 120.0,
     max_retries_per_poll: int = 10,
     retry_delay_per_poll: float = 1.0,
@@ -260,6 +264,7 @@ async def poll_op_raw(
     estimated_duration: int | None = None,
     cancel_endpoint: ApiEndpoint | None = None,
     cancel_timeout: float = 10.0,
+    extra_text: str | None = None,
 ) -> dict[str, Any]:
     """
     Polls an endpoint until the task reaches a terminal state. Displays time while queued/processing,
@@ -299,6 +304,7 @@ async def poll_op_raw(
                     price=state.price,
                     is_queued=state.is_queued,
                     processing_elapsed_seconds=int(proc_elapsed),
+                    extra_text=extra_text,
                 )
                 await asyncio.sleep(1.0)
         except Exception as exc:
@@ -389,6 +395,7 @@ async def poll_op_raw(
                     price=state.price,
                     is_queued=False,
                     processing_elapsed_seconds=int(state.base_processing_elapsed),
+                    extra_text=extra_text,
                 )
                 return resp_json
 
@@ -462,6 +469,7 @@ def _display_time_progress(
     price: float | None = None,
     is_queued: bool | None = None,
     processing_elapsed_seconds: int | None = None,
+    extra_text: str | None = None,
 ) -> None:
     if estimated_total is not None and estimated_total > 0 and is_queued is False:
         pe = processing_elapsed_seconds if processing_elapsed_seconds is not None else elapsed_seconds
@@ -469,7 +477,8 @@ def _display_time_progress(
         time_line = f"Time elapsed: {int(elapsed_seconds)}s (~{remaining}s remaining)"
     else:
         time_line = f"Time elapsed: {int(elapsed_seconds)}s"
-    _display_text(node_cls, time_line, status=status, price=price)
+    text = f"{time_line}\n\n{extra_text}" if extra_text else time_line
+    _display_text(node_cls, text, status=status, price=price)
 
 
 async def _diagnose_connectivity() -> dict[str, bool]:
@@ -479,10 +488,30 @@ async def _diagnose_connectivity() -> dict[str, bool]:
         "api_accessible": False,
     }
     timeout = aiohttp.ClientTimeout(total=5.0)
+
+    # Probe Google and Baidu in parallel: Google is blocked by the GFW in mainland China, so a Baidu probe is required
+    # to correctly detect that Chinese users with working internet do have working internet.
+    internet_probe_urls = ("https://www.google.com", "https://www.baidu.com")
+
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        with contextlib.suppress(ClientError, OSError):
-            async with session.get("https://www.google.com") as resp:
-                results["internet_accessible"] = resp.status < 500
+        async def _probe(url: str) -> bool:
+            try:
+                async with session.get(url) as resp:
+                    return resp.status < 500
+            except (ClientError, OSError, asyncio.TimeoutError):
+                return False
+
+        probe_tasks = [asyncio.create_task(_probe(u)) for u in internet_probe_urls]
+        try:
+            for fut in asyncio.as_completed(probe_tasks):
+                if await fut:
+                    results["internet_accessible"] = True
+                    break
+        finally:
+            for t in probe_tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*probe_tasks, return_exceptions=True)
         if not results["internet_accessible"]:
             return results
 
@@ -617,6 +646,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         payload_headers = {"Accept": "*/*"} if expect_binary else {"Accept": "application/json"}
         if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
             payload_headers.update(get_auth_header(cfg.node_cls))
+            payload_headers["Comfy-Env"] = get_deploy_environment()
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
 

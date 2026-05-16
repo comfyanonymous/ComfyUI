@@ -230,7 +230,6 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             status_extractor=lambda x: x.status,
             price_extractor=lambda _: price_usd,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -391,7 +390,6 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
             status_extractor=lambda x: x.status,
             price_extractor=lambda _: price_usd,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -541,7 +539,6 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -782,7 +779,6 @@ class MagnificImageRelightNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -924,7 +920,6 @@ class MagnificImageSkinEnhancerNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 

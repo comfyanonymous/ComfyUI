@@ -1,3 +1,4 @@
+import errno
 import os
 import sys
 import asyncio
@@ -655,6 +656,7 @@ class PromptServer():
             required_frontend_version = FrontendManager.get_required_frontend_version()
             installed_templates_version = FrontendManager.get_installed_templates_version()
             required_templates_version = FrontendManager.get_required_templates_version()
+            comfy_package_versions = FrontendManager.get_comfy_package_versions()
 
             system_stats = {
                 "system": {
@@ -665,6 +667,7 @@ class PromptServer():
                     "required_frontend_version": required_frontend_version,
                     "installed_templates_version": installed_templates_version,
                     "required_templates_version": required_templates_version,
+                    "comfy_package_versions": comfy_package_versions,
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
@@ -1245,7 +1248,13 @@ class PromptServer():
             address = addr[0]
             port = addr[1]
             site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-            await site.start()
+            try:
+                await site.start()
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logging.error(f"Port {port} is already in use on address {address}. Please close the other application or use a different port with --port.")
+                    raise SystemExit(1)
+                raise
 
             if not hasattr(self, 'address'):
                 self.address = address #TODO: remove this
