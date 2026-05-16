@@ -266,7 +266,8 @@ class LTXVAddGuide(io.ComfyNode):
                     optional=True,
                     tooltip="Optional IC-LoRA parameters from a Get IC-LoRA Parameters node. "
                             "Used for adjusting guide processing as required by certain IC-LoRAs "
-                            "(eg. those with a reference_downscale_factor > 1).",
+                            "(eg. those with a reference_downscale_factor > 1). "
+                            "When chained, each LTXVAddGuide uses only the parameters connected to it.",
                 ),
             ],
             outputs=[
