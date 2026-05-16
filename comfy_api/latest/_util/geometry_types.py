@@ -7,9 +7,10 @@ import torch
 
 
 class VOXEL:
-    def __init__(self, data: torch.Tensor):
+    def __init__(self, data: torch.Tensor, voxel_colors=None, resolution=None):
         self.data = data
-
+        self.voxel_colors = voxel_colors
+        self.resolution = resolution # each 3d model has its own resolution
 
 class MESH:
     def __init__(self, vertices: torch.Tensor, faces: torch.Tensor,
