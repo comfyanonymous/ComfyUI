@@ -14,6 +14,47 @@ from typing_extensions import override
 from comfy.ldm.lightricks.symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
 from comfy_api.latest import ComfyExtension, io
 
+ICLoRAParameters = io.Custom("IC_LORA_PARAMETERS")
+
+
+class GetICLoRAParameters(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="GetICLoRAParameters",
+            display_name="Get IC-LoRA Parameters",
+            category="conditioning/video_models",
+            search_aliases=["ic-lora", "ic lora", "iclora", "downscale factor", "reference downscale"],
+            inputs=[
+                io.Model.Input(
+                    "iclora_model",
+                    tooltip="Direct output from a LoRA Loader for the specific IC-LoRA "
+                            "from which to extract the metadata.",
+                ),
+            ],
+            outputs=[
+                ICLoRAParameters.Output(
+                    "iclora_parameters",
+                    tooltip="IC-LoRA parameters extracted from the LoRA metadata "
+                            "(eg. reference_downscale_factor). Connect to LTXVAddGuide "
+                            "if the LoRA requires special handling of the guides."
+                ),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, iclora_model) -> io.NodeOutput:
+        metadata = iclora_model.get_attachment("lora_metadata")
+        factor = 1
+        if metadata:
+            try:
+                factor = max(1, round(float(metadata.get("reference_downscale_factor", 1))))
+            except (TypeError, ValueError):
+                factor = 1
+        parameters = {"reference_downscale_factor": factor}
+        return io.NodeOutput(parameters)
+
+
 class EmptyLTXVLatentVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -220,13 +261,13 @@ class LTXVAddGuide(io.ComfyNode):
                             "down to the nearest multiple of 8. Negative values are counted from the end of the video.",
                 ),
                 io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
-                io.Model.Input(
-                    "ic_lora",
+                ICLoRAParameters.Input(
+                    "iclora_parameters",
                     optional=True,
-                    tooltip="Optional connection from an IC-LoRA loader. If the LoRA's safetensors metadata "
-                            "contains 'reference_downscale_factor', the guide image will be encoded at "
-                            "1/factor resolution and dilated back to full size (for IC-LoRAs trained on small grids). "
-                            "Defaults to 1 (no downscale) when absent.",
+                    tooltip="Optional IC-LoRA parameters from a Get IC-LoRA Parameters node. "
+                            "Used for adjusting guide processing as required by certain IC-LoRAs "
+                            "(eg. those with a reference_downscale_factor > 1). "
+                            "When chained, each LTXVAddGuide uses only the parameters connected to it.",
                 ),
             ],
             outputs=[
@@ -263,14 +304,11 @@ class LTXVAddGuide(io.ComfyNode):
         return dilated, dilated_mask
 
     @classmethod
-    def get_reference_downscale_factor(cls, ic_lora):
-        if ic_lora is None:
-            return 1
-        metadata = ic_lora.get_attachment("lora_metadata")
-        if not metadata:
+    def get_reference_downscale_factor(cls, iclora_parameters):
+        if not iclora_parameters:
             return 1
         try:
-            factor = max(1, round(float(metadata.get("reference_downscale_factor", 1))))
+            factor = max(1, round(float(iclora_parameters.get("reference_downscale_factor", 1))))
         except (TypeError, ValueError):
             factor = 1
         return factor
@@ -370,19 +408,19 @@ class LTXVAddGuide(io.ComfyNode):
         return latent_image, noise_mask
 
     @classmethod
-    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, ic_lora=None) -> io.NodeOutput:
+    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, iclora_parameters=None) -> io.NodeOutput:
         scale_factors = vae.downscale_index_formula
         latent_image = latent["samples"]
         noise_mask = get_noise_mask(latent)
 
         _, _, latent_length, latent_height, latent_width = latent_image.shape
 
-        latent_downscale_factor = cls.get_reference_downscale_factor(ic_lora)
+        latent_downscale_factor = cls.get_reference_downscale_factor(iclora_parameters)
         if latent_downscale_factor > 1:
             if latent_width % latent_downscale_factor != 0 or latent_height % latent_downscale_factor != 0:
                 raise ValueError(
                     f"Latent spatial size {latent_width}x{latent_height} must be divisible by "
-                    f"reference_downscale_factor {latent_downscale_factor} from the ic_lora metadata."
+                    f"reference_downscale_factor {latent_downscale_factor} from the IC-LoRA parameters."
                 )
 
         # For mid-video multi-frame guides, prepend+strip a throwaway first frame so the VAE's "first latent = 1 pixel frame" asymmetry lands on the discarded slot
@@ -846,6 +884,7 @@ class LtxvExtension(ComfyExtension):
             ModelSamplingLTXV,
             LTXVConditioning,
             LTXVScheduler,
+            GetICLoRAParameters,
             LTXVAddGuide,
             LTXVPreprocess,
             LTXVCropGuides,
