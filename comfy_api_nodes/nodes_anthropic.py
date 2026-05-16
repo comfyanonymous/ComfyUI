@@ -11,6 +11,7 @@ from comfy_api_nodes.apis.anthropic import (
     AnthropicMessagesResponse,
     AnthropicRole,
     AnthropicTextContent,
+    get_supported_temperature,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -207,8 +208,9 @@ class ClaudeNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_label = model["model"]
+        model_id = CLAUDE_MODELS[model_label]
         max_tokens = model["max_tokens"]
-        temperature = model["temperature"]
+        temperature = get_supported_temperature(model_id, model["temperature"])
 
         image_tensors: list[Input.Image] = [t for t in (images or {}).values() if t is not None]
         if sum(get_number_of_images(t) for t in image_tensors) > CLAUDE_MAX_IMAGES:
@@ -224,7 +226,7 @@ class ClaudeNode(IO.ComfyNode):
             ApiEndpoint(path=ANTHROPIC_MESSAGES_ENDPOINT, method="POST"),
             response_model=AnthropicMessagesResponse,
             data=AnthropicMessagesRequest(
-                model=CLAUDE_MODELS[model_label],
+                model=model_id,
                 max_tokens=max_tokens,
                 messages=[AnthropicMessage(role=AnthropicRole.user, content=content)],
                 system=system_prompt or None,

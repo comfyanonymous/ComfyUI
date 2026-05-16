@@ -46,6 +46,13 @@ class AnthropicMessagesRequest(BaseModel):
     stop_sequences: list[str] | None = Field(None)
 
 
+ANTHROPIC_MODELS_WITHOUT_TEMPERATURE = {"claude-opus-4-7"}
+
+
+def get_supported_temperature(model: str, temperature: float) -> float | None:
+    return None if model in ANTHROPIC_MODELS_WITHOUT_TEMPERATURE else temperature
+
+
 class AnthropicResponseTextBlock(BaseModel):
     type: Literal["text"] = "text"
     text: str = Field(...)
