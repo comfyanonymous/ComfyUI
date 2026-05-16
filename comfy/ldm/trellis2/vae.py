@@ -1387,10 +1387,10 @@ class SparseStructureDecoder(nn.Module):
         return h
 
 class Vae(nn.Module):
-    def __init__(self, init_txt_model, operations=None):
+    def __init__(self, init_txt_model, init_txt_model_only, operations=None):
         super().__init__()
         operations = operations or torch.nn
-        if init_txt_model:
+        if init_txt_model or init_txt_model_only:
             self.txt_dec = SparseUnetVaeDecoder(
                 out_channels=6,
                 model_channels=[1024, 512, 256, 128, 64],
@@ -1402,23 +1402,24 @@ class Vae(nn.Module):
                 pred_subdiv=False
             )
 
-        self.shape_dec = FlexiDualGridVaeDecoder(
-            resolution=256,
-            model_channels=[1024, 512, 256, 128, 64],
-            latent_channels=32,
-            num_blocks=[4, 16, 8, 4, 0],
-            block_type=["SparseConvNeXtBlock3d"] * 5,
-            up_block_type=["SparseResBlockC2S3d"] * 4,
-            block_args=[{}, {}, {}, {}, {}],
-        )
+        if not init_txt_model_only:
+            self.shape_dec = FlexiDualGridVaeDecoder(
+                resolution=256,
+                model_channels=[1024, 512, 256, 128, 64],
+                latent_channels=32,
+                num_blocks=[4, 16, 8, 4, 0],
+                block_type=["SparseConvNeXtBlock3d"] * 5,
+                up_block_type=["SparseResBlockC2S3d"] * 4,
+                block_args=[{}, {}, {}, {}, {}],
+            )
 
-        self.struct_dec = SparseStructureDecoder(
-            out_channels=1,
-            latent_channels=8,
-            num_res_blocks=2,
-            num_res_blocks_middle=2,
-            channels=[512, 128, 32],
-        )
+            self.struct_dec = SparseStructureDecoder(
+                out_channels=1,
+                latent_channels=8,
+                num_res_blocks=2,
+                num_res_blocks_middle=2,
+                channels=[512, 128, 32],
+            )
         self.register_buffer("resolution", torch.tensor(1024.0), persistent=False)
 
     @torch.no_grad()

@@ -767,13 +767,17 @@ class Trellis2(nn.Module):
             "model_channels":model_channels, "num_heads":num_heads, "mlp_ratio": mlp_ratio, "share_mod": share_mod,
             "qk_rms_norm": qk_rms_norm, "qk_rms_norm_cross": qk_rms_norm_cross, "device": device, "dtype": dtype, "operations": operations
         }
-        self.img2shape = SLatFlowModel(resolution=resolution, in_channels=in_channels, **args)
-        self.shape2txt = None
-        if init_txt_model:
+        txt_only = kwargs.get("txt_only", False)
+        if not txt_only:
+            self.img2shape = SLatFlowModel(resolution=resolution, in_channels=in_channels, **args)
+            self.shape2txt = None
+            if init_txt_model:
+                self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
+            self.img2shape_512 = SLatFlowModel(resolution=32, in_channels=in_channels, **args)
+            args.pop("out_channels")
+            self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
+        else:
             self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
-        self.img2shape_512 = SLatFlowModel(resolution=32, in_channels=in_channels, **args)
-        args.pop("out_channels")
-        self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
         self.guidance_interval = [0.6, 1.0]
         self.guidance_interval_txt = [0.6, 0.9]
 
@@ -787,7 +791,7 @@ class Trellis2(nn.Module):
         if embeds is None:
             raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
 
-        is_1024 = self.img2shape.resolution == 1024
+        is_1024 = True#self.img2shape.resolution == 1024
         coords = model_options.get("coords", None)
         coord_counts = model_options.get("coord_counts", None)
         mode = model_options.get("generation_mode", "structure_generation")
