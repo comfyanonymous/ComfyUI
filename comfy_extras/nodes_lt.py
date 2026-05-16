@@ -219,7 +219,7 @@ class LTXVAddGuide(io.ComfyNode):
                             "For videos with 9+ frames, frame_idx must be divisible by 8, otherwise it will be rounded "
                             "down to the nearest multiple of 8. Negative values are counted from the end of the video.",
                 ),
-                io.Float.Input("strength", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
                 io.Model.Input(
                     "ic_lora",
                     optional=True,
@@ -336,7 +336,7 @@ class LTXVAddGuide(io.ComfyNode):
         else:
             mask = torch.full(
                 (noise_mask.shape[0], 1, guiding_latent.shape[2], noise_mask.shape[3], noise_mask.shape[4]),
-                1.0 - strength,
+                max(0.0, 1.0 - strength), # clamp here to amplify only via the attention mask
                 dtype=noise_mask.dtype,
                 device=noise_mask.device,
             )
@@ -356,7 +356,7 @@ class LTXVAddGuide(io.ComfyNode):
 
         mask = torch.full(
             (noise_mask.shape[0], 1, cond_length, 1, 1),
-            1.0 - strength,
+            max(0.0, 1.0 - strength), # clamp here to amplify only via the attention mask
             dtype=noise_mask.dtype,
             device=noise_mask.device,
         )

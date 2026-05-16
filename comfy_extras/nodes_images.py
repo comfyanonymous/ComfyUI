@@ -136,7 +136,7 @@ class ImageFromBatch(IO.ComfyNode):
             category="image/batch",
             inputs=[
                 IO.Image.Input("image"),
-                IO.Int.Input("batch_index", default=0, min=0, max=4095),
+                IO.Int.Input("batch_index", default=0, min=-MAX_RESOLUTION, max=MAX_RESOLUTION),
                 IO.Int.Input("length", default=1, min=1, max=4096),
             ],
             outputs=[IO.Image.Output()],
@@ -145,7 +145,9 @@ class ImageFromBatch(IO.ComfyNode):
     @classmethod
     def execute(cls, image, batch_index, length) -> IO.NodeOutput:
         s_in = image
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        if batch_index < 0:
+            batch_index += s_in.shape[0]
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s = s_in[batch_index:batch_index + length].clone()
         return IO.NodeOutput(s)
