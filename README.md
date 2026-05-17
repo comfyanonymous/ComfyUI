@@ -20,7 +20,7 @@
 [website-url]: https://www.comfy.org/
 <!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
 [discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
-[discord-url]: https://www.comfy.org/discord
+[discord-url]: https://discord.gg/comfyorg
 [twitter-shield]: https://img.shields.io/twitter/follow/ComfyUI
 [twitter-url]: https://x.com/ComfyUI
 
@@ -60,7 +60,7 @@ Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon,
 ### Cloud
 
 #### [Comfy Cloud](https://www.comfy.org/cloud)
-- Our official paid cloud version for those who can't afford local hardware.
+- Our official paid cloud version for running ComfyUI without managing local hardware.
 
 ## Examples
 See what ComfyUI can do with the [newer template workflows](https://comfy.org/workflows) or old [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
@@ -144,7 +144,7 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
    - Builds a new release using the latest stable core version
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
-   - Every 2+ weeks frontend updates are merged into the core repository
+   - Frontend updates ship via the `comfyui-frontend-package` dependency in `requirements.txt`
    - Features are frozen for the upcoming core release
    - Development continues for the next release cycle
 
@@ -309,12 +309,12 @@ After this you should have everything installed and can proceed to running Comfy
 
 #### Apple Mac silicon
 
-You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
+You can install ComfyUI in Apple Mac silicon (M1 and later) with any recent macOS version.
 
 1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
-1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
-1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py`
+2. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
+3. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI you might be able to reuse the dependencies.
+4. Launch ComfyUI by running `python main.py`
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
 
@@ -409,9 +409,15 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 ## How to show high-quality previews?
 
-Use ```--preview-method auto``` to enable previews.
+Use the Live preview method setting (Settings > Comfy > Execution) or ```--preview-method auto``` to enable previews.
 
-The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_decoder.pth, taesdxl_decoder.pth, taesd3_decoder.pth and taef1_decoder.pth](https://github.com/madebyollin/taesd/) and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI and launch it with `--preview-method taesd` to enable high-quality previews.
+The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with TAESD, download the matching decoder and place it in the `models/vae_approx` folder.
+
+Currently supported:
+
+- From [madebyollin/taesd](https://github.com/madebyollin/taesd): `taesd_decoder.pth`, `taesdxl_decoder.pth`, `taesd3_decoder.pth`, `taef1_decoder.pth`, `taef2_decoder.pth`
+- From [madebyollin/taehv](https://github.com/madebyollin/taehv): `taehv.pth`
+- From [lightx2v/Autoencoders](https://huggingface.co/lightx2v/Autoencoders): `lighttaew2_1.pth`, `lighttaew2_2.pth`, `lighttaehy1_5.pth`
 
 ## How to use TLS/SSL?
 Generate a self-signed certificate (not appropriate for shared/production use) and key by running the command: `openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"`
@@ -423,7 +429,7 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 ## Support and dev channel
 
-[Discord](https://comfy.org/discord): Try the #help or #feedback channels.
+[Discord](https://discord.gg/comfyorg): Try the #help or #feedback channels.
 
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
@@ -433,7 +439,7 @@ See also: [https://www.comfy.org/](https://www.comfy.org/)
 
 ## Frontend Development
 
-As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
+As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend).
 
 ### Reporting Issues and Requesting Features
 
@@ -443,7 +449,7 @@ For any bugs, issues, or feature requests related to the frontend, please use th
 
 The new frontend is now the default for ComfyUI. However, please note:
 
-1. The frontend in the main ComfyUI repository is updated fortnightly.
+1. The main ComfyUI repository uses the frontend version pinned by the `comfyui-frontend-package` dependency in `requirements.txt`.
 2. Daily releases are available in the separate frontend repository.
 
 To use the most up-to-date frontend version:
@@ -460,7 +466,7 @@ To use the most up-to-date frontend version:
    --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
    ```
 
-This approach allows you to easily switch between the stable fortnightly release and the cutting-edge daily updates, or even specific versions for testing purposes.
+This approach allows you to easily switch between the packaged default frontend and the cutting-edge daily updates, or even specific versions for testing purposes.
 
 ### Accessing the Legacy Frontend
 
