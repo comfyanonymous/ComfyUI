@@ -106,6 +106,7 @@ class Dino2Encoder(torch.nn.Module):
 class Dino2PatchEmbeddings(torch.nn.Module):
     def __init__(self, dim, num_channels=3, patch_size=14, image_size=518, dtype=None, device=None, operations=None):
         super().__init__()
+        self.patch_size = patch_size
         self.projection = operations.Conv2d(
             in_channels=num_channels,
             out_channels=dim,
@@ -125,17 +126,37 @@ class Dino2Embeddings(torch.nn.Module):
         super().__init__()
         patch_size = 14
         image_size = 518
+        self.patch_size = patch_size
 
         self.patch_embeddings = Dino2PatchEmbeddings(dim, patch_size=patch_size, image_size=image_size, dtype=dtype, device=device, operations=operations)
         self.position_embeddings = torch.nn.Parameter(torch.empty(1, (image_size // patch_size) ** 2 + 1, dim, dtype=dtype, device=device))
-        self.cls_token = torch.nn.Parameter(torch.empty(1, 1, dim, dtype=dtype, device=device))
+        self.cls_token = torch.nn.Parameter(torch.empty(1, 1, dim, dtype=dtype, device=device)) # mask_token is a pre-training param, kept only so strict loading accepts the key.
         self.mask_token = torch.nn.Parameter(torch.empty(1, dim, dtype=dtype, device=device))
+
+    def interpolate_pos_encoding(self, x, h_pixels, w_pixels):
+        pos_embed = comfy.model_management.cast_to_device(self.position_embeddings, x.device, torch.float32)
+
+        class_pos = pos_embed[:, 0:1]
+        patch_pos = pos_embed[:, 1:]
+        N = patch_pos.shape[1]
+        M = int(N ** 0.5)
+        h0 = h_pixels // self.patch_size
+        w0 = w_pixels // self.patch_size
+        scale_factor = ((h0 + 0.1) / M, (w0 + 0.1) / M)  # +0.1 matches upstream DINOv2's FP-rounding workaround so the interpolate output size lands on (h0, w0).
+
+        patch_pos = patch_pos.reshape(1, M, M, -1).permute(0, 3, 1, 2)
+        patch_pos = torch.nn.functional.interpolate(patch_pos, scale_factor=scale_factor, mode="bicubic", antialias=False)
+        patch_pos = patch_pos.permute(0, 2, 3, 1).flatten(1, 2)
+        return torch.cat((class_pos, patch_pos), dim=1).to(x.dtype)
 
     def forward(self, pixel_values):
         x = self.patch_embeddings(pixel_values)
-        # TODO: mask_token?
         x = torch.cat((self.cls_token.to(device=x.device, dtype=x.dtype).expand(x.shape[0], -1, -1), x), dim=1)
-        x = x + comfy.model_management.cast_to_device(self.position_embeddings, x.device, x.dtype)
+        if x.shape[1] - 1 == self.position_embeddings.shape[1] - 1:
+            x = x + comfy.model_management.cast_to_device(self.position_embeddings, x.device, x.dtype)
+        else:
+            h, w = pixel_values.shape[-2:]
+            x = x + self.interpolate_pos_encoding(x, h, w)
         return x
 
 
@@ -158,3 +179,21 @@ class Dinov2Model(torch.nn.Module):
         x = self.layernorm(x)
         pooled_output = x[:, 0, :]
         return x, i, pooled_output, None
+
+    def get_intermediate_layers(self, pixel_values, indices, apply_norm=True):
+        x = self.embeddings(pixel_values)
+        optimized_attention = optimized_attention_for_device(x.device, False, small_input=True)
+        n_layers = len(self.encoder.layer)
+        resolved = [(i if i >= 0 else n_layers + i) for i in indices]
+        target = set(resolved)
+        max_idx = max(resolved)
+        n_skip = 1  # skip cls token
+        cache = {}
+        for i, layer in enumerate(self.encoder.layer):
+            x = layer(x, optimized_attention)
+            if i in target:
+                normed = self.layernorm(x) if apply_norm else x
+                cache[i] = (normed[:, n_skip:], normed[:, 0])
+            if i >= max_idx:
+                break
+        return [cache[i] for i in resolved]
