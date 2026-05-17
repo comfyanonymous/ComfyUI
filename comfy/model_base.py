@@ -1691,6 +1691,13 @@ class HiDreamO1(BaseModel):
         if text_input_ids is None or noise is None:
             return out
 
+        # handle area conds
+        area = kwargs.get("area", None)
+        if area is not None:
+            crop_h = min(noise.shape[-2] - area[2], area[0])
+            crop_w = min(noise.shape[-1] - area[3], area[1])
+            noise = torch.empty((noise.shape[0], 3, crop_h, crop_w), dtype=noise.dtype, device=noise.device)
+
         conds = build_extra_conds(
             text_input_ids, noise,
             ref_images=kwargs.get("reference_latents", None),
