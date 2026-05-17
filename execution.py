@@ -784,8 +784,12 @@ class PromptExecutor:
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
                         ram_shortfall = ram_headroom - psutil.virtual_memory().available
-                        comfy.model_management.free_pins(ram_shortfall)
-                        ram_release_callback(ram_headroom, free_active=True)
+                        freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
+                        if freed < ram_shortfall:
+                            if freed > 64 * (1024 ** 2):
+                                # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
+                                time.sleep(0.05)
+                            ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
                     # Send cached UI for intermediate output nodes that weren't executed

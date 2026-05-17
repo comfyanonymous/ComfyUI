@@ -502,7 +502,7 @@ PIN_PRESSURE_HYSTERESIS = 256 * 1024 * 1024
 
 #Freeing registerables on pressure does imply a GPU sync, so go big on
 #the hysteresis so each expensive sync gives us back a good chunk.
-REGISTERABLE_PIN_HYSTERESIS = 768 * 1024 * 1024
+REGISTERABLE_PIN_HYSTERESIS = 2048 * 1024 * 1024
 
 def module_size(module):
     module_mem = 0
@@ -518,30 +518,31 @@ def mark_mmap_dirty(storage):
         DIRTY_MMAPS.add(mmap_refs[0])
 
 def free_pins(size, evict_active=False):
-    if size <= 0:
-        return
-
+    freed_total = 0
     for loaded_model in reversed(current_loaded_models):
+        if size <= 0:
+            return freed_total
         model = loaded_model.model
         if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
-            size -= model.partially_unload_ram(size)
-            if size <= 0:
-                break
+            freed = model.partially_unload_ram(size)
+            freed_total += freed
+            size -= freed
+    return freed_total
 
 def ensure_pin_budget(size, evict_active=False):
-    if MAX_MODEL_MEMORY <= 0:
-        return
-
-    shortfall = TOTAL_MODEL_MEMORY + size - MAX_MODEL_MEMORY
+    shortfall = size + comfy.memory_management.RAM_CACHE_HEADROOM / 2 - psutil.virtual_memory().available
     if shortfall <= 0:
-        return
+        return True
 
-    free_pins(shortfall + PIN_PRESSURE_HYSTERESIS, evict_active=evict_active)
+    to_free = shortfall + PIN_PRESSURE_HYSTERESIS
+    return free_pins(to_free, evict_active=evict_active) >= shortfall
 
 def ensure_pin_registerable(size, evict_active=False):
     shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
-    if MAX_PINNED_MEMORY <= 0 or shortfall <= 0:
-        return
+    if MAX_PINNED_MEMORY <= 0:
+        return False
+    if shortfall <= 0:
+        return True
 
     shortfall += REGISTERABLE_PIN_HYSTERESIS
     for loaded_model in reversed(current_loaded_models):
@@ -549,7 +550,8 @@ def ensure_pin_registerable(size, evict_active=False):
         if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
             shortfall -= model.unregister_inactive_pins(shortfall)
             if shortfall <= 0:
-                return
+                return True
+    return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
 class LoadedModel:
     def __init__(self, model):
@@ -1225,24 +1227,23 @@ def get_pin_buffer(offload_stream):
     return pin_buffer
 
 def resize_pin_buffer(pin_buffer, size):
-    global TOTAL_MODEL_MEMORY, TOTAL_PINNED_MEMORY
+    global TOTAL_PINNED_MEMORY
     old_size = pin_buffer.size
     if size <= old_size:
         return True
     growth = size - old_size
-    comfy.memory_management.extra_ram_release(comfy.memory_management.RAM_CACHE_HEADROOM, free_active=True)
+    comfy.memory_management.extra_ram_release(comfy.memory_management.RAM_CACHE_HEADROOM)
     ensure_pin_budget(growth, evict_active=True)
     ensure_pin_registerable(growth, evict_active=True)
     try:
         pin_buffer.extend(size=size, reallocate=True)
     except RuntimeError:
         return False
-    TOTAL_MODEL_MEMORY += pin_buffer.size - old_size
     TOTAL_PINNED_MEMORY += pin_buffer.size - old_size
     return True
 
 def reset_cast_buffers():
-    global TOTAL_MODEL_MEMORY, TOTAL_PINNED_MEMORY
+    global TOTAL_PINNED_MEMORY
     global LARGEST_CASTED_WEIGHT
     global LARGEST_AIMDO_CASTED_WEIGHT
 
@@ -1258,9 +1259,7 @@ def reset_cast_buffers():
     DIRTY_MMAPS.clear()
 
     for pin_buffer in STREAM_PIN_BUFFERS.values():
-        TOTAL_MODEL_MEMORY -= pin_buffer.size
         TOTAL_PINNED_MEMORY -= pin_buffer.size
-    TOTAL_MODEL_MEMORY = max(0, TOTAL_MODEL_MEMORY)
     TOTAL_PINNED_MEMORY = max(0, TOTAL_PINNED_MEMORY)
 
     for loaded_model in current_loaded_models:
@@ -1268,7 +1267,7 @@ def reset_cast_buffers():
         if model is not None and model.is_dynamic():
             model.model.dynamic_pins[model.load_device]["active"] = False
             model.partially_unload_ram(1e30, subsets=[ "patches" ])
-            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024), [], [-1])
+            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024), [], [-1], [0])
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
@@ -1376,14 +1375,11 @@ def cast_to_device(tensor, device, dtype, copy=False):
 
 
 PINNED_MEMORY = {}
-TOTAL_MODEL_MEMORY = 0
 TOTAL_PINNED_MEMORY = 0
-MAX_MODEL_MEMORY = -1
 MAX_PINNED_MEMORY = -1
 if not args.disable_pinned_memory:
     if is_nvidia() or is_amd():
         ram = get_total_memory(torch.device("cpu"))
-        MAX_MODEL_MEMORY = min(ram - 4 * 1024 * 1024 * 1024, ram * 0.90)
         if WINDOWS:
             MAX_PINNED_MEMORY = ram * 0.40  # Windows limit is apparently 50%
         else:
