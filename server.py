@@ -476,7 +476,7 @@ class PromptServer():
                 if output_dir is None:
                     return web.Response(status=400)
 
-                file = resolve_safe_path(output_dir, os.path.join(original_ref.get("subfolder", ""), filename))
+                file = resolve_safe_path(output_dir, original_ref.get("subfolder", ""), filename)
                 if file is None:
                     return web.Response(status=400)
                 file = str(file)
@@ -526,7 +526,7 @@ class PromptServer():
                     if output_dir is None:
                         return web.Response(status=400)
 
-                    file = resolve_safe_path(output_dir, os.path.join(request.rel_url.query.get("subfolder", ""), filename))
+                    file = resolve_safe_path(output_dir, request.rel_url.query.get("subfolder", ""), filename)
                     if file is None:
                         return web.Response(status=400)
                     file = str(file)
