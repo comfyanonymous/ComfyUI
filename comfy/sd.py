@@ -423,6 +423,13 @@ class CLIP:
             sd_clip[k] = sd_tokenizer[k]
         return sd_clip
 
+    def state_dict_for_saving(self):
+        sd_clip = self.patcher.model_state_dict_for_saving()
+        sd_tokenizer = self.tokenizer.state_dict()
+        for k in sd_tokenizer:
+            sd_clip[k] = sd_tokenizer[k]
+        return sd_clip
+
     def load_model(self, tokens={}):
         memory_used = 0
         if hasattr(self.cond_stage_model, "memory_estimation_function"):
@@ -1908,7 +1915,7 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     load_models = [model]
     if clip is not None:
         load_models.append(clip.load_model())
-        clip_sd = clip.get_sd()
+        clip_sd = clip.state_dict_for_saving()
     vae_sd = None
     if vae is not None:
         vae_sd = vae.get_sd()
