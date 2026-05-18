@@ -189,17 +189,14 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
 
     edges = torch.cat([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]], dim=0)
     edges_sorted, _ = torch.sort(edges, dim=1)
-
     max_v = v.shape[0]
     packed_undirected = edges_sorted[:, 0].long() * max_v + edges_sorted[:, 1].long()
-
     unique_packed, counts = torch.unique(packed_undirected, return_counts=True)
     boundary_packed = unique_packed[counts == 1]
 
     if boundary_packed.numel() == 0:
         return v, f
 
-    # Build undirected boundary edge adjacency
     boundary_mask = torch.isin(packed_undirected, boundary_packed)
     b_edges = edges_sorted[boundary_mask]
 
@@ -213,15 +210,12 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
     # Trace all boundary loops
     loops = []
     visited = set()
-
     for start_node in adj.keys():
         if start_node in visited:
             continue
-
         curr = start_node
         prev = -1
         loop = []
-
         while curr not in visited:
             visited.add(curr)
             loop.append(curr)
@@ -239,7 +233,7 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
     if not loops:
         return v, f
 
-    # Compute mesh normal for orientation
+    # Mesh normal for winding orientation only
     face_normals = torch.linalg.cross(
         v[f[:, 1]] - v[f[:, 0]],
         v[f[:, 2]] - v[f[:, 0]],
@@ -248,25 +242,12 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
     mesh_normal = face_normals.mean(dim=0)
     mesh_normal = mesh_normal / (torch.norm(mesh_normal) + 1e-8)
 
-    # Classify loops: keep only holes (normal aligns with mesh_normal), discard outer boundary
-    hole_loops = []
-    for loop in loops:
-        loop_t = torch.tensor(loop, device=device, dtype=torch.long)
-        loop_v = v[loop_t]
-        next_v = torch.roll(loop_v, -1, dims=0)
-        cross = torch.linalg.cross(loop_v, next_v, dim=-1)
-        loop_normal = cross.sum(dim=0)
-        loop_normal = loop_normal / (torch.norm(loop_normal) + 1e-8)
-        # Hole: loop normal points same way as mesh normal (both "up" for a hole)
-        # Outer boundary: loop normal points opposite
-        if torch.dot(loop_normal, mesh_normal) > 0:
-            hole_loops.append(loop)
-
+    # === FIX: Fill ALL boundary loops below perimeter threshold ===
     new_verts = []
     new_faces = []
     v_idx = v.shape[0]
 
-    for loop in hole_loops:
+    for loop in loops:
         loop_t = torch.tensor(loop, device=device, dtype=torch.long)
         loop_v = v[loop_t]
 
@@ -284,6 +265,8 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
         loop_normal = loop_normal / (torch.norm(loop_normal) + 1e-8)
         if torch.dot(loop_normal, mesh_normal) < 0:
             loop = loop[::-1]
+            loop_t = torch.tensor(loop, device=device, dtype=torch.long)
+            loop_v = v[loop_t]
 
         if len(loop) == 3:
             new_faces.append([loop[0], loop[1], loop[2]])
