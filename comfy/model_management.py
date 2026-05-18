@@ -1217,7 +1217,7 @@ def get_aimdo_cast_buffer(offload_stream, device):
 def get_pin_buffer(offload_stream):
     pin_buffer = STREAM_PIN_BUFFERS.get(offload_stream, None)
     if pin_buffer is None:
-        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(0)
+        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(0, 0, pinned_hostbuf_size(8 * 1024**3))
         STREAM_PIN_BUFFERS[offload_stream] = pin_buffer
     elif offload_stream is not None:
         event = getattr(pin_buffer, "_comfy_event", None)
@@ -1267,7 +1267,7 @@ def reset_cast_buffers():
         if model is not None and model.is_dynamic():
             model.model.dynamic_pins[model.load_device]["active"] = False
             model.partially_unload_ram(1e30, subsets=[ "patches" ])
-            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024), [], [-1], [0])
+            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0])
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
@@ -1387,6 +1387,9 @@ if not args.disable_pinned_memory:
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
+
+def pinned_hostbuf_size(size):
+    return max(0, int(min(size, MAX_PINNED_MEMORY) * 2))
 
 def discard_cuda_async_error():
     try:

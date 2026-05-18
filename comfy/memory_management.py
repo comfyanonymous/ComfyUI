@@ -60,7 +60,8 @@ def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=N
         hostbuf.read_file_slice(file_obj, info.offset, info.size,
                                 offset=destination.data_ptr() - hostbuf.get_raw_address(),
                                 stream=stream_ptr,
-                                device_ptr=device_ptr)
+                                device_ptr=device_ptr,
+                                device=None if destination2 is None else destination2.device.index)
         return True
 
     buf_type = ctypes.c_ubyte * info.size

@@ -1561,8 +1561,9 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.dynamic_pins = {}
         if self.load_device not in self.model.dynamic_pins:
             self.model.dynamic_pins[self.load_device] = {
-                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024), [], [-1], [0]),
-                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024), [], [-1], [0]),
+                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
+                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
+                "hostbufs_initialized": False,
                 "failed": False,
                 "active": False,
             }
@@ -1628,6 +1629,11 @@ class ModelPatcherDynamic(ModelPatcher):
 
             vbar = self._vbar_get(create=True)
             pin_state = self.model.dynamic_pins[self.load_device]
+            if not pin_state["hostbufs_initialized"]:
+                hostbuf_size = comfy.model_management.pinned_hostbuf_size(self.model_size())
+                pin_state["weights"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0])
+                pin_state["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0])
+                pin_state["hostbufs_initialized"] = True
             pin_state["failed"] = False
             pin_state["active"] = True
             if vbar is not None:
