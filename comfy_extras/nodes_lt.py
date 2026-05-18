@@ -175,18 +175,6 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
-def _reshape_attention_mask(mask):
-    """Reshape a ComfyUI MASK to (1, 1, F, H, W) for per-guide attention weighting.
-    """
-    if mask is None:
-        return None
-    if mask.dim() == 2:  # (H, W) -> single frame
-        return mask.unsqueeze(0).unsqueeze(0).unsqueeze(0)
-    if mask.dim() == 3:  # (F, H, W) -> video mask
-        return mask.unsqueeze(0).unsqueeze(0)
-    return mask
-
-
 def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0, attention_mask=None):
     """Append a guide_attention_entry to both positive and negative conditioning.
 
@@ -196,9 +184,10 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
     new_entry = {
         "pre_filter_count": pre_filter_count,
         "strength": strength,
-        "pixel_mask": _reshape_attention_mask(attention_mask),
+        "pixel_mask": attention_mask.unsqueeze(0).unsqueeze(0) if attention_mask is not None else None,  # reshape to (1, 1, F, H, W)
         "latent_shape": latent_shape,
     }
+    
     results = []
     for cond in (positive, negative):
         # Read existing entries from this specific conditioning
