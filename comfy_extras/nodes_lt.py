@@ -187,7 +187,7 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
         "pixel_mask": attention_mask.unsqueeze(0).unsqueeze(0) if attention_mask is not None else None,  # reshape to (1, 1, F, H, W)
         "latent_shape": latent_shape,
     }
-    
+
     results = []
     for cond in (positive, negative):
         # Read existing entries from this specific conditioning
