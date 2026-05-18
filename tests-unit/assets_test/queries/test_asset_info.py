@@ -242,22 +242,24 @@ class TestSetReferencePreview:
         asset = _make_asset(session, "hash1")
         preview_asset = _make_asset(session, "preview_hash")
         ref = _make_reference(session, asset)
+        preview_ref = _make_reference(session, preview_asset, name="preview.png")
         session.commit()
 
-        set_reference_preview(session, reference_id=ref.id, preview_asset_id=preview_asset.id)
+        set_reference_preview(session, reference_id=ref.id, preview_reference_id=preview_ref.id)
         session.commit()
 
         session.refresh(ref)
-        assert ref.preview_id == preview_asset.id
+        assert ref.preview_id == preview_ref.id
 
     def test_clears_preview(self, session: Session):
         asset = _make_asset(session, "hash1")
         preview_asset = _make_asset(session, "preview_hash")
         ref = _make_reference(session, asset)
-        ref.preview_id = preview_asset.id
+        preview_ref = _make_reference(session, preview_asset, name="preview.png")
+        ref.preview_id = preview_ref.id
         session.commit()
 
-        set_reference_preview(session, reference_id=ref.id, preview_asset_id=None)
+        set_reference_preview(session, reference_id=ref.id, preview_reference_id=None)
         session.commit()
 
         session.refresh(ref)
@@ -265,15 +267,15 @@ class TestSetReferencePreview:
 
     def test_raises_for_nonexistent_reference(self, session: Session):
         with pytest.raises(ValueError, match="not found"):
-            set_reference_preview(session, reference_id="nonexistent", preview_asset_id=None)
+            set_reference_preview(session, reference_id="nonexistent", preview_reference_id=None)
 
     def test_raises_for_nonexistent_preview(self, session: Session):
         asset = _make_asset(session, "hash1")
         ref = _make_reference(session, asset)
         session.commit()
 
-        with pytest.raises(ValueError, match="Preview Asset"):
-            set_reference_preview(session, reference_id=ref.id, preview_asset_id="nonexistent")
+        with pytest.raises(ValueError, match="Preview AssetReference"):
+            set_reference_preview(session, reference_id=ref.id, preview_reference_id="nonexistent")
 
 
 class TestInsertReference:
@@ -351,13 +353,14 @@ class TestUpdateReferenceTimestamps:
         asset = _make_asset(session, "hash1")
         preview_asset = _make_asset(session, "preview_hash")
         ref = _make_reference(session, asset)
+        preview_ref = _make_reference(session, preview_asset, name="preview.png")
         session.commit()
 
-        update_reference_timestamps(session, ref, preview_id=preview_asset.id)
+        update_reference_timestamps(session, ref, preview_id=preview_ref.id)
         session.commit()
 
         session.refresh(ref)
-        assert ref.preview_id == preview_asset.id
+        assert ref.preview_id == preview_ref.id
 
 
 class TestSetReferenceMetadata:

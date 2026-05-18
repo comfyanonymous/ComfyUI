@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from app.assets.database.models import Base
@@ -19,6 +19,21 @@ def autoclean_unit_test_assets():
 def db_engine():
     """In-memory SQLite engine for fast unit tests."""
     engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    return engine
+
+
+@pytest.fixture
+def db_engine_fk():
+    """In-memory SQLite engine with foreign key enforcement enabled."""
+    engine = create_engine("sqlite:///:memory:")
+
+    @event.listens_for(engine, "connect")
+    def _set_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     Base.metadata.create_all(engine)
     return engine
 
