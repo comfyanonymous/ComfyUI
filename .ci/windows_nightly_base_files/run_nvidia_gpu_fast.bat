@@ -4,5 +4,5 @@ set "PYTHONNOUSERSITE=1"
 set "PYTHONPATH="
 set "PYTHONHOME="
 
-.\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --fast
+"%BASE%python_embeded\python.exe" -s "%BASE%ComfyUI\main.py" --windows-standalone-build --fast
 pause
