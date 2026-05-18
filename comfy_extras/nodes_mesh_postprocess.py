@@ -247,17 +247,53 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
     return v, f
 
 
-def make_double_sided(vertices, faces):
+def make_double_sided(vertices, faces, colors=None):
+    """
+    Creates a double-sided mesh by duplicating vertices, faces, and colors.
+    Duplicating vertices prevents opposite faces from sharing the same index, 
+    which stops the rendering engine from cancelling out the normals to [0,0,0].
+    """
     is_batched = vertices.ndim == 3
     if is_batched:
-        f_list = []
-        for i in range(faces.shape[0]):
-            f_inv = faces[i][:, [0, 2, 1]]
-            f_list.append(torch.cat([faces[i], f_inv], dim=0))
-        return vertices, torch.stack(f_list)
+        v_list, f_list, c_list = [], [], []
+        for i in range(vertices.shape[0]):
+            num_v = vertices[i].shape[0]
 
-    faces_inv = faces[:, [0, 2, 1]]
-    return vertices, torch.cat([faces, faces_inv], dim=0)
+            # Duplicate vertices
+            v_dup = torch.cat([vertices[i], vertices[i]], dim=0)
+
+            # Invert faces AND shift indices to point to the new duplicated vertices
+            f_inv = faces[i][:, [0, 2, 1]] + num_v
+            f_dup = torch.cat([faces[i], f_inv], dim=0)
+
+            v_list.append(v_dup)
+            f_list.append(f_dup)
+
+            if colors is not None:
+                c_dup = torch.cat([colors[i], colors[i]], dim=0)
+                c_list.append(c_dup)
+
+        out_v = torch.stack(v_list)
+        out_f = torch.stack(f_list)
+        out_c = torch.stack(c_list) if colors is not None else None
+        return out_v, out_f, out_c
+
+    # --- Unbatched (Single Mesh) ---
+    num_v = vertices.shape[0]
+
+    # duplicate vertices
+    v_dup = torch.cat([vertices, vertices], dim=0)
+
+    # invert faces AND shift indices to point to the new duplicated vertices
+    faces_inv = faces[:, [0, 2, 1]] + num_v
+    f_dup = torch.cat([faces, faces_inv], dim=0)
+
+    # duplicate colors if they exist
+    if colors is not None:
+        c_dup = torch.cat([colors, colors], dim=0)
+        return v_dup, f_dup, c_dup
+
+    return v_dup, f_dup
 
 def _cleanup_mesh(verts, faces, min_angle_deg=0.5, max_aspect=100.0):
     if faces.numel() == 0:
@@ -743,7 +779,7 @@ class PostProcessMesh(IO.ComfyNode):
                 v, f, c, _ = simplify_fn_fast(v, f, colors=c, normals=n, target=target_face_count)
             bar.update(1)
 
-            #v, f = make_double_sided(v, f)
+            v, f = make_double_sided(v, f, c)
             bar.update(1)
             return v, f, c
 
