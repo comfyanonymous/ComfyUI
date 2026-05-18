@@ -330,7 +330,7 @@ class FeatherMask(IO.ComfyNode):
 
         for x in range(right):
             feather_rate = (x + 1) / right
-            output[:, :, -x] *= feather_rate
+            output[:, :, -(x + 1)] *= feather_rate
 
         for y in range(top):
             feather_rate = (y + 1) / top
@@ -338,7 +338,7 @@ class FeatherMask(IO.ComfyNode):
 
         for y in range(bottom):
             feather_rate = (y + 1) / bottom
-            output[:, -y, :] *= feather_rate
+            output[:, -(y + 1), :] *= feather_rate
 
         return IO.NodeOutput(output)
 

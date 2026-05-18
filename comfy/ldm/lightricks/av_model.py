@@ -22,26 +22,25 @@ class CompressedTimestep:
     """Store video timestep embeddings in compressed form using per-frame indexing."""
     __slots__ = ('data', 'batch_size', 'num_frames', 'patches_per_frame', 'feature_dim')
 
-    def __init__(self, tensor: torch.Tensor, patches_per_frame: int):
+    def __init__(self, tensor: torch.Tensor, patches_per_frame: int, per_frame: bool = False):
         """
-        tensor: [batch_size, num_tokens, feature_dim] tensor where num_tokens = num_frames * patches_per_frame
-        patches_per_frame: Number of spatial patches per frame (height * width in latent space), or None to disable compression
+        tensor: [batch, num_tokens, feature_dim] (per-token, default) or
+                [batch, num_frames, feature_dim] (per_frame=True, already compressed).
+        patches_per_frame: spatial patches per frame; pass None to disable compression.
         """
-        self.batch_size, num_tokens, self.feature_dim = tensor.shape
-
-        # Check if compression is valid (num_tokens must be divisible by patches_per_frame)
-        if patches_per_frame is not None and num_tokens % patches_per_frame == 0 and num_tokens >= patches_per_frame:
+        self.batch_size, n, self.feature_dim = tensor.shape
+        if per_frame:
             self.patches_per_frame = patches_per_frame
-            self.num_frames = num_tokens // patches_per_frame
-
-            # Reshape to [batch, frames, patches_per_frame, feature_dim] and store one value per frame
-            # All patches in a frame are identical, so we only keep the first one
-            reshaped = tensor.view(self.batch_size, self.num_frames, patches_per_frame, self.feature_dim)
-            self.data = reshaped[:, :, 0, :].contiguous()  # [batch, frames, feature_dim]
+            self.num_frames = n
+            self.data = tensor
+        elif patches_per_frame is not None and n >= patches_per_frame and n % patches_per_frame == 0:
+            self.patches_per_frame = patches_per_frame
+            self.num_frames = n // patches_per_frame
+            # All patches in a frame are identical — keep only the first.
+            self.data = tensor.view(self.batch_size, self.num_frames, patches_per_frame, self.feature_dim)[:, :, 0, :].contiguous()
         else:
-            # Not divisible or too small - store directly without compression
             self.patches_per_frame = 1
-            self.num_frames = num_tokens
+            self.num_frames = n
             self.data = tensor
 
     def expand(self):
@@ -716,32 +715,35 @@ class LTXAVModel(LTXVModel):
 
     def _prepare_timestep(self, timestep, batch_size, hidden_dtype, **kwargs):
         """Prepare timestep embeddings."""
-        # TODO: some code reuse is needed here.
         grid_mask = kwargs.get("grid_mask", None)
-        if grid_mask is not None:
-            timestep = timestep[:, grid_mask]
-
-        timestep_scaled = timestep * self.timestep_scale_multiplier
-
-        v_timestep, v_embedded_timestep = self.adaln_single(
-            timestep_scaled.flatten(),
-            {"resolution": None, "aspect_ratio": None},
-            batch_size=batch_size,
-            hidden_dtype=hidden_dtype,
-        )
-
-        # Calculate patches_per_frame from orig_shape: [batch, channels, frames, height, width]
-        # Video tokens are arranged as (frames * height * width), so patches_per_frame = height * width
         orig_shape = kwargs.get("orig_shape")
         has_spatial_mask = kwargs.get("has_spatial_mask", None)
         v_patches_per_frame = None
         if not has_spatial_mask and orig_shape is not None and len(orig_shape) == 5:
-            # orig_shape[3] = height, orig_shape[4] = width (in latent space)
             v_patches_per_frame = orig_shape[3] * orig_shape[4]
 
-        # Reshape to [batch_size, num_tokens, dim] and compress for storage
-        v_timestep = CompressedTimestep(v_timestep.view(batch_size, -1, v_timestep.shape[-1]), v_patches_per_frame)
-        v_embedded_timestep = CompressedTimestep(v_embedded_timestep.view(batch_size, -1, v_embedded_timestep.shape[-1]), v_patches_per_frame)
+        # Used by compute_prompt_timestep and the audio cross-attention paths.
+        timestep_scaled = (timestep[:, grid_mask] if grid_mask is not None else timestep) * self.timestep_scale_multiplier
+
+        # When patches in a frame share a timestep (no spatial mask), project one row per frame instead of one per token
+        per_frame_path = v_patches_per_frame is not None and (timestep.numel() // batch_size) % v_patches_per_frame == 0
+        if per_frame_path:
+            per_frame = timestep.reshape(batch_size, -1, v_patches_per_frame)[:, :, 0]
+            if grid_mask is not None:
+                # All-or-nothing per frame when has_spatial_mask=False.
+                per_frame = per_frame[:, grid_mask[::v_patches_per_frame]]
+            ts_input = per_frame * self.timestep_scale_multiplier
+        else:
+            ts_input = timestep_scaled
+
+        v_timestep, v_embedded_timestep = self.adaln_single(
+            ts_input.flatten(),
+            {"resolution": None, "aspect_ratio": None},
+            batch_size=batch_size,
+            hidden_dtype=hidden_dtype,
+        )
+        v_timestep = CompressedTimestep(v_timestep.view(batch_size, -1, v_timestep.shape[-1]), v_patches_per_frame, per_frame=per_frame_path)
+        v_embedded_timestep = CompressedTimestep(v_embedded_timestep.view(batch_size, -1, v_embedded_timestep.shape[-1]), v_patches_per_frame, per_frame=per_frame_path)
 
         v_prompt_timestep = compute_prompt_timestep(
             self.prompt_adaln_single, timestep_scaled, batch_size, hidden_dtype
