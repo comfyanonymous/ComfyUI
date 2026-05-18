@@ -175,7 +175,19 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
-def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0):
+def _reshape_attention_mask(mask):
+    """Reshape a ComfyUI MASK to (1, 1, F, H, W) for per-guide attention weighting.
+    """
+    if mask is None:
+        return None
+    if mask.dim() == 2:  # (H, W) -> single frame
+        return mask.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+    if mask.dim() == 3:  # (F, H, W) -> video mask
+        return mask.unsqueeze(0).unsqueeze(0)
+    return mask
+
+
+def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0, attention_mask=None):
     """Append a guide_attention_entry to both positive and negative conditioning.
 
     Each entry tracks one guide reference for per-reference attention control.
@@ -184,7 +196,7 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
     new_entry = {
         "pre_filter_count": pre_filter_count,
         "strength": strength,
-        "pixel_mask": None,
+        "pixel_mask": _reshape_attention_mask(attention_mask),
         "latent_shape": latent_shape,
     }
     results = []
@@ -196,8 +208,7 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
             if found is not None:
                 existing = found
                 break
-        # Shallow copy and append (no deepcopy needed — entries contain
-        # only scalars and None for pixel_mask at this call site).
+        # Shallow copy only and append (pixel_mask is never mutated).
         entries = [*existing, new_entry]
         results.append(node_helpers.conditioning_set_values(
             cond, {"guide_attention_entries": entries}
@@ -270,6 +281,12 @@ class LTXVAddGuide(io.ComfyNode):
                             "Used for adjusting guide processing as required by certain IC-LoRAs "
                             "(eg. those with a reference_downscale_factor > 1). "
                             "When chained, each LTXVAddGuide uses only the parameters connected to it.",
+                ),
+                io.Mask.Input(
+                    "attention_mask",
+                    optional=True,
+                    tooltip="Optional pixel-space spatial mask. Controls per-region "
+                            "conditioning influence via self-attention, multiplied by strength.",
                 ),
             ],
             outputs=[
@@ -410,7 +427,7 @@ class LTXVAddGuide(io.ComfyNode):
         return latent_image, noise_mask
 
     @classmethod
-    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, iclora_parameters=None) -> io.NodeOutput:
+    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, iclora_parameters=None, attention_mask=None) -> io.NodeOutput:
         scale_factors = vae.downscale_index_formula
         latent_image = latent["samples"]
         noise_mask = get_noise_mask(latent)
@@ -469,6 +486,7 @@ class LTXVAddGuide(io.ComfyNode):
         pre_filter_count = t.shape[2] * t.shape[3] * t.shape[4]
         positive, negative = _append_guide_attention_entry(
             positive, negative, pre_filter_count, guide_latent_shape, strength=strength,
+            attention_mask=attention_mask,
         )
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
