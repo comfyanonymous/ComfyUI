@@ -305,7 +305,7 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
 def make_double_sided(vertices, faces, colors=None):
     """
     Creates a double-sided mesh by duplicating vertices, faces, and colors.
-    Duplicating vertices prevents opposite faces from sharing the same index, 
+    Duplicating vertices prevents opposite faces from sharing the same index,
     which stops the rendering engine from cancelling out the normals to [0,0,0].
     """
     is_batched = vertices.ndim == 3
@@ -852,8 +852,8 @@ class PostProcessMesh(IO.ComfyNode):
 
                 # Safely grab colors if they exist
                 c_i = None
-                if hasattr(mesh, 'colors') and mesh.colors is not None:
-                    c_i = mesh.colors[i] if (isinstance(mesh.colors, list) or mesh.colors.ndim == 3) else mesh.colors
+                if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None:
+                    c_i = mesh.vertex_colors[i] if (isinstance(mesh.vertex_colors, list) or mesh.vertex_colors.ndim == 3) else mesh.vertex_colors
 
                 v_i, f_i, c_i = process_single(v_i, f_i, c_i, bar)
 
@@ -877,7 +877,7 @@ class PostProcessMesh(IO.ComfyNode):
 
         else:
             # Single Unbatched Mesh[V, 3]
-            c = mesh.colors if hasattr(mesh, 'colors') and mesh.colors is not None else None
+            c = mesh.vertex_colors if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None else None
             v, f, c = process_single(mesh.vertices, mesh.faces, c)
             mesh.vertices = v
             mesh.faces = f
