@@ -152,6 +152,9 @@ class PaintMesh(IO.ComfyNode):
             out_mesh = pack_variable_mesh_batch(out_verts, out_faces, out_colors)
             return IO.NodeOutput(out_mesh)
 
+        if coords.shape[-1] == 4:
+            coords = coords[:, 1:]
+
         out_mesh = paint_mesh_with_voxels(mesh, coords, colors, resolution=resolution)
         return IO.NodeOutput(out_mesh)
 
@@ -654,6 +657,17 @@ def simplify_fn_fast(vertices, faces, colors=None, target=100000, max_edge_lengt
     )
     return final_v, final_f, final_c
 
+def compute_vertex_normals(vertices, faces):
+    v0 = vertices[faces[:, 0]]
+    v1 = vertices[faces[:, 1]]
+    v2 = vertices[faces[:, 2]]
+    face_normals = torch.cross(v1 - v0, v2 - v0, dim=-1)
+
+    n = torch.zeros_like(vertices)
+    for i in range(3):
+        n.index_add_(0, faces[:, i], face_normals)
+
+    return torch.nn.functional.normalize(n, dim=-1)
 
 class PostProcessMesh(IO.ComfyNode):
     @classmethod
