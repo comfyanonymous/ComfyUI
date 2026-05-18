@@ -1024,7 +1024,7 @@
           "workflowRendererVersion": "LG"
         },
         "category": "Image generation and editing/Text to image",
-        "description": "Generates images from text prompts using Flux.1 Krea Dev, a Black Forest Labs × Krea collaboration variant."
+        "description": "FLUX.1 Krea [dev] (Black Forest Labs × Krea): open-weight 12B rectified-flow text-to-image drop-in alongside FLUX.1 [dev], tuned away from overcooked saturation toward more natural diversity in people, realism, and style while keeping ecosystem compatibility."
       }
     ]
   },

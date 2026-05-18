@@ -79,7 +79,7 @@ import comfy.latent_formats
 
 import comfy.ldm.flux.redux
 
-def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
+def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=None):
     key_map = {}
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
@@ -91,6 +91,8 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
+        if lora_metadata:
+            new_modelpatcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k = ()
         new_modelpatcher = None
@@ -98,6 +100,8 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if clip is not None:
         new_clip = clip.clone()
         k1 = new_clip.add_patches(loaded, strength_clip)
+        if lora_metadata:
+            new_clip.patcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k1 = ()
         new_clip = None
@@ -239,7 +243,8 @@ class CLIP:
         model_management.archive_model_dtypes(self.cond_stage_model)
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        ModelPatcher = comfy.model_patcher.ModelPatcher if disable_dynamic else comfy.model_patcher.CoreModelPatcher
+        te_disable_dynamic = disable_dynamic or getattr(self.cond_stage_model, "disable_offload", False)
+        ModelPatcher = comfy.model_patcher.ModelPatcher if te_disable_dynamic else comfy.model_patcher.CoreModelPatcher
         self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         #Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
@@ -413,6 +418,13 @@ class CLIP:
 
     def get_sd(self):
         sd_clip = self.cond_stage_model.state_dict()
+        sd_tokenizer = self.tokenizer.state_dict()
+        for k in sd_tokenizer:
+            sd_clip[k] = sd_tokenizer[k]
+        return sd_clip
+
+    def state_dict_for_saving(self):
+        sd_clip = self.patcher.model_state_dict_for_saving()
         sd_tokenizer = self.tokenizer.state_dict()
         for k in sd_tokenizer:
             sd_clip[k] = sd_tokenizer[k]
@@ -776,6 +788,7 @@ class VAE:
                 self.latent_channels = 3
                 self.latent_dim = 2
                 self.output_channels = 3
+                self.disable_offload = True
             elif "vocoder.activation_post.downsample.lowpass.filter" in sd: #MMAudio VAE
                 sample_rate = 16000
                 if sample_rate == 16000:
@@ -1902,7 +1915,7 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     load_models = [model]
     if clip is not None:
         load_models.append(clip.load_model())
-        clip_sd = clip.get_sd()
+        clip_sd = clip.state_dict_for_saving()
     vae_sd = None
     if vae is not None:
         vae_sd = vae.get_sd()

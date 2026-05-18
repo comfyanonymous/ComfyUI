@@ -700,17 +700,19 @@ class LoraLoader:
 
         lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
         lora = None
+        lora_metadata = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
                 lora = self.loaded_lora[1]
+                lora_metadata = self.loaded_lora[2] if len(self.loaded_lora) > 2 else None
             else:
                 self.loaded_lora = None
 
         if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-            self.loaded_lora = (lora_path, lora)
+            lora, lora_metadata = comfy.utils.load_torch_file(lora_path, safe_load=True, return_metadata=True)
+            self.loaded_lora = (lora_path, lora, lora_metadata)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=lora_metadata)
         return (model_lora, clip_lora)
 
 class LoraLoaderModelOnly(LoraLoader):
@@ -1221,7 +1223,7 @@ class LatentFromBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              "batch_index": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                               "length": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
     RETURN_TYPES = ("LATENT",)
@@ -1232,7 +1234,9 @@ class LatentFromBatch:
     def frombatch(self, samples, batch_index, length):
         s = samples.copy()
         s_in = samples["samples"]
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        if batch_index < 0:
+            batch_index += s_in.shape[0]
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s["samples"] = s_in[batch_index:batch_index + length].clone()
         if "noise_mask" in samples:
@@ -2434,6 +2438,10 @@ async def init_builtin_extra_nodes():
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
         "nodes_void.py",
+        "nodes_wandancer.py",
+        "nodes_hidream_o1.py",
+        "nodes_save_3d.py",
+        "nodes_moge.py",
     ]
 
     import_failed = []

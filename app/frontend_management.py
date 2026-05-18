@@ -38,40 +38,54 @@ def is_valid_version(version: str) -> bool:
     pattern = r"^(\d+)\.(\d+)\.(\d+)$"
     return bool(re.match(pattern, version))
 
-def get_installed_frontend_version():
-    """Get the currently installed frontend package version."""
-    frontend_version_str = version("comfyui-frontend-package")
-    return frontend_version_str
-
-
 def get_required_frontend_version():
     return get_required_packages_versions().get("comfyui-frontend-package", None)
 
 
-def check_frontend_version():
-    """Check if the frontend version is up to date."""
+COMFY_PACKAGE_VERSIONS = []
+def get_comfy_package_versions():
+    """List installed/required versions for every comfy* package in requirements.txt."""
+    if COMFY_PACKAGE_VERSIONS:
+        return COMFY_PACKAGE_VERSIONS.copy()
+    out = COMFY_PACKAGE_VERSIONS
+    for name, required in (get_required_packages_versions() or {}).items():
+        if not name.startswith("comfy"):
+            continue
+        try:
+            installed = version(name)
+        except Exception:
+            installed = None
+        out.append({"name": name, "installed": installed, "required": required})
+    return out.copy()
 
-    try:
-        frontend_version_str = get_installed_frontend_version()
-        frontend_version = parse_version(frontend_version_str)
-        required_frontend_str = get_required_frontend_version()
-        required_frontend = parse_version(required_frontend_str)
-        if frontend_version < required_frontend:
+
+def check_comfy_packages_versions():
+    """Warn for every comfy* package whose installed version is below requirements.txt."""
+    from packaging.version import InvalidVersion, parse as parse_pep440
+    for pkg in get_comfy_package_versions():
+        installed_str = pkg["installed"]
+        required_str = pkg["required"]
+        if not installed_str or not required_str:
+            continue
+        try:
+            outdated = parse_pep440(installed_str) < parse_pep440(required_str)
+        except InvalidVersion as e:
+            logging.error(f"Failed to check {pkg['name']} version: {e}")
+            continue
+        if outdated:
             app.logger.log_startup_warning(
                 f"""
 ________________________________________________________________________
 WARNING WARNING WARNING WARNING WARNING
 
-Installed frontend version {".".join(map(str, frontend_version))} is lower than the recommended version {".".join(map(str, required_frontend))}.
+Installed {pkg["name"]} version {installed_str} is lower than the recommended version {required_str}.
 
-{frontend_install_warning_message()}
+{get_missing_requirements_message()}
 ________________________________________________________________________
 """.strip()
             )
         else:
-            logging.info("ComfyUI frontend version: {}".format(frontend_version_str))
-    except Exception as e:
-        logging.error(f"Failed to check frontend version: {e}")
+            logging.info("{} version: {}".format(pkg["name"], installed_str))
 
 
 REQUEST_TIMEOUT = 10  # seconds
@@ -200,6 +214,11 @@ class FrontendManager:
     @classmethod
     def get_required_templates_version(cls) -> str:
         return get_required_packages_versions().get("comfyui-workflow-templates", None)
+
+    @classmethod
+    def get_comfy_package_versions(cls):
+        """List installed/required versions for every comfy* package in requirements.txt."""
+        return get_comfy_package_versions()
 
     @classmethod
     def default_frontend_path(cls) -> str:
@@ -341,7 +360,7 @@ comfyui-workflow-templates is not installed.
             main error source might be request timeout or invalid URL.
         """
         if version_string == DEFAULT_VERSION_STRING:
-            check_frontend_version()
+            check_comfy_packages_versions()
             return cls.default_frontend_path()
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
@@ -403,7 +422,7 @@ comfyui-workflow-templates is not installed.
         except Exception as e:
             logging.error("Failed to initialize frontend: %s", e)
             logging.info("Falling back to the default frontend.")
-            check_frontend_version()
+            check_comfy_packages_versions()
             return cls.default_frontend_path()
     @classmethod
     def template_asset_handler(cls):

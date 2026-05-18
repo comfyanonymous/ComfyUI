@@ -792,6 +792,13 @@ class ZImagePixelSpace(ChromaRadiance):
     """
     pass
 
+
+class HiDreamO1Pixel(ChromaRadiance):
+    """Pixel-space latent format for HiDream-O1.
+    No VAE — model patches/unpatches raw RGB internally with patch_size=32.
+    """
+    pass
+
 class CogVideoX(LatentFormat):
     """Latent format for CogVideoX-2b (THUDM/CogVideoX-2b).
 
