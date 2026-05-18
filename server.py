@@ -28,6 +28,7 @@ import logging
 import mimetypes
 from comfy.cli_args import args
 import comfy.utils
+from comfy.path_validation import resolve_safe_path
 import comfy.model_management
 from comfy_api import feature_flags
 import node_helpers
@@ -396,14 +397,18 @@ class PromptServer():
                     return web.Response(status=400)
 
                 subfolder = post.get("subfolder", "")
-                full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
-                filepath = os.path.abspath(os.path.join(full_output_folder, filename))
-
-                if os.path.commonpath((upload_dir, filepath)) != upload_dir:
+                full_output_folder = resolve_safe_path(upload_dir, subfolder)
+                filepath = (
+                    resolve_safe_path(full_output_folder, filename)
+                    if full_output_folder is not None
+                    else None
+                )
+                if filepath is None:
                     return web.Response(status=400)
+                full_output_folder = str(full_output_folder)
+                filepath = str(filepath)
 
-                if not os.path.exists(full_output_folder):
-                    os.makedirs(full_output_folder)
+                os.makedirs(full_output_folder, exist_ok=True)
 
                 split = os.path.splitext(filename)
 
@@ -464,10 +469,6 @@ class PromptServer():
                 if not filename:
                     return web.Response(status=400)
 
-                # validation for security: prevent accessing arbitrary path
-                if filename[0] == '/' or '..' in filename:
-                    return web.Response(status=400)
-
                 if output_dir is None:
                     type = original_ref.get("type", "output")
                     output_dir = folder_paths.get_directory_by_type(type)
@@ -475,13 +476,10 @@ class PromptServer():
                 if output_dir is None:
                     return web.Response(status=400)
 
-                if original_ref.get("subfolder", "") != "":
-                    full_output_dir = os.path.join(output_dir, original_ref["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                        return web.Response(status=403)
-                    output_dir = full_output_dir
-
-                file = os.path.join(output_dir, filename)
+                file = resolve_safe_path(output_dir, os.path.join(original_ref.get("subfolder", ""), filename))
+                if file is None:
+                    return web.Response(status=400)
+                file = str(file)
 
                 if os.path.isfile(file):
                     with Image.open(file) as original_pil:
@@ -521,10 +519,6 @@ class PromptServer():
                     if not filename:
                         return web.Response(status=400)
 
-                    # validation for security: prevent accessing arbitrary path
-                    if filename[0] == '/' or '..' in filename:
-                        return web.Response(status=400)
-
                     if output_dir is None:
                         type = request.rel_url.query.get("type", "output")
                         output_dir = folder_paths.get_directory_by_type(type)
@@ -532,14 +526,10 @@ class PromptServer():
                     if output_dir is None:
                         return web.Response(status=400)
 
-                    if "subfolder" in request.rel_url.query:
-                        full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                            return web.Response(status=403)
-                        output_dir = full_output_dir
-
-                    filename = os.path.basename(filename)
-                    file = os.path.join(output_dir, filename)
+                    file = resolve_safe_path(output_dir, os.path.join(request.rel_url.query.get("subfolder", ""), filename))
+                    if file is None:
+                        return web.Response(status=400)
+                    file = str(file)
 
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
