@@ -809,6 +809,10 @@ class Trellis2(nn.Module):
             mode = "structure_generation"
             not_struct_mode = False
 
+        if x.size(-1) == 16 and x.size(-2) == 16:
+            mode = "structure_generation"
+            not_struct_mode = False
+
         if not not_struct_mode:
             bsz = x.size(0)
             x = x[:, :8]
