@@ -1,0 +1,74 @@
+// Example ComfyUI frontend extension.
+//
+// To try this in a custom node package:
+// 1. Copy this file into a web directory such as custom_nodes/your_node/web/example.js.
+// 2. In your Python module, set WEB_DIRECTORY = "./web".
+// 3. Restart ComfyUI or refresh the browser after the extension list reloads.
+//
+// Any .js file under WEB_DIRECTORY is served from /extensions/<module-name>/...
+// and loaded by the frontend as an ES module. Use relative imports from the
+// frontend's scripts directory for ComfyUI frontend APIs.
+
+import { app } from "../../scripts/app.js";
+
+app.registerExtension({
+    // Use a globally unique name. A reverse-domain style name helps avoid
+    // collisions with other custom nodes and extensions.
+    name: "comfy.example.frontend_extension",
+
+    // This hook runs before a node class is registered in the frontend.
+    // It is the usual place to add behavior to one node type while leaving
+    // all other nodes untouched.
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        // nodeData.name is the Python node id. For the example node in
+        // example_node.py.example, define_schema() sets node_id="Example".
+        if (nodeData.name !== "Example") {
+            return;
+        }
+
+        // Store the original method before replacing it. This pattern lets
+        // your extension add behavior while preserving ComfyUI's default
+        // implementation and any behavior installed by earlier extensions.
+        const onNodeCreated = nodeType.prototype.onNodeCreated;
+
+        nodeType.prototype.onNodeCreated = function () {
+            // Always call the original method with this node instance.
+            onNodeCreated?.apply(this, arguments);
+
+            // Widgets are created from the node schema. This example finds
+            // the string_field widget and adjusts its visible value.
+            const widget = this.widgets?.find((widget) => widget.name === "string_field");
+            if (widget) {
+                widget.value = `${widget.value} (edited by frontend extension)`;
+            }
+        };
+
+        // onExecuted runs when the backend finishes this node and sends UI
+        // output for it. Wrap it to inspect or augment that output.
+        const onExecuted = nodeType.prototype.onExecuted;
+
+        nodeType.prototype.onExecuted = function (message) {
+            onExecuted?.apply(this, arguments);
+
+            // Some image-like nodes use node.imgs to hold rendered image
+            // previews in the graph. Read it after calling the original
+            // onExecuted handler, because the default handler may populate it.
+            if (this.imgs?.length) {
+                console.log("Example node rendered", this.imgs.length, "preview image(s).");
+            }
+
+            // message contains the UI payload returned by the backend. Its
+            // shape depends on the node output type and the node's execution.
+            console.debug("Example node executed:", message);
+        };
+    },
+
+    // This hook runs whenever a frontend node instance is created. Use it
+    // for lightweight per-instance setup that does not require replacing
+    // methods on the node class.
+    nodeCreated(node) {
+        if (node.comfyClass === "Example") {
+            node.title = "Example Node (frontend extension active)";
+        }
+    },
+});
