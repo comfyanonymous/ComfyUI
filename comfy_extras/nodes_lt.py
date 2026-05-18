@@ -274,6 +274,12 @@ class LTXVAddGuide(io.ComfyNode):
                             "down to the nearest multiple of 8. Negative values are counted from the end of the video.",
                 ),
                 io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Mask.Input(
+                    "attention_mask",
+                    optional=True,
+                    tooltip="Optional pixel-space spatial mask. Controls per-region "
+                            "conditioning influence via self-attention, multiplied by strength.",
+                ),
                 ICLoRAParameters.Input(
                     "iclora_parameters",
                     optional=True,
@@ -281,12 +287,6 @@ class LTXVAddGuide(io.ComfyNode):
                             "Used for adjusting guide processing as required by certain IC-LoRAs "
                             "(eg. those with a reference_downscale_factor > 1). "
                             "When chained, each LTXVAddGuide uses only the parameters connected to it.",
-                ),
-                io.Mask.Input(
-                    "attention_mask",
-                    optional=True,
-                    tooltip="Optional pixel-space spatial mask. Controls per-region "
-                            "conditioning influence via self-attention, multiplied by strength.",
                 ),
             ],
             outputs=[
@@ -427,7 +427,7 @@ class LTXVAddGuide(io.ComfyNode):
         return latent_image, noise_mask
 
     @classmethod
-    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, iclora_parameters=None, attention_mask=None) -> io.NodeOutput:
+    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, attention_mask=None, iclora_parameters=None) -> io.NodeOutput:
         scale_factors = vae.downscale_index_formula
         latent_image = latent["samples"]
         noise_mask = get_noise_mask(latent)
