@@ -1468,13 +1468,15 @@ paths:
           description: Directory type (e.g. output, input, temp)
       responses:
         "200":
-          description: Array of filenames
+          description: Array of filenames with their directory type suffix
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+                  description: Filename followed by its directory type suffix, for example `example.png [output]`.
+                  pattern: '^.+ \[(output|input|temp)\]$'
 
   # ---------------------------------------------------------------------------
   # Assets (x-feature-gate: enable-assets)
