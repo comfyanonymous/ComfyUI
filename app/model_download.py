@@ -4,9 +4,9 @@ import os
 import posixpath
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 
 import folder_paths
 
@@ -15,6 +15,18 @@ ALLOWED_DOWNLOAD_HOSTS = {"huggingface.co", "civitai.com", "civitai.red"}
 ALLOWED_DOWNLOAD_SUFFIXES = (".safetensors", ".sft", ".ckpt", ".pth", ".pt")
 BLOCKED_MODEL_FOLDERS = {"configs", "custom_nodes"}
 CHUNK_SIZE = 1024 * 1024
+
+# Bound the network call so a hung remote eventually surfaces an error
+# instead of blocking the request handler forever. ``sock_read`` is the
+# inter-chunk read timeout, which is the right knob for long downloads:
+# a slow-but-progressing transfer keeps making progress, while a stalled
+# socket fails predictably.
+DOWNLOAD_TIMEOUT = ClientTimeout(total=None, connect=30, sock_connect=30, sock_read=300)
+
+# Maximum number of redirects we follow manually. Hugging Face typically
+# redirects ``/resolve/main/...`` to a single CDN URL, so a small budget
+# is enough while still preventing redirect loops.
+MAX_DOWNLOAD_REDIRECTS = 5
 
 WHITE_LISTED_DOWNLOAD_URLS = {
     "https://huggingface.co/stabilityai/stable-zero123/resolve/main/stable_zero123.ckpt",
@@ -71,6 +83,14 @@ def parse_model_download_request(data) -> ModelDownloadRequest:
 
 
 def is_allowed_model_download_url(url: str) -> bool:
+    """Return True for URLs we are willing to fetch on behalf of the user.
+
+    The same predicate is applied to the user-supplied URL and to every
+    redirect target, so SSRF via redirects on an allowed host is contained
+    to the same allowlist. Subdomains of allowlisted hosts are accepted
+    because Hugging Face and Civitai both serve actual file payloads from
+    CDN subdomains (e.g. ``cdn-lfs.huggingface.co``).
+    """
     if url in WHITE_LISTED_DOWNLOAD_URLS:
         return True
 
@@ -82,7 +102,14 @@ def is_allowed_model_download_url(url: str) -> bool:
     if parsed.scheme != "https":
         return False
 
-    return (parsed.hostname or "").lower() in ALLOWED_DOWNLOAD_HOSTS
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+
+    for allowed in ALLOWED_DOWNLOAD_HOSTS:
+        if host == allowed or host.endswith("." + allowed):
+            return True
+    return False
 
 
 def normalize_model_relative_path(name: str) -> str:
@@ -164,6 +191,36 @@ def safe_join(root: str, relative_path: str) -> str:
     return full_path
 
 
+async def open_model_download_response(session: ClientSession, url: str):
+    """GET ``url`` with explicit timeout and an allowlist-checked redirect chain.
+
+    aiohttp follows redirects by default, which would let an allowed host
+    redirect to an arbitrary internal target (SSRF). We disable automatic
+    following and validate every ``Location`` against the same allowlist
+    used for the initial URL.
+    """
+    current_url = url
+    for _ in range(MAX_DOWNLOAD_REDIRECTS + 1):
+        response = await session.get(
+            current_url,
+            allow_redirects=False,
+            timeout=DOWNLOAD_TIMEOUT,
+        )
+        if response.status not in (301, 302, 303, 307, 308):
+            return response
+
+        location = response.headers.get("Location", "").strip()
+        response.release()
+        if not location:
+            raise ModelDownloadError("Redirect response missing Location header.", status=502)
+        next_url = urljoin(current_url, location)
+        if not is_allowed_model_download_url(next_url):
+            raise ModelDownloadError("Model download redirect target is not allowed.", status=403)
+        current_url = next_url
+
+    raise ModelDownloadError("Too many redirects while downloading model.", status=502)
+
+
 async def download_model_to_destination(
     session: ClientSession,
     request: ModelDownloadRequest,
@@ -183,7 +240,7 @@ async def download_model_to_destination(
     bytes_written = 0
     try:
         with os.fdopen(fd, "wb") as output:
-            async with session.get(request.url) as response:
+            async with await open_model_download_response(session, request.url) as response:
                 if response.status >= 400:
                     raise ModelDownloadError(f"Model download failed with HTTP {response.status}.", status=502)
 

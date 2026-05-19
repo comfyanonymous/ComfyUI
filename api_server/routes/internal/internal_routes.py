@@ -72,8 +72,8 @@ class InternalRoutes:
                 )
             except ModelDownloadError as err:
                 return web.json_response({"error": str(err)}, status=err.status)
-            except Exception:
-                logging.exception("Failed to download model")
+            except Exception as err:
+                logging.exception("Failed to download model: %s", err)
                 return web.json_response({"error": "Failed to download model."}, status=500)
 
             response_status = 200 if result["status"] == "already_exists" else 201
