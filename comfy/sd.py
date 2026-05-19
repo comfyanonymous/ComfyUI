@@ -93,7 +93,6 @@ def get_twinflow_z_image_config(state_dict):
         "architecture": "TwinFlow_Z_Image",
     }
     
-def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=None):
     key_map = {}
     if model is not None:
