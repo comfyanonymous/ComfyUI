@@ -7687,6 +7687,7 @@ components:
           type: string
         description:
           type: string
+          nullable: true
           description: User-provided description
         prefix:
           type: string
@@ -7716,6 +7717,7 @@ components:
           type: string
         description:
           type: string
+          nullable: true
           description: User-provided description
         key:
           type: string
