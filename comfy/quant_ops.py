@@ -33,7 +33,8 @@ try:
     else:
         ck.registry.disable("triton")
     for k, v in ck.list_backends().items():
-        logging.info(f"Found comfy_kitchen backend {k}: {v}")
+        filtered = {kk: vv for kk, vv in v.items() if (kk in ('disabled', 'capabilities') if v['available'] else kk in ('available', 'unavailable_reason'))}
+        logging.info(f"Found comfy_kitchen backend {k}: {filtered}")
 except ImportError as e:
     logging.error(f"Failed to import comfy_kitchen, Error: {e}, fp8 and fp4 support will not be available.")
     _CK_AVAILABLE = False
