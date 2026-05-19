@@ -601,7 +601,7 @@ class LTXVScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVScheduler",
-            category="sampling/custom_sampling/schedulers",
+            category="sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
