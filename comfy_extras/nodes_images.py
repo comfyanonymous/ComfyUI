@@ -1164,19 +1164,19 @@ class SaveImageAdvanced(IO.ComfyNode):
                     ),
                 ),
                 IO.DynamicCombo.Input(
-                    "image_format",
+                    "format",
                     options=[
                         IO.DynamicCombo.Option("png", [
                             IO.Combo.Input("bit_depth", options=["8-bit", "16-bit"],
                                            default="8-bit", advanced=True),
-                            IO.Combo.Input("colorspace", options=["sRGB"],
+                            IO.Combo.Input("input_color_space", options=["sRGB"],
                                            default="sRGB", advanced=True),
                         ]),
                         IO.DynamicCombo.Option("exr", [
                             IO.Combo.Input("bit_depth", options=["32-bit float"],
                                            default="32-bit float", advanced=True),
                             IO.Combo.Input(
-                                "colorspace",
+                                "input_color_space",
                                 options=["sRGB", "HDR", "linear"],
                                 default="sRGB",
                                 advanced=True,
@@ -1204,10 +1204,10 @@ class SaveImageAdvanced(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images, filename_prefix: str, image_format: dict) -> IO.NodeOutput:
-        file_format = image_format["image_format"]
-        bit_depth = image_format["bit_depth"]
-        colorspace = image_format.get("colorspace", "sRGB")
+    def execute(cls, images, filename_prefix: str, format: dict) -> IO.NodeOutput:
+        file_format = format["format"]
+        bit_depth = format["bit_depth"]
+        colorspace = format.get("input_color_space", "sRGB")
 
         output_dir = folder_paths.get_output_directory()
         full_output_folder, filename, counter, subfolder, filename_prefix = (
