@@ -750,7 +750,7 @@ class SamplerCustom(io.ComfyNode):
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
-        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
+        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
         latent["samples"] = latent_image
 
         if not add_noise:
@@ -770,6 +770,7 @@ class SamplerCustom(io.ComfyNode):
 
         out = latent.copy()
         out.pop("downscale_ratio_spacial", None)
+        out.pop("downscale_ratio_temporal", None)
         out["samples"] = samples
         if "x0" in x0_output:
             x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
@@ -949,7 +950,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
-        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image, latent.get("downscale_ratio_spacial", None))
+        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
         latent["samples"] = latent_image
 
         noise_mask = None
@@ -965,6 +966,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
 
         out = latent.copy()
         out.pop("downscale_ratio_spacial", None)
+        out.pop("downscale_ratio_temporal", None)
         out["samples"] = samples
         if "x0" in x0_output:
             x0_out = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
