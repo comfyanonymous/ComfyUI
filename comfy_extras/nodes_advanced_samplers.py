@@ -45,7 +45,7 @@ class SamplerLCMUpscale(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SamplerLCMUpscale",
-            category="sampling/custom_sampling/samplers",
+            category="sampling/samplers",
             inputs=[
                 io.Float.Input("scale_ratio", default=1.0, min=0.1, max=20.0, step=0.01, advanced=True),
                 io.Int.Input("scale_steps", default=-1, min=-1, max=1000, step=1, advanced=True),
@@ -123,7 +123,7 @@ class SamplerEulerCFGpp(io.ComfyNode):
         return io.Schema(
             node_id="SamplerEulerCFGpp",
             display_name="SamplerEulerCFG++",
-            category="experimental",  # "sampling/custom_sampling/samplers"
+            category="experimental",  # "sampling/samplers"
             inputs=[
                 io.Combo.Input("version", options=["regular", "alternative"], advanced=True),
             ],

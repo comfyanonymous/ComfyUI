@@ -485,8 +485,15 @@ paths:
     post:
       operationId: uploadMask
       tags: [upload]
-      summary: Upload a mask image
-      description: Uploads a mask image associated with a previously-uploaded reference image.
+      deprecated: true
+      summary: Upload a mask image (deprecated)
+      description: |
+        Deprecated. Clients should composite the mask onto the source image
+        client-side and upload the resulting image via POST /api/upload/image
+        instead. This endpoint will continue to function for older clients,
+        but will not receive new features.
+
+        Uploads a mask image associated with a previously-uploaded reference image.
       requestBody:
         required: true
         content:
