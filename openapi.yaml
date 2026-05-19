@@ -4160,6 +4160,9 @@ paths:
                 name:
                   type: string
                   description: Display name for the API key
+                description:
+                  type: string
+                  description: User-provided description for the key
       responses:
         "201":
           description: API key created
@@ -7682,6 +7685,9 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          description: User-provided description
         prefix:
           type: string
           description: First few characters of the key for identification
@@ -7708,6 +7714,9 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          description: User-provided description
         key:
           type: string
           description: Full API key value (only returned on creation)
