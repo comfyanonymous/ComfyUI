@@ -6351,14 +6351,6 @@ components:
           type: integer
           format: int64
           description: Size of the asset in bytes
-        width:
-          type: integer
-          nullable: true
-          description: "Original image width in pixels. Null for non-image assets or assets ingested before dimension extraction."
-        height:
-          type: integer
-          nullable: true
-          description: "Original image height in pixels. Null for non-image assets or assets ingested before dimension extraction."
         mime_type:
           type: string
           description: MIME type of the asset
