@@ -79,7 +79,7 @@ import comfy.latent_formats
 
 import comfy.ldm.flux.redux
 
-def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
+def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=None):
     key_map = {}
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
@@ -91,6 +91,8 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
+        if lora_metadata:
+            new_modelpatcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k = ()
         new_modelpatcher = None
@@ -98,6 +100,8 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if clip is not None:
         new_clip = clip.clone()
         k1 = new_clip.add_patches(loaded, strength_clip)
+        if lora_metadata:
+            new_clip.patcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k1 = ()
         new_clip = None
@@ -414,6 +418,13 @@ class CLIP:
 
     def get_sd(self):
         sd_clip = self.cond_stage_model.state_dict()
+        sd_tokenizer = self.tokenizer.state_dict()
+        for k in sd_tokenizer:
+            sd_clip[k] = sd_tokenizer[k]
+        return sd_clip
+
+    def state_dict_for_saving(self):
+        sd_clip = self.patcher.model_state_dict_for_saving()
         sd_tokenizer = self.tokenizer.state_dict()
         for k in sd_tokenizer:
             sd_clip[k] = sd_tokenizer[k]
@@ -1904,7 +1915,7 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     load_models = [model]
     if clip is not None:
         load_models.append(clip.load_model())
-        clip_sd = clip.get_sd()
+        clip_sd = clip.state_dict_for_saving()
     vae_sd = None
     if vae is not None:
         vae_sd = vae.get_sd()
