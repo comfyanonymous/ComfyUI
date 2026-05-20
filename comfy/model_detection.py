@@ -116,6 +116,45 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit
         unet_config = {}
         unet_config["audio_model"] = "dit1.0"
+        unet_config["global_cond_dim"] = state_dict['{}to_global_embed.0.weight'.format(key_prefix)].shape[1]
+        cond_embed = state_dict['{}to_cond_embed.0.weight'.format(key_prefix)]
+        unet_config["project_cond_tokens"] = cond_embed.shape[0] != cond_embed.shape[1]
+        unet_config["embed_dim"] = state_dict['{}to_timestep_embed.0.weight'.format(key_prefix)].shape[0]
+        mem_tokens = state_dict.get('{}transformer.memory_tokens'.format(key_prefix), None)
+        to_qkv = state_dict.get('{}transformer.layers.0.self_attn.to_qkv.weight'.format(key_prefix), None)
+        differential = False
+        if to_qkv is not None:
+            if to_qkv.shape[0] == to_qkv.shape[1] * 5:
+                differential = True
+        if mem_tokens is not None:
+            unet_config["num_memory_tokens"] = mem_tokens.shape[0]
+        if '{}transformer.layers.0.self_attn.q_norm.weight'.format(key_prefix) in state_dict:
+            unet_config["attn_kwargs"] = {"qk_norm": "ln", "feat_scale": True}
+        rms_norm = state_dict.get('{}transformer.layers.0.self_attn.q_norm.gamma'.format(key_prefix), None)
+        if rms_norm is not None:
+            unet_config["attn_kwargs"] = {"qk_norm": "rms", "differential": differential}
+            unet_config["norm_type"] = "rms_norm"
+            unet_config["num_heads"] = unet_config["embed_dim"] // rms_norm.shape[0]
+
+        if '{}timestep_features.weight'.format(key_prefix) in state_dict:
+            unet_config["timestep_features_type"] = "learned"
+        else:
+            unet_config["timestep_features_type"] = "expo"
+
+        io_channels = state_dict['{}postprocess_conv.weight'.format(key_prefix)].shape[0]
+        unet_config["io_channels"] = io_channels
+        unet_config["input_concat_dim"] = state_dict['{}transformer.project_in.weight'.format(key_prefix)].shape[1] - io_channels
+
+        local_add_cond = state_dict.get('{}transformer.layers.0.to_local_embed.0.weight'.format(key_prefix), None)
+        if local_add_cond is not None:
+            unet_config["local_add_cond_dim"] = local_add_cond.shape[1]
+
+        global_cond_embed = state_dict.get('{}transformer.global_cond_embedder.0.weight'.format(key_prefix), None)
+        if global_cond_embed is not None:
+            unet_config["global_cond_shared_embed"] = True
+            unet_config["global_cond_type"] = "adaLN"
+
+        unet_config["depth"] = count_blocks(state_dict_keys, '{}transformer.layers.'.format(key_prefix) + '{}.')
         return unet_config
 
     if '{}double_layers.0.attn.w1q.weight'.format(key_prefix) in state_dict_keys: #aura flow dit
