@@ -1045,7 +1045,7 @@ class ImageGridNode(ImageProcessingNode):
     """Combine multiple images into a single grid/collage."""
 
     node_id = "ImageGrid"
-    searrch_aliases=["grid", "collage", "combine"]
+    search_aliases=["grid", "collage", "combine"]
     display_name = "Make Image Grid"
     category="image/batch"
     description = "Arrange multiple images into a grid layout."
