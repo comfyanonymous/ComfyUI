@@ -47,6 +47,7 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LoadImageDataSetFromFolder",
+            search_aliases=["load folder", "load from folder", "load dataset", "load images", "import dataset"],
             display_name="Load Image (from Folder)",
             category="image",
             description="Load a dataset of images from a specified folder and return a list of images. Supported formats: PNG, JPG, JPEG, WEBP.",
@@ -85,14 +86,16 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LoadImageTextDataSetFromFolder",
-            display_name="Load Image and Text Dataset from Folder",
-            category="dataset",
+            search_aliases=["load folder", "load from folder", "load dataset", "load images", "import dataset"],
+            display_name="Load Image-Text (from Folder)",
+            category="image",
+            description="Load a dataset of pairs of images and text captions from a specified folder and return them as a list. Supported formats: PNG, JPG, JPEG, WEBP.",
             is_experimental=True,
             inputs=[
                 io.Combo.Input(
                     "folder",
                     options=folder_paths.get_input_subfolders(),
-                    tooltip="The folder to load images from.",
+                    tooltip="The folder to load images and text captions from.",
                 )
             ],
             outputs=[
@@ -207,8 +210,10 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveImageDataSetToFolder",
-            display_name="Save Image Dataset to Folder",
-            category="dataset",
+            search_aliases=["save folder", "save to folder", "save dataset", "save images", "export dataset"],
+            display_name="Save Image (to Folder) (DEPRECATED)",
+            category="image",
+            description="Save a dataset of images to a specified folder. Supported formats: PNG.",
             is_experimental=True,
             is_output_node=True,
             is_input_list=True,  # Receive images as list
@@ -227,6 +232,7 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
                 ),
             ],
             outputs=[],
+            is_deprecated=True,  # This node is redundant and superseded by existing Save Image nodes where the target folder can be specified in the filename_prefix
         )
 
     @classmethod
@@ -247,14 +253,16 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveImageTextDataSetToFolder",
-            display_name="Save Image and Text Dataset to Folder",
-            category="dataset",
+            search_aliases=["save folder", "save to folder", "save dataset", "save images", "save text", "export dataset"],
+            display_name="Save Image-Text (to Folder)",
+            category="image",
+            description="Save a dataset of pairs of images and text captions to a specified folder. Images are saved as PNG files and captions are saved as TXT files with the same filename_prefix.",
             is_experimental=True,
             is_output_node=True,
             is_input_list=True,  # Receive both images and texts as lists
             inputs=[
                 io.Image.Input("images", tooltip="List of images to save."),
-                io.String.Input("texts", tooltip="List of text captions to save."),
+                io.String.Input("texts", tooltip="List of text captions to save.", force_input=True),
                 io.String.Input(
                     "folder_name",
                     default="dataset",
@@ -321,6 +329,7 @@ class ImageProcessingNode(io.ComfyNode):
         extra_inputs: List of additional io.Input objects beyond "images" (optional)
         is_group_process: None (auto-detect), True (group), or False (individual) (optional)
         is_output_list: True (list output) or False (single output) (optional, default True)
+        is_deprecated: True if the node is deprecated (optional, default False)
 
     Child classes must implement ONE of:
         _process(cls, image, **kwargs) -> tensor  (for single-item processing)
@@ -334,7 +343,7 @@ class ImageProcessingNode(io.ComfyNode):
     extra_inputs = []
     is_group_process = None  # None = auto-detect, True/False = explicit
     is_output_list = None  # None = auto-detect based on processing mode
-
+    is_deprecated = False
     @classmethod
     def _detect_processing_mode(cls):
         """Detect whether this node uses group or individual processing.
@@ -477,11 +486,13 @@ class TextProcessingNode(io.ComfyNode):
 
     Child classes should set:
         node_id: Unique node identifier (required)
+        search_aliases: List of search aliases (optional)
         display_name: Display name (optional, defaults to node_id)
         description: Node description (optional)
         extra_inputs: List of additional io.Input objects beyond "texts" (optional)
         is_group_process: None (auto-detect), True (group), or False (individual) (optional)
         is_output_list: True (list output) or False (single output) (optional, default True)
+        is_deprecated: True if the node is deprecated (optional, default False)
 
     Child classes must implement ONE of:
         _process(cls, text, **kwargs) -> str  (for single-item processing)
@@ -489,12 +500,13 @@ class TextProcessingNode(io.ComfyNode):
     """
 
     node_id = None
+    search_aliases = []
     display_name = None
     description = None
     extra_inputs = []
     is_group_process = None  # None = auto-detect, True/False = explicit
     is_output_list = None  # None = auto-detect based on processing mode
-
+    is_deprecated = False
     @classmethod
     def _detect_processing_mode(cls):
         """Detect whether this node uses group or individual processing.
@@ -634,7 +646,7 @@ class ResizeImagesByShorterEdgeNode(ImageProcessingNode):
     node_id = "ResizeImagesByShorterEdge"
     display_name = "Resize Images by Shorter Edge (DEPRECATED)"
     category = "image/transform"
-    description = "Resize images so that the shorter edge matches the specified length while preserving aspect ratio."
+    description = "Resize images so that the shorter edge matches the specified dimension while preserving aspect ratio."
     is_deprecated = True  # This node is superseded by Resize Image/Mask with resize_type = scale shorter dimension
     extra_inputs = [
         io.Int.Input(
@@ -642,7 +654,7 @@ class ResizeImagesByShorterEdgeNode(ImageProcessingNode):
             default=512,
             min=1,
             max=8192,
-            tooltip="Target length for the shorter edge.",
+            tooltip="Target dimension for the shorter edge.",
         ),
     ]
 
@@ -664,7 +676,7 @@ class ResizeImagesByLongerEdgeNode(ImageProcessingNode):
     node_id = "ResizeImagesByLongerEdge"
     display_name = "Resize Images by Longer Edge (DEPRECATED)"
     category = "image/transform"
-    description = "Resize images so that the longer edge matches the specified length while preserving aspect ratio."
+    description = "Resize images so that the longer edge matches the specified dimension while preserving aspect ratio."
     is_deprecated = True  # This node is superseded by Resize Image/Mask with resize_type = scale longer dimension
     extra_inputs = [
         io.Int.Input(
@@ -672,7 +684,7 @@ class ResizeImagesByLongerEdgeNode(ImageProcessingNode):
             default=1024,
             min=1,
             max=8192,
-            tooltip="Target length for the longer edge.",
+            tooltip="Target dimension for the longer edge.",
         ),
     ]
 
@@ -746,9 +758,9 @@ class RandomCropImagesNode(ImageProcessingNode):
 
 class NormalizeImagesNode(ImageProcessingNode):
     node_id = "NormalizeImages"
-    search_aliases=["normalize", "align"]
-    display_name = "Normalize Images"
-    category = "image/transform"
+    search_aliases=["normalize", "normalize colors"]
+    display_name = "Normalize Image Colors"
+    category = "image/color"
     description = "Normalize images using mean and standard deviation."
     extra_inputs = [
         io.Float.Input(
@@ -819,7 +831,7 @@ class AdjustContrastNode(ImageProcessingNode):
 class ShuffleDatasetNode(ImageProcessingNode):
     node_id = "ShuffleDataset"
     search_aliases=["shuffle", "randomize", "mix"]
-    display_name = "Shuffle Images"
+    display_name = "Shuffle Images List"
     category = "image/batch"
     description = "Randomly shuffle the order of images in a list."
     is_group_process = True  # Requires full list to shuffle
@@ -887,8 +899,11 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
 
 class TextToLowercaseNode(TextProcessingNode):
     node_id = "TextToLowercase"
-    display_name = "Text to Lowercase"
-    description = "Convert all texts to lowercase."
+    search_aliases=["lowercase"]
+    display_name = "Convert Text to Lowercase (DEPRECATED)"
+    category = "text"
+    description = "Convert text to lowercase."
+    is_deprecated = True  # This node is superseded by the Convert Text Case node
 
     @classmethod
     def _process(cls, text):
@@ -897,8 +912,11 @@ class TextToLowercaseNode(TextProcessingNode):
 
 class TextToUppercaseNode(TextProcessingNode):
     node_id = "TextToUppercase"
-    display_name = "Text to Uppercase"
-    description = "Convert all texts to uppercase."
+    search_aliases=["uppercase"]
+    display_name = "Convert Text to Uppercase (DEPRECATED)"
+    category = "text"
+    description = "Convert text to uppercase."
+    is_deprecated = True  # This node is superseded by the Convert Text Case node
 
     @classmethod
     def _process(cls, text):
@@ -907,8 +925,10 @@ class TextToUppercaseNode(TextProcessingNode):
 
 class TruncateTextNode(TextProcessingNode):
     node_id = "TruncateText"
+    search_aliases=["truncate", "cut", "shorten"]
     display_name = "Truncate Text"
-    description = "Truncate all texts to a maximum length."
+    category = "text"
+    description = "Truncate text to a maximum length."
     extra_inputs = [
         io.Int.Input(
             "max_length", default=77, min=1, max=10000, tooltip="Maximum text length."
@@ -922,8 +942,10 @@ class TruncateTextNode(TextProcessingNode):
 
 class AddTextPrefixNode(TextProcessingNode):
     node_id = "AddTextPrefix"
-    display_name = "Add Text Prefix"
+    display_name = "Add Text Prefix (DEPRECATED)"
+    category = "text"
     description = "Add a prefix to all texts."
+    is_deprecated = True  # This node is superseded by the Concatenate Text node
     extra_inputs = [
         io.String.Input("prefix", default="", tooltip="Prefix to add."),
     ]
@@ -935,8 +957,10 @@ class AddTextPrefixNode(TextProcessingNode):
 
 class AddTextSuffixNode(TextProcessingNode):
     node_id = "AddTextSuffix"
-    display_name = "Add Text Suffix"
+    display_name = "Add Text Suffix (DEPRECATED)"
+    category = "text"
     description = "Add a suffix to all texts."
+    is_deprecated = True  # This node is superseded by the Concatenate Text node
     extra_inputs = [
         io.String.Input("suffix", default="", tooltip="Suffix to add."),
     ]
@@ -948,8 +972,10 @@ class AddTextSuffixNode(TextProcessingNode):
 
 class ReplaceTextNode(TextProcessingNode):
     node_id = "ReplaceText"
-    display_name = "Replace Text"
+    display_name = "Replace Text (DEPRECATED)"
+    category = "text"
     description = "Replace text in all texts."
+    is_deprecated = True  # This node is superseded by the other Replace Text node
     extra_inputs = [
         io.String.Input("find", default="", tooltip="Text to find."),
         io.String.Input("replace", default="", tooltip="Text to replace with."),
@@ -962,8 +988,10 @@ class ReplaceTextNode(TextProcessingNode):
 
 class StripWhitespaceNode(TextProcessingNode):
     node_id = "StripWhitespace"
-    display_name = "Strip Whitespace"
+    display_name = "Strip Whitespace (DEPRECATED)"
+    category = "text"
     description = "Strip leading and trailing whitespace from all texts."
+    is_deprecated = True  # This node is superseded by the Trim Text node
 
     @classmethod
     def _process(cls, text):
@@ -1133,7 +1161,7 @@ class MergeImageListsNode(ImageProcessingNode):
     category = "image/batch"
     description = "Concatenate multiple image lists into one."
     is_group_process = True  # Receives images as list
-    is_deprecated = True  # This node is superseded by Create List
+    is_deprecated = True  # This node is superseded by the Create List node
 
     @classmethod
     def _group_process(cls, images):
@@ -1148,9 +1176,11 @@ class MergeTextListsNode(TextProcessingNode):
     """Merge multiple text lists into a single list."""
 
     node_id = "MergeTextLists"
-    display_name = "Merge Text Lists"
+    display_name = "Merge Text Lists (DEPRECATED)"
+    category = "text"
     description = "Concatenate multiple text lists into one."
     is_group_process = True  # Receives texts as list
+    is_deprecated = True  # This node is superseded by the Create List node
 
     @classmethod
     def _group_process(cls, texts):
@@ -1171,8 +1201,10 @@ class ResolutionBucket(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ResolutionBucket",
+            search_aliases=["bucket by resolution", "group by resolution", "batch by resolution"],
             display_name="Resolution Bucket",
-            category="dataset",
+            category="training",
+            description="Group latents and conditionings into buckets",
             is_experimental=True,
             is_input_list=True,
             inputs=[
@@ -1265,7 +1297,8 @@ class MakeTrainingDataset(io.ComfyNode):
             node_id="MakeTrainingDataset",
             search_aliases=["encode dataset"],
             display_name="Make Training Dataset",
-            category="dataset",
+            category="training",
+            description="Encode images with VAE and texts with CLIP to create a training dataset of latents and conditionings.",
             is_experimental=True,
             is_input_list=True,  # images and texts as lists
             inputs=[
@@ -1280,6 +1313,7 @@ class MakeTrainingDataset(io.ComfyNode):
                     "texts",
                     optional=True,
                     tooltip="List of text captions. Can be length n (matching images), 1 (repeated for all), or omitted (uses empty string).",
+                    force_input=True
                 ),
             ],
             outputs=[
@@ -1349,9 +1383,10 @@ class SaveTrainingDataset(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveTrainingDataset",
-            search_aliases=["export training data"],
+            search_aliases=["export dataset", "save dataset"],
             display_name="Save Training Dataset",
-            category="dataset",
+            category="training",
+            description="Save encoded training dataset (latents + conditioning) to disk for efficient loading during training.",
             is_experimental=True,
             is_output_node=True,
             is_input_list=True,  # Receive lists
@@ -1453,7 +1488,8 @@ class LoadTrainingDataset(io.ComfyNode):
             node_id="LoadTrainingDataset",
             search_aliases=["import dataset", "training data"],
             display_name="Load Training Dataset",
-            category="dataset",
+            category="training",
+            description="Load encoded training dataset (latents + conditioning) from disk for use in training.",
             is_experimental=True,
             inputs=[
                 io.String.Input(
