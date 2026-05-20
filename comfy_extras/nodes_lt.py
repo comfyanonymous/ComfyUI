@@ -77,7 +77,7 @@ class EmptyLTXVLatentVideo(io.ComfyNode):
     @classmethod
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples": latent})
+        return io.NodeOutput({"samples": latent, "downscale_ratio_spacial": 32})
 
     generate = execute  # TODO: remove
 
@@ -175,7 +175,7 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
-def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0):
+def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_shape, strength=1.0, attention_mask=None):
     """Append a guide_attention_entry to both positive and negative conditioning.
 
     Each entry tracks one guide reference for per-reference attention control.
@@ -184,9 +184,10 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
     new_entry = {
         "pre_filter_count": pre_filter_count,
         "strength": strength,
-        "pixel_mask": None,
+        "pixel_mask": attention_mask.unsqueeze(0).unsqueeze(0) if attention_mask is not None else None,  # reshape to (1, 1, F, H, W)
         "latent_shape": latent_shape,
     }
+
     results = []
     for cond in (positive, negative):
         # Read existing entries from this specific conditioning
@@ -196,8 +197,7 @@ def _append_guide_attention_entry(positive, negative, pre_filter_count, latent_s
             if found is not None:
                 existing = found
                 break
-        # Shallow copy and append (no deepcopy needed — entries contain
-        # only scalars and None for pixel_mask at this call site).
+        # Shallow copy only and append (pixel_mask is never mutated).
         entries = [*existing, new_entry]
         results.append(node_helpers.conditioning_set_values(
             cond, {"guide_attention_entries": entries}
@@ -263,6 +263,12 @@ class LTXVAddGuide(io.ComfyNode):
                             "down to the nearest multiple of 8. Negative values are counted from the end of the video.",
                 ),
                 io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Mask.Input(
+                    "attention_mask",
+                    optional=True,
+                    tooltip="Optional pixel-space spatial mask. Controls per-region "
+                            "conditioning influence via self-attention, multiplied by strength.",
+                ),
                 ICLoRAParameters.Input(
                     "iclora_parameters",
                     optional=True,
@@ -410,7 +416,7 @@ class LTXVAddGuide(io.ComfyNode):
         return latent_image, noise_mask
 
     @classmethod
-    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, iclora_parameters=None) -> io.NodeOutput:
+    def execute(cls, positive, negative, vae, latent, image, frame_idx, strength, attention_mask=None, iclora_parameters=None) -> io.NodeOutput:
         scale_factors = vae.downscale_index_formula
         latent_image = latent["samples"]
         noise_mask = get_noise_mask(latent)
@@ -469,6 +475,7 @@ class LTXVAddGuide(io.ComfyNode):
         pre_filter_count = t.shape[2] * t.shape[3] * t.shape[4]
         positive, negative = _append_guide_attention_entry(
             positive, negative, pre_filter_count, guide_latent_shape, strength=strength,
+            attention_mask=attention_mask,
         )
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
@@ -594,7 +601,7 @@ class LTXVScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVScheduler",
-            category="sampling/custom_sampling/schedulers",
+            category="sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
