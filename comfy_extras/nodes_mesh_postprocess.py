@@ -284,80 +284,6 @@ def fill_holes_fn(vertices, faces, max_perimeter=0.03):
 
     return v, f
 
-
-def make_double_sided(vertices, faces, colors=None, normals=None, z_offset=1e-4):
-    """
-    Creates double-sided mesh using PER-FACE normals for offset.
-    This avoids pole singularities completely.
-    """
-    is_batched = vertices.ndim == 3
-
-    if is_batched:
-        v_list, f_list, c_list = [], [], []
-        for i in range(vertices.shape[0]):
-            # Compute face normals for this mesh
-            v0 = vertices[i][faces[i][:, 0]]
-            v1 = vertices[i][faces[i][:, 1]]
-            v2 = vertices[i][faces[i][:, 2]]
-            fn = torch.cross(v1 - v0, v2 - v0, dim=-1)
-            fn = fn / (torch.norm(fn, dim=-1, keepdim=True) + 1e-8)
-
-            # Offset each face's vertices along its face normal
-            front = torch.stack([v0, v1, v2], dim=1) + fn.unsqueeze(1) * z_offset
-            back  = torch.stack([v0, v1, v2], dim=1) - fn.unsqueeze(1) * z_offset
-
-            front = front.reshape(-1, 3)
-            back = back.reshape(-1, 3)
-
-            f_front = torch.arange(faces[i].shape[0] * 3, device=vertices.device).reshape(-1, 3)
-            f_back = f_front + faces[i].shape[0] * 3
-            f_back = f_back[:, [0, 2, 1]]  # flip winding for back faces
-
-            v_list.append(torch.cat([front, back], dim=0))
-            f_list.append(torch.cat([f_front, f_back], dim=0))
-
-            if colors is not None:
-                c_faces = colors[i][faces[i]]
-                c_front = c_faces.reshape(-1, colors[i].shape[-1])
-                c_back = c_front.clone()
-                c_list.append(torch.cat([c_front, c_back], dim=0))
-
-        out_v = torch.stack(v_list)
-        out_f = torch.stack(f_list)
-        if colors is not None:
-            return out_v, out_f, torch.stack(c_list)
-        return out_v, out_f
-
-    # --- Unbatched ---
-    v0 = vertices[faces[:, 0]]
-    v1 = vertices[faces[:, 1]]
-    v2 = vertices[faces[:, 2]]
-    fn = torch.cross(v1 - v0, v2 - v0, dim=-1)
-    fn = fn / (torch.norm(fn, dim=-1, keepdim=True) + 1e-8)
-
-    # Offset each face's vertices along its face normal
-    front = torch.stack([v0, v1, v2], dim=1) + fn.unsqueeze(1) * z_offset
-    back  = torch.stack([v0, v1, v2], dim=1) - fn.unsqueeze(1) * z_offset
-
-    front = front.reshape(-1, 3)
-    back = back.reshape(-1, 3)
-
-    f_front = torch.arange(faces.shape[0] * 3, device=vertices.device).reshape(-1, 3)
-    f_back = f_front + faces.shape[0] * 3
-    f_back = f_back[:, [0, 2, 1]]  # flip winding for back faces
-
-    v_dup = torch.cat([front, back], dim=0)
-    f_dup = torch.cat([f_front, f_back], dim=0)
-
-    if colors is not None:
-        c_faces = colors[faces]
-        c_front = c_faces.reshape(-1, colors.shape[-1])
-        c_back = c_front.clone()
-        c_dup = torch.cat([c_front, c_back], dim=0)
-        return v_dup, f_dup, c_dup
-
-    return v_dup, f_dup, None
-
 def _cleanup_mesh(verts, faces, min_angle_deg=0.5, max_aspect=100.0):
     if faces.numel() == 0:
         return verts, faces
@@ -905,32 +831,10 @@ class FillHoles(IO.ComfyNode):
             return v, f, c
         return _process_mesh_batch(mesh, _fn)
 
-
-class MakeDoubleSided(IO.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return IO.Schema(
-            node_id="MakeDoubleSided",
-            display_name="Make Double Sided",
-            category="latent/3d",
-            description="Duplicates faces with flipped normals so the mesh renders from both sides.",
-            inputs=[IO.Mesh.Input("mesh")],
-            outputs=[IO.Mesh.Output("mesh")],
-        )
-
-    @classmethod
-    def execute(cls, mesh):
-        def _fn(v, f, c):
-            return make_double_sided(v, f, c)
-        return _process_mesh_batch(mesh, _fn)
-
-
-
 class PostProcessMeshExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            MakeDoubleSided,
             FillHoles,
             DecimateMesh,
             PaintMesh
