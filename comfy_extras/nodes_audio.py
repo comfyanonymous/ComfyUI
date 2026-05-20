@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import av
-import torchaudio
+try:
+    import torchaudio
+except (ImportError, OSError):
+    torchaudio = None
 import torch
 import comfy.model_management
 import folder_paths

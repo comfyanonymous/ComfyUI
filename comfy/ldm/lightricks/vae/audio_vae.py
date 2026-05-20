@@ -2,7 +2,10 @@ import json
 from dataclasses import dataclass
 import math
 import torch
-import torchaudio
+try:
+    import torchaudio
+except (ImportError, OSError):
+    torchaudio = None
 
 from comfy.ldm.mmaudio.vae.distributions import DiagonalGaussianDistribution
 from comfy.ldm.lightricks.symmetric_patchifier import AudioPatchifier

@@ -4,7 +4,10 @@ import comfy.model_management
 import comfy.ops
 import comfy.utils
 import logging
-import torchaudio
+try:
+    import torchaudio
+except (ImportError, OSError):
+    torchaudio = None
 
 
 class AudioEncoderModel():

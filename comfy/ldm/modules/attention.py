@@ -337,7 +337,13 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
 
     if mem_required > mem_free_total:
-        steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
+        if mem_free_total <= 0:
+            # Backend (e.g. DirectML) cannot report free VRAM — use max split as a safe fallback.
+            # 64 slices keeps individual tile memory tiny regardless of resolution.
+            # See: github.com/comfyanonymous/ComfyUI/issues/1518
+            steps = 64
+        else:
+            steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
         # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
         #      f"torch free:{mem_free_torch/gb:0.1f} total:{mem_free_total/gb:0.1f} steps:{steps}")
 

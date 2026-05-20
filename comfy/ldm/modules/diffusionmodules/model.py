@@ -243,7 +243,12 @@ def slice_attention(q, k, v):
     steps = 1
 
     if mem_required > mem_free_total:
-        steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
+        if mem_free_total <= 0:
+            # Backend (e.g. DirectML) cannot report free VRAM — use max split as safe fallback.
+            # See: github.com/comfyanonymous/ComfyUI/issues/1518
+            steps = 64
+        else:
+            steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
 
     while True:
         try:
