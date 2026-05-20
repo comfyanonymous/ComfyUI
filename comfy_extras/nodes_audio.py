@@ -543,7 +543,7 @@ class AudioConcat(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioConcat",
             search_aliases=["join audio", "combine audio", "append audio"],
-            display_name="Audio Concat",
+            display_name="Concatenate Audio",
             description="Concatenates the audio1 to audio2 in the specified direction.",
             category="audio",
             inputs=[
@@ -597,7 +597,7 @@ class AudioMerge(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioMerge",
             search_aliases=["mix audio", "overlay audio", "layer audio"],
-            display_name="Audio Merge",
+            display_name="Merge Audio",
             description="Combine two audio tracks by overlaying their waveforms.",
             category="audio",
             inputs=[
@@ -667,7 +667,7 @@ class AudioAdjustVolume(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioAdjustVolume",
             search_aliases=["audio gain", "loudness", "audio level"],
-            display_name="Audio Adjust Volume",
+            display_name="Adjust Audio Volume",
             category="audio",
             inputs=[
                 IO.Audio.Input("audio"),
