@@ -380,10 +380,12 @@ class MediaPipeFaceMeshVisualize(io.ComfyNode):
         else:
             img_np = _image_to_uint8(image)
         B = img_np.shape[0]
+        n_frames = len(frames)
         pbar = comfy.utils.ProgressBar(B)
         out = np.empty_like(img_np)
         for bi in range(B):
-            out[bi] = _draw_mesh(img_np[bi], frames[bi], edges, rgb, thick, psize, fill_rings)
+            faces = frames[bi] if bi < n_frames else []
+            out[bi] = _draw_mesh(img_np[bi], faces, edges, rgb, thick, psize, fill_rings)
             pbar.update_absolute(bi + 1)
         return io.NodeOutput(torch.from_numpy(out).to(
             device=comfy.model_management.intermediate_device(),
