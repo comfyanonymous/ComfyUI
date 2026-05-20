@@ -394,7 +394,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
     total_conds = 0
     for to_run in hooked_to_run.values():
         total_conds += len(to_run)
-    conds_per_device = max(1, math.ceil(total_conds//len(devices)))
+    conds_per_device = max(1, math.ceil(total_conds / len(devices)))
     index_device = 0
     current_device = devices[index_device]
     # run every hooked_to_run separately
@@ -406,13 +406,17 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
             batched_to_run_length = 0
             for btr in batched_to_run:
                 batched_to_run_length += len(btr[1])
+            remaining_capacity = conds_per_device - batched_to_run_length
+            if remaining_capacity <= 0:
+                index_device += 1
+                continue
 
             first = to_run[0]
             first_shape = first[0][0].shape
             to_batch_temp = []
             # make sure not over conds_per_device limit when creating temp batch
             for x in range(len(to_run)):
-                if can_concat_cond(to_run[x][0], first[0]) and len(to_batch_temp) < (conds_per_device - batched_to_run_length):
+                if can_concat_cond(to_run[x][0], first[0]) and len(to_batch_temp) < remaining_capacity:
                     to_batch_temp += [x]
 
             to_batch_temp.reverse()
