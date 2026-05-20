@@ -3,6 +3,7 @@ from typing import TypedDict
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 from comfy_api.latest import _io
+from typing import Any
 
 # sentinel for missing inputs
 MISSING = object()
@@ -255,6 +256,100 @@ class InvertBooleanNode(io.ComfyNode):
     def execute(cls, boolean: bool) -> io.NodeOutput:
         return io.NodeOutput(not boolean)
 
+class BooleanLogicGate(io.ComfyNode):
+    _MODES = ("NOT", "AND", "OR", "NAND", "NOR", "XOR", "XNOR")
+
+    @classmethod
+    def define_schema(cls):
+        A = lambda: io.Boolean.Input("a")
+        B = lambda: io.Boolean.Input("b")
+
+        return io.Schema(
+            node_id="BooleanLogicGate",
+            search_aliases=["not", "logic", "toggle"],
+            display_name="Boolean Logic Gate",
+            category="logic",
+            inputs=[
+                io.DynamicCombo.Input(
+                    "mode",
+                    options=[
+                        io.DynamicCombo.Option("NOT",  [A()]),
+                        io.DynamicCombo.Option("AND",  [A(), B()]),
+                        io.DynamicCombo.Option("OR",   [A(), B()]),
+                        io.DynamicCombo.Option("NAND", [A(), B()]),
+                        io.DynamicCombo.Option("NOR",  [A(), B()]),
+                        io.DynamicCombo.Option("XOR",  [A(), B()]),
+                        io.DynamicCombo.Option("XNOR", [A(), B()]),
+                    ],
+                ),
+            ],
+            outputs=[io.Boolean.Output()],
+        )
+
+    @staticmethod
+    def _deep_find_mode(x: Any) -> str | None:
+        ops = set(BooleanLogicGate._MODES)
+
+        if isinstance(x, str):
+            return x if x in ops else None
+
+        # bool is a subclass of int, so exclude bool here
+        if isinstance(x, int) and not isinstance(x, bool):
+            if 0 <= x < len(BooleanLogicGate._MODES):
+                return BooleanLogicGate._MODES[x]
+            return None
+
+        if isinstance(x, dict):
+            # option name may appear as a key
+            for k, v in x.items():
+                if isinstance(k, str) and k in ops:
+                    return k
+                m = BooleanLogicGate._deep_find_mode(v)
+                if m:
+                    return m
+
+        if isinstance(x, (list, tuple)):
+            for v in x:
+                m = BooleanLogicGate._deep_find_mode(v)
+                if m:
+                    return m
+
+        return None
+
+    @staticmethod
+    def _deep_get(x: Any, key: str, default: Any = None) -> Any:
+        if isinstance(x, dict):
+            if key in x:
+                return x[key]
+            for v in x.values():
+                found = BooleanLogicGate._deep_get(v, key, default=default)
+                if found is not default:
+                    return found
+        elif isinstance(x, (list, tuple)):
+            for v in x:
+                found = BooleanLogicGate._deep_get(v, key, default=default)
+                if found is not default:
+                    return found
+        return default
+
+    @classmethod
+    def execute(cls, mode: Any) -> io.NodeOutput:
+        mode_str = cls._deep_find_mode(mode) or "NOT"
+        a = bool(cls._deep_get(mode, "a"))
+        b = bool(cls._deep_get(mode, "b", False))  # absent for NOT => False
+
+        _OPS = {
+            "NOT":  lambda a, b: not a,
+            "AND":  lambda a, b: a and b,
+            "OR":   lambda a, b: a or b,
+            "NAND": lambda a, b: not (a and b),
+            "NOR":  lambda a, b: not (a or b),
+            "XOR":  lambda a, b: a ^ b,
+            "XNOR": lambda a, b: not (a ^ b),
+        }
+
+        return io.NodeOutput((_OPS[mode_str](a, b),))
+
 class LogicExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -268,6 +363,7 @@ class LogicExtension(ComfyExtension):
             # AutogrowPrefixTestNode,
             # ComboOutputTestNode,
             # InvertBooleanNode,
+            BooleanLogicGate,
         ]
 
 async def comfy_entrypoint() -> LogicExtension:
