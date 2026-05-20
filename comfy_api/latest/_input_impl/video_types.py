@@ -52,6 +52,18 @@ def get_open_write_kwargs(
 
     return open_kwargs
 
+BYTE_NORMALIZED_VIDEO_FORMATS = ("yuvj420p", "yuvj422p", "yuvj444p", "rgb24", "rgba", "pal8")
+
+
+def should_decode_as_byte_rgb(format_name: str) -> bool:
+    # PyAV decodes grayscale PNGs as `gray`, which should be normalized like
+    # other byte-based image formats instead of going through the float GBR path.
+    # Keep float grayscale formats on the existing float path.
+    return format_name in BYTE_NORMALIZED_VIDEO_FORMATS or (
+        format_name.startswith("gray") and not format_name.startswith("grayf")
+    )
+
+
 
 class VideoFromFile(VideoInput):
     """
@@ -290,7 +302,7 @@ class VideoFromFile(VideoInput):
                                     alphas = []
                                     alpha_channel = True
                                     break
-                            if frame.format.name in ("yuvj420p", "yuvj422p", "yuvj444p", "rgb24", "rgba", "pal8") or frame.format.name.startswith("gray"):
+                            if should_decode_as_byte_rgb(frame.format.name):
                                 process_image_format = lambda a: a.float() / 255.0
                                 if alpha_channel:
                                     image_format = 'rgba'

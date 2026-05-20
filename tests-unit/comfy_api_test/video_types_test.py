@@ -189,6 +189,10 @@ def test_video_from_file_decodes_grayscale_pixels_as_rgb_range():
             for packet in stream.encode(None):
                 container.mux(packet)
 
+        with av.open(tmp_name) as container:
+            decoded_frame = next(container.decode(video=0))
+            assert decoded_frame.format.name == "gray"
+
         components = VideoFromFile(tmp_name).get_components()
 
         assert components.images.shape == (1, 2, 2, 3)
