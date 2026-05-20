@@ -65,7 +65,7 @@ class VideoLinearCFGGuidance:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "sampling/video_models"
+    CATEGORY = "sampling/guiders"
 
     def patch(self, model, min_cfg):
         def linear_cfg(args):
@@ -89,7 +89,7 @@ class VideoTriangleCFGGuidance:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "sampling/video_models"
+    CATEGORY = "sampling/guiders"
 
     def patch(self, model, min_cfg):
         def linear_cfg(args):
@@ -157,5 +157,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ImageOnlyCheckpointLoader": "Image Only Checkpoint Loader (img2vid model)",
+    "ImageOnlyCheckpointLoader": "Load Checkpoint Image Only (img2vid model)",
+    "VideoLinearCFGGuidance": "Video Linear CFG Guidance",
+    "VideoTriangleCFGGuidance": "Video Triangle CFG Guidance",
 }

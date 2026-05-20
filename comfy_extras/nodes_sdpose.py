@@ -353,7 +353,8 @@ class SDPoseDrawKeypoints(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SDPoseDrawKeypoints",
-            category="image/preprocessors",
+            display_name="SDPose Draw Keypoints",
+            category="image/detection",
             search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "pose"],
             inputs=[
                 io.Custom("POSE_KEYPOINT").Input("keypoints"),
@@ -421,7 +422,8 @@ class SDPoseKeypointExtractor(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SDPoseKeypointExtractor",
-            category="image/preprocessors",
+            display_name="SDPose Keypoint Extractor",
+            category="image/detection",
             search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "sdpose"],
             description="Extract pose keypoints from images using the SDPose model: https://huggingface.co/Comfy-Org/SDPose/tree/main/checkpoints",
             inputs=[
@@ -595,7 +597,8 @@ class SDPoseFaceBBoxes(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SDPoseFaceBBoxes",
-            category="image/preprocessors",
+            display_name="SDPose Face Bounding Boxes",
+            category="image/detection",
             search_aliases=["face bbox", "face bounding box", "pose", "keypoints"],
             inputs=[
                 io.Custom("POSE_KEYPOINT").Input("keypoints"),
@@ -652,7 +655,8 @@ class CropByBBoxes(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CropByBBoxes",
-            category="image/preprocessors",
+            display_name="Crop By Bounding Boxes",
+            category="image/transform",
             search_aliases=["crop", "face crop", "bbox crop", "pose", "bounding box"],
             description="Crop and resize regions from the input image batch based on provided bounding boxes.",
             inputs=[
