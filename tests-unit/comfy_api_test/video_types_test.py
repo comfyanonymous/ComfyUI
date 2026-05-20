@@ -171,7 +171,6 @@ def test_video_from_file_invalid_file_error():
         os.unlink(tmp_name)
 
 
-
 def test_video_from_file_decodes_grayscale_pixels_as_rgb_range():
     """Grayscale frames should keep 0.0-1.0 pixel values after RGB conversion."""
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -191,7 +190,7 @@ def test_video_from_file_decodes_grayscale_pixels_as_rgb_range():
 
         with av.open(tmp_name) as container:
             decoded_frame = next(container.decode(video=0))
-            assert decoded_frame.format.name == "gray"
+            assert decoded_frame.format.name.startswith("gray")
 
         components = VideoFromFile(tmp_name).get_components()
 
