@@ -1,9 +1,5 @@
 """Pure-numpy port of MediaPipe's face_geometry (FACE_LANDMARK_PIPELINE mode)
 + weighted Procrustes solver. Computes the 4x4 facial transformation matrix.
-
-Numpy (not torch) is intentional: matches MP's C++ `double` precision for SVD
-stability, runs on (3, ~70) matrices ≤ num_faces times per frame, and avoids
-a device round-trip for what's already a CPU-bound boundary op.
 """
 
 from __future__ import annotations
