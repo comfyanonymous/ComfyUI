@@ -691,7 +691,7 @@ class LoraLoader:
     FUNCTION = "load_lora"
 
     CATEGORY = "loaders"
-    DESCRIPTION = "LoRAs are used to modify diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
+    DESCRIPTION = "This LoRA loader is used to modify both diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
     SEARCH_ALIASES = ["lora", "load lora", "apply lora", "lora loader", "lora model"]
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
@@ -700,17 +700,19 @@ class LoraLoader:
 
         lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
         lora = None
+        lora_metadata = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
                 lora = self.loaded_lora[1]
+                lora_metadata = self.loaded_lora[2] if len(self.loaded_lora) > 2 else None
             else:
                 self.loaded_lora = None
 
         if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-            self.loaded_lora = (lora_path, lora)
+            lora, lora_metadata = comfy.utils.load_torch_file(lora_path, safe_load=True, return_metadata=True)
+            self.loaded_lora = (lora_path, lora, lora_metadata)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=lora_metadata)
         return (model_lora, clip_lora)
 
 class LoraLoaderModelOnly(LoraLoader):
@@ -721,6 +723,7 @@ class LoraLoaderModelOnly(LoraLoader):
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL",)
+    DESCRIPTION = "This LoRAs loader is used to modify the diffusion model, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
     FUNCTION = "load_lora_model_only"
 
     def load_lora_model_only(self, model, lora_name, strength_model):
@@ -1236,7 +1239,7 @@ class LatentFromBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              "batch_index": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                               "length": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
     RETURN_TYPES = ("LATENT",)
@@ -1247,7 +1250,9 @@ class LatentFromBatch:
     def frombatch(self, samples, batch_index, length):
         s = samples.copy()
         s_in = samples["samples"]
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        if batch_index < 0:
+            batch_index += s_in.shape[0]
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s["samples"] = s_in[batch_index:batch_index + length].clone()
         if "noise_mask" in samples:
@@ -1535,7 +1540,7 @@ class SetLatentNoiseMask:
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
-    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
+    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -1554,6 +1559,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
     out.pop("downscale_ratio_spacial", None)
+    out.pop("downscale_ratio_temporal", None)
     out["samples"] = samples
     return (out, )
 
@@ -1786,7 +1792,7 @@ class LoadImageMask(LoadImage):
             }
         }
 
-    CATEGORY = "mask"
+    CATEGORY = "image"
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image_mask"
 
