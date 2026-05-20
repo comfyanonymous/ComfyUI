@@ -315,6 +315,7 @@ class ImageProcessingNode(io.ComfyNode):
 
     Child classes should set:
         node_id: Unique node identifier (required)
+        search_aliases: List of search aliases (optional)
         display_name: Display name (optional, defaults to node_id)
         description: Node description (optional)
         extra_inputs: List of additional io.Input objects beyond "images" (optional)
@@ -327,6 +328,7 @@ class ImageProcessingNode(io.ComfyNode):
     """
 
     node_id = None
+    search_aliases = []
     display_name = None
     description = None
     extra_inputs = []
@@ -403,8 +405,10 @@ class ImageProcessingNode(io.ComfyNode):
 
         return io.Schema(
             node_id=cls.node_id,
+            search_aliases=cls.search_aliases,
             display_name=cls.display_name or cls.node_id,
             category=cls.category,
+            description=cls.description,
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
