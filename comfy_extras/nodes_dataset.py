@@ -403,7 +403,7 @@ class ImageProcessingNode(io.ComfyNode):
         return io.Schema(
             node_id=cls.node_id,
             display_name=cls.display_name or cls.node_id,
-            category="dataset/image",
+            category=cls.category,
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
@@ -814,7 +814,7 @@ class AdjustContrastNode(ImageProcessingNode):
 class ShuffleDatasetNode(ImageProcessingNode):
     node_id = "ShuffleDataset"
     search_aliases=["shuffle", "randomize", "mix"]
-    display_name = "Shuffle Image List"
+    display_name = "Shuffle Images"
     category = "image/batch"
     description = "Randomly shuffle the order of images in a list."
     is_group_process = True  # Requires full list to shuffle
@@ -838,9 +838,10 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ShuffleImageTextDataset",
-            search_aliases=["shuffle", "randomize", "mix"]
-            display_name = "Shuffle Image-Text List"
-            category = "image/batch"
+            search_aliases=["shuffle", "randomize", "mix"],
+            display_name = "Shuffle Pairs of Image-Text",
+            category = "image/batch",
+            description = "Randomly shuffle the order of pairs of image-text in a list.",
             is_experimental=True,
             is_input_list=True,
             inputs=[
