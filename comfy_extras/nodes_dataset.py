@@ -47,8 +47,8 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LoadImageDataSetFromFolder",
-            display_name="Load Image Dataset from Folder",
-            category="dataset",
+            display_name="Load Image (from Folder)",
+            category="image",
             is_experimental=True,
             inputs=[
                 io.Combo.Input(
@@ -627,8 +627,10 @@ class TextProcessingNode(io.ComfyNode):
 
 class ResizeImagesByShorterEdgeNode(ImageProcessingNode):
     node_id = "ResizeImagesByShorterEdge"
-    display_name = "Resize Images by Shorter Edge"
+    display_name = "Resize Images by Shorter Edge (DEPRECATED)"
+    category = "image/transform"
     description = "Resize images so that the shorter edge matches the specified length while preserving aspect ratio."
+    is_deprecated = True  # This node is superseded by Resize Image/Mask with resize_type = scale shorter dimension
     extra_inputs = [
         io.Int.Input(
             "shorter_edge",
@@ -655,8 +657,10 @@ class ResizeImagesByShorterEdgeNode(ImageProcessingNode):
 
 class ResizeImagesByLongerEdgeNode(ImageProcessingNode):
     node_id = "ResizeImagesByLongerEdge"
-    display_name = "Resize Images by Longer Edge"
+    display_name = "Resize Images by Longer Edge (DEPRECATED)"
+    category = "image/transform"
     description = "Resize images so that the longer edge matches the specified length while preserving aspect ratio."
+    is_deprecated = True  # This node is superseded by Resize Image/Mask with resize_type = scale longer dimension
     extra_inputs = [
         io.Int.Input(
             "longer_edge",
@@ -686,8 +690,10 @@ class ResizeImagesByLongerEdgeNode(ImageProcessingNode):
 
 class CenterCropImagesNode(ImageProcessingNode):
     node_id = "CenterCropImages"
-    display_name = "Center Crop Images"
-    description = "Center crop all images to the specified dimensions."
+    search_aliases=["crop", "cut", "trim"]
+    display_name="Crop Image (Center)"
+    category="image/transform"
+    description = "Center crop an image to the specified dimensions."
     extra_inputs = [
         io.Int.Input("width", default=512, min=1, max=8192, tooltip="Crop width."),
         io.Int.Input("height", default=512, min=1, max=8192, tooltip="Crop height."),
@@ -706,10 +712,11 @@ class CenterCropImagesNode(ImageProcessingNode):
 
 class RandomCropImagesNode(ImageProcessingNode):
     node_id = "RandomCropImages"
-    display_name = "Random Crop Images"
-    description = (
-        "Randomly crop all images to the specified dimensions (for data augmentation)."
-    )
+    search_aliases=["crop", "cut", "trim"]
+    display_name = "Crop Image (Random)"
+    category="image/transform"
+    description = "Randomly crop an image to the specified dimensions."
+
     extra_inputs = [
         io.Int.Input("width", default=512, min=1, max=8192, tooltip="Crop width."),
         io.Int.Input("height", default=512, min=1, max=8192, tooltip="Crop height."),
@@ -734,7 +741,9 @@ class RandomCropImagesNode(ImageProcessingNode):
 
 class NormalizeImagesNode(ImageProcessingNode):
     node_id = "NormalizeImages"
+    search_aliases=["normalize", "align"]
     display_name = "Normalize Images"
+    category = "image/transform"
     description = "Normalize images using mean and standard deviation."
     extra_inputs = [
         io.Float.Input(
@@ -762,8 +771,10 @@ class NormalizeImagesNode(ImageProcessingNode):
 
 class AdjustBrightnessNode(ImageProcessingNode):
     node_id = "AdjustBrightness"
+    search_aliases=["brightness"]
     display_name = "Adjust Brightness"
-    description = "Adjust brightness of all images."
+    category="image/adjustments"
+    description = "Adjust the brightness of an image."
     extra_inputs = [
         io.Float.Input(
             "factor",
@@ -781,8 +792,10 @@ class AdjustBrightnessNode(ImageProcessingNode):
 
 class AdjustContrastNode(ImageProcessingNode):
     node_id = "AdjustContrast"
+    search_aliases=["contrast"]
     display_name = "Adjust Contrast"
-    description = "Adjust contrast of all images."
+    category="image/adjustments"
+    description = "Adjust the contrast of an image."
     extra_inputs = [
         io.Float.Input(
             "factor",
@@ -800,8 +813,10 @@ class AdjustContrastNode(ImageProcessingNode):
 
 class ShuffleDatasetNode(ImageProcessingNode):
     node_id = "ShuffleDataset"
-    display_name = "Shuffle Image Dataset"
-    description = "Randomly shuffle the order of images in the dataset."
+    search_aliases=["shuffle", "randomize", "mix"]
+    display_name = "Shuffle Image List"
+    category = "image/batch"
+    description = "Randomly shuffle the order of images in a list."
     is_group_process = True  # Requires full list to shuffle
     extra_inputs = [
         io.Int.Input(
@@ -823,13 +838,14 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ShuffleImageTextDataset",
-            display_name="Shuffle Image-Text Dataset",
-            category="dataset/image",
+            search_aliases=["shuffle", "randomize", "mix"]
+            display_name = "Shuffle Image-Text List"
+            category = "image/batch"
             is_experimental=True,
             is_input_list=True,
             inputs=[
                 io.Image.Input("images", tooltip="List of images to shuffle."),
-                io.String.Input("texts", tooltip="List of texts to shuffle."),
+                io.String.Input("texts", tooltip="List of texts to shuffle.", force_input=True),
                 io.Int.Input(
                     "seed",
                     default=0,
@@ -952,11 +968,13 @@ class StripWhitespaceNode(TextProcessingNode):
 
 
 class ImageDeduplicationNode(ImageProcessingNode):
-    """Remove duplicate or very similar images from the dataset using perceptual hashing."""
+    """Remove duplicate or very similar images from a list using perceptual hashing."""
 
     node_id = "ImageDeduplication"
-    display_name = "Image Deduplication"
-    description = "Remove duplicate or very similar images from the dataset."
+    search_aliases=["deduplicate", "remove duplicates", "similarity filter"]
+    display_name = "Deduplicate Images"
+    category = "image/batch"
+    description = "Remove duplicate or very similar images from a list."
     is_group_process = True  # Requires full list to compare images
     extra_inputs = [
         io.Float.Input(
@@ -1026,7 +1044,9 @@ class ImageGridNode(ImageProcessingNode):
     """Combine multiple images into a single grid/collage."""
 
     node_id = "ImageGrid"
-    display_name = "Image Grid"
+    searrch_aliases=["grid", "collage", "combine"]
+    display_name = "Make Image Grid"
+    category="image"
     description = "Arrange multiple images into a grid layout."
     is_group_process = True  # Requires full list to create grid
     is_output_list = False  # Outputs single grid image
@@ -1102,9 +1122,12 @@ class MergeImageListsNode(ImageProcessingNode):
     """Merge multiple image lists into a single list."""
 
     node_id = "MergeImageLists"
-    display_name = "Merge Image Lists"
+    search_aliases=["list", "merge list", "make list"]
+    display_name = "Merge Image Lists (DEPRECATED)"
+    category = "image/batch"
     description = "Concatenate multiple image lists into one."
     is_group_process = True  # Receives images as list
+    is_deprecated = True  # This node is superseded by Create List
 
     @classmethod
     def _group_process(cls, images):
