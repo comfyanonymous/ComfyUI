@@ -419,7 +419,7 @@ class VoxelToMeshBasic(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VoxelToMeshBasic",
-            display_name="Voxel to Mesh (Basic) (Deprecated)",
+            display_name="Voxel to Mesh (Basic) (DEPRECATED)",
             category="3d",
             inputs=[
                 IO.Voxel.Input("voxel"),
