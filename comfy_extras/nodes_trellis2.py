@@ -8,7 +8,6 @@ import numpy as np
 import torch
 
 ShapeSubdivides = io.Custom("SHAPE_SUBDIVIDES")
-HighResVoxel = io.Custom("HIGH_RES_VOXEL")
 
 def prepare_trellis_vae_for_decode(vae, sample_shape):
     memory_required = vae.memory_used_decode(sample_shape, vae.vae_dtype)
@@ -297,7 +296,7 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
                             ))
             ],
             outputs=[
-                HighResVoxel.Output(
+                IO.Voxel.Output(
                 "high_res_voxel",
                 tooltip=(
                     "High-resolution sparse coordinates produced after cascade upsampling. "
@@ -389,11 +388,11 @@ class Trellis2UpsampleCascade(IO.ComfyNode):
             final_coords_list.append(final_coords_i)
             output_coord_counts.append(int(final_coords_i.shape[0]))
 
-        output = {
-            "coords": torch.cat(final_coords_list, dim=0),
-            "coord_counts": torch.tensor(output_coord_counts, dtype=torch.int64),
-            "resolutions": torch.full((len(final_coords_list),), int(hr_resolution), dtype=torch.int64),
-        }
+        coords = torch.cat(final_coords_list, dim=0)
+        output = Types.VOXEL(coords)
+        output.coord_counts = torch.tensor(output_coord_counts, dtype=torch.int64)
+        output.resolutions = torch.full((len(final_coords_list),), int(hr_resolution), dtype=torch.int64)
+        output.upsampled = True
 
         return IO.NodeOutput(output,)
 
@@ -537,9 +536,8 @@ class EmptyTrellis2ShapeLatent(IO.ComfyNode):
             node_id="EmptyTrellis2ShapeLatent",
             category="latent/3d",
             inputs=[
-                IO.MultiType.Input(
+                IO.Voxel.Input(
                     "voxel",
-                    types=[IO.Voxel, HighResVoxel],
                     tooltip=(
                         "Shape structure input. Accepts either a voxel structure "
                         "or upsampled voxel coordinates from a previous cascade stage."
@@ -555,20 +553,18 @@ class EmptyTrellis2ShapeLatent(IO.ComfyNode):
     def execute(cls, voxel):
         # to accept the upscaled coords
         is_512_pass = False
+        upsampled = hasattr(voxel, "upsampled")
+        if upsampled:
+            voxel = voxel.data
 
-        if isinstance(voxel, dict):
-            voxel = voxel["coords"]
-
-        if hasattr(voxel, "data") and voxel.data.ndim == 4:
+        if not upsampled:
             decoded = voxel.data.unsqueeze(1)
             coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
             is_512_pass = True
 
-        elif isinstance(voxel, torch.Tensor) and voxel.ndim == 2:
+        else:
             coords = voxel.int()
             is_512_pass = False
-        else:
-            raise ValueError(f"Invalid input to EmptyTrellis2ShapeLatent: {type(voxel)}")
 
         batch_size, counts, max_tokens = infer_batched_coord_layout(coords)
         in_channels = 32
@@ -589,9 +585,8 @@ class EmptyTrellis2LatentTexture(IO.ComfyNode):
             node_id="EmptyTrellis2LatentTexture",
             category="latent/3d",
             inputs=[
-                IO.MultiType.Input(
+                IO.Voxel.Input(
                     "voxel",
-                    types=[IO.Voxel, HighResVoxel],
                     tooltip=(
                         "Shape structure input. Accepts either a voxel structure "
                         "or upsampled voxel coordinates from a previous cascade stage."
@@ -607,13 +602,14 @@ class EmptyTrellis2LatentTexture(IO.ComfyNode):
     @classmethod
     def execute(cls, voxel, shape_latent):
         channels = 32
-        if isinstance(voxel, dict):
-            voxel = voxel["coords"]
-        if hasattr(voxel, "data") and voxel.data.ndim == 4:
+        upsampled = hasattr(voxel, "upsampled")
+        if upsampled:
+            voxel = voxel.data
+
+        if not upsampled:
             decoded = voxel.data.unsqueeze(1)
             coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
-
-        elif isinstance(voxel, torch.Tensor) and voxel.ndim == 2:
+        else:
             coords = voxel.int()
 
         batch_size, counts, max_tokens = infer_batched_coord_layout(coords)

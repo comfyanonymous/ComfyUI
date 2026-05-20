@@ -802,97 +802,127 @@ def compute_vertex_normals(verts, faces):
 
     return torch.nn.functional.normalize(vertex_normals, p=2, dim=-1, eps=1e-6)
 
-class PostProcessMesh(IO.ComfyNode):
+def _process_mesh_batch(mesh, per_item_fn):
+    """Handles list/batched/single mesh dispatching, color extraction, and stacking."""
+    mesh = copy.deepcopy(mesh)
+
+    def process_single(v, f, c, bar):
+        v, f, c = per_item_fn(v, f, c)
+        bar.update(1)
+        return v, f, c
+
+    is_list = isinstance(mesh.vertices, list)
+    is_batched_tensor = not is_list and mesh.vertices.ndim == 3
+
+    if is_list or is_batched_tensor:
+        out_v, out_f, out_c = [], [], []
+        bsz = len(mesh.vertices) if is_list else mesh.vertices.shape[0]
+        bar = comfy.utils.ProgressBar(bsz)
+
+        for i in range(bsz):
+            v_i = mesh.vertices[i]
+            f_i = mesh.faces[i]
+            c_i = None
+            if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None:
+                c_i = mesh.vertex_colors[i] if (isinstance(mesh.vertex_colors, list) or mesh.vertex_colors.ndim == 3) else mesh.vertex_colors
+
+            v_i, f_i, c_i = process_single(v_i, f_i, c_i, bar)
+
+            out_v.append(v_i)
+            out_f.append(f_i)
+            if c_i is not None:
+                out_c.append(c_i)
+
+        if all(v.shape == out_v[0].shape for v in out_v) and all(f.shape == out_f[0].shape for f in out_f):
+            mesh.vertices = torch.stack(out_v)
+            mesh.faces = torch.stack(out_f)
+            if out_c:
+                mesh.vertex_colors = torch.stack(out_c)
+        else:
+            mesh.vertices = out_v
+            mesh.faces = out_f
+            if out_c:
+                mesh.vertex_colors = out_c
+    else:
+        c = mesh.vertex_colors if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None else None
+        bar = comfy.utils.ProgressBar(1)
+        v, f, c = process_single(mesh.vertices, mesh.faces, c, bar)
+        mesh.vertices = v
+        mesh.faces = f
+        if c is not None:
+            mesh.vertex_colors = c
+
+    return IO.NodeOutput(mesh)
+
+
+class DecimateMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="PostProcessMesh",
-            display_name="Post Process Mesh",
+            node_id="DecimateMesh",
+            display_name="Decimate Mesh",
             category="latent/3d",
-            description=(
-            "Applies a sequence of mesh post-processing operations including optional hole filling"
-            " and mesh simplification to a target face count."
-            ),
+            description="Simplifies a mesh to a target face count using QEM.",
             inputs=[
                 IO.Mesh.Input("mesh"),
-                IO.Int.Input("target_face_count", default=1_000_000, min=0, max=50_000_000,
-                             tooltip="Target maximum number of faces after mesh simplification. Set to 0 to disable simplification."),
-                IO.Float.Input("fill_holes_perimeter", default=0.03, min=0.0, step=0.0001,
-                               tooltip=(
-                                "Maximum hole perimeter threshold for filling holes in the mesh. "
-                                "Smaller values only fill tiny holes, larger values fill larger gaps. "
-                                "Set to 0 to disable hole filling."))
+                IO.Int.Input("target_face_count", default=200_000, min=0, max=50_000_000,
+                             tooltip="Target maximum number of faces. Set to 0 to disable."),
             ],
-            outputs=[
-                IO.Mesh.Output("mesh"),
-            ]
+            outputs=[IO.Mesh.Output("mesh")],
         )
 
     @classmethod
-    def execute(cls, mesh, target_face_count, fill_holes_perimeter):
-        mesh = copy.deepcopy(mesh)
-
-        def process_single(v, f, c, bar):
-            if fill_holes_perimeter > 0:
-                v, f = fill_holes_fn(v, f, max_perimeter=fill_holes_perimeter)
-            bar.update(1)
-
-            n = compute_vertex_normals(v, f)
+    def execute(cls, mesh, target_face_count):
+        def _fn(v, f, c):
             if target_face_count > 0 and f.shape[0] > target_face_count:
+                n = compute_vertex_normals(v, f)
                 v, f, c, _ = simplify_fn_fast(v, f, colors=c, normals=n, target=target_face_count)
-            bar.update(1)
-
-            v, f, c = make_double_sided(v, f, c)
-            bar.update(1)
             return v, f, c
+        return _process_mesh_batch(mesh, _fn)
 
-        is_list = isinstance(mesh.vertices, list)
-        is_batched_tensor = not is_list and mesh.vertices.ndim == 3
 
-        if is_list or is_batched_tensor:
-            out_v, out_f, out_c = [], [],[]
-            bsz = len(mesh.vertices) if is_list else mesh.vertices.shape[0]
-            bar = comfy.utils.ProgressBar(3 * bsz)
+class FillHoles(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="FillHoles",
+            display_name="Fill Holes",
+            category="latent/3d",
+            description="Fills holes in a mesh up to a maximum perimeter threshold.",
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.Float.Input("max_perimeter", default=0.03, min=0.0, step=0.0001,
+                               tooltip="Maximum hole perimeter to fill. Set to 0 to disable."),
+            ],
+            outputs=[IO.Mesh.Output("mesh")],
+        )
 
-            for i in range(bsz):
-                v_i = mesh.vertices[i]
-                f_i = mesh.faces[i]
+    @classmethod
+    def execute(cls, mesh, max_perimeter):
+        def _fn(v, f, c):
+            if max_perimeter > 0:
+                v, f = fill_holes_fn(v, f, max_perimeter=max_perimeter)
+            return v, f, c
+        return _process_mesh_batch(mesh, _fn)
 
-                # Safely grab colors if they exist
-                c_i = None
-                if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None:
-                    c_i = mesh.vertex_colors[i] if (isinstance(mesh.vertex_colors, list) or mesh.vertex_colors.ndim == 3) else mesh.vertex_colors
 
-                v_i, f_i, c_i = process_single(v_i, f_i, c_i, bar)
+class MakeDoubleSided(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="MakeDoubleSided",
+            display_name="Make Double Sided",
+            category="latent/3d",
+            description="Duplicates faces with flipped normals so the mesh renders from both sides.",
+            inputs=[IO.Mesh.Input("mesh")],
+            outputs=[IO.Mesh.Output("mesh")],
+        )
 
-                out_v.append(v_i)
-                out_f.append(f_i)
-                if c_i is not None:
-                    out_c.append(c_i)
-
-            # If the output meshes happen to have the exact same shape, stack them nicely.
-            # Otherwise, just leave them as a List! (ComfyUI native standard)
-            if all(v.shape == out_v[0].shape for v in out_v) and all(f.shape == out_f[0].shape for f in out_f):
-                mesh.vertices = torch.stack(out_v)
-                mesh.faces = torch.stack(out_f)
-                if out_c:
-                    mesh.vertex_colors = torch.stack(out_c)
-            else:
-                mesh.vertices = out_v
-                mesh.faces = out_f
-                if out_c:
-                    mesh.vertex_colors = out_c
-
-        else:
-            # Single Unbatched Mesh[V, 3]
-            c = mesh.vertex_colors if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None else None
-            v, f, c = process_single(mesh.vertices, mesh.faces, c)
-            mesh.vertices = v
-            mesh.faces = f
-            if c is not None:
-                mesh.vertex_colors = c
-
-        return IO.NodeOutput(mesh)
+    @classmethod
+    def execute(cls, mesh):
+        def _fn(v, f, c):
+            return make_double_sided(v, f, c)
+        return _process_mesh_batch(mesh, _fn)
 
 
 
@@ -900,7 +930,9 @@ class PostProcessMeshExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            PostProcessMesh,
+            MakeDoubleSided,
+            FillHoles,
+            DecimateMesh,
             PaintMesh
         ]
 
