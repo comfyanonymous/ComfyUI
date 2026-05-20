@@ -485,8 +485,15 @@ paths:
     post:
       operationId: uploadMask
       tags: [upload]
-      summary: Upload a mask image
-      description: Uploads a mask image associated with a previously-uploaded reference image.
+      deprecated: true
+      summary: Upload a mask image (deprecated)
+      description: |
+        Deprecated. Clients should composite the mask onto the source image
+        client-side and upload the resulting image via POST /api/upload/image
+        instead. This endpoint will continue to function for older clients,
+        but will not receive new features.
+
+        Uploads a mask image associated with a previously-uploaded reference image.
       requestBody:
         required: true
         content:
@@ -4153,6 +4160,10 @@ paths:
                 name:
                   type: string
                   description: Display name for the API key
+                description:
+                  type: string
+                  description: User-provided description of the key's purpose
+                  maxLength: 5000
       responses:
         "201":
           description: API key created
@@ -6344,14 +6355,6 @@ components:
           type: integer
           format: int64
           description: Size of the asset in bytes
-        width:
-          type: integer
-          nullable: true
-          description: "Original image width in pixels. Null for non-image assets or assets ingested before dimension extraction."
-        height:
-          type: integer
-          nullable: true
-          description: "Original image height in pixels. Null for non-image assets or assets ingested before dimension extraction."
         mime_type:
           type: string
           description: MIME type of the asset
@@ -7678,11 +7681,16 @@ components:
       required:
         - id
         - name
+        - description
       properties:
         id:
           type: string
         name:
           type: string
+        description:
+          type: string
+          maxLength: 5000
+          description: User-provided description of the key's purpose. Always present in responses; empty string when no description was supplied on create.
         prefix:
           type: string
           description: First few characters of the key for identification
@@ -7703,12 +7711,17 @@ components:
       required:
         - id
         - name
+        - description
         - key
       properties:
         id:
           type: string
         name:
           type: string
+        description:
+          type: string
+          maxLength: 5000
+          description: User-provided description of the key's purpose. Always present in responses; empty string when no description was supplied on create.
         key:
           type: string
           description: Full API key value (only returned on creation)

@@ -49,7 +49,7 @@ def _claude_model_inputs():
             min=0.0,
             max=1.0,
             step=0.01,
-            tooltip="Controls randomness. 0.0 is deterministic, 1.0 is most random.",
+            tooltip="Controls randomness. 0.0 is deterministic, 1.0 is most random. Ignored for Opus 4.7.",
             advanced=True,
         ),
     ]
@@ -208,7 +208,7 @@ class ClaudeNode(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_label = model["model"]
         max_tokens = model["max_tokens"]
-        temperature = model["temperature"]
+        temperature = None if model_label == "Opus 4.7" else model["temperature"]
 
         image_tensors: list[Input.Image] = [t for t in (images or {}).values() if t is not None]
         if sum(get_number_of_images(t) for t in image_tensors) > CLAUDE_MAX_IMAGES:

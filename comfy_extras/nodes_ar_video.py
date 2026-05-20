@@ -53,7 +53,7 @@ class SamplerARVideo(io.ComfyNode):
         return io.Schema(
             node_id="SamplerARVideo",
             display_name="Sampler AR Video",
-            category="sampling/custom_sampling/samplers",
+            category="sampling/samplers",
             inputs=[
                 io.Int.Input(
                     "num_frame_per_block",
