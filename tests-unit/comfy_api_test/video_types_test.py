@@ -5,7 +5,11 @@ import os
 import av
 import io
 from fractions import Fraction
-from comfy_api.input_impl.video_types import VideoFromFile, VideoFromComponents
+from comfy_api.input_impl.video_types import (
+    VideoFromFile,
+    VideoFromComponents,
+    should_decode_as_byte_rgb,
+)
 from comfy_api.util.video_types import VideoComponents
 from comfy_api.input.basic_types import AudioInput
 from av.error import InvalidDataError
@@ -169,6 +173,16 @@ def test_video_from_file_invalid_file_error():
             video.get_dimensions()
     finally:
         os.unlink(tmp_name)
+
+
+@pytest.mark.parametrize("format_name", ["gray", "gray8", "gray16be", "gray16le"])
+def test_should_decode_grayscale_byte_formats_as_rgb(format_name):
+    assert should_decode_as_byte_rgb(format_name)
+
+
+@pytest.mark.parametrize("format_name", ["grayf32le", "gbrpf32le"])
+def test_should_not_byte_normalize_float_formats(format_name):
+    assert not should_decode_as_byte_rgb(format_name)
 
 
 def test_video_from_file_decodes_grayscale_pixels_as_rgb_range():
