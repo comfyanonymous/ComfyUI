@@ -421,6 +421,7 @@ class VoxelToMeshBasic(IO.ComfyNode):
             node_id="VoxelToMeshBasic",
             display_name="Voxel to Mesh (Basic) (DEPRECATED)",
             category="3d",
+            description="Converts a voxel grid to a mesh.",
             inputs=[
                 IO.Voxel.Input("voxel"),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
@@ -454,6 +455,7 @@ class VoxelToMesh(IO.ComfyNode):
             node_id="VoxelToMesh",
             display_name="Voxel to Mesh",
             category="3d",
+            description="Converts a voxel grid to a mesh.",
             inputs=[
                 IO.Voxel.Input("voxel"),
                 IO.Combo.Input("algorithm", options=["surface net", "basic"]),

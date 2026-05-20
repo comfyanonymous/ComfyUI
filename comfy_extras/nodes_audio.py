@@ -669,6 +669,7 @@ class AudioAdjustVolume(IO.ComfyNode):
             search_aliases=["audio gain", "loudness", "audio level"],
             display_name="Adjust Audio Volume",
             category="audio",
+            description="Adjust the volume of the audio by a specified amount in decibels (dB).",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Int.Input(

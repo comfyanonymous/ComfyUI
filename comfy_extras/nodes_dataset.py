@@ -49,6 +49,7 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
             node_id="LoadImageDataSetFromFolder",
             display_name="Load Image (from Folder)",
             category="image",
+            description="Load a dataset of images from a specified folder and return a list of images. Supported formats: PNG, JPG, JPEG, WEBP.",
             is_experimental=True,
             inputs=[
                 io.Combo.Input(
