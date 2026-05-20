@@ -171,6 +171,42 @@ def test_video_from_file_invalid_file_error():
         os.unlink(tmp_name)
 
 
+
+def test_video_from_file_decodes_grayscale_pixels_as_rgb_range():
+    """Grayscale frames should keep 0.0-1.0 pixel values after RGB conversion."""
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp_name = tmp.name
+
+    try:
+        with av.open(tmp_name, mode="w", format="png_pipe") as container:
+            stream = container.add_stream("png")
+            frame = av.VideoFrame.from_ndarray(
+                torch.tensor([[0, 255], [128, 64]], dtype=torch.uint8).numpy(),
+                format="gray",
+            )
+            packet = stream.encode(frame)
+            container.mux(packet)
+            for packet in stream.encode(None):
+                container.mux(packet)
+
+        components = VideoFromFile(tmp_name).get_components()
+
+        assert components.images.shape == (1, 2, 2, 3)
+        expected = torch.tensor(
+            [[
+                [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+                [
+                    [128 / 255.0, 128 / 255.0, 128 / 255.0],
+                    [64 / 255.0, 64 / 255.0, 64 / 255.0],
+                ],
+            ]],
+            dtype=components.images.dtype,
+        )
+        assert torch.allclose(components.images.cpu(), expected, atol=EPSILON)
+    finally:
+        os.unlink(tmp_name)
+
+
 def test_video_from_file_audio_only_error():
     """ValueError raised for audio-only files"""
     with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tmp:
