@@ -1,15 +1,5 @@
-"""
-Stable Audio 3 VAE — AudioAutoencoder with SAME encoder/decoder.
-
-Architecture: PatchedPretransform (patch_size=256) → SAMEEncoder (stride=16, 12 layers) →
-SoftNormBottleneck → SAMEDecoder → PatchedPretransform.decode
-Total downsampling ratio: 256 * 16 = 4096
-Latent channels: 256, sample rate: 44100 Hz
-"""
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import comfy.ops
 import comfy.model_management
@@ -17,10 +7,6 @@ from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.audio.autoencoder import WNConv1d
 
 ops = comfy.ops.disable_weight_init
-
-# ─────────────────────────────────────────────
-# Utilities
-# ─────────────────────────────────────────────
 
 class Transpose(nn.Module):
     def forward(self, x, **kwargs):
@@ -49,10 +35,6 @@ def _sliding_window_mask(seq_len, window, device, dtype):
     )
 
 
-# ─────────────────────────────────────────────
-# Norms
-# ─────────────────────────────────────────────
-
 class DynamicTanh(nn.Module):
     def __init__(self, dim, init_alpha=4.0, dtype=None, device=None, **kwargs):
         super().__init__()
@@ -67,10 +49,6 @@ class DynamicTanh(nn.Module):
         return gamma * torch.tanh(alpha * x) + beta
 
 
-# ─────────────────────────────────────────────
-# Rotary position embeddings
-# ─────────────────────────────────────────────
-
 class RotaryEmbedding(nn.Module):
     def __init__(self, dim, base=10000, base_rescale_factor=1., dtype=None, device=None):
         super().__init__()
@@ -78,8 +56,6 @@ class RotaryEmbedding(nn.Module):
         self.register_buffer("inv_freq", torch.empty(dim // 2, dtype=dtype, device=device))
 
     def forward_from_seq_len(self, seq_len, device, dtype=None):
-        # Always float32: bf16 loses integer precision past position 256,
-        # which corrupts RoPE for sequences longer than ~4 seconds.
         t = torch.arange(seq_len, device=device, dtype=torch.float32)
         return self.forward(t)
 
@@ -103,10 +79,6 @@ def _apply_rotary_pos_emb(t, freqs):
     t_rot = t_rot * freqs.cos() + _rotate_half(t_rot) * freqs.sin()
     return torch.cat((t_rot.to(out_dtype), t_pass.to(out_dtype)), dim=-1)
 
-
-# ─────────────────────────────────────────────
-# Attention
-# ─────────────────────────────────────────────
 
 class Attention(nn.Module):
     def __init__(self, dim, dim_heads=64, qk_norm="none", qk_norm_eps=1e-6,
@@ -176,10 +148,6 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 
-# ─────────────────────────────────────────────
-# Feedforward
-# ─────────────────────────────────────────────
-
 class _Sin(nn.Module):
     def forward(self, x):
         return torch.sin(3.14159265359 * x)
@@ -203,7 +171,6 @@ class FeedForward(nn.Module):
         super().__init__()
         inner_dim = int(dim * mult)
         act = _Sin() if sinusoidal else nn.SiLU()
-        # Keep Sequential structure to preserve state dict key indices (ff.0.*, ff.2.*)
         self.ff = nn.Sequential(
             _GLU(dim, inner_dim, act, dtype=dtype, device=device, operations=operations),
             nn.Identity(),
@@ -214,10 +181,6 @@ class FeedForward(nn.Module):
     def forward(self, x, **kwargs):
         return self.ff(x)
 
-
-# ─────────────────────────────────────────────
-# Transformer block
-# ─────────────────────────────────────────────
 
 class TransformerBlock(nn.Module):
     def __init__(self, dim, dim_heads=64, causal=False, zero_init_branch_outputs=True,
@@ -252,10 +215,6 @@ class TransformerBlock(nn.Module):
         x = x + self.ff(self.ff_norm(x))
         return x
 
-
-# ─────────────────────────────────────────────
-# Transformer resampling block
-# ─────────────────────────────────────────────
 
 class TransformerResamplingBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, type="encoder",
@@ -337,23 +296,20 @@ class TransformerResamplingBlock(nn.Module):
             x = self.mapping(x)
 
         if self.transformer_depth > 0:
-            x = x.permute(0, 2, 1)  # (B, T, C)
+            x = x.permute(0, 2, 1)
 
             if self.type != "encoder":
                 pad_mod = 1 if sliding_window is not None else (
                     self.chunk_size // (stride if stride is not None else self.stride))
                 x = _zero_pad_modulo_sequence(x, pad_mod)
 
-            # Fold into sub-chunks: (B, T, C) → (B*n, input_seg, C)
             C = x.shape[2]
             x = x.reshape(-1, input_seg, C)
 
-            # Append learnable query tokens → (B*n, sub_chunk, C)
             new_tokens = self.new_tokens.expand(x.shape[0], output_seg, -1)
             x = torch.cat([x, comfy.ops.cast_to_input(new_tokens, x)], dim=-2)
             del new_tokens
 
-            # Re-merge sub-chunks into one sequence per batch element: (B, n*sub_chunk, C)
             x = x.reshape(B, -1, C)
 
             if sliding_window is None:
@@ -363,13 +319,11 @@ class TransformerResamplingBlock(nn.Module):
                 split = self.transformer_depth // 2
                 shift = eff_chunk // 2
 
-                # First half: attend within standard chunks
                 x = x.reshape(-1, eff_chunk, C)
                 for layer in self.transformers[:split]:
                     x = layer(x)
                 x = x.reshape(B, -1, C)
 
-                # Second half: shifted chunks so each boundary gets cross-chunk context
                 shifted = torch.cat([x[:, :shift, :], x, x[:, -shift:, :]], dim=1)
                 del x
                 x = shifted.reshape(-1, eff_chunk, C)
@@ -379,20 +333,15 @@ class TransformerResamplingBlock(nn.Module):
                 x = x.reshape(B, -1, C)
                 x = x[:, shift:-shift, :]
             elif sliding_window is None:
-                # No sliding window: fold into fixed-size chunks, attend globally within each
                 x = x.reshape(-1, eff_chunk, C)
                 for layer in self.transformers:
                     x = layer(x)
                 x = x.reshape(B, -1, C)
             else:
-                # Additive mask that enforces ±window local attention, matching flash_attn
-                # window_size semantics. Without this, SDPA attends globally and breaks output
-                # for audio longer than a few seconds.
                 attn_mask = _sliding_window_mask(x.shape[1], sliding_window[0], x.device, x.dtype)
                 for layer in self.transformers:
                     x = layer(x, mask=attn_mask)
 
-            # Extract output tokens and reshape to (B, C, n*output_seg)
             x = x.reshape(-1, sub_chunk, C)
             x = x[:, -output_seg:, :]
             x = x.reshape(B, -1, C).transpose(1, 2)
@@ -402,10 +351,6 @@ class TransformerResamplingBlock(nn.Module):
 
         return x
 
-
-# ─────────────────────────────────────────────
-# SAME encoder / decoder
-# ─────────────────────────────────────────────
 
 class SAMEEncoder(nn.Module):
     def __init__(self, in_channels=2, channels=128, latent_dim=32,
@@ -463,10 +408,6 @@ class SAMEDecoder(nn.Module):
         return x
 
 
-# ─────────────────────────────────────────────
-# Bottleneck
-# ─────────────────────────────────────────────
-
 class SoftNormBottleneck(nn.Module):
     def __init__(self, dim=32, noise_augment_dim=0, noise_regularize=False,
                  auto_scale=False, freeze=False, dtype=None, device=None, **kwargs):
@@ -507,10 +448,6 @@ class SoftNormBottleneck(nn.Module):
         return x
 
 
-# ─────────────────────────────────────────────
-# Pretransform
-# ─────────────────────────────────────────────
-
 class PatchedPretransform(nn.Module):
     def __init__(self, channels, patch_size, **kwargs):
         super().__init__()
@@ -539,10 +476,6 @@ class PatchedPretransform(nn.Module):
         # b (c h) l -> b c (l h)
         return x.reshape(B, C, h, L).permute(0, 1, 3, 2).reshape(B, C, L * h)
 
-
-# ─────────────────────────────────────────────
-# Top-level VAE
-# ─────────────────────────────────────────────
 
 class SA3AudioVAE(nn.Module):
     """SA3 VAE. State dict keys match checkpoint after stripping 'pretransform.model.'"""
