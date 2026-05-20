@@ -182,6 +182,7 @@ async def _build_image_blocks(
         images,
         max_images=spec.max_images,
         total_pixels=2048 * 2048,
+        mime_type="image/png",
         wait_label="Uploading reference images",
     )
     return [OpenRouterImageContent(image_url=OpenRouterImageUrl(url=url)) for url in urls]
