@@ -234,6 +234,12 @@ def save_glb(vertices, faces, filepath, metadata=None,
     textures = []
     samplers = []
     materials = []
+    pbr = {
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.5,
+        "baseColorFactor": [0.22, 0.22, 0.22, 1.0],
+    }
+
     if texture_png_bytes is not None and "TEXCOORD_0" in primitive_attributes:
         buffer_views.append({
             "buffer": 0,
@@ -243,15 +249,13 @@ def save_glb(vertices, faces, filepath, metadata=None,
         images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
         samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
         textures.append({"source": 0, "sampler": 0})
-        materials.append({
-            "pbrMetallicRoughness": {
-                "baseColorTexture": {"index": 0, "texCoord": 0},
-                "metallicFactor": 0.0,
-                "roughnessFactor": 1.0,
-            },
-            "doubleSided": True,
-        })
-        primitive["material"] = 0
+        pbr["baseColorTexture"] = {"index": 0, "texCoord": 0}
+
+    materials.append({
+        "pbrMetallicRoughness": pbr,
+        "doubleSided": True,
+    })
+    primitive["material"] = 0
 
     gltf = {
         "asset": {"version": "2.0", "generator": "ComfyUI"},
@@ -373,10 +377,14 @@ class SaveGLB(IO.ComfyNode):
                     continue
                 tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
                 f = f"{filename}_{counter:05}_.glb"
-                save_glb(vertices_i, faces_i, os.path.join(full_output_folder, f), metadata,
-                         uvs=uvs_i,
-                         vertex_colors=v_colors,
-                         texture_image=tex_img)
+                save_glb(
+                    vertices_i, faces_i,
+                    os.path.join(full_output_folder, f),
+                    metadata,
+                    uvs=uvs_i,
+                    vertex_colors=v_colors,
+                    texture_image=tex_img,
+                )
                 results.append({
                     "filename": f,
                     "subfolder": subfolder,
