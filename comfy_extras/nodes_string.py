@@ -16,7 +16,7 @@ class StringFormat(io.ComfyNode):
         )
         return io.Schema(
             node_id="StringFormat",
-            display_name="Text Format",
+            display_name="Format Text",
             category="text",
             search_aliases=["string", "format"],
             description="Same as Python's string format method. Supports all of Python's format options and features.",
