@@ -110,15 +110,13 @@ jobs:
 
           source_sha="$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}")"
 
-          # The source branch must be cut directly off the latest stable tag.
-          # "Cut directly off" means: walking first-parent from the source tip
-          # eventually reaches LATEST_TAG_SHA. This rejects branches that were
-          # cut from master after the tag (which would carry unrelated commits),
-          # while accepting a branch rooted at the tag with N backport commits
-          # on top (each of which may itself be a merge — first-parent walks
-          # through the mainline of the branch).
-          if ! git rev-list --first-parent "${source_sha}" \
-                | grep -qx "${LATEST_TAG_SHA}"; then
+          # Walking first-parent from the source tip must reach LATEST_TAG_SHA.
+          # We capture rev-list into a variable and grep against a here-string
+          # rather than piping `rev-list | grep -q`: under `set -o pipefail`,
+          # `grep -q` would exit on first match and SIGPIPE the still-streaming
+          # `rev-list`, propagating exit 141 as a spurious "not found".
+          first_parent_chain="$(git rev-list --first-parent "${source_sha}")"
+          if ! grep -Fxq "${LATEST_TAG_SHA}" <<< "${first_parent_chain}"; then
             echo "::error::Source branch '${SOURCE_BRANCH}' is not cut from '${LATEST_TAG}'."
             echo "::error::Its first-parent history does not include ${LATEST_TAG_SHA}."
             exit 1
