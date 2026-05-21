@@ -38,13 +38,13 @@ class TestIsPreviewable:
     """Unit tests for is_previewable()"""
 
     def test_previewable_media_types(self):
-        """Images, video, audio, 3d media types should be previewable."""
-        for media_type in ['images', 'video', 'audio', '3d']:
+        """Images, video, audio, 3d, text media types should be previewable."""
+        for media_type in ['images', 'video', 'audio', '3d', 'text']:
             assert is_previewable(media_type, {}) is True
 
     def test_non_previewable_media_types(self):
         """Other media types should not be previewable."""
-        for media_type in ['latents', 'text', 'metadata', 'files']:
+        for media_type in ['latents', 'metadata', 'files']:
             assert is_previewable(media_type, {}) is False
 
     def test_3d_extensions_previewable(self):

@@ -63,7 +63,11 @@ class IndexListContextWindow(ContextWindowABC):
             dim = self.dim
         if dim == 0 and full.shape[dim] == 1:
             return full
-        idx = tuple([slice(None)] * dim + [self.index_list])
+        indices = self.index_list
+        anchor_idx = getattr(self, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            indices = [anchor_idx] + list(indices)
+        idx = tuple([slice(None)] * dim + [indices])
         window = full[idx]
         if retain_index_list:
             idx = tuple([slice(None)] * dim + [retain_index_list])
@@ -93,6 +97,57 @@ class IndexListCallbacks:
         return {}
 
 
+def slice_cond(cond_value, window: IndexListContextWindow, x_in: torch.Tensor, device, temporal_dim: int, temporal_scale: int=1, temporal_offset: int=0, retain_index_list: list[int]=[]):
+    if not (hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor)):
+        return None
+    cond_tensor = cond_value.cond
+    if temporal_dim >= cond_tensor.ndim:
+        return None
+
+    cond_size = cond_tensor.size(temporal_dim)
+
+    if temporal_scale == 1:
+        expected_size = x_in.size(window.dim) - temporal_offset
+        if cond_size != expected_size:
+            return None
+
+    if temporal_offset == 0 and temporal_scale == 1:
+        sliced = window.get_tensor(cond_tensor, device, dim=temporal_dim, retain_index_list=retain_index_list)
+        return cond_value._copy_with(sliced)
+
+    # skip leading latent positions that have no corresponding conditioning (e.g. reference frames)
+    if temporal_offset > 0:
+        anchor_idx = getattr(window, 'causal_anchor_index', None)
+        if anchor_idx is not None and anchor_idx >= 0:
+            # anchor occupies one of the no-cond positions, so skip one fewer from window.index_list
+            skip_count = temporal_offset - 1
+        else:
+            skip_count = temporal_offset
+
+        indices = [i - temporal_offset for i in window.index_list[skip_count:]]
+        indices = [i for i in indices if 0 <= i]
+    else:
+        indices = list(window.index_list)
+
+    if not indices:
+        return None
+
+    if temporal_scale > 1:
+        scaled = []
+        for i in indices:
+            for k in range(temporal_scale):
+                si = i * temporal_scale + k
+                if si < cond_size:
+                    scaled.append(si)
+        indices = scaled
+        if not indices:
+            return None
+
+    idx = tuple([slice(None)] * temporal_dim + [indices])
+    sliced = cond_tensor[idx].to(device)
+    return cond_value._copy_with(sliced)
+
+
 @dataclass
 class ContextSchedule:
     name: str
@@ -106,7 +161,8 @@ class ContextFuseMethod:
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
-                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False):
+                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False,
+                 causal_window_fix: bool=True):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -118,6 +174,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self.freenoise = freenoise
         self.cond_retain_index_list = [int(x.strip()) for x in cond_retain_index_list.split(",")] if cond_retain_index_list else []
         self.split_conds_to_windows = split_conds_to_windows
+        self.causal_window_fix = causal_window_fix
 
         self.callbacks = {}
 
@@ -177,10 +234,17 @@ class IndexListContextHandler(ContextHandlerABC):
                                     new_cond_item[cond_key] = result
                                     handled = True
                                     break
+                            if not handled and self._model is not None:
+                                result = self._model.resize_cond_for_context_window(
+                                    cond_key, cond_value, window, x_in, device,
+                                    retain_index_list=self.cond_retain_index_list)
+                                if result is not None:
+                                    new_cond_item[cond_key] = result
+                                    handled = True
                             if handled:
                                 continue
                             if isinstance(cond_value, torch.Tensor):
-                                if (self.dim < cond_value.ndim and cond_value(self.dim) == x_in.size(self.dim)) or \
+                                if (self.dim < cond_value.ndim and cond_value.size(self.dim) == x_in.size(self.dim)) or \
                                    (cond_value.ndim < self.dim and cond_value.size(0) == x_in.size(self.dim)):
                                     new_cond_item[cond_key] = window.get_tensor(cond_value, device)
                             # Handle audio_embed (temporal dim is 1)
@@ -214,7 +278,7 @@ class IndexListContextHandler(ContextHandlerABC):
         mask = torch.isclose(model_options["transformer_options"]["sample_sigmas"], timestep[0], rtol=0.0001)
         matches = torch.nonzero(mask)
         if torch.numel(matches) == 0:
-            raise Exception("No sample_sigmas matched current timestep; something went wrong.")
+            return  # substep from multi-step sampler: keep self._step from the last full step
         self._step = int(matches[0].item())
 
     def get_context_windows(self, model: BaseModel, x_in: torch.Tensor, model_options: dict[str]) -> list[IndexListContextWindow]:
@@ -224,6 +288,7 @@ class IndexListContextHandler(ContextHandlerABC):
         return context_windows
 
     def execute(self, calc_cond_batch: Callable, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]):
+        self._model = model
         self.set_step(timestep, model_options)
         context_windows = self.get_context_windows(model, x_in, model_options)
         enumerated_context_windows = list(enumerate(context_windows))
@@ -266,6 +331,14 @@ class IndexListContextHandler(ContextHandlerABC):
             # allow processing to end between context window executions for faster Cancel
             comfy.model_management.throw_exception_if_processing_interrupted()
 
+            # causal_window_fix: prepend a pre-window frame that will be stripped post-forward
+            anchor_applied = False
+            if self.causal_window_fix:
+                anchor_idx = window.index_list[0] - 1
+                if 0 <= anchor_idx < x_in.size(self.dim):
+                    window.causal_anchor_index = anchor_idx
+                    anchor_applied = True
+
             for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EVALUATE_CONTEXT_WINDOWS, self.callbacks):
                 callback(self, model, x_in, conds, timestep, model_options, window_idx, window, model_options, device, first_device)
 
@@ -280,6 +353,12 @@ class IndexListContextHandler(ContextHandlerABC):
             if device is not None:
                 for i in range(len(sub_conds_out)):
                     sub_conds_out[i] = sub_conds_out[i].to(x_in.device)
+
+            # strip causal_window_fix anchor if applied
+            if anchor_applied:
+                for i in range(len(sub_conds_out)):
+                    sub_conds_out[i] = sub_conds_out[i].narrow(self.dim, 1, sub_conds_out[i].shape[self.dim] - 1)
+
             results.append(ContextResults(window_idx, sub_conds_out, sub_conds, window))
         return results
 

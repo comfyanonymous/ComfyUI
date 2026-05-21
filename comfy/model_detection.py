@@ -1,4 +1,5 @@
 import json
+import comfy.memory_management
 import comfy.supported_models
 import comfy.supported_models_base
 import comfy.utils
@@ -115,6 +116,45 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit
         unet_config = {}
         unet_config["audio_model"] = "dit1.0"
+        unet_config["global_cond_dim"] = state_dict['{}to_global_embed.0.weight'.format(key_prefix)].shape[1]
+        cond_embed = state_dict['{}to_cond_embed.0.weight'.format(key_prefix)]
+        unet_config["project_cond_tokens"] = cond_embed.shape[0] != cond_embed.shape[1]
+        unet_config["embed_dim"] = state_dict['{}to_timestep_embed.0.weight'.format(key_prefix)].shape[0]
+        mem_tokens = state_dict.get('{}transformer.memory_tokens'.format(key_prefix), None)
+        to_qkv = state_dict.get('{}transformer.layers.0.self_attn.to_qkv.weight'.format(key_prefix), None)
+        differential = False
+        if to_qkv is not None:
+            if to_qkv.shape[0] == to_qkv.shape[1] * 5:
+                differential = True
+        if mem_tokens is not None:
+            unet_config["num_memory_tokens"] = mem_tokens.shape[0]
+        if '{}transformer.layers.0.self_attn.q_norm.weight'.format(key_prefix) in state_dict:
+            unet_config["attn_kwargs"] = {"qk_norm": "ln", "feat_scale": True}
+        rms_norm = state_dict.get('{}transformer.layers.0.self_attn.q_norm.gamma'.format(key_prefix), None)
+        if rms_norm is not None:
+            unet_config["attn_kwargs"] = {"qk_norm": "rms", "differential": differential}
+            unet_config["norm_type"] = "rms_norm"
+            unet_config["num_heads"] = unet_config["embed_dim"] // rms_norm.shape[0]
+
+        if '{}timestep_features.weight'.format(key_prefix) in state_dict:
+            unet_config["timestep_features_type"] = "learned"
+        else:
+            unet_config["timestep_features_type"] = "expo"
+
+        io_channels = state_dict['{}postprocess_conv.weight'.format(key_prefix)].shape[0]
+        unet_config["io_channels"] = io_channels
+        unet_config["input_concat_dim"] = state_dict['{}transformer.project_in.weight'.format(key_prefix)].shape[1] - io_channels
+
+        local_add_cond = state_dict.get('{}transformer.layers.0.to_local_embed.0.weight'.format(key_prefix), None)
+        if local_add_cond is not None:
+            unet_config["local_add_cond_dim"] = local_add_cond.shape[1]
+
+        global_cond_embed = state_dict.get('{}transformer.global_cond_embedder.0.weight'.format(key_prefix), None)
+        if global_cond_embed is not None:
+            unet_config["global_cond_shared_embed"] = True
+            unet_config["global_cond_type"] = "adaLN"
+
+        unet_config["depth"] = count_blocks(state_dict_keys, '{}transformer.layers.'.format(key_prefix) + '{}.')
         return unet_config
 
     if '{}double_layers.0.attn.w1q.weight'.format(key_prefix) in state_dict_keys: #aura flow dit
@@ -279,6 +319,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["txt_norm"] = any_suffix_in(state_dict_keys, key_prefix, 'txt_norm.', ["weight", "scale"])
             if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
                 dit_config["txt_ids_dims"] = [1, 2]
+            if dit_config.get("context_in_dim") == 3584 and dit_config["vec_in_dim"] is None:  # LongCat-Image
+                dit_config["txt_ids_dims"] = [1, 2]
 
         return dit_config
 
@@ -421,7 +463,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
-    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
+    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
         dit_config["image_model"] = "lumina2"
         dit_config["patch_size"] = 2
@@ -462,6 +504,77 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             if sig_weight is not None:
                 dit_config["siglip_feat_dim"] = sig_weight.shape[0]
 
+            dec_cond_key = '{}dec_net.cond_embed.weight'.format(key_prefix)
+            if dec_cond_key in state_dict_keys:  # pixel-space variant
+                dit_config["image_model"] = "zimage_pixel"
+                # patch_size and in_channels are derived from x_embedder:
+                #   x_embedder: Linear(patch_size * patch_size * in_channels, dim)
+                # The decoder also receives the full flat patch, so decoder_in_channels = x_embedder input dim.
+                x_emb_in = state_dict['{}x_embedder.weight'.format(key_prefix)].shape[1]
+                dec_out = state_dict['{}dec_net.final_layer.linear.weight'.format(key_prefix)].shape[0]
+                # patch_size: infer from decoder final layer output matching x_embedder input
+                # in_channels: infer from dec_net input_embedder (in_features = dec_in_ch + max_freqs^2)
+                embedder_w = state_dict['{}dec_net.input_embedder.embedder.0.weight'.format(key_prefix)]
+                dec_in_ch = dec_out  # decoder in == decoder out (same pixel space)
+                dit_config["patch_size"] = round((x_emb_in / 3) ** 0.5)  # assume RGB (in_channels=3)
+                dit_config["in_channels"] = 3
+                dit_config["decoder_in_channels"] = dec_in_ch
+                dit_config["decoder_hidden_size"] = state_dict[dec_cond_key].shape[0]
+                dit_config["decoder_num_res_blocks"] = count_blocks(
+                    state_dict_keys, '{}dec_net.res_blocks.'.format(key_prefix) + '{}.'
+                )
+                dit_config["decoder_max_freqs"] = int((embedder_w.shape[1] - dec_in_ch) ** 0.5)
+                if '{}__x0__'.format(key_prefix) in state_dict_keys:
+                    dit_config["use_x0"] = True
+
+        return dit_config
+
+    if '{}blocks.0.norm1.linear.weight'.format(key_prefix) in state_dict_keys:  # CogVideoX
+        dit_config = {}
+        dit_config["image_model"] = "cogvideox"
+
+        # Extract config from weight shapes
+        norm1_weight = state_dict['{}blocks.0.norm1.linear.weight'.format(key_prefix)]
+        time_embed_dim = norm1_weight.shape[1]
+        dim = norm1_weight.shape[0] // 6
+
+        dit_config["num_attention_heads"] = dim // 64
+        dit_config["attention_head_dim"] = 64
+        dit_config["time_embed_dim"] = time_embed_dim
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+
+        # Detect in_channels from patch_embed
+        patch_proj_key = '{}patch_embed.proj.weight'.format(key_prefix)
+        if patch_proj_key in state_dict_keys:
+            w = state_dict[patch_proj_key]
+            if w.ndim == 4:
+                # Conv2d: [out, in, kh, kw] — CogVideoX 1.0
+                dit_config["in_channels"] = w.shape[1]
+                dit_config["patch_size"] = w.shape[2]
+            elif w.ndim == 2:
+                # Linear: [out, in_channels * patch_size * patch_size * patch_size_t] — CogVideoX 1.5
+                dit_config["patch_size"] = 2
+                dit_config["patch_size_t"] = 2
+                dit_config["in_channels"] = w.shape[1] // (2 * 2 * 2)  # 256 // 8 = 32
+
+        text_proj_key = '{}patch_embed.text_proj.weight'.format(key_prefix)
+        if text_proj_key in state_dict_keys:
+            dit_config["text_embed_dim"] = state_dict[text_proj_key].shape[1]
+
+        # Detect OFS embedding
+        ofs_key = '{}ofs_embedding_linear_1.weight'.format(key_prefix)
+        if ofs_key in state_dict_keys:
+            dit_config["ofs_embed_dim"] = state_dict[ofs_key].shape[1]
+
+        # Detect positional embedding type
+        pos_key = '{}patch_embed.pos_embedding'.format(key_prefix)
+        if pos_key in state_dict_keys:
+            dit_config["use_learned_positional_embeddings"] = True
+            dit_config["use_rotary_positional_embeddings"] = False
+        else:
+            dit_config["use_learned_positional_embeddings"] = False
+            dit_config["use_rotary_positional_embeddings"] = True
+
         return dit_config
 
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
@@ -496,6 +609,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "humo"
         elif '{}face_adapter.fuser_blocks.0.k_norm.weight'.format(key_prefix) in state_dict_keys:
             dit_config["model_type"] = "animate"
+        elif '{}patch_embedding_pose.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "scail"
+        elif '{}patch_embedding_global.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "wandancer"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -529,8 +646,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config
 
-    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys:  # Hunyuan 3D 2.1
-
+    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys and f"{key_prefix}blocks.0.attn1.k_norm.weight" in state_dict_keys:  # Hunyuan 3D 2.1
         dit_config = {}
         dit_config["image_model"] = "hunyuan3d2_1"
         dit_config["in_channels"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[1]
@@ -542,6 +658,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["qkv_bias"] = False
         dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
+
+    if '{}t_embedder1.mlp.0.weight'.format(key_prefix) in state_dict_keys and '{}x_embedder.proj1.weight'.format(key_prefix) in state_dict_keys:  # HiDream-O1
+        return {"image_model": "hidream_o1"}
 
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
         dit_config = {}
@@ -669,7 +788,35 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}encoder.lyric_encoder.layers.0.input_layernorm.weight'.format(key_prefix) in state_dict_keys:
         dit_config = {}
         dit_config["audio_model"] = "ace1.5"
+        head_dim = 128
+        dit_config["hidden_size"] = state_dict['{}decoder.layers.0.self_attn_norm.weight'.format(key_prefix)].shape[0]
+        dit_config["intermediate_size"] = state_dict['{}decoder.layers.0.mlp.gate_proj.weight'.format(key_prefix)].shape[0]
+        dit_config["num_heads"] = state_dict['{}decoder.layers.0.self_attn.q_proj.weight'.format(key_prefix)].shape[0] // head_dim
+
+        dit_config["encoder_hidden_size"] = state_dict['{}encoder.lyric_encoder.layers.0.input_layernorm.weight'.format(key_prefix)].shape[0]
+        dit_config["encoder_num_heads"] = state_dict['{}encoder.lyric_encoder.layers.0.self_attn.q_proj.weight'.format(key_prefix)].shape[0] // head_dim
+        dit_config["encoder_intermediate_size"] = state_dict['{}encoder.lyric_encoder.layers.0.mlp.gate_proj.weight'.format(key_prefix)].shape[0]
+        dit_config["num_dit_layers"] = count_blocks(state_dict_keys, '{}decoder.layers.'.format(key_prefix) + '{}.')
         return dit_config
+
+    if '{}encoder.pan_blocks.1.cv4.conv.weight'.format(key_prefix) in state_dict_keys: # RT-DETR_v4
+        dit_config = {}
+        dit_config["image_model"] = "RT_DETR_v4"
+        dit_config["enc_h"] = state_dict['{}encoder.pan_blocks.1.cv4.conv.weight'.format(key_prefix)].shape[0]
+        return dit_config
+
+    if '{}layers.0.mlp.linear_fc2.weight'.format(key_prefix) in state_dict_keys: # Ernie Image
+        dit_config = {}
+        dit_config["image_model"] = "ernie"
+        return dit_config
+
+    if 'detector.backbone.vision_backbone.trunk.blocks.0.attn.qkv.weight' in state_dict_keys: # SAM3 / SAM3.1
+        if 'detector.transformer.decoder.query_embed.weight' in state_dict_keys:
+            dit_config = {}
+            dit_config["image_model"] = "SAM3"
+            if 'detector.backbone.vision_backbone.propagation_convs.0.conv_1x1.weight' in state_dict_keys:
+                dit_config["image_model"] = "SAM31"
+            return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
@@ -826,6 +973,10 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     return model_config
 
 def unet_prefix_from_state_dict(state_dict):
+    # SAM3: detector.* and tracker.* at top level, no common prefix
+    if any(k.startswith("detector.") for k in state_dict) and any(k.startswith("tracker.") for k in state_dict):
+        return ""
+
     candidates = ["model.diffusion_model.", #ldm/sgm models
                   "model.model.", #audio models
                   "net.", #cosmos
@@ -1051,6 +1202,13 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
     elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict: # PixArt
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         sd_map = comfy.utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
+    elif 'noise_refiner.0.attention.norm_k.weight' in state_dict:
+        n_layers = count_blocks(state_dict, 'layers.{}.')
+        dim = state_dict['noise_refiner.0.attention.to_k.weight'].shape[0]
+        sd_map = comfy.utils.z_image_to_diffusers({"n_layers": n_layers, "dim": dim}, output_prefix=output_prefix)
+        for k in state_dict: # For zeta chroma
+            if k not in sd_map:
+                sd_map[k] = k
     elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
@@ -1085,8 +1243,13 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
                         new[:old_weight.shape[0]] = old_weight
                         old_weight = new
 
+                    if old_weight is out_sd.get(t[0], None) and comfy.memory_management.aimdo_enabled:
+                        old_weight = old_weight.clone()
+
                     w = old_weight.narrow(offset[0], offset[1], offset[2])
                 else:
+                    if comfy.memory_management.aimdo_enabled:
+                        weight = weight.clone()
                     old_weight = weight
                     w = weight
                 w[:] = fun(weight)

@@ -66,6 +66,18 @@ def convert_cond(cond):
         out.append(temp)
     return out
 
+def cond_has_hooks(cond):
+    for c in cond:
+        temp = c[1]
+        if "hooks" in temp:
+            return True
+        if "control" in temp:
+            control = temp["control"]
+            extra_hooks = control.get_extra_hooks()
+            if len(extra_hooks) > 0:
+                return True
+    return False
+
 def get_additional_models(conds, dtype):
     """loads additional models in conditioning"""
     cnets: list[ControlBase] = []
@@ -77,7 +89,8 @@ def get_additional_models(conds, dtype):
         gligen += get_models_from_cond(conds[k], "gligen")
         add_models += get_models_from_cond(conds[k], "additional_models")
 
-    control_nets = set(cnets)
+    # Order-preserving dedup. A plain set() would randomize iteration order across runs
+    control_nets = list(dict.fromkeys(cnets))
 
     inference_memory = 0
     control_models = []

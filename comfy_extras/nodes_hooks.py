@@ -248,7 +248,7 @@ class SetClipHooks:
 
     def apply_hooks(self, clip: CLIP, schedule_clip: bool, apply_to_conds: bool, hooks: comfy.hooks.HookGroup=None):
         if hooks is not None:
-            clip = clip.clone()
+            clip = clip.clone(disable_dynamic=True)
             if apply_to_conds:
                 clip.apply_hooks_to_conds = hooks
             clip.patcher.forced_hooks = hooks.clone()
