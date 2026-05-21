@@ -103,8 +103,10 @@ class MoGePanoramaInference(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MoGePanoramaInference",
-            display_name="MoGe Panorama Inference",
+            search_aliases=["moge", "panorama", "depth", "geometry", "depth estimation", "geometry estimation"],
+            display_name="Run MoGe Panorama Inference",
             category="image/geometry_estimation",
+            description="Run MoGe on an equirectangular panorama by splitting it into 12 perspective views, running inference on each, and merging the results into a single depth map.",
             inputs=[
                 MoGeModelType.Input("moge_model"),
                 io.Image.Input("image", tooltip="Equirectangular panorama (any aspect)."),
@@ -222,7 +224,9 @@ class MoGeInference(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MoGeInference",
-            display_name="MoGe Inference",
+            search_aliases=["moge", "depth", "geometry", "depth estimation", "geometry estimation"],
+            display_name="Run MoGe Inference",
+            description="Run MoGe on a single image to estimate depth and geometry.",
             category="image/geometry_estimation",
             inputs=[
                 MoGeModelType.Input("moge_model"),
@@ -277,7 +281,9 @@ class MoGeRender(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MoGeRender",
-            display_name="MoGe Render",
+            search_aliases=["moge", "render", "geometry", "depth", "normal"],
+            display_name="Render MoGe Geometry",
+            description="Render a depth map or normal map from geometry data",
             category="image/geometry_estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
@@ -342,7 +348,9 @@ class MoGePointMapToMesh(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MoGePointMapToMesh",
-            display_name="MoGe Point Map to Mesh",
+            search_aliases=["moge", "mesh", "geometry", "point map"],
+            display_name="Convert MoGe Point Map to Mesh",
+            description="Convert a MoGe point map into a 3D mesh.",
             category="image/geometry_estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
