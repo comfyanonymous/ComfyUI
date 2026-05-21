@@ -1556,12 +1556,6 @@ paths:
             type: string
             enum: [asc, desc]
           description: Sort direction
-        - name: job_ids
-          in: query
-          schema:
-            type: string
-          x-runtime: [cloud]
-          description: "[cloud-only] Comma-separated UUIDs to filter assets by associated job."
         - name: include_public
           in: query
           schema:
@@ -2514,37 +2508,25 @@ paths:
 
   /api/assets/import:
     post:
-      operationId: importAssets
+      operationId: importPublishedAssets
       tags: [assets]
-      summary: Import assets from external URLs
-      description: "[cloud-only] Imports one or more assets from external URLs into the cloud asset store."
+      summary: "[cloud-only] Import published assets into the caller's library"
+      description: |
+        [cloud-only] Imports the specified published assets into the caller's asset library. New DB records reference the same storage objects; no file copying occurs. Assets the caller already owns (by hash) are deduplicated. The `id` field on each returned `AssetInfo` is the caller's newly-created private asset ID, not the published asset ID supplied in the request.
       x-runtime: [cloud]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - imports
-              properties:
-                imports:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/AssetImportRequest"
-                  description: Assets to import
+              $ref: "#/components/schemas/ImportPublishedAssetsRequest"
       responses:
         "200":
-          description: Import initiated
+          description: Successfully imported assets
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  assets:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Asset"
+                $ref: "#/components/schemas/ImportPublishedAssetsResponse"
         "400":
           description: Bad request
           content:
@@ -3789,6 +3771,295 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/JwksResponse"
+
+  # ---------------------------------------------------------------------------
+  # OAuth 2.1 / RFC 7591 Dynamic Client Registration (cloud)
+  # ---------------------------------------------------------------------------
+  /.well-known/oauth-authorization-server:
+    get:
+      operationId: getOAuthAuthorizationServer
+      tags: [auth]
+      summary: "[cloud-only] OAuth 2.1 authorization-server metadata (RFC 8414)"
+      description: "[cloud-only] Public metadata document for OAuth 2.1 clients. Cached 5 minutes."
+      x-runtime: [cloud]
+      security: []
+      responses:
+        "200":
+          description: Authorization-server metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthAuthorizationServerMetadata"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /.well-known/oauth-protected-resource:
+    get:
+      operationId: getOAuthProtectedResource
+      tags: [auth]
+      summary: "[cloud-only] OAuth 2.1 protected-resource metadata (RFC 9728)"
+      description: "[cloud-only] Public metadata describing the currently advertised protected resource. Cached 5 minutes."
+      x-runtime: [cloud]
+      security: []
+      responses:
+        "200":
+          description: Protected-resource metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthProtectedResourceMetadata"
+        "404":
+          description: OAuth disabled or no active resource configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /oauth/authorize:
+    get:
+      operationId: getOAuthAuthorize
+      tags: [auth]
+      summary: "[cloud-only] Begin or resume an OAuth 2.1 authorization request"
+      description: |
+        [cloud-only] Two modes:
+        - **Initial entry** (OAuth params present): validates client/redirect/resource/scopes, persists a server-side authorization-request row, and either redirects (no session / unverified email) to the configured frontend login URL carrying only the opaque `oauth_request_id`, or returns the JSON consent challenge for the frontend to render.
+        - **Resume** (`oauth_request_id` present): loads the server-side row, fails closed if expired/consumed/unknown, returns the JSON consent challenge. Browser-replayed OAuth params are intentionally ignored.
+
+        The frontend renders the consent UI from the JSON payload and POSTs the user's decision back to this endpoint.
+      x-runtime: [cloud]
+      security: []
+      parameters:
+        - { name: response_type,         in: query, required: false, schema: { type: string } }
+        - { name: client_id,             in: query, required: false, schema: { type: string } }
+        - { name: redirect_uri,          in: query, required: false, schema: { type: string } }
+        - { name: scope,                 in: query, required: false, schema: { type: string } }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+          description: |
+            RFC 6749 §10.12 marks `state` as RECOMMENDED. Cloud hardening makes it REQUIRED on the initial-entry path (omitted only on the resume path where `oauth_request_id` is supplied instead). This parameter is `required: false` at the spec level only because the operation is dual-mode (initial entry vs. resume); the runtime rejects empty `state` on the initial-entry path with a stable `invalid_request` 400.
+        - { name: code_challenge,        in: query, required: false, schema: { type: string } }
+        - { name: code_challenge_method, in: query, required: false, schema: { type: string } }
+        - { name: resource,              in: query, required: false, schema: { type: string } }
+        - { name: oauth_request_id,      in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Consent challenge payload (session present, email verified). Frontend renders the consent UI from this payload and POSTs back to /oauth/authorize.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthConsentChallenge"
+        "302":
+          description: Redirect to login (no session / unverified email) or to registered redirect_uri (pre-validated client error)
+          headers:
+            Location:
+              schema:
+                type: string
+        "400":
+          description: Invalid authorize request (pre-redirect failure — unknown client, redirect mismatch, malformed params)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+    post:
+      operationId: postOAuthAuthorize
+      tags: [auth]
+      summary: "[cloud-only] Submit OAuth consent decision"
+      description: |
+        [cloud-only] JSON-only consent submission. The handler verifies the per-row CSRF token, atomically marks the authorization request consumed (single-use covers both allow and deny paths), then returns the redirect URL the browser must navigate to. The URL contains either `code` + original `state` for allow, or the RFC 6749 §5.2 error and `state` for deny.
+
+        Workspace membership is re-checked at submission time. Consent is persisted keyed by `(user_id, client_id, resource_id, workspace_id)`; broadening the previously approved scope set requires a fresh consent flow.
+      x-runtime: [cloud]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oauth_request_id, csrf_token, decision, workspace_id]
+              properties:
+                oauth_request_id: { type: string, format: uuid }
+                csrf_token:       { type: string }
+                decision:         { type: string, enum: [allow, deny] }
+                workspace_id:     { type: string }
+      responses:
+        "200":
+          description: Redirect URL for the frontend to navigate to (allow → with code+state; deny → with error+state)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthAuthorizeRedirectResponse"
+        "400":
+          description: Bad request (CSRF mismatch, expired/consumed request, inaccessible workspace)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "403":
+          description: Scope broadening on consent re-grant — fresh consent flow required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /oauth/token:
+    post:
+      operationId: postOAuthToken
+      tags: [auth]
+      summary: "[cloud-only] Exchange authorization code or refresh token for a resource-bound access token"
+      description: |
+        [cloud-only] OAuth 2.1 token endpoint (RFC 6749 §3.2). Public clients only — `client_secret` is rejected.
+
+        Two grant types are supported:
+        - `authorization_code` — exchanges the code minted by `/oauth/authorize` (with PKCE verifier) for an access token + first refresh token. Single-use; reuse fails closed.
+        - `refresh_token` — rotates the refresh token. Old token immediately invalid; presenting an already-rotated token revokes the entire token family and emits a security metric.
+
+        Both grant types re-validate canonical user state, current workspace membership, and the resource's active flag at every mint. A code or refresh token bound to a deactivated resource fails closed.
+
+        Errors follow RFC 6749 §5.2. Logs never contain raw codes, refresh tokens, or minted tokens.
+
+        Per RFC 6749 §5.1, every 200 and 400 response carries `Cache-Control: no-store` and `Pragma: no-cache` so intermediaries cannot cache token-bearing or state-change-reason responses.
+      x-runtime: [cloud]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id]
+              properties:
+                grant_type:    { type: string, enum: [authorization_code, refresh_token] }
+                client_id:     { type: string }
+                code:          { type: string }
+                redirect_uri:  { type: string }
+                code_verifier: { type: string }
+                refresh_token: { type: string }
+                scope:         { type: string }
+                client_secret: { type: string }
+      responses:
+        "200":
+          description: New token pair
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store" per RFC 6749 §5.1'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache" per RFC 6749 §5.1'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthTokenResponse"
+        "400":
+          description: RFC 6749 §5.2 error
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store" per RFC 6749 §5.1'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache" per RFC 6749 §5.1'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthTokenError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /oauth/register:
+    post:
+      operationId: postOAuthRegister
+      tags: [auth]
+      summary: "[cloud-only] Dynamic Client Registration (RFC 7591)"
+      description: |
+        [cloud-only] Public, unauthenticated, insert-only RFC 7591 §3.1 client registration. Used by MCP-spec-compliant clients to self-register a public OAuth client without operator involvement.
+
+        Policy:
+
+        - Public clients only — `token_endpoint_auth_method` is forced to `none`. Confidential-client registration is out of scope this phase.
+        - Server-owned `resource_grants`. Caller-supplied `scope` or `resource_grants` is rejected as `invalid_client_metadata` (would be a privilege-escalation surface). Dynamic clients receive the same scopes the active resource publishes.
+        - Application-type-aware redirect URI policy. `application_type=native` accepts loopback (`127.0.0.1`, `::1`, `localhost`) and reverse-DNS-shaped custom schemes; `application_type=web` accepts HTTPS to hosts in an operator-controlled allowlist only. `application_type` is REQUIRED on the request — missing or empty rejects with `invalid_client_metadata`.
+        - Anti-impersonation: reserved client names are rejected from third parties via NFKC-folded compare.
+        - Generated `client_id` carries a stable prefix to distinguish dynamic from seeded clients in audit logs.
+        - Cache-Control: `no-store` on every 201 and 400 response (the response carries fresh credentials and rejection reasons).
+      x-runtime: [cloud]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OAuthRegisterRequest"
+      responses:
+        "201":
+          description: Registered. Body echoes the metadata RFC 7591 §3.2.1 requires.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store"'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache"'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthRegisterResponse"
+        "400":
+          description: RFC 7591 §3.2.2 invalid client metadata
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store"'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache"'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthRegisterError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "503":
+          description: No active resource is configured — DCR cannot mint a usable client until an active resource row is seeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
 
   # ---------------------------------------------------------------------------
   # Billing (cloud)
@@ -7090,24 +7361,35 @@ components:
           type: string
           description: Target path on the runtime filesystem
 
-    AssetImportRequest:
+    ImportPublishedAssetsRequest:
       type: object
       x-runtime: [cloud]
-      description: "[cloud-only] A single asset to import from an external URL."
+      description: "[cloud-only] Request body for importing published assets into the caller's library."
       required:
-        - url
+        - published_asset_ids
       properties:
-        url:
-          type: string
-          format: uri
-          description: URL of the asset to import
-        name:
-          type: string
-          description: Display name for the imported asset
-        tags:
+        published_asset_ids:
           type: array
+          description: IDs of published assets (inputs and models) to import.
           items:
             type: string
+        share_id:
+          type: string
+          nullable: true
+          description: |
+            Optional. Share ID of the published workflow these assets belong to. When provided (non-null, non-empty): all `published_asset_ids` must belong to this share's workflow version; returns 400 if the share is not found or any asset does not belong to it. When omitted, null, or empty string: no share-scoped validation is performed and the assets are validated only against global rules (preserved for clients that have not yet adopted `share_id`).
+
+    ImportPublishedAssetsResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] Response after importing published assets. Each returned `AssetInfo.id` is the caller's newly-created private asset ID, not the published asset ID supplied in the request."
+      required:
+        - assets
+      properties:
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetInfo"
 
     RemoteAssetMetadata:
       type: object
@@ -7423,6 +7705,325 @@ components:
                 type: string
                 description: RSA exponent (base64url)
             additionalProperties: true
+
+    OAuthAuthorizationServerMetadata:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] OAuth 2.1 authorization-server metadata (RFC 8414)."
+      required:
+        - issuer
+        - authorization_endpoint
+        - token_endpoint
+        - jwks_uri
+        - response_types_supported
+        - grant_types_supported
+        - code_challenge_methods_supported
+        - token_endpoint_auth_methods_supported
+      properties:
+        issuer:
+          type: string
+          format: uri
+        authorization_endpoint:
+          type: string
+          format: uri
+        token_endpoint:
+          type: string
+          format: uri
+        jwks_uri:
+          type: string
+          format: uri
+        registration_endpoint:
+          type: string
+          format: uri
+          description: "[cloud-only] RFC 7591 §3.1 Dynamic Client Registration endpoint. Advertised so MCP-spec-compliant clients can auto-discover and self-register without operator involvement. Present only when DCR is enabled."
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+
+    OAuthProtectedResourceMetadata:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] OAuth 2.1 protected-resource metadata (RFC 9728)."
+      required:
+        - resource
+        - authorization_servers
+        - scopes_supported
+      properties:
+        resource:
+          type: string
+          format: uri
+        authorization_servers:
+          type: array
+          items:
+            type: string
+            format: uri
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        bearer_methods_supported:
+          type: array
+          items:
+            type: string
+
+    OAuthConsentChallenge:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] Server-side state describing the OAuth consent decision the user is being asked to make. Returned by GET /oauth/authorize when a valid session exists; the frontend renders the consent UI from this payload and POSTs the decision back. Browser never sees the original OAuth params on resume."
+      required:
+        - oauth_request_id
+        - csrf_token
+        - client_display_name
+        - resource_display_name
+        - scopes
+        - workspaces
+      properties:
+        oauth_request_id:
+          type: string
+          format: uuid
+          description: Opaque server-side identifier for the authorization-request row. Carried back unchanged in the consent submission.
+        csrf_token:
+          type: string
+          description: Per-row CSRF token bound to this authorization request (not to the session). Must be echoed back on POST.
+        client_display_name:
+          type: string
+          description: Human-readable name of the OAuth client requesting authorization.
+        resource_display_name:
+          type: string
+          description: Human-readable name of the protected resource.
+        scopes:
+          type: array
+          description: Scopes the client is requesting for this resource. The frontend should present these for the user to approve.
+          items:
+            type: string
+        workspaces:
+          type: array
+          description: Workspaces the user can select from. Membership is re-checked on POST.
+          items:
+            $ref: "#/components/schemas/OAuthConsentChallengeWorkspace"
+
+    OAuthConsentChallengeWorkspace:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] One workspace option presented in the OAuth consent challenge."
+      required: [id, name, type, role]
+      properties:
+        id:   { type: string }
+        name: { type: string }
+        type: { type: string, enum: [personal, team] }
+        role: { type: string, enum: [owner, member] }
+
+    OAuthAuthorizeRedirectResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] Redirect target produced after a JSON consent submission. The frontend must navigate the browser to this URL so custom-scheme client callbacks work without relying on fetch-visible 302 headers."
+      required:
+        - redirect_url
+      properties:
+        redirect_url:
+          type: string
+          format: uri
+          description: OAuth client redirect URI with either code+state for allow, or error+state for deny.
+
+    OAuthTokenResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 6749 §5.1 successful token response."
+      required: [access_token, token_type, expires_in, refresh_token, scope]
+      properties:
+        access_token:
+          type: string
+          description: Resource-bound access token (audience matches the protected resource).
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds.
+        refresh_token:
+          type: string
+          description: Opaque refresh token. Rotates on every successful refresh; presenting an already-rotated token revokes the entire family.
+        scope:
+          type: string
+          description: Space-delimited scopes granted with this token.
+
+    OAuthTokenError:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 6749 §5.2 error response."
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: 'RFC 6749 §5.2 error code: invalid_request, invalid_client, invalid_grant, unauthorized_client, unsupported_grant_type, invalid_scope.'
+        error_description:
+          type: string
+          description: Human-readable, no leak of internal storage state.
+
+    OAuthRegisterRequest:
+      type: object
+      x-runtime: [cloud]
+      additionalProperties: false
+      description: "[cloud-only] RFC 7591 §2 client metadata document. Only the fields the server honors are listed; presence of `scope` or `resource_grants` in the request is rejected (`invalid_client_metadata`) because those are server-owned for dynamic clients."
+      required:
+        - redirect_uris
+        - application_type
+      properties:
+        redirect_uris:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 5
+          description: 1–5 redirect URIs. Validated against `application_type` policy.
+        client_name:
+          type: string
+          maxLength: 100
+          description: Human-readable name shown in the consent UI. Reserved-name list rejects impersonation of major clients.
+        application_type:
+          type: string
+          enum: [native, web]
+          description: |
+            RFC 7591 §2 application_type. **REQUIRED** — clients MUST declare intent; the server does not default this field. `native` for desktop / CLI / MCP-spec-strict clients (loopback redirects); `web` for hosted clients (HTTPS only, host must be allowlisted). A missing or explicitly empty `application_type` rejects with `invalid_client_metadata`.
+        token_endpoint_auth_method:
+          type: string
+          enum: [none]
+          description: 'Public clients only this phase — must be `none` if present. The server forces `none` regardless.'
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: [authorization_code, refresh_token]
+          description: Optional. Defaults to `["authorization_code","refresh_token"]`.
+        response_types:
+          type: array
+          items:
+            type: string
+            enum: [code]
+          description: Optional. Defaults to `["code"]`.
+        scope:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Dynamic clients do not pick scopes — the server assigns scopes from the active resource's published list. Sending `scope` in the registration body is treated as a privilege-escalation attempt and returns `invalid_client_metadata`."
+        resource_grants:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: "**REJECTED IF PRESENT.** Same reason as `scope`. The set of resources and scopes a dynamic client may request is server-policy, not request-driven."
+        client_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        logo_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        tos_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        policy_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        software_id:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        software_version:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        contacts:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        jwks:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        jwks_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+
+    OAuthRegisterResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 7591 §3.2.1 successful registration response."
+      required:
+        - client_id
+        - client_id_issued_at
+        - redirect_uris
+        - grant_types
+        - response_types
+        - token_endpoint_auth_method
+        - application_type
+      properties:
+        client_id:
+          type: string
+          description: Server-generated client_id.
+        client_id_issued_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the client was registered.
+        client_name:
+          type: string
+        redirect_uris:
+          type: array
+          items:
+            type: string
+        grant_types:
+          type: array
+          items:
+            type: string
+        response_types:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_method:
+          type: string
+          enum: [none]
+        application_type:
+          type: string
+          enum: [native, web]
+
+    OAuthRegisterError:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 7591 §3.2.2 error response."
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          enum: [invalid_redirect_uri, invalid_client_metadata]
+        error_description:
+          type: string
+          nullable: true
 
     BillingBalance:
       type: object

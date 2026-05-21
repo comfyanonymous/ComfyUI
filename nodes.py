@@ -2459,6 +2459,7 @@ async def init_builtin_extra_nodes():
         "nodes_hidream_o1.py",
         "nodes_save_3d.py",
         "nodes_moge.py",
+        "nodes_mediapipe.py",
     ]
 
     import_failed = []

@@ -419,15 +419,17 @@ class VoxelToMeshBasic(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VoxelToMeshBasic",
-            display_name="Voxel to Mesh (Basic)",
+            display_name="Voxel to Mesh (Basic) (DEPRECATED)",
             category="3d",
+            description="Converts a voxel grid to a mesh.",
+            is_deprecated=True, # This node is superseded by the Voxel To Mesh node
             inputs=[
                 IO.Voxel.Input("voxel"),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
             ],
             outputs=[
                 IO.Mesh.Output(),
-            ]
+            ],
         )
 
     @classmethod
@@ -453,9 +455,10 @@ class VoxelToMesh(IO.ComfyNode):
             node_id="VoxelToMesh",
             display_name="Voxel to Mesh",
             category="3d",
+            description="Converts a voxel grid to a mesh.",
             inputs=[
                 IO.Voxel.Input("voxel"),
-                IO.Combo.Input("algorithm", options=["surface net", "basic"], advanced=True),
+                IO.Combo.Input("algorithm", options=["surface net", "basic"]),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
             ],
             outputs=[
