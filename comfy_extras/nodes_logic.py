@@ -14,7 +14,7 @@ class NotNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyNotNode",
             display_name="Not",
-            category="logic",
+            category="utils/logic",
             description="Logical NOT operation. Returns true if the value is falsy. Uses Python's rules for truthiness.",
             search_aliases=["invert", "toggle", "negate", "flip boolean"],
             inputs=[
@@ -41,7 +41,7 @@ class AndNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyAndNode",
             display_name="And",
-            category="logic",
+            category="utils/logic",
             description="Logical AND operation. Returns true if all of the values are truthy. Uses Python's rules for truthiness.",
             search_aliases=["all", "every"],
             inputs=[
@@ -68,7 +68,7 @@ class OrNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyOrNode",
             display_name="Or",
-            category="logic",
+            category="utils/logic",
             description="Logical OR operation. Returns true if any of the values are truthy. Uses Python's rules for truthiness.",
             search_aliases=["any", "some"],
             inputs=[
