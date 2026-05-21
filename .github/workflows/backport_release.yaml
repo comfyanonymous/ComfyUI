@@ -100,29 +100,58 @@ jobs:
           echo "New version will be:   ${new_version}"
           echo "Release branch:        ${release_branch}"
 
-      - name: Validate source branch root is the latest stable release
+      - name: Validate source branch is cut directly from the latest stable release
         env:
-          SOURCE_BRANCH:    ${{ inputs.branch }}
-          LATEST_TAG_SHA:   ${{ steps.latest.outputs.latest_sha }}
-          LATEST_TAG:       ${{ steps.latest.outputs.latest_tag }}
+          SOURCE_BRANCH:   ${{ inputs.branch }}
+          LATEST_TAG_SHA:  ${{ steps.latest.outputs.latest_sha }}
+          LATEST_TAG:      ${{ steps.latest.outputs.latest_tag }}
         run: |
           set -euo pipefail
 
           source_sha="$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}")"
 
-          # The "root" of the branch must be the latest stable tag commit. We define
-          # root as: the merge-base between the source branch and the latest stable
-          # tag must be exactly the latest stable tag commit. This guarantees the
-          # branch is a strict descendant (or equal to) the latest stable release.
-          merge_base="$(git merge-base "${source_sha}" "${LATEST_TAG_SHA}")"
-
-          if [[ "${merge_base}" != "${LATEST_TAG_SHA}" ]]; then
-            echo "::error::Source branch '${SOURCE_BRANCH}' is not rooted on the latest stable release '${LATEST_TAG}'."
-            echo "::error::Expected merge-base ${LATEST_TAG_SHA}, got ${merge_base}."
+          # The source branch must be cut directly off the latest stable tag.
+          # "Cut directly off" means: walking first-parent from the source tip
+          # eventually reaches LATEST_TAG_SHA. This rejects branches that were
+          # cut from master after the tag (which would carry unrelated commits),
+          # while accepting a branch rooted at the tag with N backport commits
+          # on top (each of which may itself be a merge — first-parent walks
+          # through the mainline of the branch).
+          if ! git rev-list --first-parent "${source_sha}" \
+                | grep -qx "${LATEST_TAG_SHA}"; then
+            echo "::error::Source branch '${SOURCE_BRANCH}' is not cut from '${LATEST_TAG}'."
+            echo "::error::Its first-parent history does not include ${LATEST_TAG_SHA}."
             exit 1
           fi
 
-          echo "Source branch is correctly rooted on ${LATEST_TAG}."
+          # Additionally, every commit added on top of the tag (the set we are
+          # about to publish) must itself be a descendant of the tag along
+          # first-parent — i.e. no sibling commits from master sneak in via a
+          # non-first-parent path. Enforce by requiring that the symmetric
+          # difference is empty in one direction: commits in source that are
+          # NOT first-parent-reachable from source starting at the tag.
+          # We do this by intersecting:
+          #   A = commits reachable from source but not from tag (full DAG)
+          #   B = commits on the first-parent chain from source down to tag
+          # and requiring A == B.
+          all_added="$(git rev-list "${LATEST_TAG_SHA}..${source_sha}" | sort)"
+          first_parent_added="$(
+            git rev-list --first-parent "${LATEST_TAG_SHA}..${source_sha}" | sort
+          )"
+
+          if [[ "${all_added}" != "${first_parent_added}" ]]; then
+            echo "::error::Source branch '${SOURCE_BRANCH}' contains commits not on its first-parent chain from '${LATEST_TAG}'."
+            echo "::error::This usually means the branch was cut from master (not from the tag) or contains a merge from master."
+            echo "Commits reachable but not on first-parent chain:"
+            comm -23 <(printf '%s\n' "${all_added}") <(printf '%s\n' "${first_parent_added}") \
+              | while read -r sha; do
+                  echo "  $(git log -1 --format='%h %s' "${sha}")"
+                done
+            exit 1
+          fi
+
+          added_count="$(printf '%s\n' "${all_added}" | grep -c . || true)"
+          echo "Source branch is cut directly from ${LATEST_TAG} with ${added_count}
 
       - name: Validate PR exists, is named correctly, and checks pass
         env:
