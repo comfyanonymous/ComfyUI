@@ -262,7 +262,10 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
             is_input_list=True,  # Receive both images and texts as lists
             inputs=[
                 io.Image.Input("images", tooltip="List of images to save."),
-                io.String.Input("texts", tooltip="List of text captions to save.", force_input=True),
+                io.String.Input("texts",
+                    optional=True,
+                    force_input=True,
+                    tooltip="List of text captions to save."),
                 io.String.Input(
                     "folder_name",
                     default="dataset",
@@ -279,7 +282,7 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images, texts, folder_name, filename_prefix):
+    def execute(cls, images, folder_name, filename_prefix, texts=None):
         # Extract scalar values
         folder_name = folder_name[0]
         filename_prefix = filename_prefix[0]
@@ -288,11 +291,12 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
         saved_files = save_images_to_folder(images, output_dir, filename_prefix)
 
         # Save captions
-        for idx, (filename, caption) in enumerate(zip(saved_files, texts)):
-            caption_filename = filename.replace(".png", ".txt")
-            caption_path = os.path.join(output_dir, caption_filename)
-            with open(caption_path, "w", encoding="utf-8") as f:
-                f.write(caption)
+        if texts:
+            for idx, (filename, caption) in enumerate(zip(saved_files, texts)):
+                caption_filename = filename.replace(".png", ".txt")
+                caption_path = os.path.join(output_dir, caption_filename)
+                with open(caption_path, "w", encoding="utf-8") as f:
+                    f.write(caption)
 
         logging.info(f"Saved {len(saved_files)} images and captions to {output_dir}.")
         return io.NodeOutput()
