@@ -15,7 +15,7 @@ class TensorFileSlice(NamedTuple):
     size: int
 
 
-def read_tensor_file_slice_into(tensor, destination):
+def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=None):
 
     if isinstance(tensor, QuantizedTensor):
         if not isinstance(destination, QuantizedTensor):
@@ -23,12 +23,17 @@ def read_tensor_file_slice_into(tensor, destination):
         if tensor._layout_cls != destination._layout_cls:
             return False
 
-        if not read_tensor_file_slice_into(tensor._qdata, destination._qdata):
+        if not read_tensor_file_slice_into(tensor._qdata, destination._qdata, stream=stream,
+                                           destination2=(destination2._qdata if destination2 is not None else None)):
             return False
 
         dst_orig_dtype = destination._params.orig_dtype
         destination._params.copy_from(tensor._params, non_blocking=False)
         destination._params = dataclasses.replace(destination._params, orig_dtype=dst_orig_dtype)
+        if destination2 is not None:
+            dst_orig_dtype = destination2._params.orig_dtype
+            destination2._params.copy_from(destination._params, non_blocking=True)
+            destination2._params = dataclasses.replace(destination2._params, orig_dtype=dst_orig_dtype)
         return True
 
     info = getattr(tensor.untyped_storage(), "_comfy_tensor_file_slice", None)
@@ -46,6 +51,17 @@ def read_tensor_file_slice_into(tensor, destination):
         return False
 
     if info.size == 0:
+        return True
+
+    hostbuf = getattr(destination.untyped_storage(), "_comfy_hostbuf", None)
+    if hostbuf is not None:
+        stream_ptr = getattr(stream, "cuda_stream", 0) if stream is not None else 0
+        device_ptr = destination2.data_ptr() if destination2 is not None else 0
+        hostbuf.read_file_slice(file_obj, info.offset, info.size,
+                                offset=destination.data_ptr() - hostbuf.get_raw_address(),
+                                stream=stream_ptr,
+                                device_ptr=device_ptr,
+                                device=None if destination2 is None else destination2.device.index)
         return True
 
     buf_type = ctypes.c_ubyte * info.size
@@ -151,7 +167,7 @@ def set_ram_cache_release_state(callback, headroom):
     extra_ram_release_callback = callback
     RAM_CACHE_HEADROOM = max(0, int(headroom))
 
-def extra_ram_release(target):
+def extra_ram_release(target, free_active=False):
     if extra_ram_release_callback is None:
         return 0
-    return extra_ram_release_callback(target)
+    return extra_ram_release_callback(target, free_active=free_active)
