@@ -78,7 +78,7 @@ class DrawBBoxes(io.ComfyNode):
                 io.BoundingBox.Input("bboxes", force_input=True),
             ],
             outputs=[
-                io.Image.Output("image"),
+                io.Image.Output("out_image"),
             ],
         )
 
