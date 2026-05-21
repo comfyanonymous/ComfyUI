@@ -151,7 +151,7 @@ jobs:
           fi
 
           added_count="$(printf '%s\n' "${all_added}" | grep -c . || true)"
-          echo "Source branch is cut directly from ${LATEST_TAG} with ${added_count}
+          echo "Source branch is cut directly from ${LATEST_TAG} with ${added_count} commit(s) on top."
 
       - name: Validate PR exists, is named correctly, and checks pass
         env:
