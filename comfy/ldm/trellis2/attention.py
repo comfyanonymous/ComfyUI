@@ -5,8 +5,12 @@ from typing import Tuple, Union, List
 from comfy.ldm.trellis2.vae import VarLenTensor
 import comfy.ops
 
+try:
+    from torch.nn.attention.varlen import varlen_attn as _varlen_attn
+except ImportError:
+    _varlen_attn = None
 
-# replica of the seedvr2 code
+
 def var_attn_arg(kwargs):
     cu_seqlens_q = kwargs.get("cu_seqlens_q", None)
     max_seqlen_q = kwargs.get("max_seqlen_q", None)
@@ -16,42 +20,30 @@ def var_attn_arg(kwargs):
     return cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k
 
 def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
-    var_length = True
-    if var_length:
-        cu_seqlens_q, cu_seqlens_k, _, _ = var_attn_arg(kwargs)
-        if not skip_reshape:
-            # assumes 2D q, k,v [total_tokens, embed_dim]
-            total_tokens, embed_dim = q.shape
-            head_dim = embed_dim // heads
-            q = q.view(total_tokens, heads, head_dim)
-            k = k.view(k.shape[0], heads, head_dim)
-            v = v.view(v.shape[0], heads, head_dim)
+    cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k = var_attn_arg(kwargs)
+    if not skip_reshape:
+        total_tokens, embed_dim = q.shape
+        head_dim = embed_dim // heads
+        q = q.view(total_tokens, heads, head_dim)
+        k = k.view(k.shape[0], heads, head_dim)
+        v = v.view(v.shape[0], heads, head_dim)
 
-        b = q.size(0)
-        dim_head = q.shape[-1]
-        q = torch.nested.nested_tensor_from_jagged(q, offsets=cu_seqlens_q.long())
-        k = torch.nested.nested_tensor_from_jagged(k, offsets=cu_seqlens_k.long())
-        v = torch.nested.nested_tensor_from_jagged(v, offsets=cu_seqlens_k.long())
-
-        mask = None
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-
-    if mask is not None:
-        if mask.ndim == 2:
-            mask = mask.unsqueeze(0)
-        if mask.ndim == 3:
-            mask = mask.unsqueeze(1)
-
-    out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
-    if var_length:
-        return out.transpose(1, 2).values()
-    if not skip_output_reshape:
-        out = (
-            out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+    if _varlen_attn is not None:
+        return _varlen_attn(
+            q, k, v,
+            cu_seqlens_q, cu_seqlens_k,
+            int(max_seqlen_q), int(max_seqlen_k),
         )
-    return out
+
+    # Fallback: nested-tensor SDPA (PyTorch < the version that introduced varlen_attn)
+    q = torch.nested.nested_tensor_from_jagged(q, offsets=cu_seqlens_q.long())
+    k = torch.nested.nested_tensor_from_jagged(k, offsets=cu_seqlens_k.long())
+    v = torch.nested.nested_tensor_from_jagged(v, offsets=cu_seqlens_k.long())
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+    out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
+    return out.transpose(1, 2).values()
 
 def scaled_dot_product_attention(*args, **kwargs):
     num_all_args = len(args) + len(kwargs)

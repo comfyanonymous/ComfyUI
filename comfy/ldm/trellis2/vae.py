@@ -75,13 +75,9 @@ def sparse_conv3d_forward(self, x):
 
 class LayerNorm32(nn.LayerNorm):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_dtype = x.dtype
-        x = x.to(torch.float32)
-        w = self.weight.to(torch.float32) if self.weight is not None else None
-        b = self.bias.to(torch.float32) if self.bias is not None else None
-
-        o = F.layer_norm(x, self.normalized_shape, w, b, self.eps)
-        return o.to(x_dtype)
+        w = self.weight.to(x.dtype) if self.weight is not None else None
+        b = self.bias.to(x.dtype) if self.bias is not None else None
+        return F.layer_norm(x, self.normalized_shape, w, b, self.eps)
 
 class SparseConvNeXtBlock3d(nn.Module):
     def __init__(
@@ -204,7 +200,6 @@ class SparseResBlockC2S3d(nn.Module):
         self.norm2 = LayerNorm32(self.out_channels, elementwise_affine=False, eps=1e-6)
         self.conv1 = SparseConv3d(channels, self.out_channels * 8, 3)
         self.conv2 = SparseConv3d(self.out_channels, self.out_channels, 3)
-        self.skip_connection = lambda x: x.replace(x.feats.repeat_interleave(out_channels // (channels // 8), dim=1))
         if pred_subdiv:
             self.to_subdiv = SparseLinear(channels, 8)
         self.updown = SparseChannel2Spatial(2)
@@ -215,15 +210,16 @@ class SparseResBlockC2S3d(nn.Module):
             x = x.to(dtype)
             subdiv = self.to_subdiv(x)
         h = x.replace(self.norm1(x.feats))
-        h = h.replace(F.silu(h.feats))
+        h = h.replace(F.silu(h.feats, inplace=True))
         h = self.conv1(h)
         subdiv_binarized = subdiv.replace(subdiv.feats > 0) if subdiv is not None else None
         h = self.updown(h, subdiv_binarized)
         x = self.updown(x, subdiv_binarized)
         h = h.replace(self.norm2(h.feats))
-        h = h.replace(F.silu(h.feats))
+        h = h.replace(F.silu(h.feats, inplace=True))
         h = self.conv2(h)
-        h = h + self.skip_connection(x)
+        skip_repeat = self.out_channels // (self.channels // 8)
+        h.feats.view(h.feats.shape[0], x.feats.shape[1], skip_repeat).add_(x.feats.unsqueeze(-1))
         if self.pred_subdiv:
             return h, subdiv
         else:
@@ -1211,13 +1207,12 @@ def flexible_dual_grid_to_mesh(
     edge_neighbor_voxel = coords.reshape(N, 1, 1, 3) + flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset      # (N, 3, 4, 3)
     connected_voxel = edge_neighbor_voxel[intersected_flag]                           # (M, 4, 3)
     M = connected_voxel.shape[0]
-    # flatten connected voxel coords and lookup
-    conn_flat_b = torch.zeros((M * 4,), dtype=torch.long, device=coords.device)
-    conn_x = connected_voxel.reshape(-1, 3)[:, 0].to(torch.int32)
-    conn_y = connected_voxel.reshape(-1, 3)[:, 1].to(torch.int32)
-    conn_z = connected_voxel.reshape(-1, 3)[:, 2].to(torch.int32)
+    # flatten connected voxel coords and lookup. In-place to avoid extra memory allocation.
     W, H, D = int(grid_size[0].item()), int(grid_size[1].item()), int(grid_size[2].item())
-    conn_flat = conn_flat_b * (W * H * D) + conn_x * (H * D) + conn_y * D + conn_z
+    cv = connected_voxel.reshape(-1, 3)
+    conn_flat = cv[:, 0].long() * (H * D)
+    conn_flat.add_(cv[:, 1].long() * D)
+    conn_flat.add_(cv[:, 2].long())
 
     conn_indices = torch_hashmap.lookup_flat(conn_flat).reshape(M, 4).int()
     connected_voxel_valid = (conn_indices != 0xffffffff).all(dim=1)

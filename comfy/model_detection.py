@@ -113,13 +113,21 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 unet_config['block_repeat'] = [[1, 1, 1, 1], [2, 2, 2, 2]]
         return unet_config
 
-    if '{}img2shape.blocks.1.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
+    def _detect_proj(sub_prefix: str, name: str):
+        key = '{}{}.blocks.0.cross_attn.proj_linear.weight'.format(key_prefix, sub_prefix)
+        if key in state_dict_keys:
+            unet_config["image_attn_mode_{}".format(name)] = "proj"
+            unet_config["proj_in_channels_{}".format(name)] = int(state_dict[key].shape[1])
+
+    if '{}img2shape.blocks.0.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys or \
+       '{}img2shape.blocks.0.cross_attn.cross_attn_block.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
         unet_config = {}
         unet_config["image_model"] = "trellis2"
 
-        unet_config["init_txt_model"] = False
-        if '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
-            unet_config["init_txt_model"] = True
+        unet_config["init_txt_model"] = (
+            '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys or
+            '{}shape2txt.blocks.29.cross_attn.cross_attn_block.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys
+        )
 
         unet_config["resolution"] = 64
         if metadata is not None:
@@ -127,14 +135,20 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 unet_config["resolution"] = 32
 
         unet_config["num_heads"] = 12
+
+        _detect_proj("img2shape", "shape")
+        _detect_proj("shape2txt", "texture")
+        _detect_proj("structure_model", "structure")
         return unet_config
 
-    if '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys: # trellis2 texture
+    if '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys or \
+       '{}shape2txt.blocks.29.cross_attn.cross_attn_block.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys: # trellis2 texture
         unet_config = {}
         unet_config["image_model"] = "trellis2"
         unet_config["resolution"] = 64
         unet_config["num_heads"] = 12
         unet_config["txt_only"] = True
+        _detect_proj("shape2txt", "texture")
         return unet_config
 
     if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit

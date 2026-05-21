@@ -1325,6 +1325,7 @@ class Trellis2(supported_models_base.BASE):
 
     sampling_settings = {
         "shift": 3.0,
+        "multiplier": 1.0
     }
 
     memory_usage_factor = 3.5

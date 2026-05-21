@@ -26,16 +26,26 @@ class TorchHashMap:
         self.default_value = torch.tensor(default_value, dtype=torch.long, device=device)
         self._n = self.sorted_keys.numel()
 
+    # Chunk size for lookup_flat. At ~530M flat keys (large mesh extraction),
+    # the unchunked path allocates ~5 full-size int64 temporaries (4 GB each) +
+    # bool masks + the int32 output. Chunking caps each transient to ~CHUNK rows.
+    _LOOKUP_CHUNK = 1 << 23   # 8M rows ≈ 64 MB per int64 temp
+
     def lookup_flat(self, flat_keys: torch.Tensor) -> torch.Tensor:
-        flat = flat_keys.to(torch.long)
-        if self._n == 0:
-            return torch.full((flat.shape[0],), -1, device=flat.device, dtype=torch.int32)
-        idx = torch.searchsorted(self.sorted_keys, flat)
-        idx_safe = torch.clamp(idx, max=self._n - 1)
-        found = (idx < self._n) & (self.sorted_keys[idx_safe] == flat)
-        out = torch.full((flat.shape[0],), -1, device=flat.device, dtype=torch.int32)
-        if found.any():
-            out[found] = self.sorted_vals[idx_safe[found]].to(torch.int32)
+        N = flat_keys.shape[0]
+        out = torch.full((N,), -1, device=flat_keys.device, dtype=torch.int32)
+        if self._n == 0 or N == 0:
+            return out
+        for s in range(0, N, self._LOOKUP_CHUNK):
+            e = min(s + self._LOOKUP_CHUNK, N)
+            flat_chunk = flat_keys[s:e].to(torch.long)
+            idx = torch.searchsorted(self.sorted_keys, flat_chunk)
+            in_range = idx < self._n
+            idx.clamp_(max=self._n - 1)  # reuse idx as the "safe" index
+            found = in_range & (self.sorted_keys[idx] == flat_chunk)
+            if found.any():
+                found_idx = found.nonzero(as_tuple=True)[0]
+                out[s + found_idx] = self.sorted_vals[idx[found_idx]].to(torch.int32)
         return out
 
 
@@ -212,10 +222,10 @@ def sparse_submanifold_conv3d(
 
     if accumulate_f32:
         weight_T = weight.view(Co, V * Ci).to(torch.float32).T.contiguous()
-        output = torch.zeros(N_pts, Co, device=device, dtype=torch.float32)
     else:
         weight_T = weight.view(Co, V * Ci).to(feats.dtype).T.contiguous()
-        output = torch.zeros(N_pts, Co, device=device, dtype=feats.dtype)
+
+    output = torch.empty(N_pts, Co, device=device, dtype=feats.dtype)
 
     # ------------------------------------------------------------------
     # Chunk size from memory budget
@@ -226,6 +236,9 @@ def sparse_submanifold_conv3d(
     chunk_size = max(1, int(max_chunk_mem / mem_per_row))
     chunk_size = min(chunk_size, N_pts)
 
+    # fp32 matmul scratch — sized to the largest chunk, reused each iteration.
+    chunk_buf = torch.empty(chunk_size, Co, device=device, dtype=torch.float32) if accumulate_f32 else None
+
     # ------------------------------------------------------------------
     # Chunked forward pass
     #   Each iteration:
@@ -233,7 +246,8 @@ def sparse_submanifold_conv3d(
     #     2. mask     zero invalids       – in-place, no extra alloc
     #     3. reshape  (chunk, V*Ci)
     #     4. GEMM     (chunk, V*Ci) @ (V*Ci, Co) → (chunk, Co)  – cuBLAS
-    #        written directly into output slice via out= argument
+    #        written into the scratch buf (fp32) or output slice (fp16) via out=
+    #     5. (fp32 path) cast scratch chunk to fp16 and copy into output slice
     # ------------------------------------------------------------------
     for start in range(0, N_pts, chunk_size):
         end = min(start + chunk_size, N_pts)
@@ -257,16 +271,13 @@ def sparse_submanifold_conv3d(
         gathered_flat = gathered.view(actual_chunk, V * Ci)
         if accumulate_f32:
             gathered_flat = gathered_flat.to(torch.float32)
-
-        # Single GEMM call per chunk, written directly into output.
-        # This avoids allocating a temporary (chunk, Co) tensor.
-        torch.matmul(gathered_flat, weight_T, out=output[start:end])
-
-    if accumulate_f32:
-        output = output.to(feats.dtype)
+            torch.matmul(gathered_flat, weight_T, out=chunk_buf[:actual_chunk])
+            output[start:end] = chunk_buf[:actual_chunk].to(feats.dtype)
+        else:
+            torch.matmul(gathered_flat, weight_T, out=output[start:end])
 
     if bias is not None:
-        output = output + bias.unsqueeze(0).to(output.dtype)
+        output += bias.unsqueeze(0).to(output.dtype)
 
     return output, neighbor
 
