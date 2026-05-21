@@ -844,26 +844,19 @@ def fix_face_orientation(vertices, faces, reference_normals=None):
     device = faces.device
     corrected = faces.clone()
 
-    f_idx = torch.arange(num_faces, device=device).view(-1, 1).expand(num_faces, 3)
-
-    edges = torch.stack([
-        torch.stack([corrected[:, 0], corrected[:, 1]], dim=1),
-        torch.stack([corrected[:, 1], corrected[:, 2]], dim=1),
-        torch.stack([corrected[:, 2], corrected[:, 0]], dim=1),
-    ], dim=1)
+    idx = torch.tensor([[0, 1], [1, 2], [2, 0]], dtype=torch.int64, device=device)
+    edges = corrected[:, idx]  # (num_faces, 3, 2)
 
     edges_canon = torch.sort(edges, dim=2)[0]
     edges_flat = edges_canon.view(-1, 2)
-    face_per_edge = f_idx.reshape(-1)
 
     max_vert = vertices.shape[0]
     edge_hash = edges_flat[:, 0] * max_vert + edges_flat[:, 1]
 
     hash_sorted, sort_idx = torch.sort(edge_hash)
-    face_sorted = face_per_edge[sort_idx]
-    edges_sorted = edges_flat[sort_idx]
 
-    hash_diff = torch.cat([torch.tensor([1], device=device), hash_sorted[1:] - hash_sorted[:-1]])
+    hash_diff = hash_sorted[1:] != hash_sorted[:-1]
+    hash_diff = torch.cat([torch.tensor([True], device=device), hash_diff])
     unique_starts = torch.nonzero(hash_diff, as_tuple=True)[0]
     unique_ends = torch.cat([unique_starts[1:], torch.tensor([len(hash_sorted)], device=device)])
     run_lengths = unique_ends - unique_starts
@@ -871,27 +864,17 @@ def fix_face_orientation(vertices, faces, reference_normals=None):
     manifold_mask = run_lengths == 2
     manifold_starts = unique_starts[manifold_mask]
 
-    # Pre-allocate as numpy array on CPU to avoid PyTorch/CUDA launch overhead during traversal
     component_id_np = np.full(num_faces, -1, dtype=np.int64)
 
     if manifold_starts.numel() > 0:
-        f_a = face_sorted[manifold_starts]
-        f_b = face_sorted[manifold_starts + 1]
+        # Replaces slow, nested element-wise matching with direct index mapping
+        f_a = sort_idx[manifold_starts] // 3
+        f_b = sort_idx[manifold_starts + 1] // 3
+        local_edge_a = sort_idx[manifold_starts] % 3
+        local_edge_b = sort_idx[manifold_starts + 1] % 3
 
-        edges_a = edges[f_a]
-        edges_b = edges[f_b]
-        canon_a = edges_canon[f_a]
-        canon_b = edges_canon[f_b]
-        target_edge = edges_sorted[manifold_starts].unsqueeze(1)
-
-        match_a = (canon_a == target_edge).all(dim=2)
-        match_b = (canon_b == target_edge).all(dim=2)
-
-        edge_idx_a = torch.nonzero(match_a, as_tuple=True)[1]
-        edge_idx_b = torch.nonzero(match_b, as_tuple=True)[1]
-
-        dir_edge_a = edges_a[torch.arange(len(f_a), device=device), edge_idx_a]
-        dir_edge_b = edges_b[torch.arange(len(f_b), device=device), edge_idx_b]
+        dir_edge_a = edges[f_a, local_edge_a]
+        dir_edge_b = edges[f_b, local_edge_b]
 
         opposite = (dir_edge_a == dir_edge_b.flip(dims=[1])).all(dim=1)
         needs_flip_rel = ~opposite
@@ -966,10 +949,6 @@ def fix_face_orientation(vertices, faces, reference_normals=None):
     else:
         component_id = torch.arange(num_faces, device=device)
 
-    # =====================================================================
-    # PHASE 2: Per-component orientation voting (Fully Vectorized)
-    # =====================================================================
-
     v0 = vertices[corrected[:, 0]]
     v1 = vertices[corrected[:, 1]]
     v2 = vertices[corrected[:, 2]]
@@ -987,36 +966,43 @@ def fix_face_orientation(vertices, faces, reference_normals=None):
         ref_normals = ref_normals / (torch.norm(ref_normals, dim=-1, keepdim=True) + 1e-8)
 
         votes = (face_normals * ref_normals).sum(dim=-1)
+
+        outward_votes_comp = torch.zeros(num_components, dtype=torch.int64, device=device)
+        inward_votes_comp = torch.zeros(num_components, dtype=torch.int64, device=device)
+
+        outward_votes_comp.scatter_add_(0, component_id, (votes > 0).to(torch.int64))
+        inward_votes_comp.scatter_add_(0, component_id, (votes < 0).to(torch.int64))
+
+        n_faces_comp_int = torch.zeros(num_components, dtype=torch.int64, device=device)
+        n_faces_comp_int.scatter_add_(0, component_id, torch.ones(num_faces, dtype=torch.int64, device=device))
+
+        thresholds = torch.maximum(torch.ones_like(n_faces_comp_int), n_faces_comp_int // 10)
+        should_flip_comp = inward_votes_comp > outward_votes_comp + thresholds
     else:
+        # Vectorized 3-Axis Extreme Majority Vote (Geometrically Infallible)
         face_centroids = (v0 + v1 + v2) / 3.0
 
-        # Parallelized component centroid calculations via scatter_add_
-        comp_centroid_sum = torch.zeros((num_components, 3), dtype=vertices.dtype, device=device)
-        comp_centroid_sum.scatter_add_(0, component_id.unsqueeze(-1).expand(-1, 3), face_centroids)
+        votes_by_axis = []
+        for axis in range(3):
+            coords = face_centroids[:, axis]
 
-        n_faces_comp = torch.zeros((num_components, 1), dtype=vertices.dtype, device=device)
-        n_faces_comp.scatter_add_(0, component_id.unsqueeze(-1), torch.ones((num_faces, 1), dtype=vertices.dtype, device=device))
+            # Double stable sort acts as a vectorized lexsort on (coords, component_id)
+            sort_idx = torch.argsort(coords, stable=True)
+            sort_idx = sort_idx[torch.argsort(component_id[sort_idx], stable=True)]
 
-        comp_centroid = comp_centroid_sum / torch.clamp(n_faces_comp, min=1.0)
+            # Find group boundaries to get the extreme outer face along this axis per component
+            comp_id_sorted = component_id[sort_idx]
+            group_ends = torch.nonzero(comp_id_sorted[1:] != comp_id_sorted[:-1], as_tuple=True)[0]
+            group_ends = torch.cat([group_ends, torch.tensor([len(comp_id_sorted) - 1], device=device)])
 
-        mapped_comp_centroid = comp_centroid[component_id]
-        outward_dirs = face_centroids - mapped_comp_centroid
-        outward_dirs = outward_dirs / (torch.norm(outward_dirs, dim=-1, keepdim=True) + 1e-8)
+            extreme_face_indices = sort_idx[group_ends]
+            extreme_normals = face_normals[extreme_face_indices]
 
-        votes = (face_normals * outward_dirs).sum(dim=-1)
+            # Normal's component along the respective axis should be positive
+            votes_by_axis.append(extreme_normals[:, axis] > 0)
 
-    # Fully vectorized voting tallying
-    outward_votes_comp = torch.zeros(num_components, dtype=torch.int64, device=device)
-    inward_votes_comp = torch.zeros(num_components, dtype=torch.int64, device=device)
-
-    outward_votes_comp.scatter_add_(0, component_id, (votes > 0).to(torch.int64))
-    inward_votes_comp.scatter_add_(0, component_id, (votes < 0).to(torch.int64))
-
-    n_faces_comp_int = torch.zeros(num_components, dtype=torch.int64, device=device)
-    n_faces_comp_int.scatter_add_(0, component_id, torch.ones(num_faces, dtype=torch.int64, device=device))
-
-    thresholds = torch.maximum(torch.ones_like(n_faces_comp_int), n_faces_comp_int // 10)
-    should_flip_comp = inward_votes_comp > outward_votes_comp + thresholds
+        stacked_votes = torch.stack(votes_by_axis, dim=0)
+        should_flip_comp = stacked_votes.sum(dim=0) < 2  # False if at least 2 axes agree outward
 
     should_flip_face = should_flip_comp[component_id]
     if should_flip_face.any():
@@ -1024,52 +1010,49 @@ def fix_face_orientation(vertices, faces, reference_normals=None):
 
     return corrected
 
+
 def unweld_and_offset_mesh(vertices, faces, colors=None, z_offset=1e-4):
     is_batched = vertices.ndim == 3
+    device = vertices.device
 
     if is_batched:
-        v_list, f_list, c_list = [], [], []
-        for i in range(vertices.shape[0]):
-            v0 = vertices[i][faces[i][:, 0]]
-            v1 = vertices[i][faces[i][:, 1]]
-            v2 = vertices[i][faces[i][:, 2]]
+        B = vertices.shape[0]
+        F = faces.shape[1]
 
-            # Compute face normals
-            fn = torch.cross(v1 - v0, v2 - v0, dim=-1)
-            fn = fn / (torch.norm(fn, dim=-1, keepdim=True) + 1e-8)
+        # 1. Advanced index broadcast to pull all faces in parallel without any Python loops
+        batch_idx = torch.arange(B, device=device).view(-1, 1, 1)
+        v_faces = vertices[batch_idx, faces]  # shape (B, F, 3, 3)
 
-            # Offset each face's private vertices along its face normal
-            offset_verts = torch.stack([v0, v1, v2], dim=1) + fn.unsqueeze(1) * z_offset
-            offset_verts = offset_verts.reshape(-1, 3)
+        v0, v1, v2 = v_faces[:, :, 0], v_faces[:, :, 1], v_faces[:, :, 2]
 
-            # Generate sequential face indices for the unwelded vertices
-            f_unwelded = torch.arange(faces[i].shape[0] * 3, device=vertices.device).reshape(-1, 3)
+        # 2. Compute face normals
+        fn = torch.cross(v1 - v0, v2 - v0, dim=-1)
+        fn = fn / (torch.norm(fn, dim=-1, keepdim=True) + 1e-8)
 
-            v_list.append(offset_verts)
-            f_list.append(f_unwelded)
+        # 3. Translate directly along the face normals in parallel
+        offset_verts = v_faces + fn.unsqueeze(2) * z_offset
+        out_v = offset_verts.reshape(B, -1, 3)
 
-            if colors is not None:
-                c_faces = colors[i][faces[i]]
-                c_unwelded = c_faces.reshape(-1, colors[i].shape[-1])
-                c_list.append(c_unwelded)
+        # 4. Generate identical faces for all batches using constant expansion (O(1))
+        f_single = torch.arange(F * 3, device=device).reshape(-1, 3)
+        out_f = f_single.unsqueeze(0).expand(B, -1, -1)
 
-        out_v = torch.stack(v_list)
-        out_f = torch.stack(f_list)
         if colors is not None:
-            return out_v, out_f, torch.stack(c_list)
+            c_faces = colors[batch_idx, faces]
+            out_c = c_faces.reshape(B, -1, colors.shape[-1])
+            return out_v, out_f, out_c
         return out_v, out_f
 
     # --- Unbatched (Single Mesh) ---
-    v0 = vertices[faces[:, 0]]
-    v1 = vertices[faces[:, 1]]
-    v2 = vertices[faces[:, 2]]
+    v_faces = vertices[faces]  # shape (F, 3, 3)
+    v0, v1, v2 = v_faces[:, 0], v_faces[:, 1], v_faces[:, 2]
 
     # Compute face normals
     fn = torch.cross(v1 - v0, v2 - v0, dim=-1)
     fn = fn / (torch.norm(fn, dim=-1, keepdim=True) + 1e-8)
 
     # Offset each face's private vertices along its face normal
-    offset_verts = torch.stack([v0, v1, v2], dim=1) + fn.unsqueeze(1) * z_offset
+    offset_verts = v_faces + fn.unsqueeze(1) * z_offset
     offset_verts = offset_verts.reshape(-1, 3)
 
     # Generate sequential face indices for the unwelded vertices
