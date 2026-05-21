@@ -35,6 +35,7 @@ import comfy.model_management
 import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
+import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
@@ -117,6 +118,8 @@ def string_to_seed(data):
     return comfy.utils.string_to_seed(data)
 
 class LowVramPatch:
+    is_lowvram_patch = True
+
     def __init__(self, key, patches, convert_func=None, set_func=None):
         self.key = key
         self.patches = patches
@@ -124,11 +127,21 @@ class LowVramPatch:
         self.set_func = set_func
         self.prepared_patches = None
 
-    def prepare(self, allocate_buffer, stream):
-        self.prepared_patches = [
-            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], allocate_buffer, stream), patch[2], patch[3], patch[4])
+    def memory_required(self):
+        counter = [0]
+        for patch in self.patches[self.key]:
+            comfy.lora.prefetch_prepared_value(patch[1], counter, None, None, False)
+        return counter[0]
+
+    def prepare(self, destination, stream, copy=True, commit=True):
+        counter = [0]
+        prepared_patches = [
+            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], counter, destination, stream, copy), patch[2], patch[3], patch[4])
             for patch in self.patches[self.key]
         ]
+        if commit:
+            self.prepared_patches = prepared_patches
+        return prepared_patches
 
     def clear_prepared(self):
         self.prepared_patches = None
@@ -340,9 +353,6 @@ class ModelPatcher:
             return self.size
         self.size = comfy.model_management.module_size(self.model)
         return self.size
-
-    def model_mmap_residency(self, free=False):
-        return comfy.model_management.module_mmap_residency(self.model, free=free)
 
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
@@ -1118,8 +1128,12 @@ class ModelPatcher:
         # Pinned memory pressure tracking is only implemented for DynamicVram loading
         return 0
 
+    def loaded_ram_size(self):
+        # Loaded RAM pressure tracking is only implemented for DynamicVram loading
+        return 0
+
     def partially_unload_ram(self, ram_to_unload):
-        pass
+        return 0
 
     def detach(self, unpatch_all=True):
         self.eject_model()
@@ -1550,6 +1564,16 @@ class ModelPatcherDynamic(ModelPatcher):
         super().__init__(model, load_device, offload_device, size, weight_inplace_update)
         if not hasattr(self.model, "dynamic_vbars"):
             self.model.dynamic_vbars = {}
+        if not hasattr(self.model, "dynamic_pins"):
+            self.model.dynamic_pins = {}
+        if self.load_device not in self.model.dynamic_pins:
+            self.model.dynamic_pins[self.load_device] = {
+                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
+                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
+                "hostbufs_initialized": False,
+                "failed": False,
+                "active": False,
+            }
         self.non_dynamic_delegate_model = None
         assert load_device is not None
 
@@ -1611,6 +1635,14 @@ class ModelPatcherDynamic(ModelPatcher):
             self.unpatch_hooks()
 
             vbar = self._vbar_get(create=True)
+            pin_state = self.model.dynamic_pins[self.load_device]
+            if not pin_state["hostbufs_initialized"]:
+                hostbuf_size = comfy.model_management.pinned_hostbuf_size(self.model_size())
+                pin_state["weights"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0])
+                pin_state["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0])
+                pin_state["hostbufs_initialized"] = True
+            pin_state["failed"] = False
+            pin_state["active"] = True
             if vbar is not None:
                 vbar.prioritize()
 
@@ -1636,7 +1668,9 @@ class ModelPatcherDynamic(ModelPatcher):
                     if key in self.patches:
                         if comfy.lora.calculate_shape(self.patches[key], weight, key) != weight.shape:
                             return (True, 0)
-                        setattr(m, param_key + "_lowvram_function", LowVramPatch(key, self.patches))
+                        lowvram_patch = LowVramPatch(key, self.patches)
+                        lowvram_patch._pin_state = pin_state
+                        setattr(m, param_key + "_lowvram_function", lowvram_patch)
                         num_patches += 1
                     else:
                         setattr(m, param_key + "_lowvram_function", None)
@@ -1653,6 +1687,9 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 def force_load_param(self, param_key, device_to):
                     key = key_param_name_to_key(n, param_key)
+                    weight, _, _ = get_key_weight(self.model, key)
+                    if weight is None:
+                        return
                     if key in self.backup:
                         comfy.utils.set_attr_param(self.model, key, self.backup[key].weight)
                     self.patch_weight_to_device(key, device_to=device_to, force_cast=True)
@@ -1662,17 +1699,23 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 if hasattr(m, "comfy_cast_weights"):
                     m.comfy_cast_weights = True
-                    m.pin_failed = False
                     m.seed_key = n
+                    m._pin_state = pin_state
                     set_dirty(m, dirty)
 
-                    force_load, v_weight_size = setup_param(self, m, n, "weight")
-                    force_load_bias, v_weight_bias = setup_param(self, m, n, "bias")
-                    force_load = force_load or force_load_bias
-                    v_weight_size += v_weight_bias
+                    #Models that mix tiny and giant weights can causing lopsided stream buffer
+                    #rotations and stall. force the tinys over.
+                    if module_mem > 16 * 1024:
+                        force_load, v_weight_size = setup_param(self, m, n, "weight")
+                        force_load_bias, v_weight_bias = setup_param(self, m, n, "bias")
+                        force_load = force_load or force_load_bias
+                        v_weight_size += v_weight_bias
+                        if force_load:
+                            logging.info(f"Module {n} has resizing Lora - force loading")
+                    else:
+                        force_load=True
 
                     if force_load:
-                        logging.info(f"Module {n} has resizing Lora - force loading")
                         force_load_param(self, "weight", device_to)
                         force_load_param(self, "bias", device_to)
                     else:
@@ -1740,23 +1783,58 @@ class ModelPatcherDynamic(ModelPatcher):
 
         return freed
 
-    def pinned_memory_size(self):
-        total = 0
-        loading = self._load_list(for_dynamic=True)
-        for x in loading:
-            _, _, _, _, m, _ = x
-            pin = comfy.pinned_memory.get_pin(m)
-            if pin is not None:
-                total += pin.numel() * pin.element_size()
-        return total
+    def loaded_ram_size(self):
+        return (self.model.dynamic_pins[self.load_device]["weights"][0].size +
+                self.model.dynamic_pins[self.load_device]["patches"][0].size)
 
-    def partially_unload_ram(self, ram_to_unload):
-        loading = self._load_list(for_dynamic=True, default_device=self.offload_device)
-        for x in loading:
-            *_, m, _ = x
-            ram_to_unload -= comfy.pinned_memory.unpin_memory(m)
-            if ram_to_unload <= 0:
-                return
+    def pinned_memory_size(self):
+        return (self.model.dynamic_pins[self.load_device]["weights"][3][0] +
+                self.model.dynamic_pins[self.load_device]["patches"][3][0])
+
+    def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights", "patches" ]):
+        freed = 0
+        pin_state = self.model.dynamic_pins[self.load_device]
+        for subset in subsets:
+            hostbuf, stack, stack_split, pinned_size = pin_state[subset]
+            split = stack_split[0]
+            while split >= 0:
+                module, offset = stack[split]
+                split -= 1
+                stack_split[0] = split
+                if not module._pin_registered:
+                    continue
+                size = module._pin.numel() * module._pin.element_size()
+                if torch.cuda.cudart().cudaHostUnregister(module._pin.data_ptr()) != 0:
+                    comfy.model_management.discard_cuda_async_error()
+                    continue
+                module._pin_registered = False
+                comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
+                pinned_size[0] = max(0, pinned_size[0] - size)
+                freed += size
+                ram_to_unload -= size
+                if ram_to_unload <= 0:
+                    return freed
+        return freed
+
+    def partially_unload_ram(self, ram_to_unload, subsets=[ "weights", "patches" ]):
+        freed = 0
+        pin_state = self.model.dynamic_pins[self.load_device]
+        for subset in subsets:
+            hostbuf, stack, stack_split, pinned_size = pin_state[subset]
+            while len(stack) > 0:
+                module, offset = stack.pop()
+                size = module._pin.numel() * module._pin.element_size()
+                del module._pin
+                hostbuf.truncate(offset, do_unregister=module._pin_registered)
+                stack_split[0] = min(stack_split[0], len(stack) - 1)
+                if module._pin_registered:
+                    comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
+                    pinned_size[0] = max(0, pinned_size[0] - size)
+                freed += size
+                ram_to_unload -= size
+                if ram_to_unload <= 0:
+                    return freed
+        return freed
 
     def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
         #This isn't used by the core at all and can only be to load a model out of

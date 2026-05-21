@@ -113,7 +113,6 @@ def load_safetensors(ckpt):
                         "_comfy_tensor_file_slice",
                         comfy.memory_management.TensorFileSlice(f, threading.get_ident(), data_base_offset + start, end - start))
                 setattr(storage, "_comfy_tensor_mmap_refs", (model_mmap, mv))
-                setattr(storage, "_comfy_tensor_mmap_touched", False)
                 sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),
@@ -1451,4 +1450,3 @@ def deepcopy_list_dict(obj, memo=None):
 
     memo[obj_id] = res
     return res
-
