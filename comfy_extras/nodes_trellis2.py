@@ -446,12 +446,30 @@ class Trellis2Conditioning(IO.ComfyNode):
         )
 
     @classmethod
+    @classmethod
     def execute(cls, clip_vision_model, image, mask) -> IO.NodeOutput:
         # Normalize to batched form so per-image conditioning loop below is uniform.
         if image.ndim == 3:
             image = image.unsqueeze(0)
-        if mask.ndim == 2:
+        elif image.ndim == 4:
+            if image.shape[1] in [1, 3, 4] and image.shape[-1] not in [1, 3, 4]:
+                image = image.permute(0, 2, 3, 1)
+
+        # normalize mask to standard [B, H, W] (handling 2D, 3D, and 4D variants)
+        if mask.ndim == 4:
+            if mask.shape[1] == 1:
+                mask = mask.squeeze(1)
+            elif mask.shape[-1] == 1:
+                mask = mask.squeeze(-1)
+            else:
+                mask = mask[:, :, :, 0] # take first channel as fallback
+
+        if mask.ndim == 3:
+            if mask.shape[-1] == 1:
+                mask = mask.squeeze(-1).unsqueeze(0)
+        elif mask.ndim == 2:
             mask = mask.unsqueeze(0)
+
         batch_size = image.shape[0]
         if mask.shape[0] == 1 and batch_size > 1:
             mask = mask.expand(batch_size, -1, -1)
@@ -468,6 +486,27 @@ class Trellis2Conditioning(IO.ComfyNode):
             img_np = (item_image.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
             mask_np = (item_mask.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
 
+            # Ensure img_np is either 2D (grayscale) or 3D (RGB/RGBA)
+            if img_np.ndim == 3 and img_np.shape[-1] == 1:
+                img_np = img_np.squeeze(-1)
+
+            mask_np = mask_np.squeeze()
+
+            # detect inverted mask
+            border_pixels = np.concatenate([
+                mask_np[0, :], mask_np[-1, :], mask_np[:, 0], mask_np[:, -1]
+            ])
+            if np.mean(border_pixels) > 127:
+                mask_np = 255 - mask_np
+
+            mask_np[mask_np < 35] = 0
+
+            border_shave = 4
+            mask_np[:border_shave, :] = 0
+            mask_np[-border_shave:, :] = 0
+            mask_np[:, :border_shave] = 0
+            mask_np[:, -border_shave:] = 0
+
             pil_img = Image.fromarray(img_np)
             pil_mask = Image.fromarray(mask_np)
 
@@ -479,7 +518,7 @@ class Trellis2Conditioning(IO.ComfyNode):
                 pil_mask = pil_mask.resize((new_w, new_h), Image.Resampling.NEAREST)
 
             rgba_np = np.zeros((pil_img.height, pil_img.width, 4), dtype=np.uint8)
-            rgba_np[:, :, :3] = np.array(pil_img)
+            rgba_np[:, :, :3] = np.array(pil_img.convert("RGB"))
             rgba_np[:, :, 3] = np.array(pil_mask)
 
             alpha = rgba_np[:, :, 3]
@@ -511,12 +550,18 @@ class Trellis2Conditioning(IO.ComfyNode):
             alpha_float = cropped_np[:, :, 3:4]
             composite_np = fg * alpha_float + bg_rgb * (1.0 - alpha_float)
 
-            # to match trellis2 code (quantize -> dequantize)
-            composite_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
+            # Keep the image as 4-channel RGBA to force TRELLIS to bypass its internal background remover
+            rgb_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
+            alpha_uint8 = (alpha_float.squeeze(-1) * 255.0).round().clip(0, 255).astype(np.uint8)
 
-            cropped_pil = Image.fromarray(composite_uint8)
+            rgba_composite = np.zeros((cropped_np.shape[0], cropped_np.shape[1], 4), dtype=np.uint8)
+            rgba_composite[:, :, :3] = rgb_uint8
+            rgba_composite[:, :, 3] = alpha_uint8
 
-            item_conditioning = run_conditioning(clip_vision_model, cropped_pil, include_1024=True)
+            cropped_pil = Image.fromarray(rgba_composite, mode="RGBA")
+
+            # Convert to RGB to ensure the CLIP/DINO model receives a 3-channel image
+            item_conditioning = run_conditioning(clip_vision_model, cropped_pil.convert("RGB"), include_1024=True)
             cond_512_list.append(item_conditioning["cond_512"])
             cond_1024_list.append(item_conditioning["cond_1024"])
 
