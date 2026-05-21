@@ -55,9 +55,10 @@ class ImageCropV2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageCropV2",
-            search_aliases=["trim"],
+            search_aliases=["crop", "cut", "trim"],
             display_name="Crop Image",
             category="image/transform",
+            description = "Crop an image to the specified dimensions.",
             essentials_category="Image Tools",
             has_intermediate_output=True,
             inputs=[
