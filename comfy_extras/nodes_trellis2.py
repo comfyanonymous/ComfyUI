@@ -446,6 +446,7 @@ class Trellis2Conditioning(IO.ComfyNode):
         )
 
     @classmethod
+    @classmethod
     def execute(cls, clip_vision_model, image, mask) -> IO.NodeOutput:
         # Normalize to batched form so per-image conditioning loop below is uniform.
         if image.ndim == 3:
@@ -491,6 +492,21 @@ class Trellis2Conditioning(IO.ComfyNode):
 
             mask_np = mask_np.squeeze()
 
+            # detect inverted mask
+            border_pixels = np.concatenate([
+                mask_np[0, :], mask_np[-1, :], mask_np[:, 0], mask_np[:, -1]
+            ])
+            if np.mean(border_pixels) > 127:
+                mask_np = 255 - mask_np
+
+            mask_np[mask_np < 35] = 0
+
+            border_shave = 4
+            mask_np[:border_shave, :] = 0
+            mask_np[-border_shave:, :] = 0
+            mask_np[:, :border_shave] = 0
+            mask_np[:, -border_shave:] = 0
+
             pil_img = Image.fromarray(img_np)
             pil_mask = Image.fromarray(mask_np)
 
@@ -534,12 +550,18 @@ class Trellis2Conditioning(IO.ComfyNode):
             alpha_float = cropped_np[:, :, 3:4]
             composite_np = fg * alpha_float + bg_rgb * (1.0 - alpha_float)
 
-            # to match trellis2 code (quantize -> dequantize)
-            composite_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
+            # Keep the image as 4-channel RGBA to force TRELLIS to bypass its internal background remover
+            rgb_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
+            alpha_uint8 = (alpha_float.squeeze(-1) * 255.0).round().clip(0, 255).astype(np.uint8)
 
-            cropped_pil = Image.fromarray(composite_uint8)
+            rgba_composite = np.zeros((cropped_np.shape[0], cropped_np.shape[1], 4), dtype=np.uint8)
+            rgba_composite[:, :, :3] = rgb_uint8
+            rgba_composite[:, :, 3] = alpha_uint8
 
-            item_conditioning = run_conditioning(clip_vision_model, cropped_pil, include_1024=True)
+            cropped_pil = Image.fromarray(rgba_composite, mode="RGBA")
+
+            # Convert to RGB to ensure the CLIP/DINO model receives a 3-channel image
+            item_conditioning = run_conditioning(clip_vision_model, cropped_pil.convert("RGB"), include_1024=True)
             cond_512_list.append(item_conditioning["cond_512"])
             cond_1024_list.append(item_conditioning["cond_1024"])
 
