@@ -20,6 +20,8 @@
 import torch
 import math
 import struct
+import ctypes
+import os
 import comfy.memory_management
 import safetensors.torch
 import numpy as np
@@ -32,7 +34,7 @@ from einops import rearrange
 from comfy.cli_args import args
 import json
 import time
-import mmap
+import threading
 import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
@@ -81,14 +83,17 @@ _TYPES = {
 }
 
 def load_safetensors(ckpt):
-    f = open(ckpt, "rb")
-    mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    mv = memoryview(mapping)
+    import comfy_aimdo.model_mmap
 
-    header_size = struct.unpack("<Q", mapping[:8])[0]
-    header = json.loads(mapping[8:8+header_size].decode("utf-8"))
+    f = open(ckpt, "rb", buffering=0)
+    model_mmap = comfy_aimdo.model_mmap.ModelMMAP(ckpt)
+    file_size = os.path.getsize(ckpt)
+    mv = memoryview((ctypes.c_uint8 * file_size).from_address(model_mmap.get()))
 
-    mv = mv[8 + header_size:]
+    header_size = struct.unpack("<Q", mv[:8])[0]
+    header = json.loads(mv[8:8 + header_size].tobytes().decode("utf-8"))
+
+    mv = mv[(data_base_offset := 8 + header_size):]
 
     sd = {}
     for name, info in header.items():
@@ -102,7 +107,13 @@ def load_safetensors(ckpt):
             with warnings.catch_warnings():
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
-                sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                tensor = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                storage = tensor.untyped_storage()
+                setattr(storage,
+                        "_comfy_tensor_file_slice",
+                        comfy.memory_management.TensorFileSlice(f, threading.get_ident(), data_base_offset + start, end - start))
+                setattr(storage, "_comfy_tensor_mmap_refs", (model_mmap, mv))
+                sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),
 
@@ -885,6 +896,10 @@ def set_attr(obj, attr, value):
     return prev
 
 def set_attr_param(obj, attr, value):
+    # Clone inference tensors (created under torch.inference_mode) since
+    # their version counter is frozen and nn.Parameter() cannot wrap them.
+    if (not torch.is_inference_mode_enabled()) and value.is_inference():
+        value = value.clone()
     return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
 
 def set_attr_buffer(obj, attr, value):
@@ -1119,8 +1134,8 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 pbar.update(1)
             continue
 
-        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
-        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+        out = output[b:b+1].zero_()
+        out_div = torch.zeros([s.shape[0], 1] + mult_list_upscale(s.shape[2:]), device=output_device)
 
         positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
 
@@ -1135,7 +1150,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 upscaled.append(round(get_pos(d, pos)))
 
             ps = function(s_in).to(output_device)
-            mask = torch.ones_like(ps)
+            mask = torch.ones([1, 1] + list(ps.shape[2:]), device=output_device)
 
             for d in range(2, dims + 2):
                 feather = round(get_scale(d - 2, overlap[d - 2]))
@@ -1148,17 +1163,23 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
             o = out
             o_d = out_div
+            ps_view = ps
+            mask_view = mask
             for d in range(dims):
-                o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
-                o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+                l = min(ps_view.shape[d + 2], o.shape[d + 2] - upscaled[d])
+                o = o.narrow(d + 2, upscaled[d], l)
+                o_d = o_d.narrow(d + 2, upscaled[d], l)
+                if l < ps_view.shape[d + 2]:
+                    ps_view = ps_view.narrow(d + 2, 0, l)
+                    mask_view = mask_view.narrow(d + 2, 0, l)
 
-            o.add_(ps * mask)
-            o_d.add_(mask)
+            o.add_(ps_view * mask_view)
+            o_d.add_(mask_view)
 
             if pbar is not None:
                 pbar.update(1)
 
-        output[b:b+1] = out/out_div
+        out.div_(out_div)
     return output
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
@@ -1180,7 +1201,7 @@ def model_trange(*args, **kwargs):
             pbar.i1_time = time.time()
             pbar.set_postfix_str(" Model Initialization complete!  ")
         elif pbar._i == 2:
-            #bring forward the effective start time based the the diff between first and second iteration
+            #bring forward the effective start time based the diff between first and second iteration
             #to attempt to remove load overhead from the final step rate estimate.
             pbar.start_t = pbar.i1_time - (time.time() - pbar.i1_time)
             pbar.set_postfix_str("")
@@ -1374,7 +1395,7 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
                     k_out = "{}.weight_scale".format(layer)
 
                 if layer is not None:
-                    layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                    layer_conf = {"format": "float8_e4m3fn"}
                     if full_precision_matrix_mult:
                         layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
                     layers[layer] = layer_conf
@@ -1429,11 +1450,3 @@ def deepcopy_list_dict(obj, memo=None):
 
     memo[obj_id] = res
     return res
-
-def normalize_image_embeddings(embeds, embeds_info, scale_factor):
-    """Normalize image embeddings to match text embedding scale"""
-    for info in embeds_info:
-        if info.get("type") == "image":
-            start_idx = info["index"]
-            end_idx = start_idx + info["size"]
-            embeds[:, start_idx:end_idx, :] /= scale_factor

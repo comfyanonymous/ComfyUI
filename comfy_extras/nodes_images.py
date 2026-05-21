@@ -24,7 +24,7 @@ class ImageCrop(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageCrop",
             search_aliases=["trim"],
-            display_name="Image Crop (Deprecated)",
+            display_name="Crop Image (DEPRECATED)",
             category="image/transform",
             is_deprecated=True,
             essentials_category="Image Tools",
@@ -55,9 +55,12 @@ class ImageCropV2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageCropV2",
-            search_aliases=["trim"],
-            display_name="Image Crop",
+            search_aliases=["crop", "cut", "trim"],
+            display_name="Crop Image",
             category="image/transform",
+            description = "Crop an image to the specified dimensions.",
+            essentials_category="Image Tools",
+            has_intermediate_output=True,
             inputs=[
                 IO.Image.Input("image"),
                 IO.BoundingBox.Input("crop_region", component="ImageCrop"),
@@ -107,6 +110,7 @@ class RepeatImageBatch(IO.ComfyNode):
         return IO.Schema(
             node_id="RepeatImageBatch",
             search_aliases=["duplicate image", "clone image"],
+            display_name="Repeat Image Batch",
             category="image/batch",
             inputs=[
                 IO.Image.Input("image"),
@@ -129,10 +133,11 @@ class ImageFromBatch(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageFromBatch",
             search_aliases=["select image", "pick from batch", "extract image"],
+            display_name="Get Image from Batch",
             category="image/batch",
             inputs=[
                 IO.Image.Input("image"),
-                IO.Int.Input("batch_index", default=0, min=0, max=4095),
+                IO.Int.Input("batch_index", default=0, min=-MAX_RESOLUTION, max=MAX_RESOLUTION),
                 IO.Int.Input("length", default=1, min=1, max=4096),
             ],
             outputs=[IO.Image.Output()],
@@ -141,7 +146,9 @@ class ImageFromBatch(IO.ComfyNode):
     @classmethod
     def execute(cls, image, batch_index, length) -> IO.NodeOutput:
         s_in = image
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        if batch_index < 0:
+            batch_index += s_in.shape[0]
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s = s_in[batch_index:batch_index + length].clone()
         return IO.NodeOutput(s)
@@ -155,7 +162,8 @@ class ImageAddNoise(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageAddNoise",
             search_aliases=["film grain"],
-            category="image",
+            display_name="Add Noise to Image",
+            category="image/filters",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Int.Input(
@@ -187,7 +195,8 @@ class SaveAnimatedWEBP(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAnimatedWEBP",
-            category="image/animation",
+            display_name="Save Animated WEBP",
+            category="image",
             inputs=[
                 IO.Image.Input("images"),
                 IO.String.Input("filename_prefix", default="ComfyUI"),
@@ -224,7 +233,8 @@ class SaveAnimatedPNG(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAnimatedPNG",
-            category="image/animation",
+            display_name="Save Animated PNG",
+            category="image",
             inputs=[
                 IO.Image.Input("images"),
                 IO.String.Input("filename_prefix", default="ComfyUI"),
@@ -257,7 +267,7 @@ class ImageStitch(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageStitch",
             search_aliases=["combine images", "join images", "concatenate images", "side by side"],
-            display_name="Image Stitch",
+            display_name="Stitch Images",
             description="Stitches image2 to image1 in the specified direction.\n"
             "If image2 is not provided, returns image1 unchanged.\n"
             "Optional spacing can be added between images.",
@@ -432,6 +442,7 @@ class ResizeAndPadImage(IO.ComfyNode):
         return IO.Schema(
             node_id="ResizeAndPadImage",
             search_aliases=["fit to size"],
+            display_name="Resize And Pad Image",
             category="image/transform",
             inputs=[
                 IO.Image.Input("image"),
@@ -483,8 +494,9 @@ class SaveSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveSVGNode",
             search_aliases=["export vector", "save vector graphics"],
+            display_name="Save SVG",
             description="Save SVG files on disk.",
-            category="image/save",
+            category="image",
             inputs=[
                 IO.SVG.Input("svg"),
                 IO.String.Input(
@@ -589,7 +601,7 @@ class ImageRotate(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageRotate",
-            display_name="Image Rotate",
+            display_name="Rotate Image",
             search_aliases=["turn", "flip orientation"],
             category="image/transform",
             essentials_category="Image Tools",
@@ -622,6 +634,7 @@ class ImageFlip(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageFlip",
             search_aliases=["mirror", "reflect"],
+            display_name="Flip Image",
             category="image/transform",
             inputs=[
                 IO.Image.Input("image"),
@@ -648,6 +661,7 @@ class ImageScaleToMaxDimension(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageScaleToMaxDimension",
+            display_name="Scale Image to Max Dimension",
             category="image/upscaling",
             inputs=[
                 IO.Image.Input("image"),
@@ -707,7 +721,7 @@ class SplitImageToTileList(IO.ComfyNode):
     def get_grid_coords(width, height, tile_width, tile_height, overlap):
         coords = []
         stride_x = round(max(tile_width * 0.25, tile_width - overlap))
-        stride_y = round(max(tile_width * 0.25, tile_height - overlap))
+        stride_y = round(max(tile_height * 0.25, tile_height - overlap))
 
         y = 0
         while y < height:

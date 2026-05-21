@@ -1,8 +1,86 @@
 import math
+import ctypes
+import threading
+import dataclasses
 import torch
 from typing import NamedTuple
 
 from comfy.quant_ops import QuantizedTensor
+
+
+class TensorFileSlice(NamedTuple):
+    file_ref: object
+    thread_id: int
+    offset: int
+    size: int
+
+
+def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=None):
+
+    if isinstance(tensor, QuantizedTensor):
+        if not isinstance(destination, QuantizedTensor):
+            return False
+        if tensor._layout_cls != destination._layout_cls:
+            return False
+
+        if not read_tensor_file_slice_into(tensor._qdata, destination._qdata, stream=stream,
+                                           destination2=(destination2._qdata if destination2 is not None else None)):
+            return False
+
+        dst_orig_dtype = destination._params.orig_dtype
+        destination._params.copy_from(tensor._params, non_blocking=False)
+        destination._params = dataclasses.replace(destination._params, orig_dtype=dst_orig_dtype)
+        if destination2 is not None:
+            dst_orig_dtype = destination2._params.orig_dtype
+            destination2._params.copy_from(destination._params, non_blocking=True)
+            destination2._params = dataclasses.replace(destination2._params, orig_dtype=dst_orig_dtype)
+        return True
+
+    info = getattr(tensor.untyped_storage(), "_comfy_tensor_file_slice", None)
+    if info is None:
+        return False
+
+    file_obj = info.file_ref
+    if (destination.device.type != "cpu"
+            or file_obj is None
+            or threading.get_ident() != info.thread_id
+            or destination.numel() * destination.element_size() < info.size
+            or tensor.numel() * tensor.element_size() != info.size
+            or tensor.storage_offset() != 0
+            or not tensor.is_contiguous()):
+        return False
+
+    if info.size == 0:
+        return True
+
+    hostbuf = getattr(destination.untyped_storage(), "_comfy_hostbuf", None)
+    if hostbuf is not None:
+        stream_ptr = getattr(stream, "cuda_stream", 0) if stream is not None else 0
+        device_ptr = destination2.data_ptr() if destination2 is not None else 0
+        hostbuf.read_file_slice(file_obj, info.offset, info.size,
+                                offset=destination.data_ptr() - hostbuf.get_raw_address(),
+                                stream=stream_ptr,
+                                device_ptr=device_ptr,
+                                device=None if destination2 is None else destination2.device.index)
+        return True
+
+    buf_type = ctypes.c_ubyte * info.size
+    view = memoryview(buf_type.from_address(destination.data_ptr()))
+
+    try:
+        file_obj.seek(info.offset)
+        done = 0
+        while done < info.size:
+            try:
+                n = file_obj.readinto(view[done:])
+            except OSError:
+                return False
+            if n <= 0:
+                return False
+            done += n
+        return True
+    finally:
+        view.release()
 
 class TensorGeometry(NamedTuple):
     shape: any
@@ -79,3 +157,17 @@ def interpret_gathered_like(tensors, gathered):
     return dest_views
 
 aimdo_enabled = False
+
+extra_ram_release_callback = None
+RAM_CACHE_HEADROOM = 0
+
+def set_ram_cache_release_state(callback, headroom):
+    global extra_ram_release_callback
+    global RAM_CACHE_HEADROOM
+    extra_ram_release_callback = callback
+    RAM_CACHE_HEADROOM = max(0, int(headroom))
+
+def extra_ram_release(target, free_active=False):
+    if extra_ram_release_callback is None:
+        return 0
+    return extra_ram_release_callback(target, free_active=free_active)
