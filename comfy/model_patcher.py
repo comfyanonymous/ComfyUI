@@ -1716,6 +1716,9 @@ class ModelPatcherDynamic(ModelPatcher):
                         force_load=True
 
                     if force_load:
+                        if hasattr(m, "_v"):
+                            comfy_aimdo.model_vbar.vbar_unpin(m._v)
+                            delattr(m, "_v")
                         force_load_param(self, "weight", device_to)
                         force_load_param(self, "bias", device_to)
                     else:
