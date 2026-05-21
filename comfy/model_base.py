@@ -53,6 +53,7 @@ import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
+import comfy.ldm.trellis2.model
 import comfy.ldm.ace.ace_step15
 import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
@@ -1637,6 +1638,16 @@ class WAN22(WAN21):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
 
+class Trellis2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None, unet_model=comfy.ldm.trellis2.model.Trellis2):
+        super().__init__(model_config, model_type, device, unet_model)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        embeds = kwargs.get("embeds")
+        out["embeds"] = comfy.conds.CONDRegular(embeds)
+        return out
+
 class WAN21_FlowRVS(WAN21):
     def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG_FLOW, image_to_video=False, device=None):
         model_config.unet_config["model_type"] = "t2v"
@@ -1678,7 +1689,6 @@ class WAN21_SCAIL(WAN21):
         pose_latents = kwargs.get("pose_video_latent", None)
         if pose_latents is not None:
             out['pose_latents'] = [pose_latents.shape[0], 20, *pose_latents.shape[2:]]
-
         return out
 
 class WAN22_WanDancer(WAN21):

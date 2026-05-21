@@ -113,6 +113,30 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 unet_config['block_repeat'] = [[1, 1, 1, 1], [2, 2, 2, 2]]
         return unet_config
 
+    if '{}img2shape.blocks.1.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
+        unet_config = {}
+        unet_config["image_model"] = "trellis2"
+
+        unet_config["init_txt_model"] = False
+        if '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
+            unet_config["init_txt_model"] = True
+
+        unet_config["resolution"] = 64
+        if metadata is not None:
+            if "is_512" in metadata:
+                unet_config["resolution"] = 32
+
+        unet_config["num_heads"] = 12
+        return unet_config
+
+    if '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys: # trellis2 texture
+        unet_config = {}
+        unet_config["image_model"] = "trellis2"
+        unet_config["resolution"] = 64
+        unet_config["num_heads"] = 12
+        unet_config["txt_only"] = True
+        return unet_config
+
     if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit
         unet_config = {}
         unet_config["audio_model"] = "dit1.0"

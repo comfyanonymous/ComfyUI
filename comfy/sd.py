@@ -15,6 +15,7 @@ import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.lightricks.vae.audio_vae
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
+import comfy.ldm.trellis2.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
@@ -528,6 +529,18 @@ class VAE:
                 self.first_stage_model = StageC_coder()
                 self.downscale_ratio = 32
                 self.latent_channels = 16
+            elif "shape_dec.blocks.1.16.to_subdiv.weight" in sd or "txt_dec.blocks.3.4.conv2.weight" in sd: # trellis2 or trellis2 texture only
+                init_txt_model = False
+                init_txt_model_only = False
+                if "shape_dec.blocks.1.16.to_subdiv.weight" not in sd:
+                    init_txt_model_only = True
+                if "txt_dec.blocks.1.16.norm1.weight" in sd:
+                    init_txt_model = True
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                # TODO
+                self.memory_used_decode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.first_stage_model = comfy.ldm.trellis2.vae.Vae(init_txt_model, init_txt_model_only= init_txt_model_only)
             elif "decoder.conv_in.weight" in sd:
                 if sd['decoder.conv_in.weight'].shape[1] == 64:
                     ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}

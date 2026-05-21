@@ -1537,6 +1537,10 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
+    if "model_options" in latent:
+        inner = model.model.diffusion_model
+        inner.meta = latent["model_options"]
+
     callback = latent_preview.prepare_callback(model, steps)
     disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
@@ -2430,6 +2434,8 @@ async def init_builtin_extra_nodes():
         "nodes_toolkit.py",
         "nodes_replacements.py",
         "nodes_nag.py",
+        "nodes_trellis2.py",
+        "nodes_mesh_postprocess.py",
         "nodes_sdpose.py",
         "nodes_math.py",
         "nodes_number_convert.py",

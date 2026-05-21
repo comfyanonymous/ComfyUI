@@ -1318,6 +1318,29 @@ class WAN22_T2V(WAN21_T2V):
         out = model_base.WAN22(self, image_to_video=True, device=device)
         return out
 
+class Trellis2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "trellis2"
+    }
+
+    sampling_settings = {
+        "shift": 3.0,
+    }
+
+    memory_usage_factor = 3.5
+
+    latent_format = latent_formats.Trellis2
+    vae_key_prefix = ["vae."]
+    clip_vision_prefix = "conditioner.main_image_encoder.model."
+    # this is only needed for the texture model
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Trellis2(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
+
 class WAN21_FlowRVS(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1784,6 +1807,7 @@ class Kandinsky5Image(Kandinsky5):
         return supported_models_base.ClipTarget(comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage, comfy.text_encoders.kandinsky5.te(**hunyuan_detect))
 
 
+
 class ACEStep15(supported_models_base.BASE):
     unet_config = {
         "audio_model": "ace1.5",
@@ -1822,7 +1846,6 @@ class ACEStep15(supported_models_base.BASE):
             detect["lm_model"] = "qwen3_4b"
 
         return supported_models_base.ClipTarget(comfy.text_encoders.ace15.ACE15Tokenizer, comfy.text_encoders.ace15.te(**detect))
-
 
 class LongCatImage(supported_models_base.BASE):
     unet_config = {
@@ -1899,6 +1922,7 @@ class ErnieImage(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}ministral3_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.ernie.ErnieTokenizer, comfy.text_encoders.ernie.te(**hunyuan_detect))
+
 
 
 class SAM3(supported_models_base.BASE):
@@ -2020,7 +2044,6 @@ class CogVideoX_Inpaint(CogVideoX_T2V):
         out = model_base.CogVideoX(self, image_to_video=True, device=device)
         return out
 
-
 models = [
     LotusD,
     Stable_Zero123,
@@ -2107,4 +2130,5 @@ models = [
     CogVideoX_I2V,
     CogVideoX_T2V,
     SVD_img2vid,
+    Trellis2
 ]
