@@ -2,6 +2,7 @@ import copy
 import heapq
 import inspect
 import logging
+import psutil
 import sys
 import threading
 import time
@@ -727,6 +728,7 @@ class PromptExecutor:
 
         self._notify_prompt_lifecycle("start", prompt_id)
         ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
+        ram_inactive_headroom = int(self.cache_args["ram_inactive"] * (1024 ** 3))
         ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
         comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
@@ -780,8 +782,14 @@ class PromptExecutor:
                         execution_list.complete_node_execution()
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
-                        comfy.model_management.free_memory(0, None, pins_required=ram_headroom, ram_required=ram_headroom)
-                        ram_release_callback(ram_headroom, free_active=True)
+                        ram_release_callback(ram_inactive_headroom)
+                        ram_shortfall = ram_headroom - psutil.virtual_memory().available
+                        freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
+                        if freed < ram_shortfall:
+                            if freed > 64 * (1024 ** 2):
+                                # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
+                                time.sleep(0.05)
+                            ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
                     # Send cached UI for intermediate output nodes that weren't executed

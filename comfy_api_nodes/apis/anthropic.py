@@ -35,6 +35,19 @@ class AnthropicMessage(BaseModel):
     content: list[AnthropicTextContent | AnthropicImageContent] = Field(...)
 
 
+class AnthropicThinkingConfig(BaseModel):
+    type: Literal["enabled", "disabled", "adaptive"] = Field(...)
+    budget_tokens: int | None = Field(
+        None, ge=1024,
+        description="Reasoning budget in tokens. Used when type is 'enabled'. Must be less than max_tokens.",
+    )
+
+
+class AnthropicOutputConfig(BaseModel):
+    """Used with `thinking.type='adaptive'` on models like Opus 4.7."""
+    effort: Literal["low", "medium", "high"] | None = Field(None)
+
+
 class AnthropicMessagesRequest(BaseModel):
     model: str = Field(...)
     messages: list[AnthropicMessage] = Field(...)
@@ -44,11 +57,21 @@ class AnthropicMessagesRequest(BaseModel):
     top_p: float | None = Field(None, ge=0.0, le=1.0)
     top_k: int | None = Field(None, ge=0)
     stop_sequences: list[str] | None = Field(None)
+    thinking: AnthropicThinkingConfig | None = Field(None)
+    output_config: AnthropicOutputConfig | None = Field(None)
 
 
 class AnthropicResponseTextBlock(BaseModel):
     type: Literal["text"] = "text"
     text: str = Field(...)
+
+
+class AnthropicResponseThinkingBlock(BaseModel):
+    type: Literal["thinking"] = "thinking"
+    thinking: str = Field(...)
+
+
+AnthropicResponseBlock = AnthropicResponseTextBlock | AnthropicResponseThinkingBlock
 
 
 class AnthropicCacheCreationUsage(BaseModel):
@@ -69,7 +92,7 @@ class AnthropicMessagesResponse(BaseModel):
     type: str | None = Field(None)
     role: str | None = Field(None)
     model: str | None = Field(None)
-    content: list[AnthropicResponseTextBlock] | None = Field(None)
+    content: list[AnthropicResponseBlock] | None = Field(None)
     stop_reason: str | None = Field(None)
     stop_sequence: str | None = Field(None)
     usage: AnthropicMessagesUsage | None = Field(None)
