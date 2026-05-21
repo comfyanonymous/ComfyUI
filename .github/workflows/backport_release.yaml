@@ -42,8 +42,13 @@ jobs:
       - name: Validate source branch exists
         env:
           SOURCE_BRANCH: ${{ inputs.branch }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
+          if [[ "${SOURCE_BRANCH}" == "${DEFAULT_BRANCH}" ]]; then
+            echo "::error::Source branch must not be the default branch ('${DEFAULT_BRANCH}')."
+            exit 1
+          fi
           git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}"
           if ! git show-ref --verify --quiet "refs/remotes/origin/${SOURCE_BRANCH}"; then
             echo "::error::Source branch '${SOURCE_BRANCH}' not found on origin."
