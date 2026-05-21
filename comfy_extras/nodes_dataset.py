@@ -265,7 +265,8 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
                 io.String.Input("texts",
                     optional=True,
                     force_input=True,
-                    tooltip="List of text captions to save."),
+                    tooltip="List of text captions to save."
+                ),
                 io.String.Input(
                     "folder_name",
                     default="dataset",
