@@ -1200,7 +1200,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListUserdataResponse"
+                $ref: "#/components/schemas/GetUserDataResponseFull"
         "404":
           description: Directory not found
 
@@ -1340,7 +1340,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserDataResponse"
+                $ref: "#/components/schemas/UserDataResponseFull"
         "409":
           description: File exists and overwrite not set
         '400':
@@ -1434,7 +1434,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserDataResponse"
+                $ref: "#/components/schemas/UserDataResponseFull"
         "404":
           description: Source file not found
         "409":
@@ -2752,7 +2752,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudJobStatus"
+                $ref: "#/components/schemas/JobCancelResponse"
         "401":
           description: Unauthorized
           content:
@@ -2803,7 +2803,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudJobStatus"
+                $ref: "#/components/schemas/JobStatusResponse"
         "401":
           description: Unauthorized
           content:
@@ -2899,7 +2899,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HistoryV2Response"
+                $ref: "#/components/schemas/HistoryResponse"
         "401":
           description: Unauthorized
           content:
@@ -2938,7 +2938,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HistoryV2Entry"
+                $ref: "#/components/schemas/HistoryDetailResponse"
         "401":
           description: Unauthorized
           content:
@@ -2994,7 +2994,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudLogsResponse"
+                $ref: "#/components/schemas/LogsResponse"
         "401":
           description: Unauthorized
           content:
@@ -3315,7 +3315,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RemoteAssetMetadata"
+                $ref: "#/components/schemas/AssetMetadataResponse"
         "400":
           description: Bad request
           content:
@@ -3889,7 +3889,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HubWorkflowList"
+                $ref: "#/components/schemas/HubWorkflowListResponse"
         '400':
           description: Bad request (e.g. malformed pagination cursor)
           content:
@@ -3972,7 +3972,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HubWorkflow"
+                $ref: "#/components/schemas/HubWorkflowDetail"
         "404":
           description: Not found
           content:
@@ -4092,7 +4092,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflowList"
+                $ref: "#/components/schemas/WorkflowListResponse"
         "401":
           description: Unauthorized
           content:
@@ -4136,7 +4136,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "400":
           description: Bad request
           content:
@@ -4183,7 +4183,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "401":
           description: Unauthorized
           content:
@@ -4239,7 +4239,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "400":
           description: Bad request
           content:
@@ -4438,7 +4438,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "401":
           description: Unauthorized
           content:
@@ -4607,7 +4607,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/PublishedWorkflowDetail"
         "404":
           description: Not found
           content:
@@ -4743,7 +4743,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthTokenResponse"
+                $ref: "#/components/schemas/ExchangeTokenResponse"
         "400":
           description: Bad request
           content:
@@ -5089,7 +5089,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingBalance"
+                $ref: "#/components/schemas/BillingBalanceResponse"
         "401":
           description: Unauthorized
           content:
@@ -5132,7 +5132,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingEventList"
+                $ref: "#/components/schemas/BillingEventsResponse"
         "401":
           description: Unauthorized
           content:
@@ -5166,7 +5166,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingOp"
+                $ref: "#/components/schemas/BillingOpStatusResponse"
         "401":
           description: Unauthorized
           content:
@@ -5278,7 +5278,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SubscriptionPreview"
+                $ref: "#/components/schemas/PreviewSubscribeResponse"
         "400":
           description: Bad request
           content:
@@ -5311,7 +5311,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingStatus"
+                $ref: "#/components/schemas/BillingStatusResponse"
         "401":
           description: Unauthorized
           content:
@@ -5359,7 +5359,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingSubscription"
+                $ref: "#/components/schemas/SubscribeResponse"
         "400":
           description: Bad request
           content:
@@ -5392,7 +5392,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingSubscription"
+                $ref: "#/components/schemas/CancelSubscriptionResponse"
         "401":
           description: Unauthorized
           content:
@@ -5425,7 +5425,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingSubscription"
+                $ref: "#/components/schemas/ResubscribeResponse"
         "401":
           description: Unauthorized
           content:
@@ -5470,7 +5470,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingBalance"
+                $ref: "#/components/schemas/CreateTopupResponse"
         "400":
           description: Bad request
           content:
@@ -5555,7 +5555,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkspaceApiKeyCreated"
+                $ref: "#/components/schemas/CreateWorkspaceAPIKeyResponse"
         "400":
           description: Bad request
           content:
@@ -5704,7 +5704,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkspaceInvite"
+                $ref: "#/components/schemas/PendingInvite"
         "400":
           description: Bad request
           content:
@@ -6486,7 +6486,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Workspace"
+                $ref: "#/components/schemas/AcceptInviteResponse"
         "400":
           description: Bad request
           content:
@@ -6586,7 +6586,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SecretMeta"
+                $ref: "#/components/schemas/SecretResponse"
         "400":
           description: Bad request
           content:
@@ -6645,7 +6645,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SecretMeta"
+                $ref: "#/components/schemas/SecretResponse"
         "401":
           description: Unauthorized
           content:
@@ -6702,7 +6702,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SecretMeta"
+                $ref: "#/components/schemas/SecretResponse"
         "400":
           description: Bad request
           content:
@@ -6805,7 +6805,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudUser"
+                $ref: "#/components/schemas/UserResponse"
         "401":
           description: Unauthorized
           content:
@@ -11379,3 +11379,291 @@ components:
         message:
           type: string
           description: Human-readable error message
+
+    # ===== PR D: schemas for ops whose responses point to legacy-shape names (BE-1106 Phase 2) =====
+    AcceptInviteResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response returned after successfully accepting a workspace invitation.'
+      required:
+      - workspace_id
+      - workspace_name
+      properties:
+        workspace_id:
+          type: string
+          description: ID of the workspace joined
+        workspace_name:
+          type: string
+          description: Name of the workspace joined
+
+    BillingEventsResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Paginated list of billing events for a workspace.'
+      required:
+      - total
+      - events
+      - page
+      - limit
+      - totalPages
+      properties:
+        total:
+          type: integer
+          description: Total number of events
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingEvent'
+        page:
+          type: integer
+          description: Current page number (1-indexed)
+        limit:
+          type: integer
+          description: Items per page
+        totalPages:
+          type: integer
+          description: Total number of pages
+
+    BillingOpStatusResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Status of an asynchronous billing operation.'
+      required:
+      - id
+      - status
+      - started_at
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the billing operation
+        status:
+          type: string
+          enum:
+          - pending
+          - succeeded
+          - failed
+          description: Current status of the operation
+        error_message:
+          type: string
+          description: Error message if status is failed
+        started_at:
+          type: string
+          format: date-time
+          description: When the operation was initiated
+        completed_at:
+          type: string
+          format: date-time
+          description: When the operation completed (success or failure)
+
+    CancelSubscriptionResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully cancelling a subscription.'
+      required:
+      - cancel_at
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        cancel_at:
+          type: string
+          format: date-time
+          description: The date when the subscription will end (end of current billing period)
+
+    CreateTopupResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully purchasing a credit top-up.'
+      required:
+      - topup_id
+      - status
+      - amount_cents
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        topup_id:
+          type: string
+          description: Unique identifier for the top-up request (same as billing_op_id, deprecated)
+        status:
+          type: string
+          enum:
+          - pending
+          - completed
+          - failed
+          description: Current status of the top-up
+        amount_cents:
+          type: integer
+          format: int64
+          description: Amount being charged in cents
+
+    CreateWorkspaceAPIKeyResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response containing the newly created workspace API key.'
+      required:
+      - id
+      - name
+      - description
+      - key
+      - key_prefix
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: API key ID
+        name:
+          type: string
+          description: User-provided label
+        description:
+          type: string
+          description: User-provided description of the key's purpose. Limit is byte-based (UTF-8 encoding); 5000 bytes equals
+            5000 ASCII characters or fewer multi-byte characters.
+          maxLength: 5000
+        key:
+          type: string
+          description: The full plaintext API key (only shown once)
+        key_prefix:
+          type: string
+          description: First 8 chars after prefix for display
+        expires_at:
+          type: string
+          format: date-time
+          description: When the key expires (if set)
+        created_at:
+          type: string
+          format: date-time
+          description: When the key was created
+
+    ExchangeTokenResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response containing the issued Cloud JWT and its expiry.'
+      required:
+      - token
+      - expires_at
+      - workspace
+      - role
+      - permissions
+      properties:
+        token:
+          type: string
+          description: Cloud JWT token
+        expires_at:
+          type: string
+          format: date-time
+          description: Token expiration time (RFC 3339)
+        workspace:
+          $ref: '#/components/schemas/WorkspaceSummary'
+        role:
+          type: string
+          enum:
+          - owner
+          - member
+          description: User's role in the workspace
+        permissions:
+          type: array
+          items:
+            type: string
+          description: Permission strings for the role
+          example:
+          - owner:*
+
+    JobCancelResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response for POST /api/jobs/{job_id}/cancel. Returned on both fresh cancels and idempotent no-ops.'
+      required:
+      - cancelled
+      properties:
+        cancelled:
+          type: boolean
+          description: "True when a cancel event was successfully dispatched by this call.\nFalse when the job was already in\
+            \ a terminal or cancelling state,\nin which case the call is a no-op (still 200 \u2014 idempotent).\n"
+
+    ResubscribeResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully resubscribing to a billing plan.'
+      required:
+      - status
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        status:
+          type: string
+          enum:
+          - active
+          description: The subscription status after resubscribing
+        message:
+          type: string
+          description: Human-readable confirmation message
+
+    SubscribeResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully subscribing to a billing plan.'
+      required:
+      - status
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        status:
+          type: string
+          enum:
+          - subscribed
+          - needs_payment_method
+          - pending_payment
+          description: 'Status of the subscription operation:
+
+            - subscribed: Subscription is active immediately
+
+            - needs_payment_method: User must add payment method via payment_method_url
+
+            - pending_payment: Upgrade initiated, waiting for payment to complete
+
+            '
+        effective_at:
+          type: string
+          format: date-time
+          description: When the subscription became/becomes active (present when status=subscribed or pending_payment)
+        payment_method_url:
+          type: string
+          description: URL to redirect user to add payment method (present when status=needs_payment_method)
+
+    UserResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] User information response'
+      required:
+      - id
+      - status
+      properties:
+        id:
+          type: string
+          description: Firebase UID of the authenticated user
+        status:
+          type: string
+          description: User status (always "active" for authenticated users)
+
+    WorkflowListResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Paginated list of saved workflows.'
+      required:
+      - data
+      - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
