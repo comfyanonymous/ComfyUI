@@ -916,7 +916,7 @@ def _build_request(
     return Rodin3DGen25Request(
         tier=mode_params["tier"],
         prompt=prompt or None,
-        seed=seed if seed else None,
+        seed=seed,
         material=material,
         geometry_file_format=geometry_file_format,
         texture_mode=None if texture_mode == "Default" else texture_mode,
