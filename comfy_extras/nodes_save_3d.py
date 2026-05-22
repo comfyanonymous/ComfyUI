@@ -1,10 +1,13 @@
 """Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB node."""
 
+import copy
 import json
 import logging
+import math
 import os
 import struct
 from io import BytesIO
+from typing import TypedDict
 
 import numpy as np
 from PIL import Image
@@ -394,10 +397,101 @@ class SaveGLB(IO.ComfyNode):
         return IO.NodeOutput(ui={"3d": results})
 
 
+class RotateMesh(IO.ComfyNode):
+    class ModeValues(TypedDict, total=False):
+        mode: str
+        angle_x: float
+        angle_y: float
+        angle_z: float
+        qw: float
+        qx: float
+        qy: float
+        qz: float
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="RotateMesh",
+            display_name="Rotate Mesh",
+            category="3d",
+            description=(
+                "Rotate a mesh. Euler XYZ applies X then Y then Z about the world axes (degrees). "
+                "Quaternion is (w, x, y, z), auto-normalized."
+            ),
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.DynamicCombo.Input(
+                    "mode",
+                    options=[
+                        IO.DynamicCombo.Option("euler_xyz", [
+                            IO.Float.Input("angle_x", default=0.0, min=-360.0, max=360.0, step=0.1,
+                                           tooltip="Rotation around the X axis in degrees."),
+                            IO.Float.Input("angle_y", default=0.0, min=-360.0, max=360.0, step=0.1,
+                                           tooltip="Rotation around the Y axis in degrees."),
+                            IO.Float.Input("angle_z", default=0.0, min=-360.0, max=360.0, step=0.1,
+                                           tooltip="Rotation around the Z axis in degrees."),
+                        ]),
+                        IO.DynamicCombo.Option("quaternion", [
+                            IO.Float.Input("qw", default=1.0, min=-1.0, max=1.0, step=0.001),
+                            IO.Float.Input("qx", default=0.0, min=-1.0, max=1.0, step=0.001),
+                            IO.Float.Input("qy", default=0.0, min=-1.0, max=1.0, step=0.001),
+                            IO.Float.Input("qz", default=0.0, min=-1.0, max=1.0, step=0.001),
+                        ]),
+                    ],
+                ),
+            ],
+            outputs=[IO.Mesh.Output("mesh")],
+        )
+
+    @classmethod
+    def execute(cls, mesh: Types.MESH, mode: ModeValues) -> IO.NodeOutput:
+        mode_name = mode["mode"]
+        if mode_name == "euler_xyz":
+            ax = math.radians(mode["angle_x"])
+            ay = math.radians(mode["angle_y"])
+            az = math.radians(mode["angle_z"])
+            if ax == 0.0 and ay == 0.0 and az == 0.0:
+                return IO.NodeOutput(mesh)
+            cx, sx = math.cos(ax), math.sin(ax)
+            cy, sy = math.cos(ay), math.sin(ay)
+            cz, sz = math.cos(az), math.sin(az)
+            R_rows = [
+                [cy * cz, sx * sy * cz - cx * sz, cx * sy * cz + sx * sz],
+                [cy * sz, sx * sy * sz + cx * cz, cx * sy * sz - sx * cz],
+                [-sy,     sx * cy,                cx * cy],
+            ]
+        elif mode_name == "quaternion":
+            qw, qx, qy, qz = mode["qw"], mode["qx"], mode["qy"], mode["qz"]
+            n = math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
+            if n < 1e-8:
+                raise ValueError("RotateMesh: quaternion has zero magnitude")
+            qw, qx, qy, qz = qw / n, qx / n, qy / n, qz / n
+            if qw == 1.0 and qx == 0.0 and qy == 0.0 and qz == 0.0:
+                return IO.NodeOutput(mesh)
+            R_rows = [
+                [1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * qw),     2 * (qx * qz + qy * qw)],
+                [2 * (qx * qy + qz * qw),     1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * qw)],
+                [2 * (qx * qz - qy * qw),     2 * (qy * qz + qx * qw),     1 - 2 * (qx * qx + qy * qy)],
+            ]
+        else:
+            raise ValueError(f"RotateMesh: unknown mode {mode_name!r}")
+
+        def rotate(v: torch.Tensor) -> torch.Tensor:
+            R = torch.tensor(R_rows, device=v.device, dtype=v.dtype)
+            return v @ R.T
+
+        out = copy.copy(mesh)
+        if isinstance(mesh.vertices, list):
+            out.vertices = [rotate(v) for v in mesh.vertices]
+        else:
+            out.vertices = rotate(mesh.vertices)
+        return IO.NodeOutput(out)
+
+
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB]
+        return [SaveGLB, RotateMesh]
 
 
 async def comfy_entrypoint() -> Save3DExtension:
