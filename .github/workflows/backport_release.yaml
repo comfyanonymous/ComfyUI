@@ -458,6 +458,41 @@ jobs:
 
           echo "Released ${NEW_VERSION} on ${RELEASE_BRANCH}."
 
+      - name: Delete remote source branch
+        env:
+          GH_TOKEN:        ${{ steps.app-token.outputs.token }}
+          REPO:            ${{ github.repository }}
+          SOURCE_BRANCH:   ${{ steps.resolve.outputs.source_branch }}
+          SOURCE_COMMIT:   ${{ inputs.commit }}
+          RELEASE_BRANCH:  ${{ steps.latest.outputs.release_branch }}
+          DEFAULT_BRANCH:  ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          # Belt-and-braces: the resolve step already refuses the default branch,
+          # but never delete the default or the release branch under any
+          # circumstances.
+          if [[ "${SOURCE_BRANCH}" == "${DEFAULT_BRANCH}" || "${SOURCE_BRANCH}" == "${RELEASE_BRANCH}" ]]; then
+            echo "::error::Refusing to delete '${SOURCE_BRANCH}' (matches default or release branch)."
+            exit 1
+          fi
+
+          # Delete the source branch on origin, but only if its tip is still the
+          # SHA we released from. If someone pushed new commits to it after we
+          # resolved it, leave it alone — those commits would be silently lost.
+          current_tip="$(git ls-remote origin "refs/heads/${SOURCE_BRANCH}" | awk '{print $1}')"
+          if [[ -z "${current_tip}" ]]; then
+            echo "Source branch '${SOURCE_BRANCH}' no longer exists on origin; nothing to delete."
+            exit 0
+          fi
+          if [[ "${current_tip}" != "${SOURCE_COMMIT}" ]]; then
+            echo "::warning::Source branch '${SOURCE_BRANCH}' tip (${current_tip}) no longer matches released commit (${SOURCE_COMMIT}). Leaving it in place."
+            exit 0
+          fi
+
+          git push origin --delete "refs/heads/${SOURCE_BRANCH}"
+          echo "Deleted remote branch '${SOURCE_BRANCH}'."
+
       - name: Summary
         if: always()
         env:
