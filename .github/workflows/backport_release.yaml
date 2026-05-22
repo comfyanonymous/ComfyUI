@@ -3,8 +3,8 @@ name: Backport Release
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Source branch containing the backported commits (PR source branch into master)'
+      commit:
+        description: 'Full 40-char SHA of the tip commit of the backport source branch (the PR head commit that passed tests). The branch is resolved from this SHA and must be unique.'
         required: true
         type: string
 
@@ -39,21 +39,71 @@ jobs:
           git config user.name  "fen-release[bot]"
           git config user.email "fen-release[bot]@users.noreply.github.com"
 
-      - name: Validate source branch exists
+      - name: Resolve source branch from commit SHA
+        id: resolve
         env:
-          SOURCE_BRANCH: ${{ inputs.branch }}
+          SOURCE_COMMIT:  ${{ inputs.commit }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          if [[ "${SOURCE_BRANCH}" == "${DEFAULT_BRANCH}" ]]; then
+
+          # Require a full 40-char lowercase-hex SHA. Short SHAs are ambiguous
+          # and we will be comparing this value against API responses (PR head
+          # SHA, ref tips) that always return the full form.
+          if [[ ! "${SOURCE_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Input commit '${SOURCE_COMMIT}' is not a full 40-char lowercase hex SHA."
+            exit 1
+          fi
+
+          # Fetch all remote branches so we can search for which one(s) point
+          # at this SHA. `actions/checkout` with fetch-depth: 0 fetches full
+          # history of the checked-out ref but does not necessarily populate
+          # every refs/remotes/origin/*, so do it explicitly.
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+          # Verify the commit actually exists in this repo's object DB.
+          if ! git cat-file -e "${SOURCE_COMMIT}^{commit}" 2>/dev/null; then
+            echo "::error::Commit ${SOURCE_COMMIT} was not found in the repository."
+            exit 1
+          fi
+
+          # Find every remote branch whose tip == SOURCE_COMMIT. Exactly one
+          # branch must point at it. If zero, the commit isn't anyone's tip
+          # (likely stale, force-pushed past, or never the PR head). If more
+          # than one, the (branch -> SHA) mapping is ambiguous and we refuse
+          # to guess — the operator must give us a unique branch to release.
+          mapfile -t matching_branches < <(
+            git for-each-ref \
+              --format='%(refname:strip=3)' \
+              --points-at="${SOURCE_COMMIT}" \
+              refs/remotes/origin/ \
+              | grep -vx 'HEAD' || true
+          )
+
+          if [[ "${#matching_branches[@]}" -eq 0 ]]; then
+            echo "::error::No branch on origin has ${SOURCE_COMMIT} as its tip."
+            echo "::error::Either the branch was updated after you copied this SHA, or this commit was never the head of a branch."
+            exit 1
+          fi
+
+          if [[ "${#matching_branches[@]}" -gt 1 ]]; then
+            echo "::error::More than one branch on origin has ${SOURCE_COMMIT} as its tip; cannot pick one:"
+            for b in "${matching_branches[@]}"; do
+              echo "::error::  - ${b}"
+            done
+            echo "::error::Refusing to proceed with an ambiguous source branch."
+            exit 1
+          fi
+
+          source_branch="${matching_branches[0]}"
+
+          if [[ "${source_branch}" == "${DEFAULT_BRANCH}" ]]; then
             echo "::error::Source branch must not be the default branch ('${DEFAULT_BRANCH}')."
             exit 1
           fi
-          git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}"
-          if ! git show-ref --verify --quiet "refs/remotes/origin/${SOURCE_BRANCH}"; then
-            echo "::error::Source branch '${SOURCE_BRANCH}' not found on origin."
-            exit 1
-          fi
+
+          echo "Resolved commit ${SOURCE_COMMIT} to branch '${source_branch}'."
+          echo "source_branch=${source_branch}" >> "$GITHUB_OUTPUT"
 
       - name: Determine latest stable release
         id: latest
@@ -107,13 +157,18 @@ jobs:
 
       - name: Validate source branch is cut directly from the latest stable release
         env:
-          SOURCE_BRANCH:   ${{ inputs.branch }}
+          SOURCE_BRANCH:   ${{ steps.resolve.outputs.source_branch }}
+          SOURCE_COMMIT:   ${{ inputs.commit }}
           LATEST_TAG_SHA:  ${{ steps.latest.outputs.latest_sha }}
           LATEST_TAG:      ${{ steps.latest.outputs.latest_tag }}
         run: |
           set -euo pipefail
 
-          source_sha="$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}")"
+          # Use the user-provided SHA directly rather than re-resolving the branch
+          # tip — the resolve step already proved the branch tip equals SOURCE_COMMIT,
+          # and pinning to the SHA here makes the rest of the job TOCTOU-safe against
+          # someone pushing to the branch mid-run.
+          source_sha="${SOURCE_COMMIT}"
 
           # Walking first-parent from the source tip must reach LATEST_TAG_SHA.
           # We capture rev-list into a variable and grep against a here-string
@@ -156,10 +211,11 @@ jobs:
           added_count="$(printf '%s\n' "${all_added}" | grep -c . || true)"
           echo "Source branch is cut directly from ${LATEST_TAG} with ${added_count} commit(s) on top."
 
-      - name: Validate PR exists, is named correctly, and checks pass
+      - name: Validate PR exists, is open, named correctly, has latest commit, and checks pass
         env:
           GH_TOKEN:      ${{ steps.app-token.outputs.token }}
-          SOURCE_BRANCH: ${{ inputs.branch }}
+          SOURCE_BRANCH: ${{ steps.resolve.outputs.source_branch }}
+          SOURCE_COMMIT: ${{ inputs.commit }}
           NEW_VERSION:   ${{ steps.latest.outputs.new_version }}
           REPO:          ${{ github.repository }}
         run: |
@@ -167,20 +223,22 @@ jobs:
 
           expected_title="ComfyUI backport release ${NEW_VERSION}"
 
-          # Find open PRs from this branch into master
+          # Find open PRs from this branch into master. The --state open filter
+          # is load-bearing: a closed/merged PR with passing checks must not be
+          # accepted as authorization for a new release.
           pr_json="$(
             gh pr list \
               --repo "${REPO}" \
               --state open \
               --head "${SOURCE_BRANCH}" \
               --base master \
-              --json number,title,headRefOid \
+              --json number,title,headRefOid,state \
               --limit 10
           )"
 
           pr_count="$(echo "${pr_json}" | jq 'length')"
           if [[ "${pr_count}" -eq 0 ]]; then
-            echo "::error::No open PR found from '${SOURCE_BRANCH}' into 'master'."
+            echo "::error::No open PR found from '${SOURCE_BRANCH}' into 'master'. The PR must exist and be open."
             exit 1
           fi
 
@@ -199,7 +257,19 @@ jobs:
             exit 1
           fi
 
-          echo "Found PR #${pr_number} titled '${expected_title}' (head ${pr_head_sha})."
+          # The PR's current head commit must equal the SHA the operator gave us.
+          # This is what closes the door on releasing stale code: if anyone has
+          # pushed to the branch since the operator validated tests passed, the
+          # PR head will have advanced past SOURCE_COMMIT and we abort. (The
+          # resolve step already proved the branch tip == SOURCE_COMMIT; this
+          # ties that same SHA to the PR that authorizes the release.)
+          if [[ "${pr_head_sha}" != "${SOURCE_COMMIT}" ]]; then
+            echo "::error::PR #${pr_number} head commit is ${pr_head_sha}, but the operator-provided commit is ${SOURCE_COMMIT}."
+            echo "::error::The PR has new commits since this release was authorized. Re-run with the new head SHA after verifying its checks."
+            exit 1
+          fi
+
+          echo "Found open PR #${pr_number} titled '${expected_title}' at head ${pr_head_sha} (matches operator-provided commit)."
 
           # Verify all check runs on the head commit have completed successfully.
           # A check is considered passing if conclusion is success, neutral, or skipped.
@@ -241,7 +311,6 @@ jobs:
         env:
           GH_TOKEN:        ${{ steps.app-token.outputs.token }}
           REPO:            ${{ github.repository }}
-          SOURCE_BRANCH:   ${{ inputs.branch }}
           RELEASE_BRANCH:  ${{ steps.latest.outputs.release_branch }}
           LATEST_TAG:      ${{ steps.latest.outputs.latest_tag }}
           LATEST_TAG_SHA:  ${{ steps.latest.outputs.latest_sha }}
@@ -277,7 +346,8 @@ jobs:
 
       - name: Fast-forward merge source branch into release branch
         env:
-          SOURCE_BRANCH:  ${{ inputs.branch }}
+          SOURCE_BRANCH:  ${{ steps.resolve.outputs.source_branch }}
+          SOURCE_COMMIT:  ${{ inputs.commit }}
           RELEASE_BRANCH: ${{ steps.latest.outputs.release_branch }}
         run: |
           set -euo pipefail
@@ -288,12 +358,16 @@ jobs:
           # that the source branch is rooted on the latest stable tag, and the
           # release branch tip equals that same tag, this fast-forward should
           # always succeed for a well-formed backport branch.
-          if ! git merge --ff-only "refs/remotes/origin/${SOURCE_BRANCH}"; then
-            echo "::error::Cannot fast-forward '${RELEASE_BRANCH}' to '${SOURCE_BRANCH}'. A merge commit would be required. Aborting."
+          #
+          # We merge the operator-provided SHA, not the branch ref, so a push to
+          # the branch in the window between resolve and now cannot smuggle new
+          # commits into the release.
+          if ! git merge --ff-only "${SOURCE_COMMIT}"; then
+            echo "::error::Cannot fast-forward '${RELEASE_BRANCH}' to ${SOURCE_COMMIT} (tip of '${SOURCE_BRANCH}'). A merge commit would be required. Aborting."
             exit 1
           fi
 
-          echo "Fast-forwarded '${RELEASE_BRANCH}' to tip of '${SOURCE_BRANCH}'."
+          echo "Fast-forwarded '${RELEASE_BRANCH}' to ${SOURCE_COMMIT} (tip of '${SOURCE_BRANCH}')."
 
       - name: Bump version files
         env:
@@ -390,14 +464,20 @@ jobs:
           NEW_VERSION:    ${{ steps.latest.outputs.new_version }}
           RELEASE_BRANCH: ${{ steps.latest.outputs.release_branch }}
           LATEST_TAG:     ${{ steps.latest.outputs.latest_tag }}
-          SOURCE_BRANCH:  ${{ inputs.branch }}
+          SOURCE_BRANCH:  ${{ steps.resolve.outputs.source_branch }}
+          SOURCE_COMMIT:  ${{ inputs.commit }}
         run: |
+          # SOURCE_BRANCH is empty if the resolve step never produced an output
+          # (e.g. the workflow failed in or before that step). Show a placeholder
+          # in that case so the summary table still renders cleanly.
+          source_branch_display="${SOURCE_BRANCH:-(unresolved)}"
           {
             echo "## Backport release"
             echo ""
             echo "| Field | Value |"
             echo "|---|---|"
-            echo "| Source branch | \`${SOURCE_BRANCH}\` |"
+            echo "| Source commit | \`${SOURCE_COMMIT}\` |"
+            echo "| Source branch | \`${source_branch_display}\` |"
             echo "| Previous stable | \`${LATEST_TAG}\` |"
             echo "| New version | \`${NEW_VERSION}\` |"
             echo "| Release branch | \`${RELEASE_BRANCH}\` |"
