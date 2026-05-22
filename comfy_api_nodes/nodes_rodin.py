@@ -56,37 +56,27 @@ COMMON_PARAMETERS = [
 ]
 
 
-def get_quality_mode(poly_count):
-    polycount = poly_count.split("-")
-    poly = polycount[1]
-    count = polycount[0]
-    if poly == "Triangle":
-        mesh_mode = "Raw"
-    elif poly == "Quad":
-        mesh_mode = "Quad"
-    else:
-        mesh_mode = "Quad"
+_QUALITY_MESH_OPTIONS: dict[str, tuple[str, int]] = {
+    "4K-Quad":       ("Quad", 4000),
+    "8K-Quad":       ("Quad", 8000),
+    "18K-Quad":      ("Quad", 18000),
+    "50K-Quad":      ("Quad", 50000),
+    "200K-Quad":     ("Quad", 200000),
+    "2K-Triangle":   ("Raw", 2000),
+    "20K-Triangle":  ("Raw", 20000),
+    "150K-Triangle": ("Raw", 150000),
+    "200K-Triangle": ("Raw", 200000),
+    "500K-Triangle": ("Raw", 500000),
+    "1M-Triangle":   ("Raw", 1000000),
+}
 
-    if count == "4K":
-        quality_override = 4000
-    elif count == "8K":
-        quality_override = 8000
-    elif count == "18K":
-        quality_override = 18000
-    elif count == "50K":
-        quality_override = 50000
-    elif count == "2K":
-        quality_override = 2000
-    elif count == "20K":
-        quality_override = 20000
-    elif count == "150K":
-        quality_override = 150000
-    elif count == "500K":
-        quality_override = 500000
-    else:
-        quality_override = 18000
 
-    return mesh_mode, quality_override
+def get_quality_mode(poly_count: str) -> tuple[str, int]:
+    """Map a polygon-count preset like '18K-Quad' to (mesh_mode, quality_override).
+
+    Falls back to ('Quad', 18000) for unknown labels; legacy parity.
+    """
+    return _QUALITY_MESH_OPTIONS.get(poly_count, ("Quad", 18000))
 
 
 def tensor_to_filelike(tensor, max_pixels: int = 2048 * 2048):
@@ -683,13 +673,13 @@ def _build_mode_input(name: str = "mode") -> IO.DynamicCombo.Input:
                         "tier",
                         options=["Gen-2.5-Low", "Gen-2.5-Medium", "Gen-2.5-High"],
                         default="Gen-2.5-High",
-                        tooltip="Quality tier. Higher tiers cost more credits.",
+                        tooltip="Quality tier. Higher tiers produce higher-fidelity geometry.",
                     ),
                     IO.Combo.Input(
                         "polygon_count",
                         options=_REGULAR_POLY_OPTIONS,
                         default="Default",
-                        tooltip="Preset face count. 'Default' lets the tier pick.",
+                        tooltip="Preset face count. 'Default' uses the server's default for the selected tier.",
                     ),
                     IO.Boolean.Input(
                         "creative",
@@ -765,7 +755,7 @@ def _build_common_inputs(*, include_image_only: bool) -> list:
             options=_TEXTURE_MODE_OPTIONS,
             default="Default",
             optional=True,
-            tooltip="Texture quality preset. 'Default' lets the tier pick.",
+            tooltip="Texture quality preset. 'Default' uses the server's default for the selected tier.",
         ),
         IO.Int.Input(
             "seed",
