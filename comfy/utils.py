@@ -756,6 +756,9 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
     hidden_size = mmdit_config.get("dim", 0)
     n_context_refiner = mmdit_config.get("n_refiner_layers", 2)
     n_noise_refiner = mmdit_config.get("n_refiner_layers", 2)
+    patch_size = mmdit_config.get("patch_size", 2)
+    has_final_layer = mmdit_config.get("has_final_layer", True)
+    has_local_decoder = mmdit_config.get("has_local_decoder", False)
     key_map = {}
 
     def add_block_keys(prefix_from, prefix_to, has_adaln=True):
@@ -794,13 +797,10 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
     for i in range(n_noise_refiner):
         add_block_keys("noise_refiner.{}".format(i), "{}noise_refiner.{}".format(output_prefix, i))
 
+    patch_tag = "{}-1".format(patch_size)
     MAP_BASIC = [
-        ("final_layer.linear.weight", "all_final_layer.2-1.linear.weight"),
-        ("final_layer.linear.bias", "all_final_layer.2-1.linear.bias"),
-        ("final_layer.adaLN_modulation.1.weight", "all_final_layer.2-1.adaLN_modulation.1.weight"),
-        ("final_layer.adaLN_modulation.1.bias", "all_final_layer.2-1.adaLN_modulation.1.bias"),
-        ("x_embedder.weight", "all_x_embedder.2-1.weight"),
-        ("x_embedder.bias", "all_x_embedder.2-1.bias"),
+        ("x_embedder.weight", "all_x_embedder.{}.weight".format(patch_tag)),
+        ("x_embedder.bias", "all_x_embedder.{}.bias".format(patch_tag)),
         ("x_pad_token", "x_pad_token"),
         ("cap_embedder.0.weight", "cap_embedder.0.weight"),
         ("cap_embedder.1.weight", "cap_embedder.1.weight"),
@@ -811,6 +811,28 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
         ("t_embedder.mlp.2.weight", "t_embedder.mlp.2.weight"),
         ("t_embedder.mlp.2.bias", "t_embedder.mlp.2.bias"),
     ]
+
+    if has_final_layer:
+        MAP_BASIC = [
+            ("final_layer.linear.weight", "all_final_layer.{}.linear.weight".format(patch_tag)),
+            ("final_layer.linear.bias", "all_final_layer.{}.linear.bias".format(patch_tag)),
+            ("final_layer.adaLN_modulation.1.weight", "all_final_layer.{}.adaLN_modulation.1.weight".format(patch_tag)),
+            ("final_layer.adaLN_modulation.1.bias", "all_final_layer.{}.adaLN_modulation.1.bias".format(patch_tag)),
+        ] + MAP_BASIC
+
+    if has_local_decoder:
+        # L2P U-Net decoder: identity-map every Conv2d weight/bias to itself.
+        for stage in ("enc1", "enc2", "enc3", "enc4", "dec1", "dec2", "dec3", "dec4", "bottleneck"):
+            for end in ("weight", "bias"):
+                k = "local_decoder.{}.0.{}".format(stage, end)
+                MAP_BASIC.append((k, k))
+        for stage in ("up1", "up2", "up3", "up4"):
+            for end in ("weight", "bias"):
+                k = "local_decoder.{}.1.{}".format(stage, end)
+                MAP_BASIC.append((k, k))
+        for end in ("weight", "bias"):
+            k = "local_decoder.out_conv.{}".format(end)
+            MAP_BASIC.append((k, k))
 
     for c, diffusers in MAP_BASIC:
         key_map[diffusers] = "{}{}".format(output_prefix, c)

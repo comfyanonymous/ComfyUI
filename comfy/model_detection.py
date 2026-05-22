@@ -504,6 +504,15 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             if sig_weight is not None:
                 dit_config["siglip_feat_dim"] = sig_weight.shape[0]
 
+            local_dec_key = '{}local_decoder.enc1.0.weight'.format(key_prefix)
+            if local_dec_key in state_dict_keys:  # L2P pixel-space U-Net variant
+                dit_config["image_model"] = "zimage_l2p"
+                x_emb_in = state_dict['{}x_embedder.weight'.format(key_prefix)].shape[1]
+                # P^2 * 3 = in_features for RGB pixel input
+                dit_config["patch_size"] = round((x_emb_in / 3) ** 0.5)
+                dit_config["in_channels"] = 3
+                return dit_config
+
             dec_cond_key = '{}dec_net.cond_embed.weight'.format(key_prefix)
             if dec_cond_key in state_dict_keys:  # pixel-space variant
                 dit_config["image_model"] = "zimage_pixel"
@@ -1205,7 +1214,20 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
     elif 'noise_refiner.0.attention.norm_k.weight' in state_dict:
         n_layers = count_blocks(state_dict, 'layers.{}.')
         dim = state_dict['noise_refiner.0.attention.to_k.weight'].shape[0]
-        sd_map = comfy.utils.z_image_to_diffusers({"n_layers": n_layers, "dim": dim}, output_prefix=output_prefix)
+        patch_size = 2
+        for p in (16, 8, 4, 2):
+            if 'all_x_embedder.{}-1.weight'.format(p) in state_dict:
+                patch_size = p
+                break
+        has_local_decoder = 'local_decoder.enc1.0.weight' in state_dict
+        has_final_layer = 'all_final_layer.{}-1.linear.weight'.format(patch_size) in state_dict
+        sd_map = comfy.utils.z_image_to_diffusers({
+            "n_layers": n_layers,
+            "dim": dim,
+            "patch_size": patch_size,
+            "has_final_layer": has_final_layer,
+            "has_local_decoder": has_local_decoder,
+        }, output_prefix=output_prefix)
         for k in state_dict: # For zeta chroma
             if k not in sd_map:
                 sd_map[k] = k

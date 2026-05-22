@@ -1159,6 +1159,17 @@ class ZImagePixelSpace(ZImage):
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ZImagePixelSpace(self, device=device)
 
+class ZImageL2P(ZImagePixelSpace):
+    unet_config = {
+        "image_model": "zimage_l2p",
+    }
+
+    latent_format = latent_formats.ZImagePixelSpace
+    memory_usage_factor = 1.5  # TODO
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.ZImageL2P(self, device=device)
+
 class WAN21_T2V(supported_models_base.BASE):
     unet_config = {
         "image_model": "wan2.1",
@@ -2067,6 +2078,7 @@ models = [
     CosmosI2V,
     CosmosT2IPredict2,
     CosmosI2VPredict2,
+    ZImageL2P,
     ZImagePixelSpace,
     ZImage,
     Lumina2,
