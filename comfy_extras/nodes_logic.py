@@ -8,6 +8,82 @@ from comfy_api.latest import _io
 MISSING = object()
 
 
+class NotNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ComfyNotNode",
+            display_name="Not",
+            category="utils/logic",
+            description="Logical NOT operation. Returns true if the value is falsy. Uses Python's rules for truthiness.",
+            search_aliases=["invert", "toggle", "negate", "flip boolean"],
+            inputs=[
+                io.AnyType.Input("value"),
+            ],
+            outputs=[
+                io.Boolean.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, value) -> io.NodeOutput:
+        return io.NodeOutput(not value)
+
+
+class AndNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.Autogrow.TemplatePrefix(
+            input=io.AnyType.Input("value"),
+            prefix="value",
+            min=1,
+        )
+        return io.Schema(
+            node_id="ComfyAndNode",
+            display_name="And",
+            category="utils/logic",
+            description="Logical AND operation. Returns true if all of the values are truthy. Uses Python's rules for truthiness.",
+            search_aliases=["all", "every"],
+            inputs=[
+                io.Autogrow.Input("values", template=template),
+            ],
+            outputs=[
+                io.Boolean.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, values: io.Autogrow.Type) -> io.NodeOutput:
+        return io.NodeOutput(all(values.values()))
+
+
+class OrNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.Autogrow.TemplatePrefix(
+            input=io.AnyType.Input("value"),
+            prefix="value",
+            min=1,
+        )
+        return io.Schema(
+            node_id="ComfyOrNode",
+            display_name="Or",
+            category="utils/logic",
+            description="Logical OR operation. Returns true if any of the values are truthy. Uses Python's rules for truthiness.",
+            search_aliases=["any", "some"],
+            inputs=[
+                io.Autogrow.Input("values", template=template),
+            ],
+            outputs=[
+                io.Boolean.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, values: io.Autogrow.Type) -> io.NodeOutput:
+        return io.NodeOutput(any(values.values()))
+
+
 class SwitchNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -261,6 +337,9 @@ class LogicExtension(ComfyExtension):
         return [
             SwitchNode,
             CustomComboNode,
+            NotNode,
+            AndNode,
+            OrNode,
             # SoftSwitchNode,
             # ConvertStringToComboNode,
             # DCTestNode,

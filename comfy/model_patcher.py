@@ -1613,6 +1613,16 @@ class ModelPatcherDynamic(ModelPatcher):
         #use all ModelPatcherDynamic this is ignored and its all done dynamically.
         return super().memory_required(input_shape=input_shape) * 1.3 + (1024 ** 3)
 
+    def restore_loaded_backups(self):
+        restored = self.model.model_loaded_weight_memory
+        for key in list(self.backup.keys()):
+            bk = self.backup.pop(key)
+            comfy.utils.set_attr_param(self.model, key, bk.weight)
+        for key in list(self.backup_buffers.keys()):
+            comfy.utils.set_attr_buffer(self.model, key, self.backup_buffers.pop(key))
+        self.model.model_loaded_weight_memory = 0
+        return restored
+
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False, dirty=False):
 
@@ -1629,7 +1639,7 @@ class ModelPatcherDynamic(ModelPatcher):
 
         num_patches = 0
         allocated_size = 0
-        self.model.model_loaded_weight_memory = 0
+        self.restore_loaded_backups()
 
         with self.use_ejected():
             self.unpatch_hooks()
@@ -1716,6 +1726,9 @@ class ModelPatcherDynamic(ModelPatcher):
                         force_load=True
 
                     if force_load:
+                        if hasattr(m, "_v"):
+                            comfy_aimdo.model_vbar.vbar_unpin(m._v)
+                            delattr(m, "_v")
                         force_load_param(self, "weight", device_to)
                         force_load_param(self, "bias", device_to)
                     else:
@@ -1773,13 +1786,7 @@ class ModelPatcherDynamic(ModelPatcher):
         freed = 0 if vbar is None else vbar.free_memory(memory_to_free)
 
         if freed < memory_to_free:
-            for key in list(self.backup.keys()):
-                bk = self.backup.pop(key)
-                comfy.utils.set_attr_param(self.model, key, bk.weight)
-            for key in list(self.backup_buffers.keys()):
-                comfy.utils.set_attr_buffer(self.model, key, self.backup_buffers.pop(key))
-            freed += self.model.model_loaded_weight_memory
-            self.model.model_loaded_weight_memory = 0
+            freed += self.restore_loaded_backups()
 
         return freed
 
