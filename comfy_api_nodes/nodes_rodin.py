@@ -602,7 +602,7 @@ async def _create_gen25_task(
     return response.uuid, response.jobs.subscription_key
 
 
-_PREVIEWABLE_3D_EXTS = {".glb", ".obj", ".fbx", ".stl", ".usdz", ".gltf"}
+_PREVIEWABLE_3D_EXTS = {".glb", ".obj", ".fbx", ".stl", ".gltf"}
 
 
 async def _download_gen25_files(
@@ -658,7 +658,7 @@ _REGULAR_POLY_OPTIONS = [
 ]
 
 _TEXTURE_MODE_OPTIONS = ["Default", "legacy", "extreme-low", "low", "medium", "high"]
-_GEOMETRY_FORMAT_OPTIONS = ["glb", "usdz", "fbx", "obj", "stl"]
+_GEOMETRY_FORMAT_OPTIONS = ["glb", "fbx", "obj", "stl"]
 _MATERIAL_OPTIONS = ["PBR", "Shaded", "All", "None"]
 
 
