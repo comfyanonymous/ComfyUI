@@ -32,6 +32,11 @@ except ImportError as e:
             raise e
         exit(-1)
 
+try:
+    from sageattention import sageattn_varlen  # sageattention >= 2
+except ImportError:
+    sageattn_varlen = None
+
 SAGE_ATTENTION3_IS_AVAILABLE = False
 try:
     from sageattn3 import sageattn3_blackwell
@@ -47,6 +52,24 @@ except ImportError:
     if model_management.flash_attention_enabled():
         logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
         exit(-1)
+
+try:
+    from torch.nn.attention.varlen import varlen_attn as _torch_varlen_attn
+except ImportError:
+    _torch_varlen_attn = None
+
+
+def _is_varlen(kwargs):
+    """Varlen mode is opted into by passing cu_seqlens_q in kwargs."""
+    return kwargs.get("cu_seqlens_q") is not None
+
+
+def _varlen_args(kwargs):
+    cu_seqlens_q = kwargs["cu_seqlens_q"]
+    cu_seqlens_kv = kwargs.get("cu_seqlens_kv", cu_seqlens_q)
+    max_seqlen_q = int(kwargs["max_seqlen_q"])
+    max_seqlen_kv = int(kwargs.get("max_seqlen_kv", max_seqlen_q))
+    return cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seqlen_kv
 
 REGISTERED_ATTENTION_FUNCTIONS = {}
 def register_attention_function(name: str, func: Callable):
@@ -144,6 +167,8 @@ def wrap_attn(func):
 
 @wrap_attn
 def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        return attention_pytorch(q, k, v, heads, mask=mask, **kwargs)
     attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
@@ -218,6 +243,8 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
 @wrap_attn
 def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        return attention_pytorch(query, key, value, heads, mask=mask, **kwargs)
     attn_precision = get_attn_precision(attn_precision, query.dtype)
 
     if skip_reshape:
@@ -293,6 +320,8 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
 
 @wrap_attn
 def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        return attention_pytorch(q, k, v, heads, mask=mask, **kwargs)
     attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
@@ -424,6 +453,17 @@ except:
 
 @wrap_attn
 def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        # q, k, v expected as packed [T_total, H, C]. xformers wants per-item
+        # seqlen lists and a leading batch dim of 1.
+        cu_seqlens_q, cu_seqlens_kv, _max_q, _max_kv = _varlen_args(kwargs)
+        q_seqlen = (cu_seqlens_q[1:] - cu_seqlens_q[:-1]).tolist()
+        kv_seqlen = (cu_seqlens_kv[1:] - cu_seqlens_kv[:-1]).tolist()
+        attn_bias = xformers.ops.fmha.BlockDiagonalMask.from_seqlens(q_seqlen, kv_seqlen)
+        return xformers.ops.memory_efficient_attention(
+            q.unsqueeze(0), k.unsqueeze(0), v.unsqueeze(0), attn_bias=attn_bias,
+        )[0]
+
     b = q.shape[0]
     dim_head = q.shape[-1]
     # check to make sure xformers isn't broken
@@ -493,6 +533,22 @@ else:
 
 @wrap_attn
 def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        # q, k, v expected as packed [T_total, H, C]. cu_seqlens_q / cu_seqlens_kv
+        # describe per-item offsets. Native varlen kernel if available, else
+        # nested-tensor SDPA fallback. mask/attn_precision/etc are ignored here.
+        cu_seqlens_q, cu_seqlens_kv, max_q, max_kv = _varlen_args(kwargs)
+        if _torch_varlen_attn is not None:
+            return _torch_varlen_attn(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_q, max_kv)
+        q_nj = torch.nested.nested_tensor_from_jagged(q, offsets=cu_seqlens_q.long())
+        k_nj = torch.nested.nested_tensor_from_jagged(k, offsets=cu_seqlens_kv.long())
+        v_nj = torch.nested.nested_tensor_from_jagged(v, offsets=cu_seqlens_kv.long())
+        out = comfy.ops.scaled_dot_product_attention(
+            q_nj.transpose(1, 2), k_nj.transpose(1, 2), v_nj.transpose(1, 2),
+            attn_mask=None, dropout_p=0.0, is_causal=False,
+        )
+        return out.transpose(1, 2).values()
+
     if skip_reshape:
         b, _, _, dim_head = q.shape
     else:
@@ -541,6 +597,13 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
 
 @wrap_attn
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        # q, k, v expected as packed [T_total, H, C].
+        if sageattn_varlen is None:
+            # sageattention v1 has no varlen kernel; fall back to attention_pytorch's varlen path.
+            return attention_pytorch(q, k, v, heads, mask=mask, **kwargs)
+        cu_seqlens_q, cu_seqlens_kv, max_q, max_kv = _varlen_args(kwargs)
+        return sageattn_varlen(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_q, max_kv)
     if kwargs.get("low_precision_attention", True) is False:
         return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
 
@@ -698,6 +761,12 @@ except AttributeError as error:
 
 @wrap_attn
 def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if _is_varlen(kwargs):
+        # q, k, v expected as packed [T_total, H, C].
+        from flash_attn import flash_attn_varlen_func
+        cu_seqlens_q, cu_seqlens_kv, max_q, max_kv = _varlen_args(kwargs)
+        return flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_q, max_kv)
+
     if skip_reshape:
         b, _, _, dim_head = q.shape
     else:

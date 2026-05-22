@@ -1322,10 +1322,10 @@ class Trellis2(supported_models_base.BASE):
     unet_config = {
         "image_model": "trellis2"
     }
+    unet_extra_config = {}
 
     sampling_settings = {
         "shift": 3.0,
-        "multiplier": 1.0
     }
 
     memory_usage_factor = 3.5
