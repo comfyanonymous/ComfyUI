@@ -77,7 +77,8 @@ class DINOv3ViTAttention(nn.Module):
         attn = optimized_attention_for_device(query_states.device, mask=False)
 
         attn_output = attn(
-            query_states, key_states, value_states, self.num_heads, attention_mask, skip_reshape=True, skip_output_reshape=True
+            query_states, key_states, value_states, self.num_heads, attention_mask,
+            skip_reshape=True, skip_output_reshape=True, low_precision_attention=False,
         )
 
         attn_output = attn_output.transpose(1, 2)
