@@ -748,7 +748,7 @@ def _build_mode_input(name: str = "mode") -> IO.DynamicCombo.Input:
 
 def _build_common_inputs(*, include_image_only: bool) -> list:
     inputs: list = [
-        IO.Combo.Input("material", options=_MATERIAL_OPTIONS, default="PBR"),
+        IO.Combo.Input("material", options=_MATERIAL_OPTIONS, default="Shaded"),
         IO.Combo.Input("geometry_file_format", options=_GEOMETRY_FORMAT_OPTIONS, default="glb"),
         IO.Combo.Input(
             "texture_mode",
