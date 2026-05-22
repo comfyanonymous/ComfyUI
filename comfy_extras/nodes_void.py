@@ -122,7 +122,8 @@ class VOIDQuadmaskPreprocess(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDQuadmaskPreprocess",
-            category="mask/video",
+            display_name="VOID Quadmask Preprocessor",
+            category="image/mask",
             inputs=[
                 io.Mask.Input("mask"),
                 io.Int.Input("dilate_width", default=0, min=0, max=50, step=1,
@@ -392,7 +393,7 @@ class VOIDWarpedNoiseSource(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDWarpedNoiseSource",
-            category="sampling/custom_sampling/noise",
+            category="sampling/noise",
             inputs=[
                 io.Latent.Input("warped_noise",
                     tooltip="Warped noise latent from VOIDWarpedNoise"),
@@ -454,7 +455,7 @@ class VOIDSampler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDSampler",
-            category="sampling/custom_sampling/samplers",
+            category="sampling/samplers",
             inputs=[],
             outputs=[io.Sampler.Output()],
         )

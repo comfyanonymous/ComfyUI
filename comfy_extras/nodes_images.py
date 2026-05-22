@@ -55,9 +55,10 @@ class ImageCropV2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ImageCropV2",
-            search_aliases=["trim"],
+            search_aliases=["crop", "cut", "trim"],
             display_name="Crop Image",
             category="image/transform",
+            description = "Crop an image to the specified dimensions.",
             essentials_category="Image Tools",
             has_intermediate_output=True,
             inputs=[
@@ -162,7 +163,7 @@ class ImageAddNoise(IO.ComfyNode):
             node_id="ImageAddNoise",
             search_aliases=["film grain"],
             display_name="Add Noise to Image",
-            category="image/postprocessing",
+            category="image/filters",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Int.Input(
@@ -194,7 +195,8 @@ class SaveAnimatedWEBP(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAnimatedWEBP",
-            category="image/animation",
+            display_name="Save Animated WEBP",
+            category="image",
             inputs=[
                 IO.Image.Input("images"),
                 IO.String.Input("filename_prefix", default="ComfyUI"),
@@ -231,7 +233,8 @@ class SaveAnimatedPNG(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAnimatedPNG",
-            category="image/animation",
+            display_name="Save Animated PNG",
+            category="image",
             inputs=[
                 IO.Image.Input("images"),
                 IO.String.Input("filename_prefix", default="ComfyUI"),
@@ -493,7 +496,7 @@ class SaveSVGNode(IO.ComfyNode):
             search_aliases=["export vector", "save vector graphics"],
             display_name="Save SVG",
             description="Save SVG files on disk.",
-            category="image/save",
+            category="image",
             inputs=[
                 IO.SVG.Input("svg"),
                 IO.String.Input(

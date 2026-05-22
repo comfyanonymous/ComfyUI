@@ -104,7 +104,7 @@ class EmptyAceStep15LatentAudio(IO.ComfyNode):
     def execute(cls, seconds, batch_size) -> IO.NodeOutput:
         length = round((seconds * 48000 / 1920))
         latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
-        return IO.NodeOutput({"samples": latent, "type": "audio"})
+        return IO.NodeOutput({"samples": latent, "type": "audio", "downscale_ratio_temporal": 1764})
 
 class ReferenceAudio(IO.ComfyNode):
     @classmethod

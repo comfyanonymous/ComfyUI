@@ -77,7 +77,7 @@ class EmptyLTXVLatentVideo(io.ComfyNode):
     @classmethod
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples": latent})
+        return io.NodeOutput({"samples": latent, "downscale_ratio_spacial": 32})
 
     generate = execute  # TODO: remove
 
@@ -601,7 +601,7 @@ class LTXVScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVScheduler",
-            category="sampling/custom_sampling/schedulers",
+            category="sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("max_shift", default=2.05, min=0.0, max=100.0, step=0.01),

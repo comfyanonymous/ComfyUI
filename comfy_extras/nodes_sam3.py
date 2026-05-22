@@ -93,7 +93,7 @@ class SAM3_Detect(io.ComfyNode):
         return io.Schema(
             node_id="SAM3_Detect",
             display_name="SAM3 Detect",
-            category="detection",
+            category="image/detection",
             search_aliases=["sam3", "segment anything", "open vocabulary", "text detection", "segment"],
             inputs=[
                 io.Model.Input("model", display_name="model"),
@@ -265,7 +265,7 @@ class SAM3_VideoTrack(io.ComfyNode):
         return io.Schema(
             node_id="SAM3_VideoTrack",
             display_name="SAM3 Video Track",
-            category="detection",
+            category="image/detection",
             search_aliases=["sam3", "video", "track", "propagate"],
             inputs=[
                 io.Image.Input("images", display_name="images", tooltip="Video frames as batched images"),
@@ -320,7 +320,7 @@ class SAM3_TrackPreview(io.ComfyNode):
         return io.Schema(
             node_id="SAM3_TrackPreview",
             display_name="SAM3 Track Preview",
-            category="detection",
+            category="image/detection",
             inputs=[
                 SAM3TrackData.Input("track_data", display_name="track_data"),
                 io.Image.Input("images", display_name="images", optional=True),
@@ -478,7 +478,7 @@ class SAM3_TrackToMask(io.ComfyNode):
         return io.Schema(
             node_id="SAM3_TrackToMask",
             display_name="SAM3 Track to Mask",
-            category="detection",
+            category="image/detection",
             inputs=[
                 SAM3TrackData.Input("track_data", display_name="track_data"),
                 io.String.Input("object_indices", display_name="object_indices", default="",

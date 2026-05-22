@@ -43,15 +43,16 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_image_tensor,
     download_url_to_video_output,
+    downscale_video_to_max_pixels,
     get_number_of_images,
     image_tensor_pair_to_batch,
     poll_op,
-    resize_video_to_pixel_budget,
     sync_op,
     upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
+    upscale_video_to_min_pixels,
     validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_string,
@@ -110,12 +111,13 @@ def _validate_ref_video_pixels(video: Input.Video, model_id: str, resolution: st
     max_px = limits.get("max")
     if min_px and pixels < min_px:
         raise ValueError(
-            f"Reference video {index} is too small: {w}x{h} = {pixels:,}px. " f"Minimum is {min_px:,}px for this model."
+            f"Reference video {index} is too small: {w}x{h} = {pixels:,} total pixels. "
+            f"Minimum for this model is {min_px:,} total pixels."
         )
     if max_px and pixels > max_px:
         raise ValueError(
-            f"Reference video {index} is too large: {w}x{h} = {pixels:,}px. "
-            f"Maximum is {max_px:,}px for this model. Try downscaling the video."
+            f"Reference video {index} is too large: {w}x{h} = {pixels:,} total pixels. "
+            f"Maximum for this model is {max_px:,} total pixels. Try downscaling the video."
         )
 
 
@@ -1676,14 +1678,14 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                     "first_frame_asset_id",
                     default="",
                     tooltip="Seedance asset_id to use as the first frame. "
-                            "Mutually exclusive with the first_frame image input.",
+                    "Mutually exclusive with the first_frame image input.",
                     optional=True,
                 ),
                 IO.String.Input(
                     "last_frame_asset_id",
                     default="",
                     tooltip="Seedance asset_id to use as the last frame. "
-                            "Mutually exclusive with the last_frame image input.",
+                    "Mutually exclusive with the last_frame image input.",
                     optional=True,
                 ),
                 IO.Int.Input(
@@ -1865,10 +1867,19 @@ def _seedance2_reference_inputs(resolutions: list[str], default_ratio: str = "16
         IO.Boolean.Input(
             "auto_downscale",
             default=False,
-            advanced=True,
             optional=True,
             tooltip="Automatically downscale reference videos that exceed the model's pixel budget "
             "for the selected resolution. Aspect ratio is preserved; videos already within limits are untouched.",
+        ),
+        IO.Boolean.Input(
+            "auto_upscale",
+            default=False,
+            advanced=True,
+            optional=True,
+            tooltip="Automatically upscale reference videos that are below the model's minimum pixel count "
+            "for the selected resolution. Aspect ratio is preserved; videos already meeting the minimum are "
+            "untouched. Note: upscaling a low-resolution source does not add real detail and may produce "
+            "lower-quality generations.",
         ),
         IO.Autogrow.Input(
             "reference_assets",
@@ -2030,7 +2041,13 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             max_px = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {}).get(model["resolution"], {}).get("max")
             if max_px:
                 for key in reference_videos:
-                    reference_videos[key] = resize_video_to_pixel_budget(reference_videos[key], max_px)
+                    reference_videos[key] = downscale_video_to_max_pixels(reference_videos[key], max_px)
+
+        if model.get("auto_upscale") and reference_videos:
+            min_px = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {}).get(model["resolution"], {}).get("min")
+            if min_px:
+                for key in reference_videos:
+                    reference_videos[key] = upscale_video_to_min_pixels(reference_videos[key], min_px)
 
         total_video_duration = 0.0
         for i, key in enumerate(reference_videos, 1):

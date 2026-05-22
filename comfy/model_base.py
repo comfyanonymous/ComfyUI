@@ -813,6 +813,85 @@ class StableAudio1(BaseModel):
                 sd["{}{}".format(k, l)] = s[l]
         return sd
 
+class StableAudio3(BaseModel):
+    def __init__(self, model_config, seconds_total_embedder_weights, padding_embedding=None, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.audio.dit.AudioDiffusionTransformer)
+        self.seconds_total_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=384, fourier_features_type=model_config.unet_config["timestep_features_type"])
+        self.seconds_total_embedder.load_state_dict(seconds_total_embedder_weights)
+        if padding_embedding is not None:
+            self.padding_embedding = torch.nn.Parameter(padding_embedding, requires_grad=False)
+        else:
+            self.padding_embedding = None
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        image = kwargs.get("concat_latent_image", None)
+
+        if image is None:
+            shape_image = list(noise.shape)
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            image = self.process_latent_in(image)
+            # TODO: scale if not match
+            image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if mask is None:
+            mask = torch.zeros_like(noise)[:, :1]
+        else:
+            if mask.shape[1] != 1:
+                mask = torch.mean(mask, dim=1, keepdim=True)
+            mask = 1.0 - mask
+            # TODO: scale if not match
+            mask = utils.resize_to_batch_size(mask, noise.shape[0])
+
+        return torch.cat((mask, image), dim=1)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        concat_cond = self.concat_cond(**kwargs)
+        if concat_cond is not None:
+            out['local_add_cond'] = comfy.conds.CONDNoiseShape(concat_cond)
+
+        noise = kwargs.get("noise", None)
+        device = kwargs["device"]
+
+        seconds_total = kwargs.get("seconds_total", int(noise.shape[-1] / 10.7666))
+        seconds_total_embed = self.seconds_total_embedder([seconds_total])[0].to(device)
+
+        global_embed = seconds_total_embed.reshape((1, -1))
+        out['global_embed'] = comfy.conds.CONDRegular(global_embed)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            cross_attn = cross_attn.to(device)
+            if self.padding_embedding is not None:
+                pe = self.padding_embedding.to(device=device, dtype=cross_attn.dtype)
+                max_text_tokens = self.model_config.unet_config.get("max_text_tokens", 256)
+                n_text = cross_attn.shape[1]
+                if n_text < max_text_tokens:
+                    pad = pe.view(1, 1, -1).expand(cross_attn.shape[0], max_text_tokens - n_text, -1)
+                    cross_attn = torch.cat([cross_attn, pad], dim=1)
+            cross_attn = torch.cat([cross_attn, seconds_total_embed.repeat((cross_attn.shape[0], 1, 1))], dim=1)
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        return out
+
+    def state_dict_for_saving(self, unet_state_dict, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        sd = super().state_dict_for_saving(unet_state_dict, clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
+
+        d = {"conditioner.conditioners.seconds_total.": self.seconds_total_embedder.state_dict()}
+
+        for k in d:
+            s = d[k]
+            for l in s:
+                sd["{}{}".format(k, l)] = s[l]
+
+        if self.padding_embedding is not None:
+            sd["conditioner.conditioners.prompt.padding_embedding"] = self.padding_embedding.data
+        return sd
+
 
 class HunyuanDiT(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
