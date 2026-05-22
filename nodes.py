@@ -869,6 +869,7 @@ class VAELoader:
     #TODO: scale factor?
     def load_vae(self, vae_name, device="default"):
         metadata = None
+        vae_path = None
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
@@ -888,6 +889,11 @@ class VAELoader:
         resolved = comfy.model_management.resolve_gpu_device_option(device)
         vae = comfy.sd.VAE(sd=sd, metadata=metadata, device=resolved)
         vae.throw_exception_if_invalid()
+        # Register a reload factory on the patcher so MultiGPU work-units can use
+        # ModelPatcher.deepclone_multigpu to produce per-device clones from the
+        # same loader context (mirrors UNETLoader / CLIPLoader / checkpoint loader).
+        if vae_path is not None:
+            vae.patcher.cached_patcher_init = (comfy.sd.load_vae_patcher, (vae_path, metadata, resolved))
         return (vae,)
 
 class ControlNetLoader:

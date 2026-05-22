@@ -28,13 +28,13 @@ import numpy as np
 from PIL import Image
 import logging
 import itertools
+import threading
 from torch.nn.functional import interpolate
 from tqdm.auto import trange
 from einops import rearrange
 from comfy.cli_args import args
 import json
 import time
-import threading
 import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
@@ -1186,6 +1186,161 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
+
+
+def tiled_scale_multidim_multigpu(samples, functions, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None):
+    """Multigpu variant of tiled_scale_multidim. ``functions`` is a dict[torch.device, callable].
+
+    Round-robin dispatches tile positions across devices via threading. Each thread maintains
+    its own per-device CPU output and divisor buffer, applying the same feathered overlap mask
+    formula as the single-device path. Buffers are summed at the end, producing output that is
+    bit-equivalent to ``tiled_scale_multidim`` within fp32 add-order noise.
+
+    Falls back to ``tiled_scale_multidim`` with the only function when ``len(functions) < 2``.
+    Falls back to single-device on the "whole input fits in one tile" branch (no parallelism
+    available at that granularity).
+    """
+    devices = list(functions.keys())
+    if len(devices) < 2:
+        only_fn = next(iter(functions.values())) if functions else None
+        return tiled_scale_multidim(samples, only_fn, tile=tile, overlap=overlap,
+                                    upscale_amount=upscale_amount, out_channels=out_channels,
+                                    output_device=output_device, downscale=downscale,
+                                    index_formulas=index_formulas, pbar=pbar)
+
+    dims = len(tile)
+
+    if not (isinstance(upscale_amount, (tuple, list))):
+        upscale_amount = [upscale_amount] * dims
+    if not (isinstance(overlap, (tuple, list))):
+        overlap = [overlap] * dims
+    if index_formulas is None:
+        index_formulas = upscale_amount
+    if not (isinstance(index_formulas, (tuple, list))):
+        index_formulas = [index_formulas] * dims
+
+    def get_upscale(dim, val):
+        up = upscale_amount[dim]
+        return up(val) if callable(up) else up * val
+
+    def get_downscale(dim, val):
+        up = upscale_amount[dim]
+        return up(val) if callable(up) else val / up
+
+    def get_upscale_pos(dim, val):
+        up = index_formulas[dim]
+        return up(val) if callable(up) else up * val
+
+    def get_downscale_pos(dim, val):
+        up = index_formulas[dim]
+        return up(val) if callable(up) else val / up
+
+    if downscale:
+        get_scale = get_downscale
+        get_pos = get_downscale_pos
+    else:
+        get_scale = get_upscale
+        get_pos = get_upscale_pos
+
+    def mult_list_upscale(a):
+        return [round(get_scale(i, a[i])) for i in range(len(a))]
+
+    output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
+    merge_device = torch.device("cpu")
+
+    pbar_lock = threading.Lock() if pbar is not None else None
+    primary_device = devices[0]
+
+    samples_staged = samples if samples.device.type == "cpu" else samples.to("cpu", non_blocking=False)
+
+    for b in range(samples_staged.shape[0]):
+        s = samples_staged[b:b+1]
+
+        if all(s.shape[d+2] <= tile[d] for d in range(dims)):
+            with torch.inference_mode():
+                output[b:b+1] = functions[primary_device](s.to(primary_device, non_blocking=True)).to(output_device)
+            if pbar is not None:
+                pbar.update(1)
+            continue
+
+        positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+        split = {devices[i]: itertools.islice(itertools.product(*positions), i, None, len(devices)) for i in range(len(devices))}
+
+        out_shape = [s.shape[0], out_channels] + mult_list_upscale(s.shape[2:])
+        div_shape = [s.shape[0], 1] + mult_list_upscale(s.shape[2:])
+        bufs = {d: torch.zeros(out_shape, device=merge_device) for d in devices}
+        divs = {d: torch.zeros(div_shape, device=merge_device) for d in devices}
+
+        worker_errors: list[BaseException] = []
+        worker_lock = threading.Lock()
+
+        def worker(device, my_positions):
+            try:
+                if device.type == "cuda":
+                    torch.cuda.set_device(device)
+                fn = functions[device]
+                local_buf = bufs[device]
+                local_div = divs[device]
+                with torch.inference_mode():
+                    for it in my_positions:
+                        s_in = s
+                        upscaled = []
+                        for d in range(dims):
+                            pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
+                            l = min(tile[d], s.shape[d + 2] - pos)
+                            s_in = s_in.narrow(d + 2, pos, l)
+                            upscaled.append(round(get_pos(d, pos)))
+
+                        s_in_dev = s_in.to(device, non_blocking=True)
+                        ps = fn(s_in_dev).to(merge_device)
+                        mask = torch.ones([1, 1] + list(ps.shape[2:]), device=merge_device)
+
+                        for d in range(2, dims + 2):
+                            feather = round(get_scale(d - 2, overlap[d - 2]))
+                            if feather >= mask.shape[d]:
+                                continue
+                            for t in range(feather):
+                                a = (t + 1) / feather
+                                mask.narrow(d, t, 1).mul_(a)
+                                mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
+
+                        o = local_buf
+                        o_d = local_div
+                        ps_view = ps
+                        mask_view = mask
+                        for d in range(dims):
+                            l = min(ps_view.shape[d + 2], o.shape[d + 2] - upscaled[d])
+                            o = o.narrow(d + 2, upscaled[d], l)
+                            o_d = o_d.narrow(d + 2, upscaled[d], l)
+                            if l < ps_view.shape[d + 2]:
+                                ps_view = ps_view.narrow(d + 2, 0, l)
+                                mask_view = mask_view.narrow(d + 2, 0, l)
+
+                        o.add_(ps_view * mask_view)
+                        o_d.add_(mask_view)
+
+                        if pbar is not None:
+                            with pbar_lock:
+                                pbar.update(1)
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device)
+            except BaseException as e:
+                with worker_lock:
+                    worker_errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(d, split[d])) for d in devices]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        if worker_errors:
+            raise worker_errors[0]
+
+        combined_buf = sum(bufs.values())
+        combined_div = sum(divs.values())
+        output[b:b+1] = combined_buf / combined_div
+
+    return output
 
 def model_trange(*args, **kwargs):
     if not comfy.memory_management.aimdo_enabled:

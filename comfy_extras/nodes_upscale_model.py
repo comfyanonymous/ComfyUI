@@ -81,13 +81,33 @@ class ImageUpscaleWithModel(io.ComfyNode):
 
         output_device = comfy.model_management.intermediate_device()
 
+        multigpu_clones = getattr(upscale_model, 'multigpu_clones', None)
+        if multigpu_clones:
+            for dev, desc in multigpu_clones.items():
+                model_management.free_memory(memory_required, dev)
+                desc.to(dev)
+
         oom = True
         try:
             while oom:
                 try:
                     steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
                     pbar = comfy.utils.ProgressBar(steps)
-                    s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a.float()), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar, output_device=output_device)
+                    if multigpu_clones:
+                        functions = {device: lambda a: upscale_model(a.float())}
+                        for dev, desc in multigpu_clones.items():
+                            functions[dev] = lambda a, d=desc: d(a.float())
+                        s = comfy.utils.tiled_scale_multidim_multigpu(
+                            in_img,
+                            functions,
+                            tile=(tile, tile),
+                            overlap=overlap,
+                            upscale_amount=upscale_model.scale,
+                            pbar=pbar,
+                            output_device=output_device,
+                        )
+                    else:
+                        s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a.float()), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar, output_device=output_device)
                     oom = False
                 except Exception as e:
                     model_management.raise_non_oom(e)
@@ -96,6 +116,9 @@ class ImageUpscaleWithModel(io.ComfyNode):
                         raise e
         finally:
             upscale_model.to("cpu")
+            if multigpu_clones:
+                for desc in multigpu_clones.values():
+                    desc.to("cpu")
 
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0).to(comfy.model_management.intermediate_dtype())
         return io.NodeOutput(s)

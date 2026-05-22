@@ -972,6 +972,26 @@ class VAE:
         pbar = comfy.utils.ProgressBar(steps)
 
         decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+
+        multigpu_clones = getattr(self, 'multigpu_clones', None)
+        if multigpu_clones:
+            functions = {self.device: decode_fn}
+            try:
+                for dev, c in multigpu_clones.items():
+                    model_management.free_memory(c.model_size() + c.memory_used_decode(samples.shape, c.vae_dtype), dev)
+                    c.first_stage_model.to(dev)
+                for dev, c in multigpu_clones.items():
+                    functions[dev] = lambda a, _c=c, _dev=dev: _c.first_stage_model.decode(a.to(_c.vae_dtype).to(_dev)).to(dtype=_c.vae_output_dtype())
+                output = self.process_output(
+                    (comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_y * 2, tile_x // 2), overlap=overlap, upscale_amount=self.upscale_ratio, output_device=self.output_device, pbar=pbar) +
+                     comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_y // 2, tile_x * 2), overlap=overlap, upscale_amount=self.upscale_ratio, output_device=self.output_device, pbar=pbar) +
+                     comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_y, tile_x), overlap=overlap, upscale_amount=self.upscale_ratio, output_device=self.output_device, pbar=pbar))
+                    / 3.0)
+                return output
+            finally:
+                for c in multigpu_clones.values():
+                    c.first_stage_model.to("cpu")
+
         output = self.process_output(
             (comfy.utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
             comfy.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
@@ -981,16 +1001,49 @@ class VAE:
 
     def decode_tiled_1d(self, samples, tile_x=256, overlap=32):
         if samples.ndim == 3:
+            memory_shape = samples.shape
             decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+            clone_decode_fn_factory = lambda c, dev: (lambda a: c.first_stage_model.decode(a.to(c.vae_dtype).to(dev)).to(dtype=c.vae_output_dtype()))
         else:
             og_shape = samples.shape
+            memory_shape = og_shape
             samples = samples.reshape((og_shape[0], og_shape[1] * og_shape[2], -1))
             decode_fn = lambda a: self.first_stage_model.decode(a.reshape((-1, og_shape[1], og_shape[2], a.shape[-1])).to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+            clone_decode_fn_factory = lambda c, dev: (lambda a: c.first_stage_model.decode(a.reshape((-1, og_shape[1], og_shape[2], a.shape[-1])).to(c.vae_dtype).to(dev)).to(dtype=c.vae_output_dtype()))
+
+        multigpu_clones = getattr(self, 'multigpu_clones', None)
+        if multigpu_clones:
+            functions = {self.device: decode_fn}
+            try:
+                for dev, c in multigpu_clones.items():
+                    model_management.free_memory(c.model_size() + c.memory_used_decode(memory_shape, c.vae_dtype), dev)
+                    c.first_stage_model.to(dev)
+                for dev, c in multigpu_clones.items():
+                    functions[dev] = clone_decode_fn_factory(c, dev)
+                return self.process_output(comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device))
+            finally:
+                for c in multigpu_clones.values():
+                    c.first_stage_model.to("cpu")
 
         return self.process_output(comfy.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device))
 
     def decode_tiled_3d(self, samples, tile_t=999, tile_x=32, tile_y=32, overlap=(1, 8, 8)):
         decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+
+        multigpu_clones = getattr(self, 'multigpu_clones', None)
+        if multigpu_clones:
+            functions = {self.device: decode_fn}
+            try:
+                for dev, c in multigpu_clones.items():
+                    model_management.free_memory(c.model_size() + c.memory_used_decode(samples.shape, c.vae_dtype), dev)
+                    c.first_stage_model.to(dev)
+                for dev, c in multigpu_clones.items():
+                    functions[dev] = lambda a, _c=c, _dev=dev: _c.first_stage_model.decode(a.to(_c.vae_dtype).to(_dev)).to(dtype=_c.vae_output_dtype())
+                return self.process_output(comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, index_formulas=self.upscale_index_formula, output_device=self.output_device))
+            finally:
+                for c in multigpu_clones.values():
+                    c.first_stage_model.to("cpu")
+
         return self.process_output(comfy.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, index_formulas=self.upscale_index_formula, output_device=self.output_device))
 
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
@@ -1000,6 +1053,25 @@ class VAE:
         pbar = comfy.utils.ProgressBar(steps)
 
         encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+
+        multigpu_clones = getattr(self, 'multigpu_clones', None)
+        if multigpu_clones:
+            functions = {self.device: encode_fn}
+            try:
+                for dev, c in multigpu_clones.items():
+                    model_management.free_memory(c.model_size() + c.memory_used_encode(pixel_samples.shape, c.vae_dtype), dev)
+                    c.first_stage_model.to(dev)
+                for dev, c in multigpu_clones.items():
+                    functions[dev] = lambda a, _c=c, _dev=dev: _c.first_stage_model.encode((_c.process_input(a)).to(_c.vae_dtype).to(_dev)).to(dtype=_c.vae_output_dtype())
+                samples = comfy.utils.tiled_scale_multidim_multigpu(pixel_samples, functions, tile=(tile_y, tile_x), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
+                samples += comfy.utils.tiled_scale_multidim_multigpu(pixel_samples, functions, tile=(tile_y // 2, tile_x * 2), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
+                samples += comfy.utils.tiled_scale_multidim_multigpu(pixel_samples, functions, tile=(tile_y * 2, tile_x // 2), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
+                samples /= 3.0
+                return samples
+            finally:
+                for c in multigpu_clones.values():
+                    c.first_stage_model.to("cpu")
+
         samples = comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
         samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
         samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
@@ -1009,6 +1081,7 @@ class VAE:
     def encode_tiled_1d(self, samples, tile_x=256 * 2048, overlap=64 * 2048):
         if self.latent_dim == 1:
             encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+            clone_encode_fn_factory = lambda c, dev: (lambda a: c.first_stage_model.encode((c.process_input(a)).to(c.vae_dtype).to(dev)).to(dtype=c.vae_output_dtype()))
             out_channels = self.latent_channels
             upscale_amount = 1 / self.downscale_ratio
         else:
@@ -1018,8 +1091,24 @@ class VAE:
             overlap = overlap // extra_channel_size
             upscale_amount = 1 / self.downscale_ratio
             encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).reshape(1, out_channels, -1).to(dtype=self.vae_output_dtype())
+            clone_encode_fn_factory = lambda c, dev: (lambda a: c.first_stage_model.encode((c.process_input(a)).to(c.vae_dtype).to(dev)).reshape(1, out_channels, -1).to(dtype=c.vae_output_dtype()))
 
-        out = comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=self.output_device)
+        multigpu_clones = getattr(self, 'multigpu_clones', None)
+        if multigpu_clones:
+            functions = {self.device: encode_fn}
+            try:
+                for dev, c in multigpu_clones.items():
+                    model_management.free_memory(c.model_size() + c.memory_used_encode(samples.shape, c.vae_dtype), dev)
+                    c.first_stage_model.to(dev)
+                for dev, c in multigpu_clones.items():
+                    functions[dev] = clone_encode_fn_factory(c, dev)
+                out = comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_x,), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=self.output_device)
+            finally:
+                for c in multigpu_clones.values():
+                    c.first_stage_model.to("cpu")
+        else:
+            out = comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=self.output_device)
+
         if self.latent_dim == 1:
             return out
         else:
@@ -1027,6 +1116,21 @@ class VAE:
 
     def encode_tiled_3d(self, samples, tile_t=9999, tile_x=512, tile_y=512, overlap=(1, 64, 64)):
         encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).to(dtype=self.vae_output_dtype())
+
+        multigpu_clones = getattr(self, 'multigpu_clones', None)
+        if multigpu_clones:
+            functions = {self.device: encode_fn}
+            try:
+                for dev, c in multigpu_clones.items():
+                    model_management.free_memory(c.model_size() + c.memory_used_encode(samples.shape, c.vae_dtype), dev)
+                    c.first_stage_model.to(dev)
+                for dev, c in multigpu_clones.items():
+                    functions[dev] = lambda a, _c=c, _dev=dev: _c.first_stage_model.encode((_c.process_input(a)).to(_c.vae_dtype).to(_dev)).to(dtype=_c.vae_output_dtype())
+                return comfy.utils.tiled_scale_multidim_multigpu(samples, functions, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.downscale_ratio, out_channels=self.latent_channels, downscale=True, index_formulas=self.downscale_index_formula, output_device=self.output_device)
+            finally:
+                for c in multigpu_clones.values():
+                    c.first_stage_model.to("cpu")
+
         return comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.downscale_ratio, out_channels=self.latent_channels, downscale=True, index_formulas=self.downscale_index_formula, output_device=self.output_device)
 
     def decode(self, samples_in, vae_options={}):
@@ -1727,7 +1831,13 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
     if out[0] is not None:
         out[0].cached_patcher_init = (load_checkpoint_guess_config, (ckpt_path, False, False, False, embedding_directory, output_model, model_options, te_model_options), 0)
+    if output_vae and out[2] is not None and hasattr(out[2], "patcher"):
+        out[2].patcher.cached_patcher_init = (load_checkpoint_vae_patcher, (ckpt_path, embedding_directory, model_options, te_model_options, disable_dynamic))
     return out
+
+def load_checkpoint_vae_patcher(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
+    _, _, vae, _ = load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=False, output_clipvision=False, embedding_directory=embedding_directory, output_model=False, model_options=model_options, te_model_options=te_model_options, disable_dynamic=disable_dynamic)
+    return vae.patcher
 
 def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
     model, *_ = load_checkpoint_guess_config(ckpt_path, False, False, False,
@@ -1953,6 +2063,26 @@ def load_diffusion_model(unet_path, model_options={}, disable_dynamic=False):
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     model.cached_patcher_init = (load_diffusion_model, (unet_path, model_options))
     return model
+
+def load_vae_patcher(vae_path, metadata=None, device=None):
+    """Reload a VAE from disk and return its patcher.
+
+    Used as the ``cached_patcher_init`` factory on ``VAE.patcher`` so that
+    :meth:`comfy.model_patcher.ModelPatcher.deepclone_multigpu` can produce a
+    fresh VAE patcher with no inherited source-device storage tracking. The
+    optional device matches the source loader's VAE initialization path; the
+    cloned patcher's load_device still controls the device targeted by the
+    multigpu clone. Without this, bare ``copy.deepcopy`` of the VAE wrapper
+    carries dynamic-VRAM allocator state forward to the clone, which causes
+    per-device worker threads in tiled encode/decode dispatch to access weights
+    through the source-device buffer."""
+    if metadata is None:
+        sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+    else:
+        sd = comfy.utils.load_torch_file(vae_path)
+    vae = VAE(sd=sd, metadata=metadata, device=device)
+    vae.throw_exception_if_invalid()
+    return vae.patcher
 
 def load_unet(unet_path, dtype=None):
     logging.warning("The load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
