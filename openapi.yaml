@@ -11380,7 +11380,6 @@ components:
           type: string
           description: Human-readable error message
 
-    # ===== PR D: schemas for ops whose responses point to legacy-shape names (BE-1106 Phase 2) =====
     AcceptInviteResponse:
       type: object
       x-runtime: [cloud]
