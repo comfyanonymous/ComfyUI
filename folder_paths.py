@@ -56,7 +56,11 @@ folder_names_and_paths["background_removal"] = ([os.path.join(models_dir, "backg
 
 folder_names_and_paths["frame_interpolation"] = ([os.path.join(models_dir, "frame_interpolation")], supported_pt_extensions)
 
+folder_names_and_paths["geometry_estimation"] = ([os.path.join(models_dir, "geometry_estimation")], supported_pt_extensions)
+
 folder_names_and_paths["optical_flow"] = ([os.path.join(models_dir, "optical_flow")], supported_pt_extensions)
+
+folder_names_and_paths["detection"] = ([os.path.join(models_dir, "detection")], supported_pt_extensions)
 
 output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")

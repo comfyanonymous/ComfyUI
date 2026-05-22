@@ -93,7 +93,8 @@ class CONST:
 
     def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
         sigma = reshape_sigma(sigma, noise.ndim)
-        return sigma * noise + (1.0 - sigma) * latent_image
+        s = getattr(self, "noise_scale", 1.0)
+        return sigma * (s * noise) + (1.0 - sigma) * latent_image
 
     def inverse_noise_scaling(self, sigma, latent):
         sigma = reshape_sigma(sigma, latent.ndim)
@@ -288,13 +289,20 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
         else:
             sampling_settings = {}
 
-        self.set_parameters(shift=sampling_settings.get("shift", 1.0), multiplier=sampling_settings.get("multiplier", 1000))
+        self.set_noise_scale(sampling_settings.get("noise_scale", 1.0))
+        self.set_parameters(
+            shift=sampling_settings.get("shift", 1.0),
+            multiplier=sampling_settings.get("multiplier", 1000),
+        )
 
     def set_parameters(self, shift=1.0, timesteps=1000, multiplier=1000):
         self.shift = shift
         self.multiplier = multiplier
         ts = self.sigma((torch.arange(1, timesteps + 1, 1) / timesteps) * multiplier)
         self.register_buffer('sigmas', ts)
+
+    def set_noise_scale(self, noise_scale):
+        self.noise_scale = float(noise_scale)
 
     @property
     def sigma_min(self):

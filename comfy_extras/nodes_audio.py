@@ -33,7 +33,7 @@ class EmptyLatentAudio(IO.ComfyNode):
     def execute(cls, seconds, batch_size) -> IO.NodeOutput:
         length = round((seconds * 44100 / 2048) / 2) * 2
         latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
-        return IO.NodeOutput({"samples":latent, "type": "audio"})
+        return IO.NodeOutput({"samples": latent, "type": "audio", "downscale_ratio_temporal": 2048})
 
     generate = execute  # TODO: remove
 
@@ -82,6 +82,8 @@ class VAEEncodeAudio(IO.ComfyNode):
 
     @classmethod
     def execute(cls, vae, audio) -> IO.NodeOutput:
+        if audio is None:
+            raise ValueError("VAEEncodeAudio: input audio is None (source video may have no audio track).")
         sample_rate = audio["sample_rate"]
         vae_sample_rate = getattr(vae, "audio_sample_rate", 44100)
         if vae_sample_rate != sample_rate:
@@ -171,6 +173,8 @@ class SaveAudio(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio, filename_prefix="ComfyUI", format="flac") -> IO.NodeOutput:
+        if audio is None:
+            raise ValueError("SaveAudio: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(
             ui=UI.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=format)
         )
@@ -198,6 +202,8 @@ class SaveAudioMP3(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio, filename_prefix="ComfyUI", format="mp3", quality="128k") -> IO.NodeOutput:
+        if audio is None:
+            raise ValueError("SaveAudioMP3: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(
             ui=UI.AudioSaveHelper.get_save_audio_ui(
                 audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
@@ -226,6 +232,8 @@ class SaveAudioOpus(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio, filename_prefix="ComfyUI", format="opus", quality="V3") -> IO.NodeOutput:
+        if audio is None:
+            raise ValueError("SaveAudioOpus: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(
             ui=UI.AudioSaveHelper.get_save_audio_ui(
                 audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
@@ -252,6 +260,8 @@ class PreviewAudio(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio) -> IO.NodeOutput:
+        if audio is None:
+            raise ValueError("PreviewAudio: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(ui=UI.PreviewAudio(audio, cls=cls))
 
     save_flac = execute  # TODO: remove
@@ -297,6 +307,7 @@ class LoadAudio(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         input_dir = folder_paths.get_input_directory()
+        os.makedirs(input_dir, exist_ok=True)
         files = folder_paths.filter_files_content_types(os.listdir(input_dir), ["audio", "video"])
         return IO.Schema(
             node_id="LoadAudio",
@@ -391,21 +402,26 @@ class TrimAudioDuration(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio, start_index, duration) -> IO.NodeOutput:
+        if audio is None:
+            return IO.NodeOutput(None)
         waveform = audio["waveform"]
         sample_rate = audio["sample_rate"]
         audio_length = waveform.shape[-1]
+
+        if audio_length == 0:
+            return IO.NodeOutput(audio)
 
         if start_index < 0:
             start_frame = audio_length + int(round(start_index * sample_rate))
         else:
             start_frame = int(round(start_index * sample_rate))
-        start_frame = max(0, min(start_frame, audio_length - 1))
+        start_frame = max(0, min(start_frame, audio_length))
 
         end_frame = start_frame + int(round(duration * sample_rate))
         end_frame = max(0, min(end_frame, audio_length))
 
         if start_frame >= end_frame:
-            raise ValueError("AudioTrim: Start time must be less than end time and be within the audio length.")
+            raise ValueError("TrimAudioDuration: Start time must be less than end time and be within the audio length.")
 
         return IO.NodeOutput({"waveform": waveform[..., start_frame:end_frame], "sample_rate": sample_rate})
 
@@ -432,11 +448,13 @@ class SplitAudioChannels(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio) -> IO.NodeOutput:
+        if audio is None:
+            return IO.NodeOutput(None, None)
         waveform = audio["waveform"]
         sample_rate = audio["sample_rate"]
 
         if waveform.shape[1] != 2:
-            raise ValueError("AudioSplit: Input audio has only one channel.")
+            raise ValueError(f"AudioSplit: Input audio must be stereo (2 channels), got {waveform.shape[1]} channel(s).")
 
         left_channel = waveform[..., 0:1, :]
         right_channel = waveform[..., 1:2, :]
@@ -464,6 +482,12 @@ class JoinAudioChannels(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio_left, audio_right) -> IO.NodeOutput:
+        if audio_left is None and audio_right is None:
+            return IO.NodeOutput(None)
+        if audio_left is None:
+            return IO.NodeOutput(audio_right)
+        if audio_right is None:
+            return IO.NodeOutput(audio_left)
         waveform_left = audio_left["waveform"]
         sample_rate_left = audio_left["sample_rate"]
         waveform_right = audio_right["waveform"]
@@ -519,7 +543,7 @@ class AudioConcat(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioConcat",
             search_aliases=["join audio", "combine audio", "append audio"],
-            display_name="Audio Concat",
+            display_name="Concatenate Audio",
             description="Concatenates the audio1 to audio2 in the specified direction.",
             category="audio",
             inputs=[
@@ -537,6 +561,12 @@ class AudioConcat(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio1, audio2, direction) -> IO.NodeOutput:
+        if audio1 is None and audio2 is None:
+            return IO.NodeOutput(None)
+        if audio1 is None:
+            return IO.NodeOutput(audio2)
+        if audio2 is None:
+            return IO.NodeOutput(audio1)
         waveform_1 = audio1["waveform"]
         waveform_2 = audio2["waveform"]
         sample_rate_1 = audio1["sample_rate"]
@@ -567,7 +597,7 @@ class AudioMerge(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioMerge",
             search_aliases=["mix audio", "overlay audio", "layer audio"],
-            display_name="Audio Merge",
+            display_name="Merge Audio",
             description="Combine two audio tracks by overlaying their waveforms.",
             category="audio",
             inputs=[
@@ -584,6 +614,12 @@ class AudioMerge(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio1, audio2, merge_method) -> IO.NodeOutput:
+        if audio1 is None and audio2 is None:
+            return IO.NodeOutput(None)
+        if audio1 is None:
+            return IO.NodeOutput(audio2)
+        if audio2 is None:
+            return IO.NodeOutput(audio1)
         waveform_1 = audio1["waveform"]
         waveform_2 = audio2["waveform"]
         sample_rate_1 = audio1["sample_rate"]
@@ -593,6 +629,9 @@ class AudioMerge(IO.ComfyNode):
 
         length_1 = waveform_1.shape[-1]
         length_2 = waveform_2.shape[-1]
+
+        if length_1 == 0 or length_2 == 0:
+            return IO.NodeOutput({"waveform": waveform_1, "sample_rate": output_sample_rate})
 
         if length_2 > length_1:
             logging.info(f"AudioMerge: Trimming audio2 from {length_2} to {length_1} samples to match audio1 length.")
@@ -628,8 +667,9 @@ class AudioAdjustVolume(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioAdjustVolume",
             search_aliases=["audio gain", "loudness", "audio level"],
-            display_name="Audio Adjust Volume",
+            display_name="Adjust Audio Volume",
             category="audio",
+            description="Adjust the volume of the audio by a specified amount in decibels (dB).",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Int.Input(
@@ -645,6 +685,8 @@ class AudioAdjustVolume(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio, volume) -> IO.NodeOutput:
+        if audio is None:
+            return IO.NodeOutput(None)
         if volume == 0:
             return IO.NodeOutput(audio)
         waveform = audio["waveform"]
@@ -728,8 +770,14 @@ class AudioEqualizer3Band(IO.ComfyNode):
 
     @classmethod
     def execute(cls, audio, low_gain_dB, low_freq, mid_gain_dB, mid_freq, mid_q, high_gain_dB, high_freq) -> IO.NodeOutput:
+        if audio is None:
+            return IO.NodeOutput(None)
         waveform = audio["waveform"]
         sample_rate = audio["sample_rate"]
+
+        if waveform.shape[-1] == 0:
+            return IO.NodeOutput(audio)
+
         eq_waveform = waveform.clone()
 
         # 1. Apply Low Shelf (Bass)

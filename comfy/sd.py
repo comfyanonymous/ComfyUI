@@ -21,6 +21,7 @@ import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.cogvideo.vae
 import comfy.ldm.hunyuan_video.vae
 import comfy.ldm.mmaudio.vae.autoencoder
+import comfy.ldm.audio.vae_sa3
 import comfy.pixel_space_convert
 import comfy.weight_adapter
 import yaml
@@ -67,6 +68,7 @@ import comfy.text_encoders.qwen35
 import comfy.text_encoders.ernie
 import comfy.text_encoders.gemma4
 import comfy.text_encoders.cogvideo
+import comfy.text_encoders.sa3
 
 import comfy.model_patcher
 import comfy.lora
@@ -79,7 +81,7 @@ import comfy.latent_formats
 
 import comfy.ldm.flux.redux
 
-def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
+def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=None):
     key_map = {}
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
@@ -91,6 +93,8 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
+        if lora_metadata:
+            new_modelpatcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k = ()
         new_modelpatcher = None
@@ -98,6 +102,8 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if clip is not None:
         new_clip = clip.clone()
         k1 = new_clip.add_patches(loaded, strength_clip)
+        if lora_metadata:
+            new_clip.patcher.set_attachments("lora_metadata", lora_metadata)
     else:
         k1 = ()
         new_clip = None
@@ -239,7 +245,8 @@ class CLIP:
         model_management.archive_model_dtypes(self.cond_stage_model)
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        ModelPatcher = comfy.model_patcher.ModelPatcher if disable_dynamic else comfy.model_patcher.CoreModelPatcher
+        te_disable_dynamic = disable_dynamic or getattr(self.cond_stage_model, "disable_offload", False)
+        ModelPatcher = comfy.model_patcher.ModelPatcher if te_disable_dynamic else comfy.model_patcher.CoreModelPatcher
         self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         #Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
@@ -413,6 +420,13 @@ class CLIP:
 
     def get_sd(self):
         sd_clip = self.cond_stage_model.state_dict()
+        sd_tokenizer = self.tokenizer.state_dict()
+        for k in sd_tokenizer:
+            sd_clip[k] = sd_tokenizer[k]
+        return sd_clip
+
+    def state_dict_for_saving(self):
+        sd_clip = self.patcher.model_state_dict_for_saving()
         sd_tokenizer = self.tokenizer.state_dict()
         for k in sd_tokenizer:
             sd_clip[k] = sd_tokenizer[k]
@@ -776,6 +790,7 @@ class VAE:
                 self.latent_channels = 3
                 self.latent_dim = 2
                 self.output_channels = 3
+                self.disable_offload = True
             elif "vocoder.activation_post.downsample.lowpass.filter" in sd: #MMAudio VAE
                 sample_rate = 16000
                 if sample_rate == 16000:
@@ -841,6 +856,34 @@ class VAE:
                 self.working_dtypes = [torch.float32]
                 self.disable_offload = True
                 self.extra_1d_channel = 16
+            elif "decoder.layers.3.transformers.0.pre_norm.alpha" in sd:  # Stable Audio 3 VAE
+                if "decoder.layers.3.transformers.11.self_attn.to_out.weight" in sd:
+                    config = {"channels": 256, "transformer_depths": 12, "sinusoidal_blocks": 8,
+                              "sliding_window": [1, 1], "decoder_conv_mapping": False,
+                              "chunk_size": 128, "chunk_midpoint_shift": False}
+                    self.memory_used_encode = lambda shape, dtype: (1500 * shape[2]) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (1500 * shape[2] * 4096) * model_management.dtype_size(dtype)
+                else:
+                    config = {"channels": 128, "transformer_depths": 6, "sinusoidal_blocks": 0,
+                              "sliding_window": None, "decoder_conv_mapping": True,
+                              "chunk_size": 32, "chunk_midpoint_shift": True}
+                    self.memory_used_encode = lambda shape, dtype: (72 * shape[2]) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (72 * shape[2] * 4096) * model_management.dtype_size(dtype)
+
+                self.first_stage_model = comfy.ldm.audio.vae_sa3.SA3AudioVAE(**config)
+                self.latent_channels = 256
+                self.output_channels = 2
+                self.upscale_ratio = 4096
+                self.downscale_ratio = 4096
+                self.latent_dim = 1
+                self.audio_sample_rate = 44100
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                #This VAE has Parameters and Buffers the non-dynamic caster cannot handle
+                #Force cast it for --disable-dynamic-vram users until there is a true core fix.
+                if not comfy.memory_management.aimdo_enabled:
+                    self.disable_offload = True
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -1277,6 +1320,7 @@ class TEModel(Enum):
     GEMMA_4_E4B = 29
     GEMMA_4_E2B = 30
     GEMMA_4_31B = 31
+    T5_GEMMA = 32
 
 
 def detect_te_model(sd):
@@ -1301,6 +1345,8 @@ def detect_te_model(sd):
         if weight.shape[0] == 384:
             return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
+    if "model.encoder.layers.0.pre_self_attn_layernorm.weight" in sd:
+        return TEModel.T5_GEMMA
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         if 'model.layers.59.self_attn.q_norm.weight' in sd:
             return TEModel.GEMMA_4_31B
@@ -1450,6 +1496,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             else:
                 clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
                 clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
+        elif te_model == TEModel.T5_GEMMA:
+            clip_target.clip = comfy.text_encoders.sa3.SAT5GemmaModel
+            clip_target.tokenizer = comfy.text_encoders.sa3.SAT5GemmaTokenizer
+            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B):
             variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
                        TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
@@ -1902,7 +1952,7 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     load_models = [model]
     if clip is not None:
         load_models.append(clip.load_model())
-        clip_sd = clip.get_sd()
+        clip_sd = clip.state_dict_for_saving()
     vae_sd = None
     if vae is not None:
         vae_sd = vae.get_sd()
