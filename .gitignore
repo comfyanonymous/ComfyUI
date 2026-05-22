@@ -45,3 +45,10 @@ pyproject.toml.backup
 styles/
 .comfy_environment
 windows_downloads
+/human_segmentation/
+/.cursor/
+/skills/
+CLAUDE.md
+/.claude-plugin/
+/.input_archived/
+/wildcards/
