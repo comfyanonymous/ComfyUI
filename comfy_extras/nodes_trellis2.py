@@ -205,8 +205,8 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
                 coords_list = [stage_tensor.coords for stage_tensor in stage_tensors]
                 subs.append(SparseTensor.from_tensor_list(feats_list, coords_list))
 
-        face_list = [m.faces for m in mesh]
-        vert_list = [m.vertices for m in mesh]
+        vert_list = [v.float() for v, f in mesh]
+        face_list = [f.int() for v, f in mesh]
         if all(v.shape == vert_list[0].shape for v in vert_list) and all(f.shape == face_list[0].shape for f in face_list):
             mesh = Types.MESH(vertices=torch.stack(vert_list), faces=torch.stack(face_list))
         else:
@@ -286,12 +286,12 @@ class VaeDecodeStructureTrellis2(IO.ComfyNode):
         sample_tensor = samples["samples"]
         sample_tensor = sample_tensor[:, :8]
         batch_number = prepare_trellis_vae_for_decode(vae, sample_tensor.shape)
-        decoder = vae.first_stage_model.struct_dec
+        shape_vae = vae.first_stage_model
         load_device = comfy.model_management.get_torch_device()
         decoded_batches = []
         for start in range(0, sample_tensor.shape[0], batch_number):
             sample_chunk = sample_tensor[start:start + batch_number].to(load_device)
-            decoded_batches.append(decoder(sample_chunk) > 0)
+            decoded_batches.append(shape_vae.decode_structure(sample_chunk) > 0)
         decoded = torch.cat(decoded_batches, dim=0)
         current_res = decoded.shape[2]
 
@@ -349,10 +349,9 @@ class Trellis2UpsampleStage(IO.ComfyNode):
         prepare_trellis_vae_for_decode(vae, shape_latent["samples"].shape)
 
         coord_counts = shape_latent.get("coord_counts")
-        decoder = vae.first_stage_model.shape_dec
+        shape_vae = vae.first_stage_model
         lr_resolution = 512
         target_resolution = int(target_resolution)
-        decoder_dtype = next(decoder.parameters()).dtype
 
         # Decode each sample's HR coords, then search for the largest hr_resolution
         # that fits under max_tokens across all samples.
@@ -361,8 +360,7 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                 shape_latent["samples"], shape_latent["coords"], coord_counts,
             )
             slat = shape_norm(feats.to(device), coords_512.to(device))
-            slat.feats = slat.feats.to(decoder_dtype)
-            sample_hr_coords = [decoder.upsample(slat, upsample_times=4)]
+            sample_hr_coords = [shape_vae.upsample_shape(slat, upsample_times=4)]
         else:
             items = split_batched_sparse_latent(
                 shape_latent["samples"], shape_latent["coords"], coord_counts,
@@ -372,8 +370,7 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                 coords_i = coords_i.to(device).clone()
                 coords_i[:, 0] = 0
                 slat_i = shape_norm(feats_i.to(device), coords_i)
-                slat_i.feats = slat_i.feats.to(decoder_dtype)
-                sample_hr_coords.append(decoder.upsample(slat_i, upsample_times=4))
+                sample_hr_coords.append(shape_vae.upsample_shape(slat_i, upsample_times=4))
 
         # Resolution search — cache the final iteration's quantized unique tensors
         # so we don't recompute .unique() per sample after picking hr_resolution.

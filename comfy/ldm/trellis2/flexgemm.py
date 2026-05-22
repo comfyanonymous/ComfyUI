@@ -1,7 +1,7 @@
-# will contain every cuda -> pytorch operation
-
 from typing import Optional, Tuple
 import torch
+
+import comfy.model_management
 
 UINT32_SENTINEL = 0xFFFFFFFF
 
@@ -26,9 +26,7 @@ class TorchHashMap:
         self.default_value = torch.tensor(default_value, dtype=torch.long, device=device)
         self._n = self.sorted_keys.numel()
 
-    # Chunk size for lookup_flat. At ~530M flat keys (large mesh extraction),
-    # the unchunked path allocates ~5 full-size int64 temporaries (4 GB each) +
-    # bool masks + the int32 output. Chunking caps each transient to ~CHUNK rows.
+    # Chunk size for lookup_flat, caps each transient to ~CHUNK rows.
     _LOOKUP_CHUNK = 1 << 23   # 8M rows ≈ 64 MB per int64 temp
 
     def lookup_flat(self, flat_keys: torch.Tensor) -> torch.Tensor:
@@ -119,57 +117,13 @@ def build_submanifold_neighbor_map(
 
 def get_recommended_chunk_mem(
     device=None,
-    safety_fraction: float = 0.4,
+    safety_fraction: float = 0.2,
     min_gb: float = 0.25,
-    max_gb: float = 8.0,
+    max_gb: float = 2.0,
 ):
-
-    if device is None:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    else:
-        device = torch.device(device)
-
-    if device.type == 'cuda':
-        try:
-            idx = device.index if device.index is not None else 0
-            free_bytes, total_bytes = torch.cuda.mem_get_info(idx)
-            free_gb = free_bytes / (1024 ** 3)
-            total_gb = total_bytes / (1024 ** 3)
-
-            recommended = free_gb * safety_fraction
-            result = max(min_gb, min(recommended, max_gb))
-            return result
-
-        except Exception:
-            try:
-                idx = device.index if device.index is not None else 0
-                total_gb = torch.cuda.get_device_properties(idx).total_memory / (1024 ** 3)
-            except Exception:
-                total_gb = 16.0
-
-            if total_gb < 12:
-                result = 0.5
-            elif total_gb < 16:
-                result = 0.75
-            elif total_gb < 24:
-                result = 1.0
-            elif total_gb < 32:
-                result = 2.0
-            elif total_gb < 48:
-                result = 4.0
-            else:
-                result = 6.0
-            return result
-
-    else:
-        try:
-            import psutil
-            avail_gb = psutil.virtual_memory().available / (1024 ** 3)
-            recommended = avail_gb * safety_fraction
-            result = max(min_gb, min(recommended, max_gb))
-            return result
-        except ImportError:
-            return min_gb
+    """Pick a chunk-memory budget (in GB) for sparse conv batching."""
+    free_gb = comfy.model_management.get_free_memory(device) / (1024 ** 3)
+    return max(min_gb, min(free_gb * safety_fraction, max_gb))
 
 def sparse_submanifold_conv3d(
     feats: torch.Tensor,
@@ -179,24 +133,16 @@ def sparse_submanifold_conv3d(
     bias: Optional[torch.Tensor],
     neighbor_cache: Optional[torch.Tensor],
     dilation: tuple,
-    max_chunk_mem_gb: float = 6.0,
-    accumulate_f32: bool = True,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-
     if feats.shape[0] == 0:
         Co = weight.shape[0]
         return torch.empty((0, Co), device=feats.device, dtype=feats.dtype), None
 
-    if len(shape) == 5:
-        _, _, W, H, D = shape
-    else:
-        W, H, D = shape
+    W, H, D = shape
 
     Co, Kw, Kh, Kd, Ci = weight.shape
     V = Kw * Kh * Kd
     device = feats.device
-    sentinel = -1
-    max_chunk_mem_gb = get_recommended_chunk_mem(device)
 
     if neighbor_cache is None:
         b_stride = W * H * D
@@ -219,91 +165,37 @@ def sparse_submanifold_conv3d(
         neighbor = neighbor_cache
 
     N_pts = feats.shape[0]
+    sentinel = -1
 
-    if accumulate_f32:
-        weight_T = weight.view(Co, V * Ci).to(torch.float32).T.contiguous()
-    else:
-        weight_T = weight.view(Co, V * Ci).to(feats.dtype).T.contiguous()
+    weight_T = weight.view(Co, V * Ci).T
 
     output = torch.empty(N_pts, Co, device=device, dtype=feats.dtype)
 
-    # ------------------------------------------------------------------
-    # Chunk size from memory budget
-    # ------------------------------------------------------------------
-    bytes_per_elem = 4 if accumulate_f32 else feats.element_size()
-    mem_per_row = V * Ci * bytes_per_elem
+    # Chunk size from memory budget. The dominant peak is `gathered`, of shape (chunk, V, Ci) in feats.dtype.
+    max_chunk_mem_gb = get_recommended_chunk_mem(device)
+    mem_per_row = V * Ci * feats.element_size()
     max_chunk_mem = max_chunk_mem_gb * (1024 ** 3)
     chunk_size = max(1, int(max_chunk_mem / mem_per_row))
     chunk_size = min(chunk_size, N_pts)
 
-    # fp32 matmul scratch — sized to the largest chunk, reused each iteration.
-    chunk_buf = torch.empty(chunk_size, Co, device=device, dtype=torch.float32) if accumulate_f32 else None
-
-    # ------------------------------------------------------------------
-    # Chunked forward pass
-    #   Each iteration:
-    #     1. gather   (chunk, V, Ci)     – memory bound
-    #     2. mask     zero invalids       – in-place, no extra alloc
-    #     3. reshape  (chunk, V*Ci)
-    #     4. GEMM     (chunk, V*Ci) @ (V*Ci, Co) → (chunk, Co)  – cuBLAS
-    #        written into the scratch buf (fp32) or output slice (fp16) via out=
-    #     5. (fp32 path) cast scratch chunk to fp16 and copy into output slice
-    # ------------------------------------------------------------------
     for start in range(0, N_pts, chunk_size):
         end = min(start + chunk_size, N_pts)
         actual_chunk = end - start
 
-        # (chunk, V) int32
         chunk_neighbor = neighbor[start:end]
         chunk_valid = chunk_neighbor != sentinel
+        # clamp(-1 -> 0) keeps invalid indices in-range so the gather is safe
+        chunk_idx = chunk_neighbor.clamp(min=0)
 
-        # Clamp sentinel -1 → 0 for safe indexing.  No clone of the full map.
-        chunk_idx = chunk_neighbor.clamp(min=0).long()
-
-        # Gather: (chunk, V, Ci).  Memory-bound, single index_select.
+        # (chunk, V, Ci) gather, then in-place zero of invalid neighbors.
         gathered = feats[chunk_idx]
-
-        # Zero invalid neighbours in-place.  gathered is a fresh tensor from
-        # advanced indexing, so in-place mutation is safe.
         gathered.mul_(chunk_valid.unsqueeze(-1))
 
-        # Reshape to (chunk, V*Ci)
+        # GEMM (chunk, V*Ci) @ (V*Ci, Co) -> (chunk, Co), written to output[start:end].
         gathered_flat = gathered.view(actual_chunk, V * Ci)
-        if accumulate_f32:
-            gathered_flat = gathered_flat.to(torch.float32)
-            torch.matmul(gathered_flat, weight_T, out=chunk_buf[:actual_chunk])
-            output[start:end] = chunk_buf[:actual_chunk].to(feats.dtype)
-        else:
-            torch.matmul(gathered_flat, weight_T, out=output[start:end])
+        torch.matmul(gathered_flat, weight_T, out=output[start:end])
 
     if bias is not None:
         output += bias.unsqueeze(0).to(output.dtype)
 
     return output, neighbor
-
-class Mesh:
-    def __init__(self,
-        vertices,
-        faces,
-        vertex_attrs=None
-    ):
-        self.vertices = vertices.float()
-        self.faces = faces.int()
-        self.vertex_attrs = vertex_attrs
-
-    @property
-    def device(self):
-        return self.vertices.device
-
-    def to(self, device, non_blocking=False):
-        return Mesh(
-            self.vertices.to(device, non_blocking=non_blocking),
-            self.faces.to(device, non_blocking=non_blocking),
-            self.vertex_attrs.to(device, non_blocking=non_blocking) if self.vertex_attrs is not None else None,
-        )
-
-    def cuda(self, non_blocking=False):
-        return self.to('cuda', non_blocking=non_blocking)
-
-    def cpu(self):
-        return self.to('cpu')
