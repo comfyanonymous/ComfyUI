@@ -1692,16 +1692,27 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.dynamic_vbars = {}
         if not hasattr(self.model, "dynamic_pins"):
             self.model.dynamic_pins = {}
-        if self.load_device not in self.model.dynamic_pins:
-            self.model.dynamic_pins[self.load_device] = {
+        self.register_load_device(self.load_device)
+        self.non_dynamic_delegate_model = None
+        assert load_device is not None
+
+    def register_load_device(self, device):
+        """Ensure dynamic_pins has an entry for *device*.
+
+        Called from __init__ and also from any code that retargets an
+        already-constructed patcher to a new load_device (e.g. the
+        Select{Model,CLIP,VAE}Device selector nodes); without this entry
+        partially_unload_ram() raises KeyError when it tries to read the
+        per-device pin state.
+        """
+        if device not in self.model.dynamic_pins:
+            self.model.dynamic_pins[device] = {
                 "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
                 "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
                 "hostbufs_initialized": False,
                 "failed": False,
                 "active": False,
             }
-        self.non_dynamic_delegate_model = None
-        assert load_device is not None
 
     def is_dynamic(self):
         return True

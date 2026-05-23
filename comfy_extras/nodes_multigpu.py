@@ -90,6 +90,8 @@ class SelectModelDeviceNode(io.ComfyNode):
         model.load_device = resolved
         if resolved.type == "cpu":
             model.offload_device = resolved
+        if hasattr(model, "register_load_device"):
+            model.register_load_device(resolved)
         return io.NodeOutput(model)
 
 
@@ -135,6 +137,8 @@ class SelectCLIPDeviceNode(io.ComfyNode):
         clip.patcher.load_device = resolved
         if resolved.type == "cpu":
             clip.patcher.offload_device = resolved
+        if hasattr(clip.patcher, "register_load_device"):
+            clip.patcher.register_load_device(resolved)
         return io.NodeOutput(clip)
 
 
@@ -185,6 +189,8 @@ class SelectVAEDeviceNode(io.ComfyNode):
         vae.device = resolved
         vae.patcher.load_device = resolved
         vae.patcher.offload_device = comfy.model_management.vae_offload_device()
+        if hasattr(vae.patcher, "register_load_device"):
+            vae.patcher.register_load_device(resolved)
         return io.NodeOutput(vae)
 
 
