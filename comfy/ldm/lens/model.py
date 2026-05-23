@@ -222,7 +222,7 @@ class LensJointAttention(nn.Module):
 
         # [B, S, H, D] → [B, H, S, D] for attention, dels to avoid VRAM peaks
         q = torch.cat([img_q, txt_q], dim=1).transpose(1, 2)
-        del img_q, txt_q 
+        del img_q, txt_q
         k = torch.cat([img_k, txt_k], dim=1).transpose(1, 2)
         del img_k, txt_k
         v = torch.cat([img_v, txt_v], dim=1).transpose(1, 2)
