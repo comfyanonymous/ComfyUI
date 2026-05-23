@@ -46,15 +46,90 @@ class MultiGPUCFGSplitNode(io.ComfyNode):
         return io.NodeOutput(model)
 
 
+def _remember_base_devices(patcher: ModelPatcher):
+    """Stash the original load/offload device on the underlying model.
+
+    Stored on patcher.model (which is shared across patcher clones), so
+    repeated selector applications can recover the loader's original
+    routing when the user picks "default".
+    """
+    if not hasattr(patcher.model, "_select_base_load_device"):
+        patcher.model._select_base_load_device = patcher.load_device
+        patcher.model._select_base_offload_device = patcher.offload_device
+
+
+def _apply_patcher_device(patcher: ModelPatcher, resolved, base_offload_override=None):
+    """Apply *resolved* to a freshly-cloned patcher; respect base devices on default.
+
+    Returns the (possibly newly-replaced) patcher. For CPU on a dynamic
+    patcher, also tries to downgrade to a plain ModelPatcher so the
+    dynamic-only code paths are bypassed (best-effort: silently keeps
+    the dynamic patcher if downgrade is not supported).
+    """
+    _remember_base_devices(patcher)
+    base_load = patcher.model._select_base_load_device
+    base_offload = base_offload_override if base_offload_override is not None else patcher.model._select_base_offload_device
+
+    if resolved is None:
+        # "default" -> reset routing to whatever the loader produced
+        patcher.load_device = base_load
+        patcher.offload_device = base_offload
+    elif resolved.type == "cpu":
+        if patcher.is_dynamic():
+            try:
+                patcher = patcher.clone(disable_dynamic=True)
+            except Exception:
+                # Downgrade unavailable (no cached_patcher_init); fall
+                # back to the existing dynamic patcher.
+                pass
+        patcher.load_device = resolved
+        patcher.offload_device = resolved
+    else:
+        patcher.load_device = resolved
+        patcher.offload_device = base_offload
+
+    if hasattr(patcher, "register_load_device"):
+        patcher.register_load_device(patcher.load_device)
+    return patcher
+
+
+def _prune_multigpu_collision(model: ModelPatcher, primary_device):
+    """Drop any multigpu clone whose load_device matches *primary_device*.
+
+    Without pruning, MultiGPU CFG Split would have stacked a clone on
+    the same device the primary now occupies (i.e. the workflow places
+    MultiGPU CFG Split before Select Model Device). Keeps the clone set
+    consistent with the new primary placement.
+    """
+    multigpu_models = model.get_additional_models_with_key("multigpu")
+    if not multigpu_models:
+        return
+    filtered = [m for m in multigpu_models if m.load_device != primary_device]
+    if len(filtered) != len(multigpu_models):
+        logging.info(f"Select Model Device: pruning MultiGPU clone on {primary_device} that now collides with the primary model.")
+        model.set_additional_models("multigpu", filtered)
+        if hasattr(model, "match_multigpu_clones"):
+            model.match_multigpu_clones()
+
+
 class SelectModelDeviceNode(io.ComfyNode):
     """
     Place the diffusion model on a specific device (default / cpu / gpu:N).
 
+    - "default" restores the device assigned by the loader (even after a
+      prior Select Model Device call).
+    - "cpu" pins both the load and offload device to CPU.
+    - "gpu:N" pins the load device to the Nth available GPU; the offload
+      device is restored to the loader's original choice.
+
+    If the workflow already has MultiGPU CFG Split applied and the chosen
+    GPU collides with one of the existing multigpu clones, that clone is
+    dropped so two patchers don't end up bound to the same device.
+
     When the selected device does not exist on the current machine
     (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
     the node passes the model through unchanged and logs a message
-    instead of failing. This keeps workflows portable across machines
-    with different GPU counts.
+    instead of failing.
     """
 
     @classmethod
@@ -83,15 +158,12 @@ class SelectModelDeviceNode(io.ComfyNode):
     def execute(cls, model: ModelPatcher, device: str = "default") -> io.NodeOutput:
         model = model.clone()
         resolved = comfy.model_management.resolve_gpu_device_option(device)
-        if resolved is None:
-            if device not in (None, "default"):
-                logging.info(f"Select Model Device: requested device '{device}' not available, passing through unchanged.")
+        if resolved is None and device not in (None, "default"):
+            logging.info(f"Select Model Device: requested device '{device}' not available, passing through unchanged.")
             return io.NodeOutput(model)
-        model.load_device = resolved
-        if resolved.type == "cpu":
-            model.offload_device = resolved
-        if hasattr(model, "register_load_device"):
-            model.register_load_device(resolved)
+        model = _apply_patcher_device(model, resolved)
+        if resolved is not None:
+            _prune_multigpu_collision(model, model.load_device)
         return io.NodeOutput(model)
 
 
@@ -99,11 +171,14 @@ class SelectCLIPDeviceNode(io.ComfyNode):
     """
     Place the CLIP text encoder on a specific device (default / cpu / gpu:N).
 
+    - "default" restores the device assigned by the loader.
+    - "cpu" pins both the load and offload device to CPU.
+    - "gpu:N" pins the load device to the Nth available GPU.
+
     When the selected device does not exist on the current machine
     (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
     the node passes the CLIP through unchanged and logs a message
-    instead of failing. This keeps workflows portable across machines
-    with different GPU counts.
+    instead of failing.
     """
 
     @classmethod
@@ -130,15 +205,10 @@ class SelectCLIPDeviceNode(io.ComfyNode):
     def execute(cls, clip: CLIP, device: str = "default") -> io.NodeOutput:
         clip = clip.clone()
         resolved = comfy.model_management.resolve_gpu_device_option(device)
-        if resolved is None:
-            if device not in (None, "default"):
-                logging.info(f"Select CLIP Device: requested device '{device}' not available, passing through unchanged.")
+        if resolved is None and device not in (None, "default"):
+            logging.info(f"Select CLIP Device: requested device '{device}' not available, passing through unchanged.")
             return io.NodeOutput(clip)
-        clip.patcher.load_device = resolved
-        if resolved.type == "cpu":
-            clip.patcher.offload_device = resolved
-        if hasattr(clip.patcher, "register_load_device"):
-            clip.patcher.register_load_device(resolved)
+        clip.patcher = _apply_patcher_device(clip.patcher, resolved)
         return io.NodeOutput(clip)
 
 
@@ -146,13 +216,18 @@ class SelectVAEDeviceNode(io.ComfyNode):
     """
     Place the VAE on a specific device (default / gpu:N).
 
-    CPU is intentionally not offered as a choice; VAE on CPU is impractical.
+    - "default" restores the device assigned by the loader.
+    - "gpu:N" pins the load device to the Nth available GPU; the offload
+      device is set to the standard VAE offload device.
+
+    CPU is intentionally not exposed in the UI for the VAE; if a workflow
+    supplies "cpu" anyway (e.g. opened from another machine), the request
+    is dropped with a log message and the VAE is passed through unchanged.
 
     When the selected device does not exist on the current machine
     (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
     the node passes the VAE through unchanged and logs a message
-    instead of failing. This keeps workflows portable across machines
-    with different GPU counts.
+    instead of failing.
     """
 
     @classmethod
@@ -182,15 +257,20 @@ class SelectVAEDeviceNode(io.ComfyNode):
         vae = copy.copy(vae)
         vae.patcher = vae.patcher.clone()
         resolved = comfy.model_management.resolve_gpu_device_option(device)
-        if resolved is None:
-            if device not in (None, "default"):
-                logging.info(f"Select VAE Device: requested device '{device}' not available, passing through unchanged.")
+        if resolved is None and device not in (None, "default"):
+            logging.info(f"Select VAE Device: requested device '{device}' not available, passing through unchanged.")
             return io.NodeOutput(vae)
-        vae.device = resolved
-        vae.patcher.load_device = resolved
-        vae.patcher.offload_device = comfy.model_management.vae_offload_device()
-        if hasattr(vae.patcher, "register_load_device"):
-            vae.patcher.register_load_device(resolved)
+        if resolved is not None and resolved.type == "cpu":
+            logging.info("Select VAE Device: CPU is not a supported choice, passing through unchanged.")
+            return io.NodeOutput(vae)
+        vae.patcher = _apply_patcher_device(
+            vae.patcher, resolved,
+            base_offload_override=comfy.model_management.vae_offload_device(),
+        )
+        # VAE caches the working device separately from its patcher.
+        if not hasattr(vae, "_select_base_device"):
+            vae._select_base_device = vae.device
+        vae.device = vae._select_base_device if resolved is None else resolved
         return io.NodeOutput(vae)
 
 

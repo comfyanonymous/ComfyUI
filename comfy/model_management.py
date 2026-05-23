@@ -268,8 +268,10 @@ def resolve_gpu_device_option(option: str):
 
     Returns None for "default" (let the caller use its normal default).
     Returns torch.device("cpu") for "cpu".
-    For "gpu:N", returns the Nth torch device. Falls back to None if
-    the index is out of range (caller should use default).
+    For "gpu:N", returns the Nth torch device. Returns None if the
+    index is out of range, the option string is malformed, or
+    unrecognized (callers are expected to log their own context-rich
+    message before falling back to the default device).
     """
     if option is None or option == "default":
         return None
@@ -278,16 +280,11 @@ def resolve_gpu_device_option(option: str):
     if option.startswith("gpu:"):
         try:
             idx = int(option[4:])
-            devices = get_all_torch_devices()
-            if 0 <= idx < len(devices):
-                return devices[idx]
-            else:
-                logging.warning(f"Device '{option}' not available (only {len(devices)} GPU(s)), using default.")
-                return None
-        except (ValueError, IndexError):
-            logging.warning(f"Invalid device option '{option}', using default.")
+        except ValueError:
             return None
-    logging.warning(f"Unrecognized device option '{option}', using default.")
+        devices = get_all_torch_devices()
+        if 0 <= idx < len(devices):
+            return devices[idx]
     return None
 
 @contextmanager
