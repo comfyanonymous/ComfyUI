@@ -74,7 +74,7 @@ class SelectModelDeviceNode(io.ComfyNode):
         )
 
     @classmethod
-    def VALIDATE_INPUTS(cls, device="default"):
+    def validate_inputs(cls, device="default"):
         # Allow unknown gpu:N values so portable workflows do not error
         # at validation time; runtime fallback will handle them.
         return True
@@ -123,7 +123,7 @@ class SelectCLIPDeviceNode(io.ComfyNode):
         )
 
     @classmethod
-    def VALIDATE_INPUTS(cls, device="default"):
+    def validate_inputs(cls, device="default"):
         return True
 
     @classmethod
@@ -172,7 +172,7 @@ class SelectVAEDeviceNode(io.ComfyNode):
         )
 
     @classmethod
-    def VALIDATE_INPUTS(cls, device="default"):
+    def validate_inputs(cls, device="default"):
         return True
 
     @classmethod
