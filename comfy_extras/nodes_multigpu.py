@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import logging
 from inspect import cleandoc
 from typing import TYPE_CHECKING
 from typing_extensions import override
@@ -8,6 +10,8 @@ from comfy_api.latest import ComfyExtension, io
 
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
+    from comfy.sd import CLIP, VAE
+import comfy.model_management
 import comfy.multigpu
 
 
@@ -40,6 +44,148 @@ class MultiGPUCFGSplitNode(io.ComfyNode):
     def execute(cls, model: ModelPatcher, max_gpus: int) -> io.NodeOutput:
         model = comfy.multigpu.create_multigpu_deepclones(model, max_gpus, reuse_loaded=True)
         return io.NodeOutput(model)
+
+
+class SelectModelDeviceNode(io.ComfyNode):
+    """
+    Place the diffusion model on a specific device (default / cpu / gpu:N).
+
+    When the selected device does not exist on the current machine
+    (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
+    the node passes the model through unchanged and logs a message
+    instead of failing. This keeps workflows portable across machines
+    with different GPU counts.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SelectModelDevice",
+            display_name="Select Model Device",
+            category="advanced/multigpu",
+            description=cleandoc(cls.__doc__),
+            inputs=[
+                io.Model.Input("model"),
+                io.Combo.Input("device", options=comfy.model_management.get_gpu_device_options()),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, device="default"):
+        # Allow unknown gpu:N values so portable workflows do not error
+        # at validation time; runtime fallback will handle them.
+        return True
+
+    @classmethod
+    def execute(cls, model: ModelPatcher, device: str = "default") -> io.NodeOutput:
+        model = model.clone()
+        resolved = comfy.model_management.resolve_gpu_device_option(device)
+        if resolved is None:
+            if device not in (None, "default"):
+                logging.info(f"Select Model Device: requested device '{device}' not available, passing through unchanged.")
+            return io.NodeOutput(model)
+        model.load_device = resolved
+        if resolved.type == "cpu":
+            model.offload_device = resolved
+        return io.NodeOutput(model)
+
+
+class SelectCLIPDeviceNode(io.ComfyNode):
+    """
+    Place the CLIP text encoder on a specific device (default / cpu / gpu:N).
+
+    When the selected device does not exist on the current machine
+    (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
+    the node passes the CLIP through unchanged and logs a message
+    instead of failing. This keeps workflows portable across machines
+    with different GPU counts.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SelectCLIPDevice",
+            display_name="Select CLIP Device",
+            category="advanced/multigpu",
+            description=cleandoc(cls.__doc__),
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Combo.Input("device", options=comfy.model_management.get_gpu_device_options()),
+            ],
+            outputs=[
+                io.Clip.Output(),
+            ],
+        )
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, device="default"):
+        return True
+
+    @classmethod
+    def execute(cls, clip: CLIP, device: str = "default") -> io.NodeOutput:
+        clip = clip.clone()
+        resolved = comfy.model_management.resolve_gpu_device_option(device)
+        if resolved is None:
+            if device not in (None, "default"):
+                logging.info(f"Select CLIP Device: requested device '{device}' not available, passing through unchanged.")
+            return io.NodeOutput(clip)
+        clip.patcher.load_device = resolved
+        if resolved.type == "cpu":
+            clip.patcher.offload_device = resolved
+        return io.NodeOutput(clip)
+
+
+class SelectVAEDeviceNode(io.ComfyNode):
+    """
+    Place the VAE on a specific device (default / gpu:N).
+
+    CPU is intentionally not offered as a choice; VAE on CPU is impractical.
+
+    When the selected device does not exist on the current machine
+    (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
+    the node passes the VAE through unchanged and logs a message
+    instead of failing. This keeps workflows portable across machines
+    with different GPU counts.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SelectVAEDevice",
+            display_name="Select VAE Device",
+            category="advanced/multigpu",
+            description=cleandoc(cls.__doc__),
+            inputs=[
+                io.Vae.Input("vae"),
+                io.Combo.Input("device", options=comfy.model_management.get_gpu_device_options_no_cpu()),
+            ],
+            outputs=[
+                io.Vae.Output(),
+            ],
+        )
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, device="default"):
+        return True
+
+    @classmethod
+    def execute(cls, vae: VAE, device: str = "default") -> io.NodeOutput:
+        # VAE has no .clone(); shallow-copy the wrapper and clone the patcher
+        # so we can retarget load/offload device without affecting the input VAE.
+        vae = copy.copy(vae)
+        vae.patcher = vae.patcher.clone()
+        resolved = comfy.model_management.resolve_gpu_device_option(device)
+        if resolved is None:
+            if device not in (None, "default"):
+                logging.info(f"Select VAE Device: requested device '{device}' not available, passing through unchanged.")
+            return io.NodeOutput(vae)
+        vae.device = resolved
+        vae.patcher.load_device = resolved
+        vae.patcher.offload_device = comfy.model_management.vae_offload_device()
+        return io.NodeOutput(vae)
 
 
 class MultiGPUOptionsNode(io.ComfyNode):
@@ -92,6 +238,9 @@ class MultiGPUExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             MultiGPUCFGSplitNode,
+            SelectModelDeviceNode,
+            SelectCLIPDeviceNode,
+            SelectVAEDeviceNode,
             # MultiGPUOptionsNode,
         ]
 

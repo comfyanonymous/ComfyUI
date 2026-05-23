@@ -255,6 +255,14 @@ def get_gpu_device_options():
             options.append(f"gpu:{i}")
     return options
 
+def get_gpu_device_options_no_cpu():
+    """Variant of get_gpu_device_options that omits "cpu".
+
+    Intended for components like the VAE selector where running on CPU
+    is impractical and should not be offered as a choice.
+    """
+    return [o for o in get_gpu_device_options() if o != "cpu"]
+
 def resolve_gpu_device_option(option: str):
     """Resolve a device option string to a torch.device.
 
