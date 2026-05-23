@@ -1333,6 +1333,204 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         self._buffers[key] = fn(buf)
                 return self
 
+        class MoEExperts(torch.nn.Module):
+            """Container for E quantized expert weights, indexed via ``expert_weight(i)``.
+
+            Holds expert weights as 3D buffers/parameters.
+
+            State-dict layout (analogous to ``mixed_precision_ops.Linear`` with a
+            leading expert dim — exact storage shape is layout-specific)::
+
+                {prefix}.weight          quant data (storage_t), leading dim = E
+                {prefix}.weight_scale    block / per-tensor scale
+                {prefix}.weight_scale_2  [E] or scalar           NVFP4 only
+                {prefix}.bias            [E, out_features]       optional, bf16
+                {prefix}.comfy_quant     json -> {{"format": "...", "num_experts": E}}
+
+            Without ``comfy_quant`` the weight loads as a plain bf16 3D Parameter ``[E, out, in]``.
+            """
+
+            def __init__(self, num_experts: int, in_features: int, out_features: int, bias: bool = True, device=None, dtype=None):
+                super().__init__()
+                self.num_experts = num_experts
+                self.in_features = in_features
+                self.out_features = out_features
+                self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
+                if bias:
+                    self.bias = torch.nn.Parameter(torch.empty(num_experts, out_features, **self.factory_kwargs))
+                else:
+                    self.register_parameter("bias", None)
+
+                # Populated by _load_from_state_dict:
+                self.weight = None          # bf16 fallback: 3D Parameter [E, out, in]
+                self.quant_format = None
+                self.layout_type = None
+                self._full_precision_mm = MixedPrecisionOps._full_precision_mm
+                self._full_precision_mm_config = False
+
+            def reset_parameters(self):
+                return None
+
+            def _load_scale_param(self, state_dict, prefix, param_name, device,
+                                  manually_loaded_keys, dtype=None):
+                key = f"{prefix}{param_name}"
+                value = state_dict.pop(key, None)
+                if value is not None:
+                    value = value.to(device=device)
+                    if dtype is not None:
+                        value = value.view(dtype=dtype)
+                    manually_loaded_keys.append(key)
+                return value
+
+            # TODO: refactor to share more code with Linear._load_from_state_dict
+            def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+                device = self.factory_kwargs["device"]
+                layer_name = prefix.rstrip(".")
+                weight_key = f"{prefix}weight"
+                weight = state_dict.pop(weight_key, None)
+                if weight is None:
+                    logging.warning(f"Missing weight for MoEExperts layer {layer_name}")
+                    return
+                manually_loaded_keys = [weight_key]
+
+                layer_conf = state_dict.pop(f"{prefix}comfy_quant", None)
+                if layer_conf is not None:
+                    layer_conf = json.loads(layer_conf.numpy().tobytes())
+                    manually_loaded_keys.append(f"{prefix}comfy_quant")
+
+                if layer_conf is None:
+                    self.weight = torch.nn.Parameter(
+                        weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype),
+                        requires_grad=False,
+                    )
+                else:
+                    self.quant_format = layer_conf.get("format")
+                    self._full_precision_mm_config = layer_conf.get("full_precision_matrix_mult", False)
+                    if not self._full_precision_mm:
+                        self._full_precision_mm = self._full_precision_mm_config
+
+                    if self.quant_format in MixedPrecisionOps._disabled:
+                        self._full_precision_mm = True
+
+                    if self.quant_format is None:
+                        raise ValueError(f"Unknown quant format for MoEExperts layer {layer_name}")
+
+                    qconfig = QUANT_ALGOS[self.quant_format]
+                    self.layout_type = qconfig["comfy_tensor_layout"]
+
+                    if self.quant_format in ("float8_e4m3fn", "float8_e5m2"):
+                        ts = self._load_scale_param(state_dict, prefix, "weight_scale", device, manually_loaded_keys)
+                        self.register_buffer("_tensor_scale", ts, persistent=False)
+                    elif self.quant_format == "mxfp8":
+                        bs = self._load_scale_param(state_dict, prefix, "weight_scale", device,
+                                                    manually_loaded_keys, dtype=torch.uint8)
+                        if bs is None:
+                            raise ValueError(f"Missing MXFP8 block scales for MoEExperts layer {layer_name}")
+                        self.register_buffer("_block_scale", bs.view(torch.float8_e8m0fnu), persistent=False)
+                    elif self.quant_format == "nvfp4":
+                        ts = self._load_scale_param(state_dict, prefix, "weight_scale_2", device, manually_loaded_keys)
+                        bs = self._load_scale_param(state_dict, prefix, "weight_scale", device,
+                                                    manually_loaded_keys, dtype=torch.float8_e4m3fn)
+                        if ts is None or bs is None:
+                            raise ValueError(f"Missing NVFP4 scales for MoEExperts layer {layer_name}")
+                        self.register_buffer("_tensor_scale", ts, persistent=False)
+                        self.register_buffer("_block_scale", bs, persistent=False)
+                    else:
+                        raise ValueError(f"Unsupported MoEExperts quant format: {self.quant_format}")
+
+                    self.register_buffer(
+                        "_qdata",
+                        weight.to(device=device, dtype=qconfig["storage_t"]),
+                        persistent=False,
+                    )
+
+                super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
+                                              missing_keys, unexpected_keys, error_msgs)
+                for k in manually_loaded_keys:
+                    if k in missing_keys:
+                        missing_keys.remove(k)
+
+            def expert_weight(self, i: int):
+                """Expert i's weight (Tensor or QuantizedTensor)."""
+                if self.quant_format is None:
+                    return self.weight[i]
+
+                qdata = self._qdata[i]
+                layout_cls = get_layout_class(self.layout_type)
+                orig_shape = (self.out_features, self.in_features)
+
+                if self.quant_format in ("float8_e4m3fn", "float8_e5m2"):
+                    scale = self._tensor_scale[i] if self._tensor_scale.dim() else self._tensor_scale
+                    params = layout_cls.Params(
+                        scale=scale,
+                        orig_dtype=MixedPrecisionOps._compute_dtype,
+                        orig_shape=orig_shape,
+                    )
+                elif self.quant_format == "mxfp8":
+                    params = layout_cls.Params(
+                        scale=self._block_scale[i],
+                        orig_dtype=MixedPrecisionOps._compute_dtype,
+                        orig_shape=orig_shape,
+                    )
+                elif self.quant_format == "nvfp4":
+                    tscale = self._tensor_scale[i] if self._tensor_scale.dim() else self._tensor_scale
+                    params = layout_cls.Params(
+                        scale=tscale,
+                        block_scale=self._block_scale[i],
+                        orig_dtype=MixedPrecisionOps._compute_dtype,
+                        orig_shape=orig_shape,
+                    )
+                else:
+                    raise ValueError(f"Unsupported quant format: {self.quant_format}")
+                return QuantizedTensor(qdata, self.layout_type, params)
+
+            def expert_linear(self, input: torch.Tensor, i: int) -> torch.Tensor:
+                """Linear against expert ``i``'s weight (with optional bias)."""
+                qw = self.expert_weight(i)
+                bias = None
+                if self.bias is not None:
+                    bias = cast_to_input(self.bias[i], input, copy=False)
+
+                if isinstance(qw, QuantizedTensor):
+                    use_fast = (
+                        not self._full_precision_mm
+                        and qw.layout_cls.supports_fast_matmul()
+                        and input.dim() == 2
+                    )
+                    if use_fast:
+                        qin = QuantizedTensor.from_float(input, self.layout_type)
+                        return torch.nn.functional.linear(qin, qw, bias)
+                    out = input @ qw.dequantize().t()
+                    return out + bias if bias is not None else out
+
+                return torch.nn.functional.linear(input, qw, bias)
+
+            def state_dict(self, *args, destination=None, prefix="", **kwargs):
+                sd = destination if destination is not None else {}
+                if self.bias is not None:
+                    sd[f"{prefix}bias"] = self.bias
+                if self.quant_format is None:
+                    if self.weight is not None:
+                        sd[f"{prefix}weight"] = self.weight
+                    return sd
+
+                sd[f"{prefix}weight"] = self._qdata
+                if self.quant_format == "nvfp4":
+                    sd[f"{prefix}weight_scale"] = self._block_scale.view(torch.uint8)
+                    sd[f"{prefix}weight_scale_2"] = self._tensor_scale
+                elif self.quant_format == "mxfp8":
+                    sd[f"{prefix}weight_scale"] = self._block_scale.view(torch.uint8)
+                elif self.quant_format in ("float8_e4m3fn", "float8_e5m2"):
+                    sd[f"{prefix}weight_scale"] = self._tensor_scale
+
+                quant_conf = {"format": self.quant_format, "num_experts": self.num_experts}
+                if self._full_precision_mm_config:
+                    quant_conf["full_precision_matrix_mult"] = True
+                sd[f"{prefix}comfy_quant"] = torch.tensor(
+                    list(json.dumps(quant_conf).encode("utf-8")), dtype=torch.uint8
+                )
+                return sd
+
         class Embedding(manual_cast.Embedding):
             def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                     strict, missing_keys, unexpected_keys, error_msgs):

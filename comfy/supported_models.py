@@ -859,10 +859,8 @@ class Lens(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         for hint in ("gpt_oss.transformer.", ""):
             full_prefix = "{}{}".format(pref, hint)
-            if "{}model.layers.0.self_attn.sinks".format(full_prefix) in state_dict:
+            if "{}layers.0.self_attn.sinks".format(full_prefix) in state_dict:
                 detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, full_prefix)
-                if "{}model.layers.0.mlp.experts.gate_up_proj_blocks".format(full_prefix) in state_dict:
-                    detect["mxfp4_runtime"] = True
                 return supported_models_base.ClipTarget(
                     comfy.text_encoders.gpt_oss.LensTokenizer,
                     comfy.text_encoders.gpt_oss.lens_te(**detect),

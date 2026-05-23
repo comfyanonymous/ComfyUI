@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import gc
-import logging
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -201,7 +199,7 @@ class GptOssTopKRouter(nn.Module):
 
 
 class GptOssExperts(nn.Module):
-    def __init__(self, config: GptOss20BConfig, device=None, dtype=None):
+    def __init__(self, config: GptOss20BConfig, device=None, dtype=None, ops: Any = None):
         super().__init__()
         self.num_experts = config.num_local_experts
         self.hidden_size = config.hidden_size
@@ -213,29 +211,8 @@ class GptOssExperts(nn.Module):
         H = self.hidden_size
         I = self.intermediate_size
 
-        self.gate_up_proj_bias = nn.Parameter(torch.empty(E, 2 * I, device=device, dtype=dtype))
-        self.down_proj_bias = nn.Parameter(torch.empty(E, H, device=device, dtype=dtype))
-        self.gate_up_proj = nn.Parameter(torch.empty(E, H, 2 * I, device=device, dtype=dtype))
-        self.down_proj = nn.Parameter(torch.empty(E, I, H, device=device, dtype=dtype))
-
-    def switch_to_mxfp4(self, device=None):
-        """Swap bf16 weight Parameters for uint8 MXFP4 packed buffers.
-
-        On-disk MXFP4 layout: ``[E, 2*I, G_up, 16]`` uint8 + ``[E, 2*I, G_up]``
-        uint8 (E8M0) for ``gate_up``; ``[E, H, G_down, 16]`` + ``[E, H, G_down]``
-        for ``down``. ``G_up * 32 = H``, ``G_down * 32 = I``.
-        """
-        E, H, I = self.num_experts, self.hidden_size, self.intermediate_size
-        if H % 32 != 0 or I % 32 != 0:
-            raise ValueError(f"MXFP4 requires H, I divisible by 32; got H={H}, I={I}")
-        del self.gate_up_proj
-        del self.down_proj
-        G_up = H // 32
-        G_down = I // 32
-        self.register_buffer("gate_up_proj_blocks", torch.empty(E, 2 * I, G_up, 16, dtype=torch.uint8, device=device))
-        self.register_buffer("gate_up_proj_scales", torch.empty(E, 2 * I, G_up, dtype=torch.uint8, device=device))
-        self.register_buffer("down_proj_blocks", torch.empty(E, H, G_down, 16, dtype=torch.uint8, device=device))
-        self.register_buffer("down_proj_scales", torch.empty(E, H, G_down, dtype=torch.uint8, device=device))
+        self.gate_up_proj = ops.MoEExperts(num_experts=E, in_features=H, out_features=2 * I, bias=True, device=device, dtype=dtype)
+        self.down_proj = ops.MoEExperts(num_experts=E, in_features=I, out_features=H, bias=True, device=device, dtype=dtype)
 
     def _apply_gate(self, gate_up: torch.Tensor) -> torch.Tensor:
         gate = gate_up[..., ::2]
@@ -244,24 +221,6 @@ class GptOssExperts(nn.Module):
         up = up.clamp(min=-self.limit, max=self.limit)
         glu = gate * torch.sigmoid(gate * self.alpha)
         return (up + 1) * glu
-
-    @staticmethod
-    def _dequant_one_expert(
-        blocks_e: torch.Tensor,
-        scales_e: torch.Tensor,
-        dtype: torch.dtype,
-    ) -> torch.Tensor:
-        """Dequant one expert's MXFP4 ``[D, G, 16]`` + ``[D, G]`` to ``[G*32, D]``."""
-        D, G, B = blocks_e.shape
-        val_per_row = G * 32
-        lut = _fp4_lut(dtype, blocks_e.device)
-        blocks_flat = blocks_e.reshape(D * G, B)
-        scales_flat = (scales_e.to(torch.int32) - 127).reshape(D * G, 1)
-        dec = torch.empty(D * G, B * 2, dtype=dtype, device=blocks_e.device)
-        dec[:, 0::2] = lut[(blocks_flat & 0x0F).to(torch.long)]
-        dec[:, 1::2] = lut[(blocks_flat >> 4).to(torch.long)]
-        torch.ldexp(dec, scales_flat, out=dec)
-        return dec.view(D, val_per_row).transpose(0, 1)
 
     def forward(self, hidden_states: torch.Tensor, router_indices: torch.Tensor, routing_weights: torch.Tensor) -> torch.Tensor:
         N = hidden_states.shape[0]
@@ -273,34 +232,15 @@ class GptOssExperts(nn.Module):
         expert_mask = F.one_hot(router_indices, num_classes=self.num_experts).permute(2, 1, 0)
         expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
 
-        is_mxfp4 = hasattr(self, "gate_up_proj_blocks")
-
         for ei in expert_hit:
             expert_idx = int(ei.item())
             top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
             current = hidden_states[token_idx]
 
-            if is_mxfp4:
-                gate_up_w = self._dequant_one_expert(
-                    self.gate_up_proj_blocks[expert_idx],
-                    self.gate_up_proj_scales[expert_idx],
-                    current.dtype,
-                )
-                down_w = self._dequant_one_expert(
-                    self.down_proj_blocks[expert_idx],
-                    self.down_proj_scales[expert_idx],
-                    current.dtype,
-                )
-            else:
-                gate_up_w = comfy.ops.cast_to_input(self.gate_up_proj[expert_idx], current, copy=False)
-                down_w = comfy.ops.cast_to_input(self.down_proj[expert_idx], current, copy=False)
-
-            gate_up_b = comfy.ops.cast_to_input(self.gate_up_proj_bias[expert_idx], current, copy=False)
-            down_b = comfy.ops.cast_to_input(self.down_proj_bias[expert_idx], current, copy=False)
-
-            gate_up = current @ gate_up_w + gate_up_b
+            gate_up = self.gate_up_proj.expert_linear(current, expert_idx)
             gated = self._apply_gate(gate_up)
-            expert_out = gated @ down_w + down_b
+            expert_out = self.down_proj.expert_linear(gated, expert_idx)
+
             weighted = expert_out * routing_weights[token_idx, top_k_pos, None]
 
             flat_idx = token_idx * top_k + top_k_pos
@@ -310,10 +250,10 @@ class GptOssExperts(nn.Module):
 
 
 class GptOssMLP(nn.Module):
-    def __init__(self, config: GptOss20BConfig, device=None, dtype=None):
+    def __init__(self, config: GptOss20BConfig, device=None, dtype=None, ops: Any = None):
         super().__init__()
         self.router = GptOssTopKRouter(config, device=device, dtype=dtype)
-        self.experts = GptOssExperts(config, device=device, dtype=dtype)
+        self.experts = GptOssExperts(config, device=device, dtype=dtype, ops=ops)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         B, S, H = hidden_states.shape
@@ -329,7 +269,7 @@ class GptOssDecoderLayer(nn.Module):
     def __init__(self, config: GptOss20BConfig, layer_idx: int, device=None, dtype=None, ops: Any = None):
         super().__init__()
         self.self_attn = GptOssAttention(config, layer_idx, device=device, dtype=dtype, ops=ops)
-        self.mlp = GptOssMLP(config, device=device, dtype=dtype)
+        self.mlp = GptOssMLP(config, device=device, dtype=dtype, ops=ops)
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, device=device, dtype=dtype)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, device=device, dtype=dtype)
         self.layer_type = config.layer_types[layer_idx]
@@ -579,124 +519,23 @@ class LensTokenizer(sd1_clip.SD1Tokenizer):
         )
 
 
-# MXFP4 E2M1 LUT (1 sign + 2 exp + 1 mantissa).
-_FP4_VALUES: Tuple[float, ...] = (
-    0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0,
-    -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
-)
-
-
-_FP4_LUT_CACHE: Dict[Tuple[torch.dtype, str], torch.Tensor] = {}
-
-
-def _fp4_lut(dtype: torch.dtype, device: torch.device) -> torch.Tensor:
-    """Cached per (dtype, device) FP4 lookup table — avoids per-call allocation."""
-    key = (dtype, str(device))
-    lut = _FP4_LUT_CACHE.get(key)
-    if lut is None:
-        lut = torch.tensor(_FP4_VALUES, dtype=dtype, device=device)
-        _FP4_LUT_CACHE[key] = lut
-    return lut
-
-
-def _safe_dequant_moe_tensor(
-    blocks: torch.Tensor,
-    scales: torch.Tensor,
-    *,
-    dtype: torch.dtype = torch.bfloat16,
-    rows_per_chunk: int = 4096,
-) -> torch.Tensor:
-    """Eager full-tensor MXFP4 dequant -> ``[E, H, 2*I]`` ``dtype``.
-
-    Allocates the output in its final transposed layout and writes in chunks
-    """
-    blocks = blocks.to(torch.uint8)
-    scales = scales.to(torch.int32) - 127
-
-    assert blocks.shape[:-1] == scales.shape, (
-        f"{blocks.shape[:-1]=} does not match {scales.shape=}"
-    )
-    *prefix_shape, G, B = blocks.shape
-    if len(prefix_shape) != 2:
-        raise ValueError(f"expected 2-D prefix (E, 2*I); got {prefix_shape}")
-
-    E, D = prefix_shape
-    val_per_row = G * B * 2  # this is H after dequant
-
-    rows_total = E * D * G
-    blocks = blocks.reshape(rows_total, B)
-    scales = scales.reshape(rows_total, 1)
-
-    lut = _fp4_lut(dtype, blocks.device)
-    out = torch.empty(E, val_per_row, D, dtype=dtype, device=blocks.device)
-
-    for e in range(E):
-        for d0 in range(0, D, rows_per_chunk):
-            d1 = min(d0 + rows_per_chunk, D)
-            r0 = e * D * G + d0 * G
-            r1 = e * D * G + d1 * G
-            blk = blocks[r0:r1]
-            exp = scales[r0:r1]
-            dec = torch.empty((d1 - d0) * G, B * 2, dtype=dtype, device=blocks.device)
-            dec[:, 0::2] = lut[(blk & 0x0F).to(torch.long)]
-            dec[:, 1::2] = lut[(blk >> 4).to(torch.long)]
-            torch.ldexp(dec, exp, out=dec)
-            out[e, :, d0:d1] = dec.view(d1 - d0, val_per_row).transpose(0, 1)
-            del blk, exp, dec
-    return out
-
-
-def _dequant_mxfp4_state_dict(sd: Dict[str, torch.Tensor], target_dtype: torch.dtype) -> Dict[str, torch.Tensor]:
-    """Eager-dequant every ``*_blocks``/``*_scales`` pair in ``sd`` in place."""
-    pairs: List[Tuple[str, str, str]] = []
-    for k in list(sd.keys()):
-        if k.endswith("_blocks"):
-            stem = k[: -len("_blocks")]
-            sk = stem + "_scales"
-            if sk in sd:
-                pairs.append((stem, k, sk))
-
-    if not pairs:
-        return sd
-
-    logging.info("Lens: dequantizing %d MXFP4 expert tensors -> %s", len(pairs), target_dtype)
-    for stem, bk, sk in pairs:
-        blocks = sd.pop(bk)
-        scales = sd.pop(sk)
-        sd[stem] = _safe_dequant_moe_tensor(blocks, scales, dtype=target_dtype)
-        del blocks, scales
-
-    gc.collect()
-    return sd
-
-
 class LensGptOssClipModel(nn.Module):
     """SDClipModel-shaped Lens GPT-OSS encoder (multi-layer feature extractor)."""
 
-    def __init__(self, device="cpu", dtype=None, model_options=None, **_):
+    def __init__(self, device="cpu", dtype=None, model_options=None, **kwargs):
         super().__init__()
         model_options = dict(model_options or {})
 
         operations = model_options.get("custom_operations")
-        quant_config = model_options.get("quantization_metadata")
         if operations is None:
-            if quant_config is not None:
-                operations = comfy.ops.mixed_precision_ops(
-                    quant_config, dtype, full_precision_mm=True
-                )
-            else:
-                operations = comfy.ops.manual_cast
+            quant_config = model_options.get("quantization_metadata") or {}
+            operations = comfy.ops.mixed_precision_ops(quant_config, dtype, full_precision_mm=True)
         self.operations = operations
 
         cfg_overrides = model_options.get("gpt_oss_config", {})
         self.config = GptOss20BConfig(**cfg_overrides)
-        self.selected_layers = tuple(
-            model_options.get("selected_layers", LENS_SELECTED_LAYERS)
-        )
+        self.selected_layers = tuple(model_options.get("selected_layers", LENS_SELECTED_LAYERS))
         self.txt_offset = int(model_options.get("txt_offset", LENS_TXT_OFFSET))
-
-        # mxfp4_runtime=True keeps experts packed and dequants per hit at forward.
-        self.mxfp4_runtime = bool(model_options.get("mxfp4_runtime", False))
 
         self.transformer = GptOssModel(self.config, device=device, dtype=dtype, ops=operations)
         self.num_layers = self.config.num_hidden_layers
@@ -755,17 +594,6 @@ class LensGptOssClipModel(nn.Module):
         return flat, None, extra
 
     def load_sd(self, sd):
-        if any(k.startswith("model.") for k in sd):
-            sd = {(k[len("model."):] if k.startswith("model.") else k): v for k, v in sd.items()}
-        sd.pop("lm_head.weight", None)
-
-        if self.mxfp4_runtime:
-            device = next(self.transformer.parameters()).device
-            for layer in self.transformer.layers:
-                layer.mlp.experts.switch_to_mxfp4(device=device)
-        else:
-            sd = _dequant_mxfp4_state_dict(sd, self.dtype)
-
         return self.transformer.load_state_dict(sd, strict=False, assign=True)
 
 
@@ -774,7 +602,7 @@ class LensTEModel(sd1_clip.SD1ClipModel):
         super().__init__(device=device, dtype=dtype, name="gpt_oss", clip_model=LensGptOssClipModel, model_options=model_options or {})
 
 
-def lens_te(dtype_llama=None, llama_quantization_metadata=None, mxfp4_runtime=False):
+def lens_te(dtype_llama=None, llama_quantization_metadata=None):
     class LensTEModel_(LensTEModel):
         def __init__(self, device="cpu", dtype=None, model_options=None):
             mo = dict(model_options or {})
@@ -782,8 +610,6 @@ def lens_te(dtype_llama=None, llama_quantization_metadata=None, mxfp4_runtime=Fa
                 mo["quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
-            if mxfp4_runtime:
-                mo["mxfp4_runtime"] = True
             super().__init__(device=device, dtype=dtype, model_options=mo)
 
     return LensTEModel_
