@@ -35,6 +35,7 @@ import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
 import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
+import comfy.ldm.lens.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
@@ -1056,6 +1057,27 @@ class Flux2(Flux):
             if cross_attn.shape[1] < target_text_len:
                 cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, target_text_len - cross_attn.shape[1], 0))
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
+
+class Lens(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(
+            model_config, model_type, device=device,
+            unet_model=comfy.ldm.lens.model.LensTransformer2DModel,
+        )
+
+    def encode_adm(self, **kwargs):
+        return None  # Lens has no pooled/ADM conditioning.
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
         return out
 
 class GenmoMochi(BaseModel):

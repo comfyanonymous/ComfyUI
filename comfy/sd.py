@@ -69,6 +69,7 @@ import comfy.text_encoders.ernie
 import comfy.text_encoders.gemma4
 import comfy.text_encoders.cogvideo
 import comfy.text_encoders.sa3
+import comfy.text_encoders.gpt_oss
 
 import comfy.model_patcher
 import comfy.lora
@@ -1269,6 +1270,7 @@ class CLIPType(Enum):
     FLUX2 = 25
     LONGCAT_IMAGE = 26
     COGVIDEOX = 27
+    LENS = 28
 
 
 
@@ -1321,6 +1323,7 @@ class TEModel(Enum):
     GEMMA_4_E2B = 30
     GEMMA_4_31B = 31
     T5_GEMMA = 32
+    GPT_OSS_20B = 33
 
 
 def detect_te_model(sd):
@@ -1362,6 +1365,12 @@ def detect_te_model(sd):
             else:
                 return TEModel.GEMMA_3_4B
         return TEModel.GEMMA_2_2B
+    # Must precede the Qwen2.5-7B k_proj.bias=512 check (GPT-OSS also has 8*64=512).
+    if "model.layers.0.self_attn.sinks" in sd and (
+        "model.layers.0.mlp.experts.gate_up_proj" in sd
+        or "model.layers.0.mlp.experts.gate_up_proj_blocks" in sd
+    ):
+        return TEModel.GPT_OSS_20B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
         weight = sd['model.layers.0.self_attn.k_proj.bias']
         if weight.shape[0] == 256:
@@ -1544,6 +1553,11 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.flux.flux2_te(**llama_detect(clip_data), pruned=te_model == TEModel.MISTRAL3_24B_PRUNED_FLUX2)
             clip_target.tokenizer = comfy.text_encoders.flux.Flux2Tokenizer
             tokenizer_data["tekken_model"] = clip_data[0].get("tekken_model", None)
+        elif te_model == TEModel.GPT_OSS_20B:
+            mxfp4 = any("model.layers.0.mlp.experts.gate_up_proj_blocks" in sd for sd in clip_data)
+            clip_target.clip = comfy.text_encoders.gpt_oss.lens_te(**llama_detect(clip_data), mxfp4_runtime=mxfp4)
+            clip_target.tokenizer = comfy.text_encoders.gpt_oss.LensTokenizer
+            tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.QWEN3_4B:
             if clip_type == CLIPType.FLUX or clip_type == CLIPType.FLUX2:
                 clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type="qwen3_4b")

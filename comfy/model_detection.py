@@ -755,6 +755,30 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["timestep_scale"] = 1000.0
         return dit_config
 
+    if '{}transformer_blocks.0.attn.norm_added_q.weight'.format(key_prefix) in state_dict_keys \
+            and '{}transformer_blocks.0.img_mlp.w1.weight'.format(key_prefix) in state_dict_keys:  # Lens
+        img_in_w = state_dict['{}img_in.weight'.format(key_prefix)]
+        proj_out_w = state_dict['{}proj_out.weight'.format(key_prefix)]
+        multi_layer = '{}txt_norm.0.weight'.format(key_prefix) in state_dict_keys
+        if multi_layer:
+            enc_hidden_dim = state_dict['{}txt_norm.0.weight'.format(key_prefix)].shape[0]
+            # Indices are TE-side; the DiT just consumes L layers in order.
+            selected_layer_index = tuple(range(count_blocks(state_dict_keys, '{}txt_norm.'.format(key_prefix) + '{}.')))
+        else:
+            enc_hidden_dim = state_dict['{}txt_norm.weight'.format(key_prefix)].shape[0]
+            selected_layer_index = (0,)
+
+        return {
+            "image_model": "lens",
+            "in_channels": img_in_w.shape[1],
+            "out_channels": proj_out_w.shape[0] // 4,  # patch_size ** 2 (=2² default)
+            "num_layers": count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.'),
+            "num_attention_heads": img_in_w.shape[0] // 64,  # // attention_head_dim default
+            "enc_hidden_dim": enc_hidden_dim,
+            "multi_layer_encoder_feature": multi_layer,
+            "selected_layer_index": selected_layer_index,
+        }
+
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}
         dit_config["image_model"] = "qwen_image"
