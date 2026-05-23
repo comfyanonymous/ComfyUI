@@ -216,7 +216,14 @@ import comfy.memory_management
 import comfy.model_patcher
 
 if args.enable_dynamic_vram or (enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl()):
-    if (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
+    if not comfy.model_management.is_nvidia():
+        # The implicit auto-enable path is already gated by is_nvidia();
+        # this guard handles users who pass --enable-dynamic-vram explicitly
+        # on a non-NVIDIA system, where torch.cuda.device_count() below would
+        # either return 0 (silently disabling) or crash on backends that
+        # raise without CUDA. Be explicit and disable cleanly.
+        logging.warning("DynamicVRAM was requested but no NVIDIA GPU was detected. Falling back to legacy ModelPatcher.")
+    elif (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
         logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
     elif comfy_aimdo.control.init_devices(range(torch.cuda.device_count())):
         if args.verbose == 'DEBUG':

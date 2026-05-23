@@ -214,7 +214,10 @@ def get_all_torch_devices(exclude_current=False):
     global cpu_state
     devices = []
     if cpu_state == CPUState.GPU:
-        if is_nvidia():
+        # NVIDIA + AMD/ROCm both expose their GPUs through torch.cuda.*;
+        # without the AMD arm, single-GPU ROCm users get an empty list
+        # which silently turns unload_all_models() into a no-op.
+        if is_nvidia() or is_amd():
             for i in range(torch.cuda.device_count()):
                 devices.append(torch.device("cuda", i))
         elif is_intel_xpu():
@@ -223,6 +226,14 @@ def get_all_torch_devices(exclude_current=False):
         elif is_ascend_npu():
             for i in range(torch.npu.device_count()):
                 devices.append(torch.device("npu", i))
+        elif is_mlu():
+            for i in range(torch.mlu.device_count()):
+                devices.append(torch.device("mlu", i))
+        else:
+            # Fallback for unhandled GPU backends (e.g. DirectML): at least
+            # report the current device so callers like unload_all_models()
+            # do not silently no-op.
+            devices.append(get_torch_device())
     else:
         devices.append(get_torch_device())
     if exclude_current:
