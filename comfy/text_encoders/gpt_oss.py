@@ -608,7 +608,7 @@ def lens_te(dtype_llama=None, llama_quantization_metadata=None):
             mo = dict(model_options or {})
             if llama_quantization_metadata is not None:
                 mo["quantization_metadata"] = llama_quantization_metadata
-            if dtype_llama is not None:
+            if dtype is None and dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=mo)
 
