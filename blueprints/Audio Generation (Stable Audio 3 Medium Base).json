@@ -138,7 +138,7 @@
         ]
       },
       "widgets_values": [],
-      "title": "Audio Generation (Stable Audio 3 Base)"
+      "title": "Audio Generation (Stable Audio 3 Medium Base)"
     }
   ],
   "links": [],
@@ -156,7 +156,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Audio Generation (Stable Audio 3 Base)",
+        "name": "Audio Generation (Stable Audio 3 Medium Base)",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -170,7 +170,7 @@
           "id": -20,
           "bounding": [
             1750,
-            400,
+            1041,
             128,
             68
           ]
@@ -292,7 +292,7 @@
             "localized_name": "AUDIO",
             "pos": [
               1774,
-              424
+              1065
             ]
           }
         ],
@@ -593,7 +593,7 @@
               "randomize",
               50,
               7,
-              "dpmpp_3m_sde_gpu",
+              "lcm",
               "simple",
               1
             ]
@@ -872,7 +872,7 @@
             ],
             "size": [
               230,
-              10
+              40
             ],
             "flags": {
               "collapsed": true
@@ -2082,8 +2082,7 @@
           }
         ],
         "extra": {},
-        "category": "Audio/Music generation",
-        "description": "Generates music and sound effects from text using the Stable Audio 3 Medium base checkpoint, with optional LLM prompt expansion by category."
+        "category": "Audio/Music generation"
       }
     ]
   },

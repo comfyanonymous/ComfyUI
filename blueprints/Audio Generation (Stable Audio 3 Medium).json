@@ -101,6 +101,7 @@
           "links": []
         }
       ],
+      "title": "Audio Generation (Stable Audio 3 Medium)",
       "properties": {
         "proxyWidgets": [
           [
@@ -137,8 +138,7 @@
           ]
         ]
       },
-      "widgets_values": [],
-      "title": "Audio Generation (Stable Audio 3)"
+      "widgets_values": []
     }
   ],
   "links": [],
@@ -156,7 +156,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Audio Generation (Stable Audio 3)",
+        "name": "Audio Generation (Stable Audio 3 Medium)",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -2082,8 +2082,7 @@
           }
         ],
         "extra": {},
-        "category": "Audio/Music generation",
-        "description": "Generates music and sound effects from text using Stability AI Stable Audio 3 Medium, with optional LLM prompt expansion by category."
+        "category": "Audio/Music generation"
       }
     ]
   },
