@@ -49,48 +49,82 @@ class MultiGPUCFGSplitNode(io.ComfyNode):
 def _remember_base_devices(patcher: ModelPatcher):
     """Stash the original load/offload device on the underlying model.
 
-    Stored on patcher.model (which is shared across patcher clones), so
-    repeated selector applications can recover the loader's original
-    routing when the user picks "default".
+    Stored on patcher.model (which is shared with the input patcher), so
+    later "default" selections can recover the loader's original routing.
+    Only the first Select on a given chain writes these attrs; subsequent
+    deepclones inherit them onto their freshly-loaded model below.
     """
     if not hasattr(patcher.model, "_select_base_load_device"):
         patcher.model._select_base_load_device = patcher.load_device
         patcher.model._select_base_offload_device = patcher.offload_device
 
 
-def _apply_patcher_device(patcher: ModelPatcher, resolved, base_offload_override=None):
-    """Apply *resolved* to a freshly-cloned patcher; respect base devices on default.
+def _propagate_base_devices(src_model, dst_model):
+    """Carry the loader-original device attrs onto the freshly-deepcloned model."""
+    if hasattr(src_model, "_select_base_load_device") and not hasattr(dst_model, "_select_base_load_device"):
+        dst_model._select_base_load_device = src_model._select_base_load_device
+        dst_model._select_base_offload_device = src_model._select_base_offload_device
 
-    Returns the (possibly newly-replaced) patcher. For CPU on a dynamic
-    patcher, also tries to downgrade to a plain ModelPatcher so the
-    dynamic-only code paths are bypassed (best-effort: silently keeps
-    the dynamic patcher if downgrade is not supported).
+
+def _retarget_patcher(patcher: ModelPatcher, target_load_device, target_offload_device):
+    """Return a patcher whose actual model weights live on *target_load_device*.
+
+    If *patcher* is already on *target_load_device* we just retarget the
+    (already-cloned) patcher's metadata in place. Otherwise we call
+    :meth:`ModelPatcher.deepclone_multigpu` to spawn a fresh model from
+    the loader's ``cached_patcher_init`` factory -- the only safe way to
+    move weights that may already be partially loaded onto another device.
+
+    NOTE: reusing the input patcher's model when the requested device
+    matches its current load_device is a deliberate fast path. Anything
+    that has already mutated the original model (e.g. a prior KSampler
+    invocation on the same model) will be observed here. This is by
+    design and documented on the SelectXDeviceNode docstrings -- placing
+    Select X Device after a node that consumes the same model is not
+    recommended.
+    """
+    if patcher.load_device == target_load_device:
+        # Fast path: weights already on the desired device, just update offload.
+        patcher.offload_device = target_offload_device
+        return patcher
+    src_model = patcher.model
+    patcher = patcher.deepclone_multigpu(new_load_device=target_load_device)
+    patcher.offload_device = target_offload_device
+    _propagate_base_devices(src_model, patcher.model)
+    if hasattr(patcher, "register_load_device"):
+        patcher.register_load_device(patcher.load_device)
+    return patcher
+
+
+def _apply_patcher_device(patcher: ModelPatcher, resolved, base_offload_override=None):
+    """Resolve the requested device and produce a patcher routed there.
+
+    For "default" we restore the loader's original load/offload pair.
+    For CPU we pin both load and offload to CPU (and, on a dynamic
+    patcher, downgrade to a plain ModelPatcher so the dynamic-only
+    code paths are bypassed).
+    For an explicit GPU we keep the loader's original offload but
+    target the requested load device; if that differs from the current
+    load device the patcher is deepcloned onto the new device.
     """
     _remember_base_devices(patcher)
     base_load = patcher.model._select_base_load_device
     base_offload = base_offload_override if base_offload_override is not None else patcher.model._select_base_offload_device
 
     if resolved is None:
-        # "default" -> reset routing to whatever the loader produced
-        patcher.load_device = base_load
-        patcher.offload_device = base_offload
-    elif resolved.type == "cpu":
+        # "default" -> route back to the loader's original devices.
+        return _retarget_patcher(patcher, base_load, base_offload)
+    if resolved.type == "cpu":
         if patcher.is_dynamic():
-            try:
-                patcher = patcher.clone(disable_dynamic=True)
-            except Exception:
-                # Downgrade unavailable (no cached_patcher_init); fall
-                # back to the existing dynamic patcher.
-                pass
+            # clone(disable_dynamic=True) requires cached_patcher_init; let the
+            # exception surface to the caller (Select*DeviceNode.execute), which
+            # will translate it into a passthrough+log so unsupported loaders
+            # don't hard-fail the workflow.
+            patcher = patcher.clone(disable_dynamic=True)
         patcher.load_device = resolved
         patcher.offload_device = resolved
-    else:
-        patcher.load_device = resolved
-        patcher.offload_device = base_offload
-
-    if hasattr(patcher, "register_load_device"):
-        patcher.register_load_device(patcher.load_device)
-    return patcher
+        return patcher
+    return _retarget_patcher(patcher, resolved, base_offload)
 
 
 def _prune_multigpu_collision(model: ModelPatcher, primary_device):
@@ -122,6 +156,12 @@ class SelectModelDeviceNode(io.ComfyNode):
     - "gpu:N" pins the load device to the Nth available GPU; the offload
       device is restored to the loader's original choice.
 
+    When the requested device differs from the device the input model is
+    already on, a fresh model is spawned via the loader's reload factory
+    (cached_patcher_init) so the new patcher owns independent weights on
+    the new device. Loaders that don't support multigpu (no factory) will
+    cause the node to pass through unchanged with a warning.
+
     If the workflow already has MultiGPU CFG Split applied and the chosen
     GPU collides with one of the existing multigpu clones, that clone is
     dropped so two patchers don't end up bound to the same device.
@@ -130,6 +170,13 @@ class SelectModelDeviceNode(io.ComfyNode):
     (e.g. a workflow built on a 2-GPU box opened on a 1-GPU box),
     the node passes the model through unchanged and logs a message
     instead of failing.
+
+    NOTE: Placing Select Model Device *after* a node that has already
+    consumed the same model (e.g. a KSampler that ran on this model on
+    the original device) is not recommended -- any state the prior
+    consumer mutated on the original model will be observed when the
+    selected device matches the original (fast path). Place Select Model
+    Device before any consumer of the model.
     """
 
     @classmethod
@@ -161,7 +208,11 @@ class SelectModelDeviceNode(io.ComfyNode):
         if resolved is None and device not in (None, "default"):
             logging.info(f"Select Model Device: requested device '{device}' not available, passing through unchanged.")
             return io.NodeOutput(model)
-        model = _apply_patcher_device(model, resolved)
+        try:
+            model = _apply_patcher_device(model, resolved)
+        except RuntimeError as e:
+            logging.warning(f"Select Model Device: cannot retarget model, passing through unchanged. ({e})")
+            return io.NodeOutput(model)
         if resolved is not None:
             _prune_multigpu_collision(model, model.load_device)
         return io.NodeOutput(model)
@@ -208,7 +259,10 @@ class SelectCLIPDeviceNode(io.ComfyNode):
         if resolved is None and device not in (None, "default"):
             logging.info(f"Select CLIP Device: requested device '{device}' not available, passing through unchanged.")
             return io.NodeOutput(clip)
-        clip.patcher = _apply_patcher_device(clip.patcher, resolved)
+        try:
+            clip.patcher = _apply_patcher_device(clip.patcher, resolved)
+        except RuntimeError as e:
+            logging.warning(f"Select CLIP Device: cannot retarget CLIP, passing through unchanged. ({e})")
         return io.NodeOutput(clip)
 
 
@@ -263,13 +317,19 @@ class SelectVAEDeviceNode(io.ComfyNode):
         if resolved is not None and resolved.type == "cpu":
             logging.info("Select VAE Device: CPU is not a supported choice, passing through unchanged.")
             return io.NodeOutput(vae)
-        vae.patcher = _apply_patcher_device(
-            vae.patcher, resolved,
-            base_offload_override=comfy.model_management.vae_offload_device(),
-        )
-        # VAE caches the working device separately from its patcher.
         if not hasattr(vae, "_select_base_device"):
             vae._select_base_device = vae.device
+        try:
+            vae.patcher = _apply_patcher_device(
+                vae.patcher, resolved,
+                base_offload_override=comfy.model_management.vae_offload_device(),
+            )
+        except RuntimeError as e:
+            logging.warning(f"Select VAE Device: cannot retarget VAE, passing through unchanged. ({e})")
+            return io.NodeOutput(vae)
+        # Keep VAE wrapper in sync with whatever model the patcher now owns;
+        # deepclone_multigpu may have produced a fresh first_stage_model.
+        vae.first_stage_model = vae.patcher.model
         vae.device = vae._select_base_device if resolved is None else resolved
         return io.NodeOutput(vae)
 

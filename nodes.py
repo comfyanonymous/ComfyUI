@@ -795,6 +795,7 @@ class VAELoader:
     #TODO: scale factor?
     def load_vae(self, vae_name):
         metadata = None
+        vae_path = None
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
@@ -813,6 +814,14 @@ class VAELoader:
                 metadata["tae_latent_channels"] = 128
         vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
+        # Register a reload factory on the patcher so multigpu deepclones
+        # (Select VAE Device, future MultiGPU VAE work-units) can produce
+        # per-device clones from the same loader context. Only set when we
+        # actually have a single backing file -- pixel_space and the
+        # image TAESDs (composed from separate encoder/decoder files via
+        # load_taesd) are not addressable by a single vae_path.
+        if vae_path is not None:
+            vae.patcher.cached_patcher_init = (comfy.sd.load_vae_patcher, (vae_path, metadata, None))
         return (vae,)
 
 class ControlNetLoader:

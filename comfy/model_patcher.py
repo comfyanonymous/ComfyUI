@@ -457,23 +457,38 @@ class ModelPatcher:
 
     def deepclone_multigpu(self, new_load_device=None, models_cache: dict[uuid.UUID,ModelPatcher]=None):
         logging.info(f"Creating deepclone of {self.model.__class__.__name__} for {new_load_device if new_load_device else self.load_device}.")
+        if self.cached_patcher_init is None:
+            raise RuntimeError(
+                f"Cannot create multigpu deepclone of {self.model.__class__.__name__}: "
+                "the loader that produced this model does not support multigpu "
+                "(cached_patcher_init is not initialized). Use a core loader "
+                "(CheckpointLoaderSimple, UNETLoader, CLIPLoader/DualCLIPLoader, VAELoader), "
+                "or have the custom loader register a cached_patcher_init factory."
+            )
         comfy.model_management.unload_model_and_clones(self)
-        n = self.clone()
+        # Produce a freshly-loaded patcher from the loader factory so the multigpu
+        # clone owns its own untainted model weights (rather than relying on
+        # copy.deepcopy of an already-patched/already-loaded module).
+        temp_model_patcher: ModelPatcher | list[ModelPatcher] = self.cached_patcher_init[0](*self.cached_patcher_init[1])
+        if len(self.cached_patcher_init) > 2:
+            temp_model_patcher = temp_model_patcher[self.cached_patcher_init[2]]
+        # Override clone()'s normal "share self.model + share backup containers" with
+        # the pristine model from temp_model_patcher plus empty backup containers --
+        # the fresh model has no patches applied, so any deepcopy of self's stale
+        # backup/object_patches_backup/pinned would just propagate dead state that
+        # no longer corresponds to anything in n.model.
+        model_override = (temp_model_patcher.model, ({}, {}, {}, set()))
+        n = self.clone(model_override=model_override)
+        # clone() copies hook_backup by reference from self; reset since model is pristine.
+        n.hook_backup = {}
         # set load device, if present
         if new_load_device is not None:
             n.load_device = new_load_device
-        if self.cached_patcher_init is not None:
-            temp_model_patcher: ModelPatcher | list[ModelPatcher] = self.cached_patcher_init[0](*self.cached_patcher_init[1])
-            if len(self.cached_patcher_init) > 2:
-                temp_model_patcher = temp_model_patcher[self.cached_patcher_init[2]]
-            n.model = temp_model_patcher.model
-        else:
-            n.model = copy.deepcopy(n.model)
-        # unlike for normal clone, backup dicts that shared same ref should not;
-        # otherwise, patchers that have deep copies of base models will erroneously influence each other.
-        n.backup = copy.deepcopy(n.backup)
-        n.object_patches_backup = copy.deepcopy(n.object_patches_backup)
-        n.hook_backup = copy.deepcopy(n.hook_backup)
+        # Ensure any per-device bookkeeping (e.g. ModelPatcherDynamic.dynamic_pins)
+        # has an entry for n.load_device on the freshly-loaded n.model. temp_model_patcher's
+        # __init__ only registered its own (default) load_device.
+        if hasattr(n, "register_load_device"):
+            n.register_load_device(n.load_device)
         # multigpu clone should not have multigpu additional_models entry
         n.remove_additional_models("multigpu")
         # multigpu_clone all stored additional_models; make sure circular references are properly handled

@@ -1727,7 +1727,49 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
     if out[0] is not None:
         out[0].cached_patcher_init = (load_checkpoint_guess_config, (ckpt_path, False, False, False, embedding_directory, output_model, model_options, te_model_options), 0)
+    # Register reload factories for the CLIP and VAE produced by the same checkpoint so
+    # ModelPatcher.deepclone_multigpu can spawn per-device copies (Select{CLIP,VAE}Device,
+    # MultiGPU work-units, etc.) without falling back to copy.deepcopy of an
+    # already-loaded module.
+    if out[1] is not None and getattr(out[1], "patcher", None) is not None:
+        out[1].patcher.cached_patcher_init = (load_checkpoint_clip_patcher, (ckpt_path, embedding_directory, model_options, te_model_options))
+    if out[2] is not None and getattr(out[2], "patcher", None) is not None:
+        out[2].patcher.cached_patcher_init = (load_checkpoint_vae_patcher, (ckpt_path, embedding_directory, model_options, te_model_options))
     return out
+
+
+def load_checkpoint_clip_patcher(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
+    """Reload only the CLIP patcher from a checkpoint. Used as the cached_patcher_init
+    factory for the CLIP returned by load_checkpoint_guess_config."""
+    _, clip, _, _ = load_checkpoint_guess_config(
+        ckpt_path,
+        output_vae=False,
+        output_clip=True,
+        output_clipvision=False,
+        embedding_directory=embedding_directory,
+        output_model=False,
+        model_options=model_options,
+        te_model_options=te_model_options,
+        disable_dynamic=disable_dynamic,
+    )
+    return clip.patcher
+
+
+def load_checkpoint_vae_patcher(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
+    """Reload only the VAE patcher from a checkpoint. Used as the cached_patcher_init
+    factory for the VAE returned by load_checkpoint_guess_config."""
+    _, _, vae, _ = load_checkpoint_guess_config(
+        ckpt_path,
+        output_vae=True,
+        output_clip=False,
+        output_clipvision=False,
+        embedding_directory=embedding_directory,
+        output_model=False,
+        model_options=model_options,
+        te_model_options=te_model_options,
+        disable_dynamic=disable_dynamic,
+    )
+    return vae.patcher
 
 def load_checkpoint_guess_config_model_only(ckpt_path, embedding_directory=None, model_options={}, te_model_options={}, disable_dynamic=False):
     model, *_ = load_checkpoint_guess_config(ckpt_path, False, False, False,
@@ -1953,6 +1995,26 @@ def load_diffusion_model(unet_path, model_options={}, disable_dynamic=False):
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     model.cached_patcher_init = (load_diffusion_model, (unet_path, model_options))
     return model
+
+
+def load_vae_patcher(vae_path, metadata=None, device=None, disable_dynamic=False):
+    """Reload a disk-backed VAE from ``vae_path`` and return its patcher.
+
+    Used as the ``cached_patcher_init`` factory on ``VAE.patcher`` so
+    :meth:`comfy.model_patcher.ModelPatcher.deepclone_multigpu` can produce a
+    fresh, untainted VAE patcher (no inherited per-device load state, no
+    in-place quantization fallout) for multigpu work-units and the
+    SelectVAEDevice node. The optional ``device`` matches the source loader's
+    VAE initialization path; the deepclone's ``load_device`` still controls
+    where the cloned patcher is targeted.
+    """
+    if metadata is None:
+        sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+    else:
+        sd = comfy.utils.load_torch_file(vae_path)
+    vae = VAE(sd=sd, metadata=metadata, device=device)
+    vae.throw_exception_if_invalid()
+    return vae.patcher
 
 def load_unet(unet_path, dtype=None):
     logging.warning("The load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
