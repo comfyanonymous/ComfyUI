@@ -222,6 +222,7 @@ parser.add_argument(
 parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path. Overrides --base-directory.")
 
 parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
+parser.add_argument("--benchmark-server-only", action="store_true", help="Enable lightweight benchmark routes and worker fast-paths focused on model serving throughput/latency.")
 
 parser.add_argument(
     "--comfy-api-base",

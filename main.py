@@ -322,11 +322,18 @@ def prompt_worker(q, server_instance):
             extra_data = item[3].copy()
             for k in sensitive:
                 extra_data[k] = sensitive[k]
+            benchmark_mode = args.benchmark_server_only
 
             asset_seeder.pause()
             e.execute(item[2], prompt_id, extra_data, item[4])
 
             need_gc = True
+
+            if benchmark_mode:
+                e.history_result["benchmark"] = {
+                    "execution_ms": (time.perf_counter() - execution_start_time) * 1000.0,
+                    "nodes": e.node_timing_ms,
+                }
 
             remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
             q.task_done(item_id,
@@ -343,8 +350,8 @@ def prompt_worker(q, server_instance):
 
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
-                execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
+                execution_time_formatted = time.strftime("%H:%M:%S", time.gmtime(execution_time))
+                logging.info(f"Prompt executed in {execution_time_formatted}")
             else:
                 logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 

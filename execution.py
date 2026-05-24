@@ -724,6 +724,7 @@ class PromptExecutor:
             self.server.client_id = None
 
         self.status_messages = []
+        self.node_timing_ms: dict[str, dict] = {}
         self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         self._notify_prompt_lifecycle("start", prompt_id)
@@ -771,6 +772,7 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
+                    node_start_s = time.perf_counter() if args.benchmark_server_only else None
                     result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
@@ -780,6 +782,12 @@ class PromptExecutor:
                         execution_list.unstage_node_execution()
                     else: # result == ExecutionResult.SUCCESS:
                         execution_list.complete_node_execution()
+                        if node_start_s is not None:
+                            class_type = dynamic_prompt.get_node(node_id).get("class_type", "unknown")
+                            self.node_timing_ms[node_id] = {
+                                "class_type": class_type,
+                                "execution_ms": (time.perf_counter() - node_start_s) * 1000.0,
+                            }
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
