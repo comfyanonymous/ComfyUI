@@ -9585,16 +9585,9 @@ components:
           description: List of plan features
 
     BillingStatus:
-      type: object
+      type: string
       x-runtime: [cloud]
-      description: "[cloud-only] Overall billing and subscription status."
-      properties:
-        subscription:
-          $ref: "#/components/schemas/BillingSubscription"
-        balance:
-          $ref: "#/components/schemas/BillingBalance"
-        has_payment_method:
-          type: boolean
+      description: "[cloud-only] Overall billing/payment lifecycle status."
       enum:
         - awaiting_payment_method
         - pending_payment
