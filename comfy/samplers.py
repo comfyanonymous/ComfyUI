@@ -265,7 +265,6 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
                 input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
                 cond_shapes = collections.defaultdict(list)
                 for tt in batch_amount:
-                    cond = {k: v.size() for k, v in to_run[tt][0].conditioning.items()}
                     for k, v in to_run[tt][0].conditioning.items():
                         cond_shapes[k].append(v.size())
 
