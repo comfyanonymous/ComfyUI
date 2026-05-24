@@ -7,6 +7,7 @@ from . import sdxl_clip
 import comfy.text_encoders.sd2_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
+import comfy.text_encoders.sa3
 import comfy.text_encoders.aura_t5
 import comfy.text_encoders.pixart_t5
 import comfy.text_encoders.hydit
@@ -602,6 +603,29 @@ class StableAudio(supported_models_base.BASE):
 
     def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(comfy.text_encoders.sa_t5.SAT5Tokenizer, comfy.text_encoders.sa_t5.SAT5Model)
+
+class StableAudio3(StableAudio):
+    unet_config = {
+        "audio_model": "dit1.0",
+        "global_cond_shared_embed": True,
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 2.0,
+    }
+
+    latent_format = latent_formats.StableAudio3
+
+    memory_usage_factor = 7
+
+    def get_model(self, state_dict, prefix="", device=None):
+        seconds_total_sd = utils.state_dict_prefix_replace(state_dict, {"conditioner.conditioners.seconds_total.": ""}, filter_keys=True)
+        padding_embedding = state_dict.get("conditioner.conditioners.prompt.padding_embedding", None)
+        return model_base.StableAudio3(self, seconds_total_embedder_weights=seconds_total_sd, padding_embedding=padding_embedding, device=device)
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.sa3.SAT5GemmaTokenizer, comfy.text_encoders.sa3.SAT5GemmaModel)
 
 class AuraFlow(supported_models_base.BASE):
     unet_config = {
@@ -2018,6 +2042,7 @@ models = [
     SV3D_u,
     SV3D_p,
     SD3,
+    StableAudio3,
     StableAudio,
     AuraFlow,
     PixArtAlpha,

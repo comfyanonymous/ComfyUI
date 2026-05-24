@@ -415,14 +415,48 @@ def trim_video(video: Input.Video, duration_sec: float) -> Input.Video:
         raise RuntimeError(f"Failed to trim video: {str(e)}") from e
 
 
-def resize_video_to_pixel_budget(video: Input.Video, total_pixels: int) -> Input.Video:
-    """Downscale a video to fit within ``total_pixels`` (w * h), preserving aspect ratio.
+def downscale_video_to_max_pixels(video: Input.Video, max_pixels: int) -> Input.Video:
+    """Downscale a video to fit within ``max_pixels`` (w * h), preserving aspect ratio.
 
     Returns the original video object untouched when it already fits. Preserves frame rate, duration, and audio.
     Aspect ratio is preserved up to a fraction of a percent (even-dim rounding).
     """
     src_w, src_h = video.get_dimensions()
-    scale_dims = _compute_downscale_dims(src_w, src_h, total_pixels)
+    scale_dims = _compute_downscale_dims(src_w, src_h, max_pixels)
+    if scale_dims is None:
+        return video
+    return _apply_video_scale(video, scale_dims)
+
+
+def _compute_upscale_dims(src_w: int, src_h: int, total_pixels: int) -> tuple[int, int] | None:
+    """Return upscaled (w, h) with even dims meeting at least ``total_pixels``, or None if already large enough.
+
+    Source aspect ratio is preserved; output may drift by a fraction of a percent because both dimensions
+    are rounded up to even values (many codecs require divisible-by-2). The result is guaranteed to be at
+    least ``total_pixels``.
+    """
+    pixels = src_w * src_h
+    if pixels >= total_pixels:
+        return None
+    scale = math.sqrt(total_pixels / pixels)
+    new_w = math.ceil(src_w * scale)
+    new_h = math.ceil(src_h * scale)
+    if new_w % 2:
+        new_w += 1
+    if new_h % 2:
+        new_h += 1
+    return new_w, new_h
+
+
+def upscale_video_to_min_pixels(video: Input.Video, min_pixels: int) -> Input.Video:
+    """Upscale a video to meet at least ``min_pixels`` (w * h), preserving aspect ratio.
+
+    Returns the original video object untouched when it already meets the minimum. Preserves frame rate,
+    duration, and audio. Aspect ratio is preserved up to a fraction of a percent (even-dim rounding).
+    Note: upscaling a low-resolution source does not add real detail; downstream model quality may suffer.
+    """
+    src_w, src_h = video.get_dimensions()
+    scale_dims = _compute_upscale_dims(src_w, src_h, min_pixels)
     if scale_dims is None:
         return video
     return _apply_video_scale(video, scale_dims)
