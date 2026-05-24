@@ -218,19 +218,21 @@ class GptOssExperts(nn.Module):
         expert_mask = F.one_hot(router_indices, num_classes=self.num_experts).permute(2, 1, 0)
         expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
 
-        for ei in expert_hit:
-            expert_idx = int(ei.item())
-            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
-            current = hidden_states[token_idx]
+        with self.gate_up_proj.bank_resident(hidden_states) as gate_up_bank, \
+             self.down_proj.bank_resident(hidden_states) as down_bank:
+            for ei in expert_hit:
+                expert_idx = int(ei.item())
+                top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+                current = hidden_states[token_idx]
 
-            gate_up = self.gate_up_proj.expert_linear(current, expert_idx)
-            gated = self._apply_gate(gate_up)
-            expert_out = self.down_proj.expert_linear(gated, expert_idx)
+                gate_up = gate_up_bank.expert_linear(current, expert_idx)
+                gated = self._apply_gate(gate_up)
+                expert_out = down_bank.expert_linear(gated, expert_idx)
 
-            weighted = expert_out * routing_weights[token_idx, top_k_pos, None]
+                weighted = expert_out * routing_weights[token_idx, top_k_pos, None]
 
-            flat_idx = token_idx * top_k + top_k_pos
-            per_pair[flat_idx] = weighted.to(per_pair.dtype)
+                flat_idx = token_idx * top_k + top_k_pos
+                per_pair[flat_idx] = weighted.to(per_pair.dtype)
 
         return per_pair.view(N, top_k, H).sum(dim=1)
 
