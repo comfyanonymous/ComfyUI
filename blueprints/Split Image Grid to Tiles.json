@@ -705,7 +705,8 @@
           }
         ],
         "extra": {},
-        "category": "Image Tools/Crop"
+        "category": "Image Tools/Crop",
+        "description": "Splits an image into a configurable columns×rows grid of equal tiles for tiled generation or processing."
       }
     ]
   },

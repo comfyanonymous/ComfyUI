@@ -3767,7 +3767,9 @@
             "type": "COMBO"
           }
         ],
-        "extra": {}
+        "extra": {},
+        "category": "Video Tools",
+        "description": "Removes objects from video by inpainting masked regions using VOID (CogVideoX), with SAM3 text-guided segmentation and optional two-pass optical-flow refinement."
       },
       {
         "id": "c3e0d783-9aa3-4e75-a94d-19937968ef86",

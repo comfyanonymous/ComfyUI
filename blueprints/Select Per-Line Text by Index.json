@@ -473,7 +473,8 @@
           }
         ],
         "extra": {},
-        "category": "Text Tools"
+        "category": "Text Tools",
+        "description": "Selects one line from multiline text by zero-based index for batch or list-driven prompt workflows."
       }
     ]
   },

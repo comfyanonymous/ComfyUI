@@ -5194,7 +5194,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "description": "Estimates a monocular depth map from an input image using the Lotus depth estimation model."
+        "description": "Estimates a monocular depth map from an input image using the Lotus depth estimation model.",
+        "category": "Video generation and editing/Depth to video"
       }
     ]
   },

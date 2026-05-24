@@ -1210,7 +1210,8 @@
           }
         ],
         "extra": {},
-        "category": "Video Tools"
+        "category": "Video Tools",
+        "description": "Concatenates two videos end-to-end with optional resize, letterbox padding, and audio merge or drop."
       }
     ]
   },

@@ -1196,7 +1196,9 @@
         ],
         "extra": {
           "workflowRendererVersion": "LG"
-        }
+        },
+        "category": "Image Tools/Preprocessors",
+        "description": "Detects multiple people in an image and outputs per-person pose keypoints, skeleton renders, and bounding boxes using SDPose."
       }
     ]
   },

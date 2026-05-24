@@ -876,7 +876,9 @@
         ],
         "extra": {
           "workflowRendererVersion": "LG"
-        }
+        },
+        "category": "Image Tools/Preprocessors",
+        "description": "Extracts human pose keypoints and stick-figure visuals from an image using SDPose-OOD, with optional bounding-box input per subject."
       }
     ]
   },
