@@ -460,7 +460,9 @@ class ImageProcessingNode(io.ComfyNode):
     def execute(cls, images, **kwargs):
         """Execute the node. Routes to _process or _group_process based on mode."""
         is_group = cls._detect_processing_mode()
-        images = cls._ensure_image_list(images)
+
+        if is_group:
+            images = cls._ensure_image_list(images)
 
         # Extract scalar values from lists for parameters
         params = {}
