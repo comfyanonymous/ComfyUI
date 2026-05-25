@@ -1217,7 +1217,8 @@
           }
         ],
         "extra": {},
-        "category": "Conditioning & Preprocessors/Depth"
+        "category": "Conditioning & Preprocessors/Depth",
+        "description": "Estimates monocular depth from an input video using MoGe, outputting both raw and colorized depth maps plus a mask."
       }
     ]
   },

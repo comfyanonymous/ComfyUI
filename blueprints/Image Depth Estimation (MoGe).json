@@ -1145,7 +1145,8 @@
             "type": "MASK"
           }
         ],
-        "extra": {}
+        "extra": {},
+        "category": "Conditioning & Preprocessors/Depth"
       }
     ]
   },
