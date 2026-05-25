@@ -222,7 +222,7 @@
         "revision": 0,
         "config": {},
         "name": "Video Face Detection (Mediapipe)",
-        "description": "Detects facial landmarks from an image using MediaPipe, outputting landmark data, face bounding boxes, and an optional face-region mask.",
+        "description": "Detects facial landmarks from a video using MediaPipe, outputting landmark data, face bounding boxes, and an optional face-region mask.",
         "inputNode": {
           "id": -10,
           "bounding": [
