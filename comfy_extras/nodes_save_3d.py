@@ -1,4 +1,6 @@
-"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB node."""
+"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB
+node, plus pose-data exporters (BuildPoseGLB / SavePoseBVH) that accept either
+SAM3DBody Predict's MHR pose data or external-rig pose data from Kimodo."""
 
 import json
 import logging
@@ -14,6 +16,15 @@ from typing_extensions import override
 import folder_paths
 from comfy.cli_args import args
 from comfy_api.latest import ComfyExtension, IO, Types
+
+from comfy_extras.sam3d_body.export.bvh import build_bvh
+from comfy_extras.sam3d_body.export.glb_openpose import build_glb_openpose
+from comfy_extras.sam3d_body.export.glb_skeletal import build_glb_skeletal
+
+
+MHRPoseData = IO.Custom("MHR_POSE_DATA")
+KimodoPoseData = IO.Custom("KIMODO_POSE_DATA")
+SAM3DBodyModel = IO.Custom("SAM3D_BODY_MODEL")
 
 
 def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None):
@@ -386,10 +397,437 @@ class SaveGLB(IO.ComfyNode):
         return IO.NodeOutput(ui={"3d": results})
 
 
+def rainbow_tilt_inputs():
+    """Shared rainbow-shader tilt inputs (used by Render and ToGLB schemas)."""
+    return [
+        IO.Float.Input(
+            "rainbow_tilt_z", default=-35.0, min=-90.0, max=90.0, step=0.5,
+            tooltip="Rotate rainbow jet axis around Z (forward). Differentiates left/right.",
+        ),
+        IO.Float.Input(
+            "rainbow_tilt_x", default=0.0, min=-90.0, max=90.0, step=0.5,
+            tooltip="Rotate rainbow jet axis around X (right). Differentiates front/back.",
+        ),
+    ]
+
+
+class BuildPoseGLB(IO.ComfyNode):
+    """Convert pose_data to an in-memory animated GLB"""
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="BuildPoseGLB",
+            display_name="Build Pose GLB",
+            description="Convert pose data to an animated GLB",
+            category="3d",
+            inputs=[
+                IO.MultiType.Input(
+                    "pose_data", types=[MHRPoseData, KimodoPoseData],
+                    tooltip=(
+                        "MHR pose data from SAM3DBody_Predict, or external-rig "
+                        "pose data from Kimodo (`_skeleton_override`-augmented)."
+                    ),
+                ),
+                SAM3DBodyModel.Input("sam3d_body_model", optional=True),
+                IO.DynamicCombo.Input(
+                    "mesh_style",
+                    options=[
+                        IO.DynamicCombo.Option("body_mesh", [
+                            IO.Int.Input(
+                                "bone_smooth_window",
+                                default=0, min=0, max=51, step=2,
+                                tooltip=(
+                                    "Gaussian window on per-bone rotation keyframes. 0 = off. "
+                                    "7-15 helps cartwheels/spins where upstream Smooth misses spikes."
+                                ),
+                            ),
+                            IO.DynamicCombo.Input(
+                                "bone_vis",
+                                options=[
+                                    IO.DynamicCombo.Option("off", []),
+                                    IO.DynamicCombo.Option("octahedrons", [
+                                        IO.Float.Input(
+                                            "bone_vis_radius_m",
+                                            default=0.02, min=0.005, max=0.5, step=0.005,
+                                            tooltip="Radius in m (sphere radius / octahedron half-width).",
+                                        ),
+                                        IO.Combo.Input(
+                                            "bone_vis_color",
+                                            options=["white", "rainbow_y"],
+                                            default="rainbow_y",
+                                            tooltip=(
+                                                "Per-bone vertex colors (unlit material). "
+                                                "'white' = none, 'rainbow_y' = head→toe jet."
+                                            ),
+                                        ),
+                                    ]),
+                                    IO.DynamicCombo.Option("sticks", [
+                                        IO.Combo.Input(
+                                            "bone_vis_color",
+                                            options=["white", "rainbow_y"],
+                                            default="rainbow_y",
+                                            tooltip="Per-bone vertex colors (see octahedrons).",
+                                        ),
+                                    ]),
+                                ],
+                                tooltip=(
+                                    "Bone vis shape, rigidly skinned to each joint. "
+                                    "'octahedrons' = Blender-style directional bones (joint → "
+                                    "primary child); 'sticks' = thin lines."
+                                ),
+                            ),
+                            IO.DynamicCombo.Input(
+                                "shader",
+                                options=[
+                                    IO.DynamicCombo.Option("default", []),
+                                    IO.DynamicCombo.Option("rainbow", [
+                                        *rainbow_tilt_inputs(),
+                                        IO.Float.Input(
+                                            "person_palette_falloff",
+                                            default=0.6, min=0.1, max=1.0, step=0.05,
+                                            tooltip="Per-person desaturation: track k gets (1 - falloff^k) pastel mix.",
+                                        ),
+                                    ]),
+                                    IO.DynamicCombo.Option("rainbow_face_normal", [
+                                        *rainbow_tilt_inputs(),
+                                        IO.Float.Input(
+                                            "person_palette_falloff",
+                                            default=0.6, min=0.1, max=1.0, step=0.05,
+                                            tooltip="Per-person desaturation: track k gets (1 - falloff^k) pastel mix.",
+                                        ),
+                                    ]),
+                                    IO.DynamicCombo.Option("rainbow_face_semantic", [
+                                        *rainbow_tilt_inputs(),
+                                        IO.Float.Input(
+                                            "person_palette_falloff",
+                                            default=0.6, min=0.1, max=1.0, step=0.05,
+                                            tooltip="Per-person desaturation: track k gets (1 - falloff^k) pastel mix.",
+                                        ),
+                                    ]),
+                                ],
+                                tooltip=(
+                                    "Bake per-vertex colors matching the Render node's shaders "
+                                    "(COLOR_0 + KHR_materials_unlit). 'default' = no colors."
+                                ),
+                            ),
+                        ]),
+                        IO.DynamicCombo.Option("bones_only", [
+                            IO.Int.Input(
+                                "bone_smooth_window",
+                                default=0, min=0, max=51, step=2,
+                                tooltip=(
+                                    "Gaussian window on per-bone rotation keyframes. 0 = off. "
+                                    "7-15 helps cartwheels/spins where upstream Smooth misses spikes."
+                                ),
+                            ),
+                            IO.DynamicCombo.Input(
+                                "bone_vis",
+                                options=[
+                                    IO.DynamicCombo.Option("octahedrons", [
+                                        IO.Float.Input(
+                                            "bone_vis_radius_m",
+                                            default=0.02, min=0.005, max=0.5, step=0.005,
+                                            tooltip="Radius in m (sphere radius / octahedron half-width).",
+                                        ),
+                                        IO.Combo.Input(
+                                            "bone_vis_color",
+                                            options=["white", "rainbow_y"],
+                                            default="rainbow_y",
+                                            tooltip=(
+                                                "Per-bone vertex colors (unlit material). "
+                                                "'white' = none, 'rainbow_y' = head→toe jet."
+                                            ),
+                                        ),
+                                    ]),
+                                    IO.DynamicCombo.Option("sticks", [
+                                        IO.Combo.Input(
+                                            "bone_vis_color",
+                                            options=["white", "rainbow_y"],
+                                            default="rainbow_y",
+                                            tooltip="Per-bone vertex colors (see octahedrons).",
+                                        ),
+                                    ]),
+                                ],
+                                tooltip=(
+                                    "Bone vis shape, rigidly skinned to each joint. "
+                                    "'octahedrons' = Blender-style directional bones (joint → "
+                                    "primary child); 'sticks' = thin lines."
+                                ),
+                            ),
+                        ]),
+                        IO.DynamicCombo.Option("openpose", [
+                            IO.Float.Input(
+                                "marker_radius_m", default=0.010, min=0.005, max=0.1, step=0.001,
+                                tooltip="Sphere radius in m.",
+                            ),
+                            IO.Float.Input(
+                                "stick_radius_m", default=0.008, min=0.002, max=0.05, step=0.001,
+                                tooltip="Limb half-width in m. Auto-clamped to bone_length x 0.1.",
+                            ),
+                            IO.Boolean.Input(
+                                "include_hands", default=False,
+                                tooltip=(
+                                    "Append 21+21 OpenPose hands (wrist + 5 fingers x 4 joints, "
+                                    "base→tip) sourced from pred_keypoints_3d."
+                                ),
+                            ),
+                            IO.Float.Input(
+                                "hand_marker_radius_m", default=0.005, min=0.001, max=0.1, step=0.001,
+                                tooltip="Hand sphere radius in m.",
+                            ),
+                            IO.Float.Input(
+                                "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001,
+                                tooltip="Hand limb half-width in m.",
+                            ),
+                            IO.Combo.Input(
+                                "face_source",
+                                options=["off", "rig"],
+                                default="off",
+                                tooltip=(
+                                    "'rig' adds ~30 face-contour landmarks sampled from pred_vertices "
+                                    "at fixed head-mesh vertex IDs (brow/eyes/nose/mouth/jaw); needs "
+                                    "canonical_colors on pose_data."
+                                ),
+                            ),
+                            IO.Float.Input(
+                                "face_marker_radius_m", default=0.0, min=0.0, max=0.05, step=0.0005,
+                                tooltip="Face dot radius. 0 = auto = 0.3 x marker_radius_m.",
+                            ),
+                        ]),
+                        IO.DynamicCombo.Option("scail", [
+                            IO.Float.Input(
+                                "stick_radius_m", default=0.022, min=0.002, max=0.1, step=0.001,
+                                tooltip=(
+                                    "Cylinder radius in m. Bones are open cylinders at constant "
+                                    "radius; joint spheres (auto-sized to match) cap the open ends. "
+                                    "SCAIL reference = 0.0215 m."
+                                ),
+                            ),
+                            IO.Float.Input(
+                                "marker_radius_m", default=0.0, min=0.0, max=0.1, step=0.001,
+                                tooltip="Joint sphere radius. 0 = auto = stick_radius_m (flush cap).",
+                            ),
+                            IO.Float.Input(
+                                "material_roughness", default=0.3, min=0.0, max=1.0, step=0.05,
+                                tooltip="PBR roughness. SCAIL ref = 0.3. 1 = matte; 0 = chrome.",
+                            ),
+                            IO.Boolean.Input(
+                                "include_hands", default=False,
+                                tooltip="Append 21+21 hand keypoints + capsule sticks per track.",
+                            ),
+                            IO.Float.Input(
+                                "hand_marker_radius_m", default=0.005, min=0.001, max=0.05, step=0.001,
+                                tooltip="Hand sphere radius in m.",
+                            ),
+                            IO.Float.Input(
+                                "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001,
+                                tooltip="Hand cylinder radius in m.",
+                            ),
+                        ]),
+                    ],
+                    tooltip=(
+                        "'body_mesh' = real Armature (127 bones, skinning, TRS "
+                        "keyframes, 72 face morphs; needs model). "
+                        "'bones_only' = bone-shape primitives at each joint (preview armature). "
+                        "'openpose' = OpenPose-18 3D skeleton from keypoints "
+                        "(no model needed). 'scail' = SCAIL 3D capsule rig (open "
+                        "cylinders capped flush by joint spheres)."
+                    ),
+                ),
+                IO.Float.Input(
+                    "fps", default=24.0, min=1.0, max=240.0, step=1.0,
+                    tooltip="Animation frame rate.",
+                ),
+                IO.Combo.Input(
+                    "camera_translation",
+                    options=["off", "centered", "absolute"],
+                    default="off",
+                    tooltip=(
+                        "Bake pred_cam_t into per-track root translation. "
+                        "'off' = origin; 'centered' = delta from frame 0; "
+                        "'absolute' = raw (Z is camera depth — usually meters away)."
+                    ),
+                ),
+                IO.Int.Input(
+                    "track_index", default=-1, min=-1, max=15,
+                    tooltip="-1 = all tracks; ≥0 = single track.",
+                ),
+            ],
+            outputs=[IO.File3DGLB.Output("glb")],
+        )
+
+    @classmethod
+    def execute(cls, pose_data, mesh_style, sam3d_body_model=None, fps=24.0, camera_translation="off", track_index=-1) -> IO.NodeOutput:
+        mesh_style = mesh_style or {"mesh_style": "body_mesh"}
+        mode_key = mesh_style["mesh_style"]
+        # `shader` is nested in body_mesh; absent for bones_only.
+        shader_dict = mesh_style.get("shader") or {}
+        shader_key = shader_dict.get("shader", "default")
+        common = dict(
+            fps=float(fps),
+            camera_translation=str(camera_translation),
+            track_index=int(track_index),
+            shader=str(shader_key),
+            rainbow_tilt_x_deg=float(shader_dict.get("rainbow_tilt_x", 0.0)),
+            rainbow_tilt_z_deg=float(shader_dict.get("rainbow_tilt_z", 0.0)),
+            person_palette_falloff=float(shader_dict.get("person_palette_falloff", 0.6)),
+        )
+        if mode_key in ("body_mesh", "bones_only"):
+            # External rigs (e.g. ComfyUI-Kimodo) supply pose_data["_skeleton_override"]
+            # so the GLB writer reads rig/bind/skin from there instead of MHR.
+            has_external_rig = isinstance(pose_data, dict) and ("_skeleton_override" in pose_data)
+            if sam3d_body_model is None and not has_external_rig:
+                raise ValueError(
+                    f"BuildPoseGLB: '{mode_key}' mode needs the `sam3d_body_model` input OR a "
+                    "`_skeleton_override` dict in pose_data. Connect the SAM3DBody model "
+                    "or feed pose_data from a node that supplies the override (e.g. KimodoSample)."
+                )
+            default_shape = "off" if mode_key == "body_mesh" else "octahedrons"
+            bone_vis_dict = mesh_style.get("bone_vis", {"bone_vis": default_shape})
+            bone_vis = str(bone_vis_dict.get("bone_vis", default_shape))
+            bone_vis_radius_m = float(bone_vis_dict.get("bone_vis_radius_m", 0.04))
+            bone_vis_color = str(bone_vis_dict.get("bone_vis_color", "white"))
+            glb_bytes = build_glb_skeletal(
+                pose_data, sam3d_body_model,
+                bone_smooth_window=int(mesh_style.get("bone_smooth_window", 0)),
+                bone_vis=bone_vis,
+                bone_vis_radius_m=bone_vis_radius_m,
+                bone_vis_color=bone_vis_color,
+                include_body_mesh=(mode_key == "body_mesh"),
+                **common,
+            )
+        elif mode_key == "openpose":
+            # Rig-independent: sourced from pred_keypoints_3d. face_source='rig'
+            # additionally reads canonical_colors for head-mesh vertex IDs.
+            glb_bytes = build_glb_openpose(
+                pose_data,
+                fps=float(fps),
+                camera_translation=str(camera_translation),
+                track_index=int(track_index),
+                marker_radius_m=float(mesh_style.get("marker_radius_m", 0.025)),
+                stick_radius_m=float(mesh_style.get("stick_radius_m", 0.008)),
+                include_hands=bool(mesh_style.get("include_hands", False)),
+                hand_marker_radius_m=float(mesh_style.get("hand_marker_radius_m", 0.005)),
+                hand_stick_radius_m=float(mesh_style.get("hand_stick_radius_m", 0.003)),
+                face_source=str(mesh_style.get("face_source", "off")),
+                face_marker_radius_m=float(mesh_style.get("face_marker_radius_m", 0.0)),
+                palette="openpose",
+                shape="ellipsoid",
+            )
+        elif mode_key == "scail":
+            # SCAIL rig: open cylinders capped flush by joint spheres (sphere
+            # radius defaults to cylinder radius for a seamless silhouette).
+            cap_stick_radius = float(mesh_style.get("stick_radius_m", 0.022))
+            cap_marker_radius = float(mesh_style.get("marker_radius_m", 0.0))
+            if cap_marker_radius <= 0.0:
+                cap_marker_radius = cap_stick_radius
+            glb_bytes = build_glb_openpose(
+                pose_data,
+                fps=float(fps),
+                camera_translation=str(camera_translation),
+                track_index=int(track_index),
+                marker_radius_m=cap_marker_radius,
+                stick_radius_m=cap_stick_radius,
+                include_hands=bool(mesh_style.get("include_hands", False)),
+                hand_marker_radius_m=float(mesh_style.get("hand_marker_radius_m", 0.005)),
+                hand_stick_radius_m=float(mesh_style.get("hand_stick_radius_m", 0.003)),
+                face_source="off",
+                palette="scail",
+                shape="capsule",
+                smooth_shade=True,
+                # SCAIL material: slightly glossy (0.3) + double-sided so the
+                # inside of the open cylinders shades sensibly at grazing angles.
+                material_roughness=float(mesh_style.get("material_roughness", 0.3)),
+                material_double_sided=True,
+            )
+        else:
+            raise ValueError(f"BuildPoseGLB: unknown mesh_style {mode_key!r}")
+
+        return IO.NodeOutput(Types.File3D(BytesIO(glb_bytes), file_format="glb"))
+
+
+class SavePoseBVH(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SavePoseBVH",
+            description="Save pose data as BVH mocap file",
+            display_name="Save Pose BVH",
+            category="3d",
+            is_output_node=True,
+            inputs=[
+                IO.MultiType.Input(
+                    "pose_data", types=[MHRPoseData, KimodoPoseData],
+                    tooltip=(
+                        "MHR pose data from SAM3DBody_Predict, or external-rig "
+                        "pose data from Kimodo."
+                    ),
+                ),
+                SAM3DBodyModel.Input("sam3d_body_model"),
+                IO.String.Input("filename_prefix", default="3d/ComfyUI"),
+                IO.Float.Input(
+                    "fps", default=24.0, min=1.0, max=240.0, step=1.0,
+                    tooltip="Animation frame rate (BVH `Frame Time`).",
+                ),
+                IO.Combo.Input(
+                    "camera_translation",
+                    options=["off", "centered", "absolute"],
+                    default="off",
+                    tooltip=(
+                        "Bake pred_cam_t into the root's position channels. "
+                        "'off' = bind position; 'centered' = delta from frame 0; "
+                        "'absolute' = raw (Z is camera depth — usually meters away)."
+                    ),
+                ),
+                IO.Combo.Input(
+                    "units",
+                    options=["cm", "m"],
+                    default="cm",
+                    tooltip="BVH OFFSET/position units. 'cm' is the mocap standard.",
+                ),
+                IO.Int.Input(
+                    "track_index", default=0, min=0, max=15,
+                    tooltip="Track to export. BVH carries one skeleton; export multi-person clips one at a time.",
+                ),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            outputs=[],
+        )
+
+    @classmethod
+    def execute(cls, pose_data, sam3d_body_model, filename_prefix="3d/ComfyUI",
+                fps=24.0, camera_translation="off", units="cm",
+                track_index=0) -> IO.NodeOutput:
+        bvh_bytes = build_bvh(
+            pose_data, sam3d_body_model,
+            fps=float(fps),
+            camera_translation=str(camera_translation),
+            track_index=int(track_index),
+            units=str(units),
+        )
+
+        full_output_folder, filename, counter, subfolder, _ = \
+            folder_paths.get_save_image_path(
+                filename_prefix, folder_paths.get_output_directory(),
+            )
+        f = f"{filename}_{counter:05}_.bvh"
+        out_path = os.path.join(full_output_folder, f)
+        with open(out_path, "wb") as fh:
+            fh.write(bvh_bytes)
+
+        return IO.NodeOutput(ui={"3d": [{
+            "filename": f,
+            "subfolder": subfolder,
+            "type": "output",
+        }]})
+
+
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB]
+        return [SaveGLB, BuildPoseGLB, SavePoseBVH]
 
 
 async def comfy_entrypoint() -> Save3DExtension:

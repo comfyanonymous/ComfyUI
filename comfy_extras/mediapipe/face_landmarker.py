@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import math
 from functools import lru_cache
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -558,31 +558,47 @@ def _blazeface_input_warp(image_chw_raw: Tensor, target: int = _BF_INPUT_SIZE) -
 
 class FaceLandmarker(nn.Module):
     """BlazeFace → FaceMesh v2 → blendshapes. `detector_variant` selects 'short'
-    (128², ≤2m) or 'full' (192² FPN, ≤5m). State dict uses inner-module prefixes
-    `detector.*` / `mesh.*` / `blendshapes.*`; the outer FaceLandmarkerModel
+    (128², ≤2m), 'full' (192² FPN, ≤5m), or 'both' — which holds both detectors
+    alongside shared mesh/blendshapes so detect_batch can run them and per-frame
+    keep whichever found more faces (tie → short). State dict uses inner-module
+    prefixes `detector.*` (short or single-variant), `detector_full.*` (only
+    under 'both'), `mesh.*`, `blendshapes.*`; the outer FaceLandmarkerModel
     wrapper rewrites `detector_{variant}.*` keys to `detector.*` before loading.
     """
 
     def __init__(self, device=None, dtype=None, operations=None, detector_variant: str = "short"):
         super().__init__()
-        det_cls = {"short": BlazeFace, "full": BlazeFaceFullRange}.get(detector_variant)
-
         self.detector_variant = detector_variant
-        self.detector = det_cls(device=device, dtype=dtype, operations=operations)
+        if detector_variant == "both":
+            self.detector = BlazeFace(device=device, dtype=dtype, operations=operations)
+            self.detector_full = BlazeFaceFullRange(device=device, dtype=dtype, operations=operations)
+        else:
+            det_cls = {"short": BlazeFace, "full": BlazeFaceFullRange}[detector_variant]
+            self.detector = det_cls(device=device, dtype=dtype, operations=operations)
         self.mesh = FaceMesh(device=device, dtype=dtype, operations=operations)
         self.blendshapes = FaceBlendshapes(device=device, dtype=dtype, operations=operations)
         self.register_buffer("_bs_idx", torch.tensor(_BS_INPUT_INDICES, dtype=torch.long), persistent=False)
 
+    def _detector(self, variant: str) -> nn.Module:
+        if self.detector_variant == "both":
+            return self.detector_full if variant == "full" else self.detector
+        return self.detector
+
     def run_detector_batch(self, images_rgb_uint8: List[np.ndarray],
                            score_thresh: float = _BF_MIN_SCORE,
-                           iou_thresh: float = 0.5):
+                           iou_thresh: float = 0.5,
+                           variant: Optional[str] = None):
         """Batched detector pass. Returns (img_raws, sub_rects, sizes, per_frame_decoded)
-        where per_frame_decoded[b] is (N, 17) in tensor-normalized [0,1] coords."""
+        where per_frame_decoded[b] is (N, 17) in tensor-normalized [0,1] coords.
+        `variant` overrides per-call (required on 'both'-mode instances)."""
         if not images_rgb_uint8:
             return [], [], [], []
-        device, dtype = self.detector.stem.weight.device, self.detector.stem.weight.dtype
+        if variant is None:
+            variant = "short" if self.detector_variant == "both" else self.detector_variant
+        detector = self._detector(variant)
+        device, dtype = detector.stem.weight.device, detector.stem.weight.dtype
         det_input_size, decode_fn = ((_BF_FR_INPUT_SIZE, _decode_blazeface_full_range)
-                                     if self.detector_variant == "full"
+                                     if variant == "full"
                                      else (_BF_INPUT_SIZE, _decode_blazeface))
 
         # Same-size frames: stack once and transfer once. Variable size falls back
@@ -598,7 +614,7 @@ class FaceLandmarker(nn.Module):
         det_crops = [w[0] for w in warps]
         sub_rects = [(w[1], w[2], w[3]) for w in warps]
 
-        regs_b, cls_b = self.detector(torch.stack(det_crops, dim=0))
+        regs_b, cls_b = detector(torch.stack(det_crops, dim=0))
         regs_np, cls_np = regs_b.float().cpu().numpy(), cls_b.float().cpu().numpy()
         per_frame = []
         for b in range(len(images_rgb_uint8)):
@@ -607,15 +623,22 @@ class FaceLandmarker(nn.Module):
         return img_raws, sub_rects, sizes, per_frame
 
     def detect_batch(self, images_rgb_uint8: List[np.ndarray], num_faces: int = 1,
-                     score_thresh: float = _BF_MIN_SCORE) -> List[List[dict]]:
+                     score_thresh: float = _BF_MIN_SCORE,
+                     variant: Optional[str] = None) -> List[List[dict]]:
         """Full pipeline batched across `images_rgb_uint8`. Returns one face-dict
         list per image (empty if nothing detected). Face dict:
             bbox_xyxy (4,) image pixels, blendshapes {52} ∈ [0,1],
             landmarks_xy (478, 2) image pixels, landmarks_3d (478, 3) in
             192-canonical (pre-transformation) units, presence float (raw logit).
+        On 'both'-mode instances `variant=None` runs both detectors and keeps
+        whichever found more faces per frame (tie → short).
         """
+        if variant is None and self.detector_variant == "both":
+            s = self.detect_batch(images_rgb_uint8, num_faces=num_faces, score_thresh=score_thresh, variant="short")
+            f = self.detect_batch(images_rgb_uint8, num_faces=num_faces, score_thresh=score_thresh, variant="full")
+            return [s[b] if len(s[b]) >= len(f[b]) else f[b] for b in range(len(images_rgb_uint8))]
         img_raws, sub_rects, sizes, per_frame_dets = self.run_detector_batch(
-            images_rgb_uint8, score_thresh=score_thresh,
+            images_rgb_uint8, score_thresh=score_thresh, variant=variant,
         )
         # tensor-normalized → image-normalized [0,1] for _detection_to_face_rect.
         for b, decoded in enumerate(per_frame_dets):
