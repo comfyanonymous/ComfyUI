@@ -29,6 +29,7 @@ import comfy.text_encoders.longcat_image
 import comfy.text_encoders.ernie
 import comfy.text_encoders.cogvideo
 import comfy.text_encoders.hidream_o1
+import comfy.text_encoders.pixeldit
 
 from . import supported_models_base
 from . import latent_formats
@@ -1135,6 +1136,71 @@ class ZImagePixelSpace(ZImage):
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ZImagePixelSpace(self, device=device)
 
+class PixelDiTT2I(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "pixeldit_t2i",
+    }
+
+    unet_extra_config = {}
+
+    sampling_settings = {
+        "shift": 4.0,  # 1024px stage 3 default; 2.0 for 512px
+        "multiplier": 1000,
+    }
+
+    latent_format = latent_formats.PixelDiTPixel
+    memory_usage_factor = 0.7
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.PixelDiTT2I(self, device=device)
+
+    def process_unet_state_dict(self, state_dict):
+        out = {}
+        for k, v in state_dict.items():
+            if k.startswith("_repa_projector"):
+                continue
+            if k.startswith("core."):
+                out[k[len("core."):]] = v
+            else:
+                out[k] = v
+        return out
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(
+            comfy.text_encoders.pixeldit.PixelDiTGemma2Tokenizer,
+            comfy.text_encoders.pixeldit.PixelDiTGemma2TE,
+        )
+
+class PiD(PixelDiTT2I):
+    unet_config = {
+        "image_model": "pid",
+    }
+
+    sampling_settings = {
+        "shift": 1.5, # close approximation of the original distill 4 steps [0.999, 0.866, 0.634, 0.342, 0]
+        "multiplier": 1000,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.PiD(self, device=device)
+
+    def process_unet_state_dict(self, state_dict):
+        out = {}
+        for k, v in state_dict.items():
+            if k.startswith("_repa_projector") or k.startswith("net_ema."):
+                continue
+            if k.startswith("core."):
+                out[k[len("core."):]] = v
+            elif k.startswith("net."):
+                out[k[len("net."):]] = v
+            else:
+                out[k] = v
+        return out
+
 class WAN21_T2V(supported_models_base.BASE):
     unet_config = {
         "image_model": "wan2.1",
@@ -2044,6 +2110,8 @@ models = [
     CosmosI2VPredict2,
     ZImagePixelSpace,
     ZImage,
+    PiD,
+    PixelDiTT2I,
     Lumina2,
     WAN22_T2V,
     WAN21_CausalAR_T2V,
