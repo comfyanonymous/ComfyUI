@@ -1217,7 +1217,7 @@ def get_aimdo_cast_buffer(offload_stream, device):
 def get_pin_buffer(offload_stream):
     pin_buffer = STREAM_PIN_BUFFERS.get(offload_stream, None)
     if pin_buffer is None:
-        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(0, 0, pinned_hostbuf_size(8 * 1024**3))
+        pin_buffer = comfy_aimdo.host_buffer.HostBuffer(0, 0, pinned_hostbuf_size(8 * 1024**3), mark_cold=False)
         STREAM_PIN_BUFFERS[offload_stream] = pin_buffer
     elif offload_stream is not None:
         event = getattr(pin_buffer, "_comfy_event", None)

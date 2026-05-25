@@ -286,8 +286,8 @@ def prompt_worker(q, server_instance):
     cache_ram = 0
     cache_ram_inactive = 0
     if not args.cache_classic and not args.cache_none and args.cache_lru <= 0:
-        cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
-        cache_ram_inactive = min(96.0, max(12.0, comfy.model_management.total_ram * 0.75 / 1024.0))
+        cache_ram = min(10.0, max(2.0, comfy.model_management.total_ram * 0.10 / 1024.0))
+        cache_ram_inactive = min(96.0, comfy.model_management.total_ram / 1024.0)
         if len(args.cache_ram) > 0:
             cache_ram = args.cache_ram[0]
         if len(args.cache_ram) > 1:
@@ -344,9 +344,9 @@ def prompt_worker(q, server_instance):
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
+                logging.info(f"Prompt executed in {execution_time}", extra={'color': 'green'})
             else:
-                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+                logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={'color': 'green'})
 
             if not asset_seeder.is_disabled():
                 paths = _collect_output_absolute_paths(e.history_result)
