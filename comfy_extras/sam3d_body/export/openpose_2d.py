@@ -9,6 +9,7 @@ the DWPose face slot).
 Output: (H, W, 3) fp32 torch.Tensor in [0, 1].
 """
 
+import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -178,7 +179,7 @@ def render_pose_data_openpose(
                     if use_rig_only:
                         face_vert_ids = face_vert_ids[_EYES_MOUTH_IDX]
                 except Exception as e:
-                    print(f"[SAM3DBody] face landmarks disabled - {e}")
+                    logging.warning(f"[SAM3DBody] face landmarks disabled - {e}")
                     face_vert_ids = None
 
     hand_dot_color = (

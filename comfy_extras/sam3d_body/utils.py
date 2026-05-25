@@ -10,7 +10,6 @@ from comfy.ldm.sam3d_body.model.model import SAM3DBody
 
 
 import comfy.model_management
-from comfy_api.latest import io
 import comfy.utils
 
 from tqdm import tqdm

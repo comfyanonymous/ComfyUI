@@ -443,17 +443,23 @@ def _capsule_mesh_local(
         # omit them entirely.
         cap_r = 0.0
         body_r = W
-        if n_cap_lat is None: n_cap_lat = 0
-        if n_body is None:    n_body = 0
-        if n_lon is None:     n_lon = 16
+        if n_cap_lat is None:
+            n_cap_lat = 0
+        if n_body is None:
+            n_body = 0
+        if n_lon is None:
+            n_lon = 16
     elif str(shape) == "ellipsoid":
         end_frac = float(min(0.95, max(0.05, end_width_frac)))
         cap_r = max(1e-7, W * end_frac)
         body_r = W
         # Ellipsoid defaults: more body rings to sample the sin(π·u) curve.
-        if n_cap_lat is None: n_cap_lat = 3
-        if n_body is None:    n_body = 7
-        if n_lon is None:     n_lon = 12
+        if n_cap_lat is None:
+            n_cap_lat = 3
+        if n_body is None:
+            n_body = 7
+        if n_lon is None:
+            n_lon = 12
     else:
         raise ValueError(
             f"_capsule_mesh_local: unknown shape={shape!r} "
