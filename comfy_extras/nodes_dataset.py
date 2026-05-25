@@ -394,6 +394,27 @@ class ImageProcessingNode(io.ComfyNode):
         return has_group
 
     @classmethod
+    def _ensure_image_list(cls, images):
+        """Normalize to a flat list of individual (H,W,C) tensors."""
+
+        # raw tensor
+        if isinstance(images, torch.Tensor):
+            if images.ndim == 4:
+                return [images[i] for i in range(images.shape[0])]
+            if images.ndim == 3:
+                return [images]
+            raise ValueError(f"Unexpected image tensor ndim: {images.ndim}, shape: {images.shape}")
+
+        # flatten batched images inside a list/tuple
+        flat = []
+        for item in images:
+            if isinstance(item, torch.Tensor) and item.ndim == 4:
+                flat.extend([item[i] for i in range(item.shape[0])])
+            else:
+                flat.append(item)
+        return flat
+
+    @classmethod
     def define_schema(cls):
         if cls.node_id is None:
             raise NotImplementedError(f"{cls.__name__} must set node_id class variable")
@@ -439,6 +460,7 @@ class ImageProcessingNode(io.ComfyNode):
     def execute(cls, images, **kwargs):
         """Execute the node. Routes to _process or _group_process based on mode."""
         is_group = cls._detect_processing_mode()
+        images = cls._ensure_image_list(images)
 
         # Extract scalar values from lists for parameters
         params = {}
