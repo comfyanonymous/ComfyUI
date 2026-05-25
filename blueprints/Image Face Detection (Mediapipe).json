@@ -15,7 +15,7 @@
         400
       ],
       "flags": {},
-      "order": 3,
+      "order": 0,
       "mode": 0,
       "inputs": [
         {
@@ -119,6 +119,7 @@
           "links": []
         }
       ],
+      "title": "Image Face Detection (Mediapipe)",
       "properties": {
         "proxyWidgets": [
           [
@@ -164,8 +165,7 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [],
-      "title": "Face Detection (Mediapipe)"
+      "widgets_values": []
     }
   ],
   "links": [],
@@ -183,7 +183,8 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Face Detection (Mediapipe)",
+        "name": "Image Face Detection (Mediapipe)",
+        "description": "Detects facial landmarks from an image using MediaPipe, outputting landmark data, face bounding boxes, and an optional face-region mask.",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -769,7 +770,8 @@
             "type": "COMBO"
           }
         ],
-        "extra": {}
+        "extra": {},
+        "category": "Conditioning & Preprocessors/Face Detection"
       }
     ]
   },

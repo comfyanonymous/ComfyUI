@@ -948,7 +948,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image Tools/Preprocessors",
+        "category": "Conditioning & Preprocessors/Depth",
         "description": "Estimates a monocular depth map from an input image using the Lotus depth estimation model."
       }
     ]

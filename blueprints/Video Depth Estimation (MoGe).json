@@ -1,14 +1,14 @@
 {
   "revision": 0,
-  "last_node_id": 49,
+  "last_node_id": 72,
   "last_link_id": 0,
   "nodes": [
     {
-      "id": 49,
-      "type": "ca1fac5f-abe5-4729-b7fe-2299f6630a65",
+      "id": 72,
+      "type": "7ff83f68-6848-47a8-aa43-9036ca6c46e8",
       "pos": [
-        -3970,
-        5000
+        -4440,
+        4550
       ],
       "size": [
         430,
@@ -18,12 +18,6 @@
       "order": 3,
       "mode": 0,
       "inputs": [
-        {
-          "localized_name": "source_image",
-          "name": "source_image",
-          "type": "IMAGE",
-          "link": null
-        },
         {
           "localized_name": "inference_resolution",
           "name": "inference_resolution",
@@ -58,6 +52,11 @@
           "widget": {
             "name": "switch"
           },
+          "link": null
+        },
+        {
+          "name": "video",
+          "type": "VIDEO",
           "link": null
         }
       ],
@@ -99,18 +98,18 @@
             "switch"
           ]
         ],
-        "cnr_id": "comfy-core",
-        "ver": "0.21.1",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
         "hasSecondTab": false,
         "secondTabText": "Send Back",
         "secondTabOffset": 80,
-        "secondTabWidth": 65
+        "secondTabWidth": 65,
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1"
       },
       "widgets_values": [],
-      "title": "Depth Estimation (MoGe)"
+      "title": "Video Depth Estimation (MoGe)"
     }
   ],
   "links": [],
@@ -118,21 +117,21 @@
   "definitions": {
     "subgraphs": [
       {
-        "id": "ca1fac5f-abe5-4729-b7fe-2299f6630a65",
+        "id": "7ff83f68-6848-47a8-aa43-9036ca6c46e8",
         "version": 1,
         "state": {
           "lastGroupId": 1,
-          "lastNodeId": 69,
-          "lastLinkId": 90,
+          "lastNodeId": 72,
+          "lastLinkId": 96,
           "lastRerouteId": 0
         },
         "revision": 0,
         "config": {},
-        "name": "Depth Estimation (MoGe)",
+        "name": "Video Depth Estimation (MoGe)",
         "inputNode": {
           "id": -10,
           "bounding": [
-            -5130,
+            -5320,
             5320,
             167.337890625,
             148
@@ -149,22 +148,6 @@
         },
         "inputs": [
           {
-            "id": "cc8ce79d-ba20-4a25-a51c-c2afcd35e520",
-            "name": "source_image",
-            "type": "IMAGE",
-            "linkIds": [
-              48,
-              55,
-              56,
-              82
-            ],
-            "localized_name": "source_image",
-            "pos": [
-              -4986.662109375,
-              5344
-            ]
-          },
-          {
             "id": "06eefa21-8e60-49f3-9a34-35b081f4ae52",
             "name": "inference_resolution",
             "type": "INT",
@@ -173,8 +156,8 @@
             ],
             "localized_name": "inference_resolution",
             "pos": [
-              -4986.662109375,
-              5364
+              -5176.662109375,
+              5344
             ]
           },
           {
@@ -186,8 +169,8 @@
             ],
             "localized_name": "inference_batch_size",
             "pos": [
-              -4986.662109375,
-              5384
+              -5176.662109375,
+              5364
             ]
           },
           {
@@ -199,8 +182,8 @@
             ],
             "localized_name": "moge_model",
             "pos": [
-              -4986.662109375,
-              5404
+              -5176.662109375,
+              5384
             ]
           },
           {
@@ -212,7 +195,19 @@
             ],
             "label": "auto_resize_input",
             "pos": [
-              -4986.662109375,
+              -5176.662109375,
+              5404
+            ]
+          },
+          {
+            "id": "749bad18-d00a-4ec4-a5ff-e45b1d0cf089",
+            "name": "video",
+            "type": "VIDEO",
+            "linkIds": [
+              91
+            ],
+            "pos": [
+              -5176.662109375,
               5424
             ]
           }
@@ -346,18 +341,18 @@
             ],
             "properties": {
               "Node name for S&R": "MoGeInference",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
-              3,
+              9,
               0,
               4,
               true,
@@ -407,15 +402,15 @@
             ],
             "properties": {
               "Node name for S&R": "MoGeRender",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               "depth_colored"
@@ -464,15 +459,15 @@
             ],
             "properties": {
               "Node name for S&R": "MoGeRender",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               "depth"
@@ -515,6 +510,13 @@
             ],
             "properties": {
               "Node name for S&R": "LoadMoGeModel",
+              "enableTabs": false,
+              "tabWidth": 65,
+              "tabXOffset": 10,
+              "hasSecondTab": false,
+              "secondTabText": "Send Back",
+              "secondTabOffset": 80,
+              "secondTabWidth": 65,
               "cnr_id": "comfy-core",
               "ver": "0.21.1",
               "models": [
@@ -523,14 +525,7 @@
                   "url": "https://huggingface.co/Comfy-Org/MoGe/resolve/main/geometry_estimation/moge_2_vitl_normal_fp16.safetensors",
                   "directory": "geometry_estimation"
                 }
-              ],
-              "enableTabs": false,
-              "tabWidth": 65,
-              "tabXOffset": 10,
-              "hasSecondTab": false,
-              "secondTabText": "Send Back",
-              "secondTabOffset": 80,
-              "secondTabWidth": 65
+              ]
             },
             "widgets_values": [
               "moge_2_vitl_normal_fp16.safetensors"
@@ -600,15 +595,15 @@
             ],
             "properties": {
               "Node name for S&R": "ComfyMathExpression",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               "a > 2048"
@@ -633,7 +628,7 @@
                 "localized_name": "image",
                 "name": "image",
                 "type": "IMAGE",
-                "link": 48
+                "link": 92
               }
             ],
             "outputs": [
@@ -660,15 +655,15 @@
             ],
             "properties": {
               "Node name for S&R": "GetImageSize",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             }
           },
           {
@@ -690,7 +685,7 @@
                 "localized_name": "images",
                 "name": "images",
                 "type": "IMAGE",
-                "link": 55
+                "link": 93
               },
               {
                 "localized_name": "longer_edge",
@@ -714,15 +709,15 @@
             ],
             "properties": {
               "Node name for S&R": "ResizeImagesByLongerEdge",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               2048
@@ -747,7 +742,7 @@
                 "localized_name": "on_false",
                 "name": "on_false",
                 "type": "*",
-                "link": 56
+                "link": 94
               },
               {
                 "localized_name": "on_true",
@@ -777,15 +772,15 @@
             ],
             "properties": {
               "Node name for S&R": "ComfySwitchNode",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               false
@@ -834,15 +829,15 @@
             ],
             "properties": {
               "Node name for S&R": "MoGeRender",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               "mask"
@@ -867,7 +862,7 @@
                 "localized_name": "on_false",
                 "name": "on_false",
                 "type": "*",
-                "link": 82
+                "link": 95
               },
               {
                 "localized_name": "on_true",
@@ -897,15 +892,15 @@
             ],
             "properties": {
               "Node name for S&R": "ComfySwitchNode",
-              "cnr_id": "comfy-core",
-              "ver": "0.21.1",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
               "hasSecondTab": false,
               "secondTabText": "Send Back",
               "secondTabOffset": 80,
-              "secondTabWidth": 65
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.21.1"
             },
             "widgets_values": [
               true
@@ -953,11 +948,80 @@
               }
             ],
             "properties": {
-              "Node name for S&R": "ImageToMask"
+              "Node name for S&R": "ImageToMask",
+              "enableTabs": false,
+              "tabWidth": 65,
+              "tabXOffset": 10,
+              "hasSecondTab": false,
+              "secondTabText": "Send Back",
+              "secondTabOffset": 80,
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.22.0"
             },
             "widgets_values": [
               "red"
             ]
+          },
+          {
+            "id": 70,
+            "type": "GetVideoComponents",
+            "pos": [
+              -4920,
+              5490
+            ],
+            "size": [
+              230,
+              120
+            ],
+            "flags": {},
+            "order": 11,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "video",
+                "name": "video",
+                "type": "VIDEO",
+                "link": 91
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "links": [
+                  92,
+                  93,
+                  94,
+                  95
+                ]
+              },
+              {
+                "localized_name": "audio",
+                "name": "audio",
+                "type": "AUDIO",
+                "links": null
+              },
+              {
+                "localized_name": "fps",
+                "name": "fps",
+                "type": "FLOAT",
+                "links": null
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "GetVideoComponents",
+              "enableTabs": false,
+              "tabWidth": 65,
+              "tabXOffset": 10,
+              "hasSecondTab": false,
+              "secondTabText": "Send Back",
+              "secondTabOffset": 80,
+              "secondTabWidth": 65,
+              "cnr_id": "comfy-core",
+              "ver": "0.22.0"
+            }
           }
         ],
         "groups": [
@@ -1032,30 +1096,6 @@
             "type": "MOGE_GEOMETRY"
           },
           {
-            "id": 48,
-            "origin_id": -10,
-            "origin_slot": 0,
-            "target_id": 37,
-            "target_slot": 0,
-            "type": "IMAGE"
-          },
-          {
-            "id": 55,
-            "origin_id": -10,
-            "origin_slot": 0,
-            "target_id": 40,
-            "target_slot": 0,
-            "type": "IMAGE"
-          },
-          {
-            "id": 56,
-            "origin_id": -10,
-            "origin_slot": 0,
-            "target_id": 42,
-            "target_slot": 0,
-            "type": "IMAGE"
-          },
-          {
             "id": 36,
             "origin_id": 23,
             "origin_slot": 0,
@@ -1074,7 +1114,7 @@
           {
             "id": 73,
             "origin_id": -10,
-            "origin_slot": 1,
+            "origin_slot": 0,
             "target_id": 13,
             "target_slot": 2,
             "type": "INT"
@@ -1082,7 +1122,7 @@
           {
             "id": 74,
             "origin_id": -10,
-            "origin_slot": 2,
+            "origin_slot": 1,
             "target_id": 13,
             "target_slot": 4,
             "type": "INT"
@@ -1090,7 +1130,7 @@
           {
             "id": 79,
             "origin_id": -10,
-            "origin_slot": 3,
+            "origin_slot": 2,
             "target_id": 32,
             "target_slot": 0,
             "type": "COMBO"
@@ -1112,17 +1152,9 @@
             "type": "IMAGE"
           },
           {
-            "id": 82,
-            "origin_id": -10,
-            "origin_slot": 0,
-            "target_id": 53,
-            "target_slot": 0,
-            "type": "IMAGE"
-          },
-          {
             "id": 83,
             "origin_id": -10,
-            "origin_slot": 4,
+            "origin_slot": 3,
             "target_id": 53,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -1142,9 +1174,50 @@
             "target_id": -20,
             "target_slot": 2,
             "type": "MASK"
+          },
+          {
+            "id": 91,
+            "origin_id": -10,
+            "origin_slot": 4,
+            "target_id": 70,
+            "target_slot": 0,
+            "type": "VIDEO"
+          },
+          {
+            "id": 92,
+            "origin_id": 70,
+            "origin_slot": 0,
+            "target_id": 37,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 93,
+            "origin_id": 70,
+            "origin_slot": 0,
+            "target_id": 40,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 94,
+            "origin_id": 70,
+            "origin_slot": 0,
+            "target_id": 42,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 95,
+            "origin_id": 70,
+            "origin_slot": 0,
+            "target_id": 53,
+            "target_slot": 0,
+            "type": "IMAGE"
           }
         ],
-        "extra": {}
+        "extra": {},
+        "category": "Conditioning & Preprocessors/Depth"
       }
     ]
   },
