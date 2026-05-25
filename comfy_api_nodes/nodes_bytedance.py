@@ -317,7 +317,7 @@ async def _seedance_virtual_library_upload_video_asset(
 ) -> str:
     buf = BytesIO()
     video.save_to(buf, format=Types.VideoContainer.MP4, codec=Types.VideoCodec.H264)
-    video_hash = hashlib.sha256(buf.getvalue()).hexdigest()
+    video_hash = hashlib.sha256(buf.getbuffer()).hexdigest()
     public_url = await upload_video_to_comfyapi(cls, video, wait_label=wait_label)
     create_resp = await sync_op(
         cls,
