@@ -148,6 +148,7 @@ class PixDiT_T2I(nn.Module):
         dtype=None,
         device=None,
         operations=None,
+        pixel_mlp_chunks=2,
     ):
         super().__init__()
         self.dtype = dtype
@@ -199,6 +200,7 @@ class PixDiT_T2I(nn.Module):
                 attn_hidden_size=self.pixel_attn_hidden_size,
                 attn_num_heads=self.pixel_num_groups,
                 dtype=dtype, device=device, operations=operations,
+                mlp_chunks=pixel_mlp_chunks,
             )
             for _ in range(self.pixel_depth)
         ])

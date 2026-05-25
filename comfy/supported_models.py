@@ -1160,11 +1160,20 @@ class PixelDiTT2I(supported_models_base.BASE):
 
     def process_unet_state_dict(self, state_dict):
         out = {}
+        marker = ".adaLN_modulation.0."
         for k, v in state_dict.items():
             if k.startswith("_repa_projector"):
                 continue
             if k.startswith("core."):
-                out[k[len("core."):]] = v
+                k = k[len("core."):]
+            if "pixel_blocks." in k and marker in k:
+                # Split into msa (chunks 0-2) and mlp (chunks 3-5) for the two-Linear PiTBlock to reduce peak VRAM
+                base, suffix = k.split(marker)
+                vv = v.view(256, 6, 16, -1) if v.dim() == 2 else v.view(256, 6, 16)
+                msa = vv[:, 0:3].reshape(3 * 256 * 16, -1) if v.dim() == 2 else vv[:, 0:3].reshape(3 * 256 * 16)
+                mlp = vv[:, 3:6].reshape(3 * 256 * 16, -1) if v.dim() == 2 else vv[:, 3:6].reshape(3 * 256 * 16)
+                out[f"{base}.adaLN_modulation_msa.{suffix}"] = msa.contiguous()
+                out[f"{base}.adaLN_modulation_mlp.{suffix}"] = mlp.contiguous()
             else:
                 out[k] = v
         return out
@@ -1190,13 +1199,21 @@ class PiD(PixelDiTT2I):
 
     def process_unet_state_dict(self, state_dict):
         out = {}
+        marker = ".adaLN_modulation.0."
         for k, v in state_dict.items():
             if k.startswith("_repa_projector") or k.startswith("net_ema."):
                 continue
             if k.startswith("core."):
-                out[k[len("core."):]] = v
+                k = k[len("core."):]
             elif k.startswith("net."):
-                out[k[len("net."):]] = v
+                k = k[len("net."):]
+            if "pixel_blocks." in k and marker in k:
+                base, suffix = k.split(marker)
+                vv = v.view(256, 6, 16, -1) if v.dim() == 2 else v.view(256, 6, 16)
+                msa = vv[:, 0:3].reshape(3 * 256 * 16, -1) if v.dim() == 2 else vv[:, 0:3].reshape(3 * 256 * 16)
+                mlp = vv[:, 3:6].reshape(3 * 256 * 16, -1) if v.dim() == 2 else vv[:, 3:6].reshape(3 * 256 * 16)
+                out[f"{base}.adaLN_modulation_msa.{suffix}"] = msa.contiguous()
+                out[f"{base}.adaLN_modulation_mlp.{suffix}"] = mlp.contiguous()
             else:
                 out[k] = v
         return out
