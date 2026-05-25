@@ -93,10 +93,8 @@ class PixelDiTGemma2Tokenizer(sd1_clip.SD1Tokenizer):
 class PixelDiTGemma2TE(LuminaModel):
     """Text encoder wrapper for PixelDiT.
 
-    Overrides `encode_token_weights` to perform PixelDiT's `select_index` step:
-    encode the full padded sequence (up to ~chi_prompt_tokens + 298), then
-    return `[BOS_emb] + last_299_embs` as the 300-position conditioning that
-    matches the diffusion model's learned `y_pos_embedding` positions.
+    Encodes the full padded sequence, then returns BOS + last 299 embeddings
+    (PixelDiT's `select_index` step) to match the trained y_pos_embedding length.
     """
     def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__(device=device, dtype=dtype, name="gemma2_2b",

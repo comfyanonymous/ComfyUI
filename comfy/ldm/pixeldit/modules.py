@@ -6,8 +6,18 @@ from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.modules.diffusionmodules.mmdit import Mlp
 
 
-def apply_adaln(x, shift, scale):
+def apply_adaln_(x, shift, scale):
     return x.addcmul_(x, scale).add_(shift)
+
+
+_POS_CACHE_MAX = 16
+
+
+def _cache_set(cache, key, value):
+    """Set with a soft LRU cap — evicts the oldest entry if at capacity."""
+    if len(cache) >= _POS_CACHE_MAX:
+        del cache[next(iter(cache))]
+    cache[key] = value
 
 
 def precompute_freqs_cis_2d(dim, height, width, theta=10000.0, scale=16.0, device=None, dtype=torch.float32):
@@ -119,7 +129,7 @@ class PixelTokenEmbedder(nn.Module):
         pe = self._pos_cache.get(key)
         if pe is None:
             pe = get_2d_sincos_pos_embed(self.hidden_size_output, height, width)
-            self._pos_cache[key] = pe
+            _cache_set(self._pos_cache, key, pe)
         return pe.to(device=device, dtype=dtype)
 
     def forward(self, inputs, img_height, img_width, patch_size):
@@ -176,7 +186,7 @@ class PiTBlock(nn.Module):
         pos = self._pos_cache.get(key)
         if pos is None:
             pos = self._rope_fn(self.attn_dim // self.num_heads, height, width)
-            self._pos_cache[key] = pos
+            _cache_set(self._pos_cache, key, pos)
         return pos.to(device=device, dtype=dtype)
 
     def forward(self, x, s_cond, image_height, image_width, patch_size, mask=None, transformer_options={}):
@@ -188,7 +198,7 @@ class PiTBlock(nn.Module):
         # Attention path uses only msa params; compute, use, free before mlp params allocate.
         msa_params = self.adaLN_modulation_msa(s_cond).view(BL, P2, 3 * self.pixel_dim)
         shift_msa, scale_msa, gate_msa = msa_params.chunk(3, dim=-1)
-        x_norm = apply_adaln(self.norm1(x), shift_msa, scale_msa)
+        x_norm = apply_adaln_(self.norm1(x), shift_msa, scale_msa)
         x_flat = x_norm.view(BL, P2 * self.pixel_dim)
         x_comp = self.compress_to_attn(x_flat).view(B, L, self.attn_dim)
         pos_comp = self._fetch_pos(Hs, Ws, x.device, x.dtype)
@@ -201,7 +211,7 @@ class PiTBlock(nn.Module):
         mlp_params = self.adaLN_modulation_mlp(s_cond).view(BL, P2, 3 * self.pixel_dim)
         shift_mlp, scale_mlp, gate_mlp = mlp_params.chunk(3, dim=-1)
         gate_mlp = gate_mlp.contiguous()
-        mlp_input = apply_adaln(self.norm2(x), shift_mlp, scale_mlp)
+        mlp_input = apply_adaln_(self.norm2(x), shift_mlp, scale_mlp)
         del mlp_params, shift_mlp, scale_mlp
         chunk_size = (BL + self.mlp_chunks - 1) // self.mlp_chunks
         for s in range(0, BL, chunk_size):

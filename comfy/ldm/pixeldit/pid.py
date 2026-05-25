@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from comfy.ldm.flux.math import rope
 
 from .model import PixDiT_T2I
+from .modules import _cache_set
 
 
 def precompute_freqs_cis_2d_ntk(dim: int, height: int, width: int,
@@ -221,66 +222,36 @@ class PidNet(PixDiT_T2I):
                 height, width,
                 self.rope_ref_grid_h, self.rope_ref_grid_w,
             )
-            self._patch_pos_cache[key] = pos
+            _cache_set(self._patch_pos_cache, key, pos)
         return pos.to(device=device, dtype=dtype)
 
-    def _forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={},
-                 lq_latent=None, degrade_sigma=None, **kwargs):
-        B, _, H, W = x.shape
-        Hs = H // self.patch_size
-        Ws = W // self.patch_size
-        L = Hs * Ws
+    def _pre_patch_block(self, s, i, pid_lq_features=None, pid_degrade_sigma=None, **kwargs):
+        if pid_lq_features is None or not self.lq_proj.is_gate_active(i):
+            return s
+        out_idx = self.lq_proj.output_index(i)
+        if out_idx >= len(pid_lq_features):
+            return s
+        return self.lq_proj.gate(s, pid_lq_features[out_idx], pid_degrade_sigma, out_idx)
 
-        if context is None or context.dim() != 3:
-            raise ValueError("PidNet requires context [B, L, D]")
+    def _forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, lq_latent=None, degrade_sigma=None, **kwargs):
         if lq_latent is None:
             raise ValueError("PidNet requires lq_latent — attach via PiDConditioning")
+        B = x.shape[0]
+        Hs = x.shape[2] // self.patch_size
+        Ws = x.shape[3] // self.patch_size
 
-        if degrade_sigma is None:
-            degrade_sigma = torch.zeros(B, device=x.device, dtype=torch.float32)
-        elif not isinstance(degrade_sigma, torch.Tensor):
-            degrade_sigma = torch.tensor([float(degrade_sigma)] * B, device=x.device, dtype=torch.float32)
-        else:
-            degrade_sigma = degrade_sigma.to(device=x.device, dtype=torch.float32).reshape(-1)
-            if degrade_sigma.numel() == 1 and B > 1:
-                degrade_sigma = degrade_sigma.expand(B).contiguous()
+        degrade_sigma = torch.as_tensor(degrade_sigma if degrade_sigma is not None else 0.0, device=x.device, dtype=torch.float32).reshape(-1)
+        if degrade_sigma.numel() == 1 and B > 1:
+            degrade_sigma = degrade_sigma.expand(B).contiguous()
 
         lq_latent = lq_latent.to(device=x.device, dtype=x.dtype)
         lq_features = self.lq_proj(lq_latent=lq_latent, target_pH=Hs, target_pW=Ws)
 
-        pos_img = self._fetch_patch_pos(Hs, Ws, x.device, x.dtype)
-        x_patches = F.unfold(x, kernel_size=self.patch_size, stride=self.patch_size).transpose(1, 2)
-
-        t_emb = self.t_embedder(timesteps.view(-1), x.dtype).view(B, -1, self.hidden_size)
-
-        Ltxt = min(context.shape[1], self.txt_max_length)
-        y = context[:, :Ltxt, :]
-        y_emb = self.y_embedder(y).view(B, Ltxt, self.hidden_size)
-        # y_pos_embedding is raw nn.Parameter -> doesn't auto-cast under dynamic VRAM.
-        y_emb = y_emb + self.y_pos_embedding[:, :Ltxt, :].to(device=y_emb.device, dtype=y_emb.dtype)
-
-        condition = F.silu(t_emb)
-        pos_txt = self._fetch_text_pos(Ltxt, x.device, x.dtype) if self.use_text_rope else None
-
-        s = self.s_embedder(x_patches)
-        for i, blk in enumerate(self.patch_blocks):
-            if self.lq_proj.is_gate_active(i):
-                out_idx = self.lq_proj.output_index(i)
-                if out_idx < len(lq_features):
-                    s = self.lq_proj.gate(s, lq_features[out_idx], degrade_sigma, out_idx)
-            s, y_emb = blk(s, y_emb, condition, pos_img, pos_txt, None,
-                           transformer_options=transformer_options)
-        s = F.silu(t_emb + s)
-
-        s_cond = s.view(B * L, self.hidden_size)
-        x_pixels = self.pixel_embedder(x, img_height=H, img_width=W, patch_size=self.patch_size)
-        for blk in self.pixel_blocks:
-            x_pixels = blk(x_pixels, s_cond, H, W, self.patch_size, mask=None,
-                           transformer_options=transformer_options)
-
-        x_pixels = self.final_layer(x_pixels)
-        C_out = self.out_channels
-        P2 = self.patch_size * self.patch_size
-        x_pixels = x_pixels.view(B, L, P2, C_out).permute(0, 3, 2, 1).contiguous()
-        x_pixels = x_pixels.view(B, C_out * P2, L)
-        return F.fold(x_pixels, (H, W), kernel_size=self.patch_size, stride=self.patch_size)
+        return super()._forward(
+            x, timesteps,
+            context=context, attention_mask=attention_mask,
+            transformer_options=transformer_options,
+            pid_lq_features=lq_features,
+            pid_degrade_sigma=degrade_sigma,
+            **kwargs,
+        )

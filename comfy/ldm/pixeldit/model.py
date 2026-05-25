@@ -13,7 +13,8 @@ from .modules import (
     PatchTokenEmbedder,
     PiTBlock,
     PixelTokenEmbedder,
-    apply_adaln,
+    _cache_set,
+    apply_adaln_,
     precompute_freqs_cis_2d,
 )
 
@@ -107,14 +108,14 @@ class MMDiTBlockT2I(nn.Module):
         shift_msa_x, scale_msa_x, gate_msa_x, shift_mlp_x, scale_mlp_x, gate_mlp_x = self.adaLN_modulation_img(c).chunk(6, dim=-1)
         shift_msa_y, scale_msa_y, gate_msa_y, shift_mlp_y, scale_mlp_y, gate_mlp_y = self.adaLN_modulation_txt(c).chunk(6, dim=-1)
 
-        x_norm = apply_adaln(self.norm_x1(x), shift_msa_x, scale_msa_x)
-        y_norm = apply_adaln(self.norm_y1(y), shift_msa_y, scale_msa_y)
+        x_norm = apply_adaln_(self.norm_x1(x), shift_msa_x, scale_msa_x)
+        y_norm = apply_adaln_(self.norm_y1(y), shift_msa_y, scale_msa_y)
         attn_x, attn_y = self.attn(x_norm, y_norm, pos_img, pos_txt, attn_mask, transformer_options=transformer_options)
         x = torch.addcmul(x, gate_msa_x, attn_x)
         y = torch.addcmul(y, gate_msa_y, attn_y)
 
-        x = torch.addcmul(x, gate_mlp_x, self.mlp_x(apply_adaln(self.norm_x2(x), shift_mlp_x, scale_mlp_x)))
-        y = torch.addcmul(y, gate_mlp_y, self.mlp_y(apply_adaln(self.norm_y2(y), shift_mlp_y, scale_mlp_y)))
+        x = torch.addcmul(x, gate_mlp_x, self.mlp_x(apply_adaln_(self.norm_x2(x), shift_mlp_x, scale_mlp_x)))
+        y = torch.addcmul(y, gate_mlp_y, self.mlp_y(apply_adaln_(self.norm_y2(y), shift_mlp_y, scale_mlp_y)))
         return x, y
 
 
@@ -216,14 +217,14 @@ class PixDiT_T2I(nn.Module):
         pos = self._patch_pos_cache.get(key)
         if pos is None:
             pos = precompute_freqs_cis_2d(self.hidden_size // self.num_groups, height, width)
-            self._patch_pos_cache[key] = pos
+            _cache_set(self._patch_pos_cache, key, pos)
         return pos.to(device=device, dtype=dtype)
 
     def _fetch_text_pos(self, length, device, dtype):
         pos = self._text_pos_cache.get(length)
         if pos is None:
             pos = rope(torch.arange(length, dtype=torch.float32).reshape(1, -1), self.hidden_size // self.num_groups, self.text_rope_theta).squeeze(0)
-            self._text_pos_cache[length] = pos
+            _cache_set(self._text_pos_cache, length, pos)
         return pos.to(device=device, dtype=dtype)
 
     def forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, **kwargs):
@@ -232,6 +233,10 @@ class PixDiT_T2I(nn.Module):
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options),
         ).execute(x, timesteps, context, attention_mask, transformer_options, **kwargs)
+
+    def _pre_patch_block(self, s, i, **kwargs):
+        """Hook for subclasses to inject per-block state into the patch stream (e.g. PiD's LQ gate)."""
+        return s
 
     def _forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, **kwargs):
         B, _, H, W = x.shape
@@ -249,13 +254,14 @@ class PixDiT_T2I(nn.Module):
         Ltxt = min(context.shape[1], self.txt_max_length)
         y = context[:, :Ltxt, :]
         y_emb = self.y_embedder(y).view(B, Ltxt, self.hidden_size)
-        y_emb = y_emb + self.y_pos_embedding[:, :Ltxt, :].to(y_emb.dtype)
+        y_emb = y_emb + self.y_pos_embedding[:, :Ltxt, :].to(y_emb) # y_pos_embedding is a raw nn.Parameter
 
         condition = F.silu(t_emb)
         pos_txt = self._fetch_text_pos(Ltxt, x.device, x.dtype) if self.use_text_rope else None
 
         s = self.s_embedder(x_patches)
-        for blk in self.patch_blocks:
+        for i, blk in enumerate(self.patch_blocks):
+            s = self._pre_patch_block(s, i, **kwargs)
             s, y_emb = blk(s, y_emb, condition, pos_img, pos_txt, None, transformer_options=transformer_options)
         s = F.silu(t_emb + s)
 
