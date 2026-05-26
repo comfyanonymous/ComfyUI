@@ -48,7 +48,7 @@ ComfyUI is the AI creation engine for visual professionals who demand control ov
 
 #### [Desktop Application](https://www.comfy.org/download)
 - The easiest way to get started.
-- Available on Windows & macOS.
+- Available on Windows, macOS and Linux.
 
 #### [Windows Portable Package](#installing)
 - Get the latest commits and completely portable.
@@ -251,9 +251,9 @@ This is the command to install the nightly with ROCm 7.2 which might have some p
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2```
 
 
-### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.
+### AMD GPUs (Windows and Linux): ROCm with RDNA 3, 3.5 and 4
 
-These have less hardware support than the builds above but they work on windows. You also need to install the pytorch version specific to your hardware.
+AMD GPU users on Windows can use the official [Portable for AMD GPUs](#all-official-portable-downloads) which provides a fully supported experience. For manual installation, use one of the ROCm pytorch builds below. You also need to install the pytorch version specific to your hardware.
 
 RDNA 3 (RX 7000 series):
 
