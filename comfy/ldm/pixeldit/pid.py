@@ -200,6 +200,12 @@ class PidNet(PixDiT_T2I):
     def _forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, lq_latent=None, degrade_sigma=None, **kwargs):
         if lq_latent is None:
             raise ValueError("PidNet requires lq_latent — attach via PiDConditioning")
+        expected_c = self.lq_proj.latent_channels
+        if lq_latent.shape[1] != expected_c:
+            raise ValueError(
+                f"Input latent has {lq_latent.shape[1]} channels, this model variant expects {expected_c}. "
+                f"Flux1/SD3 = 16 channels, Flux2 = 128 channels."
+            )
         B = x.shape[0]
         Hs = x.shape[2] // self.patch_size
         Ws = x.shape[3] // self.patch_size
