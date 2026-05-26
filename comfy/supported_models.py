@@ -830,6 +830,48 @@ class Flux2(Flux):
 
         return None
 
+
+class Lens(supported_models_base.BASE):
+    """Microsoft Lens (3.8B dual-stream MMDiT, GPT-OSS-20B text features, Flux2 VAE)."""
+
+    unet_config = {
+        "image_model": "lens",
+    }
+
+    sampling_settings = {
+        "shift": 1.829, # Default mu for 1440x1440 (and any seq_len > 4300
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux2
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32] # fp16 causes NaNs
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Lens(self, model_type=model_base.ModelType.FLUX, device=device)
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        for hint in ("gpt_oss.transformer.", ""):
+            full_prefix = "{}{}".format(pref, hint)
+            if "{}layers.0.self_attn.sinks".format(full_prefix) in state_dict:
+                detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, full_prefix)
+                return supported_models_base.ClipTarget(
+                    comfy.text_encoders.gpt_oss.LensTokenizer,
+                    comfy.text_encoders.gpt_oss.lens_te(**detect),
+                )
+        return supported_models_base.ClipTarget(
+            comfy.text_encoders.gpt_oss.LensTokenizer,
+            comfy.text_encoders.gpt_oss.lens_te(),
+        )
+
+
 class GenmoMochi(supported_models_base.BASE):
     unet_config = {
         "image_model": "mochi_preview",
@@ -2181,6 +2223,7 @@ models = [
     Omnigen2,
     QwenImage,
     Flux2,
+    Lens,
     Kandinsky5Image,
     Kandinsky5,
     Anima,
