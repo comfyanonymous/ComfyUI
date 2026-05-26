@@ -4,7 +4,6 @@ Provides a single node that converts INT, FLOAT, STRING, and BOOL
 inputs into FLOAT and INT outputs.
 """
 
-from __future__ import annotations
 
 import math
 
@@ -20,7 +19,7 @@ class NumberConvertNode(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="ComfyNumberConvert",
-            display_name="Number Convert",
+            display_name="Convert Number",
             category="utils",
             search_aliases=[
                 "int to float", "float to int", "number convert",

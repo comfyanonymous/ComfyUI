@@ -104,6 +104,8 @@ paths:
       responses:
         "101":
           description: WebSocket upgrade successful
+        '401':
+          description: Unauthorized
       x-websocket-messages:
         - type: status
           schema:
@@ -170,6 +172,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PromptInfo"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: executePrompt
       tags: [prompt]
@@ -195,12 +209,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/PromptErrorResponse"
 
+        '402':
+          description: Payment required - Insufficient credits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptErrorResponse'
+        '429':
+          description: Payment required - User has not paid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptErrorResponse'
   # ---------------------------------------------------------------------------
   # Queue
   # ---------------------------------------------------------------------------
   /api/queue:
     get:
-      operationId: getQueue
+      operationId: getQueueInfo
       tags: [queue]
       summary: Get running and pending queue items
       description: Returns the server's current execution queue, split into the currently-running prompt and the list of pending prompts.
@@ -211,6 +249,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QueueInfo"
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: manageQueue
       tags: [queue]
@@ -226,9 +276,27 @@ paths:
         "200":
           description: Queue updated
 
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/interrupt:
     post:
-      operationId: interruptExecution
+      operationId: interruptJob
       tags: [queue]
       summary: Interrupt current execution
       description: Interrupts the prompt that is currently executing. The next queued prompt (if any) will start immediately after.
@@ -247,6 +315,18 @@ paths:
         "200":
           description: Interrupt signal sent
 
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/free:
     post:
       operationId: freeMemory
@@ -327,9 +407,21 @@ paths:
                   pagination:
                     $ref: "#/components/schemas/PaginationInfo"
 
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/jobs/{job_id}:
     get:
-      operationId: getJob
+      operationId: getJobDetail
       tags: [queue]
       summary: Get a single job by ID
       description: Returns the full record for a single completed prompt execution, including its outputs, status, and metadata.
@@ -351,12 +443,30 @@ paths:
         "404":
           description: Job not found
 
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - Job does not belong to user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # History
   # ---------------------------------------------------------------------------
   /api/history:
     get:
-      operationId: getHistory
+      operationId: getPromptHistory
       tags: [history]
       summary: Get execution history
       deprecated: true
@@ -388,6 +498,8 @@ paths:
                 type: object
                 additionalProperties:
                   $ref: "#/components/schemas/HistoryEntry"
+        '404':
+          description: "Not Found \u2014 use /api/history_v2 instead"
     post:
       operationId: manageHistory
       tags: [history]
@@ -409,6 +521,24 @@ paths:
         "200":
           description: History updated
 
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/history/{prompt_id}:
     get:
       operationId: getHistoryByPromptId
@@ -438,6 +568,8 @@ paths:
                 additionalProperties:
                   $ref: "#/components/schemas/HistoryEntry"
 
+        '404':
+          description: "Not Found \u2014 use /api/jobs/{prompt_id} instead"
   # ---------------------------------------------------------------------------
   # Upload
   # ---------------------------------------------------------------------------
@@ -481,12 +613,31 @@ paths:
         "400":
           description: No file provided or invalid request
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/upload/mask:
     post:
       operationId: uploadMask
       tags: [upload]
-      summary: Upload a mask image
-      description: Uploads a mask image associated with a previously-uploaded reference image.
+      deprecated: true
+      summary: Upload a mask image (deprecated)
+      description: |
+        Deprecated. Clients should composite the mask onto the source image
+        client-side and upload the resulting image via POST /api/upload/image
+        instead. This endpoint will continue to function for older clients,
+        but will not receive new features.
+
+        Uploads a mask image associated with a previously-uploaded reference image.
       requestBody:
         required: true
         content:
@@ -532,6 +683,18 @@ paths:
         "400":
           description: No file provided or invalid request
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # View
   # ---------------------------------------------------------------------------
@@ -594,6 +757,33 @@ paths:
         "404":
           description: File not found
 
+        '302':
+          description: Redirect to GCS signed URL
+          headers:
+            Location:
+              description: Signed URL to access the file in GCS
+              schema:
+                type: string
+            Cache-Control:
+              description: Cache directive for the redirect response
+              schema:
+                type: string
+            Vary:
+              description: Headers that affect response caching
+              schema:
+                type: string
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/view_metadata/{folder_name}:
     get:
       operationId: viewMetadata
@@ -641,6 +831,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/SystemStatsResponse"
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/features:
     get:
       operationId: getFeatures
@@ -699,7 +895,7 @@ paths:
   # ---------------------------------------------------------------------------
   /api/object_info:
     get:
-      operationId: getObjectInfo
+      operationId: getNodeInfo
       tags: [node]
       summary: Get all node definitions
       description: |
@@ -775,6 +971,8 @@ paths:
                 items:
                   type: string
 
+        '404':
+          description: "Not Found \u2014 use /api/experiment/models instead"
   /api/models/{folder}:
     get:
       operationId: getModelsByFolder
@@ -802,7 +1000,7 @@ paths:
 
   /api/experiment/models:
     get:
-      operationId: getExperimentModels
+      operationId: getModelFolders
       tags: [model]
       summary: List model folders with paths
       description: Returns an array of model folder objects with name and folder paths.
@@ -816,9 +1014,15 @@ paths:
                 items:
                   $ref: "#/components/schemas/ModelFolder"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/experiment/models/{folder}:
     get:
-      operationId: getExperimentModelsByFolder
+      operationId: getModelsInFolder
       tags: [model]
       summary: List model files with metadata
       description: Returns the model files in the given folder with richer metadata (path index, mtime, size) than the legacy `/api/models/{folder}` endpoint.
@@ -841,6 +1045,12 @@ paths:
         "404":
           description: Unknown folder type
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/experiment/models/preview/{folder}/{path_index}/{filename}:
     get:
       operationId: getModelPreview
@@ -877,12 +1087,18 @@ paths:
         "404":
           description: Preview not found
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Users
   # ---------------------------------------------------------------------------
   /api/users:
     get:
-      operationId: getUsers
+      operationId: getUsersInfo
       tags: [user]
       summary: Get user storage info
       description: |
@@ -910,6 +1126,12 @@ paths:
                     additionalProperties:
                       type: string
                     description: Map of user_id to directory name (multi-user)
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createUser
       tags: [user]
@@ -945,7 +1167,7 @@ paths:
   # ---------------------------------------------------------------------------
   /api/userdata:
     get:
-      operationId: listUserdata
+      operationId: getUserdata
       tags: [userdata]
       summary: List files in a userdata directory
       description: Lists files in the authenticated user's data directory. Returns either filename strings or full objects depending on the `full_info` query parameter.
@@ -978,10 +1200,28 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListUserdataResponse"
+                $ref: "#/components/schemas/GetUserDataResponseFull"
         "404":
           description: Directory not found
 
+        '400':
+          description: Bad request (e.g., invalid filename).
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: General error
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/v2/userdata:
     get:
       operationId: listUserdataV2
@@ -1018,6 +1258,8 @@ paths:
                       type: number
                       description: Unix timestamp
 
+        '404':
+          description: "Not Found \u2014 use /api/userdata instead"
   /api/userdata/{file}:
     get:
       operationId: getUserdataFile
@@ -1042,8 +1284,26 @@ paths:
                 format: binary
         "404":
           description: File not found
+        '400':
+          description: Bad request (e.g., invalid filename).
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: General error
+          content:
+            text/plain:
+              schema:
+                type: string
     post:
-      operationId: writeUserdataFile
+      operationId: postUserdataFile
       tags: [userdata]
       summary: Write or create a userdata file
       description: Writes (creates or replaces) a file in the authenticated user's data directory.
@@ -1080,9 +1340,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserDataResponse"
+                $ref: "#/components/schemas/UserDataResponseFull"
         "409":
           description: File exists and overwrite not set
+        '400':
+          description: Missing or invalid 'file' parameter.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '403':
+          description: The requested path is not allowed.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: General error
+          content:
+            text/plain:
+              schema:
+                type: string
     delete:
       operationId: deleteUserdataFile
       tags: [userdata]
@@ -1102,6 +1386,18 @@ paths:
         "404":
           description: File not found
 
+        '401':
+          description: Unauthorized.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: Internal server error.
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/userdata/{file}/move/{dest}:
     post:
       operationId: moveUserdataFile
@@ -1138,18 +1434,36 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserDataResponse"
+                $ref: "#/components/schemas/UserDataResponseFull"
         "404":
           description: Source file not found
         "409":
           description: Destination exists and overwrite not set
 
+        '400':
+          description: Missing or invalid parameters.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: General error
+          content:
+            text/plain:
+              schema:
+                type: string
   # ---------------------------------------------------------------------------
   # Settings
   # ---------------------------------------------------------------------------
   /api/settings:
     get:
-      operationId: getSettings
+      operationId: getAllSettings
       tags: [settings]
       summary: Get all user settings
       description: Returns all settings for the authenticated user.
@@ -1163,8 +1477,14 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      operationId: updateSettings
+      operationId: updateMultipleSettings
       tags: [settings]
       summary: Update user settings (partial merge)
       description: Replaces the authenticated user's settings with the provided object.
@@ -1182,9 +1502,21 @@ paths:
         "200":
           description: Settings updated
 
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/settings/{id}:
     get:
-      operationId: getSetting
+      operationId: getSettingById
       tags: [settings]
       summary: Get a single setting by key
       description: Returns the value of a single setting, identified by key.
@@ -1204,8 +1536,20 @@ paths:
               schema:
                 nullable: true
                 description: The setting value (any JSON type), or null if not set
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Setting not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      operationId: updateSetting
+      operationId: updateSettingById
       tags: [settings]
       summary: Set a single setting value
       description: Sets the value of a single setting, identified by key.
@@ -1227,6 +1571,18 @@ paths:
         "200":
           description: Setting updated
 
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Extensions / Templates / i18n
   # ---------------------------------------------------------------------------
@@ -1301,6 +1657,12 @@ paths:
                 additionalProperties:
                   $ref: "#/components/schemas/GlobalSubgraphInfo"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/global_subgraphs/{id}:
     get:
       operationId: getGlobalSubgraph
@@ -1324,6 +1686,12 @@ paths:
         "404":
           description: Subgraph not found
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Node Replacements
   # ---------------------------------------------------------------------------
@@ -1344,6 +1712,12 @@ paths:
                 type: object
                 additionalProperties: true
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Internal (x-internal: true)
   # ---------------------------------------------------------------------------
@@ -1447,7 +1821,7 @@ paths:
 
   /internal/files/{directory_type}:
     get:
-      operationId: getInternalFiles
+      operationId: getFiles
       tags: [internal]
       summary: List files in a directory type
       description: Lists the files present in one of ComfyUI's known directories (input, output, or temp).
@@ -1469,6 +1843,12 @@ paths:
                 items:
                   type: string
 
+        '400':
+          description: Invalid directory type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Assets (x-feature-gate: enable-assets)
   # ---------------------------------------------------------------------------
@@ -1492,6 +1872,24 @@ paths:
         "404":
           description: No asset with this hash
 
+        '400':
+          description: Invalid hash format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets:
     get:
       operationId: listAssets
@@ -1549,12 +1947,6 @@ paths:
             type: string
             enum: [asc, desc]
           description: Sort direction
-        - name: job_ids
-          in: query
-          schema:
-            type: string
-          x-runtime: [cloud]
-          description: "[cloud-only] Comma-separated UUIDs to filter assets by associated job."
         - name: include_public
           in: query
           schema:
@@ -1574,8 +1966,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListAssetsResponse"
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      operationId: createAsset
+      operationId: uploadAsset
       tags: [assets]
       summary: Upload a new asset
       description: Uploads a new asset (binary content plus metadata) and registers it in the asset database.
@@ -1663,6 +2073,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/AssetCreated"
 
+        '200':
+          description: Asset already exists (returned existing asset)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetCreated'
+        '400':
+          description: Invalid request (bad file, invalid URL, invalid content type, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Source URL requires authentication or access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source URL not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported media type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Download failed due to network error or timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/from-hash:
     post:
       operationId: createAssetFromHash
@@ -1706,9 +2170,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/AssetCreated"
 
+        '200':
+          description: Asset reference already exists (returned existing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetCreated'
+        '400':
+          description: Invalid request (bad hash format, invalid tags, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source asset with given hash not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/{id}:
     get:
-      operationId: getAsset
+      operationId: getAssetById
       tags: [assets]
       summary: Get asset metadata
       description: Returns the metadata for a single asset.
@@ -1730,6 +2224,18 @@ paths:
                 $ref: "#/components/schemas/Asset"
         "404":
           description: Asset not found
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     put:
       operationId: updateAsset
       tags: [assets]
@@ -1774,6 +2280,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssetUpdated"
+        '400':
+          description: Invalid request (no fields provided)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteAsset
       tags: [assets]
@@ -1797,6 +2327,30 @@ paths:
         "204":
           description: Asset deleted
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Asset cannot be deleted because it is referenced by another resource (e.g., workflow version)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/{id}/content:
     get:
       operationId: getAssetContent
@@ -1858,6 +2412,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TagsModificationResponse"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error (e.g., reserved tag)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: removeAssetTags
       tags: [assets]
@@ -1893,6 +2477,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/TagsModificationResponse"
 
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error (e.g., reserved tag)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/tags:
     get:
       operationId: listTags
@@ -1922,9 +2536,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListTagsResponse"
 
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/tags/refine:
     get:
-      operationId: refineAssetTags
+      operationId: getAssetTagHistogram
       tags: [assets]
       summary: Get tag counts for assets matching current filters
       description: Returns suggested additional tags that would refine a filtered asset query, together with the count of assets each tag would select.
@@ -1985,6 +2617,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/AssetTagHistogramResponse"
 
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/seed:
     post:
       operationId: seedAssets
@@ -2071,7 +2721,6 @@ paths:
                     type: integer
                     description: Number of assets marked as missing
 
-
   # ===========================================================================
   # Cloud-runtime FE-facing operations
   #
@@ -2103,7 +2752,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudJobStatus"
+                $ref: "#/components/schemas/JobCancelResponse"
         "401":
           description: Unauthorized
           content:
@@ -2117,12 +2766,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: Bad Request - job_id is not a valid UUID (emitted by request validation before the handler runs)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BindingErrorResponse'
+        '500':
+          description: Internal server error - cancellation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/job/{job_id}/status:
     get:
-      operationId: getCloudJobStatus
+      operationId: getJobStatus
       tags: [queue]
       summary: Get status of a cloud job
-      description: "[cloud-only] Returns the current execution status of a cloud job."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is superseded by `GET /api/jobs/{job_id}`.
+        Clients should migrate; the endpoint is retained for backward
+        compatibility but will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: job_id
@@ -2138,7 +2803,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudJobStatus"
+                $ref: "#/components/schemas/JobStatusResponse"
         "401":
           description: Unauthorized
           content:
@@ -2152,6 +2817,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '403':
+          description: Forbidden - job belongs to another user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/prompt/{prompt_id}:
     get:
       operationId: getCloudPrompt
@@ -2189,10 +2866,14 @@ paths:
 
   /api/history_v2:
     get:
-      operationId: getHistoryV2
+      operationId: getHistory
       tags: [history]
       summary: Get paginated execution history (v2)
-      description: "[cloud-only] Returns a paginated list of execution history entries in the v2 format, with richer metadata than the legacy history endpoint."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is superseded by `GET /api/jobs`.
+        Clients should migrate; the endpoint is retained for backward
+        compatibility but will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: limit
@@ -2218,7 +2899,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HistoryV2Response"
+                $ref: "#/components/schemas/HistoryResponse"
         "401":
           description: Unauthorized
           content:
@@ -2226,12 +2907,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/history_v2/{prompt_id}:
     get:
-      operationId: getHistoryV2ByPromptId
+      operationId: getHistoryForPrompt
       tags: [history]
       summary: Get v2 history for a specific prompt
-      description: "[cloud-only] Returns the v2 history entry for a specific prompt execution."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is superseded by `GET /api/jobs/{prompt_id}`.
+        Clients should migrate; the endpoint is retained for backward
+        compatibility but will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: prompt_id
@@ -2247,7 +2938,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HistoryV2Entry"
+                $ref: "#/components/schemas/HistoryDetailResponse"
         "401":
           description: Unauthorized
           content:
@@ -2261,12 +2952,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/logs:
     get:
-      operationId: getCloudLogs
+      operationId: getLogs
       tags: [system]
       summary: Get cloud execution logs
-      description: "[cloud-only] Returns execution logs for the authenticated user's cloud jobs."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint returns a static placeholder response and
+        provides no real log data. It is retained only to avoid breaking clients
+        that still call it. Clients should remove their dependency; the endpoint
+        will be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: job_id
@@ -2292,7 +2994,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudLogsResponse"
+                $ref: "#/components/schemas/LogsResponse"
         "401":
           description: Unauthorized
           content:
@@ -2305,7 +3007,7 @@ paths:
   # ---------------------------------------------------------------------------
   /api/assets/download:
     post:
-      operationId: downloadAssets
+      operationId: createAssetDownload
       tags: [assets]
       summary: Download assets to cloud runtime
       description: "[cloud-only] Initiates a download of one or more assets to the cloud runtime environment. Returns a task ID for tracking download progress via WebSocket."
@@ -2325,16 +3027,27 @@ paths:
                     $ref: "#/components/schemas/AssetDownloadRequest"
                   description: Assets to download
       responses:
-        "200":
-          description: Download initiated
+        "202":
+          description: Download task accepted
           content:
             application/json:
               schema:
                 type: object
+                required:
+                  - task_id
+                  - status
                 properties:
                   task_id:
                     type: string
-                    description: Task ID for tracking progress via WebSocket
+                    format: uuid
+                    description: ID of the download task; use to poll status.
+                  status:
+                    type: string
+                    enum: [created, running, completed, failed]
+                    description: Current task status (typically `created` on initial creation).
+                  message:
+                    type: string
+                    description: Human-readable task message.
         "400":
           description: Bad request
           content:
@@ -2348,9 +3061,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '200':
+          description: File already exists in storage - asset created/returned immediately
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetCreated'
+        '422':
+          description: Validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/export:
     post:
-      operationId: exportAssets
+      operationId: createAssetExport
       tags: [assets]
       summary: Export assets as a downloadable archive
       description: "[cloud-only] Initiates a bulk export of assets. Returns a task ID for tracking progress via WebSocket. When complete, the export can be downloaded via the exports endpoint."
@@ -2374,17 +3105,27 @@ paths:
                   type: string
                   description: Name for the export archive
       responses:
-        "200":
-          description: Export initiated
+        "202":
+          description: Export task accepted
           content:
             application/json:
               schema:
                 type: object
+                required:
+                  - task_id
+                  - status
                 properties:
                   task_id:
                     type: string
-                  export_name:
+                    format: uuid
+                    description: ID of the export task; use to poll status.
+                  status:
                     type: string
+                    enum: [created, running, completed, failed]
+                    description: Current task status (typically `created` on initial creation).
+                  message:
+                    type: string
+                    description: Human-readable task message.
         "400":
           description: Bad request
           content:
@@ -2398,6 +3139,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/exports/{exportName}:
     get:
       operationId: getAssetExport
@@ -2433,9 +3180,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: Invalid export name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/from-workflow:
     post:
-      operationId: createAssetsFromWorkflow
+      operationId: postAssetsFromWorkflow
       tags: [assets]
       summary: Create asset records from a workflow execution
       description: "[cloud-only] Registers output files from a workflow execution as assets in the asset database."
@@ -2459,8 +3218,8 @@ paths:
                     type: string
                   description: Tags to apply to the created assets
       responses:
-        "201":
-          description: Assets created
+        "200":
+          description: Assets created or referenced
           content:
             application/json:
               schema:
@@ -2489,39 +3248,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/import:
     post:
-      operationId: importAssets
+      operationId: importPublishedAssets
       tags: [assets]
-      summary: Import assets from external URLs
-      description: "[cloud-only] Imports one or more assets from external URLs into the cloud asset store."
+      summary: "[cloud-only] Import published assets into the caller's library"
+      description: |
+        [cloud-only] Imports the specified published assets into the caller's asset library. New DB records reference the same storage objects; no file copying occurs. Assets the caller already owns (by hash) are deduplicated. The `id` field on each returned `AssetInfo` is the caller's newly-created private asset ID, not the published asset ID supplied in the request.
       x-runtime: [cloud]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - imports
-              properties:
-                imports:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/AssetImportRequest"
-                  description: Assets to import
+              $ref: "#/components/schemas/ImportPublishedAssetsRequest"
       responses:
         "200":
-          description: Import initiated
+          description: Successfully imported assets
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  assets:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Asset"
+                $ref: "#/components/schemas/ImportPublishedAssetsResponse"
         "400":
           description: Bad request
           content:
@@ -2535,9 +3288,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/assets/remote-metadata:
     get:
-      operationId: getAssetRemoteMetadata
+      operationId: getRemoteAssetMetadata
       tags: [assets]
       summary: Fetch metadata for a remote asset URL
       description: "[cloud-only] Fetches and returns metadata (content type, size, filename) for a remote URL without downloading the full content."
@@ -2556,7 +3315,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RemoteAssetMetadata"
+                $ref: "#/components/schemas/AssetMetadataResponse"
         "400":
           description: Bad request
           content:
@@ -2570,6 +3329,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '422':
+          description: Failed to retrieve metadata from source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Custom nodes / hub (cloud)
   # ---------------------------------------------------------------------------
@@ -2725,7 +3496,7 @@ paths:
 
   /api/hub/assets/upload-url:
     post:
-      operationId: getHubAssetUploadUrl
+      operationId: createHubAssetUploadUrl
       tags: [hub]
       summary: Get a pre-signed upload URL for a hub asset
       description: "[cloud-only] Returns a pre-signed URL that can be used to upload an asset file directly to storage."
@@ -2779,6 +3550,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/labels:
     get:
       operationId: listHubLabels
@@ -2796,6 +3579,18 @@ paths:
                 items:
                   $ref: "#/components/schemas/HubLabel"
 
+        '400':
+          description: Bad request (e.g. invalid type parameter)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/profiles:
     get:
       operationId: listHubProfiles
@@ -2879,6 +3674,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/profiles/{username}:
     get:
       operationId: getHubProfile
@@ -2907,9 +3708,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/profiles/check:
     get:
-      operationId: checkHubProfileUsername
+      operationId: checkHubUsername
       tags: [hub]
       summary: Check if a hub username is available
       description: "[cloud-only] Returns whether the given username is available for registration."
@@ -2934,6 +3741,24 @@ paths:
                   username:
                     type: string
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/profiles/me:
     get:
       operationId: getMyHubProfile
@@ -2954,6 +3779,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '404':
+          description: No hub profile exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     put:
       operationId: updateMyHubProfile
       tags: [hub]
@@ -3052,7 +3889,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HubWorkflowList"
+                $ref: "#/components/schemas/HubWorkflowListResponse"
+        '400':
+          description: Bad request (e.g. malformed pagination cursor)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Profile not found (when filtering by username)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: publishHubWorkflow
       tags: [hub]
@@ -3091,6 +3946,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/workflows/{share_id}:
     get:
       operationId: getHubWorkflow
@@ -3111,13 +3972,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HubWorkflow"
+                $ref: "#/components/schemas/HubWorkflowDetail"
         "404":
           description: Not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '413':
+          description: Workflow JSON too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteHubWorkflow
       tags: [hub]
@@ -3147,9 +4020,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/hub/workflows/index:
     get:
-      operationId: getHubWorkflowIndex
+      operationId: listHubWorkflowIndex
       tags: [hub]
       summary: Get the hub workflow index
       description: "[cloud-only] Returns the lightweight index of all hub workflows for client-side search and navigation."
@@ -3164,12 +4043,18 @@ paths:
                 items:
                   $ref: "#/components/schemas/HubWorkflowIndexEntry"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Workflows (cloud)
   # ---------------------------------------------------------------------------
   /api/workflows:
     get:
-      operationId: listCloudWorkflows
+      operationId: listWorkflows
       tags: [workflows]
       summary: List cloud workflows
       description: "[cloud-only] Returns a paginated list of the authenticated user's cloud workflows."
@@ -3207,15 +4092,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflowList"
+                $ref: "#/components/schemas/WorkflowListResponse"
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      operationId: createCloudWorkflow
+      operationId: createWorkflow
       tags: [workflows]
       summary: Create a new cloud workflow
       description: "[cloud-only] Creates a new cloud workflow with the provided name and optional initial content."
@@ -3245,7 +4136,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "400":
           description: Bad request
           content:
@@ -3259,9 +4150,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workflows/{workflow_id}:
     get:
-      operationId: getCloudWorkflow
+      operationId: getWorkflow
       tags: [workflows]
       summary: Get a cloud workflow by ID
       description: "[cloud-only] Returns the metadata for a cloud workflow."
@@ -3280,7 +4183,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "401":
           description: Unauthorized
           content:
@@ -3293,8 +4196,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
-      operationId: updateCloudWorkflow
+      operationId: updateWorkflow
       tags: [workflows]
       summary: Update a cloud workflow
       description: "[cloud-only] Updates the metadata (name, description) of an existing cloud workflow."
@@ -3324,7 +4239,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "400":
           description: Bad request
           content:
@@ -3343,8 +4258,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
-      operationId: deleteCloudWorkflow
+      operationId: deleteWorkflow
       tags: [workflows]
       summary: Delete a cloud workflow
       description: "[cloud-only] Deletes a cloud workflow and all its versions."
@@ -3373,9 +4300,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workflows/{workflow_id}/content:
     get:
-      operationId: getCloudWorkflowContent
+      operationId: getWorkflowContent
       tags: [workflows]
       summary: Get the content of a cloud workflow
       description: "[cloud-only] Returns the full workflow graph JSON for the latest version of a cloud workflow."
@@ -3414,6 +4347,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     put:
       operationId: updateCloudWorkflowContent
       tags: [workflows]
@@ -3464,7 +4409,7 @@ paths:
 
   /api/workflows/{workflow_id}/fork:
     post:
-      operationId: forkCloudWorkflow
+      operationId: forkWorkflow
       tags: [workflows]
       summary: Fork a cloud workflow
       description: "[cloud-only] Creates a copy of a cloud workflow under the authenticated user's account."
@@ -3493,7 +4438,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/WorkflowResponse"
         "401":
           description: Unauthorized
           content:
@@ -3507,6 +4452,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workflows/{workflow_id}/versions:
     get:
       operationId: listCloudWorkflowVersions
@@ -3561,7 +4524,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
     post:
-      operationId: createCloudWorkflowVersion
+      operationId: createWorkflowVersion
       tags: [workflows]
       summary: Create a new cloud workflow version
       description: "[cloud-only] Creates a new workflow version with updated workflow JSON. Uses optimistic concurrency via base_version."
@@ -3612,6 +4575,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workflows/published/{share_id}:
     get:
       operationId: getPublishedWorkflow
@@ -3632,7 +4607,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudWorkflow"
+                $ref: "#/components/schemas/PublishedWorkflowDetail"
         "404":
           description: Not found
           content:
@@ -3640,6 +4615,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Workflow JSON too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Auth / session (cloud)
   # ---------------------------------------------------------------------------
@@ -3664,7 +4657,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
     post:
-      operationId: createAuthSession
+      operationId: createSession
       tags: [auth]
       summary: Create a session cookie
       description: "[cloud-only] Creates a session cookie from the bearer token in the Authorization header. Returns a Set-Cookie header with a secure HttpOnly session cookie. Cookie authentication is not allowed for this endpoint."
@@ -3688,8 +4681,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
-      operationId: deleteAuthSession
+      operationId: deleteSession
       tags: [auth]
       summary: Delete session cookie (logout)
       description: "[cloud-only] Clears the session cookie and optionally revokes the session on the server."
@@ -3702,9 +4701,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/DeleteSessionResponse"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/auth/token:
     post:
-      operationId: createAuthToken
+      operationId: exchangeToken
       tags: [auth]
       summary: Exchange credentials for an access token
       description: "[cloud-only] Exchanges authentication credentials (e.g. an authorization code) for an access token."
@@ -3738,7 +4743,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthTokenResponse"
+                $ref: "#/components/schemas/ExchangeTokenResponse"
         "400":
           description: Bad request
           content:
@@ -3752,6 +4757,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Workspace not found or user not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /.well-known/jwks.json:
     get:
       operationId: getJwks
@@ -3766,6 +4783,295 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/JwksResponse"
+
+  # ---------------------------------------------------------------------------
+  # OAuth 2.1 / RFC 7591 Dynamic Client Registration (cloud)
+  # ---------------------------------------------------------------------------
+  /.well-known/oauth-authorization-server:
+    get:
+      operationId: getOAuthAuthorizationServer
+      tags: [auth]
+      summary: "[cloud-only] OAuth 2.1 authorization-server metadata (RFC 8414)"
+      description: "[cloud-only] Public metadata document for OAuth 2.1 clients. Cached 5 minutes."
+      x-runtime: [cloud]
+      security: []
+      responses:
+        "200":
+          description: Authorization-server metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthAuthorizationServerMetadata"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /.well-known/oauth-protected-resource:
+    get:
+      operationId: getOAuthProtectedResource
+      tags: [auth]
+      summary: "[cloud-only] OAuth 2.1 protected-resource metadata (RFC 9728)"
+      description: "[cloud-only] Public metadata describing the currently advertised protected resource. Cached 5 minutes."
+      x-runtime: [cloud]
+      security: []
+      responses:
+        "200":
+          description: Protected-resource metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthProtectedResourceMetadata"
+        "404":
+          description: OAuth disabled or no active resource configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /oauth/authorize:
+    get:
+      operationId: getOAuthAuthorize
+      tags: [auth]
+      summary: "[cloud-only] Begin or resume an OAuth 2.1 authorization request"
+      description: |
+        [cloud-only] Two modes:
+        - **Initial entry** (OAuth params present): validates client/redirect/resource/scopes, persists a server-side authorization-request row, and either redirects (no session / unverified email) to the configured frontend login URL carrying only the opaque `oauth_request_id`, or returns the JSON consent challenge for the frontend to render.
+        - **Resume** (`oauth_request_id` present): loads the server-side row, fails closed if expired/consumed/unknown, returns the JSON consent challenge. Browser-replayed OAuth params are intentionally ignored.
+
+        The frontend renders the consent UI from the JSON payload and POSTs the user's decision back to this endpoint.
+      x-runtime: [cloud]
+      security: []
+      parameters:
+        - { name: response_type,         in: query, required: false, schema: { type: string } }
+        - { name: client_id,             in: query, required: false, schema: { type: string } }
+        - { name: redirect_uri,          in: query, required: false, schema: { type: string } }
+        - { name: scope,                 in: query, required: false, schema: { type: string } }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+          description: |
+            RFC 6749 §10.12 marks `state` as RECOMMENDED. Cloud hardening makes it REQUIRED on the initial-entry path (omitted only on the resume path where `oauth_request_id` is supplied instead). This parameter is `required: false` at the spec level only because the operation is dual-mode (initial entry vs. resume); the runtime rejects empty `state` on the initial-entry path with a stable `invalid_request` 400.
+        - { name: code_challenge,        in: query, required: false, schema: { type: string } }
+        - { name: code_challenge_method, in: query, required: false, schema: { type: string } }
+        - { name: resource,              in: query, required: false, schema: { type: string } }
+        - { name: oauth_request_id,      in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Consent challenge payload (session present, email verified). Frontend renders the consent UI from this payload and POSTs back to /oauth/authorize.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthConsentChallenge"
+        "302":
+          description: Redirect to login (no session / unverified email) or to registered redirect_uri (pre-validated client error)
+          headers:
+            Location:
+              schema:
+                type: string
+        "400":
+          description: Invalid authorize request (pre-redirect failure — unknown client, redirect mismatch, malformed params)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+    post:
+      operationId: postOAuthAuthorize
+      tags: [auth]
+      summary: "[cloud-only] Submit OAuth consent decision"
+      description: |
+        [cloud-only] JSON-only consent submission. The handler verifies the per-row CSRF token, atomically marks the authorization request consumed (single-use covers both allow and deny paths), then returns the redirect URL the browser must navigate to. The URL contains either `code` + original `state` for allow, or the RFC 6749 §5.2 error and `state` for deny.
+
+        Workspace membership is re-checked at submission time. Consent is persisted keyed by `(user_id, client_id, resource_id, workspace_id)`; broadening the previously approved scope set requires a fresh consent flow.
+      x-runtime: [cloud]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oauth_request_id, csrf_token, decision, workspace_id]
+              properties:
+                oauth_request_id: { type: string, format: uuid }
+                csrf_token:       { type: string }
+                decision:         { type: string, enum: [allow, deny] }
+                workspace_id:     { type: string }
+      responses:
+        "200":
+          description: Redirect URL for the frontend to navigate to (allow → with code+state; deny → with error+state)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthAuthorizeRedirectResponse"
+        "400":
+          description: Bad request (CSRF mismatch, expired/consumed request, inaccessible workspace)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "403":
+          description: Scope broadening on consent re-grant — fresh consent flow required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /oauth/token:
+    post:
+      operationId: postOAuthToken
+      tags: [auth]
+      summary: "[cloud-only] Exchange authorization code or refresh token for a resource-bound access token"
+      description: |
+        [cloud-only] OAuth 2.1 token endpoint (RFC 6749 §3.2). Public clients only — `client_secret` is rejected.
+
+        Two grant types are supported:
+        - `authorization_code` — exchanges the code minted by `/oauth/authorize` (with PKCE verifier) for an access token + first refresh token. Single-use; reuse fails closed.
+        - `refresh_token` — rotates the refresh token. Old token immediately invalid; presenting an already-rotated token revokes the entire token family and emits a security metric.
+
+        Both grant types re-validate canonical user state, current workspace membership, and the resource's active flag at every mint. A code or refresh token bound to a deactivated resource fails closed.
+
+        Errors follow RFC 6749 §5.2. Logs never contain raw codes, refresh tokens, or minted tokens.
+
+        Per RFC 6749 §5.1, every 200 and 400 response carries `Cache-Control: no-store` and `Pragma: no-cache` so intermediaries cannot cache token-bearing or state-change-reason responses.
+      x-runtime: [cloud]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id]
+              properties:
+                grant_type:    { type: string, enum: [authorization_code, refresh_token] }
+                client_id:     { type: string }
+                code:          { type: string }
+                redirect_uri:  { type: string }
+                code_verifier: { type: string }
+                refresh_token: { type: string }
+                scope:         { type: string }
+                client_secret: { type: string }
+      responses:
+        "200":
+          description: New token pair
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store" per RFC 6749 §5.1'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache" per RFC 6749 §5.1'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthTokenResponse"
+        "400":
+          description: RFC 6749 §5.2 error
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store" per RFC 6749 §5.1'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache" per RFC 6749 §5.1'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthTokenError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+
+  /oauth/register:
+    post:
+      operationId: postOAuthRegister
+      tags: [auth]
+      summary: "[cloud-only] Dynamic Client Registration (RFC 7591)"
+      description: |
+        [cloud-only] Public, unauthenticated, insert-only RFC 7591 §3.1 client registration. Used by MCP-spec-compliant clients to self-register a public OAuth client without operator involvement.
+
+        Policy:
+
+        - Public clients only — `token_endpoint_auth_method` is forced to `none`. Confidential-client registration is out of scope this phase.
+        - Server-owned `resource_grants`. Caller-supplied `scope` or `resource_grants` is rejected as `invalid_client_metadata` (would be a privilege-escalation surface). Dynamic clients receive the same scopes the active resource publishes.
+        - Application-type-aware redirect URI policy. `application_type=native` accepts loopback (`127.0.0.1`, `::1`, `localhost`) and reverse-DNS-shaped custom schemes; `application_type=web` accepts HTTPS to hosts in an operator-controlled allowlist only. `application_type` is REQUIRED on the request — missing or empty rejects with `invalid_client_metadata`.
+        - Anti-impersonation: reserved client names are rejected from third parties via NFKC-folded compare.
+        - Generated `client_id` carries a stable prefix to distinguish dynamic from seeded clients in audit logs.
+        - Cache-Control: `no-store` on every 201 and 400 response (the response carries fresh credentials and rejection reasons).
+      x-runtime: [cloud]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OAuthRegisterRequest"
+      responses:
+        "201":
+          description: Registered. Body echoes the metadata RFC 7591 §3.2.1 requires.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store"'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache"'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthRegisterResponse"
+        "400":
+          description: RFC 7591 §3.2.2 invalid client metadata
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 'Always "no-store"'
+            Pragma:
+              schema:
+                type: string
+              description: 'Always "no-cache"'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthRegisterError"
+        "404":
+          description: OAuth disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
+        "503":
+          description: No active resource is configured — DCR cannot mint a usable client until an active resource row is seeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudError"
 
   # ---------------------------------------------------------------------------
   # Billing (cloud)
@@ -3783,7 +5089,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingBalance"
+                $ref: "#/components/schemas/BillingBalanceResponse"
         "401":
           description: Unauthorized
           content:
@@ -3791,9 +5097,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/events:
     get:
-      operationId: listBillingEvents
+      operationId: getBillingEvents
       tags: [billing]
       summary: List billing events
       description: "[cloud-only] Returns a paginated list of billing events (charges, credits, refunds) for the authenticated user."
@@ -3820,7 +5132,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingEventList"
+                $ref: "#/components/schemas/BillingEventsResponse"
         "401":
           description: Unauthorized
           content:
@@ -3828,9 +5140,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/ops/{id}:
     get:
-      operationId: getBillingOp
+      operationId: getBillingOpStatus
       tags: [billing]
       summary: Get a billing operation by ID
       description: "[cloud-only] Returns details of a specific billing operation."
@@ -3848,7 +5166,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingOp"
+                $ref: "#/components/schemas/BillingOpStatusResponse"
         "401":
           description: Unauthorized
           content:
@@ -3862,9 +5180,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/payment-portal:
     post:
-      operationId: createPaymentPortalSession
+      operationId: getPaymentPortal
       tags: [billing]
       summary: Create a payment portal session
       description: "[cloud-only] Creates a Stripe customer portal session for managing payment methods and invoices. Returns a URL to redirect the user to."
@@ -3888,9 +5212,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: Bad request (e.g., missing return_url)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/plans:
     get:
-      operationId: listBillingPlans
+      operationId: getBillingPlans
       tags: [billing]
       summary: List available billing plans
       description: "[cloud-only] Returns the list of available subscription plans and their pricing."
@@ -3905,9 +5241,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/BillingPlan"
 
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/preview-subscribe:
     post:
-      operationId: previewSubscription
+      operationId: previewSubscribe
       tags: [billing]
       summary: Preview a subscription change
       description: "[cloud-only] Returns a preview of what a subscription change would cost, including prorations."
@@ -3930,7 +5278,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SubscriptionPreview"
+                $ref: "#/components/schemas/PreviewSubscribeResponse"
         "400":
           description: Bad request
           content:
@@ -3944,6 +5292,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/status:
     get:
       operationId: getBillingStatus
@@ -3957,7 +5311,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingStatus"
+                $ref: "#/components/schemas/BillingStatusResponse"
         "401":
           description: Unauthorized
           content:
@@ -3965,9 +5319,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/subscribe:
     post:
-      operationId: createSubscription
+      operationId: subscribe
       tags: [billing]
       summary: Subscribe to a billing plan
       description: "[cloud-only] Creates a new subscription to the specified billing plan."
@@ -3993,7 +5359,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingSubscription"
+                $ref: "#/components/schemas/SubscribeResponse"
         "400":
           description: Bad request
           content:
@@ -4007,6 +5373,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/subscription/cancel:
     post:
       operationId: cancelSubscription
@@ -4020,7 +5392,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingSubscription"
+                $ref: "#/components/schemas/CancelSubscriptionResponse"
         "401":
           description: Unauthorized
           content:
@@ -4028,6 +5400,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: Invalid request (e.g., no active subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/subscription/resubscribe:
     post:
       operationId: resubscribe
@@ -4041,7 +5425,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingSubscription"
+                $ref: "#/components/schemas/ResubscribeResponse"
         "401":
           description: Unauthorized
           content:
@@ -4049,9 +5433,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: Invalid request (e.g., no active subscription, not in cancellation grace period)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/billing/topup:
     post:
-      operationId: topUpCredits
+      operationId: createTopup
       tags: [billing]
       summary: Purchase additional credits
       description: "[cloud-only] Purchases a one-time credit top-up using the user's payment method on file."
@@ -4074,7 +5470,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BillingBalance"
+                $ref: "#/components/schemas/CreateTopupResponse"
         "400":
           description: Bad request
           content:
@@ -4088,12 +5484,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # Workspace (cloud)
   # ---------------------------------------------------------------------------
   /api/workspace/api-keys:
     get:
-      operationId: listWorkspaceApiKeys
+      operationId: listWorkspaceAPIKeys
       tags: [workspace]
       summary: List workspace API keys
       description: "[cloud-only] Returns the list of API keys for the current workspace."
@@ -4119,8 +5521,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      operationId: createWorkspaceApiKey
+      operationId: createWorkspaceAPIKey
       tags: [workspace]
       summary: Create a workspace API key
       description: "[cloud-only] Creates a new API key for the current workspace."
@@ -4137,13 +5545,17 @@ paths:
                 name:
                   type: string
                   description: Display name for the API key
+                description:
+                  type: string
+                  description: User-provided description of the key's purpose
+                  maxLength: 5000
       responses:
         "201":
           description: API key created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkspaceApiKeyCreated"
+                $ref: "#/components/schemas/CreateWorkspaceAPIKeyResponse"
         "400":
           description: Bad request
           content:
@@ -4163,9 +5575,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Key limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/api-keys/{id}:
     delete:
-      operationId: deleteWorkspaceApiKey
+      operationId: revokeWorkspaceAPIKey
       tags: [workspace]
       summary: Delete a workspace API key
       description: "[cloud-only] Revokes and deletes a workspace API key."
@@ -4199,6 +5635,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/invites:
     get:
       operationId: listWorkspaceInvites
@@ -4227,6 +5669,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createWorkspaceInvite
       tags: [workspace]
@@ -4256,7 +5704,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkspaceInvite"
+                $ref: "#/components/schemas/PendingInvite"
         "400":
           description: Bad request
           content:
@@ -4282,9 +5730,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/invites/{inviteId}:
     delete:
-      operationId: deleteWorkspaceInvite
+      operationId: revokeWorkspaceInvite
       tags: [workspace]
       summary: Cancel a workspace invite
       description: "[cloud-only] Cancels a pending workspace invitation."
@@ -4318,6 +5784,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/leave:
     post:
       operationId: leaveWorkspace
@@ -4341,6 +5813,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Workspace not found or not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/members:
     get:
       operationId: listWorkspaceMembers
@@ -4370,6 +5854,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/members/{user_id}/api-keys:
     get:
       operationId: listMemberApiKeys
@@ -4412,7 +5914,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
     delete:
-      operationId: bulkRevokeMemberApiKeys
+      operationId: bulkRevokeWorkspaceMemberAPIKeys
       tags: [workspace]
       summary: Bulk revoke a member's API keys
       description: "[cloud-only] Revokes all active API keys for a specific workspace member. Only workspace owners can perform this action."
@@ -4445,6 +5947,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '422':
+          description: Validation error (e.g. empty user_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspace/members/{userId}:
     patch:
       operationId: updateWorkspaceMember
@@ -4538,6 +6052,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspaces:
     get:
       operationId: listWorkspaces
@@ -4560,6 +6080,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '404':
+          description: Feature not enabled for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createWorkspace
       tags: [workspace]
@@ -4598,6 +6130,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '404':
+          description: Feature not enabled for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/workspaces/{id}:
     get:
       operationId: getWorkspace
@@ -4637,6 +6187,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       operationId: updateWorkspace
       tags: [workspace]
@@ -4691,6 +6247,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteWorkspace
       tags: [workspace]
@@ -4726,6 +6294,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ---------------------------------------------------------------------------
   # User / settings / misc (cloud)
   # ---------------------------------------------------------------------------
@@ -4741,24 +6315,9 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - message
-              properties:
-                message:
-                  type: string
-                  description: Feedback message
-                rating:
-                  type: integer
-                  minimum: 1
-                  maximum: 5
-                  description: Optional satisfaction rating
-                context:
-                  type: object
-                  additionalProperties: true
-                  description: Additional context metadata
+              $ref: "#/components/schemas/FeedbackRequest"
       responses:
-        "200":
+        "201":
           description: Feedback submitted
           content:
             application/json:
@@ -4782,6 +6341,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/files/mask-layers:
     get:
       operationId: getMaskLayers
@@ -4880,9 +6445,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/invites/{token}/accept:
     post:
-      operationId: acceptInvite
+      operationId: acceptWorkspaceInvite
       tags: [workspace]
       summary: Accept a workspace invitation
       description: "[cloud-only] Accepts a workspace invitation using the invite token. The authenticated user is added to the workspace."
@@ -4900,7 +6471,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Workspace"
+                $ref: "#/components/schemas/AcceptInviteResponse"
         "400":
           description: Bad request
           content:
@@ -4920,6 +6491,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '403':
+          description: Email does not match invite
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already a member of this workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/secrets:
     get:
       operationId: listSecrets
@@ -4942,6 +6531,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable - feature is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createSecret
       tags: [settings]
@@ -4970,7 +6571,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SecretMeta"
+                $ref: "#/components/schemas/SecretResponse"
         "400":
           description: Bad request
           content:
@@ -4984,6 +6585,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '409':
+          description: Conflict - secret with this name or provider already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable - secrets feature disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/secrets/{id}:
     get:
       operationId: getSecret
@@ -5005,7 +6630,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SecretMeta"
+                $ref: "#/components/schemas/SecretResponse"
         "401":
           description: Unauthorized
           content:
@@ -5018,6 +6643,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '403':
+          description: Forbidden - user does not own this secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable - secrets feature disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       operationId: updateSecret
       tags: [settings]
@@ -5044,7 +6687,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SecretMeta"
+                $ref: "#/components/schemas/SecretResponse"
         "400":
           description: Bad request
           content:
@@ -5069,6 +6712,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '403':
+          description: Forbidden - user does not own this secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable - secrets feature disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteSecret
       tags: [settings]
@@ -5098,9 +6759,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '403':
+          description: Forbidden - user does not own this secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable - secrets feature disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/user:
     get:
-      operationId: getCloudUser
+      operationId: getUser
       tags: [user]
       summary: Get the authenticated cloud user
       description: "[cloud-only] Returns the profile and account information for the currently authenticated user."
@@ -5111,7 +6790,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloudUser"
+                $ref: "#/components/schemas/UserResponse"
         "401":
           description: Unauthorized
           content:
@@ -5189,8 +6868,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      operationId: publishUserdataFile
+      operationId: postUserdataFilePublish
       tags: [userdata]
       summary: Publish a userdata file to the cloud
       description: "[cloud-only] Makes a userdata file available via a public URL for sharing or embedding."
@@ -5227,9 +6912,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/vhs/queryvideo:
     get:
-      operationId: queryVhsVideo
+      operationId: getVhsQueryVideo
       tags: [view]
       summary: Query VHS video metadata
       description: "[cloud-only] Returns metadata about a video file processed by the VHS (Video Helper Suite) integration."
@@ -5273,6 +6970,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '400':
+          description: 'Missing required query parameter. Produced by the oapi-codegen
+            wrapper via echo.NewHTTPError, so the body shape matches Echo''s
+            default HTTPError serialization rather than ErrorResponse.
+            '
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BindingErrorResponse'
   /api/vhs/viewaudio:
     get:
       operationId: viewVhsAudio
@@ -5370,7 +7076,12 @@ paths:
       operationId: viewVideo
       tags: [view]
       summary: View or download a video file
-      description: "[cloud-only] Serves a video file from the output directory. Used by the frontend video player."
+      deprecated: true
+      description: |
+        **Deprecated.** This endpoint is an alias of `GET /api/view` added for
+        legacy history-queue video playback. Callers should use `/api/view`
+        directly; the endpoint is retained for backward compatibility but will
+        be removed in a future release.
       x-runtime: [cloud]
       parameters:
         - name: filename
@@ -5488,6 +7199,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/tasks/{task_id}:
     get:
       operationId: getTask
@@ -5523,7 +7240,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudError"
 
-
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   parameters:
     ComfyUserHeader:
@@ -5798,16 +7520,25 @@ components:
           description: Unique job identifier (same as prompt_id)
         status:
           type: string
+          enum:
+            - pending
+            - in_progress
+            - completed
+            - failed
+            - cancelled
           description: Current job status
         create_time:
-          type: number
-          description: Job creation timestamp
+          type: integer
+          format: int64
+          description: Job creation timestamp (Unix milliseconds).
         execution_start_time:
-          type: number
-          description: Workflow execution start timestamp
+          type: integer
+          format: int64
+          description: Workflow execution start timestamp (Unix milliseconds, terminal states only).
         execution_end_time:
-          type: number
-          description: Workflow execution end timestamp
+          type: integer
+          format: int64
+          description: Workflow execution end timestamp (Unix milliseconds, terminal states only).
         preview_output:
           type: object
           additionalProperties: true
@@ -5828,6 +7559,12 @@ components:
           format: uuid
         status:
           type: string
+          enum:
+            - pending
+            - in_progress
+            - completed
+            - failed
+            - cancelled
         workflow:
           type: object
           additionalProperties: true
@@ -5839,13 +7576,21 @@ components:
         execution_error:
           $ref: "#/components/schemas/ExecutionError"
         create_time:
-          type: number
+          type: integer
+          format: int64
+          description: Job creation timestamp (Unix milliseconds).
         update_time:
-          type: number
+          type: integer
+          format: int64
+          description: Last state-change timestamp (Unix milliseconds).
         execution_start_time:
-          type: number
+          type: integer
+          format: int64
+          description: Workflow execution start timestamp (Unix milliseconds, terminal states only).
         execution_end_time:
-          type: number
+          type: integer
+          format: int64
+          description: Workflow execution end timestamp (Unix milliseconds, terminal states only).
         preview_output:
           type: object
           additionalProperties: true
@@ -6010,6 +7755,24 @@ components:
               type: string
               nullable: true
               description: Minimum required workflow templates version for this ComfyUI build
+            comfy_package_versions:
+              type: array
+              description: Installed and required versions for every comfy* package pinned in requirements.txt
+              items:
+                type: object
+                required:
+                  - name
+                  - installed
+                  - required
+                properties:
+                  name:
+                    type: string
+                  installed:
+                    type: string
+                    nullable: true
+                  required:
+                    type: string
+                    nullable: true
         devices:
           type: array
           items:
@@ -6306,14 +8069,6 @@ components:
           type: integer
           format: int64
           description: Size of the asset in bytes
-        width:
-          type: integer
-          nullable: true
-          description: "Original image width in pixels. Null for non-image assets or assets ingested before dimension extraction."
-        height:
-          type: integer
-          nullable: true
-          description: "Original image height in pixels. Null for non-image assets or assets ingested before dimension extraction."
         mime_type:
           type: string
           description: MIME type of the asset
@@ -6875,7 +8630,6 @@ components:
         error:
           type: string
 
-
     # -------------------------------------------------------------------
     # Cloud-runtime schemas
     #
@@ -7050,24 +8804,35 @@ components:
           type: string
           description: Target path on the runtime filesystem
 
-    AssetImportRequest:
+    ImportPublishedAssetsRequest:
       type: object
       x-runtime: [cloud]
-      description: "[cloud-only] A single asset to import from an external URL."
+      description: "[cloud-only] Request body for importing published assets into the caller's library."
       required:
-        - url
+        - published_asset_ids
       properties:
-        url:
-          type: string
-          format: uri
-          description: URL of the asset to import
-        name:
-          type: string
-          description: Display name for the imported asset
-        tags:
+        published_asset_ids:
           type: array
+          description: IDs of published assets (inputs and models) to import.
           items:
             type: string
+        share_id:
+          type: string
+          nullable: true
+          description: |
+            Optional. Share ID of the published workflow these assets belong to. When provided (non-null, non-empty): all `published_asset_ids` must belong to this share's workflow version; returns 400 if the share is not found or any asset does not belong to it. When omitted, null, or empty string: no share-scoped validation is performed and the assets are validated only against global rules (preserved for clients that have not yet adopted `share_id`).
+
+    ImportPublishedAssetsResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] Response after importing published assets. Each returned `AssetInfo.id` is the caller's newly-created private asset ID, not the published asset ID supplied in the request."
+      required:
+        - assets
+      properties:
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetInfo"
 
     RemoteAssetMetadata:
       type: object
@@ -7384,6 +9149,325 @@ components:
                 description: RSA exponent (base64url)
             additionalProperties: true
 
+    OAuthAuthorizationServerMetadata:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] OAuth 2.1 authorization-server metadata (RFC 8414)."
+      required:
+        - issuer
+        - authorization_endpoint
+        - token_endpoint
+        - jwks_uri
+        - response_types_supported
+        - grant_types_supported
+        - code_challenge_methods_supported
+        - token_endpoint_auth_methods_supported
+      properties:
+        issuer:
+          type: string
+          format: uri
+        authorization_endpoint:
+          type: string
+          format: uri
+        token_endpoint:
+          type: string
+          format: uri
+        jwks_uri:
+          type: string
+          format: uri
+        registration_endpoint:
+          type: string
+          format: uri
+          description: "[cloud-only] RFC 7591 §3.1 Dynamic Client Registration endpoint. Advertised so MCP-spec-compliant clients can auto-discover and self-register without operator involvement. Present only when DCR is enabled."
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+
+    OAuthProtectedResourceMetadata:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] OAuth 2.1 protected-resource metadata (RFC 9728)."
+      required:
+        - resource
+        - authorization_servers
+        - scopes_supported
+      properties:
+        resource:
+          type: string
+          format: uri
+        authorization_servers:
+          type: array
+          items:
+            type: string
+            format: uri
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        bearer_methods_supported:
+          type: array
+          items:
+            type: string
+
+    OAuthConsentChallenge:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] Server-side state describing the OAuth consent decision the user is being asked to make. Returned by GET /oauth/authorize when a valid session exists; the frontend renders the consent UI from this payload and POSTs the decision back. Browser never sees the original OAuth params on resume."
+      required:
+        - oauth_request_id
+        - csrf_token
+        - client_display_name
+        - resource_display_name
+        - scopes
+        - workspaces
+      properties:
+        oauth_request_id:
+          type: string
+          format: uuid
+          description: Opaque server-side identifier for the authorization-request row. Carried back unchanged in the consent submission.
+        csrf_token:
+          type: string
+          description: Per-row CSRF token bound to this authorization request (not to the session). Must be echoed back on POST.
+        client_display_name:
+          type: string
+          description: Human-readable name of the OAuth client requesting authorization.
+        resource_display_name:
+          type: string
+          description: Human-readable name of the protected resource.
+        scopes:
+          type: array
+          description: Scopes the client is requesting for this resource. The frontend should present these for the user to approve.
+          items:
+            type: string
+        workspaces:
+          type: array
+          description: Workspaces the user can select from. Membership is re-checked on POST.
+          items:
+            $ref: "#/components/schemas/OAuthConsentChallengeWorkspace"
+
+    OAuthConsentChallengeWorkspace:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] One workspace option presented in the OAuth consent challenge."
+      required: [id, name, type, role]
+      properties:
+        id:   { type: string }
+        name: { type: string }
+        type: { type: string, enum: [personal, team] }
+        role: { type: string, enum: [owner, member] }
+
+    OAuthAuthorizeRedirectResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] Redirect target produced after a JSON consent submission. The frontend must navigate the browser to this URL so custom-scheme client callbacks work without relying on fetch-visible 302 headers."
+      required:
+        - redirect_url
+      properties:
+        redirect_url:
+          type: string
+          format: uri
+          description: OAuth client redirect URI with either code+state for allow, or error+state for deny.
+
+    OAuthTokenResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 6749 §5.1 successful token response."
+      required: [access_token, token_type, expires_in, refresh_token, scope]
+      properties:
+        access_token:
+          type: string
+          description: Resource-bound access token (audience matches the protected resource).
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds.
+        refresh_token:
+          type: string
+          description: Opaque refresh token. Rotates on every successful refresh; presenting an already-rotated token revokes the entire family.
+        scope:
+          type: string
+          description: Space-delimited scopes granted with this token.
+
+    OAuthTokenError:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 6749 §5.2 error response."
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: 'RFC 6749 §5.2 error code: invalid_request, invalid_client, invalid_grant, unauthorized_client, unsupported_grant_type, invalid_scope.'
+        error_description:
+          type: string
+          description: Human-readable, no leak of internal storage state.
+
+    OAuthRegisterRequest:
+      type: object
+      x-runtime: [cloud]
+      additionalProperties: false
+      description: "[cloud-only] RFC 7591 §2 client metadata document. Only the fields the server honors are listed; presence of `scope` or `resource_grants` in the request is rejected (`invalid_client_metadata`) because those are server-owned for dynamic clients."
+      required:
+        - redirect_uris
+        - application_type
+      properties:
+        redirect_uris:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 5
+          description: 1–5 redirect URIs. Validated against `application_type` policy.
+        client_name:
+          type: string
+          maxLength: 100
+          description: Human-readable name shown in the consent UI. Reserved-name list rejects impersonation of major clients.
+        application_type:
+          type: string
+          enum: [native, web]
+          description: |
+            RFC 7591 §2 application_type. **REQUIRED** — clients MUST declare intent; the server does not default this field. `native` for desktop / CLI / MCP-spec-strict clients (loopback redirects); `web` for hosted clients (HTTPS only, host must be allowlisted). A missing or explicitly empty `application_type` rejects with `invalid_client_metadata`.
+        token_endpoint_auth_method:
+          type: string
+          enum: [none]
+          description: 'Public clients only this phase — must be `none` if present. The server forces `none` regardless.'
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: [authorization_code, refresh_token]
+          description: Optional. Defaults to `["authorization_code","refresh_token"]`.
+        response_types:
+          type: array
+          items:
+            type: string
+            enum: [code]
+          description: Optional. Defaults to `["code"]`.
+        scope:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Dynamic clients do not pick scopes — the server assigns scopes from the active resource's published list. Sending `scope` in the registration body is treated as a privilege-escalation attempt and returns `invalid_client_metadata`."
+        resource_grants:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: "**REJECTED IF PRESENT.** Same reason as `scope`. The set of resources and scopes a dynamic client may request is server-policy, not request-driven."
+        client_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        logo_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        tos_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        policy_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        software_id:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        software_version:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        contacts:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        jwks:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+        jwks_uri:
+          type: string
+          nullable: true
+          description: "**REJECTED IF PRESENT.** Unsupported RFC 7591 metadata for this public-client phase."
+
+    OAuthRegisterResponse:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 7591 §3.2.1 successful registration response."
+      required:
+        - client_id
+        - client_id_issued_at
+        - redirect_uris
+        - grant_types
+        - response_types
+        - token_endpoint_auth_method
+        - application_type
+      properties:
+        client_id:
+          type: string
+          description: Server-generated client_id.
+        client_id_issued_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the client was registered.
+        client_name:
+          type: string
+        redirect_uris:
+          type: array
+          items:
+            type: string
+        grant_types:
+          type: array
+          items:
+            type: string
+        response_types:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_method:
+          type: string
+          enum: [none]
+        application_type:
+          type: string
+          enum: [native, web]
+
+    OAuthRegisterError:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] RFC 7591 §3.2.2 error response."
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          enum: [invalid_redirect_uri, invalid_client_metadata]
+        error_description:
+          type: string
+          nullable: true
+
     BillingBalance:
       type: object
       x-runtime: [cloud]
@@ -7501,16 +9585,15 @@ components:
           description: List of plan features
 
     BillingStatus:
-      type: object
+      type: string
       x-runtime: [cloud]
-      description: "[cloud-only] Overall billing and subscription status."
-      properties:
-        subscription:
-          $ref: "#/components/schemas/BillingSubscription"
-        balance:
-          $ref: "#/components/schemas/BillingBalance"
-        has_payment_method:
-          type: boolean
+      description: "[cloud-only] Overall billing/payment lifecycle status."
+      enum:
+        - awaiting_payment_method
+        - pending_payment
+        - paid
+        - payment_failed
+        - inactive
 
     BillingSubscription:
       type: object
@@ -7572,6 +9655,12 @@ components:
           type: string
         name:
           type: string
+        type:
+          type: string
+          enum:
+            - personal
+            - team
+          description: Workspace type (personal vs. team).
         owner_id:
           type: string
         member_count:
@@ -7641,11 +9730,16 @@ components:
       required:
         - id
         - name
+        - description
       properties:
         id:
           type: string
         name:
           type: string
+        description:
+          type: string
+          maxLength: 5000
+          description: User-provided description of the key's purpose. Always present in responses; empty string when no description was supplied on create.
         prefix:
           type: string
           description: First few characters of the key for identification
@@ -7666,12 +9760,17 @@ components:
       required:
         - id
         - name
+        - description
         - key
       properties:
         id:
           type: string
         name:
           type: string
+        description:
+          type: string
+          maxLength: 5000
+          description: User-provided description of the key's purpose. Always present in responses; empty string when no description was supplied on create.
         key:
           type: string
           description: Full API key value (only returned on creation)
@@ -8073,3 +10172,1520 @@ components:
             $ref: "#/components/schemas/TaskEntry"
         pagination:
           $ref: "#/components/schemas/PaginationInfo"
+
+    # ===== Cloud-only schemas (Comfy-Org/cloud runtime, BE-1106) =====
+    AssetDownloadResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Acknowledgement of an async asset download task; clients poll GET /api/tasks/{task_id} for status.'
+      required:
+      - task_id
+      - status
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task ID for tracking download progress via GET /api/tasks/{task_id}
+        status:
+          type: string
+          enum:
+          - created
+          - running
+          - completed
+          - failed
+          description: Current task status
+        message:
+          type: string
+          description: Human-readable message
+          example: Download task created. Use task_id to track progress.
+
+    AssetMetadataResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Metadata for a remotely hosted asset resolved by URL.'
+      required:
+      - content_length
+      properties:
+        content_length:
+          type: integer
+          format: int64
+          description: Size of the asset in bytes (-1 if unknown)
+          example: 4294967296
+        content_type:
+          type: string
+          description: MIME type of the asset
+          example: application/octet-stream
+        filename:
+          type: string
+          description: Suggested filename for the asset from source
+          example: realistic-vision-v5.safetensors
+        name:
+          type: string
+          description: Display name or title for the asset from source
+          example: Realistic Vision v5.0
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorization from source
+          example:
+          - models
+          - checkpoint
+        preview_image:
+          type: string
+          description: Preview image as base64-encoded data URL
+          example: data:image/jpeg;base64,/9j/4AAQSkZJRg...
+        validation:
+          description: Validation results for the file
+          allOf:
+          - $ref: '#/components/schemas/ValidationResult'
+
+    BillingBalanceResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Current credit balance and usage details for a workspace.'
+      required:
+      - amount_micros
+      - currency
+      properties:
+        amount_micros:
+          type: number
+          format: double
+          description: The total remaining balance in microamount (1/1,000,000 of the currency unit)
+        prepaid_balance_micros:
+          type: number
+          format: double
+          description: The remaining balance from prepaid commits in microamount
+        cloud_credit_balance_micros:
+          type: number
+          format: double
+          description: The remaining balance from cloud credits in microamount
+        pending_charges_micros:
+          type: number
+          format: double
+          description: The total amount of pending/unbilled charges from draft invoices in microamount
+        effective_balance_micros:
+          type: number
+          format: double
+          description: The effective balance (total balance minus pending charges). Can be negative if pending charges exceed
+            the balance.
+        currency:
+          type: string
+          example: usd
+          description: Currency code
+
+    BillingPlansResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] List of available billing plans for subscription.'
+      required:
+      - plans
+      properties:
+        current_plan_slug:
+          type: string
+          description: Current plan slug if subscribed
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plan'
+
+    BillingStatusResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Current billing and subscription status for a workspace.'
+      required:
+      - is_active
+      - has_funds
+      properties:
+        is_active:
+          type: boolean
+          description: Whether the workspace has an active subscription
+        subscription_status:
+          type: string
+          enum:
+          - active
+          - ended
+          - canceled
+          description: Subscription activity status (scheduled subscriptions are not returned)
+        subscription_tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+        subscription_duration:
+          $ref: '#/components/schemas/SubscriptionDuration'
+        plan_slug:
+          type: string
+          description: Plan identifier (e.g., standard-monthly, team-pro-annual)
+        billing_status:
+          $ref: '#/components/schemas/BillingStatus'
+        has_funds:
+          type: boolean
+          description: Whether the workspace has available credits
+        cancel_at:
+          type: string
+          format: date-time
+          description: When the subscription will become inactive (if canceled)
+        renewal_date:
+          type: string
+          format: date-time
+          description: When the current billing period ends and the next one begins
+
+    GetUserDataResponseFull:
+      type: array
+      x-runtime: [cloud]
+      description: '[cloud-only] List of user data file entries (each with path, size, and modification time) returned when full_info=true.'
+      items:
+        $ref: '#/components/schemas/GetUserDataResponseFullFile'
+
+    HistoryDetailEntry:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] History entry with full prompt data'
+      properties:
+        prompt:
+          type: object
+          description: Full prompt execution data
+          properties:
+            priority:
+              type: number
+              format: double
+              description: Execution priority
+            prompt_id:
+              type: string
+              description: The prompt ID
+            prompt:
+              type: object
+              description: The workflow nodes
+              additionalProperties: true
+            extra_data:
+              type: object
+              description: Additional execution data
+              additionalProperties: true
+            outputs_to_execute:
+              type: array
+              items:
+                type: string
+              description: Output nodes to execute
+        outputs:
+          type: object
+          description: Output data from execution (generated images, files, etc.)
+          additionalProperties: true
+        status:
+          type: object
+          description: Execution status and timeline information
+          additionalProperties: true
+        meta:
+          type: object
+          description: Metadata about the execution and nodes
+          additionalProperties: true
+
+    HistoryDetailResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Detailed execution history response for a specific prompt.
+
+        Returns a dictionary with prompt_id as key and full history data as value.
+
+        '
+      additionalProperties:
+        $ref: '#/components/schemas/HistoryDetailEntry'
+
+    HistoryResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Execution history response with history array.
+
+        Returns an object with a "history" key containing an array of history entries.
+
+        Each entry includes prompt_id as a property along with execution data.
+
+        '
+      required:
+      - history
+      properties:
+        history:
+          type: array
+          description: Array of history entries ordered by creation time (newest first)
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+
+    HubLabelInfo:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Metadata for a single Hub label.'
+      required:
+      - name
+      - display_name
+      - type
+      properties:
+        name:
+          type: string
+          description: Slug identifier.
+        display_name:
+          type: string
+          description: Human-readable display name.
+        description:
+          type: string
+          description: Optional description of the label.
+        type:
+          type: string
+          enum:
+          - tag
+          - model
+          - custom_node
+          description: Label category.
+
+    HubProfileSummary:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Abbreviated Hub profile used in workflow listings.'
+      required:
+      - username
+      properties:
+        username:
+          type: string
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          description: Public URL of the profile avatar image.
+
+    HubWorkflowListResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Paginated list of Hub workflows matching search criteria.'
+      required:
+      - workflows
+      properties:
+        workflows:
+          type: array
+          items:
+            anyOf:
+            - $ref: '#/components/schemas/HubWorkflowSummary'
+            - $ref: '#/components/schemas/HubWorkflowDetail'
+          description: Array of HubWorkflowSummary (default) or HubWorkflowDetail (when detail=true).
+        next_cursor:
+          type: string
+          description: Cursor for the next page, empty if no more results.
+
+    HubWorkflowStatus:
+      type: string
+      x-runtime: [cloud]
+      description: '[cloud-only] Public workflow status. NULL in the database is represented as pending in API responses.'
+      enum:
+      - pending
+      - approved
+      - rejected
+      - deprecated
+
+    HubWorkflowSummary:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Abbreviated Hub workflow metadata used in search and listing results.'
+      required:
+      - share_id
+      - name
+      - profile
+      - status
+      properties:
+        share_id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/HubWorkflowStatus'
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/LabelRef'
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/LabelRef'
+        custom_nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/LabelRef'
+        thumbnail_type:
+          type: string
+          enum:
+          - image
+          - video
+          - image_comparison
+        thumbnail_url:
+          type: string
+        thumbnail_comparison_url:
+          type: string
+        publish_time:
+          type: string
+          format: date-time
+          nullable: true
+        profile:
+          $ref: '#/components/schemas/HubProfileSummary'
+        metadata:
+          type: object
+          additionalProperties: true
+        tutorial_url:
+          type: string
+        sample_image_urls:
+          type: array
+          items:
+            type: string
+
+    HubWorkflowTemplateEntry:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Entry in the curated workflow template gallery shown on the home page.'
+      required:
+      - name
+      - title
+      - status
+      properties:
+        name:
+          type: string
+          description: Slug identifier for the template
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/HubWorkflowStatus'
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        models:
+          type: array
+          items:
+            type: string
+        requiresCustomNodes:
+          type: array
+          items:
+            type: string
+        thumbnailVariant:
+          type: string
+        mediaType:
+          type: string
+        mediaSubtype:
+          type: string
+        size:
+          type: integer
+          format: int64
+          description: Workflow asset size in bytes.
+        vram:
+          type: integer
+          format: int64
+          description: Approximate VRAM requirement in bytes.
+        usage:
+          type: integer
+          format: int64
+          description: Usage count reported upstream.
+        searchRank:
+          type: integer
+          format: int64
+          description: Search ranking score reported upstream.
+        isEssential:
+          type: boolean
+          description: Whether the template belongs to a module marked as essential.
+        openSource:
+          type: boolean
+        profile:
+          $ref: '#/components/schemas/HubProfileSummary'
+        tutorialUrl:
+          type: string
+        logos:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        date:
+          type: string
+          description: Publication date in YYYY-MM-DD format
+        io:
+          type: object
+          properties:
+            inputs:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            outputs:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+        includeOnDistributions:
+          type: array
+          items:
+            type: string
+        thumbnailUrl:
+          type: string
+          description: Public URL of the primary thumbnail
+        thumbnailComparisonUrl:
+          type: string
+          description: Public URL of the comparison thumbnail
+        shareId:
+          type: string
+          description: Share ID for linking to the hub workflow detail
+        extendedDescription:
+          type: string
+          description: AI-generated extended description of the workflow
+        metaDescription:
+          type: string
+          description: AI-generated SEO meta description (under 160 chars)
+        howToUse:
+          type: array
+          items:
+            type: string
+          description: AI-generated step-by-step usage instructions
+        suggestedUseCases:
+          type: array
+          items:
+            type: string
+          description: AI-generated suggested use cases
+        faqItems:
+          type: array
+          items:
+            type: object
+            required:
+            - question
+            - answer
+            properties:
+              question:
+                type: string
+              answer:
+                type: string
+          description: AI-generated FAQ items
+        contentTemplate:
+          type: string
+          description: Content template used for generation (tutorial, showcase, comparison, breakthrough)
+
+    JobStatusResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Job status information'
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The job ID
+        status:
+          type: string
+          enum:
+          - waiting_to_dispatch
+          - pending
+          - in_progress
+          - completed
+          - error
+          - cancelled
+          description: Current job status
+        created_at:
+          type: string
+          format: date-time
+          description: When the job was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the job was last updated
+        last_state_update:
+          type: string
+          format: date-time
+          description: When the job status was last changed
+        assigned_inference:
+          type: string
+          nullable: true
+          description: The inference instance assigned to this job (if any)
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if the job failed
+      required:
+      - id
+      - status
+      - created_at
+      - updated_at
+
+    JobsListResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Paginated list of jobs for the authenticated user.'
+      required:
+      - jobs
+      - pagination
+      properties:
+        jobs:
+          type: array
+          description: Array of jobs ordered by specified sort field
+          items:
+            $ref: '#/components/schemas/JobEntry'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    LabelRef:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Reference to a Hub label by ID.'
+      required:
+      - name
+      - display_name
+      properties:
+        name:
+          type: string
+          description: Slug identifier (e.g. "video-generation", "flux").
+        display_name:
+          type: string
+          description: Human-readable display name (e.g. "Video Generation", "Flux").
+
+    LogsResponse:
+      type: array
+      x-runtime: [cloud]
+      description: '[cloud-only] System logs response'
+      items:
+        type: object
+        properties:
+          timestamp:
+            type: string
+            format: date-time
+            description: When the log entry was created
+          level:
+            type: string
+            enum:
+            - debug
+            - info
+            - warn
+            - error
+            description: Log level
+          message:
+            type: string
+            description: Log message
+          source:
+            type: string
+            description: Source of the log entry
+          metadata:
+            type: object
+            additionalProperties: true
+            description: Additional log metadata
+
+    Member:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Workspace member with profile and role information.'
+      required:
+      - id
+      - name
+      - email
+      - role
+      - joined_at
+      properties:
+        id:
+          type: string
+          description: User ID
+        name:
+          type: string
+          description: User's display name
+        email:
+          type: string
+          format: email
+          description: User's email address
+        role:
+          type: string
+          enum:
+          - owner
+          - member
+          description: User's role in the workspace
+        joined_at:
+          type: string
+          format: date-time
+          description: When the user joined the workspace
+
+    OAuthRegisterBadRequestResponse:
+      x-runtime: [cloud]
+      description: "[cloud-only] Union of the two 400 shapes /oauth/register can emit. `OAuthRegisterError` is the handler-shaped\
+        \ RFC 7591 \xA73.2.2 error; `BindingErrorResponse` is the strict-server binding-layer error fired when the request body\
+        \ fails OpenAPI-schema validation before the handler runs.\n"
+      oneOf:
+      - $ref: '#/components/schemas/OAuthRegisterError'
+      - $ref: '#/components/schemas/BindingErrorResponse'
+
+    PendingInvite:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] An outstanding workspace invitation that has not yet been accepted.'
+      required:
+      - id
+      - email
+      - invited_at
+      - expires_at
+      properties:
+        id:
+          type: string
+          description: Invite ID
+        email:
+          type: string
+          format: email
+          description: Email address of the invited user
+        token:
+          type: string
+          description: Invite token for constructing invite links. Empty for expired invites.
+        invited_at:
+          type: string
+          format: date-time
+          description: When the invite was created
+        expires_at:
+          type: string
+          format: date-time
+          description: When the invite expires
+
+    Plan:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Billing plan details including pricing, limits, and features.'
+      required:
+      - slug
+      - tier
+      - duration
+      - price_cents
+      - credits_cents
+      - max_seats
+      - availability
+      - seat_summary
+      properties:
+        slug:
+          type: string
+          description: Plan identifier (e.g., "pro-monthly", "team-standard-annual")
+          example: pro-monthly
+        tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+        duration:
+          $ref: '#/components/schemas/SubscriptionDuration'
+        price_cents:
+          type: integer
+          format: int64
+          description: Per-member price in cents (base + one seat)
+          example: 10000
+        credits_cents:
+          type: integer
+          format: int64
+          description: Per-member credits in cents (base + one seat)
+          example: 10000
+        max_seats:
+          type: integer
+          format: int64
+          description: Maximum number of seats allowed for this plan
+          example: 20
+        availability:
+          $ref: '#/components/schemas/PlanAvailability'
+        seat_summary:
+          $ref: '#/components/schemas/PlanSeatSummary'
+
+    PlanAvailability:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Availability and eligibility information for a billing plan.'
+      required:
+      - available
+      properties:
+        available:
+          type: boolean
+          description: Whether the workspace can subscribe to this plan
+        reason:
+          $ref: '#/components/schemas/PlanAvailabilityReason'
+
+    PlanAvailabilityReason:
+      type: string
+      x-runtime: [cloud]
+      enum:
+      - same_plan
+      - incompatible_transition
+      - requires_team
+      - requires_personal
+      - exceeds_max_seats
+      description: '[cloud-only] Reason why a plan is unavailable'
+
+    PlanSeatSummary:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Summary of seat costs based on current workspace members'
+      required:
+      - seat_count
+      - total_cost_cents
+      - total_credits_cents
+      properties:
+        seat_count:
+          type: integer
+          description: Total number of seats (owner + members) that would be charged
+          example: 5
+        total_cost_cents:
+          type: integer
+          format: int64
+          description: Total cost for all seats in cents
+          example: 50000
+        total_credits_cents:
+          type: integer
+          format: int64
+          description: Total credits granted for all seats in cents
+          example: 50000
+
+    PreviewPlanInfo:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Plan information for preview display'
+      required:
+      - slug
+      - tier
+      - duration
+      - price_cents
+      - credits_cents
+      - seat_summary
+      properties:
+        slug:
+          type: string
+          description: Plan slug
+          example: team-pro-monthly
+        tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+        duration:
+          $ref: '#/components/schemas/SubscriptionDuration'
+        price_cents:
+          type: integer
+          format: int64
+          description: Per-seat price in cents
+          example: 10000
+        credits_cents:
+          type: integer
+          format: int64
+          description: Per-seat credits in cents
+          example: 10000
+        seat_summary:
+          $ref: '#/components/schemas/PlanSeatSummary'
+        period_start:
+          type: string
+          format: date-time
+          description: Current billing period start (only for current_plan)
+        period_end:
+          type: string
+          format: date-time
+          description: Current billing period end (only for current_plan)
+
+    PreviewSubscribeResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Itemized cost preview for a pending subscription change.'
+      required:
+      - allowed
+      - transition_type
+      - effective_at
+      - is_immediate
+      - cost_today_cents
+      - cost_next_period_cents
+      - credits_today_cents
+      - credits_next_period_cents
+      - new_plan
+      properties:
+        allowed:
+          type: boolean
+          description: Whether this subscription change is allowed
+        reason:
+          type: string
+          description: Reason why the change is not allowed (only present if allowed=false)
+        transition_type:
+          type: string
+          enum:
+          - new_subscription
+          - upgrade
+          - downgrade
+          - duration_change
+          description: Type of subscription transition
+        effective_at:
+          type: string
+          format: date-time
+          description: When the change takes effect
+        is_immediate:
+          type: boolean
+          description: Whether the change takes effect immediately (true) or at period end (false)
+        cost_today_cents:
+          type: integer
+          format: int64
+          description: Amount to charge today in cents (0 for downgrades)
+          example: 5000
+        cost_next_period_cents:
+          type: integer
+          format: int64
+          description: Amount that will be charged at next billing period in cents
+          example: 10000
+        credits_today_cents:
+          type: integer
+          format: int64
+          description: Credits granted today in cents (prorated for mid-period upgrades)
+          example: 5000
+        credits_next_period_cents:
+          type: integer
+          format: int64
+          description: Credits that will be granted at next billing period in cents
+          example: 10000
+        current_plan:
+          $ref: '#/components/schemas/PreviewPlanInfo'
+        new_plan:
+          $ref: '#/components/schemas/PreviewPlanInfo'
+
+    PublishedWorkflowDetail:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Full detail of a publicly published workflow on the Hub.'
+      required:
+      - share_id
+      - workflow_id
+      - name
+      - listed
+      - workflow_json
+      - assets
+      properties:
+        share_id:
+          type: string
+        workflow_id:
+          type: string
+        name:
+          type: string
+          description: Human-readable workflow name.
+        listed:
+          type: boolean
+        publish_time:
+          type: string
+          format: date-time
+          nullable: true
+        workflow_json:
+          type: object
+          additionalProperties: true
+          description: The workflow JSON content at publish time.
+        assets:
+          type: array
+          description: Published assets with their library status for the caller.
+          items:
+            $ref: '#/components/schemas/AssetInfo'
+
+    SecretResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] User secret metadata (the secret value itself is never returned after creation).'
+      required:
+      - id
+      - name
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the secret
+        name:
+          type: string
+          description: User-provided label for the secret
+        provider:
+          type: string
+          description: Provider identifier (e.g., huggingface, civitai)
+        last_used_at:
+          type: string
+          format: date-time
+          description: When the secret was last used for decryption
+        created_at:
+          type: string
+          format: date-time
+          description: When the secret was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the secret was last updated
+
+    SubscriptionDuration:
+      type: string
+      x-runtime: [cloud]
+      enum:
+      - MONTHLY
+      - ANNUAL
+      description: '[cloud-only] Billing period (uppercase to match comfy-api)'
+
+    SubscriptionTier:
+      type: string
+      x-runtime: [cloud]
+      enum:
+      - FREE
+      - STANDARD
+      - CREATOR
+      - PRO
+      - FOUNDERS_EDITION
+      description: '[cloud-only] Subscription tier (uppercase to match comfy-api)'
+
+    UserDataResponseFull:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] User data listing entry with file metadata (path, size, modification time).'
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+        modified:
+          type: integer
+          format: int64
+          description: UNIX timestamp of the last modification in milliseconds.
+
+    ValidationError:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Details of a single validation error encountered during asset operations.'
+      required:
+      - code
+      - message
+      - field
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          example: FORMAT_NOT_ALLOWED
+        message:
+          type: string
+          description: Human-readable error message
+          example: 'File format "PickleTensor" is not allowed. Allowed formats: [SafeTensor]'
+        field:
+          type: string
+          description: Field that failed validation
+          example: format
+
+    ValidationResult:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Result of validating a set of asset operations.'
+      required:
+      - is_valid
+      properties:
+        is_valid:
+          type: boolean
+          description: Overall validation status (true if all checks passed)
+          example: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          description: Blocking validation errors that prevent download
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          description: Non-blocking validation warnings (informational only)
+
+    WorkflowForkedFrom:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Reference to the parent workflow from which this workflow was forked.'
+      properties:
+        workflow_id:
+          type: string
+        workflow_version_id:
+          type: string
+
+    WorkflowResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Full workflow entity including metadata and version history.'
+      required:
+      - id
+      - latest_version
+      - created_by
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        default_view:
+          type: string
+          enum:
+          - workflow
+          - app
+        latest_version:
+          type: integer
+        forked_from:
+          $ref: '#/components/schemas/WorkflowForkedFrom'
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkflowVersionContentResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Full workflow version including the serialized workflow JSON.'
+      required:
+      - id
+      - version
+      - workflow_json
+      - created_by
+      - created_at
+      properties:
+        id:
+          type: string
+        version:
+          type: integer
+        workflow_json:
+          type: object
+          additionalProperties: true
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        dependency_asset_ids:
+          type: array
+          items:
+            type: string
+
+    WorkspaceAPIKeyInfo:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Metadata for a workspace-scoped API key (secret is never returned).'
+      required:
+      - id
+      - workspace_id
+      - user_id
+      - name
+      - description
+      - key_prefix
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: API key ID
+        workspace_id:
+          type: string
+          description: Workspace this key belongs to
+        user_id:
+          type: string
+          description: User who created this key
+        name:
+          type: string
+          description: User-provided label
+        description:
+          type: string
+          description: User-provided description of the key's purpose. Limit is byte-based (UTF-8 encoding); 5000 bytes equals
+            5000 ASCII characters or fewer multi-byte characters.
+          maxLength: 5000
+        key_prefix:
+          type: string
+          description: First 8 chars after prefix for display
+        expires_at:
+          type: string
+          format: date-time
+          description: When the key expires (if set)
+        last_used_at:
+          type: string
+          format: date-time
+          description: Last time the key was used
+        revoked_at:
+          type: string
+          format: date-time
+          description: When the key was revoked (if revoked)
+        created_at:
+          type: string
+          format: date-time
+          description: When the key was created
+
+    WorkspaceSummary:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Abbreviated workspace metadata used in list responses.'
+      required:
+      - id
+      - name
+      - type
+      properties:
+        id:
+          type: string
+          example: w-a1b2c3d4-5678-90ab-cdef-1234567890ab
+        name:
+          type: string
+          example: My Team
+        type:
+          type: string
+          enum:
+          - personal
+          - team
+
+    WorkspaceWithRole:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Workspace entity annotated with the requesting user''s role.'
+      required:
+      - id
+      - name
+      - type
+      - role
+      - created_at
+      - joined_at
+      properties:
+        id:
+          type: string
+          example: w-a1b2c3d4-5678-90ab-cdef-1234567890ab
+        name:
+          type: string
+          example: My Team
+        type:
+          type: string
+          enum:
+          - personal
+          - team
+        role:
+          type: string
+          enum:
+          - owner
+          - member
+        created_at:
+          type: string
+          format: date-time
+          description: When the workspace was created
+        joined_at:
+          type: string
+          format: date-time
+          description: When the user joined the workspace (same as created_at for the workspace creator)
+        subscription_tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+
+    BindingErrorResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Error shape returned when request binding or validation fails before the handler runs.'
+      required:
+      - message
+      properties:
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Standard error response from cloud endpoints with a machine-readable code and human-readable message.'
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message
+
+    AcceptInviteResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response returned after successfully accepting a workspace invitation.'
+      required:
+      - workspace_id
+      - workspace_name
+      properties:
+        workspace_id:
+          type: string
+          description: ID of the workspace joined
+        workspace_name:
+          type: string
+          description: Name of the workspace joined
+
+    BillingEventsResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Paginated list of billing events for a workspace.'
+      required:
+      - total
+      - events
+      - page
+      - limit
+      - totalPages
+      properties:
+        total:
+          type: integer
+          description: Total number of events
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingEvent'
+        page:
+          type: integer
+          description: Current page number (1-indexed)
+        limit:
+          type: integer
+          description: Items per page
+        totalPages:
+          type: integer
+          description: Total number of pages
+
+    BillingOpStatusResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Status of an asynchronous billing operation.'
+      required:
+      - id
+      - status
+      - started_at
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the billing operation
+        status:
+          type: string
+          enum:
+          - pending
+          - succeeded
+          - failed
+          description: Current status of the operation
+        error_message:
+          type: string
+          description: Error message if status is failed
+        started_at:
+          type: string
+          format: date-time
+          description: When the operation was initiated
+        completed_at:
+          type: string
+          format: date-time
+          description: When the operation completed (success or failure)
+
+    CancelSubscriptionResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully cancelling a subscription.'
+      required:
+      - cancel_at
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        cancel_at:
+          type: string
+          format: date-time
+          description: The date when the subscription will end (end of current billing period)
+
+    CreateTopupResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully purchasing a credit top-up.'
+      required:
+      - topup_id
+      - status
+      - amount_cents
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        topup_id:
+          type: string
+          description: Unique identifier for the top-up request (same as billing_op_id, deprecated)
+        status:
+          type: string
+          enum:
+          - pending
+          - completed
+          - failed
+          description: Current status of the top-up
+        amount_cents:
+          type: integer
+          format: int64
+          description: Amount being charged in cents
+
+    CreateWorkspaceAPIKeyResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response containing the newly created workspace API key.'
+      required:
+      - id
+      - name
+      - description
+      - key
+      - key_prefix
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: API key ID
+        name:
+          type: string
+          description: User-provided label
+        description:
+          type: string
+          description: User-provided description of the key's purpose. Limit is byte-based (UTF-8 encoding); 5000 bytes equals
+            5000 ASCII characters or fewer multi-byte characters.
+          maxLength: 5000
+        key:
+          type: string
+          description: The full plaintext API key (only shown once)
+        key_prefix:
+          type: string
+          description: First 8 chars after prefix for display
+        expires_at:
+          type: string
+          format: date-time
+          description: When the key expires (if set)
+        created_at:
+          type: string
+          format: date-time
+          description: When the key was created
+
+    ExchangeTokenResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response containing the issued Cloud JWT and its expiry.'
+      required:
+      - token
+      - expires_at
+      - workspace
+      - role
+      - permissions
+      properties:
+        token:
+          type: string
+          description: Cloud JWT token
+        expires_at:
+          type: string
+          format: date-time
+          description: Token expiration time (RFC 3339)
+        workspace:
+          $ref: '#/components/schemas/WorkspaceSummary'
+        role:
+          type: string
+          enum:
+          - owner
+          - member
+          description: User's role in the workspace
+        permissions:
+          type: array
+          items:
+            type: string
+          description: Permission strings for the role
+          example:
+          - owner:*
+
+    JobCancelResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response for POST /api/jobs/{job_id}/cancel. Returned on both fresh cancels and idempotent no-ops.'
+      required:
+      - cancelled
+      properties:
+        cancelled:
+          type: boolean
+          description: "True when a cancel event was successfully dispatched by this call.\nFalse when the job was already in\
+            \ a terminal or cancelling state,\nin which case the call is a no-op (still 200 \u2014 idempotent).\n"
+
+    ResubscribeResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully resubscribing to a billing plan.'
+      required:
+      - status
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        status:
+          type: string
+          enum:
+          - active
+          description: The subscription status after resubscribing
+        message:
+          type: string
+          description: Human-readable confirmation message
+
+    SubscribeResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response after successfully subscribing to a billing plan.'
+      required:
+      - status
+      - billing_op_id
+      properties:
+        billing_op_id:
+          type: string
+          description: Billing operation ID to poll for status via GET /api/billing/ops/{id}
+        status:
+          type: string
+          enum:
+          - subscribed
+          - needs_payment_method
+          - pending_payment
+          description: 'Status of the subscription operation:
+
+            - subscribed: Subscription is active immediately
+
+            - needs_payment_method: User must add payment method via payment_method_url
+
+            - pending_payment: Upgrade initiated, waiting for payment to complete
+
+            '
+        effective_at:
+          type: string
+          format: date-time
+          description: When the subscription became/becomes active (present when status=subscribed or pending_payment)
+        payment_method_url:
+          type: string
+          description: URL to redirect user to add payment method (present when status=needs_payment_method)
+
+    UserResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] User information response'
+      required:
+      - id
+      - status
+      properties:
+        id:
+          type: string
+          description: Firebase UID of the authenticated user
+        status:
+          type: string
+          description: User status (always "active" for authenticated users)
+
+    WorkflowListResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Paginated list of saved workflows.'
+      required:
+      - data
+      - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    FeedbackRequest:
+      type: object
+      x-runtime: [cloud]
+      description: "[cloud-only] User feedback submission body."
+      required:
+        - message
+      properties:
+        type:
+          type: string
+          enum:
+            - missing_nodes
+            - general
+            - missing_models
+          description: Feedback category
+        category:
+          type: string
+          description: Additional category metadata
+        message:
+          type: string
+          description: User-provided feedback message
