@@ -6,10 +6,6 @@ import comfy.text_encoders.llama
 
 
 class PixelDiTGemma2_2BModel(sd1_clip.SDClipModel):
-    """Gemma-2-2b-it text encoder for PixelDiT.
-
-    Uses the FINAL hidden state (layer='last')
-    """
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
         llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
         if llama_quantization_metadata is not None:
@@ -50,24 +46,7 @@ _PIXELDIT_MAX_LENGTH = 300
 _PIXELDIT_CHI_PROMPT_DETECT_PREFIX = 'Given a user prompt, generate an "Enhanced prompt"'
 
 
-def _build_padded_tokens(combined_text: str, spiece_tokenizer, pad_id: int, chi_token_count: int):
-    # Right-pad to chi_token_count + 300 - 2 (matches upstream's max_length_all).
-    max_length_all = chi_token_count + _PIXELDIT_MAX_LENGTH - 2
-    ids = spiece_tokenizer(combined_text)["input_ids"]
-    if len(ids) > max_length_all:
-        ids = ids[:max_length_all]
-    elif len(ids) < max_length_all:
-        ids = ids + [pad_id] * (max_length_all - len(ids))
-    return ids
-
-
 class PixelDiTGemma2Tokenizer(sd1_clip.SD1Tokenizer):
-    """Gemma-2-2b-it tokenizer that prepends PixelDiT's chi_prompt.
-
-    Empty text -> BOS + pad to 300. Text already starting with the chi_prompt
-    preamble is tokenized verbatim (override mirrors QwenImageTokenizer's
-    `<|im_start|>` detection). Else chi_prompt is prepended.
-    """
     def __init__(self, embedding_directory=None, tokenizer_data=None):
         if tokenizer_data is None:
             tokenizer_data = {}
@@ -75,18 +54,16 @@ class PixelDiTGemma2Tokenizer(sd1_clip.SD1Tokenizer):
                          name="gemma2_2b", tokenizer=Gemma2BTokenizer)
 
     def tokenize_with_weights(self, text, return_word_ids=False, **kwargs):
-        spiece_tokenizer = self.gemma2_2b.tokenizer
-        pad_id = self.gemma2_2b.pad_token
+        if not text.strip():
+            return super().tokenize_with_weights("", return_word_ids=return_word_ids, disable_weights=True, min_length=_PIXELDIT_MAX_LENGTH)
 
-        if not (isinstance(text, str) and text.strip()):
-            ids = spiece_tokenizer("")["input_ids"]
-            ids = ids + [pad_id] * (_PIXELDIT_MAX_LENGTH - len(ids))
-            return {"gemma2_2b": [[(t, 1.0) for t in ids]]}
-
-        chi_token_count = len(spiece_tokenizer(_PIXELDIT_CHI_PROMPT)["input_ids"])
+        chi_token_count = len(self.gemma2_2b.tokenizer(_PIXELDIT_CHI_PROMPT)["input_ids"])
         combined = text if text.startswith(_PIXELDIT_CHI_PROMPT_DETECT_PREFIX) else _PIXELDIT_CHI_PROMPT + text
-        ids = _build_padded_tokens(combined, spiece_tokenizer, pad_id, chi_token_count)
-        return {"gemma2_2b": [[(t, 1.0) for t in ids]]}
+        max_length_all = chi_token_count + _PIXELDIT_MAX_LENGTH - 2
+        out = super().tokenize_with_weights(combined, return_word_ids=return_word_ids,
+                                            disable_weights=True, min_length=max_length_all)
+        out["gemma2_2b"] = [out["gemma2_2b"][0][:max_length_all]]
+        return out
 
     def untokenize(self, token_weight_pair):
         return self.gemma2_2b.untokenize(token_weight_pair)
@@ -96,11 +73,7 @@ class PixelDiTGemma2Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 class PixelDiTGemma2TE(LuminaModel):
-    """Text encoder wrapper for PixelDiT.
-
-    Encodes the full padded sequence, then returns BOS + last 299 embeddings
-    (PixelDiT's `select_index` step) to match the trained y_pos_embedding length.
-    """
+    # PixelDiT's select_index: keep BOS + last 299 embeddings of the padded sequence.
     def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__(device=device, dtype=dtype, name="gemma2_2b",
                          clip_model=PixelDiTGemma2_2BModel, model_options=model_options)
@@ -109,19 +82,11 @@ class PixelDiTGemma2TE(LuminaModel):
         result = super().encode_token_weights(token_weight_pairs)
         cond, pooled = result[0], result[1]
         extra = result[2] if len(result) > 2 else None
-        L = cond.shape[1]
-        if L > _PIXELDIT_MAX_LENGTH:
-            head = cond[:, :1]
-            tail = cond[:, -(_PIXELDIT_MAX_LENGTH - 1):]
-            cond = torch.cat([head, tail], dim=1)
+        if cond.shape[1] > _PIXELDIT_MAX_LENGTH:
+            cond = torch.cat([cond[:, :1], cond[:, -(_PIXELDIT_MAX_LENGTH - 1):]], dim=1)
             if extra is not None and "attention_mask" in extra:
                 am = extra["attention_mask"]
-                if am.dim() == 1:
-                    am = am.unsqueeze(0)
-                if am.shape[-1] == L:
-                    head_m = am[..., :1]
-                    tail_m = am[..., -(_PIXELDIT_MAX_LENGTH - 1):]
-                    extra = {**extra, "attention_mask": torch.cat([head_m, tail_m], dim=-1)}
+                extra["attention_mask"] = torch.cat([am[..., :1], am[..., -(_PIXELDIT_MAX_LENGTH - 1):]], dim=-1)
         if extra is not None:
             return cond, pooled, extra
         return cond, pooled
