@@ -648,7 +648,7 @@ def ensure_pin_budget(size, evict_active=False):
     to_free = shortfall + PIN_PRESSURE_HYSTERESIS
     return free_pins(to_free, evict_active=evict_active) >= shortfall
 
-def ensure_pin_registerable(size, evict_active=False):
+def ensure_pin_registerable(size, evict_active=True):
     shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
         return False
@@ -658,10 +658,17 @@ def ensure_pin_registerable(size, evict_active=False):
     shortfall += REGISTERABLE_PIN_HYSTERESIS
     for loaded_model in reversed(current_loaded_models):
         model = loaded_model.model
-        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
+        if model is not None and model.is_dynamic() and not model.model.dynamic_pins[model.load_device]["active"]:
             shortfall -= model.unregister_inactive_pins(shortfall)
             if shortfall <= 0:
                 return True
+    if evict_active:
+        for loaded_model in current_loaded_models:
+            model = loaded_model.model
+            if model is not None and model.is_dynamic() and model.model.dynamic_pins[model.load_device]["active"]:
+                shortfall -= model.unregister_inactive_pins(shortfall)
+                if shortfall <= 0:
+                    return True
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
 class LoadedModel:
