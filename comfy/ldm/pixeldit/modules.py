@@ -89,13 +89,10 @@ class FinalLayer(nn.Module):
 
 class PatchTokenEmbedder(nn.Module):
     """Linear projection used both for patchified-image tokens and text-feature tokens."""
-    def __init__(self, in_chans, embed_dim, norm_layer=None, bias=True, dtype=None, device=None, operations=None):
+    def __init__(self, in_chans, embed_dim, use_norm=False, bias=True, dtype=None, device=None, operations=None):
         super().__init__()
         self.proj = operations.Linear(in_chans, embed_dim, bias=bias, dtype=dtype, device=device)
-        if norm_layer is not None:
-            self.norm = operations.RMSNorm(embed_dim, eps=1e-6, dtype=dtype, device=device)
-        else:
-            self.norm = nn.Identity()
+        self.norm = operations.RMSNorm(embed_dim, eps=1e-6, dtype=dtype, device=device) if use_norm else nn.Identity()
 
     def forward(self, x):
         return self.norm(self.proj(x))
@@ -129,26 +126,27 @@ class PiTBlock(nn.Module):
     Conditioning is per-pixel adaLN from the patch-level features.
     """
     def __init__(self, pixel_hidden_size, patch_hidden_size, patch_size, num_heads, mlp_ratio=4.0,
-                 attn_hidden_size=None, attn_num_heads=None, rope_fn=None,
-                 dtype=None, device=None, operations=None, mlp_chunks=1):
+                 attn_hidden_size=None, attn_num_heads=None, dtype=None, device=None, operations=None, mlp_chunks=1):
         super().__init__()
         self.pixel_dim = pixel_hidden_size
         self.context_dim = patch_hidden_size
         self.attn_dim = attn_hidden_size if attn_hidden_size is not None else patch_hidden_size
         self.num_heads = attn_num_heads if attn_num_heads is not None else num_heads
         assert self.attn_dim % self.num_heads == 0
+
         p2 = patch_size * patch_size
         self.compress_to_attn = operations.Linear(p2 * self.pixel_dim, self.attn_dim, bias=True, dtype=dtype, device=device)
         self.expand_from_attn = operations.Linear(self.attn_dim, p2 * self.pixel_dim, bias=True, dtype=dtype, device=device)
+
         self.norm1 = operations.RMSNorm(self.pixel_dim, eps=1e-6, dtype=dtype, device=device)
-        self.attn = RotaryAttention(self.attn_dim, num_heads=self.num_heads, qkv_bias=False,
-                                    dtype=dtype, device=device, operations=operations)
+        self.attn = RotaryAttention(self.attn_dim, num_heads=self.num_heads, qkv_bias=False, dtype=dtype, device=device, operations=operations)
         self.norm2 = operations.RMSNorm(self.pixel_dim, eps=1e-6, dtype=dtype, device=device)
-        self.mlp = Mlp(self.pixel_dim, hidden_features=int(self.pixel_dim * mlp_ratio),
-                       dtype=dtype, device=device, operations=operations)
+        self.mlp = Mlp(self.pixel_dim, hidden_features=int(self.pixel_dim * mlp_ratio), dtype=dtype, device=device, operations=operations)
+
         self.adaLN_modulation_msa = operations.Linear(self.context_dim, 3 * self.pixel_dim * p2, bias=True, dtype=dtype, device=device)
         self.adaLN_modulation_mlp = operations.Linear(self.context_dim, 3 * self.pixel_dim * p2, bias=True, dtype=dtype, device=device)
-        self._rope_fn = rope_fn if rope_fn is not None else precompute_freqs_cis_2d
+
+        self._rope_fn = precompute_freqs_cis_2d
         self.mlp_chunks = max(1, int(mlp_chunks))
 
     def _fetch_pos(self, height, width, device, dtype, **rope_opts):
@@ -163,8 +161,10 @@ class PiTBlock(nn.Module):
         # Attention path uses only msa params; compute, use, free before mlp params allocate.
         msa_params = self.adaLN_modulation_msa(s_cond).view(BL, P2, 3 * self.pixel_dim)
         shift_msa, scale_msa, gate_msa = msa_params.chunk(3, dim=-1)
+
         x_norm = apply_adaln_(self.norm1(x), shift_msa, scale_msa)
         x_flat = x_norm.view(BL, P2 * self.pixel_dim)
+
         x_comp = self.compress_to_attn(x_flat).view(B, L, self.attn_dim)
         pos_comp = self._fetch_pos(Hs, Ws, x.device, x.dtype, **(transformer_options.get("rope_options") or {}))
         attn_out = self.attn(x_comp, pos_comp, mask=mask, transformer_options=transformer_options)
@@ -178,6 +178,8 @@ class PiTBlock(nn.Module):
         gate_mlp = gate_mlp.contiguous()  # detach from mlp_params so the del below frees shift+scale storage before the MLP
         mlp_input = apply_adaln_(self.norm2(x), shift_mlp, scale_mlp)
         del mlp_params, shift_mlp, scale_mlp
+
+        # MLP in chunks since the peak memory usage is huge here
         chunk_size = (BL + self.mlp_chunks - 1) // self.mlp_chunks
         for s in range(0, BL, chunk_size):
             e = min(s + chunk_size, BL)
