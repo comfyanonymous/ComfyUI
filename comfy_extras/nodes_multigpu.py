@@ -49,11 +49,7 @@ class MultiGPUCFGSplitNode(io.ComfyNode):
 
 
 def _force_supported_compute_dtype(patcher: ModelPatcher, device: torch.device):
-    """Cast compute dtype to one the device supports; no-op if already supported.
-
-    Uses unet_manual_cast which encodes per-device dtype support (e.g. CPU
-    rejects fp16/bf16, falling back to fp32 to avoid PyTorch's ~500-600x
-    slower software emulation)."""
+    """Cast compute dtype to one the device supports; no-op if already supported."""
     weight_dtype = patcher.model_dtype()
     cast_dtype = comfy.model_management.unet_manual_cast(weight_dtype, device)
     if cast_dtype is None:
