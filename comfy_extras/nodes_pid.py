@@ -1,5 +1,6 @@
 """PiD (Pixel Diffusion Decoder) node"""
 
+import torch
 from typing_extensions import override
 
 import node_helpers
@@ -46,8 +47,9 @@ class PiDConditioning(io.ComfyNode):
     @classmethod
     def execute(cls, positive, latent, latent_format: str, degrade_sigma: float) -> io.NodeOutput:
         lq_latent = _LATENT_FORMAT_CLASSES[latent_format]().process_in(latent["samples"])
+        sigma_t = torch.tensor([float(degrade_sigma)], dtype=torch.float32)
         return io.NodeOutput(node_helpers.conditioning_set_values(
-            positive, {"lq_latent": lq_latent, "degrade_sigma": float(degrade_sigma)},
+            positive, {"lq_latent": lq_latent, "degrade_sigma": sigma_t},
         ))
 
 

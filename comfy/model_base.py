@@ -1428,8 +1428,6 @@ class PiD(BaseModel):
             out["lq_latent"] = comfy.conds.CONDRegular(lq_latent)
         degrade_sigma = kwargs.get("degrade_sigma", None)
         if degrade_sigma is not None:
-            if not isinstance(degrade_sigma, torch.Tensor):
-                degrade_sigma = torch.tensor([float(degrade_sigma)], dtype=torch.float32)
             out["degrade_sigma"] = comfy.conds.CONDRegular(degrade_sigma)
         return out
 
