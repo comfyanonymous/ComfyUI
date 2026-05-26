@@ -1413,16 +1413,13 @@ class PixelDiTT2I(BaseModel):
         return out
 
 
-class PiD(BaseModel):
+class PiD(PixelDiTT2I):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device=device,
-                         unet_model=comfy.ldm.pixeldit.pid.PidNet)
+        BaseModel.__init__(self, model_config, model_type, device=device,
+                           unet_model=comfy.ldm.pixeldit.pid.PidNet)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
-        attention_mask = kwargs.get("attention_mask", None)
-        if attention_mask is not None:
-            out["attention_mask"] = comfy.conds.CONDRegular(attention_mask)
         lq_latent = kwargs.get("lq_latent", None)
         if lq_latent is not None:
             out["lq_latent"] = comfy.conds.CONDRegular(lq_latent)

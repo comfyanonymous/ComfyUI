@@ -66,7 +66,6 @@ class RotaryAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, dtype=None, device=None, operations=None):
         super().__init__()
         assert dim % num_heads == 0
-        self.dim = dim
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.qkv = operations.Linear(dim, dim * 3, bias=qkv_bias, dtype=dtype, device=device)
@@ -101,8 +100,6 @@ class PatchTokenEmbedder(nn.Module):
     """Linear projection used both for patchified-image tokens and text-feature tokens."""
     def __init__(self, in_chans, embed_dim, norm_layer=None, bias=True, dtype=None, device=None, operations=None):
         super().__init__()
-        self.in_chans = in_chans
-        self.embed_dim = embed_dim
         self.proj = operations.Linear(in_chans, embed_dim, bias=bias, dtype=dtype, device=device)
         if norm_layer is not None:
             self.norm = operations.RMSNorm(embed_dim, eps=1e-6, dtype=dtype, device=device)
@@ -132,10 +129,8 @@ class PixelTokenEmbedder(nn.Module):
             _cache_set(self._pos_cache, key, pe)
         return pe.to(device=device, dtype=dtype)
 
-    def forward(self, inputs, img_height, img_width, patch_size):
-        B, C, H, W = inputs.shape
-        assert H == img_height and W == img_width
-        assert (H % patch_size == 0) and (W % patch_size == 0)
+    def forward(self, inputs, patch_size):
+        B, _, H, W = inputs.shape
         Hs, Ws = H // patch_size, W // patch_size
         P2 = patch_size * patch_size
         x = inputs.permute(0, 2, 3, 1).contiguous()
@@ -162,7 +157,6 @@ class PiTBlock(nn.Module):
         super().__init__()
         self.pixel_dim = pixel_hidden_size
         self.context_dim = patch_hidden_size
-        self.patch_size = patch_size
         self.attn_dim = attn_hidden_size if attn_hidden_size is not None else patch_hidden_size
         self.num_heads = attn_num_heads if attn_num_heads is not None else num_heads
         assert self.attn_dim % self.num_heads == 0

@@ -90,14 +90,11 @@ class LQProjection2D(nn.Module):
         sr_scale: int = 4,
         latent_spatial_down_factor: int = 8,
         num_res_blocks: int = 4,
-        num_outputs: int = 14,
-        interval: int = 1,
-        dtype=None,
-        device=None,
-        operations=None,
+        num_outputs: int = 7,
+        interval: int = 2,
+        dtype=None, device=None, operations=None,
     ):
         super().__init__()
-        assert latent_channels > 0
         self.latent_channels = latent_channels
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim
@@ -110,13 +107,11 @@ class LQProjection2D(nn.Module):
         z_to_patch_ratio = (sr_scale * latent_spatial_down_factor) / patch_size
         self.z_to_patch_ratio = z_to_patch_ratio
         if z_to_patch_ratio >= 1:
-            self.latent_upsample_ratio = int(z_to_patch_ratio) if z_to_patch_ratio > 1 else 1
             self.latent_fold_factor = 0
             latent_proj_in_ch = latent_channels
         else:
             fold_factor = int(1 / z_to_patch_ratio)
             assert fold_factor * z_to_patch_ratio == 1.0
-            self.latent_upsample_ratio = 0
             self.latent_fold_factor = fold_factor
             latent_proj_in_ch = latent_channels * fold_factor * fold_factor
 
@@ -138,10 +133,10 @@ class LQProjection2D(nn.Module):
         )
 
     def is_gate_active(self, block_idx: int) -> bool:
-        return block_idx % self.interval == 0 if self.interval > 1 else True
+        return block_idx % self.interval == 0
 
     def output_index(self, block_idx: int) -> int:
-        return block_idx // self.interval if self.interval > 1 else block_idx
+        return block_idx // self.interval
 
     def gate(self, x: torch.Tensor, lq_feature: torch.Tensor, sigma: torch.Tensor, out_idx: int) -> torch.Tensor:
         return self.gate_modules[out_idx](x, lq_feature, sigma)
@@ -176,7 +171,7 @@ class PidNet(PixDiT_T2I):
         lq_latent_channels: int = 16,
         lq_hidden_dim: int = 512,
         lq_num_res_blocks: int = 4,
-        lq_interval: int = 1,
+        lq_interval: int = 2,
         sr_scale: int = 4,
         latent_spatial_down_factor: int = 8,
         rope_ref_h: int = 1024, # NTK ref resolution in PIXEL units: 1024px / patch=16 -> grid_ref=64.
@@ -187,8 +182,8 @@ class PidNet(PixDiT_T2I):
     ):
         super().__init__(dtype=dtype, device=device, operations=operations, **pixdit_kwargs)
 
-        self.rope_ref_grid_h = int(rope_ref_h) // int(self.patch_size)
-        self.rope_ref_grid_w = int(rope_ref_w) // int(self.patch_size)
+        self.rope_ref_grid_h = rope_ref_h // self.patch_size
+        self.rope_ref_grid_w = rope_ref_w // self.patch_size
 
         # Parent's PiTBlocks were built with plain RoPE — swap in NTK-aware.
         def _pit_rope_fn(head_dim, h, w):
@@ -225,8 +220,8 @@ class PidNet(PixDiT_T2I):
             _cache_set(self._patch_pos_cache, key, pos)
         return pos.to(device=device, dtype=dtype)
 
-    def _pre_patch_block(self, s, i, pid_lq_features=None, pid_degrade_sigma=None, **kwargs):
-        if pid_lq_features is None or not self.lq_proj.is_gate_active(i):
+    def _pre_patch_block(self, s, i, pid_lq_features, pid_degrade_sigma, **kwargs):
+        if not self.lq_proj.is_gate_active(i):
             return s
         out_idx = self.lq_proj.output_index(i)
         if out_idx >= len(pid_lq_features):
@@ -244,8 +239,7 @@ class PidNet(PixDiT_T2I):
         if degrade_sigma.numel() == 1 and B > 1:
             degrade_sigma = degrade_sigma.expand(B).contiguous()
 
-        lq_latent = lq_latent.to(device=x.device, dtype=x.dtype)
-        lq_features = self.lq_proj(lq_latent=lq_latent, target_pH=Hs, target_pW=Ws)
+        lq_features = self.lq_proj(lq_latent=lq_latent.to(x), target_pH=Hs, target_pW=Ws)
 
         return super()._forward(
             x, timesteps,
