@@ -85,9 +85,9 @@ _TYPES = {
 def load_safetensors(ckpt):
     import comfy_aimdo.model_mmap
 
-    f = open(ckpt, "rb", buffering=0)
     file_lock = threading.Lock()
     model_mmap = comfy_aimdo.model_mmap.ModelMMAP(ckpt)
+    f = model_mmap.get_file_handle()
     file_size = os.path.getsize(ckpt)
     mv = memoryview((ctypes.c_uint8 * file_size).from_address(model_mmap.get()))
 

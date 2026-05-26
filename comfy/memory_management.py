@@ -74,6 +74,9 @@ def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=N
                                     device=None if destination2 is None else destination2.device.index)
         return True
 
+    if not hasattr(file_obj, "seek") or not hasattr(file_obj, "readinto"):
+        return False
+
     buf_type = ctypes.c_ubyte * info.size
     view = memoryview(buf_type.from_address(destination.data_ptr()))
 
