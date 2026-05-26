@@ -141,7 +141,6 @@ class LensJointAttention(nn.Module):
         img_q, img_k, img_v = img_qkv.unbind(dim=2)
         img_q = self.norm_q(img_q)
         img_k = self.norm_k(img_k)
-        img_v = img_v.contiguous()
         del img_qkv
 
         # text stream
