@@ -1,7 +1,6 @@
 """Pure-PyTorch port of MediaPipe's face_landmarker_v2_with_blendshapes.task:
 BlazeFace detector → FaceMesh v2 → ARKit-52 blendshapes."""
 
-from __future__ import annotations
 
 import math
 from functools import lru_cache

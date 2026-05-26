@@ -1,6 +1,5 @@
 """ComfyUI nodes for the native MoGe (Monocular Geometry Estimation) integration."""
 
-from __future__ import annotations
 
 import torch
 
