@@ -141,7 +141,6 @@ class LensJointAttention(nn.Module):
         img_q, img_k, img_v = img_qkv.unbind(dim=2)
         img_q = self.norm_q(img_q)
         img_k = self.norm_k(img_k)
-        img_v = img_v.contiguous()
         del img_qkv
 
         # text stream
@@ -149,8 +148,6 @@ class LensJointAttention(nn.Module):
         txt_q, txt_k, txt_v = txt_qkv.unbind(dim=2)
         txt_q = self.norm_added_q(txt_q)
         txt_k = self.norm_added_k(txt_k)
-        txt_v = txt_v.contiguous()
-        del txt_qkv
 
         # [B, S, H, D] → [B, H, S, D] for attention, dels to avoid VRAM peaks
         q = torch.cat([img_q, txt_q], dim=1).transpose(1, 2)
