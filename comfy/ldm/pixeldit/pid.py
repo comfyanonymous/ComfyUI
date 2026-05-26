@@ -9,34 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from comfy.ldm.flux.math import rope
-
 from .model import PixDiT_T2I
-
-
-def precompute_freqs_cis_2d_ntk(dim: int, height: int, width: int,
-                                ref_grid_h: int, ref_grid_w: int,
-                                theta: float = 10000.0, scale: float = 16.0,
-                                device=None, dtype=torch.float32):
-    """NTK-aware 2D RoPE (rope_mode='ntk_aware' in upstream PiD).
-
-    Per-axis theta = theta * (current/ref)^(dim_axis/(dim_axis-2)). Returns
-    [H*W, dim/2, 2, 2] with x/y axis freqs interleaved at stride 2 (matches
-    the head-dim layout PiD's Q/K weights expect).
-    """
-    dim_axis = dim // 2
-    h_ntk = (height / ref_grid_h) ** (dim_axis / (dim_axis - 2)) if dim_axis > 2 else 1.0
-    w_ntk = (width / ref_grid_w) ** (dim_axis / (dim_axis - 2)) if dim_axis > 2 else 1.0
-
-    x_lin = torch.linspace(0, scale, width, device=device)
-    y_lin = torch.linspace(0, scale, height, device=device)
-    y_grid, x_grid = torch.meshgrid(y_lin, x_lin, indexing="ij")
-
-    x_rope = rope(x_grid.reshape(1, -1), dim_axis, theta * w_ntk).squeeze(0)
-    y_rope = rope(y_grid.reshape(1, -1), dim_axis, theta * h_ntk).squeeze(0)
-
-    out = torch.stack([x_rope, y_rope], dim=2).reshape(height * width, dim // 2, 2, 2)
-    return out.to(dtype=dtype)
+from .modules import precompute_freqs_cis_2d
 
 
 class SigmaAwareGatePerTokenPerDim(nn.Module):
@@ -158,7 +132,8 @@ class LQProjection2D(nn.Module):
 
     def forward(self, lq_latent: torch.Tensor, target_pH: int, target_pW: int) -> List[torch.Tensor]:
         feat = self._align_latent_to_patch_grid(lq_latent, target_pH, target_pW)
-        tokens = feat.flatten(2).transpose(1, 2)
+        B, C, H, W = feat.shape
+        tokens = feat.permute(0, 2, 3, 1).reshape(B, H * W, C)
         return [head(tokens) for head in self.output_heads]
 
 
@@ -185,8 +160,8 @@ class PidNet(PixDiT_T2I):
         self.rope_ref_grid_w = rope_ref_w // self.patch_size
 
         # Parent's PiTBlocks were built with plain RoPE — swap in NTK-aware.
-        def _pit_rope_fn(head_dim, h, w, device=None, dtype=torch.float32):
-            return precompute_freqs_cis_2d_ntk(head_dim, h, w, self.rope_ref_grid_h, self.rope_ref_grid_w, device=device, dtype=dtype)
+        def _pit_rope_fn(head_dim, h, w, device=None, dtype=torch.float32, **rope_opts):
+            return precompute_freqs_cis_2d(head_dim, h, w, ref_grid_h=self.rope_ref_grid_h, ref_grid_w=self.rope_ref_grid_w, device=device, dtype=dtype, **rope_opts)
         for blk in self.pixel_blocks:
             blk._rope_fn = _pit_rope_fn
 
@@ -206,12 +181,12 @@ class PidNet(PixDiT_T2I):
             operations=operations,
         )
 
-    def _fetch_patch_pos(self, height, width, device, dtype):
-        return precompute_freqs_cis_2d_ntk(
+    def _fetch_patch_pos(self, height, width, device, dtype, **rope_opts):
+        return precompute_freqs_cis_2d(
             self.hidden_size // self.num_groups,
             height, width,
-            self.rope_ref_grid_h, self.rope_ref_grid_w,
-            device=device, dtype=dtype,
+            ref_grid_h=self.rope_ref_grid_h, ref_grid_w=self.rope_ref_grid_w,
+            device=device, dtype=dtype, **rope_opts,
         )
 
     def _pre_patch_block(self, s, i, pid_lq_features, pid_degrade_sigma, **kwargs):

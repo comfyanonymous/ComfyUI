@@ -138,7 +138,6 @@ class PixDiT_T2I(nn.Module):
         txt_max_length=300,
         use_text_rope=True,
         text_rope_theta=10000.0,
-        use_pixel_abs_pos=True,
         image_model=None,
         dtype=None,
         device=None,
@@ -161,10 +160,9 @@ class PixDiT_T2I(nn.Module):
         self.txt_max_length = txt_max_length
         self.use_text_rope = use_text_rope
         self.text_rope_theta = text_rope_theta
-        self.use_pixel_abs_pos = use_pixel_abs_pos
 
         self.pixel_embedder = PixelTokenEmbedder(
-            self.in_channels, self.pixel_hidden_size, use_pixel_abs_pos=self.use_pixel_abs_pos,
+            self.in_channels, self.pixel_hidden_size,
             dtype=dtype, device=device, operations=operations,
         )
         self.s_embedder = PatchTokenEmbedder(
@@ -202,8 +200,8 @@ class PixDiT_T2I(nn.Module):
         self.final_layer = FinalLayer(self.pixel_hidden_size, self.out_channels,
                                       dtype=dtype, device=device, operations=operations)
 
-    def _fetch_patch_pos(self, height, width, device, dtype):
-        return precompute_freqs_cis_2d(self.hidden_size // self.num_groups, height, width, device=device, dtype=dtype)
+    def _fetch_patch_pos(self, height, width, device, dtype, **rope_opts):
+        return precompute_freqs_cis_2d(self.hidden_size // self.num_groups, height, width, device=device, dtype=dtype, **rope_opts)
 
     def _fetch_text_pos(self, length, device, dtype):
         return rope(torch.arange(length, dtype=torch.float32, device=device).reshape(1, -1), self.hidden_size // self.num_groups, self.text_rope_theta).squeeze(0).to(dtype=dtype)
@@ -225,7 +223,7 @@ class PixDiT_T2I(nn.Module):
         Ws = W // self.patch_size
         L = Hs * Ws
 
-        pos_img = self._fetch_patch_pos(Hs, Ws, x.device, x.dtype)
+        pos_img = self._fetch_patch_pos(Hs, Ws, x.device, x.dtype, **(transformer_options.get("rope_options") or {}))
         x_patches = F.unfold(x, kernel_size=self.patch_size, stride=self.patch_size).transpose(1, 2)
 
         t_emb = self.t_embedder(timesteps.view(-1), x.dtype).view(B, -1, self.hidden_size)
