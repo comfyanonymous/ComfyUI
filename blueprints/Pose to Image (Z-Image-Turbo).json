@@ -1298,7 +1298,7 @@
           "VHS_MetadataImage": true,
           "VHS_KeepIntermediate": true
         },
-        "category": "Image generation and editing/Pose to image",
+        "category": "Image generation and editing/Conditioned",
         "description": "Generates an image from pose keypoints using Z-Image-Turbo with text conditioning."
       }
     ]

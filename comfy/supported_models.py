@@ -7,6 +7,7 @@ from . import sdxl_clip
 import comfy.text_encoders.sd2_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
+import comfy.text_encoders.sa3
 import comfy.text_encoders.aura_t5
 import comfy.text_encoders.pixart_t5
 import comfy.text_encoders.hydit
@@ -603,6 +604,29 @@ class StableAudio(supported_models_base.BASE):
     def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(comfy.text_encoders.sa_t5.SAT5Tokenizer, comfy.text_encoders.sa_t5.SAT5Model)
 
+class StableAudio3(StableAudio):
+    unet_config = {
+        "audio_model": "dit1.0",
+        "global_cond_shared_embed": True,
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 2.0,
+    }
+
+    latent_format = latent_formats.StableAudio3
+
+    memory_usage_factor = 7
+
+    def get_model(self, state_dict, prefix="", device=None):
+        seconds_total_sd = utils.state_dict_prefix_replace(state_dict, {"conditioner.conditioners.seconds_total.": ""}, filter_keys=True)
+        padding_embedding = state_dict.get("conditioner.conditioners.prompt.padding_embedding", None)
+        return model_base.StableAudio3(self, seconds_total_embedder_weights=seconds_total_sd, padding_embedding=padding_embedding, device=device)
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.sa3.SAT5GemmaTokenizer, comfy.text_encoders.sa3.SAT5GemmaModel)
+
 class AuraFlow(supported_models_base.BASE):
     unet_config = {
         "cond_seq_dim": 2048,
@@ -804,6 +828,48 @@ class Flux2(Flux):
             return supported_models_base.ClipTarget(comfy.text_encoders.flux.Flux2Tokenizer, comfy.text_encoders.flux.flux2_te(**detect))
 
         return None
+
+
+class Lens(supported_models_base.BASE):
+    """Microsoft Lens (3.8B dual-stream MMDiT, GPT-OSS-20B text features, Flux2 VAE)."""
+
+    unet_config = {
+        "image_model": "lens",
+    }
+
+    sampling_settings = {
+        "shift": 1.829, # Default mu for 1440x1440 (and any seq_len > 4300
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux2
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32] # fp16 causes NaNs
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Lens(self, model_type=model_base.ModelType.FLUX, device=device)
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        for hint in ("gpt_oss.transformer.", ""):
+            full_prefix = "{}{}".format(pref, hint)
+            if "{}layers.0.self_attn.sinks".format(full_prefix) in state_dict:
+                detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, full_prefix)
+                return supported_models_base.ClipTarget(
+                    comfy.text_encoders.gpt_oss.LensTokenizer,
+                    comfy.text_encoders.gpt_oss.lens_te(**detect),
+                )
+        return supported_models_base.ClipTarget(
+            comfy.text_encoders.gpt_oss.LensTokenizer,
+            comfy.text_encoders.gpt_oss.lens_te(),
+        )
+
 
 class GenmoMochi(supported_models_base.BASE):
     unet_config = {
@@ -2018,6 +2084,7 @@ models = [
     SV3D_u,
     SV3D_p,
     SD3,
+    StableAudio3,
     StableAudio,
     AuraFlow,
     PixArtAlpha,
@@ -2071,6 +2138,7 @@ models = [
     Omnigen2,
     QwenImage,
     Flux2,
+    Lens,
     Kandinsky5Image,
     Kandinsky5,
     Anima,

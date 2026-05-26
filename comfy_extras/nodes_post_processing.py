@@ -22,7 +22,7 @@ class Blend(io.ComfyNode):
             node_id="ImageBlend",
             search_aliases=["mix images"],
             display_name="Blend Images",
-            category="image/postprocessing",
+            category="image/filters",
             essentials_category="Image Tools",
             inputs=[
                 io.Image.Input("image1"),
@@ -80,8 +80,8 @@ class Blur(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ImageBlur",
-            display_name="Image Blur",
-            category="image/postprocessing",
+            display_name="Blur Image",
+            category="image/filters",
             inputs=[
                 io.Image.Input("image"),
                 io.Int.Input("blur_radius", default=1, min=1, max=31, step=1),
@@ -117,7 +117,7 @@ class Quantize(io.ComfyNode):
         return io.Schema(
             node_id="ImageQuantize",
             display_name="Quantize Image",
-            category="image/postprocessing",
+            category="image/filters",
             inputs=[
                 io.Image.Input("image"),
                 io.Int.Input("colors", default=256, min=1, max=256, step=1),
@@ -183,7 +183,7 @@ class Sharpen(io.ComfyNode):
         return io.Schema(
             node_id="ImageSharpen",
             display_name="Sharpen Image",
-            category="image/postprocessing",
+            category="image/filters",
             inputs=[
                 io.Image.Input("image"),
                 io.Int.Input("sharpen_radius", default=1, min=1, max=31, step=1, advanced=True),
@@ -568,7 +568,7 @@ def batch_latents(latents: list[dict[str, torch.Tensor]]) -> dict[str, torch.Ten
 class BatchImagesNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        autogrow_template = io.Autogrow.TemplatePrefix(io.Image.Input("image"), prefix="image", min=2, max=50)
+        autogrow_template = io.Autogrow.TemplatePrefix(io.Image.Input("image"), prefix="image", min=1, max=50)
         return io.Schema(
             node_id="BatchImagesNode",
             display_name="Batch Images",
@@ -590,12 +590,12 @@ class BatchImagesNode(io.ComfyNode):
 class BatchMasksNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        autogrow_template = io.Autogrow.TemplatePrefix(io.Mask.Input("mask"), prefix="mask", min=2, max=50)
+        autogrow_template = io.Autogrow.TemplatePrefix(io.Mask.Input("mask"), prefix="mask", min=1, max=50)
         return io.Schema(
             node_id="BatchMasksNode",
             search_aliases=["combine masks", "stack masks", "merge masks"],
             display_name="Batch Masks",
-            category="mask",
+            category="image/mask",
             inputs=[
                 io.Autogrow.Input("masks", template=autogrow_template)
             ],
@@ -611,7 +611,7 @@ class BatchMasksNode(io.ComfyNode):
 class BatchLatentsNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        autogrow_template = io.Autogrow.TemplatePrefix(io.Latent.Input("latent"), prefix="latent", min=2, max=50)
+        autogrow_template = io.Autogrow.TemplatePrefix(io.Latent.Input("latent"), prefix="latent", min=1, max=50)
         return io.Schema(
             node_id="BatchLatentsNode",
             search_aliases=["combine latents", "stack latents", "merge latents"],
@@ -670,8 +670,8 @@ class ColorTransfer(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ColorTransfer",
-            display_name="Color Transfer",
-            category="image/postprocessing",
+            display_name="Transfer Color",
+            category="image/filters",
             description="Match the colors of one image to another using various algorithms.",
             search_aliases=["color match", "color grading", "color correction", "match colors", "color transform", "mkl", "reinhard", "histogram"],
             inputs=[

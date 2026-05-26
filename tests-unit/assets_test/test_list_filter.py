@@ -3,6 +3,7 @@ import uuid
 
 import pytest
 import requests
+from helpers import assert_hash_fields_consistent
 
 
 def test_list_assets_paging_and_sort(http: requests.Session, api_base: str, asset_factory, make_asset_bytes):
@@ -26,6 +27,10 @@ def test_list_assets_paging_and_sort(http: requests.Session, api_base: str, asse
     got1 = [a["name"] for a in b1["assets"]]
     assert got1 == sorted(names)[:2]
     assert b1["has_more"] is True
+    # Populated assets in list responses must carry both `hash` and `asset_hash` consistently
+    for asset in b1["assets"]:
+        assert_hash_fields_consistent(asset)
+        assert "hash" in asset, "populated asset must emit hash on list endpoint"
 
     r2 = http.get(
         api_base + "/api/assets",
