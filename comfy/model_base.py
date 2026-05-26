@@ -36,6 +36,7 @@ import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
 import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
+import comfy.ldm.lens.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
@@ -44,6 +45,7 @@ import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
 import comfy.ldm.wan.ar_model
+import comfy.ldm.wan.model_wandancer
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -58,6 +60,8 @@ import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
 import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
+import comfy.ldm.hidream_o1.model
+from comfy.ldm.hidream_o1.conditioning import build_extra_conds
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -811,6 +815,85 @@ class StableAudio1(BaseModel):
                 sd["{}{}".format(k, l)] = s[l]
         return sd
 
+class StableAudio3(BaseModel):
+    def __init__(self, model_config, seconds_total_embedder_weights, padding_embedding=None, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.audio.dit.AudioDiffusionTransformer)
+        self.seconds_total_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=384, fourier_features_type=model_config.unet_config["timestep_features_type"])
+        self.seconds_total_embedder.load_state_dict(seconds_total_embedder_weights)
+        if padding_embedding is not None:
+            self.padding_embedding = torch.nn.Parameter(padding_embedding, requires_grad=False)
+        else:
+            self.padding_embedding = None
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        image = kwargs.get("concat_latent_image", None)
+
+        if image is None:
+            shape_image = list(noise.shape)
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            image = self.process_latent_in(image)
+            # TODO: scale if not match
+            image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if mask is None:
+            mask = torch.zeros_like(noise)[:, :1]
+        else:
+            if mask.shape[1] != 1:
+                mask = torch.mean(mask, dim=1, keepdim=True)
+            mask = 1.0 - mask
+            # TODO: scale if not match
+            mask = utils.resize_to_batch_size(mask, noise.shape[0])
+
+        return torch.cat((mask, image), dim=1)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        concat_cond = self.concat_cond(**kwargs)
+        if concat_cond is not None:
+            out['local_add_cond'] = comfy.conds.CONDNoiseShape(concat_cond)
+
+        noise = kwargs.get("noise", None)
+        device = kwargs["device"]
+
+        seconds_total = kwargs.get("seconds_total", int(noise.shape[-1] / 10.7666))
+        seconds_total_embed = self.seconds_total_embedder([seconds_total])[0].to(device)
+
+        global_embed = seconds_total_embed.reshape((1, -1))
+        out['global_embed'] = comfy.conds.CONDRegular(global_embed)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            cross_attn = cross_attn.to(device)
+            if self.padding_embedding is not None:
+                pe = self.padding_embedding.to(device=device, dtype=cross_attn.dtype)
+                max_text_tokens = self.model_config.unet_config.get("max_text_tokens", 256)
+                n_text = cross_attn.shape[1]
+                if n_text < max_text_tokens:
+                    pad = pe.view(1, 1, -1).expand(cross_attn.shape[0], max_text_tokens - n_text, -1)
+                    cross_attn = torch.cat([cross_attn, pad], dim=1)
+            cross_attn = torch.cat([cross_attn, seconds_total_embed.repeat((cross_attn.shape[0], 1, 1))], dim=1)
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        return out
+
+    def state_dict_for_saving(self, unet_state_dict, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        sd = super().state_dict_for_saving(unet_state_dict, clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
+
+        d = {"conditioner.conditioners.seconds_total.": self.seconds_total_embedder.state_dict()}
+
+        for k in d:
+            s = d[k]
+            for l in s:
+                sd["{}{}".format(k, l)] = s[l]
+
+        if self.padding_embedding is not None:
+            sd["conditioner.conditioners.prompt.padding_embedding"] = self.padding_embedding.data
+        return sd
+
 
 class HunyuanDiT(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
@@ -975,6 +1058,27 @@ class Flux2(Flux):
             if cross_attn.shape[1] < target_text_len:
                 cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, target_text_len - cross_attn.shape[1], 0))
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
+
+class Lens(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(
+            model_config, model_type, device=device,
+            unet_model=comfy.ldm.lens.model.LensTransformer2DModel,
+        )
+
+    def encode_adm(self, **kwargs):
+        return None  # Lens has no pooled/ADM conditioning.
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
         return out
 
 class GenmoMochi(BaseModel):
@@ -1721,6 +1825,30 @@ class WAN21_SCAIL(WAN21):
 
         return out
 
+class WAN22_WanDancer(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=True, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model_wandancer.WanDancerModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        audio_embed = kwargs.get("audio_embed", None)
+        if audio_embed is not None:
+            out['audio_embed'] = comfy.conds.CONDRegular(audio_embed)
+
+        clip_vision_output_ref = kwargs.get("clip_vision_output_ref", None)
+        if clip_vision_output_ref is not None:
+            out['clip_fea_ref'] = comfy.conds.CONDRegular(clip_vision_output_ref.penultimate_hidden_states)
+
+        fps = kwargs.get("fps", None)
+        if fps is not None:
+            out['fps'] = comfy.conds.CONDRegular(torch.FloatTensor([fps]))
+
+        audio_inject_scale = kwargs.get("audio_inject_scale", None)
+        if audio_inject_scale is not None:
+            out['audio_inject_scale'] = comfy.conds.CONDRegular(torch.FloatTensor([audio_inject_scale]))
+        return out
+
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3d.model.Hunyuan3Dv2)
@@ -1769,6 +1897,39 @@ class HiDream(BaseModel):
         image_cond = kwargs.get("concat_latent_image", None)
         if image_cond is not None:
             out['image_cond'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_cond))
+        return out
+
+class HiDreamO1(BaseModel):
+    """HiDream-O1-Image: pixel-space DiT (no VAE). Refs from HiDreamO1ReferenceImages and tokens from the stub TE flow through
+    extra_conds; the heavy preprocessing lives in comfy.ldm.hidream_o1.conditioning."""
+    PATCH_SIZE = 32
+
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hidream_o1.model.HiDreamO1Transformer)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        text_input_ids = kwargs.get("text_input_ids", None)
+        noise = kwargs.get("noise", None)
+        if text_input_ids is None or noise is None:
+            return out
+
+        # handle area conds
+        area = kwargs.get("area", None)
+        if area is not None:
+            crop_h = min(noise.shape[-2] - area[2], area[0])
+            crop_w = min(noise.shape[-1] - area[3], area[1])
+            noise = torch.empty((noise.shape[0], 3, crop_h, crop_w), dtype=noise.dtype, device=noise.device)
+
+        conds = build_extra_conds(
+            text_input_ids, noise,
+            ref_images=kwargs.get("reference_latents", None),
+            target_patch_size=self.PATCH_SIZE,
+        )
+        for k, v in conds.items():
+            # ar_len is a Python int (precomputed to avoid a GPU sync in forward).
+            cls = comfy.conds.CONDConstant if k == "ar_len" else comfy.conds.CONDRegular
+            out[k] = cls(v)
         return out
 
 class Chroma(Flux):

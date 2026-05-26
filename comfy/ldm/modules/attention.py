@@ -741,12 +741,12 @@ optimized_attention = attention_basic
 if model_management.sage_attention_enabled():
     logging.info("Using sage attention")
     optimized_attention = attention_sage
-elif model_management.xformers_enabled():
-    logging.info("Using xformers attention")
-    optimized_attention = attention_xformers
 elif model_management.flash_attention_enabled():
     logging.info("Using Flash Attention")
     optimized_attention = attention_flash
+elif model_management.xformers_enabled():
+    logging.info("Using xformers attention")
+    optimized_attention = attention_xformers
 elif model_management.pytorch_attention_enabled():
     logging.info("Using pytorch attention")
     optimized_attention = attention_pytorch

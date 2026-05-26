@@ -1,4 +1,3 @@
-from __future__ import annotations
 import torch
 
 
@@ -330,7 +329,7 @@ class VAEDecodeTiled:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def decode(self, vae, samples, tile_size, overlap=64, temporal_size=64, temporal_overlap=8):
         if tile_size < overlap * 4:
@@ -377,7 +376,7 @@ class VAEEncodeTiled:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def encode(self, vae, pixels, tile_size, overlap, temporal_size=64, temporal_overlap=8):
         t = vae.encode_tiled(pixels, tile_x=tile_size, tile_y=tile_size, overlap=overlap, tile_t=temporal_size, overlap_t=temporal_overlap)
@@ -493,7 +492,7 @@ class SaveLatent:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def save(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -538,7 +537,7 @@ class LoadLatent:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
         return {"required": {"latent": [sorted(files), ]}, }
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     RETURN_TYPES = ("LATENT", )
     FUNCTION = "load"
@@ -691,7 +690,7 @@ class LoraLoader:
     FUNCTION = "load_lora"
 
     CATEGORY = "loaders"
-    DESCRIPTION = "LoRAs are used to modify diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
+    DESCRIPTION = "This LoRA loader is used to modify both diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
     SEARCH_ALIASES = ["lora", "load lora", "apply lora", "lora loader", "lora model"]
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
@@ -700,17 +699,19 @@ class LoraLoader:
 
         lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
         lora = None
+        lora_metadata = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
                 lora = self.loaded_lora[1]
+                lora_metadata = self.loaded_lora[2] if len(self.loaded_lora) > 2 else None
             else:
                 self.loaded_lora = None
 
         if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-            self.loaded_lora = (lora_path, lora)
+            lora, lora_metadata = comfy.utils.load_torch_file(lora_path, safe_load=True, return_metadata=True)
+            self.loaded_lora = (lora_path, lora, lora_metadata)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=lora_metadata)
         return (model_lora, clip_lora)
 
 class LoraLoaderModelOnly(LoraLoader):
@@ -721,6 +722,7 @@ class LoraLoaderModelOnly(LoraLoader):
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL",)
+    DESCRIPTION = "This LoRAs loader is used to modify the diffusion model, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
     FUNCTION = "load_lora_model_only"
 
     def load_lora_model_only(self, model, lora_name, strength_model):
@@ -792,6 +794,7 @@ class VAELoader:
     #TODO: scale factor?
     def load_vae(self, vae_name):
         metadata = None
+        vae_path = None
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
@@ -810,6 +813,14 @@ class VAELoader:
                 metadata["tae_latent_channels"] = 128
         vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
+        # Register a reload factory on the patcher so multigpu deepclones
+        # (Select VAE Device, future MultiGPU VAE work-units) can produce
+        # per-device clones from the same loader context. Only set when we
+        # actually have a single backing file -- pixel_space and the
+        # image TAESDs (composed from separate encoder/decoder files via
+        # load_taesd) are not addressable by a single vae_path.
+        if vae_path is not None:
+            vae.patcher.cached_patcher_init = (comfy.sd.load_vae_patcher, (vae_path, metadata, None))
         return (vae,)
 
 class ControlNetLoader:
@@ -958,7 +969,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -968,7 +979,7 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B"
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\nlens: gpt-oss-20b"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -1221,7 +1232,7 @@ class LatentFromBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              "batch_index": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                               "length": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
     RETURN_TYPES = ("LATENT",)
@@ -1232,7 +1243,9 @@ class LatentFromBatch:
     def frombatch(self, samples, batch_index, length):
         s = samples.copy()
         s_in = samples["samples"]
-        batch_index = min(s_in.shape[0] - 1, batch_index)
+        if batch_index < 0:
+            batch_index += s_in.shape[0]
+        batch_index = max(0, min(s_in.shape[0] - 1, batch_index))
         length = min(s_in.shape[0] - batch_index, length)
         s["samples"] = s_in[batch_index:batch_index + length].clone()
         if "noise_mask" in samples:
@@ -1443,7 +1456,7 @@ class LatentBlend:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "blend"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "experimental"
 
     def blend(self, samples1, samples2, blend_factor:float, blend_mode: str="normal"):
 
@@ -1520,7 +1533,7 @@ class SetLatentNoiseMask:
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
-    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
+    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -1539,6 +1552,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
     out.pop("downscale_ratio_spacial", None)
+    out.pop("downscale_ratio_temporal", None)
     out["samples"] = samples
     return (out, )
 
@@ -1771,7 +1785,7 @@ class LoadImageMask(LoadImage):
             }
         }
 
-    CATEGORY = "mask"
+    CATEGORY = "image"
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image_mask"
 
@@ -2092,6 +2106,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StyleModelLoader": "Load Style Model",
     "CLIPVisionLoader": "Load CLIP Vision",
     "UNETLoader": "Load Diffusion Model",
+    "unCLIPCheckpointLoader": "Load unCLIP Checkpoint",
+    "GLIGENLoader": "Load GLIGEN Model",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
     "StyleModelApply": "Apply Style Model",
@@ -2140,7 +2156,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageSharpen": "Sharpen Image",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     "GetImageSize": "Get Image Size",
-    # _for_testing
+    # experimental
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
@@ -2381,6 +2397,7 @@ async def init_builtin_extra_nodes():
         "nodes_lt_audio.py",
         "nodes_lt.py",
         "nodes_hooks.py",
+        "nodes_multigpu.py",
         "nodes_load_3d.py",
         "nodes_cosmos.py",
         "nodes_video.py",
@@ -2427,9 +2444,16 @@ async def init_builtin_extra_nodes():
         "nodes_number_convert.py",
         "nodes_painter.py",
         "nodes_curve.py",
+        "nodes_bg_removal.py",
         "nodes_rtdetr.py",
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
+        "nodes_void.py",
+        "nodes_wandancer.py",
+        "nodes_hidream_o1.py",
+        "nodes_save_3d.py",
+        "nodes_moge.py",
+        "nodes_mediapipe.py",
     ]
 
     import_failed = []

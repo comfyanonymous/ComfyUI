@@ -561,7 +561,8 @@ class SAM3Model(nn.Module):
         return high_res_masks
 
     def forward_video(self, images, initial_masks, pbar=None, text_prompts=None,
-                       new_det_thresh=0.5, max_objects=0, detect_interval=1):
+                       new_det_thresh=0.5, max_objects=0, detect_interval=1,
+                       target_device=None, target_dtype=None):
         """Track video with optional per-frame text-prompted detection."""
         bb = self.detector.backbone["vision_backbone"]
 
@@ -589,8 +590,10 @@ class SAM3Model(nn.Module):
             return self.tracker.track_video_with_detection(
                 backbone_fn, images, initial_masks, detect_fn,
                 new_det_thresh=new_det_thresh, max_objects=max_objects,
-                detect_interval=detect_interval, backbone_obj=bb, pbar=pbar)
+                detect_interval=detect_interval, backbone_obj=bb, pbar=pbar,
+                target_device=target_device, target_dtype=target_dtype)
         # SAM3 (non-multiplex) — no detection support, requires initial masks
         if initial_masks is None:
             raise ValueError("SAM3 (non-multiplex) requires initial_mask for video tracking")
-        return self.tracker.track_video(backbone_fn, images, initial_masks, pbar=pbar, backbone_obj=bb)
+        return self.tracker.track_video(backbone_fn, images, initial_masks, pbar=pbar, backbone_obj=bb,
+                                         target_device=target_device, target_dtype=target_dtype)

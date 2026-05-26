@@ -26,7 +26,8 @@ class TextGenerate(io.ComfyNode):
 
         return io.Schema(
             node_id="TextGenerate",
-            category="textgen",
+            display_name="Generate Text",
+            category="text",
             search_aliases=["LLM", "gemma"],
             inputs=[
                 io.Clip.Input("clip"),
@@ -157,6 +158,7 @@ class TextGenerateLTX2Prompt(TextGenerate):
         parent_schema = super().define_schema()
         return io.Schema(
             node_id="TextGenerateLTX2Prompt",
+            display_name="Generate LTX2 Prompt",
             category=parent_schema.category,
             inputs=parent_schema.inputs,
             outputs=parent_schema.outputs,

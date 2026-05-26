@@ -42,7 +42,7 @@ class TextEncodeAceStepAudio15(IO.ComfyNode):
                 IO.Int.Input("bpm", default=120, min=10, max=300),
                 IO.Float.Input("duration", default=120.0, min=0.0, max=2000.0, step=0.1),
                 IO.Combo.Input("timesignature", options=['2', '3', '4', '6']),
-                IO.Combo.Input("language", options=["en", "ja", "zh", "es", "de", "fr", "pt", "ru", "it", "nl", "pl", "tr", "vi", "cs", "fa", "id", "ko", "uk", "hu", "ar", "sv", "ro", "el"]),
+                IO.Combo.Input("language", options=['ar', 'az', 'bg', 'bn', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es', 'fa', 'fi', 'fr', 'he', 'hi', 'hr', 'ht', 'hu', 'id', 'is', 'it', 'ja', 'ko', 'la', 'lt', 'ms', 'ne', 'nl', 'no', 'pa', 'pl', 'pt', 'ro', 'ru', 'sa', 'sk', 'sr', 'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'yue', 'zh', 'unknown'], default='en'),
                 IO.Combo.Input("keyscale", options=[f"{root} {quality}" for quality in ["major", "minor"] for root in ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"]]),
                 IO.Boolean.Input("generate_audio_codes", default=True, tooltip="Enable the LLM that generates audio codes. This can be slow but will increase the quality of the generated audio. Turn this off if you are giving the model an audio reference.", advanced=True),
                 IO.Float.Input("cfg_scale", default=2.0, min=0.0, max=100.0, step=0.1, advanced=True),
@@ -104,7 +104,7 @@ class EmptyAceStep15LatentAudio(IO.ComfyNode):
     def execute(cls, seconds, batch_size) -> IO.NodeOutput:
         length = round((seconds * 48000 / 1920))
         latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
-        return IO.NodeOutput({"samples": latent, "type": "audio"})
+        return IO.NodeOutput({"samples": latent, "type": "audio", "downscale_ratio_temporal": 1764})
 
 class ReferenceAudio(IO.ComfyNode):
     @classmethod
