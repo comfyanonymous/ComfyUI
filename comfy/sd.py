@@ -1286,7 +1286,7 @@ class CLIPType(Enum):
     LONGCAT_IMAGE = 26
     COGVIDEOX = 27
     LENS = 28
-    PIXELDIT = 28
+    PIXELDIT = 29
 
 
 
