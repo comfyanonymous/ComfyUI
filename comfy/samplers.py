@@ -993,6 +993,25 @@ class KSAMPLER(Sampler):
         noise = model_wrap.inner_model.model_sampling.noise_scaling(sigmas[0], noise, latent_image, self.max_denoise(model_wrap, sigmas))
 
         total_steps = len(sigmas) - 1
+        model_options = extra_args.get("model_options", {})
+        callback_types = comfy.patcher_extension.CallbacksMP
+        get_callbacks = comfy.patcher_extension.get_all_callbacks
+        sampler_function_name = getattr(self.sampler_function, "__name__", self.sampler_function.__class__.__name__)
+        sampler_start_callbacks = get_callbacks(callback_types.ON_SAMPLER_START, model_options, is_model_options=True)
+        sampler_step_callbacks = get_callbacks(callback_types.ON_SAMPLER_STEP, model_options, is_model_options=True)
+        sampler_end_callbacks = get_callbacks(callback_types.ON_SAMPLER_END, model_options, is_model_options=True)
+
+        if len(sampler_start_callbacks) > 0:
+            sampler_info = {
+                "total_steps": total_steps,
+                "sample_sigmas": sigmas,
+                "noise_shape": tuple(noise.shape),
+                "latent_shape": tuple(latent_image.shape) if latent_image is not None else None,
+                "sampler_function": sampler_function_name,
+            }
+            for sampler_callback in sampler_start_callbacks:
+                sampler_callback(sampler_info)
+
         first_step = True
         def k_callback(x):
             nonlocal first_step
@@ -1001,9 +1020,36 @@ class KSAMPLER(Sampler):
                 first_step = False
             if callback is not None:
                 callback(x["i"], x["denoised"], x["x"], total_steps)
+            if len(sampler_step_callbacks) == 0:
+                return
+
+            step = x["i"]
+            sigma_next = sigmas[step + 1] if step + 1 < len(sigmas) else None
+            sampler_info = {
+                "step": step,
+                "total_steps": total_steps,
+                "sigma": x.get("sigma", sigmas[step] if step < len(sigmas) else None),
+                "sigma_next": sigma_next,
+                "sigma_hat": x.get("sigma_hat", None),
+                "sample_sigmas": sigmas,
+                "x_shape": tuple(x["x"].shape) if "x" in x else None,
+                "denoised_shape": tuple(x["denoised"].shape) if "denoised" in x else None,
+                "sampler_function": sampler_function_name,
+            }
+            for sampler_callback in sampler_step_callbacks:
+                sampler_callback(sampler_info)
 
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
         samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
+        if len(sampler_end_callbacks) > 0:
+            sampler_info = {
+                "total_steps": total_steps,
+                "sample_sigmas": sigmas,
+                "samples_shape": tuple(samples.shape),
+                "sampler_function": sampler_function_name,
+            }
+            for sampler_callback in sampler_end_callbacks:
+                sampler_callback(sampler_info)
         return samples
 
 
