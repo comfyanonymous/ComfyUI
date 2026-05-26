@@ -44,7 +44,13 @@ def fix_empty_latent_channels(model, latent_image, downscale_ratio_spacial=None,
     is_empty = torch.count_nonzero(latent_image) == 0
     if is_empty:
         if latent_format.latent_channels != latent_image.shape[1]:
-            latent_image = comfy.utils.repeat_to_batch_size(latent_image, latent_format.latent_channels, dim=1)
+            preserves_collapsed_channels = (
+                getattr(latent_format, "preserve_empty_channel_multiples", False)
+                and latent_image.ndim == 4
+                and latent_image.shape[1] % latent_format.latent_channels == 0
+            )
+            if not preserves_collapsed_channels:
+                latent_image = comfy.utils.repeat_to_batch_size(latent_image, latent_format.latent_channels, dim=1)
         if downscale_ratio_spacial is not None:
             if downscale_ratio_spacial != latent_format.spacial_downscale_ratio:
                 ratio = downscale_ratio_spacial / latent_format.spacial_downscale_ratio
