@@ -10,16 +10,6 @@ def apply_adaln_(x, shift, scale):
     return x.addcmul_(x, scale).add_(shift)
 
 
-_POS_CACHE_MAX = 16
-
-
-def _cache_set(cache, key, value):
-    """Set with a soft LRU cap — evicts the oldest entry if at capacity."""
-    if len(cache) >= _POS_CACHE_MAX:
-        del cache[next(iter(cache))]
-    cache[key] = value
-
-
 def precompute_freqs_cis_2d(dim, height, width, theta=10000.0, scale=16.0, device=None, dtype=torch.float32):
     """2D RoPE with x/y axis frequencies interleaved at stride 2 across head dim.
 
@@ -119,15 +109,6 @@ class PixelTokenEmbedder(nn.Module):
         self.hidden_size_output = hidden_size_output
         self.use_pixel_abs_pos = bool(use_pixel_abs_pos)
         self.proj = operations.Linear(self.in_channels, self.hidden_size_output, bias=True, dtype=dtype, device=device)
-        self._pos_cache = {}
-
-    def _fetch_pixel_pos(self, height, width, device, dtype):
-        key = (height, width)
-        pe = self._pos_cache.get(key)
-        if pe is None:
-            pe = get_2d_sincos_pos_embed(self.hidden_size_output, height, width)
-            _cache_set(self._pos_cache, key, pe)
-        return pe.to(device=device, dtype=dtype)
 
     def forward(self, inputs, patch_size):
         B, _, H, W = inputs.shape
@@ -136,8 +117,7 @@ class PixelTokenEmbedder(nn.Module):
         x = inputs.permute(0, 2, 3, 1).contiguous()
         x = self.proj(x)
         if self.use_pixel_abs_pos:
-            pos_full = self._fetch_pixel_pos(H, W, x.device, x.dtype)
-            pos_full = pos_full.view(H, W, self.hidden_size_output)
+            pos_full = get_2d_sincos_pos_embed(self.hidden_size_output, H, W, device=x.device, dtype=x.dtype).view(H, W, self.hidden_size_output)
             x = x + pos_full.unsqueeze(0)
         x = x.view(B, Hs, patch_size, Ws, patch_size, self.hidden_size_output)
         x = x.permute(0, 1, 3, 2, 4, 5).contiguous()
@@ -171,17 +151,11 @@ class PiTBlock(nn.Module):
                        dtype=dtype, device=device, operations=operations)
         self.adaLN_modulation_msa = operations.Linear(self.context_dim, 3 * self.pixel_dim * p2, bias=True, dtype=dtype, device=device)
         self.adaLN_modulation_mlp = operations.Linear(self.context_dim, 3 * self.pixel_dim * p2, bias=True, dtype=dtype, device=device)
-        self._pos_cache = {}
         self._rope_fn = rope_fn if rope_fn is not None else precompute_freqs_cis_2d
         self.mlp_chunks = max(1, int(mlp_chunks))
 
     def _fetch_pos(self, height, width, device, dtype):
-        key = (height, width)
-        pos = self._pos_cache.get(key)
-        if pos is None:
-            pos = self._rope_fn(self.attn_dim // self.num_heads, height, width)
-            _cache_set(self._pos_cache, key, pos)
-        return pos.to(device=device, dtype=dtype)
+        return self._rope_fn(self.attn_dim // self.num_heads, height, width, device=device, dtype=dtype)
 
     def forward(self, x, s_cond, image_height, image_width, patch_size, mask=None, transformer_options={}):
         BL, P2, _ = x.shape

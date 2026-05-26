@@ -13,7 +13,6 @@ from .modules import (
     PatchTokenEmbedder,
     PiTBlock,
     PixelTokenEmbedder,
-    _cache_set,
     apply_adaln_,
     precompute_freqs_cis_2d,
 )
@@ -203,23 +202,11 @@ class PixDiT_T2I(nn.Module):
         self.final_layer = FinalLayer(self.pixel_hidden_size, self.out_channels,
                                       dtype=dtype, device=device, operations=operations)
 
-        self._patch_pos_cache = {}
-        self._text_pos_cache = {}
-
     def _fetch_patch_pos(self, height, width, device, dtype):
-        key = (height, width)
-        pos = self._patch_pos_cache.get(key)
-        if pos is None:
-            pos = precompute_freqs_cis_2d(self.hidden_size // self.num_groups, height, width)
-            _cache_set(self._patch_pos_cache, key, pos)
-        return pos.to(device=device, dtype=dtype)
+        return precompute_freqs_cis_2d(self.hidden_size // self.num_groups, height, width, device=device, dtype=dtype)
 
     def _fetch_text_pos(self, length, device, dtype):
-        pos = self._text_pos_cache.get(length)
-        if pos is None:
-            pos = rope(torch.arange(length, dtype=torch.float32).reshape(1, -1), self.hidden_size // self.num_groups, self.text_rope_theta).squeeze(0)
-            _cache_set(self._text_pos_cache, length, pos)
-        return pos.to(device=device, dtype=dtype)
+        return rope(torch.arange(length, dtype=torch.float32, device=device).reshape(1, -1), self.hidden_size // self.num_groups, self.text_rope_theta).squeeze(0).to(dtype=dtype)
 
     def forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
