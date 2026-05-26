@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import comfy.ldm.common_dit
 import comfy.patcher_extension
 from comfy.ldm.flux.math import apply_rope, rope
 from comfy.ldm.hidream.model import FeedForwardSwiGLU
@@ -197,6 +198,8 @@ class PixDiT_T2I(nn.Module):
         return s
 
     def _forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, **kwargs):
+        H_orig, W_orig = x.shape[2], x.shape[3]
+        x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
         B, _, H, W = x.shape
         Hs = H // self.patch_size
         Ws = W // self.patch_size
@@ -232,4 +235,5 @@ class PixDiT_T2I(nn.Module):
         C_out = self.out_channels
         P2 = self.patch_size * self.patch_size
         x_pixels = x_pixels.view(B, L, P2, C_out).permute(0, 3, 2, 1).reshape(B, C_out * P2, L)
-        return F.fold(x_pixels, (H, W), kernel_size=self.patch_size, stride=self.patch_size)
+        out = F.fold(x_pixels, (H, W), kernel_size=self.patch_size, stride=self.patch_size)
+        return out[:, :, :H_orig, :W_orig]
