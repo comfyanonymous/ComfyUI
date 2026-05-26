@@ -133,7 +133,7 @@ class LQProjection2D(nn.Module):
     def forward(self, lq_latent: torch.Tensor, target_pH: int, target_pW: int) -> List[torch.Tensor]:
         feat = self._align_latent_to_patch_grid(lq_latent, target_pH, target_pW)
         B, C, H, W = feat.shape
-        tokens = feat.permute(0, 2, 3, 1).reshape(B, H * W, C)
+        tokens = feat.permute(0, 2, 3, 1).contiguous().view(B, H * W, C)
         return [head(tokens) for head in self.output_heads]
 
 
