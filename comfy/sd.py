@@ -1531,7 +1531,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.GEMMA_2_2B:
             if clip_type == CLIPType.PIXELDIT:
-                clip_target.clip = comfy.text_encoders.pixeldit.PixelDiTGemma2TE
+                clip_target.clip = comfy.text_encoders.pixeldit.pixeldit_te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.pixeldit.PixelDiTGemma2Tokenizer
             else:
                 clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))

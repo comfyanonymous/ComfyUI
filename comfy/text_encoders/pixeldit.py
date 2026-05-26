@@ -11,6 +11,11 @@ class PixelDiTGemma2_2BModel(sd1_clip.SDClipModel):
     Uses the FINAL hidden state (layer='last')
     """
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
+            model_options = model_options.copy()
+            model_options["quantization_metadata"] = llama_quantization_metadata
+
         super().__init__(
             device=device, layer=layer, layer_idx=layer_idx,
             textmodel_json_config={}, dtype=dtype,
@@ -120,3 +125,15 @@ class PixelDiTGemma2TE(LuminaModel):
         if extra is not None:
             return cond, pooled, extra
         return cond, pooled
+
+
+def pixeldit_te(dtype_llama=None, llama_quantization_metadata=None):
+    class PixelDiTTE_(PixelDiTGemma2TE):
+        def __init__(self, device="cpu", dtype=None, model_options={}):
+            if llama_quantization_metadata is not None:
+                model_options = model_options.copy()
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
+            if dtype_llama is not None:
+                dtype = dtype_llama
+            super().__init__(device=device, dtype=dtype, model_options=model_options)
+    return PixelDiTTE_
