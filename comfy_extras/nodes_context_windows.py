@@ -1,4 +1,3 @@
-from __future__ import annotations
 from comfy_api.latest import ComfyExtension, io
 import comfy.context_windows
 import nodes

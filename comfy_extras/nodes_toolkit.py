@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 

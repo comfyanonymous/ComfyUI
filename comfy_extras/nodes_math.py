@@ -4,7 +4,6 @@ Provides a ComfyMathExpression node that evaluates math expressions
 against dynamically-grown numeric inputs.
 """
 
-from __future__ import annotations
 
 import math
 import string
