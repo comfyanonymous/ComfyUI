@@ -78,7 +78,7 @@ class LoadMoGeModel(io.ComfyNode):
         return io.Schema(
             node_id="LoadMoGeModel",
             display_name="Load MoGe Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input("model_name", options=folder_paths.get_filename_list("geometry_estimation")),
             ],

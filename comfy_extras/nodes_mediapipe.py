@@ -205,7 +205,7 @@ class LoadMediaPipeFaceLandmarker(io.ComfyNode):
             node_id="LoadMediaPipeFaceLandmarker",
             search_aliases=["face", "facial", "mediapipe", "face landmark", "face mesh", "blazeface", "face detection"],
             display_name="Load Face Detection Model (MediaPipe)",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input("model_name", options=folder_paths.get_filename_list("detection"),
                                tooltip="Face detection model from models/detection/."),
