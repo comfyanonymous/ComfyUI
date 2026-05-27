@@ -49,6 +49,7 @@ import comfy.text_encoders.lt
 import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
+import comfy.text_encoders.pixeldit
 import comfy.text_encoders.wan
 import comfy.text_encoders.hidream
 import comfy.text_encoders.ace
@@ -1285,6 +1286,7 @@ class CLIPType(Enum):
     LONGCAT_IMAGE = 26
     COGVIDEOX = 27
     LENS = 28
+    PIXELDIT = 29
 
 
 
@@ -1528,8 +1530,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.tokenizer = variant.tokenizer
             tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.GEMMA_2_2B:
-            clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
-            clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
+            if clip_type == CLIPType.PIXELDIT:
+                clip_target.clip = comfy.text_encoders.pixeldit.pixeldit_te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.pixeldit.PixelDiTGemma2Tokenizer
+            else:
+                clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.GEMMA_3_4B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data), model_type="gemma3_4b")

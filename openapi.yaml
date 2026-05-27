@@ -275,7 +275,10 @@ paths:
       responses:
         "200":
           description: Queue updated
-
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueManageResponse"
         '400':
           description: Invalid request parameters
           content:
@@ -3092,18 +3095,34 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - asset_ids
               properties:
+                job_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: Job IDs whose associated assets should all be included in the ZIP bundle.
                 asset_ids:
                   type: array
                   items:
                     type: string
                     format: uuid
-                  description: IDs of assets to export
+                  description: Asset IDs to include in the ZIP bundle. Additive to assets associated with provided job IDs.
                 export_name:
                   type: string
                   description: Name for the export archive
+                naming_strategy:
+                  type: string
+                  enum: [group_by_job_id, preserve, asset_id, group_by_job_time]
+                  default: group_by_job_time
+                  description: "Strategy for naming files in the ZIP: group by job ID, preserve original names, use the asset ID, or group by job creation time."
+                job_asset_name_filters:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: string
+                  description: Optional per-job asset name filters. When provided for a job ID, only assets whose name matches one of the listed names are included.
       responses:
         "202":
           description: Export task accepted
@@ -3575,10 +3594,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/HubLabel"
-
+                $ref: "#/components/schemas/HubLabelListResponse"
         '400':
           description: Bad request (e.g. invalid type parameter)
           content:
@@ -7466,6 +7482,25 @@ components:
             type: string
           description: Array of prompt IDs to delete from queue
 
+    QueueManageResponse:
+      type: object
+      x-runtime: [cloud]
+      description: >-
+        [cloud-only] Result of a queue mutation. The Cloud runtime returns which
+        items were deleted and whether the queue was cleared; local ComfyUI
+        returns an empty 200 body.
+      properties:
+        deleted:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Prompt IDs that were deleted from the queue.
+        cleared:
+          type: boolean
+          nullable: true
+          description: Whether the queue was cleared.
+
     # -------------------------------------------------------------------
     # History
     # -------------------------------------------------------------------
@@ -7546,6 +7581,16 @@ components:
         outputs_count:
           type: integer
           description: Total number of output files
+        workflow_id:
+          type: string
+          nullable: true
+          x-runtime: [cloud]
+          description: "[cloud-only] UUID of the Cloud workflow entity this job is associated with. Local ComfyUI returns null."
+        execution_error:
+          x-runtime: [cloud]
+          description: "[cloud-only] Detailed execution error from ComfyUI for failed jobs. Absent on local ComfyUI."
+          allOf:
+            - $ref: "#/components/schemas/ExecutionError"
 
     JobDetailResponse:
       type: object
@@ -10432,6 +10477,19 @@ components:
           - model
           - custom_node
           description: Label category.
+
+    HubLabelListResponse:
+      type: object
+      x-runtime: [cloud]
+      description: '[cloud-only] Response wrapper for the available Hub label catalog.'
+      required:
+      - labels
+      properties:
+        labels:
+          type: array
+          items:
+            $ref: '#/components/schemas/HubLabelInfo'
+          description: Available labels, optionally filtered by type.
 
     HubProfileSummary:
       type: object

@@ -463,6 +463,23 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
+    # PiD (Pixel Diffusion Decoder). Must check BEFORE plain PixelDiT_T2I.
+    _lq_w_key = '{}lq_proj.latent_proj.0.weight'.format(key_prefix)
+    if _lq_w_key in state_dict_keys:
+        in_ch = int(state_dict[_lq_w_key].shape[1])
+        _gate_prefix = '{}lq_proj.gate_modules.'.format(key_prefix)
+        num_gates = len({k[len(_gate_prefix):].split('.')[0]
+                         for k in state_dict_keys if k.startswith(_gate_prefix)})
+        dit_config = {"image_model": "pid",
+                      "lq_latent_channels": in_ch,
+                      "latent_spatial_down_factor": 16 if in_ch >= 64 else 8}
+        if num_gates > 0:
+            dit_config["lq_interval"] = (14 + num_gates - 1) // num_gates
+        return dit_config
+
+    if '{}core.pixel_embedder.proj.weight'.format(key_prefix) in state_dict_keys:  # PixelDiT T2I
+        return {"image_model": "pixeldit_t2i"}
+
     if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
         dit_config["image_model"] = "lumina2"
