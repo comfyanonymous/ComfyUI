@@ -1,4 +1,3 @@
-from __future__ import annotations
 import torch
 
 
@@ -795,6 +794,7 @@ class VAELoader:
     #TODO: scale factor?
     def load_vae(self, vae_name):
         metadata = None
+        vae_path = None
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
@@ -813,6 +813,14 @@ class VAELoader:
                 metadata["tae_latent_channels"] = 128
         vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
+        # Register a reload factory on the patcher so multigpu deepclones
+        # (Select VAE Device, future MultiGPU VAE work-units) can produce
+        # per-device clones from the same loader context. Only set when we
+        # actually have a single backing file -- pixel_space and the
+        # image TAESDs (composed from separate encoder/decoder files via
+        # load_taesd) are not addressable by a single vae_path.
+        if vae_path is not None:
+            vae.patcher.cached_patcher_init = (comfy.sd.load_vae_patcher, (vae_path, metadata, None))
         return (vae,)
 
 class ControlNetLoader:
@@ -961,7 +969,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -971,7 +979,7 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B"
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\nlens: gpt-oss-20b\n pixeldit: gemma 2 2B elm"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -2389,6 +2397,7 @@ async def init_builtin_extra_nodes():
         "nodes_lt_audio.py",
         "nodes_lt.py",
         "nodes_hooks.py",
+        "nodes_multigpu.py",
         "nodes_load_3d.py",
         "nodes_cosmos.py",
         "nodes_video.py",
@@ -2411,6 +2420,7 @@ async def init_builtin_extra_nodes():
         "nodes_context_windows.py",
         "nodes_qwen.py",
         "nodes_chroma_radiance.py",
+        "nodes_pid.py",
         "nodes_model_patch.py",
         "nodes_easycache.py",
         "nodes_audio_encoder.py",

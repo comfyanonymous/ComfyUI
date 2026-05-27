@@ -1,4 +1,3 @@
-from __future__ import annotations
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from fractions import Fraction

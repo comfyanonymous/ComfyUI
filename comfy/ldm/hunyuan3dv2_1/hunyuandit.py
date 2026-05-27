@@ -607,9 +607,13 @@ class HunYuanDiTPlain(nn.Module):
     def forward(self, x, t, context, transformer_options = {}, **kwargs):
 
         x = x.movedim(-1, -2)
-        if context.shape[0] >= 2:
-            uncond_emb, cond_emb = context.chunk(2, dim = 0)
-            context = torch.cat([cond_emb, uncond_emb], dim = 0)
+
+        swap_cfg_halves = context.shape[0] >= 2
+
+        if swap_cfg_halves:
+            first_half, second_half = context.chunk(2, dim = 0)
+            context = torch.cat([second_half, first_half], dim = 0)
+
         main_condition = context
 
         t = 1.0 - t
@@ -657,8 +661,8 @@ class HunYuanDiTPlain(nn.Module):
         output = self.final_layer(combined)
         output =  output.movedim(-2, -1) * (-1.0)
 
-        if output.shape[0] >= 2:
-            cond_emb, uncond_emb = output.chunk(2, dim = 0)
-            return torch.cat([uncond_emb, cond_emb])
-        else:
-            return output
+        if swap_cfg_halves:
+            first_half, second_half = output.chunk(2, dim = 0)
+            output = torch.cat([second_half, first_half], dim = 0)
+
+        return output

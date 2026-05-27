@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from __future__ import annotations
 import comfy.memory_management
 import comfy.utils
 import comfy.model_management

@@ -10,7 +10,6 @@ Custom IO types:
 MediaPipeFaceLandmarker also emits the core BOUNDING_BOX type — pair with DrawBBoxes.
 """
 
-from __future__ import annotations
 
 import numpy as np
 import torch

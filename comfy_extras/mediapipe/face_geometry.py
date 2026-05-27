@@ -2,7 +2,6 @@
 + weighted Procrustes solver. Computes the 4x4 facial transformation matrix.
 """
 
-from __future__ import annotations
 
 import math
 import numpy as np

@@ -4,7 +4,6 @@ Provides a single node that converts INT, FLOAT, STRING, and BOOL
 inputs into FLOAT and INT outputs.
 """
 
-from __future__ import annotations
 
 import math
 
