@@ -574,7 +574,7 @@ class TextProcessingNode(io.ComfyNode):
         return io.Schema(
             node_id=cls.node_id,
             display_name=cls.display_name or cls.node_id,
-            category="dataset/text",
+            category="text",
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
