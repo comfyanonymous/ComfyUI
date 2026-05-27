@@ -78,12 +78,8 @@ def _build_specs_from_pose(
                 return rgb
             return rgb * (1.0 - pastel) + pastel
 
-        # SCAIL drops the 4 face bones (13..16: nose↔eyes, eyes→ears) — in the
-        # reference, NLF leaves those COCO slots at zero so its `sum==0` skip
-        # silently culls them. The grey neck limb (12) blends spine direction
-        # (mid-hip → neck, stable) with the neck→nose direction at 60/40 so
-        # the stub tracks head pose lightly without flapping around like full
-        # nose direction does.
+        # SCAIL skips face bones (13..16) and redirects limb 12 into a short
+        # head stub blending spine + neck→nose direction.
         body_limb_count = 13 if palette == "scail" else len(OPENPOSE_18_PAIRS)
         body_kp = kp_cam[OPENPOSE18_TO_MHR70]
         spine_dir = None
@@ -302,10 +298,7 @@ def _render_capsules_torch(
         normals = normals / normals.norm(dim=-1, keepdim=True).clamp(min=1e-8)
 
         col = colors[m_h, :3]
-        # SCAIL shading (render_torch.py:290-331). Light from camera (+Z toward
-        # subject); diffuse term `N·-L` simplifies to `-N.z`. Specular uses the
-        # proper Blinn-Phong half-vector `(view + (-L))` — using `diff` as a
-        # shortcut would lock the highlight to image center.
+        # SCAIL Blinn-Phong (render_torch.py:290-331). Headlight: light = +Z.
         diff = torch.clamp(-(normals[:, 2]), min=0.0)
         diffuse = 0.45 + 0.55 * diff
 
@@ -315,9 +308,7 @@ def _render_capsules_torch(
         half_dir = half_dir / half_dir.norm(dim=-1, keepdim=True).clamp(min=1e-8)
         spec = torch.clamp((normals * half_dir).sum(dim=-1), min=0.0).pow(32)
 
-        # SCAIL's reference depth fade uses mm-scale constants (`z_max + 6000`)
-        # that translate to almost no fade in our meter units — `depth_factor`
-        # stays ~0.85-1.0. Matching that with a mild ramp.
+        # Mild depth fade matches SCAIL's mm-scale ramp in our meter units.
         z_vals = p_hit[:, 2]
         z_lo, z_hi = float(z_vals.min().item()), float(z_vals.max().item())
         if z_hi - z_lo > 1e-6:

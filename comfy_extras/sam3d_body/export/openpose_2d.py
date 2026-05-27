@@ -128,11 +128,8 @@ def render_pose_data_openpose(
     `composite='over'` paints over `background` (else black canvas).
     `hand_marker_radius_px` / `hand_stick_width_px`: 0 = auto = 0.7x / 0.5x
     of the body sizes.
-    `face_style`: 'disabled' = no face dots, 'full' = all face landmarks
-    (prefers sapiens-238 if present, else rig-fallback ~30), 'eyes_mouth' =
-    rig-fallback subset (~12 dots: eyes + mouth only). The subset only has a
-    documented layout for the rig fallback so eyes_mouth always uses it,
-    regardless of whether sapiens-238 is available.
+    `face_style`: 'disabled' / 'full' / 'eyes_mouth'. eyes_mouth falls through
+    to the rig fallback since sapiens-238 has no documented subset.
     `person_brightness_falloff` mixes each person's drawn pixels toward white
     by `1 - falloff^k` (track 0 stays vivid). Applied post-draw so per-limb
     alpha blending against the existing canvas remains correct.
@@ -154,15 +151,11 @@ def render_pose_data_openpose(
     if int(hand_stick_width_px) <= 0:
         hand_stick_width_px = max(1, int(round(stick_width_px * 0.5)))
 
-    # Eyes+mouth indices into the rig fallback (FACE_LANDMARK_TARGETS): 6..13
-    # = both eyes, 19..22 = outer-lip ring. Brows/nose/chin/jaw are dropped.
     _EYES_MOUTH_IDX = np.array([6, 7, 8, 9, 10, 11, 12, 13, 19, 20, 21, 22], dtype=np.int64)
 
     include_face = face_style != "disabled"
     use_rig_only = face_style == "eyes_mouth"
 
-    # Real 238 sapiens face KPs take priority for 'full'; 'eyes_mouth' always
-    # falls through to the rig path since sapiens has no documented subset.
     face_vert_ids: Optional[np.ndarray] = None
     if include_face:
         any_real = (not use_rig_only) and any(
