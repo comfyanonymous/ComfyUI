@@ -1428,6 +1428,23 @@ class PiD(PixelDiTT2I):
             out["degrade_sigma"] = comfy.conds.CONDRegular(degrade_sigma)
         return out
 
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "lq_latent" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
+            lq = cond_value.cond
+            dim = window.dim
+            if dim >= lq.ndim:
+                return None
+            lq_proj = self.diffusion_model.lq_proj
+            ratio = lq_proj.sr_scale * lq_proj.latent_spatial_down_factor
+            # Map x window indices -> lq indices (deduplicated, sorted, in-bounds).
+            lq_size = lq.size(dim)
+            lq_indices = sorted({i // ratio for i in window.index_list if 0 <= i // ratio < lq_size})
+            if not lq_indices:
+                return None
+            idx = tuple([slice(None)] * dim + [lq_indices])
+            return cond_value._copy_with(lq[idx].to(device))
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
 
 class WAN21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
