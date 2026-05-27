@@ -17,6 +17,7 @@ import folder_paths
 from comfy.ldm.sam3d_body.model.model import SAM3DBody
 from comfy.ldm.sam3d_body.model.dinov3 import apply_dinov3_qkv_bias_mask
 from comfy_extras.sam3d_body.utils import (
+        apply_camera_override,
         cam_int_from_fov,
         cam_int_from_moge,
         inputs_from_sam3_track,
@@ -99,6 +100,32 @@ class SAM3DBody_Loader(io.ComfyNode):
 
 # Predict
 
+def _per_frame_bboxes_from_detections(bboxes, B: int):
+    # BoundingBox payload (RT-DETR etc.): dict | list[dict] | list[list[dict]].
+    if isinstance(bboxes, dict):
+        norm = [[bboxes]]
+    elif not bboxes:
+        return None
+    elif isinstance(bboxes[0], dict):
+        norm = [bboxes]  # flat list → same detections every frame
+    else:
+        norm = list(bboxes)
+    if len(norm) == 1:
+        norm = norm * B
+    norm = (norm + [[]] * B)[:B]
+    out = []
+    for frame in norm:
+        if frame:
+            boxes = torch.tensor(
+                [[d["x"], d["y"], d["x"] + d["width"], d["y"] + d["height"]] for d in frame],
+                dtype=torch.float32,
+            )
+        else:
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+        out.append(boxes)
+    return out
+
+
 class SAM3DBody_Predict(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -112,6 +139,14 @@ class SAM3DBody_Predict(io.ComfyNode):
                 SAM3TrackData.Input(
                     "sam3_track_data", optional=True,
                     tooltip=("Output of SAM3 Video Track, required for multi-person detection"),
+                ),
+                io.BoundingBox.Input(
+                    "bboxes", optional=True, force_input=True,
+                    tooltip=(
+                        "Per-frame person boxes (e.g. RT-DETR Detect with class_name='person'). "
+                        "Used when no SAM3 track is wired — gives the top-down model a tight, "
+                        "person-centered crop. Multi-person supported (one box = one person)."
+                    ),
                 ),
                 io.Boolean.Input(
                     "run_hand_refinement", default=True,
@@ -146,19 +181,22 @@ class SAM3DBody_Predict(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, sam3d_body_model, image, sam3_track_data=None, run_hand_refinement=True, fov_degrees=0.0, moge_geometry=None, chunk_size=144) -> io.NodeOutput:
+    def execute(cls, sam3d_body_model, image, sam3_track_data=None, bboxes=None, run_hand_refinement=True, fov_degrees=0.0, moge_geometry=None, chunk_size=64) -> io.NodeOutput:
         comfy.model_management.load_model_gpu(sam3d_body_model)
         inner: SAM3DBody = sam3d_body_model.model
 
         B, H, W, _ = image.shape
         image_size = getattr(inner, "_sam3d_image_size", (512, 512))
 
+        # Precedence: SAM3 track (masks + boxes) > detector boxes > full-frame fallback.
         per_frame_bboxes, per_frame_masks = (None, None)
         if sam3_track_data is not None:
             per_frame_bboxes, per_frame_masks = inputs_from_sam3_track(sam3_track_data, B, H, W)
+        if per_frame_bboxes is None and bboxes:
+            per_frame_bboxes = _per_frame_bboxes_from_detections(bboxes, B)
+            per_frame_masks = None
         if per_frame_bboxes is None:
-            # No track wired (or empty / frame count mismatch) — single-person
-            # full-frame fallback. Multi-person scenes need SAM3 Video Track.
+            # No track or detector boxes — single-person full-frame fallback.
             full_frame_bbox = torch.tensor([[0.0, 0.0, float(W), float(H)]], dtype=torch.float32)
             per_frame_bboxes = [full_frame_bbox.clone() for _ in range(B)]
             per_frame_masks = None
@@ -711,6 +749,26 @@ def _render_capsules_mode_inputs():
     ]
 
 
+def _render_openpose3d_mode_inputs():
+    return [
+        io.Float.Input(
+            "radius_m", default=0.015, min=0.004, max=0.1, step=0.001,
+            tooltip="Limb capsule radius in meters (thin = stick-like).",
+        ),
+        io.Boolean.Input(
+            "include_hands", default=True,
+            tooltip="Draw 21+21 hand keypoints as 3D capsules.",
+        ),
+        io.Float.Input(
+            "person_palette_falloff", default=0.6, min=0.1, max=1.0, step=0.05,
+            tooltip=(
+                "Per-person desaturation: track k blends toward white by "
+                "1 - falloff^k. Track 0 stays vivid; 1.0 disables falloff."
+            ),
+        ),
+    ]
+
+
 def _render_openpose_mode_inputs():
     return [
         io.Int.Input(
@@ -755,15 +813,8 @@ def _render_openpose_mode_inputs():
 
 
 def _scale_pose_data(mhr_pose_data: Dict[str, Any], new_H: int, new_W: int) -> Dict[str, Any]:
-    """Rescale per-person camera intrinsics + 2D coords to a new canvas size.
-    Pose data records focal_length in pixels of the original image; without
-    scaling, the FOV would change and subjects would be cropped/zoomed.
-
-    When the new aspect differs from the original, the body (3D-projected
-    through focal_length on a centered principal point) lands in a
-    letterboxed region of the new canvas. 2D-prestored coords must follow
-    the same uniform scale + center offset so face/hand overlays align with
-    the body — per-axis stretching would split them apart."""
+    # 2D coords must match the body's letterbox transform (uniform scale +
+    # center offset), else face/hand overlays drift off the body.
     old_H, old_W = mhr_pose_data["image_size"]
     if new_H == old_H and new_W == old_W:
         return mhr_pose_data
@@ -831,20 +882,38 @@ class SAM3DBody_Render(io.ComfyNode):
                         "other is derived preserving the original aspect."
                     ),
                 ),
+                io.Load3DCamera.Input(
+                    "camera_info", optional=True,
+                    tooltip=(
+                        "Free 6DOF camera override. When wired, the pose is re-projected through this camera "
+                        "(position/target/zoom) instead of the predicted one. "
+                    ),
+                ),
+                io.Float.Input(
+                    "camera_fov", default=0.0, min=0.0, max=170.0, step=0.5, advanced=True,
+                    tooltip=(
+                        "Vertical FOV for the camera_info override. 0 = keep the SAM3D "
+                        "predicted camera's FOV (only the viewpoint changes). Any non-zero "
+                        "value overrides the lens. Ignored when camera_info is unwired."
+                    ),
+                ),
                 io.DynamicCombo.Input(
                     "render_style",
                     options=[
                         io.DynamicCombo.Option("mesh", _render_mesh_mode_inputs()),
                         io.DynamicCombo.Option("silhouette", []),
-                        io.DynamicCombo.Option("openpose", _render_openpose_mode_inputs()),
+                        io.DynamicCombo.Option("openpose_2d", _render_openpose_mode_inputs()),
+                        io.DynamicCombo.Option("openpose_3d", _render_openpose3d_mode_inputs()),
                         io.DynamicCombo.Option("scail", _render_capsules_mode_inputs()),
                     ],
                     tooltip=(
                         "'mesh' = 3D MHR mesh rasterized through the camera. "
                         "'silhouette' = binary mask of the mesh (white-on-black, "
-                        "background ignored). 'openpose' = flat 2D skeleton "
-                        "from pred_keypoints_2d (DWPose look). 'scail' = SCAIL "
-                        "3D capsules via torch SDF ray-march (proper occlusion / depth)."
+                        "background ignored). 'openpose_2d' = flat 2D skeleton "
+                        "from pred_keypoints_2d (DWPose look, ControlNet-ready). "
+                        "'openpose_3d' = same skeleton as flat-shaded 3D capsules "
+                        "(camera-aware, proper depth). 'scail' = SCAIL 3D capsules "
+                        "via torch SDF ray-march (proper occlusion / depth)."
                     ),
                 ),
             ],
@@ -853,7 +922,7 @@ class SAM3DBody_Render(io.ComfyNode):
 
 
     @classmethod
-    def execute(cls, mhr_pose_data, background=None, width=0, height=0, render_style=None) -> io.NodeOutput:
+    def execute(cls, mhr_pose_data, background=None, width=0, height=0, camera_info=None, camera_fov=0.0, render_style=None) -> io.NodeOutput:
         render_style = render_style or {"render_style": "mesh"}
         mode_key = render_style.get("render_style", "mesh")
 
@@ -869,9 +938,10 @@ class SAM3DBody_Render(io.ComfyNode):
                 new_H = max(1, round(native_H * new_W / native_W))
             mhr_pose_data = _scale_pose_data(mhr_pose_data, new_H, new_W)
             H, W = new_H, new_W
-            # Marker/stick px constants are authored for native resolution —
-            # scale them so the openpose overlay reads at the same relative size.
             px_scale = min(new_W / native_W, new_H / native_H)
+
+        if camera_info is not None:
+            mhr_pose_data = apply_camera_override(mhr_pose_data, camera_info, H, W, fov_deg=float(camera_fov))
 
         B = len(mhr_pose_data["frames"])
         if B == 0:
@@ -880,6 +950,8 @@ class SAM3DBody_Render(io.ComfyNode):
         out_device = comfy.model_management.intermediate_device()
         bg_t = None if background is None else background.to(device=out_device, dtype=torch.float32)
 
+        if bg_t is not None and tuple(bg_t.shape[1:3]) != (H, W): # Match the background to the render resolution
+            bg_t = comfy.utils.common_upscale(bg_t.movedim(-1, 1), W, H, "bilinear", "disabled").movedim(1, -1)
 
         if mode_key == "silhouette":
             composite = "silhouette"
@@ -888,7 +960,7 @@ class SAM3DBody_Render(io.ComfyNode):
         else:
             composite = "mesh_only"
 
-        if mode_key == "openpose":
+        if mode_key == "openpose_2d":
             marker_radius_px = max(1, int(round(render_style.get("marker_radius_px", 4) * px_scale)))
             stick_width_px = max(1, int(round(render_style.get("stick_width_px", 4) * px_scale)))
             limb_alpha = float(render_style.get("limb_alpha", 0.6))
@@ -896,6 +968,10 @@ class SAM3DBody_Render(io.ComfyNode):
             hand_style = str(render_style.get("hand_style", "disabled"))
             include_hands = hand_style != "disabled"
             hand_color_style = hand_style if include_hands else "dwpose"
+            person_palette_falloff = float(render_style.get("person_palette_falloff", 0.6))
+        elif mode_key == "openpose_3d":
+            op3d_radius_m = float(render_style.get("radius_m", 0.015))
+            op3d_include_hands = bool(render_style.get("include_hands", True))
             person_palette_falloff = float(render_style.get("person_palette_falloff", 0.6))
         elif mode_key == "scail":
             cap_radius_m = float(render_style.get("radius_m", 0.030))
@@ -931,7 +1007,8 @@ class SAM3DBody_Render(io.ComfyNode):
         frames_out = []
         pbar = comfy.utils.ProgressBar(B)
         desc = (
-            "SAM3D openpose-2D render" if mode_key == "openpose"
+            "SAM3D openpose-2D render" if mode_key == "openpose_2d"
+            else "SAM3D openpose-3D render" if mode_key == "openpose_3d"
             else "SAM3D SCAIL-3D render" if mode_key == "scail"
             else "SAM3D silhouette" if mode_key == "silhouette"
             else "SAM3D render"
@@ -940,7 +1017,7 @@ class SAM3DBody_Render(io.ComfyNode):
             bg_f = None
             if bg_t is not None:
                 bg_f = bg_t[min(f, bg_t.shape[0] - 1)]
-            if mode_key == "openpose":
+            if mode_key == "openpose_2d":
                 img = render_pose_data_openpose(
                     mhr_pose_data, frame_idx=f, W=W, H=H,
                     background=bg_f,
@@ -951,6 +1028,17 @@ class SAM3DBody_Render(io.ComfyNode):
                     include_hands=include_hands,
                     face_style=face_style,
                     hand_color_style=hand_color_style,
+                    person_brightness_falloff=person_palette_falloff,
+                )
+            elif mode_key == "openpose_3d":
+                img = render_pose_data_capsules(
+                    mhr_pose_data, frame_idx=f, W=W, H=H,
+                    background=bg_f,
+                    composite=composite,
+                    radius_m=op3d_radius_m,
+                    include_hands=op3d_include_hands,
+                    palette="openpose",
+                    flat_shade=True,
                     person_brightness_falloff=person_palette_falloff,
                 )
             elif mode_key == "scail":

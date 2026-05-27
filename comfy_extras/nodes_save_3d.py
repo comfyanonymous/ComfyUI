@@ -449,7 +449,7 @@ class BuildPoseGLB(IO.ComfyNode):
                                     IO.DynamicCombo.Option("octahedrons", [
                                         IO.Float.Input(
                                             "bone_vis_radius_m",
-                                            default=0.02, min=0.005, max=0.5, step=0.005,
+                                            default=0.02, min=0.005, max=0.5, step=0.005, advanced=True,
                                             tooltip="Radius in m (sphere radius / octahedron half-width).",
                                         ),
                                         IO.Combo.Input(
@@ -527,7 +527,7 @@ class BuildPoseGLB(IO.ComfyNode):
                                     IO.DynamicCombo.Option("octahedrons", [
                                         IO.Float.Input(
                                             "bone_vis_radius_m",
-                                            default=0.02, min=0.005, max=0.5, step=0.005,
+                                            default=0.02, min=0.005, max=0.5, step=0.005, advanced=True,
                                             tooltip="Radius in m (sphere radius / octahedron half-width).",
                                         ),
                                         IO.Combo.Input(
@@ -557,12 +557,20 @@ class BuildPoseGLB(IO.ComfyNode):
                             ),
                         ]),
                         IO.DynamicCombo.Option("openpose", [
+                            IO.Int.Input(
+                                "bone_smooth_window",
+                                default=0, min=0, max=51, step=2,
+                                tooltip=(
+                                    "Gaussian window on keypoint tracks. 0 = off. "
+                                    "7-15 calms jitter where upstream Smooth misses spikes."
+                                ),
+                            ),
                             IO.Float.Input(
-                                "marker_radius_m", default=0.010, min=0.005, max=0.1, step=0.001,
+                                "marker_radius_m", default=0.010, min=0.005, max=0.1, step=0.001, advanced=True,
                                 tooltip="Sphere radius in m.",
                             ),
                             IO.Float.Input(
-                                "stick_radius_m", default=0.008, min=0.002, max=0.05, step=0.001,
+                                "stick_radius_m", default=0.008, min=0.002, max=0.05, step=0.001, advanced=True,
                                 tooltip="Limb half-width in m. Auto-clamped to bone_length x 0.1.",
                             ),
                             IO.Boolean.Input(
@@ -573,31 +581,39 @@ class BuildPoseGLB(IO.ComfyNode):
                                 ),
                             ),
                             IO.Float.Input(
-                                "hand_marker_radius_m", default=0.005, min=0.001, max=0.1, step=0.001,
+                                "hand_marker_radius_m", default=0.005, min=0.001, max=0.1, step=0.001, advanced=True,
                                 tooltip="Hand sphere radius in m.",
                             ),
                             IO.Float.Input(
-                                "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001,
+                                "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001, advanced=True,
                                 tooltip="Hand limb half-width in m.",
                             ),
                             IO.Combo.Input(
-                                "face_source",
-                                options=["off", "rig"],
-                                default="off",
+                                "face_style",
+                                options=["disabled", "full", "eyes_mouth"],
+                                default="disabled",
                                 tooltip=(
-                                    "'rig' adds ~30 face-contour landmarks sampled from pred_vertices "
-                                    "at fixed head-mesh vertex IDs (brow/eyes/nose/mouth/jaw); needs "
-                                    "canonical_colors on pose_data."
+                                    "Face-contour landmarks sampled from pred_vertices at fixed "
+                                    "head-mesh vertex IDs (needs canonical_colors on pose_data). "
+                                    "'full' = all ~30 points; 'eyes_mouth' = eyes + outer lips only."
                                 ),
                             ),
                             IO.Float.Input(
-                                "face_marker_radius_m", default=0.0, min=0.0, max=0.05, step=0.0005,
+                                "face_marker_radius_m", default=0.0, min=0.0, max=0.05, step=0.0005, advanced=True,
                                 tooltip="Face dot radius. 0 = auto = 0.3 x marker_radius_m.",
                             ),
                         ]),
                         IO.DynamicCombo.Option("scail", [
+                            IO.Int.Input(
+                                "bone_smooth_window",
+                                default=0, min=0, max=51, step=2,
+                                tooltip=(
+                                    "Gaussian window on keypoint tracks. 0 = off. "
+                                    "7-15 calms jitter where upstream Smooth misses spikes."
+                                ),
+                            ),
                             IO.Float.Input(
-                                "stick_radius_m", default=0.022, min=0.002, max=0.1, step=0.001,
+                                "stick_radius_m", default=0.022, min=0.002, max=0.1, step=0.001, advanced=True,
                                 tooltip=(
                                     "Cylinder radius in m. Bones are open cylinders at constant "
                                     "radius; joint spheres (auto-sized to match) cap the open ends. "
@@ -605,11 +621,11 @@ class BuildPoseGLB(IO.ComfyNode):
                                 ),
                             ),
                             IO.Float.Input(
-                                "marker_radius_m", default=0.0, min=0.0, max=0.1, step=0.001,
+                                "marker_radius_m", default=0.0, min=0.0, max=0.1, step=0.001, advanced=True,
                                 tooltip="Joint sphere radius. 0 = auto = stick_radius_m (flush cap).",
                             ),
                             IO.Float.Input(
-                                "material_roughness", default=0.3, min=0.0, max=1.0, step=0.05,
+                                "material_roughness", default=0.3, min=0.0, max=1.0, step=0.05, advanced=True,
                                 tooltip="PBR roughness. SCAIL ref = 0.3. 1 = matte; 0 = chrome.",
                             ),
                             IO.Boolean.Input(
@@ -617,12 +633,22 @@ class BuildPoseGLB(IO.ComfyNode):
                                 tooltip="Append 21+21 hand keypoints + capsule sticks per track.",
                             ),
                             IO.Float.Input(
-                                "hand_marker_radius_m", default=0.005, min=0.001, max=0.05, step=0.001,
+                                "hand_marker_radius_m", default=0.005, min=0.001, max=0.05, step=0.001, advanced=True,
                                 tooltip="Hand sphere radius in m.",
                             ),
                             IO.Float.Input(
-                                "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001,
+                                "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001, advanced=True,
                                 tooltip="Hand cylinder radius in m.",
+                            ),
+                            IO.Combo.Input(
+                                "face_style",
+                                options=["disabled", "full", "eyes_mouth"],
+                                default="disabled",
+                                tooltip=(
+                                    "Face-contour landmarks sampled from pred_vertices (needs "
+                                    "canonical_colors on pose_data). 'full' = all ~30 points; "
+                                    "'eyes_mouth' = eyes + outer lips only."
+                                ),
                             ),
                         ]),
                     ],
@@ -710,10 +736,11 @@ class BuildPoseGLB(IO.ComfyNode):
                 include_hands=bool(mesh_style.get("include_hands", False)),
                 hand_marker_radius_m=float(mesh_style.get("hand_marker_radius_m", 0.005)),
                 hand_stick_radius_m=float(mesh_style.get("hand_stick_radius_m", 0.003)),
-                face_source=str(mesh_style.get("face_source", "off")),
+                face_style=str(mesh_style.get("face_style", "disabled")),
                 face_marker_radius_m=float(mesh_style.get("face_marker_radius_m", 0.0)),
                 palette="openpose",
                 shape="ellipsoid",
+                bone_smooth_window=int(mesh_style.get("bone_smooth_window", 0)),
             )
         elif mode_key == "scail":
             # SCAIL rig: open cylinders capped flush by joint spheres (sphere
@@ -732,7 +759,7 @@ class BuildPoseGLB(IO.ComfyNode):
                 include_hands=bool(mesh_style.get("include_hands", False)),
                 hand_marker_radius_m=float(mesh_style.get("hand_marker_radius_m", 0.005)),
                 hand_stick_radius_m=float(mesh_style.get("hand_stick_radius_m", 0.003)),
-                face_source="off",
+                face_style=str(mesh_style.get("face_style", "disabled")),
                 palette="scail",
                 shape="capsule",
                 smooth_shade=True,
@@ -740,6 +767,7 @@ class BuildPoseGLB(IO.ComfyNode):
                 # inside of the open cylinders shades sensibly at grazing angles.
                 material_roughness=float(mesh_style.get("material_roughness", 0.3)),
                 material_double_sided=True,
+                bone_smooth_window=int(mesh_style.get("bone_smooth_window", 0)),
             )
         else:
             raise ValueError(f"BuildPoseGLB: unknown mesh_style {mode_key!r}")

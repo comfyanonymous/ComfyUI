@@ -122,6 +122,30 @@ def gaussian_smooth_quats(q_seq: np.ndarray, window: int) -> np.ndarray:
     return out.astype(np.float32)
 
 
+def gaussian_smooth_positions(seq: np.ndarray, window: int) -> np.ndarray:
+    """Gaussian-smooth a (N, K, 3) position sequence along time (edge-replicate
+    padding). Used to calm jittery keypoint tracks before the openpose rig
+    derives sphere translations + limb TRS from them."""
+    if window <= 1 or seq.shape[0] < 2:
+        return seq
+    s = np.asarray(seq, dtype=np.float64)
+    n = s.shape[0]
+    half = window // 2
+    sigma = max(0.5, window / 4.0)
+    x = np.arange(-half, half + 1, dtype=np.float64)
+    kernel = np.exp(-x * x / (2.0 * sigma * sigma))
+    kernel = kernel / kernel.sum()
+    padded = np.concatenate([
+        np.broadcast_to(s[:1], (half,) + s.shape[1:]),
+        s,
+        np.broadcast_to(s[-1:], (half,) + s.shape[1:]),
+    ], axis=0)
+    out = np.zeros_like(s)
+    for k, wgt in enumerate(kernel):
+        out += wgt * padded[k:k + n]
+    return out.astype(np.float32)
+
+
 def quat_sign_fix_per_joint(q_seq: np.ndarray) -> np.ndarray:
     """Walk (N, NJ, 4) along time, flip sign whenever consecutive frames sit
     on opposite hemispheres. Eliminates long-path slerp glitches (mid-anim
@@ -900,19 +924,23 @@ def rotation_align(from_vec: np.ndarray, to_vec: np.ndarray) -> np.ndarray:
 
 
 def make_lit_material(
-    roughness: float = 0.85, double_sided: bool = False,
+    roughness: float = 0.85, double_sided: bool = False, opacity: float = 1.0,
 ) -> dict:
     """Lit PBR material using vertex COLOR_0 multiplicatively. KHR_materials_unlit
     is intentionally off so viewer lighting reveals surface form. metallic=0
     keeps the surface dielectric so vertex colors stay readable. roughness=0.85
-    suits dense rainbow body meshes; 0.3 matches SCAIL-Pose's glossy rig look."""
+    suits dense rainbow body meshes; 0.3 matches SCAIL-Pose's glossy rig look.
+    opacity < 1 switches to alpha-blend (e.g. see-through body mesh over bones)."""
+    a = float(max(0.0, min(1.0, opacity)))
     mat = {
         "pbrMetallicRoughness": {
-            "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+            "baseColorFactor": [1.0, 1.0, 1.0, a],
             "metallicFactor": 0.0,
             "roughnessFactor": float(max(0.0, min(1.0, roughness))),
         },
     }
+    if a < 1.0:
+        mat["alphaMode"] = "BLEND"
     if double_sided:
         mat["doubleSided"] = True
     return mat

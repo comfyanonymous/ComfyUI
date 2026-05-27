@@ -362,8 +362,10 @@ def build_glb_skeletal(
                 "indices": indices_acc,
                 "mode": 4,
             }
-            if color_acc is not None:
-                materials.append(make_lit_material())
+            # See-through body when bones are shown, else opaque (only when a
+            # vertex-color shader baked COLOR_0 — otherwise default material).
+            if color_acc is not None or include_bones:
+                materials.append(make_lit_material(opacity=0.35 if include_bones else 1.0))
                 primitive["material"] = len(materials) - 1
             if expr_morph_accs:
                 primitive["targets"] = [{"POSITION": a} for a in expr_morph_accs]

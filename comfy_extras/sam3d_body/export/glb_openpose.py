@@ -37,6 +37,7 @@ from .glb_shared import (
     SCAIL_LIMB_COLORS_17,
     collect_tracks,
     flat_shade_mesh,
+    gaussian_smooth_positions,
     make_lit_material,
     quat_sign_fix_per_joint,
     rotation_align,
@@ -364,11 +365,14 @@ def _build_openpose_spheres(
     bind_kp_m: np.ndarray, radius_m: float, kp_colors: np.ndarray,
     base_joint_idx: int = 0,
     smooth_shade: bool = False,
+    joint_indices: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """UV sphere per OpenPose keypoint, rigidly skinned to that keypoint's
     joint, vertex-colored from kp_colors. `base_joint_idx` is added to the
     emitted JOINTS_0 indices so callers can place this group at any offset
-    in the shared skin (body=0, right hand=18, etc.).
+    in the shared skin (body=0, right hand=18, etc.). `joint_indices` (when
+    given) overrides that with explicit per-sphere joint indices, so callers
+    can skip keypoints (e.g. SCAIL head dots).
 
     `smooth_shade=True` keeps the indexed mesh and writes per-vertex
     normals via face-normal averaging — round shading on the spheres.
@@ -390,7 +394,7 @@ def _build_openpose_spheres(
         out_v[v_off:v_off + Nv] = sv * radius_m + bind_kp_m[j]
         out_n[v_off:v_off + Nv] = sv
         out_f[j * Nf:(j + 1) * Nf] = sf + v_off
-        out_j[v_off:v_off + Nv, 0] = j + base_joint_idx
+        out_j[v_off:v_off + Nv, 0] = int(joint_indices[j]) if joint_indices is not None else j + base_joint_idx
         out_w[v_off:v_off + Nv, 0] = 1.0
         out_c[v_off:v_off + Nv] = kp_colors[j]
     return _finalize_skinned_mesh(out_v, out_f, out_j, out_w, out_c, smooth_shade)
@@ -579,6 +583,24 @@ def _capsule_mesh_local(
     return v_arr, np.asarray(faces, dtype=np.uint32), weights
 
 
+def _scail_redirect_neck_stub(body_kp: np.ndarray) -> np.ndarray:
+    """Replace the nose keypoint (idx 0) of a (...,18,3) array with a short
+    neck stub (0.6 spine + 0.4 neck→nose), matching the capsule render."""
+    out = body_kp.copy()
+    neck = body_kp[..., 1, :]
+    nose = body_kp[..., 0, :]
+    mid_hip = 0.5 * (body_kp[..., 8, :] + body_kp[..., 11, :])
+
+    def _unit(v):
+        return v / np.linalg.norm(v, axis=-1, keepdims=True).clip(min=1e-6)
+
+    nose_vec = nose - neck
+    nose_len = np.linalg.norm(nose_vec, axis=-1, keepdims=True)
+    mixed = _unit(0.6 * _unit(neck - mid_hip) + 0.4 * _unit(nose_vec))
+    out[..., 0, :] = neck + mixed * (nose_len * 0.5)
+    return out
+
+
 def _openpose_limb_rest_trs(
     bind_kp_m: np.ndarray, pairs: Tuple[Tuple[int, int], ...],
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -636,6 +658,7 @@ def _build_openpose_sticks(
     limb_joint_base_idx: int = 0,
     shape: str = "ellipsoid",
     smooth_shade: bool = False,
+    end_width_frac: float = 0.3,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Capsule (cylinder + hemispherical caps) per limb pair (a, b).
 
@@ -682,7 +705,7 @@ def _build_openpose_sticks(
             half_width_eff = max(MIN_WIDTH, min(length * WIDTH_RATIO, half_width_m))
 
         v_local, f_local, _weights_unused = _capsule_mesh_local(
-            length, half_width_eff, shape=shape,
+            length, half_width_eff, shape=shape, end_width_frac=end_width_frac,
         )
         v_world = v_local @ R.T + head
         Nv = v_local.shape[0]
@@ -729,13 +752,15 @@ def build_glb_openpose(
     hand_marker_radius_m: float = 0.0,
     hand_stick_radius_m: float = 0.0,
     hand_color_style: str = "dwpose",
-    face_source: str = "off",
+    face_style: str = "disabled",
     face_marker_radius_m: float = 0.0,
     palette: str = "openpose",
     shape: str = "ellipsoid",
     smooth_shade: bool = False,
     material_roughness: float = 0.85,
     material_double_sided: bool = False,
+    stick_end_width_frac: float = 0.6,
+    bone_smooth_window: int = 0,
 ) -> bytes:
     """Build a GLB containing an OpenPose-style 3D skeleton — sphere markers
     per keypoint plus rainbow-colored sticks between standard limb pairs.
@@ -757,9 +782,10 @@ def build_glb_openpose(
             rainbow per-finger sticks (controlnet_aux/dwpose convention);
             'openpose' = rainbow per-finger dots AND sticks (matches
             poseParameters.cpp::HAND_COLORS_RENDER).
-        face_source: 'off' (default) | 'rig' — when 'rig', adds ~30 face
-            contour landmarks sampled from `pred_vertices` at vertex IDs
-            picked from `pose_data["canonical_colors"]["positions"]`.
+        face_style: 'disabled' (default) | 'full' | 'eyes_mouth' — face
+            landmarks sampled from `pred_vertices` at vertex IDs picked from
+            `pose_data["canonical_colors"]["positions"]`. 'full' = all ~30
+            contour points; 'eyes_mouth' = the eyes + outer-lip subset.
         face_marker_radius_m: per-face landmark sphere radius. 0 = auto =
             0.3 × `marker_radius_m` — face landmarks are densely packed
             around the eyes/mouth/jaw and need to be much smaller than
@@ -771,6 +797,12 @@ def build_glb_openpose(
             SCAIL-Pose style — warm hues right side, cool hues left side,
             grey neck-to-nose centerline, distinct per-limb colors.
     """
+    is_scail = str(palette) == "scail"
+    # SCAIL drops the face bones (13..16) and eye/ear spheres; keeps nose (idx 0,
+    # the neck-stub tip) to cap the open cylinder. Matches the capsule render.
+    body_pairs = OPENPOSE_18_PAIRS[:13] if is_scail else OPENPOSE_18_PAIRS
+    body_sphere_kp = (np.arange(14, dtype=np.int64)
+                      if is_scail else np.arange(18, dtype=np.int64))
     if str(palette) == "scail":
         body_sphere_colors = SCAIL_KEYPOINT_COLORS_18
         body_stick_colors = SCAIL_LIMB_COLORS_17
@@ -805,25 +837,30 @@ def build_glb_openpose(
     if not tracks:
         raise ValueError("build_glb_openpose: no valid tracks in pose_data")
 
+    # Eyes (6..13) + outer-lip ring (19..22) from FACE_LANDMARK_TARGETS.
+    _EYES_MOUTH_IDX = np.array([6, 7, 8, 9, 10, 11, 12, 13, 19, 20, 21, 22], dtype=np.int64)
     face_vert_ids: Optional[np.ndarray] = None
-    if face_source == "rig":
+    face_target_idx = np.arange(len(FACE_LANDMARK_TARGETS), dtype=np.int64)
+    if face_style in ("full", "eyes_mouth"):
         canonical_colors = pose_data.get("canonical_colors") or {}
         positions = canonical_colors.get("positions")
         if positions is None:
             raise ValueError(
-                "build_glb_openpose: face_source='rig' needs "
+                "build_glb_openpose: face_style needs "
                 "pose_data['canonical_colors']['positions'] (computed at "
                 "model load and attached by Predict). Ensure the SAM3DBody "
                 "Loader+Predict ran upstream of this node."
             )
+        if face_style == "eyes_mouth":
+            face_target_idx = _EYES_MOUTH_IDX
         face_vert_ids = select_face_landmark_vert_ids(
             np.asarray(positions),
             face_mask=canonical_colors.get("face_mask"),
-        )
-    elif face_source != "off":
+        )[face_target_idx]
+    elif face_style != "disabled":
         raise ValueError(
-            f"build_glb_openpose: unknown face_source={face_source!r} "
-            "(expected 'off' or 'rig')"
+            f"build_glb_openpose: unknown face_style={face_style!r} "
+            "(expected 'disabled', 'full', or 'eyes_mouth')"
         )
 
     K_body = 18
@@ -833,7 +870,7 @@ def build_glb_openpose(
 
     # Limb counts: one joint per stick pair. Limb joints carry translation +
     # rotation so each capsule rotates rigidly with its limb (no LBS thinning).
-    K_body_limbs = len(OPENPOSE_18_PAIRS)
+    K_body_limbs = len(body_pairs)
     K_hand_limbs = len(OPENPOSE_HAND_PAIRS) if include_hands else 0
     K_limbs = K_body_limbs + 2 * K_hand_limbs  # face has no sticks
 
@@ -843,14 +880,14 @@ def build_glb_openpose(
         joint_names.extend([f"openpose_R_{n}" for n in OPENPOSE_HAND21_NAMES])
         joint_names.extend([f"openpose_L_{n}" for n in OPENPOSE_HAND21_NAMES])
     if K_face > 0:
-        joint_names.extend([f"openpose_face_{name}"
-                            for name, _ in FACE_LANDMARK_TARGETS])
+        joint_names.extend([f"openpose_face_{FACE_LANDMARK_TARGETS[i][0]}"
+                            for i in face_target_idx])
 
     # Limb joint names, stacked body → R-hand → L-hand to match the limb
     # joint ordering in skin.joints (after the K keypoint joints).
     limb_names: List[str] = [
         f"openpose_limb_{OPENPOSE_18_NAMES[a]}_{OPENPOSE_18_NAMES[b]}"
-        for (a, b) in OPENPOSE_18_PAIRS
+        for (a, b) in body_pairs
     ]
     if include_hands:
         for side in ("R", "L"):
@@ -882,6 +919,8 @@ def build_glb_openpose(
             seq_chunks.append(_extract_face_landmarks_from_verts(
                 pose_data, frame_indices, person_k, face_vert_ids))
         kp_seq = np.concatenate(seq_chunks, axis=1)  # (N, K, 3)
+        if bone_smooth_window and bone_smooth_window > 1:
+            kp_seq = gaussian_smooth_positions(kp_seq, int(bone_smooth_window))
 
         # Static-bind = rig's REST pose when available (override path); else
         # fall back to frame 0 of the motion. The rest-pose bind makes the
@@ -895,6 +934,10 @@ def build_glb_openpose(
         )
         bind_kp_m = (bind_kp_m_rest if bind_kp_m_rest is not None
                      else kp_seq[0].astype(np.float32))
+
+        if is_scail:  # nose → neck stub, matching the capsule render
+            kp_seq[:, :K_body] = _scail_redirect_neck_stub(kp_seq[:, :K_body])
+            bind_kp_m[:K_body] = _scail_redirect_neck_stub(bind_kp_m[:K_body])
 
         person_root: Dict[str, Any] = {"name": f"track{track_i:02d}", "children": []}
         nodes.append(person_root)
@@ -920,8 +963,8 @@ def build_glb_openpose(
         limb_rest_axes_list: List[np.ndarray] = []
         limb_anim_mids_list: List[np.ndarray] = []
         limb_anim_quats_list: List[np.ndarray] = []
-        rmid_b, raxis_b = _openpose_limb_rest_trs(bind_kp_m[:K_body], OPENPOSE_18_PAIRS)
-        amid_b, aquat_b = _openpose_limb_anim_trs(kp_seq[:, :K_body], OPENPOSE_18_PAIRS, raxis_b)
+        rmid_b, raxis_b = _openpose_limb_rest_trs(bind_kp_m[:K_body], body_pairs)
+        amid_b, aquat_b = _openpose_limb_anim_trs(kp_seq[:, :K_body], body_pairs, raxis_b)
         limb_rest_mids_list.append(rmid_b)
         limb_rest_axes_list.append(raxis_b)
         limb_anim_mids_list.append(amid_b)
@@ -979,15 +1022,17 @@ def build_glb_openpose(
         group_meshes: List[Tuple[np.ndarray, np.ndarray, np.ndarray,
                                  np.ndarray, np.ndarray, np.ndarray]] = []
         sp = _build_openpose_spheres(
-            bind_kp_m[:K_body], float(marker_radius_m),
-            body_sphere_colors, base_joint_idx=0,
+            bind_kp_m[body_sphere_kp], float(marker_radius_m),
+            body_sphere_colors[body_sphere_kp], base_joint_idx=0,
             smooth_shade=smooth_shade,
+            joint_indices=body_sphere_kp,
         )
         st = _build_openpose_sticks(
-            bind_kp_m[:K_body], OPENPOSE_18_PAIRS, float(stick_radius_m),
+            bind_kp_m[:K_body], body_pairs, float(stick_radius_m),
             body_stick_colors, limb_joint_base_idx=K,  # body limbs start at K
             shape=shape,
             smooth_shade=smooth_shade,
+            end_width_frac=stick_end_width_frac,
         )
         group_meshes.append(sp)
         group_meshes.append(st)
@@ -1012,6 +1057,7 @@ def build_glb_openpose(
                     limb_joint_base_idx=K + K_body_limbs + hand_i * K_hand_limbs,
                     shape=shape,
                     smooth_shade=smooth_shade,
+                    end_width_frac=stick_end_width_frac,
                 ))
 
         if K_face > 0:

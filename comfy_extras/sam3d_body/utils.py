@@ -105,16 +105,85 @@ def cam_int_from_moge(moge_geometry, height: int, width: int) -> Optional[torch.
     )
 
 
-def run_batched_single_chunk(
-    inner: SAM3DBody,
-    frames_rgb: List[torch.Tensor],
-    per_frame_boxes: List[torch.Tensor],
-    per_frame_masks: Optional[List[torch.Tensor]],
-    image_size: Tuple[int, int],
-    inference_type: str,
-    K: int,
-    cam_int: Optional[torch.Tensor] = None,
-) -> List[List[Dict[str, Any]]]:
+def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, Any],
+                          H: int, W: int, fov_deg: float = 0.0) -> Dict[str, Any]:
+    """Re-project every frame's pose through a Load3D 6DOF camera (position/
+    target/zoom + optional FOV). Returns a new mhr_pose_data; unchanged on
+    empty/invalid input."""
+    first_frame = mhr_pose_data["frames"][0] if mhr_pose_data["frames"] else []
+    if not first_frame:
+        return mhr_pose_data
+    # GLB exports the rig root at origin, so Load3D coords are root-relative
+    roots = [np.asarray(p["pred_cam_t"], dtype=np.float32).reshape(3)
+             for p in first_frame if p.get("pred_cam_t") is not None]
+    if not roots:
+        return mhr_pose_data
+    subj_center = np.mean(np.stack(roots, axis=0), axis=0)
+
+    # Meter-scale, so Three.js coords map 1:1 (Three.js Y-up → flip Y,Z)
+    pos = camera_info.get("position") or {}
+    tgt = camera_info.get("target") or {}
+    pos_v = np.array([float(pos.get("x", 0.0)), -float(pos.get("y", 5.0)), -float(pos.get("z", 0.0))], dtype=np.float32)
+    tgt_v = np.array([float(tgt.get("x", 0.0)), -float(tgt.get("y", 0.0)), -float(tgt.get("z", 0.0))], dtype=np.float32)
+    offset = pos_v - tgt_v
+    if float(np.linalg.norm(offset)) < 1e-6:
+        return mhr_pose_data
+
+    zoom = float(camera_info.get("zoom", 1.0)) or 1.0
+    target = subj_center + tgt_v
+    eye = target + offset / max(0.01, zoom)
+
+    # Look-at basis. z = -offset (already non-zero); x degenerates only when
+    # looking straight along world-up, then fall back to world +X.
+    z_axis = -offset / float(np.linalg.norm(offset))
+    x_axis = np.cross(z_axis, np.array([0.0, -1.0, 0.0], dtype=np.float32))
+    x_norm = float(np.linalg.norm(x_axis))
+    x_axis = x_axis / x_norm if x_norm > 1e-6 else np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    y_axis = np.cross(z_axis, x_axis)
+    R = np.stack([x_axis, y_axis, z_axis], axis=0).astype(np.float32)
+
+    # fov_deg > 0 overrides the lens; 0 keeps the SAM3D predicted focal so only
+    # the viewpoint changes. Three.js fov is vertical → focal from image height.
+    if fov_deg > 0:
+        new_focal = float(H) / (2.0 * float(np.tan(np.deg2rad(fov_deg) / 2.0)))
+    else:
+        f0 = first_frame[0].get("focal_length")
+        new_focal = (float(np.asarray(f0, dtype=np.float32).reshape(-1)[0]) if f0 is not None
+                     else float(H) / (2.0 * float(np.tan(np.deg2rad(50.0) / 2.0))))
+
+    center = np.array([W * 0.5, H * 0.5], dtype=np.float32)
+    reproj = {"pred_keypoints_3d": "pred_keypoints_2d", "pred_face_keypoints_3d": "pred_face_keypoints_2d"}
+    new_frames: List[List[Dict[str, Any]]] = []
+    for frame in mhr_pose_data["frames"]:
+        scaled = []
+        for p in frame:
+            p = dict(p)
+            cam_t = p.get("pred_cam_t")
+            if cam_t is None:
+                scaled.append(p)
+                continue
+            cam_t = np.asarray(cam_t, dtype=np.float32).reshape(3)
+            for k in ("pred_keypoints_3d", "pred_vertices", "pred_face_keypoints_3d"):
+                v = p.get(k)
+                if v is None:
+                    continue
+                cam = (np.asarray(v, dtype=np.float32) + cam_t - eye) @ R.T
+                p[k] = cam.astype(np.float32)
+                if k in reproj:  # re-project the new 3D to 2D image coords
+                    z = np.maximum(cam[..., 2:3], 1e-6)
+                    p[reproj[k]] = (cam[..., :2] * new_focal / z + center).astype(np.float32)
+            p["pred_cam_t"] = np.zeros(3, dtype=np.float32)
+            p["focal_length"] = np.array(new_focal, dtype=np.float32)
+            scaled.append(p)
+        new_frames.append(scaled)
+    out = dict(mhr_pose_data)
+    out["frames"] = new_frames
+    return out
+
+
+def run_batched_single_chunk(inner: SAM3DBody, frames_rgb: List[torch.Tensor], per_frame_boxes: List[torch.Tensor],
+    per_frame_masks: Optional[List[torch.Tensor]], image_size: Tuple[int, int], inference_type: str, K: int,
+    cam_int: Optional[torch.Tensor] = None) -> List[List[Dict[str, Any]]]:
     """Run a SINGLE chunk of frames through run_inference in one forward."""
     N = len(frames_rgb)
     total = N * K

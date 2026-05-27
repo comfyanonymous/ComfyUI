@@ -41,10 +41,11 @@ def _build_specs_from_pose(
     include_hands: bool,
     palette: str,
     person_brightness_falloff: float = 0.0,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Flatten body + optional hand limbs for one frame into
-    (starts, ends, colors_rgba) in camera coords (Y-down, +Z forward).
-    Drops endpoints that are non-finite or behind the camera.
+    (starts, ends, colors_rgba, is_hand) in camera coords (Y-down, +Z forward).
+    Drops endpoints that are non-finite or behind the camera. `is_hand` flags
+    the hand limbs so the renderer can draw them thinner.
 
     `person_brightness_falloff` mixes each per-person limb color toward white
     by `1 - falloff^k` for track index `k` (track 0 stays vivid). Matches the
@@ -52,6 +53,7 @@ def _build_specs_from_pose(
     starts: List[np.ndarray] = []
     ends: List[np.ndarray] = []
     colors: List[np.ndarray] = []
+    is_hand: List[bool] = []
 
     body_limb_colors = _limb_palette_rgb01(palette)
     hand_limb_colors = OPENPOSE_HAND_COLORS_21.astype(np.float32)
@@ -109,6 +111,7 @@ def _build_specs_from_pose(
                     sb = sa + spine_dir * (sd_len * 0.3)
             starts.append(sa)
             ends.append(sb)
+            is_hand.append(False)
             color_rgb = _tint(body_limb_colors[limb_i])
             colors.append(np.array([color_rgb[0], color_rgb[1], color_rgb[2], 1.0],
                                    dtype=np.float32))
@@ -125,6 +128,7 @@ def _build_specs_from_pose(
                         continue
                     starts.append(sa)
                     ends.append(sb)
+                    is_hand.append(True)
                     color_rgb = _tint(hand_limb_colors[(a + b) % len(hand_limb_colors)])
                     colors.append(np.array([color_rgb[0], color_rgb[1], color_rgb[2], 1.0],
                                            dtype=np.float32))
@@ -132,10 +136,12 @@ def _build_specs_from_pose(
     if not starts:
         return (np.zeros((0, 3), dtype=np.float32),
                 np.zeros((0, 3), dtype=np.float32),
-                np.zeros((0, 4), dtype=np.float32))
+                np.zeros((0, 4), dtype=np.float32),
+                np.zeros((0,), dtype=bool))
     return (np.stack(starts).astype(np.float32),
             np.stack(ends).astype(np.float32),
-            np.stack(colors).astype(np.float32))
+            np.stack(colors).astype(np.float32),
+            np.asarray(is_hand, dtype=bool))
 
 
 def _ray_capsule_t(
@@ -144,14 +150,14 @@ def _ray_capsule_t(
     ends: torch.Tensor,        # (M, 3)
     ba_norm: torch.Tensor,     # (M, 3) unit axis (A → B)
     ba_len: torch.Tensor,      # (M,) segment length
-    radius: float,
+    radius: torch.Tensor,      # (M,) per-capsule radius
 ) -> torch.Tensor:
     """Closed-form ray-capsule intersection. Returns (K, M) tensor of ray
     parameters t to the nearest valid hit per capsule, +inf where the ray
     misses. A capsule is the union of (cylinder body, hemisphere at A,
     hemisphere at B); each component is a quadratic root-find."""
     INF = float("inf")
-    r_sq = float(radius) * float(radius)
+    r_sq = radius * radius                      # (M,)
 
     # Cached dot products.
     dn = ray_dirs @ ba_norm.transpose(0, 1)     # (K, M) — d·n
@@ -199,9 +205,10 @@ def _render_capsules_torch(
     colors: torch.Tensor,
     H: int, W: int,
     fx: float, fy: float, cx: float, cy: float,
-    radius: float,
+    radius: torch.Tensor,     # scalar or (M,) per-capsule radius
     background_rgb: Optional[torch.Tensor],
     device: torch.device,
+    flat_shade: bool = False,
 ) -> torch.Tensor:
     """Analytic ray-capsule renderer for a union of capsules. Camera at
     origin looking down +Z; pixels in y-down screen coords."""
@@ -224,12 +231,16 @@ def _render_capsules_torch(
     flat_dirs = ray_dirs.view(-1, 3)
     N = flat_dirs.shape[0]
 
+    radius = torch.as_tensor(radius, device=device, dtype=torch.float32)
+    if radius.ndim == 0:
+        radius = radius.expand(M)
+
     ba = ends - starts
     ba_len = torch.linalg.norm(ba, dim=1).clamp(min=1e-6)
     ba_norm = ba / ba_len.unsqueeze(1)
 
     z_min = float(min(starts[:, 2].min().item(), ends[:, 2].min().item()))
-    z_near = max(0.05, z_min - radius)
+    z_near = max(0.05, z_min - float(radius.max().item()))
 
     # Union of per-capsule screen-space bboxes. Pixels outside this mask
     # provably can't hit any capsule, so the analytic intersection only runs
@@ -298,6 +309,10 @@ def _render_capsules_torch(
         normals = normals / normals.norm(dim=-1, keepdim=True).clamp(min=1e-8)
 
         col = colors[m_h, :3]
+        if flat_shade:
+            # Solid per-limb color (OpenPose look) — no lighting/depth modulation.
+            out[hit_idx] = col
+            return out.view(H, W, 3).clamp(0.0, 1.0)
         # SCAIL Blinn-Phong (render_torch.py:290-331). Headlight: light = +Z.
         diff = torch.clamp(-(normals[:, 2]), min=0.0)
         diffuse = 0.45 + 0.55 * diff
@@ -336,6 +351,8 @@ def render_pose_data_capsules(
     include_hands: bool = False,
     palette: str = "scail",
     person_brightness_falloff: float = 0.0,
+    flat_shade: bool = False,
+    hand_radius_scale: float = 0.4,
     device: Optional[torch.device] = None,
 ) -> torch.Tensor:
     """Render a frame's pose_data as 3D capsules projected through the per-
@@ -345,7 +362,8 @@ def render_pose_data_capsules(
     `composite='mesh_only'` always uses a black canvas.
 
     `radius_m` is in METERS (matching `pred_keypoints_3d` / `pred_cam_t`).
-    Camera fx/fy come from each person's `focal_length` (pixels); cx/cy = center.
+    Hand limbs use `radius_m * hand_radius_scale` (their bones are far shorter
+    than body limbs). Camera fx/fy come from each person's `focal_length`.
     """
     persons = pose_data["frames"][frame_idx]
     if device is None:
@@ -361,7 +379,7 @@ def render_pose_data_capsules(
         break
     cx, cy = W * 0.5, H * 0.5
 
-    starts_np, ends_np, colors_np = _build_specs_from_pose(
+    starts_np, ends_np, colors_np, is_hand_np = _build_specs_from_pose(
         persons, include_hands=include_hands, palette=palette,
         person_brightness_falloff=person_brightness_falloff,
     )
@@ -384,11 +402,14 @@ def render_pose_data_capsules(
     starts_t = torch.from_numpy(starts_np).to(device=device, dtype=torch.float32)
     ends_t = torch.from_numpy(ends_np).to(device=device, dtype=torch.float32)
     colors_t = torch.from_numpy(colors_np).to(device=device, dtype=torch.float32)
+    radii_np = np.where(is_hand_np, radius_m * hand_radius_scale, radius_m).astype(np.float32)
+    radii_t = torch.from_numpy(radii_np).to(device=device, dtype=torch.float32)
 
     return _render_capsules_torch(
         starts_t, ends_t, colors_t,
         H=H, W=W, fx=fx, fy=fy, cx=cx, cy=cy,
-        radius=float(radius_m),
+        radius=radii_t,
         background_rgb=bg_t,
         device=device,
+        flat_shade=flat_shade,
     )
