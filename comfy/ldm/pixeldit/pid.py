@@ -207,8 +207,9 @@ class PidNet(PixDiT_T2I):
                 f"Flux1/SD3 = 16 channels, Flux2 = 128 channels."
             )
         B = x.shape[0]
-        Hs = x.shape[2] // self.patch_size
-        Ws = x.shape[3] // self.patch_size
+        # Match the backbone's pad_to_patch_size (round up) so the LQ grid lines up with the patch stream.
+        Hs = -(-x.shape[2] // self.patch_size)
+        Ws = -(-x.shape[3] // self.patch_size)
 
         degrade_sigma = degrade_sigma.to(device=x.device, dtype=torch.float32).reshape(-1)
         if degrade_sigma.numel() == 1 and B > 1:
