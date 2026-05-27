@@ -1039,18 +1039,23 @@ class KSAMPLER(Sampler):
             for sampler_callback in sampler_step_callbacks:
                 sampler_callback(sampler_info)
 
-        samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
-        samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
-        if len(sampler_end_callbacks) > 0:
-            sampler_info = {
-                "total_steps": total_steps,
-                "sample_sigmas": sigmas,
-                "samples_shape": tuple(samples.shape),
-                "sampler_function": sampler_function_name,
-            }
-            for sampler_callback in sampler_end_callbacks:
-                sampler_callback(sampler_info)
-        return samples
+        samples = None
+        sampling_succeeded = False
+        try:
+            samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
+            samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
+            sampling_succeeded = True
+            return samples
+        finally:
+            if len(sampler_end_callbacks) > 0:
+                sampler_info = {
+                    "total_steps": total_steps,
+                    "sample_sigmas": sigmas,
+                    "samples_shape": tuple(samples.shape) if sampling_succeeded else None,
+                    "sampler_function": sampler_function_name,
+                }
+                for sampler_callback in sampler_end_callbacks:
+                    sampler_callback(sampler_info)
 
 
 def ksampler(sampler_name, extra_options={}, inpaint_options={}):
