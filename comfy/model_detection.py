@@ -611,6 +611,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["mm_layers"] = 10
         dit_config["norm_eps"] = 1e-5
         dit_config["qk_rope"] = True
+        dit_config["rope_type"] = "rope3d"
+        dit_config["rope_dim"] = 64
         dit_config["mlp_type"] = "swiglu"
         return dit_config
     elif "{}blocks.31.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 3b

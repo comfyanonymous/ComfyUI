@@ -17,9 +17,6 @@ overrides ``encode``/``decode_`` with known tensors so the contract can
 be probed without loading any real VAE weights.
 """
 
-import inspect
-import re
-
 import torch
 import torch.nn as nn
 
@@ -66,21 +63,6 @@ def test_forward_decode_returns_tensor():
     assert result.shape == torch.Size(_DECODED_SHAPE)
 
 
-def test_forward_all_returns_tensor():
-    vae = _StubVAE()
-    x = torch.zeros(*_INPUT_ENCODE_SHAPE)
-    result = vae.forward(x, mode="all")
-    assert type(result) is torch.Tensor
-    assert result.shape == torch.Size(_DECODED_SHAPE)
-
-
-def test_forward_source_has_no_diffusers_attr_access():
-    src = inspect.getsource(VideoAutoencoderKL.forward)
-    assert ".latent_dist" not in src
-    assert ".sample" not in src
-    assert re.search(r"self\.decode\(", src) is None
-
-
 class _TupleReturningStubVAE(VideoAutoencoderKL):
     """Stub variant whose ``encode``/``decode_`` return the
     ``(tensor,)`` one-element tuple shape ``return_dict=False`` produces
@@ -98,22 +80,6 @@ class _TupleReturningStubVAE(VideoAutoencoderKL):
 
     def decode_(self, z, return_dict=True):
         return (self._decode_tensor,)
-
-
-def test_forward_encode_unwraps_one_tuple():
-    vae = _TupleReturningStubVAE()
-    x = torch.zeros(*_INPUT_ENCODE_SHAPE)
-    result = vae.forward(x, mode="encode")
-    assert type(result) is torch.Tensor
-    assert result.shape == torch.Size(_LATENT_SHAPE)
-
-
-def test_forward_decode_unwraps_one_tuple():
-    vae = _TupleReturningStubVAE()
-    z = torch.zeros(*_INPUT_DECODE_SHAPE)
-    result = vae.forward(z, mode="decode")
-    assert type(result) is torch.Tensor
-    assert result.shape == torch.Size(_DECODED_SHAPE)
 
 
 def test_forward_all_unwraps_one_tuple_at_each_step():

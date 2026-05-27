@@ -13,7 +13,6 @@ from torch import nn
 import math
 from comfy.ldm.flux.math import apply_rope1
 import comfy.model_management
-import comfy.ops
 import numbers
 
 def _torch_float8_types():
@@ -158,82 +157,6 @@ def repeat_concat_idx(
         lambda all: unconcat_coalesce(all),
     )
 
-
-def _seedvr2_7b_window_attention_split(
-    vid_q: torch.Tensor,
-    txt_q: torch.Tensor,
-    vid_k: torch.Tensor,
-    txt_k: torch.Tensor,
-    vid_v: torch.Tensor,
-    txt_v: torch.Tensor,
-    vid_len_win: torch.Tensor,
-    txt_len: torch.Tensor,
-    window_count: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    vid_lengths = vid_len_win.tolist()
-    txt_lengths = txt_len.tolist()
-    window_counts = window_count.tolist()
-    autograd_path = comfy.model_management.in_training or any(
-        x.requires_grad for x in (vid_q, txt_q, vid_k, txt_k, vid_v, txt_v)
-    )
-
-    if autograd_path:
-        vid_chunks = []
-        txt_chunks = []
-    else:
-        vid_out = torch.empty_like(vid_q)
-        txt_out = torch.empty_like(txt_q)
-    vid_offset = 0
-    txt_offset = 0
-    window_idx = 0
-
-    for txt_len_i, repeat_i in zip(txt_lengths, window_counts):
-        txt_slice = slice(txt_offset, txt_offset + txt_len_i)
-        txt_q_i = txt_q[txt_slice]
-        txt_k_i = txt_k[txt_slice]
-        txt_v_i = txt_v[txt_slice]
-        txt_accum_dtype = torch.float32 if txt_q_i.dtype in (torch.float16, torch.bfloat16) else txt_q_i.dtype
-        if autograd_path:
-            txt_accum = None
-        else:
-            txt_accum = torch.zeros(txt_q_i.shape, device=txt_q_i.device, dtype=txt_accum_dtype)
-
-        for _ in range(repeat_i):
-            vid_len_i = vid_lengths[window_idx]
-            vid_slice = slice(vid_offset, vid_offset + vid_len_i)
-            q_i = torch.cat([vid_q[vid_slice], txt_q_i], dim=0)
-            k_i = torch.cat([vid_k[vid_slice], txt_k_i], dim=0)
-            v_i = torch.cat([vid_v[vid_slice], txt_v_i], dim=0)
-
-            out_i = comfy.ops.scaled_dot_product_attention(
-                q_i.permute(1, 0, 2).unsqueeze(0),
-                k_i.permute(1, 0, 2).unsqueeze(0),
-                v_i.permute(1, 0, 2).unsqueeze(0),
-                attn_mask=None,
-                dropout_p=0.0,
-                is_causal=False,
-            ).squeeze(0).permute(1, 0, 2)
-            vid_i, txt_i = out_i.split([vid_len_i, txt_len_i], dim=0)
-            if autograd_path:
-                vid_chunks.append(vid_i)
-                txt_i = txt_i.to(txt_accum_dtype)
-                txt_accum = txt_i if txt_accum is None else txt_accum + txt_i
-            else:
-                vid_out[vid_slice] = vid_i
-                txt_accum += txt_i.to(txt_accum_dtype)
-
-            vid_offset += vid_len_i
-            window_idx += 1
-
-        if autograd_path:
-            txt_chunks.append((txt_accum / repeat_i).to(txt_q.dtype))
-        else:
-            txt_out[txt_slice] = (txt_accum / repeat_i).to(txt_out.dtype)
-        txt_offset += txt_len_i
-
-    if autograd_path:
-        return torch.cat(vid_chunks, dim=0), torch.cat(txt_chunks, dim=0)
-    return vid_out, txt_out
 
 @dataclass
 class MMArg:
@@ -564,6 +487,7 @@ class MMRotaryEmbeddingBase(RotaryEmbeddingBase):
             dim=dim // rope_dim,
             freqs_for="lang",
             theta=10000,
+            cache_if_possible=False,
         )
         freqs = self.rope.freqs
         del self.rope.freqs
@@ -944,87 +868,50 @@ class NaSwinAttention(NaMMAttention):
         txt_len = txt_len.to(window_count.device)
 
         # window rope
-        if not self.version_7b:
-            if self.rope:
-                if self.rope.mm:
-                    # repeat text q and k for window mmrope
-                    _, num_h, _ = txt_q.shape
-                    txt_q_repeat = rearrange(txt_q, "l h d -> l (h d)")
-                    txt_q_repeat = unflatten(txt_q_repeat, txt_shape)
-                    txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count)]
-                    txt_q_repeat = list(chain(*txt_q_repeat))
-                    txt_q_repeat, txt_shape_repeat = flatten(txt_q_repeat)
-                    txt_q_repeat = rearrange(txt_q_repeat, "l (h d) -> l h d", h=num_h)
+        if self.rope:
+            if self.version_7b:
+                vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
+            elif self.rope.mm:
+                # repeat text q and k for window mmrope
+                _, num_h, _ = txt_q.shape
+                txt_q_repeat = rearrange(txt_q, "l h d -> l (h d)")
+                txt_q_repeat = unflatten(txt_q_repeat, txt_shape)
+                txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count)]
+                txt_q_repeat = list(chain(*txt_q_repeat))
+                txt_q_repeat, txt_shape_repeat = flatten(txt_q_repeat)
+                txt_q_repeat = rearrange(txt_q_repeat, "l (h d) -> l h d", h=num_h)
 
-                    txt_k_repeat = rearrange(txt_k, "l h d -> l (h d)")
-                    txt_k_repeat = unflatten(txt_k_repeat, txt_shape)
-                    txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count)]
-                    txt_k_repeat = list(chain(*txt_k_repeat))
-                    txt_k_repeat, _ = flatten(txt_k_repeat)
-                    txt_k_repeat = rearrange(txt_k_repeat, "l (h d) -> l h d", h=num_h)
+                txt_k_repeat = rearrange(txt_k, "l h d -> l (h d)")
+                txt_k_repeat = unflatten(txt_k_repeat, txt_shape)
+                txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count)]
+                txt_k_repeat = list(chain(*txt_k_repeat))
+                txt_k_repeat, _ = flatten(txt_k_repeat)
+                txt_k_repeat = rearrange(txt_k_repeat, "l (h d) -> l h d", h=num_h)
 
-                    vid_q, vid_k, txt_q, txt_k = self.rope(
-                        vid_q, vid_k, window_shape, txt_q_repeat, txt_k_repeat, txt_shape_repeat, cache_win
-                    )
-                else:
-                    vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
-        else:
-            if self.rope:
-                if self.rope.mm:
-                    _, num_h, _ = txt_q.shape
-                    txt_q_repeat = rearrange(txt_q, "l h d -> l (h d)")
-                    txt_q_repeat = unflatten(txt_q_repeat, txt_shape)
-                    txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count)]
-                    txt_q_repeat = list(chain(*txt_q_repeat))
-                    txt_q_repeat, txt_shape_repeat = flatten(txt_q_repeat)
-                    txt_q_repeat = rearrange(txt_q_repeat, "l (h d) -> l h d", h=num_h)
+                vid_q, vid_k, txt_q, txt_k = self.rope(
+                    vid_q, vid_k, window_shape, txt_q_repeat, txt_k_repeat, txt_shape_repeat, cache_win
+                )
+            else:
+                vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
 
-                    txt_k_repeat = rearrange(txt_k, "l h d -> l (h d)")
-                    txt_k_repeat = unflatten(txt_k_repeat, txt_shape)
-                    txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count)]
-                    txt_k_repeat = list(chain(*txt_k_repeat))
-                    txt_k_repeat, _ = flatten(txt_k_repeat)
-                    txt_k_repeat = rearrange(txt_k_repeat, "l (h d) -> l h d", h=num_h)
-
-                    vid_q, vid_k, txt_q_repeat, txt_k_repeat = self.rope(
-                        vid_q, vid_k, window_shape, txt_q_repeat, txt_k_repeat, txt_shape_repeat, cache_win
-                    )
-                    txt_q_chunks = []
-                    txt_k_chunks = []
-                    txt_offset = 0
-                    for txt_len_i, repeat_i in zip(txt_len.tolist(), window_count.tolist()):
-                        txt_q_chunks.append(txt_q_repeat[txt_offset:txt_offset + txt_len_i])
-                        txt_k_chunks.append(txt_k_repeat[txt_offset:txt_offset + txt_len_i])
-                        txt_offset += txt_len_i * repeat_i
-                    txt_q = torch.cat(txt_q_chunks, dim=0)
-                    txt_k = torch.cat(txt_k_chunks, dim=0)
-                else:
-                    vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
-
-        if self.version_7b:
-            vid_out, txt_out = _seedvr2_7b_window_attention_split(
-                vid_q, txt_q, vid_k, txt_k, vid_v, txt_v,
-                vid_len_win, txt_len, window_count,
-            )
-        else:
-            txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
-            all_len_win = cache_win("all_len", lambda: vid_len_win + txt_len_win)
-            concat_win, unconcat_win = cache_win(
-                "mm_pnp", lambda: repeat_concat_idx(vid_len_win, txt_len, window_count)
-            )
-            out = optimized_var_attention(
-                q=concat_win(vid_q, txt_q),
-                k=concat_win(vid_k, txt_k),
-                v=concat_win(vid_v, txt_v),
-                heads=self.heads, skip_reshape=True, skip_output_reshape=True,
-                cu_seqlens_q=cache_win(
-                    "vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
-                ),
-                cu_seqlens_k=cache_win(
-                    "vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
-                ),
-            )
-            vid_out, txt_out = unconcat_win(out)
+        txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
+        all_len_win = cache_win("all_len", lambda: vid_len_win + txt_len_win)
+        concat_win, unconcat_win = cache_win(
+            "mm_pnp", lambda: repeat_concat_idx(vid_len_win, txt_len, window_count)
+        )
+        out = optimized_var_attention(
+            q=concat_win(vid_q, txt_q),
+            k=concat_win(vid_k, txt_k),
+            v=concat_win(vid_v, txt_v),
+            heads=self.heads, skip_reshape=True, skip_output_reshape=True,
+            cu_seqlens_q=cache_win(
+                "vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
+            ),
+            cu_seqlens_k=cache_win(
+                "vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
+            ),
+        )
+        vid_out, txt_out = unconcat_win(out)
 
         vid_out = rearrange(vid_out, "l h d -> l (h d)")
         txt_out = rearrange(txt_out, "l h d -> l (h d)")

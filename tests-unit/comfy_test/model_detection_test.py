@@ -170,6 +170,8 @@ class TestModelDetection:
         assert unet_config["mm_layers"] == 10
         assert unet_config["mlp_type"] == "swiglu"
         assert unet_config["qk_rope"] is True
+        assert unet_config["rope_type"] == "rope3d"
+        assert unet_config["rope_dim"] == 64
 
     def test_seedvr2_3b_shared_mm_detection_config(self):
         sd = _make_seedvr2_3b_shared_mm_sd()
