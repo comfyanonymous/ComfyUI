@@ -13,7 +13,7 @@ class NotNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyNotNode",
             display_name="Not",
-            category="utils/logic",
+            category="utilities/logic",
             description="Logical NOT operation. Returns true if the value is falsy. Uses Python's rules for truthiness.",
             search_aliases=["invert", "toggle", "negate", "flip boolean"],
             inputs=[
@@ -40,7 +40,7 @@ class AndNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyAndNode",
             display_name="And",
-            category="utils/logic",
+            category="utilities/logic",
             description="Logical AND operation. Returns true if all of the values are truthy. Uses Python's rules for truthiness.",
             search_aliases=["all", "every"],
             inputs=[
@@ -67,7 +67,7 @@ class OrNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyOrNode",
             display_name="Or",
-            category="utils/logic",
+            category="utilities/logic",
             description="Logical OR operation. Returns true if any of the values are truthy. Uses Python's rules for truthiness.",
             search_aliases=["any", "some"],
             inputs=[
@@ -90,7 +90,7 @@ class SwitchNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfySwitchNode",
             display_name="Switch",
-            category="utils/logic",
+            category="utilities/logic",
             is_experimental=True,
             inputs=[
                 io.Boolean.Input("switch"),
@@ -121,7 +121,7 @@ class SoftSwitchNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfySoftSwitchNode",
             display_name="Soft Switch",
-            category="utils/logic",
+            category="utilities/logic",
             is_experimental=True,
             inputs=[
                 io.Boolean.Input("switch"),
@@ -176,7 +176,7 @@ class CustomComboNode(io.ComfyNode):
         return io.Schema(
             node_id="CustomCombo",
             display_name="Custom Combo",
-            category="utils",
+            category="utilities",
             is_experimental=True,
             inputs=[io.Combo.Input("choice", options=[])],
             outputs=[
@@ -211,7 +211,7 @@ class DCTestNode(io.ComfyNode):
         return io.Schema(
             node_id="DCTestNode",
             display_name="DCTest",
-            category="utils/logic",
+            category="utilities/logic",
             is_output_node=True,
             inputs=[io.DynamicCombo.Input("combo", options=[
                 io.DynamicCombo.Option("option1", [io.String.Input("string")]),
@@ -249,7 +249,7 @@ class AutogrowNamesTestNode(io.ComfyNode):
         return io.Schema(
             node_id="AutogrowNamesTestNode",
             display_name="AutogrowNamesTest",
-            category="utils/logic",
+            category="utilities/logic",
             inputs=[
                 _io.Autogrow.Input("autogrow", template=template)
             ],
@@ -269,7 +269,7 @@ class AutogrowPrefixTestNode(io.ComfyNode):
         return io.Schema(
             node_id="AutogrowPrefixTestNode",
             display_name="AutogrowPrefixTest",
-            category="utils/logic",
+            category="utilities/logic",
             inputs=[
                 _io.Autogrow.Input("autogrow", template=template)
             ],
@@ -288,7 +288,7 @@ class ComboOutputTestNode(io.ComfyNode):
         return io.Schema(
             node_id="ComboOptionTestNode",
             display_name="ComboOptionTest",
-            category="utils/logic",
+            category="utilities/logic",
             inputs=[io.Combo.Input("combo", options=["option1", "option2", "option3"]),
                     io.Combo.Input("combo2", options=["option4", "option5", "option6"])],
             outputs=[io.Combo.Output(), io.Combo.Output()],
@@ -305,7 +305,7 @@ class ConvertStringToComboNode(io.ComfyNode):
             node_id="ConvertStringToComboNode",
             search_aliases=["string to dropdown", "text to combo"],
             display_name="Convert String to Combo",
-            category="utils/logic",
+            category="utilities/logic",
             inputs=[io.String.Input("string")],
             outputs=[io.Combo.Output()],
         )
@@ -321,7 +321,7 @@ class InvertBooleanNode(io.ComfyNode):
             node_id="InvertBooleanNode",
             search_aliases=["not", "toggle", "negate", "flip boolean"],
             display_name="Invert Boolean",
-            category="utils/logic",
+            category="utilities/logic",
             inputs=[io.Boolean.Input("boolean")],
             outputs=[io.Boolean.Output()],
         )
