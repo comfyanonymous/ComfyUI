@@ -845,6 +845,8 @@ class Lens(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Flux2
 
+    memory_usage_factor = 4.0
+
     supported_inference_dtypes = [torch.bfloat16, torch.float32] # fp16 causes NaNs
 
     vae_key_prefix = ["vae."]
@@ -1214,7 +1216,7 @@ class PixelDiTT2I(supported_models_base.BASE):
     }
 
     latent_format = latent_formats.PixelDiTPixel
-    memory_usage_factor = 0.18
+    memory_usage_factor = 0.04
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     vae_key_prefix = ["vae."]
@@ -1263,7 +1265,7 @@ class PiD(PixelDiTT2I):
         "shift": 1.5, # close approximation of the original distill 4 steps [0.999, 0.866, 0.634, 0.342, 0]
     }
 
-    memory_usage_factor = 0.07
+    memory_usage_factor = 0.04
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.PiD(self, device=device)

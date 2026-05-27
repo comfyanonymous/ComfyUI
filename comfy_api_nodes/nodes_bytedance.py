@@ -2,11 +2,12 @@ import hashlib
 import logging
 import math
 import re
+from io import BytesIO
 
 import torch
 from typing_extensions import override
 
-from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS,
     RECOMMENDED_PRESETS_SEEDREAM_4,
@@ -303,6 +304,26 @@ async def _seedance_virtual_library_upload_image_asset(
         ApiEndpoint(path="/proxy/seedance/virtual-library/assets", method="POST"),
         response_model=SeedanceCreateAssetResponse,
         data=SeedanceVirtualLibraryCreateAssetRequest(url=public_url, hash=image_hash),
+    )
+    await _wait_for_asset_active(cls, create_resp.asset_id, group_id="virtual-library")
+    return f"asset://{create_resp.asset_id}"
+
+
+async def _seedance_virtual_library_upload_video_asset(
+    cls: type[IO.ComfyNode],
+    video: Input.Video,
+    *,
+    wait_label: str = "Uploading video",
+) -> str:
+    buf = BytesIO()
+    video.save_to(buf, format=Types.VideoContainer.MP4, codec=Types.VideoCodec.H264)
+    video_hash = hashlib.sha256(buf.getbuffer()).hexdigest()
+    public_url = await upload_video_to_comfyapi(cls, video, wait_label=wait_label)
+    create_resp = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/seedance/virtual-library/assets", method="POST"),
+        response_model=SeedanceCreateAssetResponse,
+        data=SeedanceVirtualLibraryCreateAssetRequest(url=public_url, hash=video_hash, asset_type="Video"),
     )
     await _wait_for_asset_active(cls, create_resp.asset_id, group_id="virtual-library")
     return f"asset://{create_resp.asset_id}"
@@ -2106,7 +2127,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             content.append(
                 TaskVideoContent(
                     video_url=TaskVideoContentUrl(
-                        url=await upload_video_to_comfyapi(
+                        url=await _seedance_virtual_library_upload_video_asset(
                             cls,
                             reference_videos[key],
                             wait_label=f"Uploading video {i}",
