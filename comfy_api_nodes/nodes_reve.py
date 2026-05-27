@@ -145,7 +145,20 @@ class ReveImageCreateNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.03432,"format":{"approximate":true,"note":"(base)"}}""",
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=["upscale", "upscale.upscale_factor"],
+                ),
+                expr="""
+                (
+                    $factor := $lookup(widgets, "upscale.upscale_factor");
+                    $fmt := {"approximate": true, "note": "(base)"};
+                    widgets.upscale = "enabled" ? (
+                        $factor = 4 ? {"type": "usd", "usd": 0.0762, "format": $fmt}
+                        : $factor = 3 ? {"type": "usd", "usd": 0.0591, "format": $fmt}
+                        : {"type": "usd", "usd": 0.0457, "format": $fmt}
+                    ) : {"type": "usd", "usd": 0.03432, "format": $fmt}
+                )
+                """,
             ),
         )
 
@@ -225,13 +238,21 @@ class ReveImageEditNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(
-                    widgets=["model"],
+                    widgets=["model", "upscale", "upscale.upscale_factor"],
                 ),
                 expr="""
                 (
+                    $fmt := {"approximate": true, "note": "(base)"};
                     $isFast := $contains(widgets.model, "fast");
-                    $base := $isFast ? 0.01001 : 0.0572;
-                    {"type": "usd", "usd": $base, "format": {"approximate": true, "note": "(base)"}}
+                    $enabled := widgets.upscale = "enabled";
+                    $factor := $lookup(widgets, "upscale.upscale_factor");
+                    $isFast
+                        ? {"type": "usd", "usd": 0.01001, "format": $fmt}
+                        : $enabled ? (
+                            $factor = 4 ? {"type": "usd", "usd": 0.0991, "format": $fmt}
+                            : $factor = 3 ? {"type": "usd", "usd": 0.0819, "format": $fmt}
+                            : {"type": "usd", "usd": 0.0686, "format": $fmt}
+                        ) : {"type": "usd", "usd": 0.0572, "format": $fmt}
                 )
                 """,
             ),
@@ -327,13 +348,21 @@ class ReveImageRemixNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(
-                    widgets=["model"],
+                    widgets=["model", "upscale", "upscale.upscale_factor"],
                 ),
                 expr="""
                 (
+                    $fmt := {"approximate": true, "note": "(base)"};
                     $isFast := $contains(widgets.model, "fast");
-                    $base := $isFast ? 0.01001 : 0.0572;
-                    {"type": "usd", "usd": $base, "format": {"approximate": true, "note": "(base)"}}
+                    $enabled := widgets.upscale = "enabled";
+                    $factor := $lookup(widgets, "upscale.upscale_factor");
+                    $isFast
+                        ? {"type": "usd", "usd": 0.01001, "format": $fmt}
+                        : $enabled ? (
+                            $factor = 4 ? {"type": "usd", "usd": 0.0991, "format": $fmt}
+                            : $factor = 3 ? {"type": "usd", "usd": 0.0819, "format": $fmt}
+                            : {"type": "usd", "usd": 0.0686, "format": $fmt}
+                        ) : {"type": "usd", "usd": 0.0572, "format": $fmt}
                 )
                 """,
             ),

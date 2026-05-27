@@ -93,12 +93,13 @@ def compute_relative_filename(file_path: str) -> str | None:
 
 def get_asset_category_and_relative_path(
     file_path: str,
-) -> tuple[Literal["input", "output", "models"], str]:
+) -> tuple[Literal["input", "output", "temp", "models"], str]:
     """Determine which root category a file path belongs to.
 
     Categories:
       - 'input': under folder_paths.get_input_directory()
       - 'output': under folder_paths.get_output_directory()
+      - 'temp': under folder_paths.get_temp_directory()
       - 'models': under any base path from get_comfy_models_folders()
 
     Returns:
@@ -129,7 +130,12 @@ def get_asset_category_and_relative_path(
     if _check_is_within(fp_abs, output_base):
         return "output", _compute_relative(fp_abs, output_base)
 
-    # 3) models (check deepest matching base to avoid ambiguity)
+    # 3) temp
+    temp_base = os.path.abspath(folder_paths.get_temp_directory())
+    if _check_is_within(fp_abs, temp_base):
+        return "temp", _compute_relative(fp_abs, temp_base)
+
+    # 4) models (check deepest matching base to avoid ambiguity)
     best: tuple[int, str, str] | None = None  # (base_len, bucket, rel_inside_bucket)
     for bucket, bases in get_comfy_models_folders():
         for b in bases:
@@ -146,7 +152,7 @@ def get_asset_category_and_relative_path(
         return "models", os.path.relpath(os.path.join(os.sep, combined), os.sep)
 
     raise ValueError(
-        f"Path is not within input, output, or configured model bases: {file_path}"
+        f"Path is not within input, output, temp, or configured model bases: {file_path}"
     )
 
 

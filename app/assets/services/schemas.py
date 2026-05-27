@@ -25,7 +25,9 @@ class ReferenceData:
     preview_id: str | None
     created_at: datetime
     updated_at: datetime
-    last_access_time: datetime | None
+    system_metadata: dict[str, Any] | None = None
+    job_id: str | None = None
+    last_access_time: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,8 @@ def extract_reference_data(ref: AssetReference) -> ReferenceData:
         file_path=ref.file_path,
         user_metadata=ref.user_metadata,
         preview_id=ref.preview_id,
+        system_metadata=ref.system_metadata,
+        job_id=ref.job_id,
         created_at=ref.created_at,
         updated_at=ref.updated_at,
         last_access_time=ref.last_access_time,

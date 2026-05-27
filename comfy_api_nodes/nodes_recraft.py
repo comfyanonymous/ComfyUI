@@ -833,6 +833,7 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
             node_id="RecraftVectorizeImageNode",
             display_name="Recraft Vectorize Image",
             category="api node/image/Recraft",
+            essentials_category="Image Tools",
             description="Generates SVG synchronously from an input image.",
             inputs=[
                 IO.Image.Input("image"),
