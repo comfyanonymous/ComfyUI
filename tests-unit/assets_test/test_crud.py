@@ -21,6 +21,8 @@ def test_create_from_hash_success(
     b1 = r1.json()
     assert r1.status_code == 201, b1
     assert b1["asset_hash"] == h
+    assert b1["hash"] == h
+    assert b1["hash"] == b1["asset_hash"]
     assert b1["created_new"] is False
     aid = b1["id"]
 
@@ -39,6 +41,7 @@ def test_get_and_delete_asset(http: requests.Session, api_base: str, seeded_asse
     detail = rg.json()
     assert rg.status_code == 200, detail
     assert detail["id"] == aid
+    assert detail["hash"] == detail["asset_hash"]
     assert "user_metadata" in detail
     assert "filename" in detail["user_metadata"]
 
@@ -97,6 +100,7 @@ def test_delete_upon_reference_count(
     copy = r2.json()
     assert r2.status_code == 201, copy
     assert copy["asset_hash"] == src_hash
+    assert copy["hash"] == src_hash
     assert copy["created_new"] is False
 
     # Soft-delete original reference (default) -> asset identity must remain
@@ -139,6 +143,7 @@ def test_update_asset_fields(http: requests.Session, api_base: str, seeded_asset
     body = ru.json()
     assert ru.status_code == 200, body
     assert body["name"] == payload["name"]
+    assert body["hash"] == body["asset_hash"]
     assert body["tags"] == original_tags  # tags unchanged
     assert body["user_metadata"]["purpose"] == "updated"
     # filename should still be present and normalized by server
@@ -289,7 +294,9 @@ def test_metadata_filename_is_set_for_seed_asset_without_hash(
     assert r1.status_code == 200, body
     matches = [a for a in body.get("assets", []) if a.get("name") == name]
     assert matches, "Seed asset should be visible after sync"
-    assert matches[0].get("asset_hash") is None  # still a seed
+    # Seed assets have no hash; exclude_none drops both keys from the response
+    assert "asset_hash" not in matches[0]
+    assert "hash" not in matches[0]
     aid = matches[0]["id"]
 
     r2 = http.get(f"{api_base}/api/assets/{aid}", timeout=120)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 
 from comfy_api.latest import ComfyExtension, io
