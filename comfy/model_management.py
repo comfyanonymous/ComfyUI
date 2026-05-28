@@ -1350,9 +1350,18 @@ def reset_cast_buffers():
     for loaded_model in current_loaded_models:
         model = loaded_model.model
         if model is not None and model.is_dynamic():
-            model.model.dynamic_pins[model.load_device]["active"] = False
+            pin_state = model.model.dynamic_pins[model.load_device]
+
+            if pin_state["active"]:
+                *_, buckets = pin_state["weights"]
+                for size, bucket in list(buckets.items()):
+                    bucket[:] = [ entry for entry in bucket if entry[-1] is not None ]
+                    if not bucket:
+                        del buckets[size]
+
+            pin_state["active"] = False
             model.partially_unload_ram(1e30, subsets=[ "patches" ])
-            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0])
+            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0], [0], {})
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
