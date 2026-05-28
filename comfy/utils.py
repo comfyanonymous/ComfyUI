@@ -1452,3 +1452,10 @@ def deepcopy_list_dict(obj, memo=None):
 
     memo[obj_id] = res
     return res
+
+def bit_reverse_range(index, bits):
+    result = 0
+    for _ in range(bits):
+        result = (result << 1) | (index & 1)
+        index >>= 1
+    return result
