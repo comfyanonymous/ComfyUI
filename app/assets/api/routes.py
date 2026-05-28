@@ -160,10 +160,12 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
             preview_url = None
     else:
         preview_url = _build_preview_url_from_view(result.tags, result.ref.user_metadata)
+    asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
         id=result.ref.id,
         name=result.ref.name,
-        asset_hash=result.asset.hash if result.asset else None,
+        hash=asset_content_hash,
+        asset_hash=asset_content_hash,
         size=int(result.asset.size_bytes) if result.asset else None,
         mime_type=result.asset.mime_type if result.asset else None,
         tags=result.tags,

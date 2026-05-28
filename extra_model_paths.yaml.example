@@ -28,7 +28,7 @@
 #config for a1111 ui
 #all you have to do is uncomment this (remove the #) and change the base_path to where yours is installed
 
-#a111:
+#a1111:
 #     base_path: path/to/stable-diffusion-webui/
 #     checkpoints: models/Stable-diffusion
 #     configs: models/Stable-diffusion
