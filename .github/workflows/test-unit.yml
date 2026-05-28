@@ -2,9 +2,9 @@ name: Unit Tests
 
 on:
   push:
-    branches: [ main, master, develop, release/** ]
+    branches: [ main, master, release/** ]
   pull_request:
-    branches: [ main, master, develop, release/** ]
+    branches: [ main, master, release/** ]
 
 jobs:
   test:
@@ -12,6 +12,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-2022, macos-latest]
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python      

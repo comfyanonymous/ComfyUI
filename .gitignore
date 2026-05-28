@@ -13,7 +13,6 @@ extra_model_paths.yaml
 .idea/
 venv*/
 .venv/
-.pyisolate_venvs/
 /web/extensions/*
 !/web/extensions/logging.js.example
 !/web/extensions/core/
