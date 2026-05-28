@@ -1942,12 +1942,10 @@ class ModelPatcherDynamic(ModelPatcher):
         return freed
 
     def loaded_ram_size(self):
-        return (self.model.dynamic_pins[self.load_device]["weights"][0].size +
-                self.model.dynamic_pins[self.load_device]["patches"][0].size)
+        return (self.model.dynamic_pins[self.load_device]["weights"][0].size)
 
     def pinned_memory_size(self):
-        return (self.model.dynamic_pins[self.load_device]["weights"][3][0] +
-                self.model.dynamic_pins[self.load_device]["patches"][3][0])
+        return (self.model.dynamic_pins[self.load_device]["weights"][3][0])
 
     def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights", "patches" ]):
         freed = 0
