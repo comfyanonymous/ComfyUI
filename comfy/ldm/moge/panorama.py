@@ -6,7 +6,6 @@ equirect distance map via a multi-scale Poisson + gradient sparse solve.
 Image sampling uses F.grid_sample (GPU); the sparse solve uses lsmr (CPU).
 """
 
-from __future__ import annotations
 
 from typing import Callable, List, Optional, Tuple
 

@@ -463,6 +463,23 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
+    # PiD (Pixel Diffusion Decoder). Must check BEFORE plain PixelDiT_T2I.
+    _lq_w_key = '{}lq_proj.latent_proj.0.weight'.format(key_prefix)
+    if _lq_w_key in state_dict_keys:
+        in_ch = int(state_dict[_lq_w_key].shape[1])
+        _gate_prefix = '{}lq_proj.gate_modules.'.format(key_prefix)
+        num_gates = len({k[len(_gate_prefix):].split('.')[0]
+                         for k in state_dict_keys if k.startswith(_gate_prefix)})
+        dit_config = {"image_model": "pid",
+                      "lq_latent_channels": in_ch,
+                      "latent_spatial_down_factor": 16 if in_ch >= 64 else 8}
+        if num_gates > 0:
+            dit_config["lq_interval"] = (14 + num_gates - 1) // num_gates
+        return dit_config
+
+    if '{}core.pixel_embedder.proj.weight'.format(key_prefix) in state_dict_keys:  # PixelDiT T2I
+        return {"image_model": "pixeldit_t2i"}
+
     if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
         dit_config["image_model"] = "lumina2"
@@ -754,6 +771,30 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["text_feat_dim"] = 2048
         dit_config["timestep_scale"] = 1000.0
         return dit_config
+
+    if '{}transformer_blocks.0.attn.norm_added_q.weight'.format(key_prefix) in state_dict_keys \
+            and '{}transformer_blocks.0.img_mlp.w1.weight'.format(key_prefix) in state_dict_keys:  # Lens
+        img_in_w = state_dict['{}img_in.weight'.format(key_prefix)]
+        proj_out_w = state_dict['{}proj_out.weight'.format(key_prefix)]
+        multi_layer = '{}txt_norm.0.weight'.format(key_prefix) in state_dict_keys
+        if multi_layer:
+            enc_hidden_dim = state_dict['{}txt_norm.0.weight'.format(key_prefix)].shape[0]
+            # Indices are TE-side; the DiT just consumes L layers in order.
+            selected_layer_index = tuple(range(count_blocks(state_dict_keys, '{}txt_norm.'.format(key_prefix) + '{}.')))
+        else:
+            enc_hidden_dim = state_dict['{}txt_norm.weight'.format(key_prefix)].shape[0]
+            selected_layer_index = (0,)
+
+        return {
+            "image_model": "lens",
+            "in_channels": img_in_w.shape[1],
+            "out_channels": proj_out_w.shape[0] // 4,  # patch_size ** 2 (=2² default)
+            "num_layers": count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.'),
+            "num_attention_heads": img_in_w.shape[0] // 64,  # // attention_head_dim default
+            "enc_hidden_dim": enc_hidden_dim,
+            "multi_layer_encoder_feature": multi_layer,
+            "selected_layer_index": selected_layer_index,
+        }
 
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}

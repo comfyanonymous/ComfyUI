@@ -1,6 +1,5 @@
 """Building blocks for MoGe: residual conv stack, resamplers, MLP, DINOv2 encoder, v1 head."""
 
-from __future__ import annotations
 
 from typing import List, Optional, Sequence, Tuple, Union
 

@@ -13,7 +13,7 @@ class Kandinsky5ImageToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Kandinsky5ImageToVideo",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -71,7 +71,7 @@ class NormalizeVideoLatentStart(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="NormalizeVideoLatentStart",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             description="Normalizes the initial frames of a video latent to match the mean and standard deviation of subsequent reference frames. Helps reduce differences between the starting frames and the rest of the video.",
             inputs=[
                 io.Latent.Input("latent"),

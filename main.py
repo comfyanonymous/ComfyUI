@@ -218,7 +218,7 @@ import comfy.model_patcher
 if args.enable_dynamic_vram or (enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl()):
     if (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
         logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
-    elif comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
+    elif comfy_aimdo.control.init_devices(d.index for d in comfy.model_management.get_all_torch_devices()):
         if args.verbose == 'DEBUG':
             comfy_aimdo.control.set_log_debug()
         elif args.verbose == 'CRITICAL':
@@ -286,8 +286,8 @@ def prompt_worker(q, server_instance):
     cache_ram = 0
     cache_ram_inactive = 0
     if not args.cache_classic and not args.cache_none and args.cache_lru <= 0:
-        cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
-        cache_ram_inactive = min(96.0, max(12.0, comfy.model_management.total_ram * 0.75 / 1024.0))
+        cache_ram = min(10.0, max(2.0, comfy.model_management.total_ram * 0.10 / 1024.0))
+        cache_ram_inactive = min(96.0, comfy.model_management.total_ram / 1024.0)
         if len(args.cache_ram) > 0:
             cache_ram = args.cache_ram[0]
         if len(args.cache_ram) > 1:
@@ -344,9 +344,9 @@ def prompt_worker(q, server_instance):
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
+                logging.info(f"Prompt executed in {execution_time}", extra={'color': 'green'})
             else:
-                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+                logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={'color': 'green'})
 
             if not asset_seeder.is_disabled():
                 paths = _collect_output_absolute_paths(e.history_result)

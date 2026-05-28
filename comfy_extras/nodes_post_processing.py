@@ -616,7 +616,7 @@ class BatchLatentsNode(io.ComfyNode):
             node_id="BatchLatentsNode",
             search_aliases=["combine latents", "stack latents", "merge latents"],
             display_name="Batch Latents",
-            category="latent",
+            category="model/latent",
             inputs=[
                 io.Autogrow.Input("latents", template=autogrow_template)
             ],
