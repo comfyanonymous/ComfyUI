@@ -1,7 +1,7 @@
 <div align="center">
 
 # ComfyUI
-**The most powerful and modular visual AI engine and application.**
+**The most powerful and modular AI engine for content creation.**
 
 
 [![Website][website-shield]][website-url]
@@ -20,7 +20,7 @@
 [website-url]: https://www.comfy.org/
 <!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
 [discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
-[discord-url]: https://www.comfy.org/discord
+[discord-url]: https://discord.com/invite/comfyorg
 [twitter-shield]: https://img.shields.io/twitter/follow/ComfyUI
 [twitter-url]: https://x.com/ComfyUI
 
@@ -31,10 +31,16 @@
 [github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
 [github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
 
-![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
+<img width="1590" height="795" alt="ComfyUI Screenshot" src="https://github.com/user-attachments/assets/36e065e0-bfae-4456-8c7f-8369d5ea48a2" />
+<br>
 </div>
 
-ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
+ComfyUI is the AI creation engine for visual professionals who demand control over every model, every parameter, and every output. Its powerful and modular node graph interface empowers creatives to generate images, videos, 3D models, audio, and more...
+- ComfyUI natively supports the latest open-source state of the art models.
+- API nodes provide access to the best closed source models such as Nano Banana, Seedance, Hunyuan3D, etc.
+- It is available on Windows, Linux, and macOS, locally with our [desktop application](https://www.comfy.org/download), our [portable install](#installing) or on our [cloud](https://www.comfy.org/cloud).
+- The most sophisticated workflows can be exposed through a simple UI thanks to App Mode.
+- It integrates seamlessly into production pipelines with our API endpoints.
 
 ## Get Started
 
@@ -77,6 +83,7 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
    - [Hunyuan Image 2.1](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_image/)
    - [Flux 2](https://comfyanonymous.github.io/ComfyUI_examples/flux2/)
    - [Z Image](https://comfyanonymous.github.io/ComfyUI_examples/z_image/)
+   - Ernie Image
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
@@ -126,7 +133,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 ComfyUI follows a weekly release cycle targeting Monday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
-   - Releases a new stable version (e.g., v0.7.0) roughly every week.
+   - Releases a new major stable version (e.g., v0.7.0) roughly every 2 weeks.
    - Starting from v0.4.0 patch versions will be used for fixes backported onto the current stable release.
    - Minor versions will be used for releases off the master branch.
    - Patch versions may still be used for releases on the master branch in cases where a backport would not make sense.
@@ -193,11 +200,15 @@ If you have trouble extracting it, right click the file -> properties -> unblock
 
 The portable above currently comes with python 3.13 and pytorch cuda 13.0. Update your Nvidia drivers if it doesn't start.
 
-#### Alternative Downloads:
+#### All Official Portable Downloads:
 
-[Experimental portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
+[Portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
 
-[Portable with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
+[Portable for Intel GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_intel.7z)
+
+[Portable for Nvidia GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z) (supports 20 series and above).
+
+[Portable for Nvidia GPUs with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
 
 #### How do I share models between another UI and ComfyUI?
 
@@ -418,9 +429,11 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
 
+> _psst — we're hiring!_ Help build ComfyUI: [comfy.org/careers](https://www.comfy.org/careers)
+
 ## Frontend Development
 
-As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
+As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). The compiled JS files (from TS/Vue) are published to [pypi](https://pypi.org/project/comfyui-frontend-package) and installed as a dependency in ComfyUI.
 
 ### Reporting Issues and Requesting Features
 

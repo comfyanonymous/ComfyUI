@@ -408,8 +408,6 @@ class Qwen35Transformer(Llama2_):
         nn.Module.__init__(self)
         self.config = config
         self.vocab_size = config.vocab_size
-        self.normalize_in = False
-
         self.embed_tokens = ops.Embedding(config.vocab_size, config.hidden_size, device=device, dtype=dtype)
         self.layers = nn.ModuleList([
             Qwen35TransformerBlock(config, index=i, device=device, dtype=dtype, ops=ops)
@@ -453,9 +451,8 @@ class Qwen35VisionPatchEmbed(nn.Module):
         self.proj = ops.Conv3d(self.in_channels, self.embed_dim, kernel_size=kernel_size, stride=kernel_size, bias=True, device=device, dtype=dtype)
 
     def forward(self, x):
-        target_dtype = self.proj.weight.dtype
         x = x.view(-1, self.in_channels, self.temporal_patch_size, self.patch_size, self.patch_size)
-        return self.proj(x.to(target_dtype)).view(-1, self.embed_dim)
+        return self.proj(x).view(-1, self.embed_dim)
 
 
 class Qwen35VisionMLP(nn.Module):
@@ -653,7 +650,7 @@ class Qwen35VisionModel(nn.Module):
         x = self.patch_embed(x)
         pos_embeds = self.fast_pos_embed_interpolate(grid_thw).to(x.device)
         x = x + pos_embeds
-        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        rotary_pos_emb = self.rot_pos_emb(grid_thw).to(x.device)
         seq_len = x.shape[0]
         x = x.reshape(seq_len, -1)
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
@@ -763,7 +760,7 @@ class Qwen35ImageTokenizer(sd1_clip.SD1Tokenizer):
     def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, thinking=False, **kwargs):
         image = kwargs.get("image", None)
         if image is not None and len(images) == 0:
-            images = [image]
+            images = [image[i:i + 1] for i in range(image.shape[0])]
 
         skip_template = False
         if text.startswith('<|im_start|>'):
@@ -774,13 +771,16 @@ class Qwen35ImageTokenizer(sd1_clip.SD1Tokenizer):
         if skip_template:
             llama_text = text
         else:
-            if llama_template is None:
-                if len(images) > 0:
-                    llama_text = self.llama_template_images.format(text)
-                else:
-                    llama_text = self.llama_template.format(text)
+            if llama_template is not None:
+                template = llama_template
+            elif len(images) == 0:
+                template = self.llama_template
             else:
-                llama_text = llama_template.format(text)
+                template = self.llama_template_images
+                if len(images) > 1:
+                    vision_block = "<|vision_start|><|image_pad|><|vision_end|>"
+                    template = template.replace(vision_block, vision_block * len(images), 1)
+            llama_text = template.format(text)
             if not thinking:
                 llama_text += "<think>\n</think>\n"
 
