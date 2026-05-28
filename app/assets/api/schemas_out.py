@@ -10,6 +10,7 @@ class Asset(BaseModel):
 
     id: str
     name: str
+    hash: str | None = None
     asset_hash: str | None = None
     size: int | None = None
     mime_type: str | None = None

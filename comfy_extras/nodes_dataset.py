@@ -574,7 +574,7 @@ class TextProcessingNode(io.ComfyNode):
         return io.Schema(
             node_id=cls.node_id,
             display_name=cls.display_name or cls.node_id,
-            category="dataset/text",
+            category="text",
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
@@ -1208,7 +1208,7 @@ class ResolutionBucket(io.ComfyNode):
             node_id="ResolutionBucket",
             search_aliases=["bucket by resolution", "group by resolution", "batch by resolution"],
             display_name="Resolution Bucket",
-            category="training",
+            category="model/training",
             description="Group latents and conditionings into buckets",
             is_experimental=True,
             is_input_list=True,
@@ -1302,7 +1302,7 @@ class MakeTrainingDataset(io.ComfyNode):
             node_id="MakeTrainingDataset",
             search_aliases=["encode dataset"],
             display_name="Make Training Dataset",
-            category="training",
+            category="model/training",
             description="Encode images with VAE and texts with CLIP to create a training dataset of latents and conditionings.",
             is_experimental=True,
             is_input_list=True,  # images and texts as lists
@@ -1390,7 +1390,7 @@ class SaveTrainingDataset(io.ComfyNode):
             node_id="SaveTrainingDataset",
             search_aliases=["export dataset", "save dataset"],
             display_name="Save Training Dataset",
-            category="training",
+            category="model/training",
             description="Save encoded training dataset (latents + conditioning) to disk for efficient loading during training.",
             is_experimental=True,
             is_output_node=True,
@@ -1493,7 +1493,7 @@ class LoadTrainingDataset(io.ComfyNode):
             node_id="LoadTrainingDataset",
             search_aliases=["import dataset", "training data"],
             display_name="Load Training Dataset",
-            category="training",
+            category="model/training",
             description="Load encoded training dataset (latents + conditioning) from disk for use in training.",
             is_experimental=True,
             inputs=[

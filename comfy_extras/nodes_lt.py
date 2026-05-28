@@ -25,7 +25,7 @@ class GetICLoRAParameters(io.ComfyNode):
             display_name="Get IC-LoRA Parameters",
             description="Extracts IC-LoRA parameters from the safetensors metadata of a LoRA-loaded "
                         "model and outputs them for LTXVAddGuide (eg. reference_downscale_factor).",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             search_aliases=["ic-lora", "ic lora", "iclora", "downscale factor", "reference downscale"],
             inputs=[
                 io.Model.Input(
@@ -62,7 +62,7 @@ class EmptyLTXVLatentVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="EmptyLTXVLatentVideo",
-            category="latent/video/ltxv",
+            category="model/latent/video/ltxv",
             inputs=[
                 io.Int.Input("width", default=768, min=64, max=nodes.MAX_RESOLUTION, step=32),
                 io.Int.Input("height", default=512, min=64, max=nodes.MAX_RESOLUTION, step=32),
@@ -86,7 +86,7 @@ class LTXVImgToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVImgToVideo",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -131,7 +131,7 @@ class LTXVImgToVideoInplace(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVImgToVideoInplace",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Vae.Input("vae"),
                 io.Image.Input("image"),
@@ -226,10 +226,20 @@ def get_noise_mask(latent):
         noise_mask = noise_mask.clone()
     return noise_mask
 
-def get_keyframe_idxs(cond):
+def get_keyframe_idxs(cond, latent_shape=None):
     keyframe_idxs = conditioning_get_any_value(cond, "keyframe_idxs", None)
     if keyframe_idxs is None:
         return None, 0
+    # Get number of keyframes from latent_shape or guide_attention_entries if available
+    if latent_shape is not None and len(latent_shape) == 5:
+        tokens_per_frame = latent_shape[-2] * latent_shape[-1]
+        num_keyframes = keyframe_idxs.shape[2] // tokens_per_frame
+        return keyframe_idxs, num_keyframes
+    entries = conditioning_get_any_value(cond, "guide_attention_entries", None)
+    if entries:
+        num_keyframes = sum(e["latent_shape"][0] for e in entries)
+        return keyframe_idxs, num_keyframes
+    # fallback, may under-count if keyframes share t-start
     # keyframe_idxs contains start/end positions (last dimension), checking for unqiue values only for start
     num_keyframes = torch.unique(keyframe_idxs[:, 0, :, 0]).shape[0]
     return keyframe_idxs, num_keyframes
@@ -241,7 +251,7 @@ class LTXVAddGuide(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVAddGuide",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -322,9 +332,9 @@ class LTXVAddGuide(io.ComfyNode):
         return factor
 
     @classmethod
-    def get_latent_index(cls, cond, latent_length, guide_length, frame_idx, scale_factors):
+    def get_latent_index(cls, cond, latent_length, guide_length, frame_idx, scale_factors, latent_shape=None):
         time_scale_factor, _, _ = scale_factors
-        _, num_keyframes = get_keyframe_idxs(cond)
+        _, num_keyframes = get_keyframe_idxs(cond, latent_shape)
         latent_count = latent_length - num_keyframes
         frame_idx = frame_idx if frame_idx >= 0 else max((latent_count - 1) * time_scale_factor + 1 + frame_idx, 0)
         if guide_length > 1 and frame_idx != 0:
@@ -436,7 +446,7 @@ class LTXVAddGuide(io.ComfyNode):
         num_frames_to_keep = ((image.shape[0] - 1) // time_scale_factor) * time_scale_factor + 1
         resolved_frame_idx = frame_idx
         if frame_idx < 0:
-            _, num_keyframes = get_keyframe_idxs(positive)
+            _, num_keyframes = get_keyframe_idxs(positive, latent_image.shape)
             resolved_frame_idx = max((latent_length - num_keyframes - 1) * time_scale_factor + 1 + frame_idx, 0)
         causal_fix = resolved_frame_idx == 0 or num_frames_to_keep == 1
 
@@ -454,7 +464,7 @@ class LTXVAddGuide(io.ComfyNode):
         if latent_downscale_factor > 1:
             t, guide_mask = cls.dilate_latent(t, latent_downscale_factor)
 
-        frame_idx, latent_idx = cls.get_latent_index(positive, latent_length, len(image), frame_idx, scale_factors)
+        frame_idx, latent_idx = cls.get_latent_index(positive, latent_length, len(image), frame_idx, scale_factors, latent_shape=latent_image.shape)
         assert latent_idx + t.shape[2] <= latent_length, "Conditioning frames exceed the length of the latent sequence."
 
         positive, negative, latent_image, noise_mask = cls.append_keyframe(
@@ -488,7 +498,7 @@ class LTXVCropGuides(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVCropGuides",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -506,7 +516,7 @@ class LTXVCropGuides(io.ComfyNode):
         latent_image = latent["samples"].clone()
         noise_mask = get_noise_mask(latent)
 
-        _, num_keyframes = get_keyframe_idxs(positive)
+        _, num_keyframes = get_keyframe_idxs(positive, latent_image.shape)
         if num_keyframes == 0:
             return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask},)
 
@@ -532,7 +542,7 @@ class LTXVConditioning(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVConditioning",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -601,7 +611,7 @@ class LTXVScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
@@ -736,7 +746,7 @@ class LTXVConcatAVLatent(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVConcatAVLatent",
-            category="latent/video/ltxv",
+            category="model/latent/video/ltxv",
             inputs=[
                 io.Latent.Input("video_latent"),
                 io.Latent.Input("audio_latent"),
@@ -771,7 +781,7 @@ class LTXVSeparateAVLatent(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVSeparateAVLatent",
-            category="latent/video/ltxv",
+            category="model/latent/video/ltxv",
             description="LTXV Separate AV Latent",
             inputs=[
                 io.Latent.Input("av_latent"),
@@ -804,7 +814,7 @@ class LTXVReferenceAudio(io.ComfyNode):
         return io.Schema(
             node_id="LTXVReferenceAudio",
             display_name="LTXV Reference Audio (ID-LoRA)",
-            category="conditioning/audio",
+            category="model/conditioning/audio",
             description="Set reference audio for ID-LoRA speaker identity transfer. Encodes a reference audio clip into the conditioning and optionally patches the model with identity guidance (extra forward pass without reference, amplifying the speaker identity effect).",
             inputs=[
                 io.Model.Input("model"),

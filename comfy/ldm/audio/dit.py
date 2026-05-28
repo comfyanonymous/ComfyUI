@@ -433,11 +433,11 @@ class Attention(nn.Module):
         if self.differential:
             q, q_diff = q.unbind(dim=1)
             k, k_diff = k.unbind(dim=1)
-            out      = optimized_attention(q,      k,      v, h, skip_reshape=True, transformer_options=transformer_options)
-            out_diff = optimized_attention(q_diff, k_diff, v, h, skip_reshape=True, transformer_options=transformer_options)
+            out      = optimized_attention(q,      k,      v, h, skip_reshape=True, low_precision_attention=False, transformer_options=transformer_options)
+            out_diff = optimized_attention(q_diff, k_diff, v, h, skip_reshape=True, low_precision_attention=False, transformer_options=transformer_options)
             out = out - out_diff
         else:
-            out = optimized_attention(q, k, v, h, skip_reshape=True, transformer_options=transformer_options)
+            out = optimized_attention(q, k, v, h, skip_reshape=True, low_precision_attention=False, transformer_options=transformer_options)
 
         out = self.to_out(out)
 

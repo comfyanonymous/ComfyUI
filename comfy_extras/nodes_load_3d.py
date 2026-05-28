@@ -34,7 +34,7 @@ class Load3D(IO.ComfyNode):
             essentials_category="Basics",
             is_experimental=True,
             inputs=[
-                IO.Combo.Input("model_file", options=sorted(files), upload=IO.UploadType.model),
+                IO.Combo.Input("model_file", options=["none"] + sorted(files), upload=IO.UploadType.model),
                 IO.Load3D.Input("image"),
                 IO.Int.Input("width", default=1024, min=1, max=4096, step=1),
                 IO.Int.Input("height", default=1024, min=1, max=4096, step=1),
@@ -68,8 +68,12 @@ class Load3D(IO.ComfyNode):
 
             video = InputImpl.VideoFromFile(recording_video_path)
 
-        file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
-        return IO.NodeOutput(output_image, output_mask, model_file, normal_image, image['camera_info'], video, file_3d)
+        file_3d = None
+        mesh_path = ""
+        if model_file and model_file != "none":
+            file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
+            mesh_path = model_file
+        return IO.NodeOutput(output_image, output_mask, mesh_path, normal_image, image['camera_info'], video, file_3d)
 
     process = execute  # TODO: remove
 

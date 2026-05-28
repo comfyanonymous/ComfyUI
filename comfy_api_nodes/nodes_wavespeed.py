@@ -27,7 +27,7 @@ class WavespeedFlashVSRNode(IO.ComfyNode):
         return IO.Schema(
             node_id="WavespeedFlashVSRNode",
             display_name="FlashVSR Video Upscale",
-            category="api node/video/WaveSpeed",
+            category="video/partner/WaveSpeed",
             description="Fast, high-quality video upscaler that "
             "boosts resolution and restores clarity for low-resolution or blurry footage.",
             inputs=[
@@ -98,7 +98,7 @@ class WavespeedImageUpscaleNode(IO.ComfyNode):
         return IO.Schema(
             node_id="WavespeedImageUpscaleNode",
             display_name="WaveSpeed Image Upscale",
-            category="api node/image/WaveSpeed",
+            category="image/partner/WaveSpeed",
             description="Boost image resolution and quality, upscaling photos to 4K or 8K for sharp, detailed results.",
             inputs=[
                 IO.Combo.Input("model", options=["SeedVR2", "Ultimate"]),

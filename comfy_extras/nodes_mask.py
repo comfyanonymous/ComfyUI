@@ -53,7 +53,7 @@ class LatentCompositeMasked(IO.ComfyNode):
         return IO.Schema(
             node_id="LatentCompositeMasked",
             search_aliases=["overlay latent", "layer latent", "paste latent", "inpaint latent"],
-            category="latent",
+            category="model/latent",
             inputs=[
                 IO.Latent.Input("destination"),
                 IO.Latent.Input("source"),

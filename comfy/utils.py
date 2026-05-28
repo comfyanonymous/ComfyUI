@@ -86,6 +86,7 @@ def load_safetensors(ckpt):
     import comfy_aimdo.model_mmap
 
     f = open(ckpt, "rb", buffering=0)
+    file_lock = threading.Lock()
     model_mmap = comfy_aimdo.model_mmap.ModelMMAP(ckpt)
     file_size = os.path.getsize(ckpt)
     mv = memoryview((ctypes.c_uint8 * file_size).from_address(model_mmap.get()))
@@ -111,7 +112,7 @@ def load_safetensors(ckpt):
                 storage = tensor.untyped_storage()
                 setattr(storage,
                         "_comfy_tensor_file_slice",
-                        comfy.memory_management.TensorFileSlice(f, threading.get_ident(), data_base_offset + start, end - start))
+                        comfy.memory_management.TensorFileSlice(f, file_lock, data_base_offset + start, end - start))
                 setattr(storage, "_comfy_tensor_mmap_refs", (model_mmap, mv))
                 sd[name] = tensor
 
