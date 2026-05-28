@@ -11,6 +11,9 @@ from comfy_api_nodes.apis.tripo import (
     TripoModelVersion,
     TripoMultiviewToModelRequest,
     TripoOrientation,
+    TripoP1ImageToModelRequest,
+    TripoP1MultiviewToModelRequest,
+    TripoP1TextToModelRequest,
     TripoRefineModelRequest,
     TripoStyle,
     TripoTaskResponse,
@@ -93,10 +96,22 @@ class TripoTextToModelNode(IO.ComfyNode):
                 IO.Int.Input("image_seed", default=42, optional=True, advanced=True),
                 IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
                 IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
+                IO.Combo.Input(
+                    "texture_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True),
                 IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
+                IO.Combo.Input(
+                    "geometry_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -209,16 +224,36 @@ class TripoImageToModelNode(IO.ComfyNode):
                 IO.Boolean.Input("pbr", default=True, optional=True),
                 IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
                 IO.Combo.Input(
-                    "orientation", options=TripoOrientation, default=TripoOrientation.DEFAULT, optional=True, advanced=True
+                    "orientation",
+                    options=TripoOrientation,
+                    default=TripoOrientation.DEFAULT,
+                    optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
                 IO.Combo.Input(
-                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
+                    "texture_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
+                IO.Combo.Input(
+                    "texture_alignment",
+                    default="original_image",
+                    options=["original_image", "geometry"],
+                    optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
                 IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
+                IO.Combo.Input(
+                    "geometry_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -346,13 +381,35 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 IO.Boolean.Input("pbr", default=True, optional=True),
                 IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
                 IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
                 IO.Combo.Input(
-                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
+                    "texture_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
+                IO.Combo.Input(
+                    "texture_alignment",
+                    default="original_image",
+                    options=["original_image", "geometry"],
+                    optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
-                IO.Boolean.Input("quad", default=False, optional=True, advanced=True, tooltip="This parameter is deprecated and does nothing."),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
+                IO.Boolean.Input(
+                    "quad",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="This parameter is deprecated and does nothing.",
+                ),
+                IO.Combo.Input(
+                    "geometry_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -467,9 +524,19 @@ class TripoTextureNode(IO.ComfyNode):
                 IO.Boolean.Input("texture", default=True, optional=True),
                 IO.Boolean.Input("pbr", default=True, optional=True),
                 IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
-                IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True, advanced=True),
                 IO.Combo.Input(
-                    "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True, advanced=True
+                    "texture_quality",
+                    default="standard",
+                    options=["standard", "detailed"],
+                    optional=True,
+                    advanced=True,
+                ),
+                IO.Combo.Input(
+                    "texture_alignment",
+                    default="original_image",
+                    options=["original_image", "geometry"],
+                    optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -626,7 +693,7 @@ class TripoRetargetNode(IO.ComfyNode):
                         "preset:hexapod:walk",
                         "preset:octopod:walk",
                         "preset:serpentine:march",
-                        "preset:aquatic:march"
+                        "preset:aquatic:march",
                     ],
                 ),
             ],
@@ -817,7 +884,7 @@ class TripoConversionNode(IO.ComfyNode):
         # Parse part_names from comma-separated string to list
         part_names_list = None
         if part_names and part_names.strip():
-            part_names_list = [name.strip() for name in part_names.split(',') if name.strip()]
+            part_names_list = [name.strip() for name in part_names.split(",") if name.strip()]
 
         response = await sync_op(
             cls,
@@ -848,6 +915,373 @@ class TripoConversionNode(IO.ComfyNode):
         return await poll_until_finished(cls, response, average_duration=30)
 
 
+def _p1_price_expr(*, geometry_credits: int, textured_credits: int, detailed_credits: int) -> str:
+    return (
+        "("
+        "  $mode := widgets.output_mode;"
+        '  $detailed := $lookup(widgets, "output_mode.texture_quality") = "detailed";'
+        f'  $credits := $mode = "geometry only" ? {geometry_credits} : ($detailed ? {detailed_credits} : {textured_credits});'
+        '  {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}'
+        ")"
+    )
+
+
+def _p1_textured_inputs(*, include_image_alignment: bool) -> list:
+    """Inputs shown inside the 'Textured' branch of the P1 output_mode DynamicCombo."""
+    inputs: list = [
+        IO.Boolean.Input("pbr", default=True, tooltip="Include PBR maps. When on, base texture is forced on too."),
+        IO.Combo.Input("texture_quality", options=["standard", "detailed"], default="standard"),
+    ]
+    if include_image_alignment:
+        inputs.extend(
+            [
+                IO.Combo.Input(
+                    "texture_alignment",
+                    options=["original_image", "geometry"],
+                    default="original_image",
+                    tooltip="Prioritize visual fidelity to the source image, or alignment to the mesh geometry.",
+                ),
+                IO.Combo.Input(
+                    "orientation",
+                    options=["default", "align_image"],
+                    default="default",
+                    tooltip="Rotate the output to match the source image. Only applies when textured.",
+                ),
+            ]
+        )
+    inputs.append(IO.Int.Input("texture_seed", default=42, advanced=True))
+    return inputs
+
+
+def _build_p1_output_mode(*, include_image_alignment: bool) -> IO.DynamicCombo.Input:
+    return IO.DynamicCombo.Input(
+        "output_mode",
+        options=[
+            IO.DynamicCombo.Option("Geometry only", []),
+            IO.DynamicCombo.Option("Textured", _p1_textured_inputs(include_image_alignment=include_image_alignment)),
+        ],
+        tooltip='"Geometry only" returns an untextured mesh. "Textured" adds color/PBR maps.',
+    )
+
+
+def _resolve_p1_texture_fields(output_mode: dict) -> dict:
+    """Translate the output_mode DynamicCombo payload into P1 request fields.
+
+    pbr=true forces texture=true server-side, but we send both explicitly so the
+    intent is visible in the request body and logs.
+    """
+    mode = output_mode["output_mode"]
+    if mode == "Geometry only":
+        return {"texture": False, "pbr": False}
+    out = {
+        "texture": True,
+        "pbr": bool(output_mode.get("pbr", True)),
+        "texture_quality": output_mode.get("texture_quality", "standard"),
+        "texture_seed": output_mode.get("texture_seed"),
+    }
+    if "texture_alignment" in output_mode:
+        out["texture_alignment"] = output_mode["texture_alignment"]
+    if "orientation" in output_mode:
+        out["orientation"] = output_mode["orientation"]
+    return out
+
+
+def _p1_common_inputs() -> list:
+    """Inputs shared by all P1 nodes (placed after output_mode)."""
+    return [
+        IO.Int.Input(
+            "face_limit",
+            default=-1,
+            min=-1,
+            max=20000,
+            optional=True,
+            advanced=True,
+            tooltip="Target face count, 48-20000. -1 lets Tripo pick adaptively.",
+        ),
+        IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
+        IO.Boolean.Input(
+            "auto_size",
+            default=False,
+            optional=True,
+            advanced=True,
+            tooltip="Scale the output to approximate real-world meters.",
+        ),
+        IO.Boolean.Input(
+            "export_uv",
+            default=True,
+            optional=True,
+            advanced=True,
+            tooltip="UV unwrap during generation. Turn off for faster geometry-only runs.",
+        ),
+        IO.Boolean.Input(
+            "compress_geometry",
+            default=False,
+            optional=True,
+            advanced=True,
+            tooltip="Apply geometry-based compression. Decompress before editing.",
+        ),
+    ]
+
+
+def _build_p1_request_kwargs(
+    *,
+    output_mode: dict,
+    face_limit: int,
+    model_seed: int,
+    auto_size: bool,
+    export_uv: bool,
+    compress_geometry: bool,
+) -> dict:
+    """Common P1 request fields shared by all three node types."""
+    kwargs: dict = {
+        "model_seed": model_seed,
+        "face_limit": face_limit if face_limit != -1 else None,
+        "auto_size": auto_size,
+        "export_uv": export_uv,
+        "compress": "geometry" if compress_geometry else None,
+    }
+    kwargs.update(_resolve_p1_texture_fields(output_mode))
+    return kwargs
+
+
+class TripoP1TextToModelNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoP1TextToModelNode",
+            display_name="Tripo P1: Text to Model",
+            category="3d/partner/Tripo",
+            description="Tripo P1 text-to-3D. Optimized for low-poly, game-ready meshes with stable topology.",
+            inputs=[
+                IO.String.Input("prompt", multiline=True, tooltip="Up to 1024 characters."),
+                IO.String.Input("negative_prompt", multiline=True, optional=True, tooltip="Up to 255 characters."),
+                _build_p1_output_mode(include_image_alignment=False),
+                IO.Int.Input("image_seed", default=42, optional=True, advanced=True),
+                *_p1_common_inputs(),
+            ],
+            outputs=[
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["output_mode", "output_mode.texture_quality"]),
+                expr=_p1_price_expr(geometry_credits=30, textured_credits=40, detailed_credits=50),
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        output_mode: dict,
+        negative_prompt: str | None = None,
+        image_seed: int | None = None,
+        face_limit: int = -1,
+        model_seed: int | None = None,
+        auto_size: bool = False,
+        export_uv: bool = True,
+        compress_geometry: bool = False,
+    ) -> IO.NodeOutput:
+        if not prompt:
+            raise RuntimeError("Prompt is required")
+        common = _build_p1_request_kwargs(
+            output_mode=output_mode,
+            face_limit=face_limit,
+            model_seed=model_seed,
+            auto_size=auto_size,
+            export_uv=export_uv,
+            compress_geometry=compress_geometry,
+        )
+        request = TripoP1TextToModelRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt or None,
+            image_seed=image_seed,
+            **common,
+        )
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=request,
+        )
+        return await poll_until_finished(cls, response, average_duration=60)
+
+
+class TripoP1ImageToModelNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoP1ImageToModelNode",
+            display_name="Tripo P1: Image to Model",
+            category="3d/partner/Tripo",
+            description="Tripo P1 image-to-3D. Optimized for low-poly, game-ready meshes.",
+            inputs=[
+                IO.Image.Input("image"),
+                _build_p1_output_mode(include_image_alignment=True),
+                IO.Boolean.Input(
+                    "enable_image_autofix",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Pre-process the input image for better generation quality.",
+                ),
+                *_p1_common_inputs(),
+            ],
+            outputs=[
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["output_mode", "output_mode.texture_quality"]),
+                expr=_p1_price_expr(geometry_credits=40, textured_credits=50, detailed_credits=60),
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        output_mode: dict,
+        enable_image_autofix: bool = False,
+        face_limit: int = -1,
+        model_seed: int | None = None,
+        auto_size: bool = False,
+        export_uv: bool = True,
+        compress_geometry: bool = False,
+    ) -> IO.NodeOutput:
+        if image is None:
+            raise RuntimeError("Image is required")
+        tripo_file = TripoFileReference(
+            root=TripoUrlReference(
+                url=(await upload_images_to_comfyapi(cls, image, max_images=1))[0],
+                type="jpeg",
+            )
+        )
+        common = _build_p1_request_kwargs(
+            output_mode=output_mode,
+            face_limit=face_limit,
+            model_seed=model_seed,
+            auto_size=auto_size,
+            export_uv=export_uv,
+            compress_geometry=compress_geometry,
+        )
+        request = TripoP1ImageToModelRequest(
+            file=tripo_file,
+            enable_image_autofix=enable_image_autofix,
+            **common,
+        )
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=request,
+        )
+        return await poll_until_finished(cls, response, average_duration=60)
+
+
+class TripoP1MultiviewToModelNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoP1MultiviewToModelNode",
+            display_name="Tripo P1: Multiview to Model",
+            category="3d/partner/Tripo",
+            description="Tripo P1 multiview-to-3D from 2-4 reference images in [front, left, back, right] order. "
+            "Front is required; any combination of the other three may be omitted.",
+            inputs=[
+                IO.Image.Input("image", tooltip="Front view (0°). Required."),
+                IO.Image.Input(
+                    "image_left",
+                    optional=True,
+                    tooltip="Left view (90°), i.e. the subject's left side.",
+                ),
+                IO.Image.Input("image_back", optional=True, tooltip="Back view (180°)."),
+                IO.Image.Input(
+                    "image_right",
+                    optional=True,
+                    tooltip="Right view (270°), i.e. the subject's right side.",
+                ),
+                _build_p1_output_mode(include_image_alignment=True),
+                *_p1_common_inputs(),
+            ],
+            outputs=[
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["output_mode", "output_mode.texture_quality"]),
+                expr=_p1_price_expr(geometry_credits=40, textured_credits=50, detailed_credits=60),
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        output_mode: dict,
+        image_left: Input.Image | None = None,
+        image_back: Input.Image | None = None,
+        image_right: Input.Image | None = None,
+        face_limit: int = -1,
+        model_seed: int | None = None,
+        auto_size: bool = False,
+        export_uv: bool = True,
+        compress_geometry: bool = False,
+    ) -> IO.NodeOutput:
+        views = [image, image_left, image_back, image_right]
+        if sum(1 for v in views if v is not None) < 2:
+            raise RuntimeError("Tripo P1 multiview requires at least 2 images (front plus one of left/back/right).")
+
+        files: list[TripoFileReference] = []
+        for view in views:
+            if view is None:
+                files.append(TripoFileReference(root=TripoFileEmptyReference()))
+                continue
+            url = (await upload_images_to_comfyapi(cls, view, max_images=1))[0]
+            files.append(TripoFileReference(root=TripoUrlReference(url=url, type="jpeg")))
+
+        common = _build_p1_request_kwargs(
+            output_mode=output_mode,
+            face_limit=face_limit,
+            model_seed=model_seed,
+            auto_size=auto_size,
+            export_uv=export_uv,
+            compress_geometry=compress_geometry,
+        )
+        request = TripoP1MultiviewToModelRequest(files=files, **common)
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=request,
+        )
+        return await poll_until_finished(cls, response, average_duration=80)
+
+
 class TripoExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -855,6 +1289,9 @@ class TripoExtension(ComfyExtension):
             TripoTextToModelNode,
             TripoImageToModelNode,
             TripoMultiviewToModelNode,
+            TripoP1TextToModelNode,
+            TripoP1ImageToModelNode,
+            TripoP1MultiviewToModelNode,
             TripoTextureNode,
             TripoRefineNode,
             TripoRigNode,
