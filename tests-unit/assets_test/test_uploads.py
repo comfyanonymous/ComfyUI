@@ -5,6 +5,20 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 import pytest
 
+from app.assets.api.schemas_out import Asset, AssetCreated
+
+
+def test_asset_created_inherits_hash_field():
+    """AssetCreated must inherit `hash` from Asset so POST /api/assets responses emit it.
+
+    Schema-level guard: integration tests cover the wire shape, but inheritance
+    drift (e.g. AssetCreated ever being redefined to no longer extend Asset)
+    would silently drop `hash` from a major endpoint without this check.
+    """
+    assert "hash" in Asset.model_fields
+    assert "hash" in AssetCreated.model_fields
+    assert AssetCreated.model_fields["hash"].annotation == Asset.model_fields["hash"].annotation
+
 
 def test_upload_ok_duplicate_reference(http: requests.Session, api_base: str, make_asset_bytes):
     name = "dup_a.safetensors"
@@ -17,6 +31,7 @@ def test_upload_ok_duplicate_reference(http: requests.Session, api_base: str, ma
     a1 = r1.json()
     assert r1.status_code == 201, a1
     assert a1["created_new"] is True
+    assert a1["hash"] == a1["asset_hash"]
 
     # Second upload with the same data and name creates a new AssetReference (duplicates allowed)
     # Returns 200 because Asset already exists, but a new AssetReference is created
@@ -26,6 +41,7 @@ def test_upload_ok_duplicate_reference(http: requests.Session, api_base: str, ma
     a2 = r2.json()
     assert r2.status_code in (200, 201), a2
     assert a2["asset_hash"] == a1["asset_hash"]
+    assert a2["hash"] == a1["hash"]
     assert a2["id"] != a1["id"]  # new reference with same content
 
     # Third upload with the same data but different name also creates new AssetReference
@@ -50,6 +66,7 @@ def test_upload_fastpath_from_existing_hash_no_file(http: requests.Session, api_
     b1 = r1.json()
     assert r1.status_code == 201, b1
     h = b1["asset_hash"]
+    assert b1["hash"] == h
 
     # Now POST /api/assets with only hash and no file
     files = [
@@ -63,6 +80,7 @@ def test_upload_fastpath_from_existing_hash_no_file(http: requests.Session, api_
     assert r2.status_code == 200, b2  # fast path returns 200 with created_new == False
     assert b2["created_new"] is False
     assert b2["asset_hash"] == h
+    assert b2["hash"] == h
 
 
 def test_upload_fastpath_with_known_hash_and_file(
@@ -75,6 +93,7 @@ def test_upload_fastpath_with_known_hash_and_file(
     b1 = r1.json()
     assert r1.status_code == 201, b1
     h = b1["asset_hash"]
+    assert b1["hash"] == h
 
     # Send both file and hash of existing content -> server must drain file and create from hash (200)
     files = {"file": ("ignored.bin", b"ignored" * 10, "application/octet-stream")}
@@ -84,6 +103,7 @@ def test_upload_fastpath_with_known_hash_and_file(
     assert r2.status_code == 200, b2
     assert b2["created_new"] is False
     assert b2["asset_hash"] == h
+    assert b2["hash"] == h
 
 
 def test_upload_multiple_tags_fields_are_merged(http: requests.Session, api_base: str):
@@ -142,6 +162,8 @@ def test_concurrent_upload_identical_bytes_different_names(
     assert r1.status_code in (200, 201), b1
     assert r2.status_code in (200, 201), b2
     assert b1["asset_hash"] == b2["asset_hash"]
+    assert b1["hash"] == b2["hash"]
+    assert b1["hash"] == b1["asset_hash"]
     assert b1["id"] != b2["id"]
 
     created_flags = sorted([bool(b1.get("created_new")), bool(b2.get("created_new"))])

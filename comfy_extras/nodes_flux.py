@@ -40,7 +40,7 @@ class EmptyFlux2LatentImage(io.ComfyNode):
         return io.Schema(
             node_id="EmptyFlux2LatentImage",
             display_name="Empty Flux 2 Latent",
-            category="latent",
+            category="model/latent",
             inputs=[
                 io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
@@ -215,7 +215,7 @@ class Flux2Scheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Flux2Scheduler",
-            category="sampling/custom_sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=4096),
                 io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=1),
@@ -263,7 +263,7 @@ class FluxKVCache(io.ComfyNode):
             node_id="FluxKVCache",
             display_name="Flux KV Cache",
             description="Enables KV Cache optimization for reference images on Flux family models.",
-            category="",
+            category="experimental",
             is_experimental=True,
             inputs=[
                 io.Model.Input("model", tooltip="The model to use KV Cache on."),

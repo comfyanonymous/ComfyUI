@@ -548,7 +548,7 @@ class USOStyleReference:
     FUNCTION = "apply_patch"
     EXPERIMENTAL = True
 
-    CATEGORY = "advanced/model_patches/flux"
+    CATEGORY = "model/patch/flux"
 
     def apply_patch(self, model, model_patch, clip_vision_output):
         encoded_image = torch.stack((clip_vision_output.all_hidden_states[:, -20], clip_vision_output.all_hidden_states[:, -11], clip_vision_output.penultimate_hidden_states))
@@ -594,7 +594,7 @@ class SUPIRApply(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SUPIRApply",
-            category="model_patches/supir",
+            category="model/patch/supir",
             is_experimental=True,
             inputs=[
                 io.Model.Input("model"),

@@ -1,19 +1,18 @@
 {
-  "id": "6af0a6c1-0161-4528-8685-65776e838d44",
   "revision": 0,
-  "last_node_id": 75,
-  "last_link_id": 245,
+  "last_node_id": 76,
+  "last_link_id": 0,
   "nodes": [
     {
-      "id": 75,
-      "type": "488652fd-6edf-4d06-8f9f-4d84d3a34eaf",
+      "id": 76,
+      "type": "96338968-1242-4f02-b6a1-d496af4bcffe",
       "pos": [
-        600,
-        830
+        670,
+        1280
       ],
       "size": [
         400,
-        110
+        201.3125
       ],
       "flags": {},
       "order": 0,
@@ -59,47 +58,44 @@
           "links": []
         }
       ],
+      "title": "Image Depth Estimation (Lotus Depth)",
       "properties": {
         "proxyWidgets": [
           [
-            "-1",
+            "28",
             "sigma"
           ],
           [
-            "-1",
+            "10",
             "unet_name"
           ],
           [
-            "-1",
+            "14",
             "vae_name"
           ]
         ],
         "cnr_id": "comfy-core",
         "ver": "0.14.1"
       },
-      "widgets_values": [
-        999.0000000000002,
-        "lotus-depth-d-v1-1.safetensors",
-        "vae-ft-mse-840000-ema-pruned.safetensors"
-      ]
+      "widgets_values": []
     }
   ],
   "links": [],
-  "groups": [],
+  "version": 0.4,
   "definitions": {
     "subgraphs": [
       {
-        "id": "488652fd-6edf-4d06-8f9f-4d84d3a34eaf",
+        "id": "96338968-1242-4f02-b6a1-d496af4bcffe",
         "version": 1,
         "state": {
           "lastGroupId": 1,
-          "lastNodeId": 75,
+          "lastNodeId": 76,
           "lastLinkId": 245,
           "lastRerouteId": 0
         },
         "revision": 0,
         "config": {},
-        "name": "Image to Depth Map (Lotus)",
+        "name": "Image Depth Estimation (Lotus Depth)",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -191,12 +187,12 @@
             "id": 10,
             "type": "UNETLoader",
             "pos": [
-              108.05555555555557,
-              -253.05555555555557
+              110,
+              -250
             ],
             "size": [
-              254.93706597222226,
-              82
+              260,
+              90
             ],
             "flags": {},
             "order": 4,
@@ -234,9 +230,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "UNETLoader",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "UNETLoader",
               "models": [
                 {
                   "name": "lotus-depth-d-v1-1.safetensors",
@@ -255,12 +251,12 @@
             "id": 18,
             "type": "DisableNoise",
             "pos": [
-              607.0641494069639,
-              -268.33337840371513
+              610,
+              -270
             ],
             "size": [
-              175,
-              33.333333333333336
+              180,
+              40
             ],
             "flags": {},
             "order": 0,
@@ -278,26 +274,25 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "DisableNoise",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "DisableNoise",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
-            "id": 23,
+            "id": 74,
             "type": "VAEEncode",
             "pos": [
               620,
               160
             ],
             "size": [
-              175,
+              180,
               50
             ],
             "flags": {},
-            "order": 10,
+            "order": 11,
             "mode": 0,
             "inputs": [
               {
@@ -325,12 +320,11 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAEEncode",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "VAEEncode",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
             "id": 21,
@@ -341,7 +335,7 @@
             ],
             "size": [
               210,
-              58
+              60
             ],
             "flags": {},
             "order": 1,
@@ -369,9 +363,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "KSamplerSelect",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "KSamplerSelect",
               "widget_ue_connectable": {}
             },
             "widgets_values": [
@@ -386,7 +380,7 @@
               -170
             ],
             "size": [
-              175,
+              180,
               50
             ],
             "flags": {},
@@ -418,12 +412,11 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "BasicGuider",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "BasicGuider",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
             "id": 16,
@@ -433,8 +426,8 @@
               -130
             ],
             "size": [
-              295.99609375,
-              271.65798611111114
+              300,
+              280
             ],
             "flags": {},
             "order": 6,
@@ -490,12 +483,11 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "SamplerCustomAdvanced",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "SamplerCustomAdvanced",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
             "id": 28,
@@ -506,10 +498,10 @@
             ],
             "size": [
               210,
-              58
+              60
             ],
             "flags": {},
-            "order": 11,
+            "order": 10,
             "mode": 0,
             "inputs": [
               {
@@ -540,9 +532,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "SetFirstSigma",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "SetFirstSigma",
               "widget_ue_connectable": {}
             },
             "widgets_values": [
@@ -557,7 +549,7 @@
               -120
             ],
             "size": [
-              175,
+              180,
               50
             ],
             "flags": {},
@@ -589,12 +581,11 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAEDecode",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "VAEDecode",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
             "id": 22,
@@ -604,8 +595,8 @@
               -220
             ],
             "size": [
-              175,
-              33.333333333333336
+              180,
+              40
             ],
             "flags": {},
             "order": 9,
@@ -630,12 +621,11 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "ImageInvert",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "ImageInvert",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
             "id": 14,
@@ -645,8 +635,8 @@
               -90
             ],
             "size": [
-              254.93706597222226,
-              58
+              260,
+              60
             ],
             "flags": {},
             "order": 5,
@@ -675,9 +665,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAELoader",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "VAELoader",
               "models": [
                 {
                   "name": "vae-ft-mse-840000-ema-pruned.safetensors",
@@ -692,15 +682,15 @@
             ]
           },
           {
-            "id": 68,
+            "id": 75,
             "type": "LotusConditioning",
             "pos": [
               400,
               -150
             ],
             "size": [
-              175,
-              33.333333333333336
+              180,
+              40
             ],
             "flags": {},
             "order": 2,
@@ -718,12 +708,11 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "LotusConditioning",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "LotusConditioning",
               "widget_ue_connectable": {}
-            },
-            "widgets_values": []
+            }
           },
           {
             "id": 20,
@@ -734,7 +723,7 @@
             ],
             "size": [
               210,
-              106
+              110
             ],
             "flags": {},
             "order": 8,
@@ -786,9 +775,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "BasicScheduler",
               "cnr_id": "comfy-core",
               "ver": "0.3.34",
-              "Node name for S&R": "BasicScheduler",
               "widget_ue_connectable": {}
             },
             "widgets_values": [
@@ -850,7 +839,7 @@
           },
           {
             "id": 201,
-            "origin_id": 23,
+            "origin_id": 74,
             "origin_slot": 0,
             "target_id": 16,
             "target_slot": 4,
@@ -866,7 +855,7 @@
           },
           {
             "id": 238,
-            "origin_id": 68,
+            "origin_id": 75,
             "origin_slot": 0,
             "target_id": 19,
             "target_slot": 1,
@@ -892,7 +881,7 @@
             "id": 38,
             "origin_id": 14,
             "origin_slot": 0,
-            "target_id": 23,
+            "target_id": 74,
             "target_slot": 1,
             "type": "VAE"
           },
@@ -908,7 +897,7 @@
             "id": 37,
             "origin_id": -10,
             "origin_slot": 0,
-            "target_id": 23,
+            "target_id": 74,
             "target_slot": 0,
             "type": "IMAGE"
           },
@@ -948,12 +937,11 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Depth to image",
+        "category": "Conditioning & Preprocessors/Depth",
         "description": "Estimates a monocular depth map from an input image using the Lotus depth estimation model."
       }
     ]
   },
-  "config": {},
   "extra": {
     "ds": {
       "scale": 1.3589709866044692,
@@ -961,8 +949,6 @@
         -138.53613935617864,
         -786.0629126022195
       ]
-    },
-    "workflowRendererVersion": "LG"
-  },
-  "version": 0.4
+    }
+  }
 }

@@ -3350,7 +3350,7 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing/First-Last-Frame to Video",
+        "category": "Video generation and editing/FLF2V",
         "description": "Generates a video that interpolates between the first and last keyframes using LTX-2.3, including optional audio."
       }
     ]

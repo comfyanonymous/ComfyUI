@@ -19,7 +19,7 @@ class EmptyARVideoLatent(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="EmptyARVideoLatent",
-            category="latent/video",
+            category="model/latent/video",
             inputs=[
                 io.Int.Input("width", default=832, min=16, max=8192, step=16),
                 io.Int.Input("height", default=480, min=16, max=8192, step=16),
@@ -53,7 +53,7 @@ class SamplerARVideo(io.ComfyNode):
         return io.Schema(
             node_id="SamplerARVideo",
             display_name="Sampler AR Video",
-            category="sampling/custom_sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Int.Input(
                     "num_frame_per_block",
@@ -85,7 +85,7 @@ class ARVideoI2V(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ARVideoI2V",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Model.Input("model"),
                 io.Vae.Input("vae"),

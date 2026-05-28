@@ -58,7 +58,7 @@ class OpticalFlowLoader(io.ComfyNode):
         return io.Schema(
             node_id="OpticalFlowLoader",
             display_name="Load Optical Flow Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input(
                     "model_name",
@@ -122,7 +122,8 @@ class VOIDQuadmaskPreprocess(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDQuadmaskPreprocess",
-            category="mask/video",
+            display_name="VOID Quadmask Preprocessor",
+            category="image/mask",
             inputs=[
                 io.Mask.Input("mask"),
                 io.Int.Input("dilate_width", default=0, min=0, max=50, step=1,
@@ -174,7 +175,7 @@ class VOIDInpaintConditioning(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDInpaintConditioning",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -287,7 +288,7 @@ class VOIDWarpedNoise(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDWarpedNoise",
-            category="latent/video",
+            category="model/latent/video",
             inputs=[
                 OpticalFlow.Input(
                     "optical_flow",
@@ -392,7 +393,7 @@ class VOIDWarpedNoiseSource(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDWarpedNoiseSource",
-            category="sampling/custom_sampling/noise",
+            category="model/sampling/noise",
             inputs=[
                 io.Latent.Input("warped_noise",
                     tooltip="Warped noise latent from VOIDWarpedNoise"),
@@ -454,7 +455,7 @@ class VOIDSampler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDSampler",
-            category="sampling/custom_sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[],
             outputs=[io.Sampler.Output()],
         )

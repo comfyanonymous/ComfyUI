@@ -14,7 +14,7 @@ class EmptyHiDreamO1LatentImage(io.ComfyNode):
         return io.Schema(
             node_id="EmptyHiDreamO1LatentImage",
             display_name="Empty HiDream-O1 Latent Image",
-            category="latent/image",
+            category="model/latent/image",
             description=(
                 "Empty pixel-space latent for HiDream-O1-Image. The model was "
                 "trained at ~4 megapixels; lower resolutions go off-distribution "
@@ -47,7 +47,7 @@ class HiDreamO1ReferenceImages(io.ComfyNode):
         return io.Schema(
             node_id="HiDreamO1ReferenceImages",
             display_name="HiDream-O1 Reference Images",
-            category="conditioning/image",
+            category="model/conditioning/image",
             description=(
                 "Attach 1-10 reference images to conditioning, one for edit instruction"
                 "or multiple for subject-driven personalization."

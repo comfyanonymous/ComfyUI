@@ -4,7 +4,6 @@ Provides a ComfyMathExpression node that evaluates math expressions
 against dynamically-grown numeric inputs.
 """
 
-from __future__ import annotations
 
 import math
 import string
@@ -70,7 +69,7 @@ class MathExpressionNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyMathExpression",
             display_name="Math Expression",
-            category="logic",
+            category="utilities",
             search_aliases=[
                 "expression", "formula", "calculate", "calculator",
                 "eval", "math",

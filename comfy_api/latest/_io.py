@@ -766,6 +766,13 @@ class Load3DCamera(ComfyTypeIO):
         target: dict[str, float | int]
         zoom: int
         cameraType: str
+        quaternion: NotRequired[dict[str, float | int]]
+        rotation: NotRequired[dict[str, float | int | str]]
+        fov: NotRequired[float | int]
+        aspect: NotRequired[float | int]
+        near: NotRequired[float | int]
+        far: NotRequired[float | int]
+        frustum: NotRequired[dict[str, float | int]]
 
     Type = CameraInfo
 

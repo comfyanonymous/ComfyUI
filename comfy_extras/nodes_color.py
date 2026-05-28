@@ -8,7 +8,7 @@ class ColorToRGBInt(io.ComfyNode):
         return io.Schema(
             node_id="ColorToRGBInt",
             display_name="Color to RGB Int",
-            category="utils",
+            category="utilities",
             description="Convert a color to a RGB integer value.",
             inputs=[
                 io.Color.Input("color"),
