@@ -13,6 +13,18 @@ from comfy_api.latest import ComfyExtension, io
 
 
 def _sanitize_folder_name(base_dir, folder_name):
+    """Sanitize a folder name to prevent path traversal attacks.
+
+    Args:
+        base_dir: The base directory that the folder must reside within.
+        folder_name: The name of the folder to resolve.
+
+    Returns:
+        str: The absolute path to the resolved folder.
+
+    Raises:
+        ValueError: If the resolved path escapes the base directory.
+    """
     resolved = os.path.abspath(os.path.join(base_dir, folder_name))
     if not resolved.startswith(os.path.abspath(base_dir)):
         raise ValueError("Path traversal detected in folder_name")
