@@ -641,7 +641,10 @@ def free_pins(size, evict_active=False):
     return freed_total
 
 def ensure_pin_budget(size, evict_active=False):
-    shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - psutil.virtual_memory().available
+    if args.fast_disk:
+        shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
+    else:
+        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - psutil.virtual_memory().available
     if shortfall <= 0:
         return True
 
