@@ -31,7 +31,7 @@ class BriaImageEditNode(IO.ComfyNode):
         return IO.Schema(
             node_id="BriaImageEditNode",
             display_name="Bria FIBO Image Edit",
-            category="api node/image/Bria",
+            category="image/partner/Bria",
             description="Edit images using Bria latest model",
             inputs=[
                 IO.Combo.Input("model", options=["FIBO"]),
@@ -169,7 +169,7 @@ class BriaRemoveImageBackground(IO.ComfyNode):
         return IO.Schema(
             node_id="BriaRemoveImageBackground",
             display_name="Bria Remove Image Background",
-            category="api node/image/Bria",
+            category="image/partner/Bria",
             description="Remove the background from an image using Bria RMBG 2.0.",
             inputs=[
                 IO.Image.Input("image"),
@@ -245,7 +245,7 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
         return IO.Schema(
             node_id="BriaRemoveVideoBackground",
             display_name="Bria Remove Video Background",
-            category="api node/video/Bria",
+            category="video/partner/Bria",
             description="Remove the background from a video using Bria. ",
             inputs=[
                 IO.Video.Input("video"),

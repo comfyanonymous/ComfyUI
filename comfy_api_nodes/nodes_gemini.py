@@ -300,7 +300,7 @@ class GeminiNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GeminiNode",
             display_name="Google Gemini",
-            category="api node/text/Gemini",
+            category="text/partner/Gemini",
             description="Generate text responses with Google's Gemini AI model. "
             "You can provide multiple types of inputs (text, images, audio, video) "
             "as context for generating more relevant and meaningful responses.",
@@ -541,7 +541,7 @@ class GeminiInputFiles(IO.ComfyNode):
         return IO.Schema(
             node_id="GeminiInputFiles",
             display_name="Gemini Input Files",
-            category="api node/text/Gemini",
+            category="text/partner/Gemini",
             description="Loads and prepares input files to include as inputs for Gemini LLM nodes. "
             "The files will be read by the Gemini model when generating a response. "
             "The contents of the text file count toward the token limit. "
@@ -598,7 +598,7 @@ class GeminiImage(IO.ComfyNode):
         return IO.Schema(
             node_id="GeminiImageNode",
             display_name="Nano Banana (Google Gemini Image)",
-            category="api node/image/Gemini",
+            category="image/partner/Gemini",
             description="Edit images synchronously via Google API.",
             inputs=[
                 IO.String.Input(
@@ -731,7 +731,7 @@ class GeminiImage2(IO.ComfyNode):
         return IO.Schema(
             node_id="GeminiImage2Node",
             display_name="Nano Banana Pro (Google Gemini Image)",
-            category="api node/image/Gemini",
+            category="image/partner/Gemini",
             description="Generate or edit images synchronously via Google Vertex API.",
             inputs=[
                 IO.String.Input(
@@ -869,7 +869,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
         return IO.Schema(
             node_id="GeminiNanoBanana2",
             display_name="Nano Banana 2",
-            category="api node/image/Gemini",
+            category="image/partner/Gemini",
             description="Generate or edit images synchronously via Google Vertex API.",
             inputs=[
                 IO.String.Input(
@@ -1085,7 +1085,7 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
         return IO.Schema(
             node_id="GeminiNanoBanana2V2",
             display_name="Nano Banana 2",
-            category="api node/image/Gemini",
+            category="image/partner/Gemini",
             description="Generate or edit images synchronously via Google Vertex API.",
             inputs=[
                 IO.String.Input(

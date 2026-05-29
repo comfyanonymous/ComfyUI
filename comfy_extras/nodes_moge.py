@@ -78,7 +78,7 @@ class LoadMoGeModel(io.ComfyNode):
         return io.Schema(
             node_id="LoadMoGeModel",
             display_name="Load MoGe Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input("model_name", options=folder_paths.get_filename_list("geometry_estimation")),
             ],
@@ -104,7 +104,7 @@ class MoGePanoramaInference(io.ComfyNode):
             node_id="MoGePanoramaInference",
             search_aliases=["moge", "panorama", "depth", "geometry", "depth estimation", "geometry estimation"],
             display_name="Run MoGe Panorama Inference",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             description="Run MoGe on an equirectangular panorama by splitting it into 12 perspective views, running inference on each, and merging the results into a single depth map.",
             inputs=[
                 MoGeModelType.Input("moge_model"),
@@ -226,7 +226,7 @@ class MoGeInference(io.ComfyNode):
             search_aliases=["moge", "depth", "geometry", "depth estimation", "geometry estimation"],
             display_name="Run MoGe Inference",
             description="Run MoGe on a single image to estimate depth and geometry.",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             inputs=[
                 MoGeModelType.Input("moge_model"),
                 io.Image.Input("image"),
@@ -283,7 +283,7 @@ class MoGeRender(io.ComfyNode):
             search_aliases=["moge", "render", "geometry", "depth", "normal"],
             display_name="Render MoGe Geometry",
             description="Render a depth map or normal map from geometry data",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
                 io.Combo.Input("output", options=["depth", "depth_colored", "normal_opengl", "normal_directx", "mask"], default="depth",
@@ -350,7 +350,7 @@ class MoGePointMapToMesh(io.ComfyNode):
             search_aliases=["moge", "mesh", "geometry", "point map"],
             display_name="Convert MoGe Point Map to Mesh",
             description="Convert a MoGe point map into a 3D mesh.",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
                 io.Int.Input("batch_index", default=0, min=0, max=4096,

@@ -95,7 +95,7 @@ class BoundingBox(IO.ComfyNode):
         return IO.Schema(
             node_id="PrimitiveBoundingBox",
             display_name="Bounding Box",
-            category="utils/primitive",
+            category="utilities/primitive",
             inputs=[
                 IO.Int.Input("x", default=0, min=0, max=MAX_RESOLUTION),
                 IO.Int.Input("y", default=0, min=0, max=MAX_RESOLUTION),

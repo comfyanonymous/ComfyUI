@@ -11,7 +11,7 @@ class CurveEditor(io.ComfyNode):
         return io.Schema(
             node_id="CurveEditor",
             display_name="Curve Editor",
-            category="utils",
+            category="utilities",
             inputs=[
                 io.Curve.Input("curve"),
                 io.Histogram.Input("histogram", optional=True),
@@ -38,7 +38,7 @@ class ImageHistogram(io.ComfyNode):
         return io.Schema(
             node_id="ImageHistogram",
             display_name="Image Histogram",
-            category="utils",
+            category="utilities",
             inputs=[
                 io.Image.Input("image"),
             ],

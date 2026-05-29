@@ -17,7 +17,7 @@ class BasicScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="BasicScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Model.Input("model"),
                 io.Combo.Input("scheduler", options=comfy.samplers.SCHEDULER_NAMES),
@@ -47,7 +47,7 @@ class KarrasScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="KarrasScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
@@ -69,7 +69,7 @@ class ExponentialScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ExponentialScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
@@ -90,7 +90,7 @@ class PolyexponentialScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PolyexponentialScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
@@ -112,7 +112,7 @@ class LaplaceScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LaplaceScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False, advanced=True),
@@ -136,7 +136,7 @@ class SDTurboScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SDTurboScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Model.Input("model"),
                 io.Int.Input("steps", default=1, min=1, max=10),
@@ -160,7 +160,7 @@ class BetaSamplingScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="BetaSamplingScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Model.Input("model"),
                 io.Int.Input("steps", default=20, min=1, max=10000),
@@ -182,7 +182,7 @@ class VPScheduler(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VPScheduler",
-            category="sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("beta_d", default=19.9, min=0.0, max=5000.0, step=0.01, round=False, advanced=True), #TODO: fix default values
@@ -204,7 +204,7 @@ class SplitSigmas(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SplitSigmas",
-            category="sampling/sigmas",
+            category="model/sampling/sigmas",
             inputs=[
                 io.Sigmas.Input("sigmas"),
                 io.Int.Input("step", default=0, min=0, max=10000),
@@ -228,7 +228,7 @@ class SplitSigmasDenoise(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SplitSigmasDenoise",
-            category="sampling/sigmas",
+            category="model/sampling/sigmas",
             inputs=[
                 io.Sigmas.Input("sigmas"),
                 io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
@@ -254,7 +254,7 @@ class FlipSigmas(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FlipSigmas",
-            category="sampling/sigmas",
+            category="model/sampling/sigmas",
             inputs=[io.Sigmas.Input("sigmas")],
             outputs=[io.Sigmas.Output()]
         )
@@ -276,7 +276,7 @@ class SetFirstSigma(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SetFirstSigma",
-            category="sampling/sigmas",
+            category="model/sampling/sigmas",
             inputs=[
                 io.Sigmas.Input("sigmas"),
                 io.Float.Input("sigma", default=136.0, min=0.0, max=20000.0, step=0.001, round=False),
@@ -298,7 +298,7 @@ class ExtendIntermediateSigmas(io.ComfyNode):
         return io.Schema(
             node_id="ExtendIntermediateSigmas",
             search_aliases=["interpolate sigmas"],
-            category="sampling/sigmas",
+            category="model/sampling/sigmas",
             inputs=[
                 io.Sigmas.Input("sigmas"),
                 io.Int.Input("steps", default=2, min=1, max=100),
@@ -351,7 +351,7 @@ class SamplingPercentToSigma(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplingPercentToSigma",
-            category="sampling/sigmas",
+            category="model/sampling/sigmas",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("sampling_percent", default=0.0, min=0.0, max=1.0, step=0.0001),
@@ -379,7 +379,7 @@ class KSamplerSelect(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="KSamplerSelect",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[io.Combo.Input("sampler_name", options=comfy.samplers.SAMPLER_NAMES)],
             outputs=[io.Sampler.Output()]
         )
@@ -396,7 +396,7 @@ class SamplerDPMPP_3M_SDE(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerDPMPP_3M_SDE",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
@@ -421,7 +421,7 @@ class SamplerDPMPP_2M_SDE(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerDPMPP_2M_SDE",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=['midpoint', 'heun']),
                 io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
@@ -448,7 +448,7 @@ class SamplerDPMPP_SDE(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerDPMPP_SDE",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
@@ -474,7 +474,7 @@ class SamplerDPMPP_2S_Ancestral(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerDPMPP_2S_Ancestral",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
@@ -494,7 +494,7 @@ class SamplerEulerAncestral(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerEulerAncestral",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
@@ -515,7 +515,7 @@ class SamplerEulerAncestralCFGPP(io.ComfyNode):
         return io.Schema(
             node_id="SamplerEulerAncestralCFGPP",
             display_name="SamplerEulerAncestralCFG++",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Float.Input("eta", default=1.0, min=0.0, max=1.0, step=0.01, round=False),
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=10.0, step=0.01, round=False),
@@ -537,7 +537,7 @@ class SamplerLMS(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerLMS",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[io.Int.Input("order", default=4, min=1, max=100, advanced=True)],
             outputs=[io.Sampler.Output()]
         )
@@ -554,7 +554,7 @@ class SamplerDPMAdaptative(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerDPMAdaptative",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Int.Input("order", default=3, min=2, max=3, advanced=True),
                 io.Float.Input("rtol", default=0.05, min=0.0, max=100.0, step=0.01, round=False, advanced=True),
@@ -585,7 +585,7 @@ class SamplerER_SDE(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerER_SDE",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=["ER-SDE", "Reverse-time SDE", "ODE"]),
                 io.Int.Input("max_stage", default=3, min=1, max=3, advanced=True),
@@ -623,7 +623,7 @@ class SamplerSASolver(io.ComfyNode):
         return io.Schema(
             node_id="SamplerSASolver",
             search_aliases=["sde"],
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("eta", default=1.0, min=0.0, max=10.0, step=0.01, round=False, advanced=True),
@@ -668,7 +668,7 @@ class SamplerSEEDS2(io.ComfyNode):
         return io.Schema(
             node_id="SamplerSEEDS2",
             search_aliases=["sde", "exp heun"],
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=["phi_1", "phi_2"]),
                 io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength", advanced=True),
@@ -727,7 +727,7 @@ class SamplerCustom(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerCustom",
-            category="sampling/custom_sampling",
+            category="model/sampling/custom_sampling",
             inputs=[
                 io.Model.Input("model"),
                 io.Boolean.Input("add_noise", default=True, advanced=True),
@@ -795,7 +795,7 @@ class BasicGuider(io.ComfyNode):
         return io.Schema(
             node_id="BasicGuider",
             display_name="Basic Guider",
-            category="sampling/guiders",
+            category="model/sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("conditioning"),
@@ -817,7 +817,7 @@ class CFGGuider(io.ComfyNode):
         return io.Schema(
             node_id="CFGGuider",
             display_name="CFG Guider",
-            category="sampling/guiders",
+            category="model/sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("positive"),
@@ -872,7 +872,7 @@ class DualCFGGuider(io.ComfyNode):
             node_id="DualCFGGuider",
             search_aliases=["dual prompt guidance"],
             display_name="Dual CFG Guider",
-            category="sampling/guiders",
+            category="model/sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("cond1"),
@@ -900,7 +900,7 @@ class DisableNoise(io.ComfyNode):
         return io.Schema(
             node_id="DisableNoise",
             search_aliases=["zero noise"],
-            category="sampling/noise",
+            category="model/sampling/noise",
             inputs=[],
             outputs=[io.Noise.Output()]
         )
@@ -917,7 +917,7 @@ class RandomNoise(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="RandomNoise",
-            category="sampling/noise",
+            category="model/sampling/noise",
             inputs=[io.Int.Input("noise_seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True)],
             outputs=[io.Noise.Output()]
         )
@@ -934,7 +934,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerCustomAdvanced",
-            category="sampling/custom_sampling",
+            category="model/sampling/custom_sampling",
             inputs=[
                 io.Noise.Input("noise"),
                 io.Guider.Input("guider"),

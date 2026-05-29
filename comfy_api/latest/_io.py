@@ -762,10 +762,17 @@ class Accumulation(ComfyTypeIO):
 @comfytype(io_type="LOAD3D_CAMERA")
 class Load3DCamera(ComfyTypeIO):
     class CameraInfo(TypedDict):
-        position: dict[str, float | int]
-        target: dict[str, float | int]
-        zoom: int
-        cameraType: str
+        # Coordinate system: right-handed, Y-up, camera looks down -Z
+        position: dict[str, float | int]  # scene units
+        target: dict[str, float | int]  # scene units; OrbitControls focus point
+        zoom: float | int  # dimensionless, 1 = 100%
+        cameraType: str  # 'perspective' | 'orthographic'
+        quaternion: NotRequired[dict[str, float | int]]  # normalized, dimensionless; camera world rotation
+        fov: NotRequired[float | int]  # degrees, vertical FOV (perspective only)
+        aspect: NotRequired[float | int]  # width / height (perspective only)
+        near: NotRequired[float | int]  # scene units
+        far: NotRequired[float | int]  # scene units
+        frustum: NotRequired[dict[str, float | int]]  # orthographic only: {left, right, top, bottom} in scene units
 
     Type = CameraInfo
 

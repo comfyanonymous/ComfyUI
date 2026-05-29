@@ -34,7 +34,7 @@ class OpenAIVideoSora2(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIVideoSora2",
             display_name="OpenAI Sora - Video (DEPRECATED)",
-            category="api node/video/Sora",
+            category="video/partner/Sora",
             description=(
                 "OpenAI video and audio generation.\n\n"
                 "DEPRECATION NOTICE: OpenAI will stop serving the Sora v2 API in September 2026. "
