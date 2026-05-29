@@ -51,7 +51,14 @@ class SaveTextNode(io.ComfyNode):
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(text)
 
-        return io.NodeOutput(ui=ui.PreviewText(text))
+        return io.NodeOutput(
+            ui={
+                "text": (text,),
+                "files": [
+                    ui.SavedResult(file, subfolder, io.FolderType.output)
+                ]
+            }
+        )
 
 class TextExtension(ComfyExtension):
     @override
