@@ -34,7 +34,7 @@ class SaveTextNode(io.ComfyNode):
             1,
         )
 
-        file = f"{filename}_{counter:05}_.{format}"
+        file = f"{filename}_{counter:05}.{format}"
         filepath = os.path.join(full_output_folder, file)
 
         if format == "json":
