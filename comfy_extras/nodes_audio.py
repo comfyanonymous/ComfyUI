@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import av
 import torchaudio
 import torch
@@ -18,7 +16,7 @@ class EmptyLatentAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="EmptyLatentAudio",
             display_name="Empty Latent Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             essentials_category="Audio",
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
@@ -33,7 +31,7 @@ class EmptyLatentAudio(IO.ComfyNode):
     def execute(cls, seconds, batch_size) -> IO.NodeOutput:
         length = round((seconds * 44100 / 2048) / 2) * 2
         latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
-        return IO.NodeOutput({"samples":latent, "type": "audio"})
+        return IO.NodeOutput({"samples": latent, "type": "audio", "downscale_ratio_temporal": 2048})
 
     generate = execute  # TODO: remove
 
@@ -43,7 +41,7 @@ class ConditioningStableAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ConditioningStableAudio",
-            category="conditioning",
+            category="model/conditioning",
             inputs=[
                 IO.Conditioning.Input("positive"),
                 IO.Conditioning.Input("negative"),
@@ -72,7 +70,7 @@ class VAEEncodeAudio(IO.ComfyNode):
             node_id="VAEEncodeAudio",
             search_aliases=["audio to latent"],
             display_name="VAE Encode Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Vae.Input("vae"),
@@ -117,7 +115,7 @@ class VAEDecodeAudio(IO.ComfyNode):
             node_id="VAEDecodeAudio",
             search_aliases=["latent to audio"],
             display_name="VAE Decode Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -139,7 +137,7 @@ class VAEDecodeAudioTiled(IO.ComfyNode):
             node_id="VAEDecodeAudioTiled",
             search_aliases=["latent to audio"],
             display_name="VAE Decode Audio (Tiled)",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -543,7 +541,7 @@ class AudioConcat(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioConcat",
             search_aliases=["join audio", "combine audio", "append audio"],
-            display_name="Audio Concat",
+            display_name="Concatenate Audio",
             description="Concatenates the audio1 to audio2 in the specified direction.",
             category="audio",
             inputs=[
@@ -597,7 +595,7 @@ class AudioMerge(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioMerge",
             search_aliases=["mix audio", "overlay audio", "layer audio"],
-            display_name="Audio Merge",
+            display_name="Merge Audio",
             description="Combine two audio tracks by overlaying their waveforms.",
             category="audio",
             inputs=[
@@ -667,8 +665,9 @@ class AudioAdjustVolume(IO.ComfyNode):
         return IO.Schema(
             node_id="AudioAdjustVolume",
             search_aliases=["audio gain", "loudness", "audio level"],
-            display_name="Audio Adjust Volume",
+            display_name="Adjust Audio Volume",
             category="audio",
+            description="Adjust the volume of the audio by a specified amount in decibels (dB).",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Int.Input(

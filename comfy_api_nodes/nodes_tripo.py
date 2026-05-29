@@ -80,7 +80,7 @@ class TripoTextToModelNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoTextToModelNode",
             display_name="Tripo: Text to Model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[
                 IO.String.Input("prompt", multiline=True),
                 IO.String.Input("negative_prompt", multiline=True, optional=True),
@@ -195,7 +195,7 @@ class TripoImageToModelNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoImageToModelNode",
             display_name="Tripo: Image to Model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Combo.Input(
@@ -323,7 +323,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoMultiviewToModelNode",
             display_name="Tripo: Multiview to Model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Image.Input("image_left", optional=True),
@@ -461,7 +461,7 @@ class TripoTextureNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoTextureNode",
             display_name="Tripo: Texture model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[
                 IO.Custom("MODEL_TASK_ID").Input("model_task_id"),
                 IO.Boolean.Input("texture", default=True, optional=True),
@@ -528,7 +528,7 @@ class TripoRefineNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoRefineNode",
             display_name="Tripo: Refine Draft model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             description="Refine a draft model created by v1.4 Tripo models only.",
             inputs=[
                 IO.Custom("MODEL_TASK_ID").Input("model_task_id", tooltip="Must be a v1.4 Tripo model"),
@@ -568,7 +568,7 @@ class TripoRigNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoRigNode",
             display_name="Tripo: Rig model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[IO.Custom("MODEL_TASK_ID").Input("original_model_task_id")],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -605,7 +605,7 @@ class TripoRetargetNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoRetargetNode",
             display_name="Tripo: Retarget rigged model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[
                 IO.Custom("RIG_TASK_ID").Input("original_model_task_id"),
                 IO.Combo.Input(
@@ -670,7 +670,7 @@ class TripoConversionNode(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoConversionNode",
             display_name="Tripo: Convert model",
-            category="api node/3d/Tripo",
+            category="3d/partner/Tripo",
             inputs=[
                 IO.Custom("MODEL_TASK_ID,RIG_TASK_ID,RETARGET_TASK_ID").Input("original_model_task_id"),
                 IO.Combo.Input("format", options=["GLTF", "USDZ", "FBX", "OBJ", "STL", "3MF"]),

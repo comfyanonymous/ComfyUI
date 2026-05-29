@@ -767,25 +767,25 @@ class LTXAVModel(LTXVModel):
 
             # Cross-attention timesteps - compress these too
             av_ca_audio_scale_shift_timestep, _ = self.av_ca_audio_scale_shift_adaln_single(
-                timestep.max().expand_as(a_timestep_flat),
+                a_timestep_flat,
                 {"resolution": None, "aspect_ratio": None},
                 batch_size=batch_size,
                 hidden_dtype=hidden_dtype,
             )
             av_ca_video_scale_shift_timestep, _ = self.av_ca_video_scale_shift_adaln_single(
-                a_timestep.max().expand_as(timestep_flat),
+                timestep_flat,
                 {"resolution": None, "aspect_ratio": None},
                 batch_size=batch_size,
                 hidden_dtype=hidden_dtype,
             )
             av_ca_a2v_gate_noise_timestep, _ = self.av_ca_a2v_gate_adaln_single(
-                a_timestep.max().expand_as(timestep_flat) * av_ca_factor,
+                a_timestep_scaled.max().expand_as(timestep_flat) * av_ca_factor,
                 {"resolution": None, "aspect_ratio": None},
                 batch_size=batch_size,
                 hidden_dtype=hidden_dtype,
             )
             av_ca_v2a_gate_noise_timestep, _ = self.av_ca_v2a_gate_adaln_single(
-                timestep.max().expand_as(a_timestep_flat) * av_ca_factor,
+                timestep_scaled.max().expand_as(a_timestep_flat) * av_ca_factor,
                 {"resolution": None, "aspect_ratio": None},
                 batch_size=batch_size,
                 hidden_dtype=hidden_dtype,

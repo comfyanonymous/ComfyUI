@@ -12,7 +12,7 @@ class EmptyLatentHunyuan3Dv2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="EmptyLatentHunyuan3Dv2",
-            category="latent/3d",
+            category="model/latent/3d",
             inputs=[
                 IO.Int.Input("resolution", default=3072, min=1, max=8192),
                 IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
@@ -35,7 +35,7 @@ class Hunyuan3Dv2Conditioning(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Hunyuan3Dv2Conditioning",
-            category="conditioning/3d_models",
+            category="model/conditioning/3d_models",
             inputs=[
                 IO.ClipVisionOutput.Input("clip_vision_output"),
             ],
@@ -60,7 +60,7 @@ class Hunyuan3Dv2ConditioningMultiView(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Hunyuan3Dv2ConditioningMultiView",
-            category="conditioning/3d_models",
+            category="model/conditioning/3d_models",
             inputs=[
                 IO.ClipVisionOutput.Input("front", optional=True),
                 IO.ClipVisionOutput.Input("left", optional=True),
@@ -97,7 +97,7 @@ class VAEDecodeHunyuan3D(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VAEDecodeHunyuan3D",
-            category="latent/3d",
+            category="model/latent/3d",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -419,15 +419,17 @@ class VoxelToMeshBasic(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VoxelToMeshBasic",
-            display_name="Voxel to Mesh (Basic)",
+            display_name="Voxel to Mesh (Basic) (DEPRECATED)",
             category="3d",
+            description="Converts a voxel grid to a mesh.",
+            is_deprecated=True, # This node is superseded by the Voxel To Mesh node
             inputs=[
                 IO.Voxel.Input("voxel"),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
             ],
             outputs=[
                 IO.Mesh.Output(),
-            ]
+            ],
         )
 
     @classmethod
@@ -453,9 +455,10 @@ class VoxelToMesh(IO.ComfyNode):
             node_id="VoxelToMesh",
             display_name="Voxel to Mesh",
             category="3d",
+            description="Converts a voxel grid to a mesh.",
             inputs=[
                 IO.Voxel.Input("voxel"),
-                IO.Combo.Input("algorithm", options=["surface net", "basic"], advanced=True),
+                IO.Combo.Input("algorithm", options=["surface net", "basic"]),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
             ],
             outputs=[

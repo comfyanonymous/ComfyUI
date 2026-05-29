@@ -116,6 +116,45 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit
         unet_config = {}
         unet_config["audio_model"] = "dit1.0"
+        unet_config["global_cond_dim"] = state_dict['{}to_global_embed.0.weight'.format(key_prefix)].shape[1]
+        cond_embed = state_dict['{}to_cond_embed.0.weight'.format(key_prefix)]
+        unet_config["project_cond_tokens"] = cond_embed.shape[0] != cond_embed.shape[1]
+        unet_config["embed_dim"] = state_dict['{}to_timestep_embed.0.weight'.format(key_prefix)].shape[0]
+        mem_tokens = state_dict.get('{}transformer.memory_tokens'.format(key_prefix), None)
+        to_qkv = state_dict.get('{}transformer.layers.0.self_attn.to_qkv.weight'.format(key_prefix), None)
+        differential = False
+        if to_qkv is not None:
+            if to_qkv.shape[0] == to_qkv.shape[1] * 5:
+                differential = True
+        if mem_tokens is not None:
+            unet_config["num_memory_tokens"] = mem_tokens.shape[0]
+        if '{}transformer.layers.0.self_attn.q_norm.weight'.format(key_prefix) in state_dict:
+            unet_config["attn_kwargs"] = {"qk_norm": "ln", "feat_scale": True}
+        rms_norm = state_dict.get('{}transformer.layers.0.self_attn.q_norm.gamma'.format(key_prefix), None)
+        if rms_norm is not None:
+            unet_config["attn_kwargs"] = {"qk_norm": "rms", "differential": differential}
+            unet_config["norm_type"] = "rms_norm"
+            unet_config["num_heads"] = unet_config["embed_dim"] // rms_norm.shape[0]
+
+        if '{}timestep_features.weight'.format(key_prefix) in state_dict:
+            unet_config["timestep_features_type"] = "learned"
+        else:
+            unet_config["timestep_features_type"] = "expo"
+
+        io_channels = state_dict['{}postprocess_conv.weight'.format(key_prefix)].shape[0]
+        unet_config["io_channels"] = io_channels
+        unet_config["input_concat_dim"] = state_dict['{}transformer.project_in.weight'.format(key_prefix)].shape[1] - io_channels
+
+        local_add_cond = state_dict.get('{}transformer.layers.0.to_local_embed.0.weight'.format(key_prefix), None)
+        if local_add_cond is not None:
+            unet_config["local_add_cond_dim"] = local_add_cond.shape[1]
+
+        global_cond_embed = state_dict.get('{}transformer.global_cond_embedder.0.weight'.format(key_prefix), None)
+        if global_cond_embed is not None:
+            unet_config["global_cond_shared_embed"] = True
+            unet_config["global_cond_type"] = "adaLN"
+
+        unet_config["depth"] = count_blocks(state_dict_keys, '{}transformer.layers.'.format(key_prefix) + '{}.')
         return unet_config
 
     if '{}double_layers.0.attn.w1q.weight'.format(key_prefix) in state_dict_keys: #aura flow dit
@@ -424,6 +463,23 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
+    # PiD (Pixel Diffusion Decoder). Must check BEFORE plain PixelDiT_T2I.
+    _lq_w_key = '{}lq_proj.latent_proj.0.weight'.format(key_prefix)
+    if _lq_w_key in state_dict_keys:
+        in_ch = int(state_dict[_lq_w_key].shape[1])
+        _gate_prefix = '{}lq_proj.gate_modules.'.format(key_prefix)
+        num_gates = len({k[len(_gate_prefix):].split('.')[0]
+                         for k in state_dict_keys if k.startswith(_gate_prefix)})
+        dit_config = {"image_model": "pid",
+                      "lq_latent_channels": in_ch,
+                      "latent_spatial_down_factor": 16 if in_ch >= 64 else 8}
+        if num_gates > 0:
+            dit_config["lq_interval"] = (14 + num_gates - 1) // num_gates
+        return dit_config
+
+    if '{}core.pixel_embedder.proj.weight'.format(key_prefix) in state_dict_keys:  # PixelDiT T2I
+        return {"image_model": "pixeldit_t2i"}
+
     if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
         dit_config["image_model"] = "lumina2"
@@ -715,6 +771,30 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["text_feat_dim"] = 2048
         dit_config["timestep_scale"] = 1000.0
         return dit_config
+
+    if '{}transformer_blocks.0.attn.norm_added_q.weight'.format(key_prefix) in state_dict_keys \
+            and '{}transformer_blocks.0.img_mlp.w1.weight'.format(key_prefix) in state_dict_keys:  # Lens
+        img_in_w = state_dict['{}img_in.weight'.format(key_prefix)]
+        proj_out_w = state_dict['{}proj_out.weight'.format(key_prefix)]
+        multi_layer = '{}txt_norm.0.weight'.format(key_prefix) in state_dict_keys
+        if multi_layer:
+            enc_hidden_dim = state_dict['{}txt_norm.0.weight'.format(key_prefix)].shape[0]
+            # Indices are TE-side; the DiT just consumes L layers in order.
+            selected_layer_index = tuple(range(count_blocks(state_dict_keys, '{}txt_norm.'.format(key_prefix) + '{}.')))
+        else:
+            enc_hidden_dim = state_dict['{}txt_norm.weight'.format(key_prefix)].shape[0]
+            selected_layer_index = (0,)
+
+        return {
+            "image_model": "lens",
+            "in_channels": img_in_w.shape[1],
+            "out_channels": proj_out_w.shape[0] // 4,  # patch_size ** 2 (=2² default)
+            "num_layers": count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.'),
+            "num_attention_heads": img_in_w.shape[0] // 64,  # // attention_head_dim default
+            "enc_hidden_dim": enc_hidden_dim,
+            "multi_layer_encoder_feature": multi_layer,
+            "selected_layer_index": selected_layer_index,
+        }
 
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}

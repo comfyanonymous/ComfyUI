@@ -61,7 +61,7 @@ class WanTextToImageApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanTextToImageApi",
             display_name="Wan Text to Image",
-            category="api node/image/Wan",
+            category="image/partner/Wan",
             description="Generates an image based on a text prompt.",
             inputs=[
                 IO.Combo.Input(
@@ -184,7 +184,7 @@ class WanImageToImageApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanImageToImageApi",
             display_name="Wan Image to Image",
-            category="api node/image/Wan",
+            category="image/partner/Wan",
             description="Generates an image from one or two input images and a text prompt. "
             "The output image is currently fixed at 1.6 MP, and its aspect ratio matches the input image(s).",
             inputs=[
@@ -312,7 +312,7 @@ class WanTextToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanTextToVideoApi",
             display_name="Wan Text to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generates a video based on a text prompt.",
             inputs=[
                 IO.Combo.Input(
@@ -495,7 +495,7 @@ class WanImageToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanImageToVideoApi",
             display_name="Wan Image to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generates a video from the first frame and a text prompt.",
             inputs=[
                 IO.Combo.Input(
@@ -674,7 +674,7 @@ class WanReferenceVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanReferenceVideoApi",
             display_name="Wan Reference to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Use the character and voice from input videos, combined with a prompt, "
             "to generate a new video that maintains character consistency.",
             inputs=[
@@ -828,7 +828,7 @@ class Wan2TextToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2TextToVideoApi",
             display_name="Wan 2.7 Text to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generates a video based on a text prompt using the Wan 2.7 model.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -981,7 +981,7 @@ class Wan2ImageToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2ImageToVideoApi",
             display_name="Wan 2.7 Image to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generate a video from a first-frame image, with optional last-frame image and audio.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1152,7 +1152,7 @@ class Wan2VideoContinuationApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2VideoContinuationApi",
             display_name="Wan 2.7 Video Continuation",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Continue a video from where it left off, with optional last-frame control.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1319,7 +1319,7 @@ class Wan2VideoEditApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2VideoEditApi",
             display_name="Wan 2.7 Video Edit",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Edit a video using text instructions, reference images, or style transfer.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1477,7 +1477,7 @@ class Wan2ReferenceVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2ReferenceVideoApi",
             display_name="Wan 2.7 Reference to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generate a video featuring a person or object from reference materials. "
             "Supports single-character performances and multi-character interactions.",
             inputs=[
@@ -1651,7 +1651,7 @@ class HappyHorseTextToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseTextToVideoApi",
             display_name="HappyHorse Text to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generates a video based on a text prompt using the HappyHorse model.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1775,7 +1775,7 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseImageToVideoApi",
             display_name="HappyHorse Image to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generate a video from a first-frame image using the HappyHorse model.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1905,7 +1905,7 @@ class HappyHorseVideoEditApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseVideoEditApi",
             display_name="HappyHorse Video Edit",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Edit a video using text instructions or reference images with the HappyHorse model. "
             "Output duration is 3-15s and matches the input video; inputs longer than 15s are truncated.",
             inputs=[
@@ -2046,7 +2046,7 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseReferenceVideoApi",
             display_name="HappyHorse Reference to Video",
-            category="api node/video/Wan",
+            category="video/partner/Wan",
             description="Generate a video featuring a person or object from reference materials with the HappyHorse "
             "model. Supports single-character performances and multi-character interactions.",
             inputs=[

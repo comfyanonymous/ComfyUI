@@ -111,7 +111,7 @@ class PorterDuffImageComposite(io.ComfyNode):
             node_id="PorterDuffImageComposite",
             search_aliases=["alpha composite", "blend modes", "layer blend", "transparency blend"],
             display_name="Porter-Duff Image Composite",
-            category="mask/compositing",
+            category="image/compositing",
             inputs=[
                 io.Image.Input("source"),
                 io.Mask.Input("source_alpha"),
@@ -168,7 +168,7 @@ class SplitImageWithAlpha(io.ComfyNode):
             node_id="SplitImageWithAlpha",
             search_aliases=["extract alpha", "separate transparency", "remove alpha"],
             display_name="Split Image with Alpha",
-            category="mask/compositing",
+            category="image/compositing",
             inputs=[
                 io.Image.Input("image"),
             ],
@@ -192,7 +192,7 @@ class JoinImageWithAlpha(io.ComfyNode):
             node_id="JoinImageWithAlpha",
             search_aliases=["add transparency", "apply alpha", "composite alpha", "RGBA"],
             display_name="Join Image with Alpha",
-            category="mask/compositing",
+            category="image/compositing",
             inputs=[
                 io.Image.Input("image"),
                 io.Mask.Input("alpha"),

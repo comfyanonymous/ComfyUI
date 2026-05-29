@@ -62,7 +62,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="QuiverTextToSVGNode",
             display_name="Quiver Text to SVG",
-            category="api node/image/Quiver",
+            category="image/partner/Quiver",
             description="Generate an SVG from a text prompt using Quiver AI.",
             inputs=[
                 IO.String.Input(
@@ -177,7 +177,7 @@ class QuiverImageToSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="QuiverImageToSVGNode",
             display_name="Quiver Image to SVG",
-            category="api node/image/Quiver",
+            category="image/partner/Quiver",
             description="Vectorize a raster image into SVG using Quiver AI.",
             inputs=[
                 IO.Image.Input(

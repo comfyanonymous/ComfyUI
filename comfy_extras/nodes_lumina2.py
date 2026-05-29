@@ -81,7 +81,7 @@ class CLIPTextEncodeLumina2(io.ComfyNode):
             node_id="CLIPTextEncodeLumina2",
             search_aliases=["lumina prompt"],
             display_name="CLIP Text Encode for Lumina2",
-            category="conditioning",
+            category="model/conditioning",
             description="Encodes a system prompt and a user prompt using a CLIP model into an embedding "
                         "that can be used to guide the diffusion model towards generating specific images.",
             inputs=[

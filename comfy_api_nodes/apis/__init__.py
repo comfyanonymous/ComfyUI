@@ -3,7 +3,6 @@
 #   timestamp: 2025-07-30T08:54:00+00:00
 
 # pylint: disable
-from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum

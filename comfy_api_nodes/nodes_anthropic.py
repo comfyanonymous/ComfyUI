@@ -9,8 +9,11 @@ from comfy_api_nodes.apis.anthropic import (
     AnthropicMessage,
     AnthropicMessagesRequest,
     AnthropicMessagesResponse,
+    AnthropicOutputConfig,
+    AnthropicResponseTextBlock,
     AnthropicRole,
     AnthropicTextContent,
+    AnthropicThinkingConfig,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -32,15 +35,29 @@ CLAUDE_MODELS: dict[str, str] = {
     "Haiku 4.5": "claude-haiku-4-5-20251001",
 }
 
+_THINKING_UNSUPPORTED = {"Haiku 4.5"}
+# Models that use the newer "adaptive" thinking mode (Opus 4.7 requires it; older models keep the explicit budget API).
+# Anthropic decides the actual budget when adaptive is used, based on the `output_config.effort` hint.
+_ADAPTIVE_THINKING_MODELS = {"Opus 4.7", "Opus 4.6", "Sonnet 4.6"}
 
-def _claude_model_inputs():
-    return [
+# Budget mode (Sonnet 4.5): effort -> reasoning budget in tokens. Must be < max_tokens.
+# Sized so even the "high" budget fits comfortably under the default max_tokens=32768.
+_REASONING_BUDGET: dict[str, int] = {
+    "low": 2048,
+    "medium": 8192,
+    "high": 16384,
+}
+_REASONING_EFFORTS = ["off", "low", "medium", "high"]
+
+
+def _claude_model_inputs(model_label: str):
+    inputs: list = [
         IO.Int.Input(
             "max_tokens",
-            default=16000,
-            min=32,
-            max=32000,
-            tooltip="Maximum number of tokens to generate before stopping.",
+            default=32768,
+            min=4096,
+            max=64000,
+            tooltip="Maximum number of tokens to generate (includes reasoning tokens when enabled).",
             advanced=True,
         ),
         IO.Float.Input(
@@ -49,10 +66,24 @@ def _claude_model_inputs():
             min=0.0,
             max=1.0,
             step=0.01,
-            tooltip="Controls randomness. 0.0 is deterministic, 1.0 is most random. Ignored for Opus 4.7.",
+            tooltip=(
+                "Controls randomness. 0.0 is deterministic, 1.0 is most random. "
+                "Ignored for Opus 4.7 and any model when reasoning_effort is set."
+            ),
             advanced=True,
         ),
     ]
+    if model_label not in _THINKING_UNSUPPORTED:
+        inputs.append(
+            IO.Combo.Input(
+                "reasoning_effort",
+                options=_REASONING_EFFORTS,
+                default="off",
+                tooltip="Extended thinking effort. 'off' disables reasoning.",
+                advanced=True,
+            )
+        )
+    return inputs
 
 
 def _model_price_per_million(model: str) -> tuple[float, float] | None:
@@ -95,7 +126,11 @@ def calculate_tokens_price(response: AnthropicMessagesResponse) -> float | None:
 def _get_text_from_response(response: AnthropicMessagesResponse) -> str:
     if not response.content:
         return ""
-    return "\n".join(block.text for block in response.content if block.text)
+    # Thinking blocks are silently dropped — we never want reasoning in the output.
+    return "\n".join(
+        block.text for block in response.content
+        if isinstance(block, AnthropicResponseTextBlock) and block.text
+    )
 
 
 async def _build_image_content_blocks(
@@ -120,7 +155,7 @@ class ClaudeNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ClaudeNode",
             display_name="Anthropic Claude",
-            category="api node/text/Anthropic",
+            category="text/partner/Anthropic",
             essentials_category="Text Generation",
             description="Generate text responses with Anthropic's Claude models. "
             "Provide a text prompt and optionally one or more images for multimodal context.",
@@ -133,7 +168,10 @@ class ClaudeNode(IO.ComfyNode):
                 ),
                 IO.DynamicCombo.Input(
                     "model",
-                    options=[IO.DynamicCombo.Option(label, _claude_model_inputs()) for label in CLAUDE_MODELS],
+                    options=[
+                        IO.DynamicCombo.Option(label, _claude_model_inputs(label))
+                        for label in CLAUDE_MODELS
+                    ],
                     tooltip="The Claude model used to generate the response.",
                 ),
                 IO.Int.Input(
@@ -207,8 +245,29 @@ class ClaudeNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_label = model["model"]
-        max_tokens = model["max_tokens"]
-        temperature = None if model_label == "Opus 4.7" else model["temperature"]
+        max_tokens = model.get("max_tokens", 32768)
+        reasoning_effort = model.get("reasoning_effort", "off")
+        thinking_enabled = reasoning_effort not in ("off", None) and model_label not in _THINKING_UNSUPPORTED
+
+        # Anthropic requires temperature to be unset (defaults to 1.0) when thinking is enabled.
+        # Opus 4.7 also rejects user-supplied temperature.
+        if thinking_enabled or model_label == "Opus 4.7":
+            temperature = None
+        else:
+            temperature = model.get("temperature", 1.0)
+
+        thinking_cfg: AnthropicThinkingConfig | None = None
+        output_cfg: AnthropicOutputConfig | None = None
+        if thinking_enabled:
+            if model_label in _ADAPTIVE_THINKING_MODELS:
+                # Adaptive mode - Anthropic chooses the budget based on effort hint
+                thinking_cfg = AnthropicThinkingConfig(type="adaptive")
+                output_cfg = AnthropicOutputConfig(effort=reasoning_effort)
+            else:
+                # Budget mode (Sonnet 4.5). Leave at least 1024 tokens for the actual response
+                budget = _REASONING_BUDGET[reasoning_effort]
+                budget = min(budget, max(1024, max_tokens - 1024))
+                thinking_cfg = AnthropicThinkingConfig(type="enabled", budget_tokens=budget)
 
         image_tensors: list[Input.Image] = [t for t in (images or {}).values() if t is not None]
         if sum(get_number_of_images(t) for t in image_tensors) > CLAUDE_MAX_IMAGES:
@@ -229,6 +288,8 @@ class ClaudeNode(IO.ComfyNode):
                 messages=[AnthropicMessage(role=AnthropicRole.user, content=content)],
                 system=system_prompt or None,
                 temperature=temperature,
+                thinking=thinking_cfg,
+                output_config=output_cfg,
             ),
             price_extractor=calculate_tokens_price,
         )

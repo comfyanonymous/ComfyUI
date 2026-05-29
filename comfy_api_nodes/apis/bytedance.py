@@ -158,8 +158,9 @@ class SeedanceCreateAssetResponse(BaseModel):
 
 
 class SeedanceVirtualLibraryCreateAssetRequest(BaseModel):
-    url: str = Field(..., description="Publicly accessible URL of the image asset to upload.")
+    url: str = Field(..., description="Publicly accessible URL of the asset to upload.")
     hash: str = Field(..., description="Dedup key. Re-submitting the same hash returns the existing asset id.")
+    asset_type: str | None = Field(None, description="BytePlus asset type. Defaults to Image server-side when omitted.")
 
 
 # Dollars per 1K tokens, keyed by (model_id, has_video_input).

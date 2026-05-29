@@ -19,7 +19,7 @@ class FrameInterpolationModelLoader(io.ComfyNode):
         return io.Schema(
             node_id="FrameInterpolationModelLoader",
             display_name="Load Frame Interpolation Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input("model_name", options=folder_paths.get_filename_list("frame_interpolation"),
                                tooltip="Select a frame interpolation model to load. Models must be placed in the 'frame_interpolation' folder."),

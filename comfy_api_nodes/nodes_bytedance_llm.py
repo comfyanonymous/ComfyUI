@@ -144,7 +144,7 @@ class ByteDanceSeedNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ByteDanceSeedNode",
             display_name="ByteDance Seed",
-            category="api node/text/ByteDance",
+            category="text/partner/ByteDance",
             essentials_category="Text Generation",
             description="Generate text responses with ByteDance's Seed 2.0 models. "
             "Provide a text prompt and optionally one or more images or videos for multimodal context.",
