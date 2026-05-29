@@ -44,6 +44,7 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_image_tensor,
     download_url_to_video_output,
+    downscale_image_tensor_by_max_side,
     downscale_video_to_max_pixels,
     get_number_of_images,
     image_tensor_pair_to_batch,
@@ -120,6 +121,14 @@ def _validate_ref_video_pixels(video: Input.Video, model_id: str, resolution: st
             f"Reference video {index} is too large: {w}x{h} = {pixels:,} total pixels. "
             f"Maximum for this model is {max_px:,} total pixels. Try downscaling the video."
         )
+
+
+def _prepare_seedance_image(image: Input.Image) -> Input.Image:
+    """Auto-downscale a Seedance image input to the per-side limits, then validate it."""
+    validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+    image = downscale_image_tensor_by_max_side(image, max_side=6000)
+    validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
+    return image
 
 
 async def _resolve_reference_assets(
@@ -1781,6 +1790,11 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         if last_frame is not None and last_frame_asset_id:
             raise ValueError("Provide only one of last_frame or last_frame_asset_id, not both.")
 
+        if first_frame is not None:
+            first_frame = _prepare_seedance_image(first_frame)
+        if last_frame is not None:
+            last_frame = _prepare_seedance_image(last_frame)
+
         asset_ids_to_resolve = [a for a in (first_frame_asset_id, last_frame_asset_id) if a]
         image_assets: dict[str, str] = {}
         if asset_ids_to_resolve:
@@ -1887,7 +1901,7 @@ def _seedance2_reference_inputs(resolutions: list[str], default_ratio: str = "16
         ),
         IO.Boolean.Input(
             "auto_downscale",
-            default=False,
+            default=True,
             optional=True,
             tooltip="Automatically downscale reference videos that exceed the model's pixel budget "
             "for the selected resolution. Aspect ratio is preserved; videos already within limits are untouched.",
@@ -2054,6 +2068,9 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 f"Too many reference audios: {total_audios} "
                 f"(audios={len(reference_audios)}, audio assets={len(reference_audio_assets)}). Maximum is 3."
             )
+
+        for key in reference_images:
+            reference_images[key] = _prepare_seedance_image(reference_images[key])
 
         model_id = SEEDANCE_MODELS[model["model"]]
         has_video_input = total_videos > 0

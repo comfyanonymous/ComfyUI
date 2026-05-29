@@ -762,19 +762,30 @@ class Accumulation(ComfyTypeIO):
 @comfytype(io_type="LOAD3D_CAMERA")
 class Load3DCamera(ComfyTypeIO):
     class CameraInfo(TypedDict):
-        position: dict[str, float | int]
-        target: dict[str, float | int]
-        zoom: int
-        cameraType: str
-        quaternion: NotRequired[dict[str, float | int]]
-        rotation: NotRequired[dict[str, float | int | str]]
-        fov: NotRequired[float | int]
-        aspect: NotRequired[float | int]
-        near: NotRequired[float | int]
-        far: NotRequired[float | int]
-        frustum: NotRequired[dict[str, float | int]]
+        # Coordinate system: right-handed, Y-up, camera looks down -Z
+        position: dict[str, float | int]  # scene units
+        target: dict[str, float | int]  # scene units; OrbitControls focus point
+        zoom: float | int  # dimensionless, 1 = 100%
+        cameraType: str  # 'perspective' | 'orthographic'
+        quaternion: NotRequired[dict[str, float | int]]  # normalized, dimensionless; camera world rotation
+        fov: NotRequired[float | int]  # degrees, vertical FOV (perspective only)
+        aspect: NotRequired[float | int]  # width / height (perspective only)
+        near: NotRequired[float | int]  # scene units
+        far: NotRequired[float | int]  # scene units
+        frustum: NotRequired[dict[str, float | int]]  # orthographic only: {left, right, top, bottom} in scene units
 
     Type = CameraInfo
+
+
+@comfytype(io_type="LOAD3D_MODEL_INFO")
+class Load3DModelInfo(ComfyTypeIO):
+    class Model3DTransform(TypedDict):
+        # Coordinate system: right-handed, Y-up, world space
+        position: dict[str, float | int]  # scene units
+        quaternion: dict[str, float | int]  # normalized, dimensionless; world rotation
+        scale: dict[str, float | int]  # dimensionless multiplier
+
+    Type = list[Model3DTransform]
 
 
 @comfytype(io_type="LOAD_3D")
@@ -786,6 +797,7 @@ class Load3D(ComfyTypeIO):
         normal: str
         camera_info: Load3DCamera.CameraInfo
         recording: NotRequired[str]
+        model_3d_info: NotRequired[list[Load3DModelInfo.Model3DTransform]]
 
     Type = Model3DDict
 
@@ -2298,6 +2310,7 @@ __all__ = [
     "FlowControl",
     "Accumulation",
     "Load3DCamera",
+    "Load3DModelInfo",
     "Load3D",
     "Load3DAnimation",
     "Photomaker",
