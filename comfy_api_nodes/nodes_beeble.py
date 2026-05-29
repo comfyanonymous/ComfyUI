@@ -206,7 +206,7 @@ class BeebleSwitchXVideoEdit(IO.ComfyNode):
         return IO.Schema(
             node_id="BeebleSwitchXVideoEdit",
             display_name="Beeble SwitchX Video Edit",
-            category="api node/video/Beeble",
+            category="video/partner/Beeble",
             description=(
                 "Edit a video with Beeble SwitchX. Switches anything in the scene (background, "
                 "lighting, costume) while preserving the original subject's pixels and motion. "
@@ -302,7 +302,7 @@ class BeebleSwitchXImageEdit(IO.ComfyNode):
         return IO.Schema(
             node_id="BeebleSwitchXImageEdit",
             display_name="Beeble SwitchX Image Edit",
-            category="api node/image/Beeble",
+            category="image/partner/Beeble",
             description=(
                 "Edit a single image with Beeble SwitchX. Switches anything in the scene "
                 "(background, lighting, costume) while preserving the original subject's pixels. "

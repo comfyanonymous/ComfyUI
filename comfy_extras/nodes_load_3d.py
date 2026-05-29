@@ -47,6 +47,7 @@ class Load3D(IO.ComfyNode):
                 IO.Load3DCamera.Output(display_name="camera_info"),
                 IO.Video.Output(display_name="recording_video"),
                 IO.File3DAny.Output(display_name="model_3d"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
             ],
         )
 
@@ -73,7 +74,8 @@ class Load3D(IO.ComfyNode):
         if model_file and model_file != "none":
             file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
             mesh_path = model_file
-        return IO.NodeOutput(output_image, output_mask, mesh_path, normal_image, image['camera_info'], video, file_3d)
+        model_3d_info = image.get('model_3d_info', [])
+        return IO.NodeOutput(output_image, output_mask, mesh_path, normal_image, image['camera_info'], video, file_3d, model_3d_info)
 
     process = execute  # TODO: remove
 
