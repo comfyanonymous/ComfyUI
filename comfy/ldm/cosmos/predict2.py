@@ -14,6 +14,7 @@ from torchvision import transforms
 import comfy.patcher_extension
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.ldm.common_dit
+import comfy.quant_ops
 
 
 # ---------------------- Feed Forward Network -----------------------
