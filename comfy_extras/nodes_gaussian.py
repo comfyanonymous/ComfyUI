@@ -466,7 +466,7 @@ class GaussianToFile3D(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="GaussianToFile3D",
-            display_name="Gaussian Splat to 3D File",
+            display_name="Create 3D File (from Gaussian)",
             search_aliases=["gaussian to ply", "splat to file", "export gaussian"],
             category="3d/gaussian",
             description="Serialize a gaussian splat to an in-memory File3D, for Save 3D Model / Preview 3D. "
@@ -500,11 +500,11 @@ class File3DToGaussian(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="File3DToGaussian",
-            display_name="3D File to Gaussian Splat",
+            display_name="Get Gaussian Splat",
             search_aliases=["load splat", "ply to gaussian", "import gaussian", "file to splat"],
             category="3d/gaussian",
             description="Parse a splat File3D (.ply / .splat / .ksplat / .spz) into a GAUSSIAN. Inverse of "
-                        "Gaussian Splat to 3D File. ply carries full spherical harmonics; the others are base "
+                        "Create 3D File (from Gaussian). ply carries full spherical harmonics; the others are base "
                         "color only. Format is auto-detected from the file contents.",
             inputs=[
                 IO.MultiType.Input(
