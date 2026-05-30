@@ -1123,8 +1123,7 @@ def text_encoder_initial_device(load_device, offload_device, model_size=0):
         return load_device
 
     mem_l = get_free_memory(load_device)
-    mem_o = get_free_memory(offload_device)
-    if mem_l > (mem_o * 0.5) and model_size * 1.2 < mem_l:
+    if model_size * 1.2 < mem_l:
         return load_device
     else:
         return offload_device
