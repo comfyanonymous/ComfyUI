@@ -76,8 +76,6 @@ except:
 
 cast_to = comfy.model_management.cast_to #TODO: remove once no more references
 
-STREAM_PIN_BUFFER_HEADROOM = 8 * 1024 * 1024
-
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
 
@@ -94,9 +92,6 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
     offload_stream = None
     cast_buffer = None
     cast_buffer_offset = 0
-    stream_pin_hostbuf = None
-    stream_pin_offset = 0
-    stream_pin_queue = []
 
     def ensure_offload_stream(module, required_size, check_largest):
         nonlocal offload_stream
@@ -129,22 +124,6 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         buffer = comfy_aimdo.torch.aimdo_to_tensor(cast_buffer.get(buffer_size, cast_buffer_offset), device)
         cast_buffer_offset += buffer_size
         return buffer
-
-    def get_stream_pin_buffer_offset(buffer_size):
-        nonlocal stream_pin_hostbuf
-        nonlocal stream_pin_offset
-
-        if buffer_size == 0 or offload_stream is None:
-            return None
-
-        if stream_pin_hostbuf is None:
-            stream_pin_hostbuf = comfy.model_management.get_pin_buffer(offload_stream)
-            if stream_pin_hostbuf is None:
-                return None
-
-        offset = stream_pin_offset
-        stream_pin_offset += buffer_size
-        return offset
 
     for s in comfy_modules:
         signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
@@ -184,12 +163,18 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         if xfer_dest is None:
             xfer_dest = get_cast_buffer(dest_size)
 
-        def cast_maybe_lowvram_patch(xfer_source, xfer_dest, stream):
+        def cast_maybe_lowvram_patch(xfer_source, xfer_dest, stream, xfer_dest2=None):
             if xfer_source is not None:
                 if getattr(xfer_source, "is_lowvram_patch", False):
-                    xfer_source.prepare(xfer_dest, stream, copy=True, commit=False)
-                else:
-                    comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=stream)
+                    if xfer_dest is not None:
+                        xfer_source.prepare(xfer_dest, stream, copy=True, commit=False)
+                        xfer_source = [ xfer_dest ]
+                        xfer_dest = xfer_dest2
+                        xfer_dest2 = None
+                    elif xfer_dest2 is not None:
+                        xfer_source.prepare(xfer_dest2, stream, copy=True, commit=False)
+                        return
+                comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=stream, r2=xfer_dest2)
 
         def handle_pin(m, pin, source, dest, subset="weights", size=None):
             if pin is not None:
@@ -198,19 +183,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             if signature is None:
                 comfy.pinned_memory.pin_memory(m, subset=subset, size=size)
                 pin = comfy.pinned_memory.get_pin(m, subset=subset)
-                if pin is not None:
-                    if isinstance(source, list):
-                        comfy.model_management.cast_to_gathered(source, pin, non_blocking=non_blocking, stream=offload_stream, r2=dest)
-                    else:
-                        cast_maybe_lowvram_patch(source, pin, None)
-                        cast_maybe_lowvram_patch([ pin ], dest, offload_stream)
-                    return
-            if pin is None:
-                pin_offset = get_stream_pin_buffer_offset(size)
-                if pin_offset is not None:
-                    stream_pin_queue.append((source, pin_offset, size, dest))
-                    return
-            cast_maybe_lowvram_patch(source, dest, offload_stream)
+            cast_maybe_lowvram_patch(source, pin, offload_stream, xfer_dest2=dest)
 
         handle_pin(s, pin, xfer_source, xfer_dest, size=dest_size)
 
@@ -231,23 +204,6 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         prefetch["cast_geometry"] = cast_geometry
         prefetch["needs_cast"] = needs_cast
         s._prefetch = prefetch
-
-    if stream_pin_offset > 0:
-        if stream_pin_hostbuf.size < stream_pin_offset:
-            if not comfy.model_management.resize_pin_buffer(stream_pin_hostbuf, stream_pin_offset + STREAM_PIN_BUFFER_HEADROOM):
-                for xfer_source, _, _, xfer_dest in stream_pin_queue:
-                    cast_maybe_lowvram_patch(xfer_source, xfer_dest, offload_stream)
-                return offload_stream
-        stream_pin_tensor = comfy_aimdo.torch.hostbuf_to_tensor(stream_pin_hostbuf)
-        stream_pin_tensor.untyped_storage()._comfy_hostbuf = stream_pin_hostbuf
-        for xfer_source, pin_offset, pin_size, xfer_dest in stream_pin_queue:
-            pin = stream_pin_tensor[pin_offset:pin_offset + pin_size]
-            if isinstance(xfer_source, list):
-                comfy.model_management.cast_to_gathered(xfer_source, pin, non_blocking=non_blocking, stream=offload_stream, r2=xfer_dest)
-            else:
-                cast_maybe_lowvram_patch(xfer_source, pin, None)
-                comfy.model_management.cast_to_gathered([ pin ], xfer_dest, non_blocking=non_blocking, stream=offload_stream)
-        stream_pin_hostbuf._comfy_event = offload_stream.record_event()
 
     return offload_stream
 

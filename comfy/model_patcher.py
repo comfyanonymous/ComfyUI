@@ -1721,8 +1721,8 @@ class ModelPatcherDynamic(ModelPatcher):
         """
         if device not in self.model.dynamic_pins:
             self.model.dynamic_pins[device] = {
-                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
-                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0]),
+                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
                 "hostbufs_initialized": False,
                 "failed": False,
                 "active": False,
@@ -1799,8 +1799,8 @@ class ModelPatcherDynamic(ModelPatcher):
             pin_state = self.model.dynamic_pins[self.load_device]
             if not pin_state["hostbufs_initialized"]:
                 hostbuf_size = comfy.model_management.pinned_hostbuf_size(self.model_size())
-                pin_state["weights"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0])
-                pin_state["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0])
+                pin_state["weights"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
                 pin_state["hostbufs_initialized"] = True
             pin_state["failed"] = False
             pin_state["active"] = True
@@ -1942,18 +1942,16 @@ class ModelPatcherDynamic(ModelPatcher):
         return freed
 
     def loaded_ram_size(self):
-        return (self.model.dynamic_pins[self.load_device]["weights"][0].size +
-                self.model.dynamic_pins[self.load_device]["patches"][0].size)
+        return (self.model.dynamic_pins[self.load_device]["weights"][0].size)
 
     def pinned_memory_size(self):
-        return (self.model.dynamic_pins[self.load_device]["weights"][3][0] +
-                self.model.dynamic_pins[self.load_device]["patches"][3][0])
+        return (self.model.dynamic_pins[self.load_device]["weights"][3][0])
 
     def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights", "patches" ]):
         freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
         for subset in subsets:
-            hostbuf, stack, stack_split, pinned_size = pin_state[subset]
+            hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
             split = stack_split[0]
             while split >= 0:
                 module, offset = stack[split]
@@ -1978,10 +1976,12 @@ class ModelPatcherDynamic(ModelPatcher):
         freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
         for subset in subsets:
-            hostbuf, stack, stack_split, pinned_size = pin_state[subset]
+            hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
             while len(stack) > 0:
                 module, offset = stack.pop()
                 size = module._pin.numel() * module._pin.element_size()
+                module._pin_balancer_entry[-1] = None
+                del module._pin_balancer_entry
                 del module._pin
                 hostbuf.truncate(offset, do_unregister=module._pin_registered)
                 stack_split[0] = min(stack_split[0], len(stack) - 1)
