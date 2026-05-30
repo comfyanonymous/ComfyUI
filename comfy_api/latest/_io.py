@@ -727,6 +727,30 @@ class File3DUSDZ(ComfyTypeIO):
     Type = File3D
 
 
+@comfytype(io_type="FILE_3D_PLY")
+class File3DPLY(ComfyTypeIO):
+    """PLY format 3D file - point cloud or Gaussian splat."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_SPLAT")
+class File3DSPLAT(ComfyTypeIO):
+    """SPLAT format 3D file - 3D Gaussian splat."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_SPZ")
+class File3DSPZ(ComfyTypeIO):
+    """SPZ format 3D file - compressed 3D Gaussian splat."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_KSPLAT")
+class File3DKSPLAT(ComfyTypeIO):
+    """KSPLAT format 3D file - 3D Gaussian splat."""
+    Type = File3D
+
+
 @comfytype(io_type="HOOKS")
 class Hooks(ComfyTypeIO):
     if TYPE_CHECKING:
@@ -2303,6 +2327,10 @@ __all__ = [
     "File3DOBJ",
     "File3DSTL",
     "File3DUSDZ",
+    "File3DPLY",
+    "File3DSPLAT",
+    "File3DSPZ",
+    "File3DKSPLAT",
     "Hooks",
     "HookKeyframes",
     "TimestepsRange",
