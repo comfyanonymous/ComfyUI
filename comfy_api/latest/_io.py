@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from spandrel import ImageModelDescriptor
     from comfy.clip_vision import ClipVisionModel
     from comfy.clip_vision import Output as ClipVisionOutput_
+    from comfy.bg_removal_model import BackgroundRemovalModel
     from comfy.controlnet import ControlNet
     from comfy.hooks import HookGroup, HookKeyframeGroup
     from comfy.model_patcher import ModelPatcher
@@ -395,7 +396,6 @@ class Combo(ComfyTypeIO):
 @comfytype(io_type="COMBO")
 class MultiCombo(ComfyTypeI):
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
-    # TODO: something is wrong with the serialization, frontend does not recognize it as multiselect
     Type = list[str]
     class Input(Combo.Input):
         def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -408,12 +408,14 @@ class MultiCombo(ComfyTypeI):
             self.default: list[str]
 
         def as_dict(self):
-            to_return = super().as_dict() | prune_dict({
-                "multi_select": self.multiselect,
-                "placeholder": self.placeholder,
-                "chip": self.chip,
+            # Frontend expects `multi_select` to be an object config (not a boolean).
+            # Keep top-level `multiselect` from Combo.Input for backwards compatibility.
+            return super().as_dict() | prune_dict({
+                "multi_select": prune_dict({
+                    "placeholder": self.placeholder,
+                    "chip": self.chip,
+                }),
             })
-            return to_return
 
 @comfytype(io_type="IMAGE")
 class Image(ComfyTypeIO):
@@ -613,6 +615,11 @@ class Model(ComfyTypeIO):
     if TYPE_CHECKING:
         Type = ModelPatcher
 
+@comfytype(io_type="BACKGROUND_REMOVAL")
+class BackgroundRemoval(ComfyTypeIO):
+    if TYPE_CHECKING:
+        Type = BackgroundRemovalModel
+
 @comfytype(io_type="CLIP_VISION")
 class ClipVision(ComfyTypeIO):
     if TYPE_CHECKING:
@@ -755,12 +762,30 @@ class Accumulation(ComfyTypeIO):
 @comfytype(io_type="LOAD3D_CAMERA")
 class Load3DCamera(ComfyTypeIO):
     class CameraInfo(TypedDict):
-        position: dict[str, float | int]
-        target: dict[str, float | int]
-        zoom: int
-        cameraType: str
+        # Coordinate system: right-handed, Y-up, camera looks down -Z
+        position: dict[str, float | int]  # scene units
+        target: dict[str, float | int]  # scene units; OrbitControls focus point
+        zoom: float | int  # dimensionless, 1 = 100%
+        cameraType: str  # 'perspective' | 'orthographic'
+        quaternion: NotRequired[dict[str, float | int]]  # normalized, dimensionless; camera world rotation
+        fov: NotRequired[float | int]  # degrees, vertical FOV (perspective only)
+        aspect: NotRequired[float | int]  # width / height (perspective only)
+        near: NotRequired[float | int]  # scene units
+        far: NotRequired[float | int]  # scene units
+        frustum: NotRequired[dict[str, float | int]]  # orthographic only: {left, right, top, bottom} in scene units
 
     Type = CameraInfo
+
+
+@comfytype(io_type="LOAD3D_MODEL_INFO")
+class Load3DModelInfo(ComfyTypeIO):
+    class Model3DTransform(TypedDict):
+        # Coordinate system: right-handed, Y-up, world space
+        position: dict[str, float | int]  # scene units
+        quaternion: dict[str, float | int]  # normalized, dimensionless; world rotation
+        scale: dict[str, float | int]  # dimensionless multiplier
+
+    Type = list[Model3DTransform]
 
 
 @comfytype(io_type="LOAD_3D")
@@ -772,6 +797,7 @@ class Load3D(ComfyTypeIO):
         normal: str
         camera_info: Load3DCamera.CameraInfo
         recording: NotRequired[str]
+        model_3d_info: NotRequired[list[Load3DModelInfo.Model3DTransform]]
 
     Type = Model3DDict
 
@@ -1264,6 +1290,43 @@ class Curve(ComfyTypeIO):
 class Histogram(ComfyTypeIO):
     """A histogram represented as a list of bin counts."""
     Type = list[int]
+
+
+@comfytype(io_type="RANGE")
+class Range(ComfyTypeIO):
+    from comfy_api.input import RangeInput
+    if TYPE_CHECKING:
+        Type = RangeInput
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: dict=None,
+                     display: str=None,
+                     gradient_stops: list=None,
+                     show_midpoint: bool=None,
+                     midpoint_scale: str=None,
+                     value_min: float=None,
+                     value_max: float=None,
+                     advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = {"min": 0.0, "max": 1.0}
+            self.display = display
+            self.gradient_stops = gradient_stops
+            self.show_midpoint = show_midpoint
+            self.midpoint_scale = midpoint_scale
+            self.value_min = value_min
+            self.value_max = value_max
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "display": self.display,
+                "gradient_stops": self.gradient_stops,
+                "show_midpoint": self.show_midpoint,
+                "midpoint_scale": self.midpoint_scale,
+                "value_min": self.value_min,
+                "value_max": self.value_max,
+            })
 
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
@@ -2219,6 +2282,7 @@ __all__ = [
     "ModelPatch",
     "ClipVision",
     "ClipVisionOutput",
+    "BackgroundRemoval",
     "AudioEncoder",
     "AudioEncoderOutput",
     "StyleModel",
@@ -2246,6 +2310,7 @@ __all__ = [
     "FlowControl",
     "Accumulation",
     "Load3DCamera",
+    "Load3DModelInfo",
     "Load3D",
     "Load3DAnimation",
     "Photomaker",
@@ -2276,5 +2341,6 @@ __all__ = [
     "BoundingBox",
     "Curve",
     "Histogram",
+    "Range",
     "NodeReplace",
 ]

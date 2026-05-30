@@ -62,7 +62,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="QuiverTextToSVGNode",
             display_name="Quiver Text to SVG",
-            category="api node/image/Quiver",
+            category="image/partner/Quiver",
             description="Generate an SVG from a text prompt using Quiver AI.",
             inputs=[
                 IO.String.Input(
@@ -143,7 +143,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
         if reference_images:
             references = []
             for key in reference_images:
-                url = await upload_image_to_comfyapi(cls, reference_images[key])
+                url = await upload_image_to_comfyapi(cls, reference_images[key], mime_type="image/png")
                 references.append(QuiverImageObject(url=url))
             if len(references) > 4:
                 raise ValueError("Maximum 4 reference images are allowed.")
@@ -177,7 +177,7 @@ class QuiverImageToSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="QuiverImageToSVGNode",
             display_name="Quiver Image to SVG",
-            category="api node/image/Quiver",
+            category="image/partner/Quiver",
             description="Vectorize a raster image into SVG using Quiver AI.",
             inputs=[
                 IO.Image.Input(
@@ -252,7 +252,7 @@ class QuiverImageToSVGNode(IO.ComfyNode):
         model: dict,
         seed: int,
     ) -> IO.NodeOutput:
-        image_url = await upload_image_to_comfyapi(cls, image)
+        image_url = await upload_image_to_comfyapi(cls, image, mime_type="image/png")
 
         response = await sync_op(
             cls,

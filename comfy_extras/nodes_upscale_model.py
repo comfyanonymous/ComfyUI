@@ -22,7 +22,7 @@ class UpscaleModelLoader(io.ComfyNode):
         return io.Schema(
             node_id="UpscaleModelLoader",
             display_name="Load Upscale Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input("model_name", options=folder_paths.get_filename_list("upscale_models")),
             ],

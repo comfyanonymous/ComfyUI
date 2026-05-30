@@ -2,6 +2,7 @@ import copy
 import heapq
 import inspect
 import logging
+import psutil
 import sys
 import threading
 import time
@@ -15,6 +16,7 @@ import torch
 from comfy.cli_args import args
 import comfy.memory_management
 import comfy.model_management
+import comfy.model_prefetch
 import comfy_aimdo.model_vbar
 
 from latent_preview import set_preview_method
@@ -537,6 +539,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     if args.verbose == "DEBUG":
                         comfy_aimdo.control.analyze()
                     comfy.model_management.reset_cast_buffers()
+                    comfy.model_prefetch.cleanup_prefetch_queues()
                     comfy_aimdo.model_vbar.vbars_reset_watermark_limits()
 
             if has_pending_tasks:
@@ -624,7 +627,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
         if comfy.model_management.is_oom(ex):
             tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
-            logging.info("Memory summary: {}".format(comfy.model_management.debug_memory_summary()))
+            logging.info("Memory summary:\n{}".format(comfy.model_management.debug_memory_summary()))
             logging.error("Got an OOM, unloading all loaded models.")
             comfy.model_management.unload_all_models()
         elif isinstance(ex, RuntimeError) and ("mat1 and mat2 shapes" in str(ex)) and "Sampler" in class_type:
@@ -725,6 +728,7 @@ class PromptExecutor:
 
         self._notify_prompt_lifecycle("start", prompt_id)
         ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
+        ram_inactive_headroom = int(self.cache_args["ram_inactive"] * (1024 ** 3))
         ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
         comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
@@ -778,8 +782,14 @@ class PromptExecutor:
                         execution_list.complete_node_execution()
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
-                        comfy.model_management.free_memory(0, None, pins_required=ram_headroom, ram_required=ram_headroom)
-                        comfy.memory_management.extra_ram_release(ram_headroom)
+                        ram_release_callback(ram_inactive_headroom)
+                        ram_shortfall = ram_headroom - psutil.virtual_memory().available
+                        freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
+                        if freed < ram_shortfall:
+                            if freed > 64 * (1024 ** 2):
+                                # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
+                                time.sleep(0.05)
+                            ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
                     # Send cached UI for intermediate output nodes that weren't executed
@@ -811,9 +821,28 @@ class PromptExecutor:
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
-async def validate_inputs(prompt_id, prompt, item, validated):
+async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
+    if visiting is None:
+        visiting = []
+
     unique_id = item
     if unique_id in validated:
+        return validated[unique_id]
+
+    if unique_id in visiting:
+        cycle_path_nodes = visiting[visiting.index(unique_id):] + [unique_id]
+        cycle_nodes = list(dict.fromkeys(cycle_path_nodes))
+        cycle_path = " -> ".join(f"{node_id} ({prompt[node_id]['class_type']})" for node_id in cycle_path_nodes)
+        for node_id in cycle_nodes:
+            validated[node_id] = (False, [{
+                "type": "dependency_cycle",
+                "message": "Dependency cycle detected",
+                "details": cycle_path,
+                "extra_info": {
+                    "node_id": node_id,
+                    "cycle_nodes": cycle_nodes,
+                }
+            }], node_id)
         return validated[unique_id]
 
     inputs = prompt[unique_id]['inputs']
@@ -899,7 +928,11 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                 errors.append(error)
                 continue
             try:
-                r = await validate_inputs(prompt_id, prompt, o_id, validated)
+                visiting.append(unique_id)
+                try:
+                    r = await validate_inputs(prompt_id, prompt, o_id, validated, visiting)
+                finally:
+                    visiting.pop()
                 if r[0] is False:
                     # `r` will be set in `validated[o_id]` already
                     valid = False
@@ -994,7 +1027,12 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                         combo_options = extra_info.get("options", [])
                     else:
                         combo_options = input_type
-                    if val not in combo_options:
+                    is_multiselect = extra_info.get("multiselect", False)
+                    if is_multiselect and isinstance(val, list):
+                        invalid_vals = [v for v in val if v not in combo_options]
+                    else:
+                        invalid_vals = [val] if val not in combo_options else []
+                    if invalid_vals:
                         input_config = info
                         list_info = ""
 
@@ -1009,7 +1047,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                         error = {
                             "type": "value_not_in_list",
                             "message": "Value not in list",
-                            "details": f"{x}: '{val}' not in {list_info}",
+                            "details": f"{x}: {', '.join(repr(v) for v in invalid_vals)} not in {list_info}",
                             "extra_info": {
                                 "input_name": x,
                                 "input_config": input_config,
@@ -1048,10 +1086,13 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     errors.append(error)
                     continue
 
-    if len(errors) > 0 or valid is not True:
-        ret = (False, errors, unique_id)
-    else:
-        ret = (True, [], unique_id)
+    ret = validated.get(unique_id, (True, [], unique_id))
+    # Recursive cycle detection may have already populated an error on us. Join it.
+    ret = (
+        ret[0] and valid is True and not errors,
+        ret[1] + [error for error in errors if error not in ret[1]],
+        unique_id,
+    )
 
     validated[unique_id] = ret
     return ret
