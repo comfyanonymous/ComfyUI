@@ -1,0 +1,1372 @@
+# Generic utility nodes for the GAUSSIAN type (3D gaussian splats)
+
+import gzip
+import logging
+import math
+import struct
+from io import BytesIO
+
+import numpy as np
+import torch
+from typing_extensions import override
+from scipy.ndimage import map_coordinates
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
+
+import comfy.model_management
+import comfy.utils
+from comfy_api.latest import ComfyExtension, IO, Types
+from comfy_extras.nodes_save_3d import pack_variable_mesh_batch
+
+_C0 = 0.28209479177387814  # SH band-0 constant: DC coefficient -> base RGB
+
+
+def _srgb_to_linear(c):
+    return torch.where(c <= 0.04045, c / 12.92, ((c.clamp_min(0) + 0.055) / 1.055) ** 2.4)
+
+
+def _linear_to_srgb(c):
+    return torch.where(c <= 0.0031308, c * 12.92, 1.055 * c.clamp_min(0) ** (1 / 2.4) - 0.055)
+
+
+def _real_len(g: Types.GAUSSIAN, i: int) -> int:
+    # Real splat count of batch item i (honors variable-length `counts`).
+    return int(g.counts[i].item()) if g.counts is not None else g.positions.shape[1]
+
+
+def _hex_to_rgb(h: str) -> tuple[float, float, float]:
+    # "#RRGGBB" -> (r,g,b) in [0,1]; falls back to black.
+    h = h.lstrip("#")
+    if len(h) != 6:
+        return (0.0, 0.0, 0.0)
+    return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+
+
+def _gaussian_ply_bytes(positions, scales, rotations, opacities, sh) -> bytes:
+    """Serialize render-ready gaussian tensors as a binary 3DGS .ply.
+
+    positions (N,3) world; scales (N,3) linear; rotations (N,4) quat wxyz; opacities (N,1) in [0,1];
+    sh (N,K,3) SH coefficients. Activated values are inverted to the standard 3DGS storage convention
+    (log scale, logit opacity).
+    """
+    xyz = positions.cpu().numpy().astype(np.float32)
+    n = xyz.shape[0]
+    if n == 0:
+        raise ValueError("GaussianToFile3D: gaussian is empty")
+    normals = np.zeros_like(xyz)
+    f = sh.cpu().numpy().astype(np.float32)                  # (N, K, 3)
+    f_dc = f[:, 0, :]                                        # (N, 3)
+    f_rest = f[:, 1:, :].transpose(0, 2, 1).reshape(n, -1)   # (N, 3*(K-1)) channel-major, per 3DGS
+    op = opacities.cpu().numpy().astype(np.float32).reshape(n, 1).clip(1e-6, 1 - 1e-6)
+    op = np.log(op / (1.0 - op))                             # inverse sigmoid (logit)
+    scale = np.log(scales.cpu().numpy().astype(np.float32).clip(min=1e-8))
+    rot = rotations.cpu().numpy().astype(np.float32)         # (N, 4)
+
+    attrs = (['x', 'y', 'z', 'nx', 'ny', 'nz']
+             + [f'f_dc_{i}' for i in range(3)]
+             + [f'f_rest_{i}' for i in range(f_rest.shape[1])]
+             + ['opacity'] + [f'scale_{i}' for i in range(3)] + [f'rot_{i}' for i in range(4)])
+    elements = np.empty(n, dtype=[(a, 'f4') for a in attrs])
+    elements[:] = list(map(tuple, np.concatenate([xyz, normals, f_dc, f_rest, op, scale, rot], axis=1)))
+
+    header = "ply\nformat binary_little_endian 1.0\n" + f"element vertex {n}\n"
+    header += "".join(f"property float {a}\n" for a in attrs) + "end_header\n"
+    return header.encode('ascii') + elements.tobytes()
+
+
+# .ksplat (mkkellogg SplatBuffer) level 0, SH degree 0: 4096-byte header, one 1024-byte section header,
+# then N 44-byte records. Bucketing/quantization only exist at levels >= 1. See SplatBuffer.js.
+_KSPLAT_HEADER_BYTES = 4096
+_KSPLAT_SECTION_HEADER_BYTES = 1024
+_KSPLAT_BYTES_PER_SPLAT = 44          # center 12 + scale 12 + rotation 16 + color(RGBA u8) 4
+_KSPLAT_VERSION = (0, 1)              # SplatBuffer CurrentMajor/MinorVersion
+
+
+def _gaussian_ksplat_bytes(positions, scales, rotations, opacities, sh) -> bytes:
+    """Serialize gaussian tensors as a level-0, SH degree-0 .ksplat (linear scale, opacity in color alpha).
+
+    positions (N,3) world; scales (N,3) linear; rotations (N,4) wxyz; opacities (N,1) in [0,1]; sh (N,K,3).
+    """
+    xyz = positions.cpu().numpy().astype(np.float32)
+    n = xyz.shape[0]
+    if n == 0:
+        raise ValueError("GaussianToFile3D: gaussian is empty")
+    scale = scales.cpu().numpy().astype(np.float32)
+    rot = rotations.cpu().numpy().astype(np.float32)                      # wxyz, mirrors the .ply rot order
+    rot = rot / np.linalg.norm(rot, axis=1, keepdims=True).clip(1e-12)
+    rgb = np.clip(sh[:, 0, :].cpu().numpy().astype(np.float32) * _C0 + 0.5, 0, 1)
+    op = opacities.cpu().numpy().astype(np.float32).reshape(n, 1).clip(0, 1)
+    rgba = np.round(np.concatenate([rgb, op], axis=1) * 255.0).astype(np.uint8)   # (N, 4) RGBA
+
+    # 44-byte record: float center(3) + scale(3) + rot(4), then uint8 rgba(4).
+    floats = np.concatenate([xyz, scale, rot], axis=1).astype('<f4')     # (N, 10)
+    rec = np.empty(n, dtype=[('f', '<f4', 10), ('c', 'u1', 4)])
+    rec['f'] = floats
+    rec['c'] = rgba
+    splat_data = rec.tobytes()
+
+    header = bytearray(_KSPLAT_HEADER_BYTES)
+    header[0] = _KSPLAT_VERSION[0]
+    header[1] = _KSPLAT_VERSION[1]
+    struct.pack_into('<I', header, 4, 1)        # maxSectionCount
+    struct.pack_into('<I', header, 8, 1)        # sectionCount
+    struct.pack_into('<I', header, 12, n)       # maxSplatCount
+    struct.pack_into('<I', header, 16, n)       # splatCount
+    struct.pack_into('<H', header, 20, 0)       # compressionLevel
+    struct.pack_into('<fff', header, 24, 0.0, 0.0, 0.0)   # sceneCenter
+    struct.pack_into('<ff', header, 36, 0.0, 0.0)         # min/max SH coeff (unused at degree 0)
+
+    section = bytearray(_KSPLAT_SECTION_HEADER_BYTES)
+    struct.pack_into('<I', section, 0, n)       # splatCount
+    struct.pack_into('<I', section, 4, n)       # maxSplatCount
+    # offsets 8..24: bucketSize/bucketCount/bucketBlockSize/bucketStorageSizeBytes/compressionScaleRange = 0
+    struct.pack_into('<I', section, 28, n * _KSPLAT_BYTES_PER_SPLAT)   # storageSizeBytes
+    struct.pack_into('<I', section, 32, 0)      # fullBucketCount
+    struct.pack_into('<I', section, 36, 0)      # partiallyFilledBucketCount
+    struct.pack_into('<H', section, 40, 0)      # sphericalHarmonicsDegree
+
+    return bytes(header) + bytes(section) + splat_data
+
+
+# .spz (Niantic) version 2, gzip-wrapped, SH degree 0: a 16-byte header then per-attribute arrays
+# (positions 24-bit fixed point, then 1B alpha, 3B color, 3B scale, 3B rotation per splat). The
+# quantizations below invert spark's SpzReader decode formulas.
+_SPZ_MAGIC = 0x5053474E               # "NGSP"
+_SPZ_VERSION = 2
+_SPZ_FRACTIONAL_BITS = 12             # position fixed-point precision (~0.24mm at unit scale)
+_SPZ_COLOR_SCALE = _C0 / 0.15         # contrast factor applied when decoding color bytes
+
+
+def _gaussian_spz_bytes(positions, scales, rotations, opacities, sh) -> bytes:
+    """Serialize gaussian tensors as a gzip-compressed .spz (Niantic v2, SH degree 0, base color only).
+
+    positions (N,3) world; scales (N,3) linear; rotations (N,4) wxyz; opacities (N,1) in [0,1]; sh (N,K,3).
+    """
+    xyz = positions.cpu().numpy().astype(np.float32)
+    n = xyz.shape[0]
+    if n == 0:
+        raise ValueError("GaussianToFile3D: gaussian is empty")
+
+    # Positions: fixed point, masked to 24 bits, little-endian 3-byte words.
+    fixed = 1 << _SPZ_FRACTIONAL_BITS
+    qi = np.clip(np.round(xyz * fixed), -(1 << 23), (1 << 23) - 1).astype(np.int32)
+    qu = (qi & 0xFFFFFF).astype(np.uint32)
+    pos = np.stack([qu & 0xFF, (qu >> 8) & 0xFF, (qu >> 16) & 0xFF], axis=-1).reshape(n, 9).astype(np.uint8)
+
+    alpha = np.round(opacities.cpu().numpy().astype(np.float32).reshape(n) * 255.0).clip(0, 255).astype(np.uint8)
+
+    rgb = sh[:, 0, :].cpu().numpy().astype(np.float32) * _C0 + 0.5
+    col = np.round(((rgb - 0.5) / _SPZ_COLOR_SCALE + 0.5) * 255.0).clip(0, 255).astype(np.uint8)   # (N,3)
+
+    sln = np.log(scales.cpu().numpy().astype(np.float32).clip(min=1e-9))
+    scb = np.round((sln + 10.0) * 16.0).clip(0, 255).astype(np.uint8)     # (N,3) inverts exp(b/16-10)
+
+    rot = rotations.cpu().numpy().astype(np.float32)                      # wxyz
+    rot = rot / np.linalg.norm(rot, axis=1, keepdims=True).clip(1e-12)
+    rot[rot[:, 0] < 0] *= -1.0                                            # canonical w >= 0 (w dropped on decode)
+    rotb = np.round((rot[:, 1:4] + 1.0) * 127.5).clip(0, 255).astype(np.uint8)   # (N,3) x,y,z
+
+    header = bytearray(16)
+    struct.pack_into('<I', header, 0, _SPZ_MAGIC)
+    struct.pack_into('<I', header, 4, _SPZ_VERSION)
+    struct.pack_into('<I', header, 8, n)
+    header[12] = 0                       # shDegree
+    header[13] = _SPZ_FRACTIONAL_BITS
+    header[14] = 0                       # flags
+    header[15] = 0                       # reserved
+
+    raw = (bytes(header) + pos.tobytes() + alpha.tobytes()
+           + col.tobytes() + scb.tobytes() + rotb.tobytes())
+    return gzip.compress(raw)
+
+
+# ---- Readers: splat file bytes -> (positions, scales linear, rotations wxyz, opacities [0,1], sh (N,K,3)) ----
+# Inverse of the writers above and of spark's loaders. ksplat/splat/spz carry base color only (SH degree 0
+# -> K=1); .ply round-trips full SH. None of the formats flip axes, so import is the identity of export.
+_PLY_DTYPES = {'char': 'i1', 'uchar': 'u1', 'short': 'i2', 'ushort': 'u2', 'int': 'i4', 'uint': 'u4',
+               'float': 'f4', 'double': 'f8', 'int8': 'i1', 'uint8': 'u1', 'int16': 'i2', 'uint16': 'u2',
+               'int32': 'i4', 'uint32': 'u4', 'float32': 'f4', 'float64': 'f8'}
+_KSPLAT_COMPRESSION = {  # level -> (bytesPerCenter, scale, rotation, color, shComponent, defaultScaleRange)
+    0: (12, 12, 16, 4, 4, 1), 1: (6, 6, 8, 4, 2, 32767), 2: (6, 6, 8, 4, 1, 32767)}
+_KSPLAT_SH_COMPONENTS = {0: 0, 1: 9, 2: 24, 3: 45}
+
+
+def _rgb_to_sh_dc(rgb):
+    return ((np.asarray(rgb, np.float32) - 0.5) / _C0)[:, None, :]   # (N,3) base color -> (N,1,3) SH DC
+
+
+def _norm_quat(q):
+    return q / np.linalg.norm(q, axis=1, keepdims=True).clip(1e-12)
+
+
+def _parse_ply_gaussian(data: bytes):
+    end = data.find(b'end_header')
+    if end < 0:
+        raise ValueError("File3DToGaussian: not a PLY (missing end_header)")
+    header = data[:end].decode('ascii', 'replace')
+    body = end + len(b'end_header')
+    body += 2 if data[body:body + 2] == b'\r\n' else 1
+    count, props, in_vertex = 0, [], False
+    for line in header.splitlines():
+        p = line.split()
+        if not p:
+            continue
+        if p[0] == 'format' and p[1] != 'binary_little_endian':
+            raise ValueError(f"File3DToGaussian: unsupported PLY format '{p[1]}' (need binary_little_endian)")
+        if p[0] == 'element':
+            in_vertex = p[1] == 'vertex'
+            if in_vertex:
+                count = int(p[2])
+        elif p[0] == 'property' and in_vertex:
+            if p[1] == 'list':
+                raise ValueError("File3DToGaussian: PLY vertex has list properties (unsupported)")
+            props.append((p[2], '<' + _PLY_DTYPES[p[1]]))
+    arr = np.frombuffer(data, np.dtype(props), count=count, offset=body)
+    names = arr.dtype.names
+    c = lambda k: arr[k].astype(np.float32)
+    n = count
+
+    xyz = np.stack([c('x'), c('y'), c('z')], 1)
+    if 'scale_0' in names:
+        scale = np.exp(np.stack([c('scale_0'), c('scale_1'), c('scale_2')], 1))   # 3DGS stores log scale
+    else:
+        scale = np.full((n, 3), 0.01, np.float32)
+    if 'rot_0' in names:
+        rot = _norm_quat(np.stack([c('rot_0'), c('rot_1'), c('rot_2'), c('rot_3')], 1))   # wxyz
+    else:
+        rot = np.tile(np.array([1, 0, 0, 0], np.float32), (n, 1))
+    opacity = 1.0 / (1.0 + np.exp(-c('opacity'))) if 'opacity' in names else np.ones(n, np.float32)
+
+    if 'f_dc_0' in names:
+        dc = np.stack([c('f_dc_0'), c('f_dc_1'), c('f_dc_2')], 1)                 # (N,3)
+        rest = sorted((k for k in names if k.startswith('f_rest_')), key=lambda s: int(s.split('_')[-1]))
+        if rest:
+            r = np.stack([c(k) for k in rest], 1)                                 # (N, 3*(K-1)) channel-major
+            kk = r.shape[1] // 3 + 1
+            r = r.reshape(n, 3, kk - 1).transpose(0, 2, 1)                        # -> (N, K-1, 3)
+            sh = np.concatenate([dc[:, None, :], r], 1)
+        else:
+            sh = dc[:, None, :]
+    elif 'red' in names:
+        sh = _rgb_to_sh_dc(np.stack([c('red'), c('green'), c('blue')], 1) / 255.0)
+    else:
+        sh = np.zeros((n, 1, 3), np.float32)
+    return xyz, scale, rot, opacity, sh
+
+
+def _parse_splat_gaussian(data: bytes):
+    # antimatter15 .splat: 32-byte records (f32 xyz, f32 scale, u8 rgba, u8 quat as (b-128)/128 wxyz).
+    if len(data) % 32 != 0:
+        raise ValueError("File3DToGaussian: .splat size is not a multiple of 32 bytes")
+    rec = np.frombuffer(data, np.dtype([('xyz', '<f4', 3), ('scale', '<f4', 3),
+                                        ('rgba', 'u1', 4), ('quat', 'u1', 4)]))
+    rgba = rec['rgba'].astype(np.float32) / 255.0
+    rot = _norm_quat((rec['quat'].astype(np.float32) - 128.0) / 128.0)            # wxyz
+    return (rec['xyz'].astype(np.float32), rec['scale'].astype(np.float32), rot,
+            rgba[:, 3].copy(), _rgb_to_sh_dc(rgba[:, :3]))
+
+
+def _parse_ksplat_gaussian(data: bytes):
+    # mkkellogg SplatBuffer: 4096-byte header, N section headers, then per-section splat data. Supports
+    # levels 0 (float) / 1 (half + bucketed positions) / 2 (half, uint8 SH). SH is skipped (base color kept).
+    if data[0] != 0:
+        raise ValueError(f"File3DToGaussian: unsupported .ksplat version {data[0]}.{data[1]}")
+    max_sections = struct.unpack_from('<I', data, 4)[0]
+    level = struct.unpack_from('<H', data, 20)[0]
+    if level not in _KSPLAT_COMPRESSION:
+        raise ValueError(f"File3DToGaussian: invalid .ksplat compression level {level}")
+    bc, bs, br, bcol, bshc, default_range = _KSPLAT_COMPRESSION[level]
+
+    parts = []
+    base = 4096 + max_sections * 1024
+    for s in range(max_sections):
+        so = 4096 + s * 1024
+        cnt = struct.unpack_from('<I', data, so + 0)[0]
+        sec_max = struct.unpack_from('<I', data, so + 4)[0]
+        bucket_size = struct.unpack_from('<I', data, so + 8)[0]
+        bucket_count = struct.unpack_from('<I', data, so + 12)[0]
+        block_size = struct.unpack_from('<f', data, so + 16)[0]
+        bucket_store = struct.unpack_from('<H', data, so + 20)[0]
+        scale_range = struct.unpack_from('<I', data, so + 24)[0] or default_range
+        full_buckets = struct.unpack_from('<I', data, so + 32)[0]
+        partial_buckets = struct.unpack_from('<I', data, so + 36)[0]
+        sh_components = _KSPLAT_SH_COMPONENTS.get(struct.unpack_from('<H', data, so + 40)[0], 0)
+        bytes_per_splat = bc + bs + br + bcol + sh_components * bshc
+        meta_bytes = partial_buckets * 4
+        buckets_store = bucket_store * bucket_count + meta_bytes
+        data_base = base + buckets_store
+
+        if cnt > 0:
+            ct, ft = ('<f4', '<f4') if level == 0 else ('<u2', '<f2')
+            fields = [('center', ct, 3), ('scale', ft, 3), ('rot', ft, 4), ('color', 'u1', 4)]
+            if sh_components:
+                fields.append(('sh', '<f2' if level == 1 else ('<f4' if level == 0 else 'u1'), sh_components))
+            rec = np.frombuffer(data, np.dtype(fields), count=cnt, offset=data_base)
+            colf = rec['color'].astype(np.float32) / 255.0
+            rot = _norm_quat(rec['rot'].astype(np.float32))                       # wxyz
+            scale = rec['scale'].astype(np.float32)
+            if level == 0:
+                xyz = rec['center'].astype(np.float32)
+            else:
+                buckets = np.frombuffer(data, '<f4', count=bucket_count * 3, offset=base + meta_bytes).reshape(-1, 3)
+                idx = np.empty(cnt, np.int64)
+                full_splats = full_buckets * bucket_size
+                nf = min(full_splats, cnt)
+                idx[:nf] = np.arange(nf) // bucket_size
+                if cnt > full_splats:
+                    lengths = np.frombuffer(data, '<u4', count=partial_buckets, offset=base)
+                    idx[full_splats:] = np.repeat(full_buckets + np.arange(partial_buckets), lengths)[:cnt - full_splats]
+                xyz = (rec['center'].astype(np.float32) - scale_range) * (block_size / 2.0 / scale_range) + buckets[idx]
+            parts.append((xyz, scale, rot, colf[:, 3].copy(), _rgb_to_sh_dc(colf[:, :3])))
+        base += bytes_per_splat * sec_max + buckets_store
+
+    if not parts:
+        raise ValueError("File3DToGaussian: .ksplat has no splats")
+    return tuple(np.concatenate([p[i] for p in parts]) for i in range(5))
+
+
+def _parse_spz_gaussian(data: bytes):
+    # Niantic .spz (gzip-wrapped), versions 1-3. Base color only (SH skipped). See spark's SpzReader.
+    raw = gzip.decompress(data)
+    if struct.unpack_from('<I', raw, 0)[0] != _SPZ_MAGIC:
+        raise ValueError("File3DToGaussian: invalid .spz (bad magic)")
+    version = struct.unpack_from('<I', raw, 4)[0]
+    n = struct.unpack_from('<I', raw, 8)[0]
+    frac_bits = raw[13]
+    off = 16
+
+    if version == 1:
+        xyz = np.frombuffer(raw, '<f2', count=n * 3, offset=off).astype(np.float32).reshape(n, 3)
+        off += n * 6
+    elif version in (2, 3):
+        b = np.frombuffer(raw, np.uint8, count=n * 9, offset=off).reshape(n, 3, 3).astype(np.int64)
+        v = (b[..., 2] << 16) | (b[..., 1] << 8) | b[..., 0]
+        v = np.where(v & 0x800000, v - 0x1000000, v)                             # sign-extend 24-bit
+        xyz = (v / (1 << frac_bits)).astype(np.float32)
+        off += n * 9
+    else:
+        raise ValueError(f"File3DToGaussian: unsupported .spz version {version}")
+
+    alpha = np.frombuffer(raw, np.uint8, count=n, offset=off).astype(np.float32) / 255.0
+    off += n
+    cb = np.frombuffer(raw, np.uint8, count=n * 3, offset=off).reshape(n, 3).astype(np.float32)
+    off += n * 3
+    rgb = (cb / 255.0 - 0.5) * _SPZ_COLOR_SCALE + 0.5
+    sb = np.frombuffer(raw, np.uint8, count=n * 3, offset=off).reshape(n, 3).astype(np.float32)
+    off += n * 3
+    scale = np.exp(sb / 16.0 - 10.0)
+
+    if version == 3:                                                             # smallest-three quaternion
+        qb = np.frombuffer(raw, np.uint8, count=n * 4, offset=off).reshape(n, 4).astype(np.int64)
+        combined = qb[:, 0] | (qb[:, 1] << 8) | (qb[:, 2] << 16) | (qb[:, 3] << 24)
+        largest = (combined >> 30) & 3
+        q = np.zeros((n, 4), np.float32)                                         # x,y,z,w
+        remaining, sumsq = combined.copy(), np.zeros(n, np.float64)
+        for comp in (3, 2, 1, 0):
+            active = comp != largest
+            value = (remaining & 0x1FF).astype(np.float64)
+            sign = (remaining >> 9) & 1
+            remaining = np.where(active, remaining >> 10, remaining)
+            val = (1.0 / math.sqrt(2)) * (value / 0x1FF)
+            val = np.where(sign == 1, -val, val)
+            q[active, comp] = val[active]
+            sumsq += np.where(active, val * val, 0.0)
+        q[np.arange(n), largest] = np.sqrt(np.clip(1.0 - sumsq, 0, None))
+        rot = _norm_quat(np.stack([q[:, 3], q[:, 0], q[:, 1], q[:, 2]], 1))      # xyzw -> wxyz
+    else:
+        qb = np.frombuffer(raw, np.uint8, count=n * 3, offset=off).reshape(n, 3).astype(np.float32)
+        xq = qb / 127.5 - 1.0
+        w = np.sqrt(np.clip(1.0 - (xq ** 2).sum(1), 0, None))
+        rot = _norm_quat(np.concatenate([w[:, None], xq], 1))                    # wxyz
+    return xyz, scale, rot, alpha, _rgb_to_sh_dc(rgb)
+
+
+_GAUSSIAN_PARSERS = {"ply": _parse_ply_gaussian, "splat": _parse_splat_gaussian,
+                     "ksplat": _parse_ksplat_gaussian, "spz": _parse_spz_gaussian}
+
+
+def _detect_splat_format(data: bytes) -> str:
+    if data[:3] == b'ply':
+        return "ply"
+    if data[:2] == b'\x1f\x8b':            # gzip -> spz
+        return "spz"
+    if len(data) >= 2 and data[0] == 0 and data[1] >= 1:   # ksplat version 0.x header
+        return "ksplat"
+    if len(data) % 32 == 0:
+        return "splat"
+    raise ValueError("File3DToGaussian: could not determine splat format from contents")
+
+
+def _gaussian_item(g: Types.GAUSSIAN, i: int, device):
+    # Slice batch item i to its real length, as float32 torch tensors on `device` (SH DC -> base RGB).
+    end = _real_len(g, i)
+    to = lambda a: a.to(device=device, dtype=torch.float32)
+    xyz = to(g.positions[i, :end])
+    rgb = (to(g.sh[i, :end, 0, :]) * _C0 + 0.5).clamp(0, 1)
+    opacity = to(g.opacities[i, :end]).reshape(-1)
+    scale = to(g.scales[i, :end])
+    rot = to(g.rotations[i, :end])
+    return xyz, rgb, opacity, scale, rot
+
+
+def _quat_to_mat(q):
+    # q: (N, 4) wxyz, normalized -> (N, 3, 3)
+    q = q / q.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+    w, x, y, z = q.unbind(-1)
+    return torch.stack([
+        1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
+        2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
+        2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y),
+    ], dim=-1).reshape(-1, 3, 3)
+
+
+def _quat_mul(a, b):
+    # Hamilton product a (x) b, wxyz.
+    aw, ax, ay, az = a.unbind(-1)
+    bw, bx, by, bz = b.unbind(-1)
+    return torch.stack([
+        aw * bw - ax * bx - ay * by - az * bz,
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+    ], dim=-1)
+
+
+def _euler_to_quat(rx, ry, rz):
+    # Degrees, applied as Rz @ Ry @ Rx (rotate about X, then Y, then Z in world). Returns wxyz.
+    c, s = np.cos(np.radians([rx, ry, rz]) / 2.0), np.sin(np.radians([rx, ry, rz]) / 2.0)
+    qx = torch.tensor([c[0], s[0], 0.0, 0.0], dtype=torch.float32)
+    qy = torch.tensor([c[1], 0.0, s[1], 0.0], dtype=torch.float32)
+    qz = torch.tensor([c[2], 0.0, 0.0, s[2]], dtype=torch.float32)
+    return _quat_mul(_quat_mul(qz, qy), qx)
+
+
+def _mat_to_quat(m):
+    # Rotation matrix (..., 3, 3) -> quaternion (..., 4) wxyz. Batched; builds the four candidate quaternions
+    # and keeps the one with the largest component (numerically stable across all rotations).
+    m00, m11, m22 = m[..., 0, 0], m[..., 1, 1], m[..., 2, 2]
+    m21, m12 = m[..., 2, 1], m[..., 1, 2]
+    m02, m20 = m[..., 0, 2], m[..., 2, 0]
+    m10, m01 = m[..., 1, 0], m[..., 0, 1]
+    q2 = torch.stack([1 + m00 + m11 + m22, 1 + m00 - m11 - m22,
+                      1 - m00 + m11 - m22, 1 - m00 - m11 + m22], -1)   # 4 * (w^2, x^2, y^2, z^2)
+    cand = torch.stack([
+        torch.stack([q2[..., 0], m21 - m12, m02 - m20, m10 - m01], -1),
+        torch.stack([m21 - m12, q2[..., 1], m10 + m01, m02 + m20], -1),
+        torch.stack([m02 - m20, m10 + m01, q2[..., 2], m12 + m21], -1),
+        torch.stack([m10 - m01, m02 + m20, m12 + m21, q2[..., 3]], -1),
+    ], -2)                                                            # (...,4,4) candidates, rows = wxyz
+    sel = q2.argmax(-1)
+    q = torch.gather(cand, -2, sel[..., None, None].expand(sel.shape + (1, 4)))[..., 0, :]
+    return q / q.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+
+
+class GaussianToFile3D(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GaussianToFile3D",
+            display_name="Gaussian Splat to 3D File",
+            search_aliases=["gaussian to ply", "splat to file", "export gaussian"],
+            category="3d/gaussian",
+            description="Serialize a gaussian splat to an in-memory File3D, for Save 3D Model / Preview 3D. "
+                        "ply keeps full SH (standard 3DGS); ksplat and spz are compact viewer formats (base "
+                        "color only). Single splat only - feed one batch item at a time.",
+            inputs=[
+                IO.Gaussian.Input("gaussian"),
+                IO.Combo.Input("format", options=["ply", "ksplat", "spz"],
+                               tooltip="ply: standard 3DGS with full spherical harmonics. ksplat: mkkellogg "
+                                       "SplatBuffer (level 0, uncompressed). spz: Niantic gzip-compressed "
+                                       "(~10x smaller). ksplat/spz keep base color only - view-dependent SH "
+                                       "is dropped."),
+            ],
+            outputs=[IO.File3DAny.Output(display_name="model_3d")],
+        )
+
+    @classmethod
+    def execute(cls, gaussian, format="ply") -> IO.NodeOutput:
+        if gaussian.positions.shape[0] > 1:
+            logging.warning("GaussianToFile3D: got a batch of %d; converting only the first splat (File3D is a "
+                            "single file).", gaussian.positions.shape[0])
+        end = _real_len(gaussian, 0)
+        writer = {"ksplat": _gaussian_ksplat_bytes, "spz": _gaussian_spz_bytes}.get(format, _gaussian_ply_bytes)
+        data = writer(gaussian.positions[0, :end], gaussian.scales[0, :end],
+                      gaussian.rotations[0, :end], gaussian.opacities[0, :end], gaussian.sh[0, :end])
+        return IO.NodeOutput(Types.File3D(BytesIO(data), file_format=format))
+
+
+class File3DToGaussian(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="File3DToGaussian",
+            display_name="3D File to Gaussian Splat",
+            search_aliases=["load splat", "ply to gaussian", "import gaussian", "file to splat"],
+            category="3d/gaussian",
+            description="Parse a splat File3D (.ply / .splat / .ksplat / .spz) into a GAUSSIAN. Inverse of "
+                        "Gaussian Splat to 3D File. ply carries full spherical harmonics; the others are base "
+                        "color only. Format is auto-detected from the file contents.",
+            inputs=[
+                IO.MultiType.Input(
+                    IO.File3DAny.Input("model_3d"),
+                    types=[IO.File3DPLY, IO.File3DSPLAT, IO.File3DKSPLAT, IO.File3DSPZ],
+                    tooltip="A gaussian-splat 3D file",
+                ),
+            ],
+            outputs=[IO.Gaussian.Output(display_name="gaussian")],
+        )
+
+    @classmethod
+    def execute(cls, model_3d: Types.File3D) -> IO.NodeOutput:
+        data = model_3d.get_bytes()
+        fmt = (model_3d.format or "").lower()
+        parser = _GAUSSIAN_PARSERS.get(fmt) or _GAUSSIAN_PARSERS[_detect_splat_format(data)]
+        xyz, scale, rot, opacity, sh = parser(data)
+
+        t = lambda a: torch.from_numpy(np.ascontiguousarray(a)).float()
+        gaussian = Types.GAUSSIAN(
+            t(xyz)[None],                              # (1, N, 3)
+            t(scale)[None],                            # (1, N, 3) linear
+            t(rot)[None],                              # (1, N, 4) wxyz
+            t(opacity).reshape(1, -1, 1),              # (1, N, 1)
+            t(sh)[None],                               # (1, N, K, 3)
+        )
+        return IO.NodeOutput(gaussian)
+
+
+def _view_matrix_t(yaw_deg, pitch_deg, device):
+    y, p = math.radians(yaw_deg), math.radians(pitch_deg)
+    cy, sy, cp, sp = math.cos(y), math.sin(y), math.cos(p), math.sin(p)
+    Ry = torch.tensor([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], device=device)
+    Rx = torch.tensor([[1, 0, 0], [0, cp, -sp], [0, sp, cp]], device=device)
+    return Rx @ Ry
+
+
+def _camera_basis(camera_info, dev):
+    # Look-at basis (eye, target, right, up, fwd) in the splat frame. The Load3D camera frame is Y-up and
+    # rotated 90 deg about the up axis vs the splat frame, so remap each point (x,y,z) -> (z,-y,-x).
+    pos, tgt = camera_info.get("position", {}), camera_info.get("target", {})
+    g = lambda d: torch.tensor([float(d.get("z", 0.0)), -float(d.get("y", 0.0)), -float(d.get("x", 0.0))], device=dev)
+    eye, target = g(pos), g(tgt)
+    fwd = target - eye
+    fwd = fwd / fwd.norm().clamp_min(1e-8)
+    up0 = torch.tensor([0.0, 1.0, 0.0], device=dev)
+    if fwd.dot(up0).abs() > 0.999:                               # looking straight up/down
+        up0 = torch.tensor([0.0, 0.0, 1.0], device=dev)
+    right = torch.linalg.cross(up0, fwd)
+    right = right / right.norm().clamp_min(1e-8)
+    up = torch.linalg.cross(fwd, right)
+    return eye, target, right, up, fwd
+
+
+def _gauss_blur(x, sigma, dev):
+    # Separable Gaussian blur of (1, C, H, W). Used to denoise the screen-space normal map.
+    r = max(1, int(round(3 * sigma)))
+    k = torch.exp(-0.5 * (torch.arange(-r, r + 1, device=dev, dtype=torch.float32) / sigma) ** 2)
+    k = k / k.sum()
+    c = x.shape[1]
+    x = torch.nn.functional.conv2d(x, k.view(1, 1, 1, -1).expand(c, 1, 1, -1), padding=(0, r), groups=c)
+    x = torch.nn.functional.conv2d(x, k.view(1, 1, -1, 1).expand(c, 1, -1, 1), padding=(r, 0), groups=c)
+    return x
+
+
+def _render_gaussian(xyz, rgb, opacity, scale, rot, width, height, fov, splat_scale, bg, sharpen=1.0,
+                     headlight_shading=0.0, render_style="color", camera_info=None,
+                     yaw=35.0, pitch=30.0, zoom=1.0):
+    # Perspective-correct anisotropic gaussian-splat rasterizer. Each splat is weighted by its 3D Gaussian's
+    # peak along each pixel's ray (AAA / Hahlbohm), composited front-to-back across depth slabs. `render_style`
+    # selects the image: color / clay / depth / normal. Returns (image HxWx3, coverage mask HxW) on CPU.
+    dev = comfy.model_management.get_torch_device()
+    t = lambda a: torch.as_tensor(a, dtype=torch.float32, device=dev)
+    xyz, rgb, opacity = t(xyz), t(rgb).clamp(0, 1), t(opacity).reshape(-1)
+    scale, rot = t(scale) * float(splat_scale), t(rot)
+    do_linear = render_style == "color"                      # colour blends in linear light, re-encoded at the end
+    if do_linear:
+        rgb = _srgb_to_linear(rgb)
+    flat = width * height
+    bg_t = t(bg)
+    bg_comp = _srgb_to_linear(bg_t) if do_linear else bg_t    # background blended in the same space as the splats
+    need_depth = render_style == "depth"
+    need_normal = render_style in ("normal", "clay") or headlight_shading > 0
+
+    def background_only():                                   # no splats to rasterize -> just the background + empty mask
+        img = bg_t.expand(height, width, 3) if render_style == "color" else torch.zeros(height, width, 3, device=dev)
+        return img.cpu(), torch.zeros(height, width)
+
+    if xyz.shape[0] == 0:                                    # empty input (e.g. all culled by opacity_threshold)
+        return background_only()
+
+    if camera_info is not None:
+        eye, target, right, up, fwd = _camera_basis(camera_info, dev)
+        d = (target - eye).norm().clamp_min(1e-6)
+        eye = target - fwd * (d / max(zoom, 1e-3))               # zoom is relative to camera_info: 1.0 = as authored
+        W = torch.stack([right, up, fwd], 0)                     # rows = camera axes (world -> camera)
+        cam = (xyz - eye) @ W.T
+        cam_fov = float(camera_info.get("fov", 0) or 0)          # fov=0 -> take it from the camera (or 35 if absent)
+        fov = fov if fov > 0 else (cam_fov if cam_fov > 0 else 35.0)
+        yflip = 1.0                                              # match the orbit path (splat +Y is visually down)
+    else:
+        fov = fov if fov > 0 else 35.0                           # fov=0 -> default 35
+        center = xyz.mean(0)
+        extent = (xyz - center).norm(dim=-1).quantile(0.99).clamp_min(1e-4)   # ignore outlier floaters
+        dist = extent / (math.tan(math.radians(fov) / 2) * 0.9) / max(zoom, 1e-3)
+        W = _view_matrix_t(yaw, pitch, dev)
+        cam = (xyz - center) @ W.T + torch.tensor([0.0, 0.0, dist], device=dev)
+        yflip = 1.0
+    xc, yc, zc = cam.unbind(-1)
+
+    keep = zc > 1e-2
+    xc, yc, zc, rgb, opacity, scale, rot = (a[keep] for a in (xc, yc, zc, rgb, opacity, scale, rot))
+    if xc.shape[0] == 0:                                     # nothing in front of the camera -> background only
+        return background_only()
+    if render_style == "clay":
+        rgb = torch.full_like(rgb, 0.75)            # neutral albedo -> shading shows pure geometry
+
+    f = (min(width, height) / 2) / math.tan(math.radians(fov) / 2)   # fov over the smaller axis -> object fits
+    invz = 1.0 / zc
+    cx0, cy0 = width / 2, height / 2
+
+    # Camera-space 3D covariance per splat: Sigma = (W Rq) diag(scale^2) (W Rq)^T, plus a tiny relative
+    # regularizer for a stable inverse (a pixel-size Mip low-pass would over-thicken flat surfels and blur).
+    Mw = W[None] @ _quat_to_mat(rot)                           # (N,3,3) world -> camera
+    cam_cov = (Mw * scale.square()[:, None, :]) @ Mw.transpose(1, 2)
+    cam_cov = cam_cov + (cam_cov.diagonal(dim1=-2, dim2=-1).mean(-1) * 1e-3)[:, None, None] * torch.eye(3, device=dev)
+
+    # Perspective-correct weighting: peak of the 3D Gaussian along each pixel ray. Precompute Si, Si@mu, mu^T Si mu.
+    mu = torch.stack([xc, yc, zc], -1)
+    si = torch.linalg.inv(cam_cov)
+    simu = (si @ mu[:, :, None])[:, :, 0]                      # (N,3)
+    musimu = (mu * simu).sum(-1)                               # (N,)
+    s00, s01, s02 = si[:, 0, 0], si[:, 0, 1], si[:, 0, 2]
+    s11, s12, s22 = si[:, 1, 1], si[:, 1, 2], si[:, 2, 2]
+    simu0, simu1, simu2 = simu.unbind(-1)
+    if need_normal:                                            # surfel normal = thinnest axis, oriented toward camera
+        nrm = Mw[torch.arange(Mw.shape[0], device=dev), :, scale.argmin(-1)]   # (N,3) camera-space normal
+        nrm = nrm * torch.where(nrm[:, 2:3] > 0, -1.0, 1.0)                    # flip so nz <= 0 (faces camera)
+
+    # Screen centre (exact) + footprint radius from the affine 2D projection (used only to size the kernel).
+    cx, cy = cx0 + f * xc * invz, cy0 + yflip * f * yc * invz
+    jm = torch.zeros(xc.shape[0], 2, 3, device=dev)
+    jm[:, 0, 0], jm[:, 0, 2] = f * invz, -f * xc * invz.square()
+    jm[:, 1, 1], jm[:, 1, 2] = yflip * f * invz, -yflip * f * yc * invz.square()
+    cov2 = jm @ cam_cov @ jm.transpose(1, 2)
+    a, b, c = cov2[:, 0, 0], cov2[:, 0, 1], cov2[:, 1, 1]
+    max_eig = (a + c) * 0.5 + (((a - c) * 0.5).square() + b * b).clamp_min(0).sqrt()
+    radius = 3.0 * max_eig.clamp_min(1e-8).sqrt()
+    K = int(min(max(24, min(width, height) // 16), max(2, math.ceil(torch.quantile(radius, 0.995).item()))))
+    rng = torch.arange(-K, K + 1, device=dev, dtype=torch.float32)
+    oy, ox = torch.meshgrid(rng, rng, indexing="ij")
+    ox, oy = ox.reshape(-1), oy.reshape(-1)                    # (M,) kernel offsets
+
+    order = torch.argsort(zc)                                  # front (small zc) -> back
+    cxr, cyr = cx[order].round(), cy[order].round()
+    s00, s01, s02 = s00[order], s01[order], s02[order]
+    s11, s12, s22 = s11[order], s12[order], s22[order]
+    simu0, simu1, simu2, musimu = simu0[order], simu1[order], simu2[order], musimu[order]
+    opacity, rgb = opacity[order], rgb[order]
+    zc_o = zc[order] if need_depth else None
+    nrm_o = nrm[order] if need_normal else None
+
+    def splat(lo, hi):  # -> pixel idx (m,M), alpha (m,M); weight = 3D Gaussian peak along each pixel's ray
+        px = cxr[lo:hi, None] + ox[None, :]
+        py = cyr[lo:hi, None] + oy[None, :]
+        valid = (px >= 0) & (px < width) & (py >= 0) & (py < height)
+        dx, dy = (px - cx0) / f, yflip * (py - cy0) / f        # ray direction in camera space (z = 1)
+        dsid = (s00[lo:hi, None] * dx * dx + s11[lo:hi, None] * dy * dy + s22[lo:hi, None]
+                + 2 * (s01[lo:hi, None] * dx * dy + s02[lo:hi, None] * dx + s12[lo:hi, None] * dy))
+        dsimu = dx * simu0[lo:hi, None] + dy * simu1[lo:hi, None] + simu2[lo:hi, None]
+        q = (musimu[lo:hi, None] - dsimu * dsimu / dsid.clamp_min(1e-12)).clamp_min(0)   # ray->centre Mahalanobis^2
+        alpha = (opacity[lo:hi, None] * torch.exp(-0.5 * q) * valid).clamp(0, 0.999)
+        idx = py.long().clamp(0, height - 1) * width + px.long().clamp(0, width - 1)
+        return idx, alpha
+
+    # Front-to-back compositing over many depth slabs (equal splat counts) -> the global depth order is
+    # resolved finely, approaching a true per-pixel sort.
+    n = xc.shape[0]
+    ns = int(min(256, max(1, n // 1000)))     # depth slabs: 1 per ~1000 splats, capped (result converges well below)
+    bounds = torch.linspace(0, n, ns + 1).round().long().tolist()
+    cacc = torch.zeros((flat, 3), device=dev)
+    trans = torch.ones((flat,), device=dev)
+    a_buf = torch.zeros((flat,), device=dev)        # sum alpha -> colour/depth/normal weight (alpha-weighted mean)
+    tau_buf = torch.zeros((flat,), device=dev)      # sum -ln(1-alpha) -> slab opacity = 1-prod(1-alpha) (order-independent)
+    crgb = torch.zeros((flat, 3), device=dev)       # sum alpha^p * rgb -> slab colour
+    wbuf = torch.zeros((flat,), device=dev)         # sum alpha^p -> colour normalizer (== a_buf when p==1)
+    dacc = torch.zeros((flat,), device=dev)         # front-weighted depth
+    nacc = torch.zeros((flat, 3), device=dev)       # front-weighted camera-space normal
+    zslab = torch.zeros((flat,), device=dev)
+    nslab = torch.zeros((flat, 3), device=dev)
+    sharp = sharpen != 1.0                          # winner-take-more colour blend: dominant splat shows more
+    ch = max(2048, 10_000_000 // ox.shape[0])                 # splats/chunk, bounded by kernel size (caps peak VRAM)
+    for s0, s1 in zip(bounds[:-1], bounds[1:]):
+        if s1 <= s0:
+            continue
+        a_buf.zero_()
+        tau_buf.zero_()
+        crgb.zero_()
+        if sharp:
+            wbuf.zero_()
+        if need_depth:
+            zslab.zero_()
+        if need_normal:
+            nslab.zero_()
+        for lo in range(s0, s1, ch):
+            hi = min(lo + ch, s1)
+            idx, alpha = splat(lo, hi)
+            idx, af = idx.reshape(-1), alpha.reshape(-1)
+            a_buf.index_add_(0, idx, af)
+            tau_buf.index_add_(0, idx, (-torch.log1p(-alpha)).reshape(-1))   # -ln(1-alpha), correct opacity merge
+            apw = alpha.pow(sharpen) if sharp else alpha       # bias colour toward the highest-alpha splat
+            crgb.index_add_(0, idx, (apw[:, :, None] * rgb[lo:hi, None, :]).reshape(-1, 3))
+            if sharp:
+                wbuf.index_add_(0, idx, apw.reshape(-1))
+            if need_depth:
+                zslab.index_add_(0, idx, (alpha * zc_o[lo:hi, None]).reshape(-1))
+            if need_normal:
+                nslab.index_add_(0, idx, (alpha[:, :, None] * nrm_o[lo:hi, None, :]).reshape(-1, 3))
+        slab_a = 1 - torch.exp(-tau_buf)                       # 1 - prod(1-alpha): true opacity of the slab's splats
+        front = trans * slab_a
+        ainv = a_buf.clamp_min(1e-8)
+        denom = wbuf if sharp else a_buf
+        cacc = cacc + front[:, None] * (crgb / denom.clamp_min(1e-8)[:, None])
+        if need_depth:
+            dacc = dacc + front * (zslab / ainv)
+        if need_normal:
+            nacc = nacc + front[:, None] * (nslab / ainv[:, None])
+        trans = trans * (1 - slab_a)
+
+    cov = 1 - trans
+    covg = cov.reshape(height, width)
+    covm = covg > 0.5
+    depth_map = (dacc / cov.clamp_min(1e-6)).reshape(height, width) if need_depth else None
+    nrm_map = None
+    if need_normal:
+        # Coverage-weighted Gaussian blur of the accumulated normals. Per-splat surfel normals (the thinnest
+        # gaussian axis) are jittery where splats are near-isotropic, so blur (nacc) and the weight (cov)
+        # together and divide -- a masked blur that smooths the noise without bleeding across the silhouette.
+        nb = nacc.reshape(height, width, 3).permute(2, 0, 1)[None]
+        cb = cov.reshape(1, 1, height, width)
+        nb, cb = _gauss_blur(nb, 1.2, dev), _gauss_blur(cb, 1.2, dev)
+        normal = (nb / cb.clamp_min(1e-6))[0].permute(1, 2, 0)
+        nrm_map = normal / normal.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+
+    if render_style == "depth":                                # near = bright, far = dark, 0 off-object
+        d = torch.zeros(height, width, device=dev)
+        if bool(covm.any()):
+            lo, hi = depth_map[covm].min(), depth_map[covm].max()
+            d = torch.where(covm, ((hi - depth_map) / (hi - lo).clamp_min(1e-6)).clamp(0, 1), d)
+        img = d[:, :, None].expand(height, width, 3)
+    elif render_style == "normal":                             # OpenGL normal map: +X right, +Y up, +Z to viewer
+        enc = (nrm_map * t([1.0, -yflip, -1.0]) * 0.5 + 0.5).clamp(0, 1)
+        img = enc * covm[:, :, None]                           # black background (masked out)
+    else:                                                      # color / clay
+        img = cacc.reshape(height, width, 3)
+        if render_style == "clay":                             # studio key light + ambient -> sculpted matte look
+            kl = t([-0.4, -0.7 * yflip, -0.6])                 # key from screen upper-left, angled toward the viewer
+            kl = kl / kl.norm()
+            hl = (0.5 * (nrm_map * kl).sum(-1) + 0.5).clamp(0, 1)   # half-Lambert: soft terminator, no harsh dark side
+            img = img * (0.35 + 0.65 * hl * hl)[:, :, None]    # ambient floor + diffuse key
+        elif headlight_shading > 0:                            # camera headlight: darken faces turned from view
+            k = float(headlight_shading)
+            ndotl = (-nrm_map[:, :, 2]).clamp(0, 1)
+            img = img * (1 - 0.6 * k + 0.6 * k * ndotl)[:, :, None]
+        img = img + trans.reshape(height, width, 1) * bg_comp
+        if do_linear:                                          # back to display space after linear compositing
+            img = _linear_to_srgb(img)
+    return img.clamp(0, 1).cpu(), covg.clamp(0, 1).cpu()
+
+
+class RenderGaussian(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="RenderGaussian",
+            display_name="Render Gaussian Splat",
+            search_aliases=["splat to image", "render splat", "gaussian turntable"],
+            category="3d/gaussian",
+            description="Render a gaussian splat to an image with an anisotropic EWA rasterizer (oriented "
+                        "elliptical splats, antialiased, depth-sorted front-to-back). frames>1 sweeps yaw a full "
+                        "360 turn, producing an image batch (turntable) you can pipe into a video node.",
+            inputs=[
+                IO.Gaussian.Input("gaussian"),
+                IO.Int.Input("width", default=1024, min=64, max=2048, step=8),
+                IO.Int.Input("height", default=1024, min=64, max=2048, step=8),
+                IO.Int.Input("frames", default=1, min=-240, max=240,
+                             tooltip="+/-1 = single still at the given yaw; magnitude >1 = orbit, yaw swept over a "
+                                     "full turn. Negative orbits the opposite direction. 0 = single still."),
+                IO.Float.Input("yaw", default=35.0, min=-360.0, max=360.0, step=1.0),
+                IO.Float.Input("pitch", default=30.0, min=-89.0, max=89.0, step=1.0),
+                IO.Float.Input("zoom", default=1.0, min=0.1, max=5.0, step=0.05,
+                               tooltip="Camera dolly: >1 zooms in, <1 out. Without camera_info, 1.0 frames the whole "
+                                       "splat (~10% margin); with camera_info, 1.0 is exactly the supplied camera."),
+                IO.Float.Input("fov", default=0.0, min=0.0, max=120.0, step=1.0,
+                               tooltip="Vertical field of view in degrees. 0 = auto: 35, or taken from camera_info "
+                                       "when connected. Any value >0 overrides (including over camera_info)."),
+                IO.Float.Input("splat_scale", default=1.0, min=0.1, max=5.0, step=0.05, advanced=True,
+                               tooltip="Multiplier on each splat's projected footprint (lower = crisper points, "
+                                       "higher = softer/fuller surface)."),
+                IO.Float.Input("sharpen", default=2.0, min=1.0, max=8.0, step=0.5,
+                               tooltip="Sharpen overlapping splats: 1.0 = physically-correct blend; higher biases "
+                                       "each pixel toward its dominant (nearest) splat for crisper texture, without "
+                                       "shrinking splats or opening gaps. Non-physical above 1."),
+                IO.Float.Input("headlight_shading", default=0.0, min=0.0, max=3.0, step=0.05, advanced=True,
+                               tooltip="Diffuse shading from a light at the camera (headlight), using the splat surfel "
+                                       "normals: darkens surfaces that turn away from view to reveal form/curvature. "
+                                       "0 = flat albedo, 1 = strongest shading."),
+                IO.Float.Input("opacity_threshold", default=0.0, min=0.0, max=1.0, step=0.01, advanced=True,
+                               tooltip="Cull gaussians with opacity below this (removes faint floaters)."),
+                IO.Combo.Input("render_style", options=["color", "clay", "depth", "normal"],
+                               tooltip="What the image output shows: color (beauty), clay (neutral-albedo shaded - "
+                                       "pure geometry), depth (near=bright), normal (OpenGL normal map). The mask "
+                                       "output always carries the coverage regardless of this."),
+                IO.Color.Input("background", default="#000000"),
+                IO.Image.Input("bg_image", optional=True,
+                               tooltip="Optional background plate composited behind the splat (overrides the solid "
+                                       "background colour). Resized to the render size; a batch is used per frame, "
+                                       "a single image for all. color/clay only."),
+                IO.Load3DCamera.Input("camera_info", optional=True,
+                                      tooltip="Render from this exact camera (e.g. from Load3D / Preview3D) "
+                                              "instead of the yaw/pitch orbit. Disables the turntable sweep."),
+            ],
+            outputs=[IO.Image.Output(display_name="image"),
+                     IO.Mask.Output(display_name="mask")],
+        )
+
+    @classmethod
+    def execute(cls, gaussian, width, height, yaw, pitch, frames, zoom, fov, splat_scale, sharpen,
+                headlight_shading, opacity_threshold, background, render_style,
+                camera_info=None, bg_image=None) -> IO.NodeOutput:
+        bg = _hex_to_rgb(background)
+        bg_imgs = None
+        if bg_image is not None:                               # resize the plate(s) to the render size: (B,H,W,3)
+            bi = comfy.utils.common_upscale(bg_image.movedim(-1, 1), width, height, "bicubic", "disabled")
+            bg_imgs = bi.movedim(1, -1).clamp(0, 1)
+        n_frames = abs(int(frames)) or 1                       # magnitude = frame count (0 -> single still)
+        orbit_dir = -1.0 if frames < 0 else 1.0                # sign = orbit direction
+        if camera_info is not None:
+            if n_frames > 1:
+                logging.warning("RenderGaussian: camera_info is a fixed camera; ignoring frames=%d (no orbit sweep).", frames)
+                n_frames = 1
+            if str(camera_info.get("cameraType", "")).lower().startswith("ortho"):
+                logging.warning("RenderGaussian: orthographic camera_info is rendered with a perspective camera.")
+        imgs, masks = [], []
+        device = comfy.model_management.get_torch_device()     # render device; splat stays in torch here -> no roundtrip
+        total = gaussian.positions.shape[0] * n_frames
+        pbar = comfy.utils.ProgressBar(total) if total > 1 else None
+        k = 0
+        for i in range(gaussian.positions.shape[0]):
+            xyz, rgb, opacity, scale, rot = _gaussian_item(gaussian, i, device)
+            if opacity_threshold > 0:
+                keep = opacity >= opacity_threshold
+                xyz, rgb, opacity, scale, rot = xyz[keep], rgb[keep], opacity[keep], scale[keep], rot[keep]
+            for fr in range(n_frames):
+                y = yaw + (orbit_dir * 360.0 * fr / n_frames if n_frames > 1 else 0.0)
+                bg_k = bg_imgs[k % bg_imgs.shape[0]] if bg_imgs is not None else bg   # per-frame plate, or solid colour
+                img, mask = _render_gaussian(xyz, rgb, opacity, scale, rot, width, height, fov, splat_scale, bg_k,
+                                             sharpen=sharpen, headlight_shading=headlight_shading,
+                                             render_style=render_style, camera_info=camera_info, yaw=y, pitch=pitch, zoom=zoom)
+                imgs.append(img)
+                masks.append(mask)
+                k += 1
+                if pbar is not None:
+                    pbar.update(1)
+        return IO.NodeOutput(torch.stack(imgs), torch.stack(masks))
+
+
+class TransformGaussian(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TransformGaussian",
+            display_name="Transform Gaussian Splat",
+            search_aliases=["move splat", "rotate splat", "scale splat", "gaussian transform"],
+            category="3d/gaussian",
+            description="Translate, rotate (Euler XYZ degrees) and scale (per-axis) a gaussian splat. Positions, "
+                        "per-splat rotations and scales transform consistently; non-uniform scale re-derives each "
+                        "splat's covariance (eigendecomposition) so the ellipsoids deform correctly.",
+            inputs=[
+                IO.Gaussian.Input("gaussian"),
+                IO.Float.Input("translate_x", default=0.0, min=-100.0, max=100.0, step=0.01),
+                IO.Float.Input("translate_y", default=0.0, min=-100.0, max=100.0, step=0.01),
+                IO.Float.Input("translate_z", default=0.0, min=-100.0, max=100.0, step=0.01),
+                IO.Float.Input("rotate_x", default=0.0, min=-360.0, max=360.0, step=1.0),
+                IO.Float.Input("rotate_y", default=0.0, min=-360.0, max=360.0, step=1.0),
+                IO.Float.Input("rotate_z", default=0.0, min=-360.0, max=360.0, step=1.0),
+                IO.Float.Input("scale_x", default=1.0, min=0.01, max=100.0, step=0.01),
+                IO.Float.Input("scale_y", default=1.0, min=0.01, max=100.0, step=0.01),
+                IO.Float.Input("scale_z", default=1.0, min=0.01, max=100.0, step=0.01),
+            ],
+            outputs=[IO.Gaussian.Output(display_name="gaussian")],
+        )
+
+    @classmethod
+    def execute(cls, gaussian, translate_x, translate_y, translate_z,
+                rotate_x, rotate_y, rotate_z, scale_x, scale_y, scale_z) -> IO.NodeOutput:
+        pos = gaussian.positions
+        dev, dt = pos.device, pos.dtype
+        q_rot = _euler_to_quat(rotate_x, rotate_y, rotate_z).to(device=dev, dtype=dt)
+        R = _quat_to_mat(q_rot[None])[0]                            # (3, 3) node rotation
+        D = torch.tensor([scale_x, scale_y, scale_z], dtype=dt, device=dev)
+        A = D[:, None] * R                                          # diag(D) @ R: per-axis scale after rotation
+        t = torch.tensor([translate_x, translate_y, translate_z], dtype=dt, device=dev)
+
+        positions = pos @ A.T + t                                   # rotate, scale per-axis, then translate
+        if scale_x == scale_y == scale_z:                           # uniform: rotation/scale factor out cleanly
+            scales = gaussian.scales * scale_x
+            rotations = _quat_mul(q_rot.expand_as(gaussian.rotations), gaussian.rotations)
+            rotations = rotations / rotations.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+        else:                                                       # non-uniform: transform Sigma = A R s^2 R^T A^T, re-extract
+            rg = _quat_to_mat(gaussian.rotations.reshape(-1, 4))    # (M,3,3) per-splat rotation
+            s2 = gaussian.scales.reshape(-1, 3).square()
+            cov = (rg * s2[:, None, :]) @ rg.transpose(-1, -2)       # Sigma
+            cov = A @ cov @ A.T                                      # A Sigma A^T (A broadcast over splats)
+            lam, V = torch.linalg.eigh(cov)                         # symmetric -> eigenvalues (asc), orthonormal axes
+            V = V * torch.where(torch.linalg.det(V) < 0, -1.0, 1.0)[..., None, None]   # keep a proper rotation
+            scales = lam.clamp_min(0).sqrt().reshape(gaussian.scales.shape)
+            rotations = _mat_to_quat(V).reshape(gaussian.rotations.shape)
+        out = Types.GAUSSIAN(positions, scales, rotations, gaussian.opacities, gaussian.sh,
+                             counts=getattr(gaussian, "counts", None))
+        return IO.NodeOutput(out)
+
+
+class GaussianInfo(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GaussianInfo",
+            display_name="Gaussian Splat Info",
+            search_aliases=["splat stats", "gaussian count", "splat info"],
+            category="3d/gaussian",
+            description="Report per-splat stats: count, bounding box, and opacity/scale ranges.",
+            inputs=[IO.Gaussian.Input("gaussian")],
+            outputs=[IO.String.Output(display_name="info")],
+        )
+
+    @classmethod
+    def execute(cls, gaussian) -> IO.NodeOutput:
+        lines = []
+        for i in range(gaussian.positions.shape[0]):
+            xyz, _, opacity, scale, _ = _gaussian_item(gaussian, i, torch.device("cpu"))
+            lo, hi = xyz.amin(0), xyz.amax(0)
+            fmt = lambda v: "[" + ", ".join(f"{x:.3f}" for x in v) + "]"
+            lines.append(
+                f"gaussian[{i}]: count={xyz.shape[0]}\n"
+                f"  aabb min={fmt(lo)} max={fmt(hi)} size={fmt(hi - lo)}\n"
+                f"  opacity mean={opacity.mean():.3f} min={opacity.min():.3f} max={opacity.max():.3f}\n"
+                f"  scale   mean={scale.mean():.4f} min={scale.min():.4f} max={scale.max():.4f}"
+            )
+        info = "\n".join(lines)
+        return IO.NodeOutput(info, ui={"text": [info]})
+
+
+def _pad_stack(items, n):
+    # Stack a list of (Lᵢ, *tail) tensors into (B, n, *tail), zero-padding each row up to n.
+    tail = items[0].shape[1:]
+    out = items[0].new_zeros((len(items), n, *tail))
+    for i, t in enumerate(items):
+        out[i, :t.shape[0]] = t
+    return out
+
+
+def _merge_gaussians(gaussians: list) -> Types.GAUSSIAN:
+    # Concatenate GAUSSIAN batches along the splat dimension (per item), padding SH to the highest degree.
+    gs = [g for g in gaussians if g is not None]
+    if not gs:
+        raise ValueError("MergeGaussian: no gaussians to merge")
+    b = gs[0].positions.shape[0]
+    for g in gs:
+        if g.positions.shape[0] != b:
+            raise ValueError(f"MergeGaussian: batch size mismatch ({b} vs {g.positions.shape[0]}).")
+    max_k = max(g.sh.shape[2] for g in gs)
+
+    pos_b, scl_b, rot_b, op_b, sh_b, lengths = [], [], [], [], [], []
+    for i in range(b):
+        pos_i, scl_i, rot_i, op_i, sh_i = [], [], [], [], []
+        for g in gs:
+            end = _real_len(g, i)
+            pos_i.append(g.positions[i, :end])
+            scl_i.append(g.scales[i, :end])
+            rot_i.append(g.rotations[i, :end])
+            op_i.append(g.opacities[i, :end])
+            sh = g.sh[i, :end]                                  # (end, K, 3)
+            if sh.shape[1] < max_k:                             # zero-pad lower-degree SH
+                sh = torch.cat([sh, sh.new_zeros(sh.shape[0], max_k - sh.shape[1], sh.shape[2])], dim=1)
+            sh_i.append(sh)
+        pos_b.append(torch.cat(pos_i))
+        scl_b.append(torch.cat(scl_i))
+        rot_b.append(torch.cat(rot_i))
+        op_b.append(torch.cat(op_i))
+        sh_b.append(torch.cat(sh_i))
+        lengths.append(pos_b[-1].shape[0])
+
+    n = max(lengths)
+    counts = None
+    if len(set(lengths)) > 1:
+        counts = torch.tensor(lengths, device=gs[0].positions.device, dtype=torch.int64)
+    return Types.GAUSSIAN(_pad_stack(pos_b, n), _pad_stack(scl_b, n), _pad_stack(rot_b, n),
+                          _pad_stack(op_b, n), _pad_stack(sh_b, n), counts=counts)
+
+
+class MergeGaussian(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        # Autogrow: a gaussian0/gaussian1/... input list that grows a fresh slot as you connect splats.
+        gaussians = IO.Autogrow.TemplatePrefix(IO.Gaussian.Input("gaussian"), prefix="gaussian", min=2, max=32)
+        return IO.Schema(
+            node_id="MergeGaussian",
+            display_name="Merge Gaussian Splats",
+            search_aliases=["union splat", "densify gaussian", "combine splat", "merge gaussian"],
+            category="3d/gaussian",
+            description="Concatenate any number of gaussian splats into one (per batch item). Because the "
+                        "TripoSplat decoder samples points stochastically, unioning several decodes of the same "
+                        "latent at different seeds densifies the surface - feed them here, then mesh the result.",
+            inputs=[IO.Autogrow.Input("gaussians", template=gaussians)],
+            outputs=[IO.Gaussian.Output(display_name="gaussian")],
+        )
+
+    @classmethod
+    def execute(cls, gaussians: IO.Autogrow.Type) -> IO.NodeOutput:
+        gs = [v for v in gaussians.values() if v is not None]
+        if not gs:
+            raise ValueError("MergeGaussian: connect at least one gaussian splat.")
+        return IO.NodeOutput(_merge_gaussians(gs))
+
+
+def _inverse_covariance(scale, quat):
+    # Per-splat Sigma^-1 = R diag(1/s^2) R^T. scale (N,3) linear std, quat (N,4) wxyz -> (N,3,3).
+    q = quat / quat.norm(dim=1, keepdim=True).clamp_min(1e-12)
+    w, x, y, z = q.unbind(-1)
+    R = torch.stack([
+        1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
+        2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
+        2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y),
+    ], dim=1).reshape(-1, 3, 3)
+    inv_s2 = 1.0 / scale.clamp_min(1e-8) ** 2                       # (N, 3)
+    return torch.einsum("nij,nj,nkj->nik", R, inv_s2, R)
+
+
+def _splat_density(xyz, opacity, scale, quat, rgb, res, kernel, device, color_sharpen=1.0, chunk=4096, progress=None):
+    # Splat each gaussian as its oriented-covariance disk (3-sigma, opacity-weighted) into a density grid,
+    # plus a colour volume. Each gaussian uses a voxel window sized to its OWN 3-sigma (capped at `kernel`).
+    # Colour is weighted by w^color_sharpen: >1 biases each voxel toward its dominant gaussian (crisper
+    # texture). Returns (density, colour numerator, colour normaliser, origin, voxel).
+    pad = 4.0 * scale.median()
+    lo = xyz.amin(0) - pad
+    hi = xyz.amax(0) + pad
+    voxel = ((hi - lo).max() / res).clamp_min(1e-8)
+    dims = (torch.ceil((hi - lo) / voxel).long() + 1).tolist()
+    dx, dy, dz = int(dims[0]), int(dims[1]), int(dims[2])
+
+    sinv = _inverse_covariance(scale, quat)
+    kreq = torch.ceil(3.0 * scale.amax(-1) / voxel).long().clamp(1, int(kernel))   # per-gaussian half-width
+    sharp = color_sharpen != 1.0
+    vol = torch.zeros(dx * dy * dz, device=device)                        # Sum(w) density (surface)
+    colvol = torch.zeros(dx * dy * dz, 3, device=device)                  # Sum(w^p * rgb) colour numerator
+    wcol = torch.zeros(dx * dy * dz, device=device) if sharp else None    # Sum(w^p) colour normaliser (p>1)
+    n, done = xyz.shape[0], 0
+    for k in range(1, int(kernel) + 1):
+        sel = (kreq == k).nonzero(as_tuple=True)[0]
+        if sel.numel() == 0:
+            continue
+        rng = torch.arange(-k, k + 1, device=device, dtype=torch.float32)
+        off = torch.stack(torch.meshgrid(rng, rng, rng, indexing="ij"), -1).reshape(-1, 3)  # (M, 3)
+        for st in range(0, sel.numel(), chunk):
+            gi = sel[st:st + chunk]
+            cc = xyz[gi]
+            idx = ((cc - lo) / voxel).round()[:, None, :] + off[None]      # (b, M, 3) voxel coords
+            d = (lo + idx * voxel) - cc[:, None, :]                        # world offset to voxel center
+            quad = torch.einsum("bmi,bij,bmj->bm", d, sinv[gi], d)
+            wgt = opacity[gi, None] * torch.exp(-0.5 * quad)
+            wgt = torch.where(quad < 9.0, wgt, torch.zeros_like(wgt))      # clip beyond 3 sigma
+            ii = idx.long()
+            ix = ii[..., 0].clamp(0, dx - 1)
+            iy = ii[..., 1].clamp(0, dy - 1)
+            iz = ii[..., 2].clamp(0, dz - 1)
+            flat = (ix * (dy * dz) + iy * dz + iz).reshape(-1)
+            vol.index_add_(0, flat, wgt.reshape(-1))
+            wp = wgt.pow(color_sharpen) if sharp else wgt                  # winner-take-more colour weight
+            colvol.index_add_(0, flat, (wp[..., None] * rgb[gi, None, :]).reshape(-1, 3))
+            if sharp:
+                wcol.index_add_(0, flat, wp.reshape(-1))
+            done += gi.numel()
+            if progress is not None:
+                progress(min(1.0, done / max(1, n)))
+    colnorm = (wcol if sharp else vol).reshape(dx, dy, dz)                 # p==1 -> Sum(w) == density
+    return vol.reshape(dx, dy, dz), colvol.reshape(dx, dy, dz, 3), colnorm, lo.cpu().numpy(), float(voxel)
+
+
+def _clean_components(verts, faces, min_verts):
+    # Drop floaters (components with < min_verts vertices) and inner shells - the surfel shell density
+    # extracts a double wall (outer + inner cavity surface)
+    nv = len(verts)
+    e = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [0, 2]]], 0)
+    ncomp, label = connected_components(coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(nv, nv)), directed=False)
+    flabel = label[faces[:, 0]]                              # component id per face
+    keep = np.bincount(label, minlength=ncomp) >= min_verts  # per-component vertex-count gate
+    if keep.sum() > 1:
+        fcount = np.bincount(flabel, minlength=ncomp)
+        largest = np.where(keep, fcount, -1).argmax()
+        v0, v1, v2 = verts[faces[:, 0]], verts[faces[:, 1]], verts[faces[:, 2]]
+        cvol = np.bincount(flabel, weights=np.einsum("ij,ij->i", v0, np.cross(v1, v2)), minlength=ncomp)  # 6*signed vol
+        fmin, fmax = verts[faces].min(1), verts[faces].max(1)
+        cmin, cmax = np.full((ncomp, 3), np.inf), np.full((ncomp, 3), -np.inf)
+        np.minimum.at(cmin, flabel, fmin)
+        np.maximum.at(cmax, flabel, fmax)
+        tol = 1e-4 * (cmax[largest] - cmin[largest]).max()
+        enclosed = (cmin >= cmin[largest] - tol).all(1) & (cmax <= cmax[largest] + tol).all(1)
+        inner = enclosed & (np.sign(cvol) != np.sign(cvol[largest])) & (np.arange(ncomp) != largest)
+        keep &= ~inner
+    faces = faces[keep[flabel]]
+    if len(faces) == 0:
+        return verts[:0], faces
+    used = np.unique(faces)
+    remap = np.full(nv, -1, np.int64)
+    remap[used] = np.arange(len(used))
+    return verts[used], remap[faces]
+
+
+def _surface_nets(vol, level, voxel, origin, device):
+    # Vectorized Surface Nets: one dual vertex per sign-changing cell at its edge-crossing mean, quads wound CCW-outward.
+    # Returns verts (V,3), faces (F,3).
+    vol = vol.to(device=device, dtype=torch.float32)
+    dx, dy, dz = vol.shape
+    origin_t = torch.as_tensor(origin, device=device, dtype=torch.float32)
+    empty = (np.zeros((0, 3), np.float32), np.zeros((0, 3), np.int64))
+    if dx < 2 or dy < 2 or dz < 2:
+        return empty
+
+    # Active = cells whose 8 corners aren't all in/all out.
+    inside = vol >= level                                        # (dx,dy,dz) bool
+    cs8 = [inside[ox:ox + dx - 1, oy:oy + dy - 1, oz:oz + dz - 1]
+           for ox, oy, oz in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0),
+                              (0, 0, 1), (1, 0, 1), (0, 1, 1), (1, 1, 1))]
+    any_in = cs8[0] | cs8[1] | cs8[2] | cs8[3] | cs8[4] | cs8[5] | cs8[6] | cs8[7]
+    all_in = cs8[0] & cs8[1] & cs8[2] & cs8[3] & cs8[4] & cs8[5] & cs8[6] & cs8[7]
+    active = any_in & ~all_in                                    # (cx,cy,cz) straddling cells
+    nv = int(active.sum())
+    if nv == 0:
+        return empty
+
+    # Active cells only (a thin shell): each dual vertex = mean of its 12 edges' zero-crossings.
+    ac = active.nonzero(as_tuple=False)                          # (nv,3) cell min-corner indices
+    offs = torch.tensor([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
+                         [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]], device=device)
+    ci = ac[:, None, :] + offs[None]                             # (nv,8,3)
+    cval = vol[ci[..., 0], ci[..., 1], ci[..., 2]]               # (nv,8) corner values
+    csl = cval >= level
+    edges = torch.tensor([[0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3],
+                          [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]], device=device)
+    e0, e1 = edges[:, 0], edges[:, 1]
+    v0, v1 = cval[:, e0], cval[:, e1]                            # (nv,12)
+    cross = csl[:, e0] != csl[:, e1]
+    denom = v1 - v0
+    t = torch.where(denom.abs() > 1e-12, (level - v0) / denom, torch.full_like(denom, 0.5)).clamp(0, 1)
+    offf = offs.to(torch.float32)
+    pts = offf[e0] + t[..., None] * (offf[e1] - offf[e0])        # (nv,12,3) local crossings
+    cf = cross[..., None].to(pts.dtype)
+    local = (pts * cf).sum(1) / cf.sum(1).clamp_min(1.0)         # (nv,3) local vertex in [0,1]
+    verts = origin_t + (ac.to(torch.float32) + local) * voxel    # world space
+
+    vid = torch.full((dx - 1, dy - 1, dz - 1), -1, dtype=torch.int32, device=device)
+    vid[active] = torch.arange(nv, dtype=torch.int32, device=device)
+
+    # Each straddling grid edge -> one quad from its 4 cells; `sol` (low-end sign) picks outward winding.
+    faces = []
+
+    def emit(cr, sol, a, b, d, c):
+        valid = cr & (a >= 0) & (b >= 0) & (c >= 0) & (d >= 0)
+        if not bool(valid.any()):
+            return
+        a, b, c, d, sol = a[valid], b[valid], c[valid], d[valid], sol[valid]
+        p2, p4 = torch.where(sol, b, c), torch.where(sol, c, b)  # reverse quad winding where ~sol
+        faces.append(torch.stack([a, p2, d], 1))
+        faces.append(torch.stack([a, d, p4], 1))
+
+    a = inside[0:dx - 1, 1:dy - 1, 1:dz - 1]
+    emit(a != inside[1:dx, 1:dy - 1, 1:dz - 1], a,
+         vid[:, 0:dy - 2, 0:dz - 2], vid[:, 1:dy - 1, 0:dz - 2],
+         vid[:, 1:dy - 1, 1:dz - 1], vid[:, 0:dy - 2, 1:dz - 1])
+    a = inside[1:dx - 1, 0:dy - 1, 1:dz - 1]
+    emit(a != inside[1:dx - 1, 1:dy, 1:dz - 1], a,
+         vid[0:dx - 2, :, 0:dz - 2], vid[0:dx - 2, :, 1:dz - 1],
+         vid[1:dx - 1, :, 1:dz - 1], vid[1:dx - 1, :, 0:dz - 2])
+    a = inside[1:dx - 1, 1:dy - 1, 0:dz - 1]
+    emit(a != inside[1:dx - 1, 1:dy - 1, 1:dz], a,
+         vid[0:dx - 2, 0:dy - 2, :], vid[1:dx - 1, 0:dy - 2, :],
+         vid[1:dx - 1, 1:dy - 1, :], vid[0:dx - 2, 1:dy - 1, :])
+
+    if not faces:
+        return empty
+    return verts.cpu().numpy().astype(np.float32), torch.cat(faces, 0).cpu().numpy().astype(np.int64)
+
+
+def _otsu_level(values, bins=256):
+    # Otsu threshold: the density value that best splits inside/outside (max between-class variance).
+    hist, edges = np.histogram(values, bins=bins)
+    hist = hist.astype(np.float64)
+    centers = (edges[:-1] + edges[1:]) * 0.5
+    w = np.cumsum(hist)                                       # background-class weight at each split
+    mu = np.cumsum(hist * centers)
+    wf = w[-1] - w                                            # foreground-class weight
+    mb = mu / np.where(w > 0, w, 1.0)
+    mf = (mu[-1] - mu) / np.where(wf > 0, wf, 1.0)
+    var_b = w * wf * (mb - mf) ** 2                           # between-class variance
+    var_b[(w <= 0) | (wf <= 0)] = -1.0
+    return float(centers[int(np.argmax(var_b))])
+
+
+def _taubin_smooth(verts, faces, iters, lam=0.5, mu=-0.53):
+    # Taubin lambda|mu smoothing: low-pass the mesh surface without the shrinkage of a Laplacian blur
+    # (the mu inflation pass cancels the lambda pass's volume loss). Uniform (umbrella) weights.
+    if iters <= 0 or len(verts) == 0 or len(faces) == 0:
+        return verts
+    nv = len(verts)
+    e = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [0, 2]]], 0)
+    e = np.concatenate([e, e[:, ::-1]], 0)                    # symmetric adjacency
+    adj = coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(nv, nv)).tocsr()
+    adj.data[:] = 1.0
+    deg = np.clip(np.asarray(adj.sum(1)).ravel(), 1.0, None)[:, None]
+    v = verts.astype(np.float64)
+    for _ in range(int(iters)):
+        for fac in (lam, mu):
+            v = v + fac * ((adj @ v) / deg - v)              # fac * (mean(neighbours) - v)
+    return np.ascontiguousarray(v.astype(np.float32))
+
+
+def _gaussian_to_mesh(g: Types.GAUSSIAN, i, res, kernel, taubin, level_bias, min_component, min_opacity, color_sharpen, device, progress=None):
+    # Mesh one splat: density + colour grids -> Surface Nets -> floater removal -> Taubin smoothing ->
+    # volume-sampled colours. Returns (verts, faces int64, colors in [0,1]), or None if no surface.
+    rep = progress if progress is not None else (lambda *_: None)
+
+    end = _real_len(g, i)
+    xyz = g.positions[i, :end].to(device=device, dtype=torch.float32)
+    scale = g.scales[i, :end].to(device=device, dtype=torch.float32)
+    quat = g.rotations[i, :end].to(device=device, dtype=torch.float32)
+    opacity = g.opacities[i, :end].reshape(-1).to(device=device, dtype=torch.float32)
+    rgb = (g.sh[i, :end, 0, :].to(device=device, dtype=torch.float32) * _C0 + 0.5).clamp(0, 1)
+
+    keep = opacity >= min_opacity
+    xyz, scale, quat, opacity, rgb = xyz[keep], scale[keep], quat[keep], opacity[keep], rgb[keep]
+    if xyz.shape[0] == 0:
+        return None
+
+    vol, colvol, colnorm, origin, voxel = _splat_density(xyz, opacity, scale, quat, rgb, res, kernel, device,
+                                                         color_sharpen=color_sharpen,
+                                                         progress=lambda f: rep(0.25 * f))   # density build: 0 -> 25%
+    vol_np = vol.cpu().numpy()                               # Sum(w) density (for the surface)
+    colvol_np = colvol.cpu().numpy()                         # Sum(w^p * rgb) colour numerator
+    colnorm_np = colnorm.cpu().numpy()                       # Sum(w^p) colour normaliser
+    rep(0.40)
+
+    occ = vol_np[vol_np > vol_np.max() * 1e-3]               # occupied voxels (skip the empty-space peak)
+    if occ.size == 0:
+        return None
+    # Otsu picks the inside/outside split principledly; `level_bias` nudges it (1.0 = auto). Clamp strictly
+    # inside the data range so a bias can't push the iso off the histogram (the old None / "no surface" bug).
+    lo, hi = float(vol_np.min()), float(vol_np.max())
+    level = min(max(_otsu_level(occ) * level_bias, lo + 1e-6 * (hi - lo)), hi - 1e-6 * (hi - lo))
+
+    # Surface Nets on CPU: the grid is already on CPU, and this keeps iso-surfacing off the GPU's VRAM.
+    verts, faces = _surface_nets(torch.from_numpy(vol_np), level, voxel, origin, torch.device("cpu"))
+    rep(0.55)
+    if min_component > 0 and len(faces) > 0:
+        verts, faces = _clean_components(verts, faces, min_component)
+    if len(verts) == 0 or len(faces) == 0:
+        return None
+
+    # Taubin smooths the blocky iso without shrinking it (unlike blurring the density, which rounds features).
+    verts = _taubin_smooth(verts, faces, taubin)
+    rep(0.7)
+
+    # Colour each vertex from the co-splatted colour volume: trilinearly sample the numerator Sum(w^p*rgb)
+    # and normaliser Sum(w^p) separately, then divide. Normalising AFTER interpolation keeps zero-density
+    # edge voxels from pulling colours toward black, and matches the gaussians that formed the surface.
+    coords = ((verts - origin) / voxel).T                    # (3, V) grid-index coords, matching volume axes
+    num = np.stack([map_coordinates(colvol_np[..., c], coords, order=1, mode="nearest") for c in range(3)], -1)
+    den = map_coordinates(colnorm_np, coords, order=1, mode="nearest")
+    col = num / np.clip(den, 1e-8, None)[:, None]
+    rep(1.0)
+
+    # The unlit material's COLOR_0 is linear and the viewer sRGB-encodes it on output; the splat colours
+    # are display (sRGB) values, so convert sRGB -> linear here to land at the same brightness as the splat.
+    col = np.clip(col, 0, 1)
+    col = np.where(col <= 0.04045, col / 12.92, ((col + 0.055) / 1.055) ** 2.4).astype(np.float32)
+
+    # Splat +Y is glTF's -Y: rotate 180 deg about X (negate Y,Z) to land upright. Proper rotation, so
+    # winding is kept; done after colouring (which works in the splat frame).
+    verts = np.ascontiguousarray(verts * np.array([1.0, -1.0, -1.0], dtype=np.float32))
+    return (torch.from_numpy(verts), torch.from_numpy(faces), torch.from_numpy(col))
+
+
+class GaussianToMesh(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GaussianToMesh",
+            display_name="Gaussian Splat to Mesh",
+            search_aliases=["splat to mesh", "gaussian surface nets", "splat surface", "mesh splat"],
+            category="3d/gaussian",
+            description="Extract a coloured triangle MESH from a gaussian splat. Each splat is rasterized into a "
+                        "density grid as its real oriented covariance disk, then Surface Nets pulls the iso-surface, "
+                        "tiny floaters are dropped, and vertices are coloured from their nearest gaussians. Denser "
+                        "splats give more detail - union several decodes with Merge Gaussian Splats first.",
+            inputs=[
+                IO.Gaussian.Input("gaussian"),
+                IO.Int.Input("resolution", default=512, min=64, max=1024, step=16,
+                             tooltip="Density-grid resolution along the longest axis. Higher = finer surface, "
+                                     "more VRAM/time (grows with resolution^3)."),
+                IO.Int.Input("kernel", default=5, min=1, max=8,
+                             tooltip="Max splat half-width in voxels. Each gaussian is rasterized over a window "
+                                     "sized to its own 3-sigma, capped here - small surfels stay cheap, large ones "
+                                     "aren't truncated. Raise if sparse splats leave gaps."),
+                IO.Int.Input("smooth", default=0, min=0, max=60,
+                             tooltip="Taubin mesh-smoothing iterations. Smooths the surface without shrinking it "
+                                     "(volume-preserving), unlike blurring the density. 0 = raw surface."),
+                IO.Float.Input("level", default=0.6, min=0.3, max=2.0, step=0.05,
+                               tooltip="Iso-surface level. Auto-picked by Otsu; this biases it (1.0 = auto, lower = "
+                                       "fatter/more-connected surface, higher = thinner/tighter)."),
+                IO.Int.Input("min_component", default=500, min=0, max=100000, step=50, advanced=True,
+                             tooltip="Drop connected components smaller than this many vertices (0 = keep all). "
+                                     "Removes detached floater blobs and the inner shell of the double wall."),
+                IO.Float.Input("min_opacity", default=0.02, min=0.0, max=1.0, step=0.01, advanced=True,
+                               tooltip="Ignore gaussians fainter than this before meshing."),
+                IO.Float.Input("color_sharpen", default=2.0, min=1.0, max=8.0, step=0.5,
+                               tooltip="Crisp up the vertex texture: 1.0 = physically-correct blend; higher biases "
+                                       "each voxel's colour toward its dominant gaussian instead of averaging "
+                                       "neighbours (de-smears the texture). Colour only - geometry is unchanged."),
+            ],
+            outputs=[IO.Mesh.Output(display_name="mesh")],
+        )
+
+    @classmethod
+    def execute(cls, gaussian, resolution, kernel, smooth, level, min_component, min_opacity, color_sharpen) -> IO.NodeOutput:
+        device = comfy.model_management.get_torch_device()
+        b = gaussian.positions.shape[0]
+        prec = 1000  # each splat owns a 0..prec block of the bar; its callback advances within that block
+        pbar = comfy.utils.ProgressBar(b * prec)
+
+        verts_l, faces_l, colors_l = [], [], []
+        for i in range(b):
+            cb = lambda f, base=i * prec: pbar.update_absolute(base + int(min(max(f, 0.0), 1.0) * prec))
+            res = _gaussian_to_mesh(gaussian, i, resolution, kernel, smooth, level, min_component, min_opacity, color_sharpen, device, cb)
+            if res is None:
+                logging.warning("GaussianToMesh: splat %d produced no surface; emitting an empty mesh.", i)
+                v, f, c = torch.zeros((0, 3)), torch.zeros((0, 3), dtype=torch.int64), torch.zeros((0, 3))
+            else:
+                v, f, c = res
+            verts_l.append(v)
+            faces_l.append(f)
+            colors_l.append(c)
+            pbar.update_absolute((i + 1) * prec)  # snap to block end (covers empty / early-out splats)
+        # unlit: render flat (emissive-like) so SaveGLB matches the splat instead of lighting/washing it.
+        return IO.NodeOutput(pack_variable_mesh_batch(verts_l, faces_l, colors=colors_l, unlit=True))
+
+
+class GaussianExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [GaussianToFile3D, File3DToGaussian, RenderGaussian, TransformGaussian, GaussianInfo,
+                MergeGaussian, GaussianToMesh]
+
+
+async def comfy_entrypoint() -> GaussianExtension:
+    return GaussianExtension()
