@@ -11,7 +11,7 @@ class VOXEL:
         self.data = data
 
 
-class GAUSSIAN:
+class SPLAT:
     """A batch of 3D Gaussian splats in render-ready (activated, world-space) form.
 
     Tensors are (B, N, ...) and zero-padded to a common N across the batch; `counts` (B,) holds the

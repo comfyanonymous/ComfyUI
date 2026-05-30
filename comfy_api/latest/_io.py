@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_execution.graph_utils import ExecutionBlocker
-from ._util import MESH, VOXEL, GAUSSIAN, SVG as _SVG, File3D
+from ._util import MESH, VOXEL, SPLAT, SVG as _SVG, File3D
 
 
 class FolderType(str, Enum):
@@ -684,9 +684,9 @@ class Voxel(ComfyTypeIO):
 class Mesh(ComfyTypeIO):
     Type = MESH
 
-@comfytype(io_type="GAUSSIAN")
-class Gaussian(ComfyTypeIO):
-    Type = GAUSSIAN
+@comfytype(io_type="SPLAT")
+class Splat(ComfyTypeIO):
+    Type = SPLAT
 
 
 @comfytype(io_type="FILE_3D")
@@ -2324,7 +2324,7 @@ __all__ = [
     "LossMap",
     "Voxel",
     "Mesh",
-    "Gaussian",
+    "Splat",
     "File3DAny",
     "File3DGLB",
     "File3DGLTF",
