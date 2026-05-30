@@ -543,20 +543,29 @@ def _view_matrix_t(yaw_deg, pitch_deg, device):
 
 
 def _camera_basis(camera_info, dev):
-    # Look-at basis (eye, target, right, up, fwd) in the splat frame. The Load3D camera frame is Y-up and
-    # rotated 90 deg about the up axis vs the splat frame, so remap each point (x,y,z) -> (z,-y,-x).
+    # Look-at basis in the splat frame, named by their projection rows: right = image +x, up = image +y
+    # (down, since yflip=1), fwd = view/depth axis (eye -> scene). Load3D is three.js (right-handed, Y-up,
+    # camera looks down -Z); the splat is 3DGS (Y-down, Z-forward). World -> splat is a 180 deg rotation
+    # about X: (x, y, z) -> (x, -y, -z) (det +1, no mirror, no axis swap).
     pos, tgt = camera_info.get("position", {}), camera_info.get("target", {})
-    g = lambda d: torch.tensor([float(d.get("z", 0.0)), -float(d.get("y", 0.0)), -float(d.get("x", 0.0))], device=dev)
-    eye, target = g(pos), g(tgt)
-    fwd = target - eye
-    fwd = fwd / fwd.norm().clamp_min(1e-8)
-    up0 = torch.tensor([0.0, 1.0, 0.0], device=dev)
-    if fwd.dot(up0).abs() > 0.999:                               # looking straight up/down
-        up0 = torch.tensor([0.0, 0.0, 1.0], device=dev)
-    right = torch.linalg.cross(up0, fwd)
-    right = right / right.norm().clamp_min(1e-8)
-    up = torch.linalg.cross(fwd, right)
-    return eye, target, right, up, fwd
+    m = lambda d: torch.tensor([float(d.get("x", 0.0)), -float(d.get("y", 0.0)), -float(d.get("z", 0.0))], device=dev)
+    eye, target = m(pos), m(tgt)
+    mv = lambda v: torch.stack([v[0], -v[1], -v[2]])             # same world->splat map, for direction vectors
+    n = lambda v: v / v.norm().clamp_min(1e-8)
+    q = camera_info.get("quaternion")
+    if q:                                                        # exact camera world rotation (incl. roll)
+        qwxyz = torch.tensor([float(q.get("w", 1.0)), float(q.get("x", 0.0)),
+                              float(q.get("y", 0.0)), float(q.get("z", 0.0))], device=dev)
+        R = _quat_to_mat(qwxyz[None])[0]                         # columns = camera world axes; looks down local -Z
+        right = n(mv(R[:, 0]))                                   # camera +X -> image right
+        up = n(mv(-R[:, 1]))                                     # camera +Y is image up; image-down row is its negative
+        fwd = n(mv(-R[:, 2]))                                    # camera looks down local -Z -> view direction
+        return eye, target, right, up, fwd
+    fwd = n(target - eye)                                        # no quaternion: orbit-consistent, roll-free
+    yaw = math.degrees(math.atan2(-float(fwd[0]), float(fwd[2])))
+    pitch = math.degrees(math.asin(max(-1.0, min(1.0, float(fwd[1])))))
+    W = _view_matrix_t(yaw, pitch, dev)
+    return eye, target, W[0], W[1], W[2]
 
 
 def _gauss_blur(x, sigma, dev):
