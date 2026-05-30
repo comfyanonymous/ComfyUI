@@ -817,6 +817,10 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
     for i in sorted(unloaded_model, reverse=True):
         unloaded_models.append(current_loaded_models.pop(i))
 
+    if not for_dynamic and pins_required > 0:
+        ensure_pin_budget(pins_required)
+        ensure_pin_registerable(pins_required)
+
     if len(unloaded_model) > 0:
         soft_empty_cache()
     elif device is not None:
@@ -879,15 +883,19 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             model_to_unload.model_finalizer.detach()
 
     total_memory_required = {}
+    total_pins_required = {}
     for loaded_model in models_to_load:
         device = loaded_model.device
         total_memory_required[device] = total_memory_required.get(device, 0) + loaded_model.model_memory_required(device)
+        if not loaded_model.model.is_dynamic():
+            total_pins_required[device] = total_pins_required.get(device, 0) + loaded_model.model_memory()
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_memory(total_memory_required[device] * 1.1 + extra_mem,
                         device,
-                        for_dynamic=free_for_dynamic)
+                        for_dynamic=free_for_dynamic,
+                        pins_required=total_pins_required.get(device, 0))
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
