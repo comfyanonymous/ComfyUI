@@ -8,7 +8,7 @@ Rebuilds an Armature with the MHR 127-bone rig:
   - facial expression is re-exposed as 72 morph targets driven by `expr_params`
     so face animation survives plain glTF skinning.
 
-Optional bone visualization (octahedrons / sticks) is rigidly
+Optional bone visualization (octahedrons) is rigidly
 skinned alongside the body mesh — used to preview the armature in glTF
 viewers that don't draw bones.
 
@@ -323,7 +323,7 @@ def build_glb_skeletal(
         skin_idx = len(skins) - 1
 
         include_body = bool(include_body_mesh)
-        include_bones = bone_vis in ("octahedrons", "sticks")
+        include_bones = bone_vis == "octahedrons"
         body_mesh_node_idx: Optional[int] = None
 
         if include_body:
@@ -386,13 +386,10 @@ def build_glb_skeletal(
         if include_bones:
             bone_palette = _bone_colors_rgb(bind_global_m[:, :3], bone_vis_color)
 
-            # Indexes `bone_palette`: octahedrons/sticks use the bone's child
-            # joint so every bone has its own color regardless of skin target.
-            # 'sticks' = thin octahedrons. glTF LINES skinning is unreliable
-            # (Three.js' GLTFLoader doesn't animate skinned line primitives),
-            # so we render triangle tubes instead.
+            # Indexes `bone_palette`: octahedrons use the bone's child joint so
+            # every bone has its own color regardless of skin target.
             color_idx_per_vert: Optional[np.ndarray] = None
-            hw = float(bone_vis_radius_m) if bone_vis == "octahedrons" else 0.0035
+            hw = float(bone_vis_radius_m)
             bv_v, bv_n, bv_f, bv_j, bv_w, child_per_vert = _build_bone_octahedrons_mesh(
                 bind_global_m[:, :3], rig_static["parents"], half_width_m=hw,
             )

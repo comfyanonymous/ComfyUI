@@ -19,7 +19,6 @@ from comfy.ldm.sam3d_body.model.dinov3 import apply_dinov3_qkv_bias_mask
 from comfy_extras.sam3d_body.utils import (
         apply_camera_override,
         cam_int_from_fov,
-        cam_int_from_moge,
         inputs_from_sam3_track,
         run_batched_frames,
         run_batched_single_chunk,
@@ -42,7 +41,6 @@ SAM3TrackData = io.Custom("SAM3_TRACK_DATA")
 # KIMODO_POSE_DATA via a MultiType union — those types are mirrored there.
 MHRPoseData = io.Custom("MHR_POSE_DATA")
 SAM3DBodyModel = io.Custom("SAM3D_BODY_MODEL")
-MoGeGeometry = io.Custom("MOGE_GEOMETRY")
 
 # Loader
 
@@ -153,18 +151,10 @@ class SAM3DBody_Predict(io.ComfyNode):
                 io.Float.Input(
                     "fov_degrees",
                     default=0.0, min=0.0, max=170.0, step=0.5,
-                    tooltip=( #TODO: get FoV from moge another way?
-                        "Vertical FOV in degrees. Affects predicted depth (cam_t.z) and "
-                        "absolute scale. 0 = use moge_geometry or fall back to ~53° (16:9). "
-                        "Any non-zero value overrides moge_geometry."
-                    ),
-                ),
-                MoGeGeometry.Input(
-                    "moge_geometry",
-                    optional=True,
                     tooltip=(
-                        "MoGe geometry, used to calculate camera field of view."
-                        "For batches choose the most representative frame, or leave unset"
+                        "Vertical FOV in degrees. Affects predicted depth (cam_t.z) and "
+                        "absolute scale. 0 = fall back to ~53° (16:9). Feed MoGeGeometryToFOV "
+                        "here to derive it from a MoGe estimate."
                     ),
                 ),
                 io.Int.Input(
@@ -180,7 +170,7 @@ class SAM3DBody_Predict(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, sam3d_body_model, image, sam3_track_data=None, bboxes=None, run_hand_refinement=True, fov_degrees=0.0, moge_geometry=None, chunk_size=64) -> io.NodeOutput:
+    def execute(cls, sam3d_body_model, image, sam3_track_data=None, bboxes=None, run_hand_refinement=True, fov_degrees=0.0, chunk_size=64) -> io.NodeOutput:
         comfy.model_management.load_model_gpu(sam3d_body_model)
         inner: SAM3DBody = sam3d_body_model.model
 
@@ -200,10 +190,8 @@ class SAM3DBody_Predict(io.ComfyNode):
             per_frame_bboxes = [full_frame_bbox.clone() for _ in range(B)]
             per_frame_masks = None
         inference_type = "full" if run_hand_refinement else "body"
-        # Precedence: explicit fov_degrees > MoGe estimate > diagonal default.
+        # fov_degrees > 0 sets intrinsics; else None falls back to prepare_batch's diagonal default.
         cam_int = cam_int_from_fov(int(H), int(W), float(fov_degrees))
-        if cam_int is None:
-            cam_int = cam_int_from_moge(moge_geometry, int(H), int(W))
 
         frames_rgb: List[Optional[torch.Tensor]] = []
         for f in range(B):

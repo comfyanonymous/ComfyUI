@@ -82,29 +82,6 @@ def cam_int_from_fov(height: int, width: int, fov_degrees: float) -> Optional[to
     )
 
 
-def cam_int_from_moge(moge_geometry, height: int, width: int) -> Optional[torch.Tensor]:
-    """(1,3,3) intrinsic matrix from a MoGe geometry payload. Uses MoGe's
-    vertical focal for both axes; forces principal point to image center
-    (overrides MoGe's predicted cx/cy to match prepare_batch's convention)."""
-    if moge_geometry is None:
-        return None
-    # MOGE_GEOMETRY is a dict with optional keys (see comfy_extras/nodes_moge.py).
-    K_norm = moge_geometry.get("intrinsics") if isinstance(moge_geometry, dict) else None
-    if K_norm is None:
-        return None
-    if K_norm.ndim == 3:
-        K_norm = K_norm[0]
-    # MoGe stores fy in height-units (multiply by H to get pixels); vfov = fy.
-    fy_norm = float(K_norm[1, 1].item())
-    focal = fy_norm * height
-    return torch.tensor(
-        [[[focal, 0.0, width / 2.0],
-          [0.0, focal, height / 2.0],
-          [0.0, 0.0, 1.0]]],
-        dtype=torch.float32,
-    )
-
-
 def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, Any],
                           H: int, W: int, fov_deg: float = 0.0) -> Dict[str, Any]:
     """Re-project every frame's pose through a Load3D 6DOF camera (position/

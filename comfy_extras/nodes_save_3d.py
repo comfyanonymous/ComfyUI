@@ -480,14 +480,6 @@ class BuildPoseGLB(IO.ComfyNode):
                                             ),
                                         ),
                                     ]),
-                                    IO.DynamicCombo.Option("sticks", [
-                                        IO.Combo.Input(
-                                            "bone_vis_color",
-                                            options=["white", "rainbow_y"],
-                                            default="rainbow_y",
-                                            tooltip="Per-bone vertex colors (see octahedrons).",
-                                        ),
-                                    ]),
                                 ],
                                 tooltip=("Bone vis shape, rigidly skinned to each joint. "),
                             ),
@@ -546,19 +538,11 @@ class BuildPoseGLB(IO.ComfyNode):
                                             ),
                                         ),
                                     ]),
-                                    IO.DynamicCombo.Option("sticks", [
-                                        IO.Combo.Input(
-                                            "bone_vis_color",
-                                            options=["white", "rainbow_y"],
-                                            default="rainbow_y",
-                                            tooltip="Per-bone vertex colors (see octahedrons).",
-                                        ),
-                                    ]),
                                 ],
                                 tooltip=(
                                     "Bone vis shape, rigidly skinned to each joint. "
                                     "'octahedrons' = Blender-style directional bones (joint → "
-                                    "primary child); 'sticks' = thin lines."
+                                    "primary child)."
                                 ),
                             ),
                         ]),
