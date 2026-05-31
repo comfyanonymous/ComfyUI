@@ -230,7 +230,7 @@ class Rodin3D_Regular(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Regular",
             display_name="Rodin 3D Generate - Regular Generate",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Image.Input("Images"),
@@ -289,7 +289,7 @@ class Rodin3D_Detail(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Detail",
             display_name="Rodin 3D Generate - Detail Generate",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Image.Input("Images"),
@@ -348,7 +348,7 @@ class Rodin3D_Smooth(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Smooth",
             display_name="Rodin 3D Generate - Smooth Generate",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Image.Input("Images"),
@@ -406,7 +406,7 @@ class Rodin3D_Sketch(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Sketch",
             display_name="Rodin 3D Generate - Sketch Generate",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Image.Input("Images"),
@@ -468,7 +468,7 @@ class Rodin3D_Gen2(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Gen2",
             display_name="Rodin 3D Generate - Gen-2 Generate",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Image.Input("Images"),
@@ -941,7 +941,7 @@ class Rodin3D_Gen25_Image(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Gen25_Image",
             display_name="Rodin 3D Gen-2.5 - Image to 3D",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=(
                 "Generate a 3D model from 1-5 reference images via Rodin Gen-2.5. "
                 "Pick a mode (Fast / Regular / Extreme-High) to tune quality vs. cost."
@@ -1035,7 +1035,7 @@ class Rodin3D_Gen25_Text(IO.ComfyNode):
         return IO.Schema(
             node_id="Rodin3D_Gen25_Text",
             display_name="Rodin 3D Gen-2.5 - Text to 3D",
-            category="api node/3d/Rodin",
+            category="3d/partner/Rodin",
             description=(
                 "Generate a 3D model from a text prompt via Rodin Gen-2.5. "
                 "Pick a mode (Fast / Regular / Extreme-High) to tune quality vs. cost."

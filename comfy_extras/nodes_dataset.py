@@ -157,7 +157,7 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
         return io.NodeOutput(output_tensor, captions)
 
 
-def save_images_to_folder(image_list, output_dir, prefix="image"):
+def save_images_to_folder(image_list, output_dir, prefix="image", overwrite=True):
     """Utility function to save a list of image tensors to disk.
 
     Args:
@@ -197,7 +197,11 @@ def save_images_to_folder(image_list, output_dir, prefix="image"):
             raise ValueError(f"Expected torch.Tensor, got {type(img_tensor)}")
 
         # Save image
-        filename = f"{prefix}_{idx:05d}.png"
+        if overwrite:
+            filename = f"{prefix}_{idx:05d}.png"
+        else:
+            _, _, counter, _, resolved_prefix = folder_paths.get_save_image_path(prefix, output_dir)
+            filename = f"{resolved_prefix}_{counter:05}_{idx:05d}.png"
         filepath = os.path.join(output_dir, filename)
         img.save(filepath)
         saved_files.append(filename)
@@ -230,19 +234,26 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
                     tooltip="Prefix for saved image filenames.",
                     advanced=True,
                 ),
+                io.Combo.Input(
+                    "mode",
+                    default="overwrite",
+                    options=["overwrite", "increment"],
+                    tooltip="Whether to overwrite existing files or increment filenames to avoid overwriting."
+                ),
             ],
             outputs=[],
             is_deprecated=True,  # This node is redundant and superseded by existing Save Image nodes where the target folder can be specified in the filename_prefix
         )
 
     @classmethod
-    def execute(cls, images, folder_name, filename_prefix):
+    def execute(cls, images, folder_name, filename_prefix, mode):
         # Extract scalar values
         folder_name = folder_name[0]
         filename_prefix = filename_prefix[0]
+        mode = mode[0]
 
         output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
-        saved_files = save_images_to_folder(images, output_dir, filename_prefix)
+        saved_files = save_images_to_folder(images, output_dir, filename_prefix, mode=='overwrite')
 
         logging.info(f"Saved {len(saved_files)} images to {output_dir}.")
         return io.NodeOutput()
@@ -278,18 +289,25 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
                     tooltip="Prefix for saved image filenames.",
                     advanced=True,
                 ),
+                io.Combo.Input(
+                    "mode",
+                    default="overwrite",
+                    options=["overwrite", "increment"],
+                    tooltip="Whether to overwrite existing files or increment filenames to avoid overwriting."
+                ),
             ],
             outputs=[],
         )
 
     @classmethod
-    def execute(cls, images, folder_name, filename_prefix, texts=None):
+    def execute(cls, images, folder_name, filename_prefix, mode, texts=None):
         # Extract scalar values
         folder_name = folder_name[0]
         filename_prefix = filename_prefix[0]
+        mode = mode[0]
 
         output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
-        saved_files = save_images_to_folder(images, output_dir, filename_prefix)
+        saved_files = save_images_to_folder(images, output_dir, filename_prefix, mode=='overwrite')
 
         # Save captions
         if texts:
@@ -574,7 +592,7 @@ class TextProcessingNode(io.ComfyNode):
         return io.Schema(
             node_id=cls.node_id,
             display_name=cls.display_name or cls.node_id,
-            category="dataset/text",
+            category="text",
             is_experimental=True,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
@@ -1208,7 +1226,7 @@ class ResolutionBucket(io.ComfyNode):
             node_id="ResolutionBucket",
             search_aliases=["bucket by resolution", "group by resolution", "batch by resolution"],
             display_name="Resolution Bucket",
-            category="training",
+            category="model/training",
             description="Group latents and conditionings into buckets",
             is_experimental=True,
             is_input_list=True,
@@ -1302,7 +1320,7 @@ class MakeTrainingDataset(io.ComfyNode):
             node_id="MakeTrainingDataset",
             search_aliases=["encode dataset"],
             display_name="Make Training Dataset",
-            category="training",
+            category="model/training",
             description="Encode images with VAE and texts with CLIP to create a training dataset of latents and conditionings.",
             is_experimental=True,
             is_input_list=True,  # images and texts as lists
@@ -1390,7 +1408,7 @@ class SaveTrainingDataset(io.ComfyNode):
             node_id="SaveTrainingDataset",
             search_aliases=["export dataset", "save dataset"],
             display_name="Save Training Dataset",
-            category="training",
+            category="model/training",
             description="Save encoded training dataset (latents + conditioning) to disk for efficient loading during training.",
             is_experimental=True,
             is_output_node=True,
@@ -1493,7 +1511,7 @@ class LoadTrainingDataset(io.ComfyNode):
             node_id="LoadTrainingDataset",
             search_aliases=["import dataset", "training data"],
             display_name="Load Training Dataset",
-            category="training",
+            category="model/training",
             description="Load encoded training dataset (latents + conditioning) from disk for use in training.",
             is_experimental=True,
             inputs=[

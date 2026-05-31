@@ -45,7 +45,7 @@ class SamplerLCMUpscale(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SamplerLCMUpscale",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             inputs=[
                 io.Float.Input("scale_ratio", default=1.0, min=0.1, max=20.0, step=0.01, advanced=True),
                 io.Int.Input("scale_steps", default=-1, min=-1, max=1000, step=1, advanced=True),
@@ -91,7 +91,7 @@ class SamplerLCM(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SamplerLCM",
-            category="sampling/samplers",
+            category="model/sampling/samplers",
             description=("LCM sampler with tunable per-step noise. s_noise is a multiplier on the model's training noise scale"),
             inputs=[
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=64.0, step=0.01,

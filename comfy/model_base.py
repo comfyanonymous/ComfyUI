@@ -50,6 +50,8 @@ import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.chroma_radiance.model
+import comfy.ldm.pixeldit.model
+import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
@@ -1518,6 +1520,53 @@ class ZImagePixelSpace(Lumina2):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiTPixelSpace)
         self.memory_usage_factor_conds = ("ref_latents",)
+
+
+class PixelDiTT2I(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device,
+                         unet_model=comfy.ldm.pixeldit.model.PixDiT_T2I)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out["attention_mask"] = comfy.conds.CONDRegular(attention_mask)
+        return out
+
+
+class PiD(PixelDiTT2I):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        BaseModel.__init__(self, model_config, model_type, device=device,
+                           unet_model=comfy.ldm.pixeldit.pid.PidNet)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        lq_latent = kwargs.get("lq_latent", None)
+        if lq_latent is not None:
+            out["lq_latent"] = comfy.conds.CONDRegular(lq_latent)
+        degrade_sigma = kwargs.get("degrade_sigma", None)
+        if degrade_sigma is not None:
+            out["degrade_sigma"] = comfy.conds.CONDRegular(degrade_sigma)
+        return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "lq_latent" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
+            lq = cond_value.cond
+            dim = window.dim
+            if dim >= lq.ndim:
+                return None
+            lq_proj = self.diffusion_model.lq_proj
+            ratio = lq_proj.sr_scale * lq_proj.latent_spatial_down_factor
+            # Map x window indices -> lq indices (deduplicated, sorted, in-bounds).
+            lq_size = lq.size(dim)
+            lq_indices = sorted({i // ratio for i in window.index_list if 0 <= i // ratio < lq_size})
+            if not lq_indices:
+                return None
+            idx = tuple([slice(None)] * dim + [lq_indices])
+            return cond_value._copy_with(lq[idx].to(device))
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
 
 class WAN21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):

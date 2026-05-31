@@ -109,7 +109,7 @@ class ReveImageCreateNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ReveImageCreateNode",
             display_name="Reve Image Create",
-            category="api node/image/Reve",
+            category="image/partner/Reve",
             description="Generate images from text descriptions using Reve.",
             inputs=[
                 IO.String.Input(
@@ -200,7 +200,7 @@ class ReveImageEditNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ReveImageEditNode",
             display_name="Reve Image Edit",
-            category="api node/image/Reve",
+            category="image/partner/Reve",
             description="Edit images using natural language instructions with Reve.",
             inputs=[
                 IO.Image.Input("image", tooltip="The image to edit."),
@@ -300,7 +300,7 @@ class ReveImageRemixNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ReveImageRemixNode",
             display_name="Reve Image Remix",
-            category="api node/image/Reve",
+            category="image/partner/Reve",
             description="Combine reference images with text prompts to create new images using Reve.",
             inputs=[
                 IO.Autogrow.Input(

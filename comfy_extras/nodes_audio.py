@@ -16,7 +16,7 @@ class EmptyLatentAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="EmptyLatentAudio",
             display_name="Empty Latent Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             essentials_category="Audio",
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
@@ -41,7 +41,7 @@ class ConditioningStableAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ConditioningStableAudio",
-            category="conditioning",
+            category="model/conditioning",
             inputs=[
                 IO.Conditioning.Input("positive"),
                 IO.Conditioning.Input("negative"),
@@ -70,7 +70,7 @@ class VAEEncodeAudio(IO.ComfyNode):
             node_id="VAEEncodeAudio",
             search_aliases=["audio to latent"],
             display_name="VAE Encode Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Vae.Input("vae"),
@@ -115,7 +115,7 @@ class VAEDecodeAudio(IO.ComfyNode):
             node_id="VAEDecodeAudio",
             search_aliases=["latent to audio"],
             display_name="VAE Decode Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -137,7 +137,7 @@ class VAEDecodeAudioTiled(IO.ComfyNode):
             node_id="VAEDecodeAudioTiled",
             search_aliases=["latent to audio"],
             display_name="VAE Decode Audio (Tiled)",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),

@@ -99,7 +99,7 @@ class OpenAIDalle2(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIDalle2",
             display_name="OpenAI DALL·E 2",
-            category="api node/image/OpenAI",
+            category="image/partner/OpenAI",
             description="Generates images synchronously via OpenAI's DALL·E 2 endpoint.",
             inputs=[
                 IO.String.Input(
@@ -249,7 +249,7 @@ class OpenAIDalle3(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIDalle3",
             display_name="OpenAI DALL·E 3",
-            category="api node/image/OpenAI",
+            category="image/partner/OpenAI",
             description="Generates images synchronously via OpenAI's DALL·E 3 endpoint.",
             inputs=[
                 IO.String.Input(
@@ -371,7 +371,7 @@ class OpenAIGPTImage1(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIGPTImage1",
             display_name="OpenAI GPT Image 2",
-            category="api node/image/OpenAI",
+            category="image/partner/OpenAI",
             description="Generates images synchronously via OpenAI's GPT Image endpoint.",
             is_deprecated=True,
             inputs=[
@@ -695,7 +695,7 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIGPTImageNodeV2",
             display_name="OpenAI GPT Image 2",
-            category="api node/image/OpenAI",
+            category="image/partner/OpenAI",
             description="Generates images via OpenAI's GPT Image endpoint.",
             inputs=[
                 IO.String.Input(
@@ -962,7 +962,7 @@ class OpenAIChatNode(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIChatNode",
             display_name="OpenAI ChatGPT",
-            category="api node/text/OpenAI",
+            category="text/partner/OpenAI",
             essentials_category="Text Generation",
             description="Generate text responses from an OpenAI model.",
             inputs=[
@@ -1201,7 +1201,7 @@ class OpenAIInputFiles(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIInputFiles",
             display_name="OpenAI ChatGPT Input Files",
-            category="api node/text/OpenAI",
+            category="text/partner/OpenAI",
             description="Loads and prepares input files (text, pdf, etc.) to include as inputs for the OpenAI Chat Node. The files will be read by the OpenAI model when generating a response. 🛈 TIP: Can be chained together with other OpenAI Input File nodes.",
             inputs=[
                 IO.Combo.Input(
@@ -1248,7 +1248,7 @@ class OpenAIChatConfig(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenAIChatConfig",
             display_name="OpenAI ChatGPT Advanced Options",
-            category="api node/text/OpenAI",
+            category="text/partner/OpenAI",
             description="Allows specifying advanced configuration options for the OpenAI Chat Nodes.",
             inputs=[
                 IO.Combo.Input(

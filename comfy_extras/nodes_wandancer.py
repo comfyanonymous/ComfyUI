@@ -713,7 +713,7 @@ class WanDancerEncodeAudio(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanDancerEncodeAudio",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Audio.Input("audio"),
                 io.Int.Input("video_frames", default=149, min=1, max=nodes.MAX_RESOLUTION, step=4),
@@ -787,7 +787,7 @@ class WanDancerVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanDancerVideo",
-            category="conditioning/video_models",
+            category="model/conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
