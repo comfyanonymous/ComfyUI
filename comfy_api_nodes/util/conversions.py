@@ -470,8 +470,14 @@ def _apply_video_scale(video: Input.Video, scale_dims: tuple[int, int]) -> Input
     output_container = None
 
     try:
-        input_source = video.get_stream_source()
-        input_container = av.open(input_source, mode="r")
+        # Materialize the video to a buffer first so that any trimming
+        # (start_time / duration set by e.g. VideoSlice) is applied before
+        # we scale.  save_to() already handles trimming correctly.
+        materialized_buffer = BytesIO()
+        video.save_to(materialized_buffer)
+        materialized_buffer.seek(0)
+
+        input_container = av.open(materialized_buffer, mode="r")
         output_container = av.open(output_buffer, mode="w", format="mp4")
 
         video_stream = output_container.add_stream("h264", rate=video.get_frame_rate())
