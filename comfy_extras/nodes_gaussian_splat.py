@@ -486,8 +486,7 @@ class SplatToFile3D(IO.ComfyNode):
     @classmethod
     def execute(cls, splat, format="ply") -> IO.NodeOutput:
         if splat.positions.shape[0] > 1:
-            logging.warning("SplatToFile3D: got a batch of %d; converting only the first splat "
-                            "SplatToFile3Dsupports one item per batch only.", splat.positions.shape[0])
+            logging.warning("SplatToFile3D supports one item per batch only. Got %d; using first.", splat.positions.shape[0])
         end = _real_len(splat, 0)
         writer = {"ksplat": _gaussian_ksplat_bytes, "spz": _gaussian_spz_bytes}.get(format, _gaussian_ply_bytes)
         data = writer(splat.positions[0, :end], splat.scales[0, :end],
@@ -501,9 +500,9 @@ class File3DToSplat(IO.ComfyNode):
         return IO.Schema(
             node_id="File3DToSplat",
             display_name="Get Splat",
-            search_aliases=["load splat", "ply to gaussian", "import gaussian", "file to splat"],
+            search_aliases=["load splat", "ply to splat", "import splat", "file to splat"],
             category="3d/splat",
-            description="Parse a splat File3D into a gaussian. Inverse of Create 3D File (from Gaussian). "
+            description="Parse a splat File3D into a gaussian splat. Inverse of Create 3D File (from Splat). "
                         "Supported format:  PLY, SPLAT, KSPLAT, SPZ. PLY carries full spherical harmonics, "
                         " the other formats are base color only. Format is auto-detected from the file contents.",
             inputs=[
