@@ -738,9 +738,9 @@ def _render_gaussian(xyz, rgb, opacity, scale, rot, width, height, splat_scale, 
     radius = 3.0 * max_eig.clamp_min(1e-8).sqrt()
     K = int(min(max(24, min(width, height) // 16), max(2, math.ceil(_quantile(radius, 0.995).item()))))
 
-    # Per-splat kernel size: bucket splats by radius into a ladder of kernel sizes (the global K stays the cap) and use
-    # a tiny window instead of the worst-case one
-    levels = [L for L in (4, 8, 16, 32, 64, 128, 256) if L < K] + [K]
+    # Per-splat kernel size: bucket splats by radius into a coarse ladder of window sizes (global K stays the cap) so
+    # small splats (the bulk of it) use a small window.
+    levels = [L for L in (16, 64, 256) if L < K] + [K]
     levels_t = torch.tensor(levels, device=dev, dtype=torch.float32)
     grids = []
     for L in levels:
