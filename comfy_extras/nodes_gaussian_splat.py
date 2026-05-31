@@ -927,8 +927,6 @@ class RenderSplat(IO.ComfyNode):
             bg_imgs = bi.movedim(1, -1).clamp(0, 1)
         n_frames = abs(int(frames)) or 1                       # magnitude = frame count (0 -> single still)
         orbit_dir = -1.0 if frames < 0 else 1.0                # sign = orbit direction
-        if camera_info is not None and str(camera_info.get("cameraType", "")).lower().startswith("ortho"):
-            logging.warning("RenderSplat: orthographic camera_info is rendered with a perspective camera.")
         imgs, masks = [], []
         device = comfy.model_management.get_torch_device()     # render device; splat stays in torch here -> no roundtrip
         total = splat.positions.shape[0] * n_frames
@@ -1010,7 +1008,7 @@ class CreateCameraInfo(IO.ComfyNode): # TODO: move to better file
                 IO.Float.Input("zoom", default=1.0, min=0.01, max=100.0, step=0.01,
                                tooltip="Digital zoom (focal-length multiplier). >1 zooms in without moving the camera."),
                 IO.Combo.Input("camera_type", options=["perspective", "orthographic"],
-                               tooltip="orthographic is currently rendered as perspective by Render Splat."),
+                               tooltip="Projection used by Render Splat: perspective (foreshortening) or orthographic (parallel)."),
             ],
             outputs=[IO.Load3DCamera.Output(display_name="camera_info")],
         )
