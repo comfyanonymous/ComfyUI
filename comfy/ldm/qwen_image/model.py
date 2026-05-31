@@ -51,15 +51,6 @@ class FeedForward(nn.Module):
         return hidden_states
 
 
-def apply_rotary_emb(x, freqs_cis):
-    if x.shape[1] == 0:
-        return x
-
-    t_ = x.reshape(*x.shape[:-1], -1, 1, 2)
-    t_out = freqs_cis[..., 0] * t_[..., 0] + freqs_cis[..., 1] * t_[..., 1]
-    return t_out.reshape(*x.shape)
-
-
 class QwenTimestepProjEmbeddings(nn.Module):
     def __init__(self, embedding_dim, pooled_projection_dim, use_additional_t_cond=False, dtype=None, device=None, operations=None):
         super().__init__()

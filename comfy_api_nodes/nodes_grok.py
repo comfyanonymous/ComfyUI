@@ -58,7 +58,6 @@ class GrokImageNode(IO.ComfyNode):
                         "grok-imagine-image-quality",
                         "grok-imagine-image-pro",
                         "grok-imagine-image",
-                        "grok-imagine-image-beta",
                     ],
                 ),
                 IO.String.Input(
@@ -233,7 +232,6 @@ class GrokImageEditNode(IO.ComfyNode):
                         "grok-imagine-image-quality",
                         "grok-imagine-image-pro",
                         "grok-imagine-image",
-                        "grok-imagine-image-beta",
                     ],
                 ),
                 IO.Image.Input("image", display_name="images"),
@@ -506,7 +504,7 @@ class GrokVideoNode(IO.ComfyNode):
             category="video/partner/Grok",
             description="Generate video from a prompt or an image",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-video", "grok-imagine-video-beta"]),
+                IO.Combo.Input("model", options=["grok-imagine-video"]),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -576,8 +574,6 @@ class GrokVideoNode(IO.ComfyNode):
         seed: int,
         image: Input.Image | None = None,
     ) -> IO.NodeOutput:
-        if model == "grok-imagine-video-beta":
-            model = "grok-imagine-video"
         image_url = None
         if image is not None:
             if get_number_of_images(image) != 1:
@@ -618,7 +614,7 @@ class GrokVideoEditNode(IO.ComfyNode):
             category="video/partner/Grok",
             description="Edit an existing video based on a text prompt.",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-video", "grok-imagine-video-beta"]),
+                IO.Combo.Input("model", options=["grok-imagine-video"]),
                 IO.String.Input(
                     "prompt",
                     multiline=True,

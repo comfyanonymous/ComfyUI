@@ -4,6 +4,7 @@ import dataclasses
 import torch
 from typing import NamedTuple
 
+import comfy_aimdo.host_buffer
 from comfy.quant_ops import QuantizedTensor
 
 
@@ -17,21 +18,18 @@ class TensorFileSlice(NamedTuple):
 def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=None):
 
     if isinstance(tensor, QuantizedTensor):
-        if not isinstance(destination, QuantizedTensor):
-            return False
-        if tensor._layout_cls != destination._layout_cls:
-            return False
-
-        if not read_tensor_file_slice_into(tensor._qdata, destination._qdata, stream=stream,
+        if not read_tensor_file_slice_into(tensor._qdata,
+                                           destination._qdata if destination is not None else None, stream=stream,
                                            destination2=(destination2._qdata if destination2 is not None else None)):
             return False
 
-        dst_orig_dtype = destination._params.orig_dtype
-        destination._params.copy_from(tensor._params, non_blocking=False)
-        destination._params = dataclasses.replace(destination._params, orig_dtype=dst_orig_dtype)
+        if destination is not None:
+            dst_orig_dtype = destination._params.orig_dtype
+            destination._params.copy_from(tensor._params, non_blocking=False)
+            destination._params = dataclasses.replace(destination._params, orig_dtype=dst_orig_dtype)
         if destination2 is not None:
             dst_orig_dtype = destination2._params.orig_dtype
-            destination2._params.copy_from(destination._params, non_blocking=True)
+            destination2._params.copy_from(destination._params if destination is not None else tensor._params, non_blocking=True)
             destination2._params = dataclasses.replace(destination2._params, orig_dtype=dst_orig_dtype)
         return True
 
@@ -39,16 +37,29 @@ def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=N
     if info is None:
         return False
 
+    if destination is not None and destination.device.type != "cpu" and destination2 is None:
+        destination2 = destination
+        destination = None
+
     file_obj = info.file_ref
-    if (destination.device.type != "cpu"
-            or file_obj is None
-            or destination.numel() * destination.element_size() < info.size
+    if (file_obj is None
+            or (destination is None and destination2 is None)
+            or (destination is not None and (destination.device.type != "cpu" or destination.numel() * destination.element_size() < info.size))
+            or (destination2 is not None and (destination2.device.type == "cpu" or destination2.numel() * destination2.element_size() < info.size))
             or tensor.numel() * tensor.element_size() != info.size
             or tensor.storage_offset() != 0
             or not tensor.is_contiguous()):
         return False
 
     if info.size == 0:
+        return True
+
+    if destination is None:
+        stream_ptr = getattr(stream, "cuda_stream", 0) if stream is not None else 0
+        comfy_aimdo.host_buffer.read_file_to_device(file_obj, info.offset, info.size,
+                                                    stream_ptr, destination2.data_ptr(),
+                                                    destination2.device.index,
+                                                    mark_cold=False)
         return True
 
     hostbuf = getattr(destination.untyped_storage(), "_comfy_hostbuf", None)
@@ -62,6 +73,9 @@ def read_tensor_file_slice_into(tensor, destination, stream=None, destination2=N
                                     device_ptr=device_ptr,
                                     device=None if destination2 is None else destination2.device.index)
         return True
+
+    if not hasattr(file_obj, "seek") or not hasattr(file_obj, "readinto"):
+        return False
 
     buf_type = ctypes.c_ubyte * info.size
     view = memoryview(buf_type.from_address(destination.data_ptr()))
