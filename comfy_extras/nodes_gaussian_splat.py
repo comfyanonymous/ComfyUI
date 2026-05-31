@@ -469,16 +469,16 @@ class SplatToFile3D(IO.ComfyNode):
             node_id="SplatToFile3D",
             display_name="Create 3D File (from Splat)",
             search_aliases=["gaussian to ply", "splat to file", "export gaussian"],
-            category="3d/gaussian",
+            category="3d/splat",
             description="Serialize a gaussian splat to a File3D object for Save / Preview 3D nodes. "
-                        "ply keeps full spherical harmonics (standard 3DGS); ksplat and spz are compact viewer formats (base "
-                        "color only). Single splat only - feed one batch item at a time.",
+                        "Supports one item per batch only.",
             inputs=[
                 IO.Splat.Input("splat"),
                 IO.Combo.Input("format", options=["ply", "ksplat", "spz"],
-                               tooltip="ply: standard 3DGS with full spherical harmonics. ksplat: mkkellogg "
-                                       "SplatBuffer (level 0, uncompressed). spz: Niantic gzip-compressed "
-                                       "(~10x smaller). ksplat/spz keep base color only - view-dependent spherical harmonics is dropped."),
+                               tooltip="ply: standard 3DGS with full spherical harmonics. "
+                                       "ksplat: mkkellogg SplatBuffer (level 0, uncompressed). "
+                                       "spz: Niantic gzip-compressed (~10x smaller). "
+                                       "ksplat/spz keep base color only, view-dependent spherical harmonics is dropped."),
             ],
             outputs=[IO.File3DAny.Output(display_name="model_3d")],
         )
@@ -486,8 +486,8 @@ class SplatToFile3D(IO.ComfyNode):
     @classmethod
     def execute(cls, splat, format="ply") -> IO.NodeOutput:
         if splat.positions.shape[0] > 1:
-            logging.warning("SplatToFile3D: got a batch of %d; converting only the first splat (File3D is a "
-                            "single file).", splat.positions.shape[0])
+            logging.warning("SplatToFile3D: got a batch of %d; converting only the first splat "
+                            "SplatToFile3Dsupports one item per batch only.", splat.positions.shape[0])
         end = _real_len(splat, 0)
         writer = {"ksplat": _gaussian_ksplat_bytes, "spz": _gaussian_spz_bytes}.get(format, _gaussian_ply_bytes)
         data = writer(splat.positions[0, :end], splat.scales[0, :end],
@@ -502,15 +502,15 @@ class File3DToSplat(IO.ComfyNode):
             node_id="File3DToSplat",
             display_name="Get Splat",
             search_aliases=["load splat", "ply to gaussian", "import gaussian", "file to splat"],
-            category="3d/gaussian",
-            description="Parse a splat File3D (.ply / .splat / .ksplat / .spz) into a gaussian. Inverse of "
-                        "Create 3D File (from Gaussian). ply carries full spherical harmonics; the others are base "
-                        "color only. Format is auto-detected from the file contents.",
+            category="3d/splat",
+            description="Parse a splat File3D into a gaussian. Inverse of Create 3D File (from Gaussian). "
+                        "Supported format:  PLY, SPLAT, KSPLAT, SPZ. PLY carries full spherical harmonics, "
+                        " the other formats are base color only. Format is auto-detected from the file contents.",
             inputs=[
                 IO.MultiType.Input(
                     IO.File3DAny.Input("model_3d"),
                     types=[IO.File3DPLY, IO.File3DSPLAT, IO.File3DKSPLAT, IO.File3DSPZ],
-                    tooltip="A gaussian-splat 3D file",
+                    tooltip="A gaussian splat 3D file",
                 ),
             ],
             outputs=[IO.Splat.Output(display_name="splat")],
@@ -652,7 +652,7 @@ def _gauss_blur(x, sigma, dev):
 
 def _render_gaussian(xyz, rgb, opacity, scale, rot, width, height, splat_scale, bg, camera_info,
                      sharpen=1.0, headlight_shading=0.0, render_style="color"):
-    # Perspective-correct anisotropic gaussian-splat rasterizer. Each splat is weighted by its 3D Gaussian's
+    # Perspective-correct anisotropic gaussian splat rasterizer. Each splat is weighted by its 3D Gaussian's
     # peak along each pixel's ray (AAA / Hahlbohm), composited front-to-back across depth slabs. `render_style`
     # selects the image: color / clay / depth / normal. Returns (image HxWx3, coverage mask HxW) on CPU.
     dev = comfy.model_management.get_torch_device()
@@ -850,11 +850,11 @@ class RenderSplat(IO.ComfyNode):
             node_id="RenderSplat",
             display_name="Render Splat",
             search_aliases=["splat to image", "render splat", "gaussian turntable"],
-            category="3d/gaussian",
-            description="Render a gaussian splat to an image with an anisotropic EWA rasterizer (oriented "
+            category="3d/splat",
+            description="Render a gaussian splat as an image with an anisotropic EWA rasterizer (oriented "
                         "elliptical splats, antialiased, depth-sorted front-to-back). The camera comes from a "
-                        "camera_info input (Load3D / Preview3D, or a Create Camera Info node); leave it empty to "
-                        "auto-frame the splat. Set frames greater than 1 for a turntable batch to feed a video node.",
+                        "camera_info input (Load / Preview 3D, or a Create Camera Info node); leave it empty to "
+                        "auto-frame the splat. Set frames greater than 1 for a turntable batch of images to feed a Video node.",
             inputs=[
                 IO.Splat.Input("splat"),
                 IO.Int.Input("width", default=1024, min=64, max=2048, step=8),
@@ -943,7 +943,7 @@ class CreateCameraInfo(IO.ComfyNode): # TODO: move to better file
             node_id="CreateCameraInfo",
             display_name="Create Camera Info",
             search_aliases=["camera position", "make camera info", "orbit camera", "look at camera"],
-            category="3d/camera",
+            category="3d",
             description="Build a camera_info"
                         "Mode 'orbit' aims with yaw/pitch/distance around the target; "
                         "'look_at' places the camera at world position. Coordinates are the viewer's world space (right-handed,Y-up).",
@@ -1018,7 +1018,7 @@ class TransformSplat(IO.ComfyNode):
             node_id="TransformSplat",
             display_name="Transform Splat",
             search_aliases=["move splat", "rotate splat", "scale splat", "gaussian transform"],
-            category="3d/gaussian",
+            category="3d/splat",
             description="Translate, rotate, and scale a gaussian splat."
                         "Non-uniform scale also reshapes every individual splat, slower process.",
             inputs=[
@@ -1073,8 +1073,8 @@ class GetSplatCount(IO.ComfyNode):
             node_id="GetSplatCount",
             display_name="Get Splat Count",
             search_aliases=["splat count", "gaussian count", "number of splats", "splat info"],
-            category="3d/gaussian",
-            description="Returns the number of splats (summed across the batch) and shows it on the node.",
+            category="3d/splat",
+            description="Returns the number of splats summed across the batch.",
             inputs=[IO.Splat.Input("splat")],
             outputs=[IO.Splat.Output(display_name="splat"),
                      IO.Int.Output(display_name="count"),
@@ -1147,7 +1147,7 @@ class MergeSplat(IO.ComfyNode):
             node_id="MergeSplat",
             display_name="Merge Splats",
             search_aliases=["union splat", "densify gaussian", "combine splat", "merge gaussian"],
-            category="3d/gaussian",
+            category="3d/splat",
             description="Concatenate any number of gaussian splats into one. Unioning several decodes of the same "
                         "latent at different seeds densifies the surface, this can improve surface quality when meshing.",
             inputs=[IO.Autogrow.Input("splats", template=splats)],
@@ -1435,14 +1435,11 @@ class SplatToMesh(IO.ComfyNode):
             node_id="SplatToMesh",
             display_name="Extract Mesh from Splat",
             search_aliases=["splat to mesh", "gaussian surface nets", "splat surface", "mesh splat"],
-            category="3d/gaussian",
-            description="Extract a coloured triangle MESH from a gaussian splat. Each splat is rasterized into a "
-                        "density grid as its real oriented covariance disk, then Surface Nets pulls the iso-surface, "
-                        "tiny floaters are dropped, and vertices are coloured from their nearest gaussians. Denser "
-                        "splats give more detail - union several decodes with Merge Gaussian Splats first.",
+            category="3d/splat",
+            description="Extract a coloured mesh from a gaussian splat.",
             inputs=[
                 IO.Splat.Input("splat"),
-                IO.Int.Input("resolution", default=512, min=64, max=1024, step=16,
+                IO.Int.Input("resolution", default=384, min=64, max=1024, step=16,
                              tooltip="Density-grid resolution along the longest axis. Higher = finer surface, "
                                      "more VRAM/time (grows with resolution^3)."),
                 IO.Int.Input("kernel", default=5, min=1, max=8,
