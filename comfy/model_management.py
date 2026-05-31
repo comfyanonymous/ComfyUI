@@ -1716,6 +1716,13 @@ def is_device_xpu(device):
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')
 
+def set_torch_device(device):
+    """Set the current device for the given torch device. Supports CUDA and XPU."""
+    if is_device_cuda(device):
+        torch.cuda.set_device(device)
+    elif is_device_xpu(device):
+        torch.xpu.set_device(device)
+
 def is_directml_enabled():
     global directml_enabled
     if directml_enabled:
