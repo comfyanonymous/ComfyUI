@@ -11,7 +11,7 @@ class LoadBackgroundRemovalModel(IO.ComfyNode):
         return IO.Schema(
             node_id="LoadBackgroundRemovalModel",
             display_name="Load Background Removal Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 IO.Combo.Input("bg_removal_name", options=sorted(files), tooltip="The model used to remove backgrounds from images"),
             ],

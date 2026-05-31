@@ -42,7 +42,7 @@ class FluxProUltraImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="FluxProUltraImageNode",
             display_name="Flux 1.1 [pro] Ultra Image",
-            category="api node/image/BFL",
+            category="image/partner/BFL",
             description="Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.",
             inputs=[
                 IO.String.Input(
@@ -160,7 +160,7 @@ class FluxKontextProImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id=cls.NODE_ID,
             display_name=cls.DISPLAY_NAME,
-            category="api node/image/BFL",
+            category="image/partner/BFL",
             description="Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.",
             inputs=[
                 IO.String.Input(
@@ -282,7 +282,7 @@ class FluxProExpandNode(IO.ComfyNode):
         return IO.Schema(
             node_id="FluxProExpandNode",
             display_name="Flux.1 Expand Image",
-            category="api node/image/BFL",
+            category="image/partner/BFL",
             description="Outpaints image based on prompt.",
             inputs=[
                 IO.Image.Input("image"),
@@ -419,7 +419,7 @@ class FluxProFillNode(IO.ComfyNode):
         return IO.Schema(
             node_id="FluxProFillNode",
             display_name="Flux.1 Fill Image",
-            category="api node/image/BFL",
+            category="image/partner/BFL",
             description="Inpaints image based on mask and prompt.",
             inputs=[
                 IO.Image.Input("image"),
@@ -545,7 +545,7 @@ class Flux2ProImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id=cls.NODE_ID,
             display_name=cls.DISPLAY_NAME,
-            category="api node/image/BFL",
+            category="image/partner/BFL",
             description="Generates images synchronously based on prompt and resolution.",
             inputs=[
                 IO.String.Input(
@@ -716,7 +716,7 @@ class Flux2ImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="Flux2ImageNode",
             display_name="Flux.2 Image",
-            category="api node/image/BFL",
+            category="image/partner/BFL",
             description="Generate images via Flux.2 [pro] or Flux.2 [max] from a prompt and optional reference images.",
             inputs=[
                 IO.String.Input(

@@ -464,10 +464,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
 
     def _handle_batch(device: torch.device, batch_tuple: tuple[comfy.hooks.HookGroup, tuple], results: list[thread_result]):
         try:
-            # TODO: non-NVIDIA support -- guard with `if device.type == "cuda":` once
-            # we extend multigpu QA beyond CUDA. Unconditional call crashes on
-            # XPU/NPU/MPS/CPU/DirectML backends.
-            torch.cuda.set_device(device)
+            comfy.model_management.set_torch_device(device)
             model_current: BaseModel = model_options["multigpu_clones"][device].model
             # run every hooked_to_run separately
             with torch.no_grad():
