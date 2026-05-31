@@ -144,8 +144,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                     "bboxes", optional=True, force_input=True,
                     tooltip=(
                         "Per-frame person boxes (e.g. RT-DETR Detect with class_name='person'). "
-                        "Used when no SAM3 track is wired — gives the top-down model a tight, "
-                        "person-centered crop. Multi-person supported (one box = one person)."
+                        "Use for better detection as alternative to SAM3 tracks."
                     ),
                 ),
                 io.Boolean.Input(
@@ -154,7 +153,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                 io.Float.Input(
                     "fov_degrees",
                     default=0.0, min=0.0, max=170.0, step=0.5,
-                    tooltip=(
+                    tooltip=( #TODO: get FoV from moge another way?
                         "Vertical FOV in degrees. Affects predicted depth (cam_t.z) and "
                         "absolute scale. 0 = use moge_geometry or fall back to ~53° (16:9). "
                         "Any non-zero value overrides moge_geometry."
@@ -164,7 +163,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                     "moge_geometry",
                     optional=True,
                     tooltip=(
-                        "MoGe geometry (from MoGeInference), used to calculate camera field of view."
+                        "MoGe geometry, used to calculate camera field of view."
                         "For batches choose the most representative frame, or leave unset"
                     ),
                 ),
@@ -345,10 +344,9 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
         crop_factor = 1.2
 
         # Auto-pick full-frame vs per-person crops. BlazeFace full-range needs
-        # ≥32px face in its 192px input; below that we escalate to per-person
-        # crops. Face height ≈ 20% of body-bbox height (rough but stable).
+        # ≥32px face in its 192px input; below that we escalate to per-person crops
         H_img0, W_img0 = img_np.shape[1], img_np.shape[2]
-        min_bbox_px = 32.0 * max(H_img0, W_img0) / (192.0 * 0.20)
+        min_bbox_px = 32.0 * max(H_img0, W_img0) / (192.0 * 0.20)  # Face height ≈ 20% of body-bbox height.
         use_per_person_crops = any(
             (p["bbox"][3] - p["bbox"][1]) < min_bbox_px
             for persons in new_frames for p in persons
@@ -400,10 +398,9 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
 
             pbar.update(1)
 
-        # Baseline subtraction. MP has subject-specific rest bias (e.g.
-        # naturally-raised brow at 0.15); without subtraction, strength
-        # multipliers bake that into every frame. Per-clip needs ~30 frames
-        # or it would zero out the expression.
+        # Baseline subtraction. MP has subject-specific rest bias, without subtraction, strength
+        # multipliers bake that into every frame.
+        # Per-clip needs ~30 frames or it would zero out the expression.
         BASELINE_MIN_FRAMES = 30
         if n_total_frames_with_persons >= BASELINE_MIN_FRAMES:
             for pid in range(max_persons):
@@ -417,7 +414,7 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
                 f"got {n_total_frames_with_persons}. Skipping subtraction."
             )
 
-        # Smooth raw signal AFTER baseline subtraction but BEFORE gap fill —
+        # Smooth raw signal AFTER baseline subtraction but BEFORE gap fill
         # MP's per-frame noise gets averaged out at the source.
         bs_win = int(blendshape_smooth_window)
         if bs_win > 1:
@@ -484,9 +481,8 @@ class SAM3DBody_Smooth(io.ComfyNode):
                     options=["gaussian", "savgol"],
                     default="gaussian", advanced=True,
                     tooltip=(
-                        "'gaussian': symmetric weighted average — phase-preserving "
-                        "(no time-shift), best general-purpose smoother. "
-                        "'savgol': sliding polynomial fit — preserves sharp peaks "
+                        "'gaussian': symmetric weighted average, best general-purpose smoother. "
+                        "'savgol': sliding polynomial fit, preserves sharp peaks."
                     ),
                 ),
                 io.Int.Input(
@@ -498,10 +494,9 @@ class SAM3DBody_Smooth(io.ComfyNode):
                     "rotation_threshold_deg",
                     default=15.0, min=0.0, max=45.0, step=1.0, advanced=True,
                     tooltip=(
-                        "Geometry smoothing drops to RAW above this root-rotation "
-                        "rate (deg/frame) to preserve fast spins. 15° suits most "
-                        "content; low values trigger on ordinary jitter and "
-                        "silently sabotage smoothing. 0 = disable backoff."
+                        "Disables smoothing for this root-rotation rate (deg/frame) to preserve fast spins. "
+                        "15° suits most content, low values trigger on ordinary jitter and "
+                        "silently sabotage smoothing. 0 = disable."
                     ),
                 ),
             ],
@@ -908,12 +903,10 @@ class SAM3DBody_Render(io.ComfyNode):
                     ],
                     tooltip=(
                         "'mesh' = 3D MHR mesh rasterized through the camera. "
-                        "'silhouette' = binary mask of the mesh (white-on-black, "
-                        "background ignored). 'openpose_2d' = flat 2D skeleton "
-                        "from pred_keypoints_2d (DWPose look, ControlNet-ready). "
-                        "'openpose_3d' = same skeleton as flat-shaded 3D capsules "
-                        "(camera-aware, proper depth). 'scail' = SCAIL 3D capsules "
-                        "via torch SDF ray-march (proper occlusion / depth)."
+                        "'silhouette' = binary mask of the mesh. "
+                        "'openpose_2d' = flat 2D skeleton "
+                        "'openpose_3d' = openpose skeleton as flat-shaded 3D model "
+                        "'scail' = SCAIL 3D capsules "
                     ),
                 ),
             ],

@@ -425,6 +425,21 @@ def rainbow_tilt_inputs():
     ]
 
 
+def camera_translation_input():
+    """Shared camera_translation combo (BuildPoseGLB + SavePoseBVH)."""
+    return IO.Combo.Input(
+        "camera_translation",
+        options=["off", "centered", "absolute"],
+        default="off",
+        tooltip=(
+            "Bake pred_cam_t into the root's translation "
+            "'off' = bind position "
+            "'centered' = delta from frame 0 "
+            "'absolute' = raw (Z is camera depth — usually meters away)."
+        ),
+    )
+
+
 class BuildPoseGLB(IO.ComfyNode):
     """Convert pose_data to an in-memory animated GLB"""
 
@@ -438,24 +453,13 @@ class BuildPoseGLB(IO.ComfyNode):
             inputs=[
                 IO.MultiType.Input(
                     "pose_data", types=[MHRPoseData, KimodoPoseData],
-                    tooltip=(
-                        "MHR pose data from SAM3DBody_Predict, or external-rig "
-                        "pose data from Kimodo (`_skeleton_override`-augmented)."
-                    ),
+                    tooltip=("MHR pose data from SAM3DBody_Predict, Kimodo. "),
                 ),
                 SAM3DBodyModel.Input("sam3d_body_model", optional=True),
                 IO.DynamicCombo.Input(
                     "mesh_style",
                     options=[
                         IO.DynamicCombo.Option("body_mesh", [
-                            IO.Int.Input(
-                                "bone_smooth_window",
-                                default=0, min=0, max=51, step=2,
-                                tooltip=(
-                                    "Gaussian window on per-bone rotation keyframes. 0 = off. "
-                                    "7-15 helps cartwheels/spins where upstream Smooth misses spikes."
-                                ),
-                            ),
                             IO.DynamicCombo.Input(
                                 "bone_vis",
                                 options=[
@@ -485,11 +489,7 @@ class BuildPoseGLB(IO.ComfyNode):
                                         ),
                                     ]),
                                 ],
-                                tooltip=(
-                                    "Bone vis shape, rigidly skinned to each joint. "
-                                    "'octahedrons' = Blender-style directional bones (joint → "
-                                    "primary child); 'sticks' = thin lines."
-                                ),
+                                tooltip=("Bone vis shape, rigidly skinned to each joint. "),
                             ),
                             IO.DynamicCombo.Input(
                                 "shader",
@@ -500,7 +500,7 @@ class BuildPoseGLB(IO.ComfyNode):
                                         IO.Float.Input(
                                             "person_palette_falloff",
                                             default=0.6, min=0.1, max=1.0, step=0.05,
-                                            tooltip="Per-person desaturation: track k gets (1 - falloff^k) pastel mix.",
+                                            tooltip="Per-person desaturation: each track gets (1 - falloff^k) pastel mix.",
                                         ),
                                     ]),
                                     IO.DynamicCombo.Option("rainbow_face_normal", [
@@ -508,7 +508,7 @@ class BuildPoseGLB(IO.ComfyNode):
                                         IO.Float.Input(
                                             "person_palette_falloff",
                                             default=0.6, min=0.1, max=1.0, step=0.05,
-                                            tooltip="Per-person desaturation: track k gets (1 - falloff^k) pastel mix.",
+                                            tooltip="Per-person desaturation: each track gets (1 - falloff^k) pastel mix.",
                                         ),
                                     ]),
                                     IO.DynamicCombo.Option("rainbow_face_semantic", [
@@ -516,7 +516,7 @@ class BuildPoseGLB(IO.ComfyNode):
                                         IO.Float.Input(
                                             "person_palette_falloff",
                                             default=0.6, min=0.1, max=1.0, step=0.05,
-                                            tooltip="Per-person desaturation: track k gets (1 - falloff^k) pastel mix.",
+                                            tooltip="Per-person desaturation: each track gets (1 - falloff^k) pastel mix.",
                                         ),
                                     ]),
                                 ],
@@ -527,14 +527,6 @@ class BuildPoseGLB(IO.ComfyNode):
                             ),
                         ]),
                         IO.DynamicCombo.Option("bones_only", [
-                            IO.Int.Input(
-                                "bone_smooth_window",
-                                default=0, min=0, max=51, step=2,
-                                tooltip=(
-                                    "Gaussian window on per-bone rotation keyframes. 0 = off. "
-                                    "7-15 helps cartwheels/spins where upstream Smooth misses spikes."
-                                ),
-                            ),
                             IO.DynamicCombo.Input(
                                 "bone_vis",
                                 options=[
@@ -571,14 +563,6 @@ class BuildPoseGLB(IO.ComfyNode):
                             ),
                         ]),
                         IO.DynamicCombo.Option("openpose", [
-                            IO.Int.Input(
-                                "bone_smooth_window",
-                                default=0, min=0, max=51, step=2,
-                                tooltip=(
-                                    "Gaussian window on keypoint tracks. 0 = off. "
-                                    "7-15 calms jitter where upstream Smooth misses spikes."
-                                ),
-                            ),
                             IO.Float.Input(
                                 "marker_radius_m", default=0.010, min=0.005, max=0.1, step=0.001, advanced=True,
                                 tooltip="Sphere radius in m.",
@@ -618,14 +602,6 @@ class BuildPoseGLB(IO.ComfyNode):
                             ),
                         ]),
                         IO.DynamicCombo.Option("scail", [
-                            IO.Int.Input(
-                                "bone_smooth_window",
-                                default=0, min=0, max=51, step=2,
-                                tooltip=(
-                                    "Gaussian window on keypoint tracks. 0 = off. "
-                                    "7-15 calms jitter where upstream Smooth misses spikes."
-                                ),
-                            ),
                             IO.Float.Input(
                                 "stick_radius_m", default=0.022, min=0.002, max=0.1, step=0.001, advanced=True,
                                 tooltip=(
@@ -667,28 +643,25 @@ class BuildPoseGLB(IO.ComfyNode):
                         ]),
                     ],
                     tooltip=(
-                        "'body_mesh' = real Armature (127 bones, skinning, TRS "
-                        "keyframes, 72 face morphs; needs model). "
+                        "'body_mesh' = real Armature (127 bones, skinning, TRS keyframes, 72 face morphs; needs model). "
                         "'bones_only' = bone-shape primitives at each joint (preview armature). "
                         "'openpose' = OpenPose-18 3D skeleton from keypoints "
-                        "(no model needed). 'scail' = SCAIL 3D capsule rig (open "
-                        "cylinders capped flush by joint spheres)."
+                        "'scail' = SCAIL 3D capsule rig (open cylinders capped flush by joint spheres)."
+                    ),
+                ),
+                IO.Int.Input(
+                    "bone_smooth_window",
+                    default=0, min=0, max=51, step=2,
+                    tooltip=(
+                        "Gaussian smoothing window on per-bone rotation keyframes / keypoint "
+                        "tracks. 0 = off. 7-15 calms spins/jitter where upstream Smooth misses spikes."
                     ),
                 ),
                 IO.Float.Input(
                     "fps", default=24.0, min=1.0, max=240.0, step=1.0,
                     tooltip="Animation frame rate.",
                 ),
-                IO.Combo.Input(
-                    "camera_translation",
-                    options=["off", "centered", "absolute"],
-                    default="off",
-                    tooltip=(
-                        "Bake pred_cam_t into per-track root translation. "
-                        "'off' = origin; 'centered' = delta from frame 0; "
-                        "'absolute' = raw (Z is camera depth — usually meters away)."
-                    ),
-                ),
+                camera_translation_input(),
                 IO.Int.Input(
                     "track_index", default=-1, min=-1, max=15,
                     tooltip="-1 = all tracks; ≥0 = single track.",
@@ -698,7 +671,7 @@ class BuildPoseGLB(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, pose_data, mesh_style, sam3d_body_model=None, fps=24.0, camera_translation="off", track_index=-1) -> IO.NodeOutput:
+    def execute(cls, pose_data, mesh_style, sam3d_body_model=None, bone_smooth_window=0, fps=24.0, camera_translation="off", track_index=-1) -> IO.NodeOutput:
         mesh_style = mesh_style or {"mesh_style": "body_mesh"}
         mode_key = mesh_style["mesh_style"]
         # `shader` is nested in body_mesh; absent for bones_only.
@@ -730,7 +703,7 @@ class BuildPoseGLB(IO.ComfyNode):
             bone_vis_color = str(bone_vis_dict.get("bone_vis_color", "white"))
             glb_bytes = build_glb_skeletal(
                 pose_data, sam3d_body_model,
-                bone_smooth_window=int(mesh_style.get("bone_smooth_window", 0)),
+                bone_smooth_window=int(bone_smooth_window),
                 bone_vis=bone_vis,
                 bone_vis_radius_m=bone_vis_radius_m,
                 bone_vis_color=bone_vis_color,
@@ -754,7 +727,7 @@ class BuildPoseGLB(IO.ComfyNode):
                 face_marker_radius_m=float(mesh_style.get("face_marker_radius_m", 0.0)),
                 palette="openpose",
                 shape="ellipsoid",
-                bone_smooth_window=int(mesh_style.get("bone_smooth_window", 0)),
+                bone_smooth_window=int(bone_smooth_window),
             )
         elif mode_key == "scail":
             # SCAIL rig: open cylinders capped flush by joint spheres (sphere
@@ -781,7 +754,7 @@ class BuildPoseGLB(IO.ComfyNode):
                 # inside of the open cylinders shades sensibly at grazing angles.
                 material_roughness=float(mesh_style.get("material_roughness", 0.3)),
                 material_double_sided=True,
-                bone_smooth_window=int(mesh_style.get("bone_smooth_window", 0)),
+                bone_smooth_window=int(bone_smooth_window),
             )
         else:
             raise ValueError(f"BuildPoseGLB: unknown mesh_style {mode_key!r}")
@@ -813,16 +786,7 @@ class SavePoseBVH(IO.ComfyNode):
                     "fps", default=24.0, min=1.0, max=240.0, step=1.0,
                     tooltip="Animation frame rate (BVH `Frame Time`).",
                 ),
-                IO.Combo.Input(
-                    "camera_translation",
-                    options=["off", "centered", "absolute"],
-                    default="off",
-                    tooltip=(
-                        "Bake pred_cam_t into the root's position channels. "
-                        "'off' = bind position; 'centered' = delta from frame 0; "
-                        "'absolute' = raw (Z is camera depth — usually meters away)."
-                    ),
-                ),
+                camera_translation_input(),
                 IO.Combo.Input(
                     "units",
                     options=["cm", "m"],
