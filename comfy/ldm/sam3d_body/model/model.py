@@ -985,6 +985,7 @@ class SAM3DBody(nn.Module):
         pose_output["mhr"]["pred_face_keypoints_3d"] = j3d_face
         pose_output["mhr"]["pred_vertices"] = verts
         pose_output["mhr"]["pred_joint_coords"] = jcoords
+        pose_output["mhr"]["joint_global_rots"] = joint_global_rots
         pose_output["mhr"]["pred_pose_raw"][...] = 0  # invalidated by the IK update
         pose_output["mhr"]["mhr_model_params"] = mhr_model_params
 
