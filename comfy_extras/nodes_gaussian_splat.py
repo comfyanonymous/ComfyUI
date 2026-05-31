@@ -1612,7 +1612,7 @@ class SplatToMesh(IO.ComfyNode):
                 IO.Int.Input("smooth", default=0, min=0, max=60, advanced = True,
                              tooltip="Taubin mesh-smoothing iterations. Smooths the surface without shrinking it "
                                      "(volume-preserving), unlike blurring the density. 0 = raw surface."),
-                IO.Float.Input("level", default=0.6, min=0.3, max=2.0, step=0.05,
+                IO.Float.Input("level", default=0.4, min=0.0, max=2.0, step=0.01,
                                tooltip="Iso-surface level. Auto-picked by Otsu; this biases it (1.0 = auto, lower = "
                                        "fatter/more-connected surface, higher = thinner/tighter)."),
                 IO.Int.Input("min_component", default=500, min=0, max=100000, step=50, advanced=True,
