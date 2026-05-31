@@ -29,6 +29,11 @@ from comfy_api_nodes.util import (
 )
 
 
+_GROK_VIDEO_MODEL_API_IDS = {
+    "grok-imagine-video-1.5": "grok-imagine-video-1.5-preview",
+}
+
+
 def _extract_grok_price(response) -> float | None:
     if response.usage and response.usage.cost_in_usd_ticks is not None:
         return response.usage.cost_in_usd_ticks / 10_000_000_000
@@ -504,7 +509,11 @@ class GrokVideoNode(IO.ComfyNode):
             category="video/partner/Grok",
             description="Generate video from a prompt or an image",
             inputs=[
-                IO.Combo.Input("model", options=["grok-imagine-video"]),
+                IO.Combo.Input(
+                    "model",
+                    options=["grok-imagine-video", "grok-imagine-video-1.5"],
+                    tooltip="grok-imagine-video-1.5 currently always requires an input image.",
+                ),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -540,7 +549,11 @@ class GrokVideoNode(IO.ComfyNode):
                     tooltip="Seed to determine if node should re-run; "
                     "actual results are nondeterministic regardless of seed.",
                 ),
-                IO.Image.Input("image", optional=True),
+                IO.Image.Input(
+                    "image",
+                    optional=True,
+                    tooltip="Optional starting image for grok-imagine-video. Required for grok-imagine-video-1.5.",
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -552,12 +565,16 @@ class GrokVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"], inputs=["image"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"], inputs=["image"]),
                 expr="""
                 (
-                  $rate := widgets.resolution = "720p" ? 0.07 : 0.05;
+                  $is15 := $contains(widgets.model, "1.5");
+                  $rate := $is15
+                    ? (widgets.resolution = "720p" ? 0.2002 : 0.1144)
+                    : (widgets.resolution = "720p" ? 0.07 : 0.05);
+                  $imgCost := $is15 ? 0.0143 : 0.002;
                   $base := $rate * widgets.duration;
-                  {"type":"usd","usd": inputs.image.connected ? $base + 0.002 : $base}
+                  {"type":"usd","usd": inputs.image.connected ? $base + $imgCost : $base}
                 )
                 """,
             ),
@@ -574,6 +591,8 @@ class GrokVideoNode(IO.ComfyNode):
         seed: int,
         image: Input.Image | None = None,
     ) -> IO.NodeOutput:
+        if image is None and model == "grok-imagine-video-1.5":
+            raise ValueError(f"The '{model}' model requires an input image; connect one to the 'image' input.")
         image_url = None
         if image is not None:
             if get_number_of_images(image) != 1:
@@ -584,7 +603,7 @@ class GrokVideoNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path="/proxy/xai/v1/videos/generations", method="POST"),
             data=VideoGenerationRequest(
-                model=model,
+                model=_GROK_VIDEO_MODEL_API_IDS.get(model, model),
                 image=image_url,
                 prompt=prompt,
                 resolution=resolution,
@@ -599,7 +618,7 @@ class GrokVideoNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
-            price_extractor=_extract_grok_price,
+            price_extractor=_extract_grok_video_price if model == "grok-imagine-video-1.5" else _extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
