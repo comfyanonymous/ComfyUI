@@ -932,8 +932,8 @@ class RenderSplat(IO.ComfyNode):
                 IO.Int.Input("width", default=1024, min=64, max=2048, step=8),
                 IO.Int.Input("height", default=1024, min=64, max=2048, step=8),
                 IO.Int.Input("frames", default=1, min=-240, max=240,
-                             tooltip="+/-1 = single still; magnitude >1 = turntable, the camera orbited over a full "
-                                     "360 turn (works with any camera_info). Negative orbits the other way. 0 = single still."),
+                             tooltip="-1, 0, 1 = single still image; >1 = turntable, the camera orbits over a full "
+                                     "360 turn (works with any camera_info). Negative value orbits the other way."),
                 IO.Float.Input("splat_scale", default=1.0, min=0.1, max=5.0, step=0.05, advanced=True,
                                tooltip="Multiplier on each splat's projected footprint (lower = crisper points, "
                                        "higher = softer/fuller surface)."),
@@ -1085,7 +1085,7 @@ class TransformSplat(IO.ComfyNode):
             display_name="Transform Splat",
             search_aliases=["move splat", "rotate splat", "scale splat", "gaussian transform"],
             category="3d/splat",
-            description="Translate, rotate, and scale a gaussian splat."
+            description="Translate, rotate, and scale a gaussian splat. "
                         "Non-uniform scale also reshapes every individual splat, slower process.",
             inputs=[
                 IO.Splat.Input("splat"),
