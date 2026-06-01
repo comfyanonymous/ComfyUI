@@ -2,7 +2,6 @@ from .utils import load_torch_file, transformers_convert, state_dict_prefix_repl
 import os
 import json
 import logging
-import torch
 
 import comfy.ops
 import comfy.model_patcher
