@@ -30,7 +30,7 @@ def radical_inverse(base, n):
 
 
 def halton_sequence(dim, n):
-    return [radical_inverse(PRIMES[dim], n) for dim in range(dim)]
+    return [radical_inverse(PRIMES[i], n) for i in range(dim)]
 
 
 def hammersley_sequence(dim, n, num_samples):
