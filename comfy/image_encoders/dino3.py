@@ -130,7 +130,7 @@ def get_patches_center_coordinates(num_patches_h, num_patches_w, dtype, device):
 class DINOv3ViTRopePositionEmbedding(nn.Module):
     inv_freq: torch.Tensor
 
-    def __init__(self, rope_theta, hidden_size, num_attention_heads, image_size, patch_size, device, dtype):
+    def __init__(self, rope_theta, hidden_size, num_attention_heads, patch_size, device, dtype):
         super().__init__()
         self.base = rope_theta
         self.head_dim = hidden_size // num_attention_heads
@@ -231,7 +231,7 @@ class DINOv3ViTModel(nn.Module):
             dtype=dtype, device=device, operations=operations
         )
         self.rope_embeddings = DINOv3ViTRopePositionEmbedding(
-            rope_theta, hidden_size, num_attention_heads, image_size=512, patch_size=patch_size, dtype=dtype, device=device
+            rope_theta, hidden_size, num_attention_heads, patch_size=patch_size, dtype=dtype, device=device
         )
         self.layer = nn.ModuleList([
             DINOv3ViTLayer(hidden_size, layer_norm_eps, use_gated_mlp=use_gated_mlp, mlp_bias=True,
