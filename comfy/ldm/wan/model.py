@@ -570,10 +570,7 @@ class WanModel(torch.nn.Module):
                 full_ref = self.ref_conv(full_ref).flatten(2).transpose(1, 2)
                 x = torch.concat((full_ref, x), dim=1)
 
-        # In-context reference streams (e.g. Bernini source video / ref images):
-        # patch-embed each clean condition latent and append as extra tokens (their
-        # rope, with per-stream source_id, was appended to `freqs` in _forward).
-        # Inert when no context_latents are supplied.
+        # In-context reference streams (Bernini)
         context_latents = kwargs.get("context_latents", None)
         main_len = x.shape[1]
         if context_latents is not None:

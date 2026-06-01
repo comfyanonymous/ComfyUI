@@ -1517,9 +1517,7 @@ class WAN21(BaseModel):
         if reference_latents is not None:
             out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
 
-        # In-context reference conditioning (source video / reference images,
-        # e.g. Bernini): a list of clean latents appended as extra token streams
-        # with per-stream source_id rope. Inert when not supplied.
+        # In-context reference conditioning (Bernini)
         context_latents = kwargs.get("context_latents", None)
         if context_latents is not None:
             out['context_latents'] = comfy.conds.CONDList([self.process_latent_in(l) for l in context_latents])
