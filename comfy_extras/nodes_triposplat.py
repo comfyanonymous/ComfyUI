@@ -177,8 +177,8 @@ class VAEDecodeTripoSplat(IO.ComfyNode):
         memory_required = (cond_tokens * 4 + (n // gpp) * 10) * hidden * dtype_size
         comfy.model_management.load_models_gpu([vae.patcher], memory_required=memory_required)
         latent = latent.to(device=vae.device, dtype=vae.vae_dtype)
-        torch.manual_seed(seed)
-        parts = [g.render_tensors() for g in decoder.decode(latent, num_gaussians=n)]
+        generator = torch.Generator(device="cpu").manual_seed(seed)
+        parts = [g.render_tensors() for g in decoder.decode(latent, num_gaussians=n, generator=generator)]
         positions, scales, rotations, opacities, sh = (torch.stack(t) for t in zip(*parts))
         return IO.NodeOutput(Types.SPLAT(positions, scales, rotations, opacities, sh))
 
