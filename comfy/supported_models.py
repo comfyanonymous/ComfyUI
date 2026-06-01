@@ -1538,6 +1538,30 @@ class Hunyuan3Dv2mini(Hunyuan3Dv2):
 
     latent_format = latent_formats.Hunyuan3Dv2mini
 
+class TripoSplat(supported_models_base.BASE):
+    # Image -> 3D gaussian splat flow denoiser
+    unet_config = {
+        "image_model": "triposplat",
+    }
+
+    unet_extra_config = {}
+
+    sampling_settings = {
+        "shift": 3.0,
+    }
+
+    memory_usage_factor = 0.6
+
+    latent_format = latent_formats.TripoSplat
+
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.TripoSplat(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
+
 class HiDream(supported_models_base.BASE):
     unet_config = {
         "image_model": "hidream",
@@ -2200,6 +2224,7 @@ models = [
     Hunyuan3Dv2mini,
     Hunyuan3Dv2,
     Hunyuan3Dv2_1,
+    TripoSplat,
     HiDream,
     HiDreamO1,
     Chroma,
