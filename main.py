@@ -464,13 +464,6 @@ def start_comfyui(asyncio_loop=None):
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
-    if args.windows_standalone_build:
-        try:
-            import new_updater
-            new_updater.update_windows_updater()
-        except:
-            pass
-
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
