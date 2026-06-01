@@ -166,9 +166,8 @@ class DINOv3ViTEmbeddings(nn.Module):
 
     def forward(self, pixel_values, bool_masked_pos=None):
         batch_size = pixel_values.shape[0]
-        target_dtype = self.patch_embeddings.weight.dtype
 
-        patch_embeddings = self.patch_embeddings(pixel_values.to(dtype=target_dtype))
+        patch_embeddings = self.patch_embeddings(pixel_values)
         patch_embeddings = patch_embeddings.flatten(2).transpose(1, 2)
 
         if bool_masked_pos is not None:
@@ -244,7 +243,6 @@ class DINOv3ViTModel(nn.Module):
         return self.embeddings.patch_embeddings
 
     def forward(self, pixel_values, bool_masked_pos=None, **kwargs):
-        pixel_values = pixel_values.to(self.embeddings.patch_embeddings.weight.dtype)
         hidden_states = self.embeddings(pixel_values, bool_masked_pos=bool_masked_pos)
         position_embeddings = self.rope_embeddings(pixel_values)
 

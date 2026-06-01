@@ -50,10 +50,6 @@ class ClipVisionModel():
         self.load_device = comfy.model_management.text_encoder_device()
         offload_device = comfy.model_management.text_encoder_offload_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
-        if self.model_type == "dinov3" and self.dtype == torch.float16:
-            # DINOv3's activations borderline fits fp16, preferring bf16 if available for better stability #TODO: further fp16 tests in practice
-            if comfy.model_management.should_use_bf16(self.load_device, prioritize_performance=True):
-                self.dtype = torch.bfloat16
         self.model = model_class(config, self.dtype, offload_device, comfy.ops.manual_cast)
         self.model.eval()
 
