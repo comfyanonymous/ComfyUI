@@ -233,7 +233,9 @@ class TripoSplatSamplingPreview(IO.ComfyNode):
                     return
                 try:
                     if not state["loaded"]:
-                        comfy.model_management.load_models_gpu([vae.patcher], memory_required=memory_required)
+                        loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
+                        loaded_models.append(vae.patcher)
+                        comfy.model_management.load_models_gpu(loaded_models, memory_required=memory_required)
                         state["loaded"] = True
                     img = decode_x0_to_image(vae, x0, cfg)
                     if state["pbar"] is None:
