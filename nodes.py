@@ -2455,6 +2455,7 @@ async def init_builtin_extra_nodes():
         "nodes_save_3d.py",
         "nodes_moge.py",
         "nodes_mediapipe.py",
+        "nodes_gaussian_splat.py",
     ]
 
     import_failed = []
