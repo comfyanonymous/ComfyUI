@@ -75,6 +75,12 @@ class VideoFromFile(VideoInput):
             self.__file.seek(0)
         return self.__file
 
+    def get_active_trim_window(self) -> tuple[float, float]:
+        start_time = self.__start_time
+        if start_time < 0:
+            start_time = max(self._get_raw_duration() + start_time, 0.0)
+        return float(start_time), float(self.__duration)
+
     def get_dimensions(self) -> tuple[int, int]:
         """
         Returns the dimensions of the video input.
