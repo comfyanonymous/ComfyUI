@@ -239,6 +239,16 @@ class Flux2(LatentFormat):
     def process_out(self, latent):
         return latent
 
+class TripoSplat(LatentFormat):
+    # Sequence latent (B, 8192, 16) the camera token rides alongside as a second nested latent
+    latent_channels = 16
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent
+
 class Mochi(LatentFormat):
     latent_channels = 12
     latent_dimensions = 3

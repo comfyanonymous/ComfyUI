@@ -46,6 +46,7 @@ import comfy.ldm.wan.model_animate
 import comfy.ldm.wan.ar_model
 import comfy.ldm.wan.model_wandancer
 import comfy.ldm.hunyuan3d.model
+import comfy.ldm.triposplat.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.chroma_radiance.model
@@ -1805,6 +1806,24 @@ class Hunyuan3Dv2_1(BaseModel):
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+
+class TripoSplat(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.triposplat.model.LatentSeqMMFlowModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None) # DINOv3 token sequence -> cross-attention context.
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None) # Flux2 VAE image latent -> additive second conditioning.
+        if ref_latents is not None:
+            out['ref_latents'] = comfy.conds.CONDList(list(ref_latents))
+        latent_shapes = kwargs.get("latent_shapes", None) # {latent, camera} nested latent
+        if latent_shapes is not None:
+            out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+        return out
+
 
 class HiDream(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
