@@ -2403,6 +2403,7 @@ async def init_builtin_extra_nodes():
         "nodes_video.py",
         "nodes_lumina2.py",
         "nodes_wan.py",
+        "nodes_bernini.py",
         "nodes_lotus.py",
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
