@@ -1516,6 +1516,13 @@ class WAN21(BaseModel):
         if reference_latents is not None:
             out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
 
+        # In-context reference conditioning (source video / reference images,
+        # e.g. Bernini): a list of clean latents appended as extra token streams
+        # with per-stream source_id rope. Inert when not supplied.
+        context_latents = kwargs.get("context_latents", None)
+        if context_latents is not None:
+            out['context_latents'] = comfy.conds.CONDList([self.process_latent_in(l) for l in context_latents])
+
         return out
 
 
@@ -1707,32 +1714,6 @@ class WAN22(WAN21):
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
-
-class WAN22_Bernini(WAN22):
-    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
-        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.BerniniWanModel)
-        self.image_to_video = image_to_video
-        self.memory_usage_factor_conds = ("bernini_video_latent", "bernini_image_latents")
-
-    def extra_conds(self, **kwargs):
-        out = super().extra_conds(**kwargs)
-        video = kwargs.get("bernini_video_latent", None)
-        if video is not None:
-            out["bernini_video_latent"] = comfy.conds.CONDRegular(self.process_latent_in(video))
-        images = kwargs.get("bernini_image_latents", None)
-        if images is not None:
-            out["bernini_image_latents"] = comfy.conds.CONDRegular(self.process_latent_in(images))
-        return out
-
-    def extra_conds_shapes(self, **kwargs):
-        out = super().extra_conds_shapes(**kwargs)
-        video = kwargs.get("bernini_video_latent", None)
-        if video is not None:
-            out["bernini_video_latent"] = video.shape
-        images = kwargs.get("bernini_image_latents", None)
-        if images is not None:
-            out["bernini_image_latents"] = images.shape
-        return out
 
 class WAN21_FlowRVS(WAN21):
     def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG_FLOW, image_to_video=False, device=None):
