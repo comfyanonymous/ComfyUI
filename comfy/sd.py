@@ -901,9 +901,10 @@ class VAE:
                 self.latent_dim = 1
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
                 # The generic VAE.encode/decode path isn't used: VAEDecodeTripoSplat calls the gaussian
-                # decoder directly (Gaussian output, not pixels) and reserves VRAM itself from num_gaussians.
-                self.memory_used_encode = lambda shape, dtype: 0
-                self.memory_used_decode = lambda shape, dtype: 0
+                # decoder directly (structured GaussianSplat objects, not a tensor and reserves VRAM itself from num_gaussians.
+                def _no_generic_io(*args, **kwargs):
+                    raise RuntimeError("TripoSplat gaussian decoder: use the 'TripoSplat Decode' (VAEDecodeTripoSplat)")
+                self.memory_used_encode = self.memory_used_decode = _no_generic_io
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
