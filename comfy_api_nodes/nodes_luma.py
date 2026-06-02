@@ -46,7 +46,7 @@ class LumaReferenceNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaReferenceNode",
             display_name="Luma Reference",
-            category="image/partner/Luma",
+            category="partner/image/Luma",
             description="Holds an image and weight for use with Luma Generate Image node.",
             inputs=[
                 IO.Image.Input(
@@ -85,7 +85,7 @@ class LumaConceptsNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaConceptsNode",
             display_name="Luma Concepts",
-            category="video/partner/Luma",
+            category="partner/video/Luma",
             description="Camera Concepts for use with Luma Text to Video and Luma Image to Video nodes.",
             inputs=[
                 IO.Combo.Input(
@@ -134,7 +134,7 @@ class LumaImageGenerationNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaImageNode",
             display_name="Luma Text to Image",
-            category="image/partner/Luma",
+            category="partner/image/Luma",
             description="Generates images synchronously based on prompt and aspect ratio.",
             inputs=[
                 IO.String.Input(
@@ -278,7 +278,7 @@ class LumaImageModifyNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaImageModifyNode",
             display_name="Luma Image to Image",
-            category="image/partner/Luma",
+            category="partner/image/Luma",
             description="Modifies images synchronously based on prompt and aspect ratio.",
             inputs=[
                 IO.Image.Input(
@@ -371,7 +371,7 @@ class LumaTextToVideoGenerationNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaVideoNode",
             display_name="Luma Text to Video",
-            category="video/partner/Luma",
+            category="partner/video/Luma",
             description="Generates videos synchronously based on prompt and output_size.",
             inputs=[
                 IO.String.Input(
@@ -472,7 +472,7 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaImageToVideoNode",
             display_name="Luma Image to Video",
-            category="video/partner/Luma",
+            category="partner/video/Luma",
             description="Generates videos synchronously based on prompt, input images, and output_size.",
             inputs=[
                 IO.String.Input(
@@ -724,7 +724,7 @@ class LumaImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaImageNode2",
             display_name="Luma UNI-1 Image",
-            category="image/partner/Luma",
+            category="partner/image/Luma",
             description="Generate images from text using the Luma UNI-1 model.",
             inputs=[
                 IO.String.Input(
@@ -853,7 +853,7 @@ class LumaImageEditNode(IO.ComfyNode):
         return IO.Schema(
             node_id="LumaImageEditNode2",
             display_name="Luma UNI-1 Image Edit",
-            category="image/partner/Luma",
+            category="partner/image/Luma",
             description="Edit an existing image with a text prompt using the Luma UNI-1 model.",
             inputs=[
                 IO.Image.Input(

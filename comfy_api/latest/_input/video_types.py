@@ -65,6 +65,12 @@ class VideoInput(ABC):
         buffer.seek(0)
         return buffer
 
+    def get_active_trim_window(self) -> tuple[float, float]:
+        """Return the active trim as ``(start_time, duration)`` in seconds (start_time normalized
+        to ``>= 0``; ``duration == 0`` means "until the end"). Default: no trim; trimmable subclasses override.
+        """
+        return 0.0, 0.0
+
     # Provide a default implementation, but subclasses can provide optimized versions
     # if possible.
     def get_dimensions(self) -> tuple[int, int]:

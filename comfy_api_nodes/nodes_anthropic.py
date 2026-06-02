@@ -155,7 +155,7 @@ class ClaudeNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ClaudeNode",
             display_name="Anthropic Claude",
-            category="text/partner/Anthropic",
+            category="partner/text/Anthropic",
             essentials_category="Text Generation",
             description="Generate text responses with Anthropic's Claude models. "
             "Provide a text prompt and optionally one or more images for multimodal context.",

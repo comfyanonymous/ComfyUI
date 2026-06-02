@@ -265,7 +265,7 @@ class OpenRouterLLMNode(IO.ComfyNode):
         return IO.Schema(
             node_id="OpenRouterLLMNode",
             display_name="OpenRouter LLM",
-            category="text/partner/OpenRouter",
+            category="partner/text/OpenRouter",
             essentials_category="Text Generation",
             description=(
                 "Generate text responses through OpenRouter. Routes to a curated set of popular "

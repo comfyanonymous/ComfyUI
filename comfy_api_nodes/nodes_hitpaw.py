@@ -71,7 +71,7 @@ class HitPawGeneralImageEnhance(IO.ComfyNode):
         return IO.Schema(
             node_id="HitPawGeneralImageEnhance",
             display_name="HitPaw General Image Enhance",
-            category="image/partner/HitPaw",
+            category="partner/image/HitPaw",
             description="Upscale low-resolution images to super-resolution, eliminate artifacts and noise. "
             f"Maximum output: {MAX_MP_GENERATIVE} megapixels.",
             inputs=[
@@ -201,7 +201,7 @@ class HitPawVideoEnhance(IO.ComfyNode):
         return IO.Schema(
             node_id="HitPawVideoEnhance",
             display_name="HitPaw Video Enhance",
-            category="video/partner/HitPaw",
+            category="partner/video/HitPaw",
             description="Upscale low-resolution videos to high resolution, eliminate artifacts and noise. "
             "Prices shown are per second of video.",
             inputs=[
