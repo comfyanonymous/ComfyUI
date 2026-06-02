@@ -4,7 +4,6 @@ from torch import Tensor
 
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
-import logging
 import comfy.quant_ops
 
 
