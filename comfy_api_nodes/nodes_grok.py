@@ -54,7 +54,7 @@ class GrokImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokImageNode",
             display_name="Grok Image",
-            category="image/partner/Grok",
+            category="partner/image/Grok",
             description="Generate images using Grok based on a text prompt",
             inputs=[
                 IO.Combo.Input(
@@ -228,7 +228,7 @@ class GrokImageEditNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokImageEditNode",
             display_name="Grok Image Edit",
-            category="image/partner/Grok",
+            category="partner/image/Grok",
             description="Modify an existing image based on a text prompt",
             inputs=[
                 IO.Combo.Input(
@@ -369,7 +369,7 @@ class GrokImageEditNodeV2(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokImageEditNodeV2",
             display_name="Grok Image Edit",
-            category="image/partner/Grok",
+            category="partner/image/Grok",
             description="Modify an existing image based on a text prompt",
             inputs=[
                 IO.String.Input(
@@ -506,7 +506,7 @@ class GrokVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokVideoNode",
             display_name="Grok Video",
-            category="video/partner/Grok",
+            category="partner/video/Grok",
             description="Generate video from a prompt or an image",
             inputs=[
                 IO.Combo.Input(
@@ -630,7 +630,7 @@ class GrokVideoEditNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokVideoEditNode",
             display_name="Grok Video Edit",
-            category="video/partner/Grok",
+            category="partner/video/Grok",
             description="Edit an existing video based on a text prompt.",
             inputs=[
                 IO.Combo.Input("model", options=["grok-imagine-video"]),
@@ -708,7 +708,7 @@ class GrokVideoReferenceNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokVideoReferenceNode",
             display_name="Grok Reference-to-Video",
-            category="video/partner/Grok",
+            category="partner/video/Grok",
             description="Generate video guided by reference images as style and content references.",
             inputs=[
                 IO.String.Input(
@@ -841,7 +841,7 @@ class GrokVideoExtendNode(IO.ComfyNode):
         return IO.Schema(
             node_id="GrokVideoExtendNode",
             display_name="Grok Video Extend",
-            category="video/partner/Grok",
+            category="partner/video/Grok",
             description="Extend an existing video with a seamless continuation based on a text prompt.",
             inputs=[
                 IO.String.Input(

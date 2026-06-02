@@ -106,7 +106,7 @@ class Krea2ImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="Krea2ImageNode",
             display_name="Krea 2 Image",
-            category="image/partner/Krea",
+            category="partner/image/Krea",
             description=(
                 "Generate images via Krea 2 — pick Medium (expressive illustrations) or "
                 "Large (expressive photorealism). Supports an optional moodboard and up "
@@ -229,7 +229,7 @@ class Krea2StyleReferenceNode(IO.ComfyNode):
         return IO.Schema(
             node_id="Krea2StyleReferenceNode",
             display_name="Krea 2 Style Reference",
-            category="image/partner/Krea",
+            category="partner/image/Krea",
             description=(
                 "Add an image style reference to a Krea 2 generation. Chain multiple Krea 2 "
                 "Style Reference nodes (max 10) and feed the final `style_reference` output "

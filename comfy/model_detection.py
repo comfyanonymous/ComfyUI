@@ -313,6 +313,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                     dit_config["use_x0"] = True
                 else:
                     dit_config["use_x0"] = False
+                if "{}__sequential__".format(key_prefix) in state_dict_keys: # sequential txt_ids
+                    dit_config["use_sequential_txt_ids"] = True
+                else:
+                    dit_config["use_sequential_txt_ids"] = False
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
             dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
