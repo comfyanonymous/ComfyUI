@@ -53,10 +53,15 @@ class BerniniConditioning(io.ComfyNode):
                 io.Int.Input("height", default=480, min=16, max=8192, step=16),
                 io.Int.Input("length", default=81, min=1, max=8192, step=4),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
-                io.Image.Input("source_video", optional=True, tooltip="Source video to edit/restyle (task v2v or rv2v). Resized to width/height and trimmed to length. Acts as the edit base / canvas."),
-                io.Image.Input("reference_video", optional=True, tooltip="Moving content to composite into the source video (video insertion / ads2v), e.g. a clip to play on a screen. Kept at native aspect (long edge capped at ref_max_size), trimmed to length."),
-                io.Image.Input("reference_images", optional=True, tooltip="Reference image(s) injected as in-context tokens (task r2v or rv2v). Each is kept at its native aspect ratio, long edge capped at ref_max_size."),
-                io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True),
+                io.Image.Input("source_video", optional=True, tooltip=(
+                    "Source video to edit/restyle (task v2v or rv2v). Resized to width/height and trimmed to length. Acts as the edit base / canvas.")),
+                io.Image.Input("reference_video", optional=True, tooltip=(
+                    "Moving content to composite into the source video (video insertion / ads2v),"
+                    "e.g. a clip to play on a screen. Kept at native aspect (long edge capped at ref_max_size), trimmed to length.")),
+                io.Image.Input("reference_images", optional=True, tooltip=(
+                    "Reference image(s) injected as in-context tokens (task r2v or rv2v). Each is kept at its native aspect ratio, long edge capped at ref_max_size.")),
+                io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True, tooltip=(
+                    "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio, snapped to 16px, and no upscaling.")),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -72,7 +77,7 @@ class BerniniConditioning(io.ComfyNode):
                              device=comfy.model_management.intermediate_device())
 
         # Ordered list of condition streams -> source_id by list order:
-        #   source_video (1), reference_video (2), reference_images (3, 4, ...).
+        # source_video (1), reference_video (2), reference_images (3, 4, ...).
         context = []
         if source_video is not None:
             vid = comfy.utils.common_upscale(source_video[:length, :, :, :3].movedim(-1, 1), width, height, "area", "center").movedim(1, -1)

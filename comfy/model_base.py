@@ -1525,7 +1525,7 @@ class WAN21(BaseModel):
         return out
 
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
-        # In-context streams slicing (Bernini)
+        # In-context cond slicing (Bernini)
         if cond_key == "context_latents" and isinstance(getattr(cond_value, "cond", None), list):
             dim = window.dim
             out = []

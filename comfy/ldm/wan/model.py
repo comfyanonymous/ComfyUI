@@ -570,7 +570,7 @@ class WanModel(torch.nn.Module):
                 full_ref = self.ref_conv(full_ref).flatten(2).transpose(1, 2)
                 x = torch.concat((full_ref, x), dim=1)
 
-        # In-context reference streams (Bernini)
+        # In-context reference (Bernini)
         context_latents = kwargs.get("context_latents", None)
         main_len = x.shape[1]
         if context_latents is not None:
@@ -650,10 +650,7 @@ class WanModel(torch.nn.Module):
 
         freqs = self.rope_embedder(img_ids).movedim(1, 2)
 
-        # In-context reference conditioning (e.g. Bernini): a non-zero source_id
-        # composes an extra rotation (over the full head_dim) into the spatial
-        # rope so streams sharing the same spatial coords stay distinct. source_id
-        # 0 is identity, so this is a no-op for all normal Wan usage.
+        # In-context reference: a non-zero source_id composes an extra rotation into the spatial rope
         if source_id:
             d = self.dim // self.num_heads
             pos = torch.tensor([[float(source_id)]], device=freqs.device, dtype=torch.float32)
@@ -683,8 +680,7 @@ class WanModel(torch.nn.Module):
 
         freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options)
 
-        # In-context reference streams: one rope block per stream, each with its
-        # own source_id (1, 2, ...) so they stay distinct from the target (id 0).
+        # In-context reference: one rope block per stream, each with it's own source_id (1, 2, ...) to distinguish from the target (id 0).
         context_latents = kwargs.get("context_latents", None)
         if context_latents is not None:
             context_latents = [comfy.ldm.common_dit.pad_to_patch_size(lat, self.patch_size) for lat in context_latents]
