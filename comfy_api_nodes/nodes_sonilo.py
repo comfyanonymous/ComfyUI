@@ -34,7 +34,7 @@ class SoniloVideoToMusic(IO.ComfyNode):
         return IO.Schema(
             node_id="SoniloVideoToMusic",
             display_name="Sonilo Video to Music",
-            category="audio/partner/Sonilo",
+            category="partner/audio/Sonilo",
             description="Generate music from video content using Sonilo's AI model. "
             "Analyzes the video and creates matching music.",
             inputs=[
@@ -99,7 +99,7 @@ class SoniloTextToMusic(IO.ComfyNode):
         return IO.Schema(
             node_id="SoniloTextToMusic",
             display_name="Sonilo Text to Music",
-            category="audio/partner/Sonilo",
+            category="partner/audio/Sonilo",
             description="Generate music from a text prompt using Sonilo's AI model. "
             "Leave duration at 0 to let the model infer it from the prompt.",
             inputs=[
