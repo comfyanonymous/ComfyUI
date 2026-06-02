@@ -8,7 +8,8 @@ from comfy_api.latest import ComfyExtension, io
 
 
 def _resize_long_edge(image, max_size, stride=16):
-    """Resize (preserve aspect) so the long edge <= max_size, snapped to `stride`."""
+    """Resize (preserve aspect) so the long edge <= max_size, then snap each side to `stride`
+    (snapping can nudge a side up/down by < stride, so it never scales up by more than that)."""
     h, w = image.shape[1], image.shape[2]
     scale = min(max_size / max(h, w), 1.0)
     nh = max(stride, round(h * scale / stride) * stride)
@@ -58,10 +59,17 @@ class BerniniConditioning(io.ComfyNode):
                 io.Image.Input("reference_video", optional=True, tooltip=(
                     "Moving content to composite into the source video (video insertion / ads2v),"
                     "e.g. a clip to play on a screen. Kept at native aspect (long edge capped at ref_max_size), trimmed to length.")),
-                io.Image.Input("reference_images", optional=True, tooltip=(
-                    "Reference image(s) injected as in-context tokens (task r2v or rv2v). Each is kept at its native aspect ratio, long edge capped at ref_max_size.")),
+                io.Autogrow.Input("reference_images", optional=True,
+                    template=io.Autogrow.TemplatePrefix(
+                        input=io.Image.Input("reference_image", tooltip=(
+                            "A reference image injected as an in-context token (task r2v or rv2v).")),
+                        prefix="reference_image_", min=0, max=8),
+                    tooltip=(
+                        "Reference image(s) injected as in-context tokens (task r2v or rv2v). Each slot is "
+                        "encoded independently at its own native aspect ratio (long edge capped at "
+                        "ref_max_size), so connect mixed-size references to separate slots.")),
                 io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True, tooltip=(
-                    "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio, snapped to 16px, and no upscaling.")),
+                    "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio and snapped to 16px (snapping may nudge a side by <16px).")),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -87,10 +95,16 @@ class BerniniConditioning(io.ComfyNode):
             ref_vid = _resize_long_edge(reference_video[:length], ref_max_size)  # moving content, native aspect
             context.append(vae.encode(ref_vid[:, :, :, :3]))
 
-        if reference_images is not None:
-            for i in range(reference_images.shape[0]):
-                img = _resize_long_edge(reference_images[i:i + 1], ref_max_size)  # native aspect per ref
-                context.append(vae.encode(img[:, :, :, :3]))
+        # reference_images is an autogrow dict {reference_image_0: IMAGE, ...}; each slot is a
+        # separate stream at its own native aspect (a multi-image batch in one slot -> one stream per frame).
+        if reference_images:
+            for name in sorted(reference_images):
+                imgs = reference_images[name]
+                if imgs is None:
+                    continue
+                for i in range(imgs.shape[0]):
+                    img = _resize_long_edge(imgs[i:i + 1], ref_max_size)  # native aspect per ref
+                    context.append(vae.encode(img[:, :, :, :3]))
 
         if context:
             positive = node_helpers.conditioning_set_values(positive, {"context_latents": context})
