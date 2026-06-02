@@ -45,6 +45,8 @@ class PiDConditioning(io.ComfyNode):
         else:
             raise ValueError(f"Unknown latent_format: {latent_format}")
         lq_latent = fmt_cls().process_in(samples)
+        if lq_latent.ndim == 5:
+            lq_latent = lq_latent[:, :, 0]
         sigma_t = torch.tensor([float(degrade_sigma)], dtype=torch.float32)
         return io.NodeOutput(node_helpers.conditioning_set_values(
             positive, {"lq_latent": lq_latent, "degrade_sigma": sigma_t},
