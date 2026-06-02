@@ -1531,8 +1531,7 @@ class WAN21(BaseModel):
             out = []
             for lat in cond_value.cond:
                 if lat.ndim > dim and lat.shape[dim] > 1 and lat.shape[dim] == x_in.shape[dim]:
-                    idx = tuple([slice(None)] * dim + [window.index_list])
-                    out.append(lat[idx].to(device))
+                    out.append(window.get_tensor(lat, device, dim=dim, retain_index_list=retain_index_list))
                 else:
                     out.append(lat.to(device))
             return cond_value._copy_with(out)
