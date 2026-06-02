@@ -968,7 +968,8 @@ class RenderSplat(IO.ComfyNode):
         bg = _hex_to_rgb(background)
         bg_imgs = None
         if bg_image is not None:  # resize the plate(s) to the render size: (B,H,W,3)
-            bi = comfy.utils.common_upscale(bg_image.movedim(-1, 1), width, height, "bicubic", "disabled")
+            bi = bg_image[... , :3].movedim(-1, 1)  # (B,3,H,W)
+            bi = comfy.utils.common_upscale(bi, width, height, "bicubic", "disabled")
             bg_imgs = bi.movedim(1, -1).clamp(0, 1)
         n_frames = abs(int(frames)) or 1         # magnitude = frame count (0 -> single still)
         orbit_dir = -1.0 if frames < 0 else 1.0  # sign = orbit direction
