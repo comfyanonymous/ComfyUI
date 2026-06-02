@@ -421,6 +421,12 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 > Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above.
 <br/><br/>If you use a container, note that the volume mount `-v` can be a relative path so `... -v ".\:/openssl-certs" ...` would create the key & cert files in the current directory of your command prompt or powershell terminal.
 
+## Community Guides
+
+Practical deployment guides from the community:
+
+- [ComfyUI on Linux: Production Setup with systemd and HTTPS (2026)](https://runaihome.com/blog/comfyui-linux-production-setup-2026/) — Covers running ComfyUI as a systemd service, setting up an Nginx reverse proxy with Let's Encrypt TLS, and hardening the setup for always-on use
+
 ## Support and dev channel
 
 [Discord](https://comfy.org/discord): Try the #help or #feedback channels.
