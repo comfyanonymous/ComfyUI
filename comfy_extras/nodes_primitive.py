@@ -105,7 +105,7 @@ class Color(io.ComfyNode):
             display_name="Color",
             category="utilities/primitive",
             inputs=[
-                io.Color.Input("value", default="#FFFFFF"),
+                io.Color.Input("value", default="#ffffff"),
             ],
             outputs=[io.Color.Output()],
         )
