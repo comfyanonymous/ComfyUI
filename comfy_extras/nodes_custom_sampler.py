@@ -951,6 +951,7 @@ class DualModelGuider(io.ComfyNode):
             node_id="DualModelGuider",
             display_name="Dual Model CFG Guider",
             category="model/sampling/guiders",
+            is_experimental=True,
             inputs=[
                 io.Model.Input("model", tooltip="Model used for the positive (conditional) pass."),
                 io.Model.Input("model_negative", optional=True, tooltip="Model used for the negative (unconditional) pass. Use the same model for ordinary CFG."),
