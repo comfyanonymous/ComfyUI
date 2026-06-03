@@ -213,11 +213,11 @@ def test_seedvr2_7b_rope3d_matches_wrapper_oracle():
     shape = torch.tensor([[1, 2, 2]], dtype=torch.long)
     freqs = rope.get_axial_freqs(1, 2, 2).reshape(4, -1)
 
-    expected_q = seedvr_model.apply_rotary_emb(
+    expected_q = seedvr_model._apply_seedvr2_rotary_emb(
         freqs,
         q.permute(1, 0, 2).float(),
     ).to(q.dtype).permute(1, 0, 2)
-    expected_k = seedvr_model.apply_rotary_emb(
+    expected_k = seedvr_model._apply_seedvr2_rotary_emb(
         freqs,
         k.permute(1, 0, 2).float(),
     ).to(k.dtype).permute(1, 0, 2)

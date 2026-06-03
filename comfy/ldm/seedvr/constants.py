@@ -40,7 +40,7 @@ SEEDVR2_WAVELET_SCALE_MULTIPLIER = 10  # per-frame byte multiplier, wavelet path
 SEEDVR2_ADAIN_SCALE_MULTIPLIER = 6     # per-frame byte multiplier, AdaIN path.
 
 # --------------------------------------------------------------------------------------
-# C. ByteDance config / source  (BYTEDANCE - cite myseedvr2/SeedVR)
+# C. ByteDance config / source  (BYTEDANCE - cite ByteDance-Seed/SeedVR)
 # --------------------------------------------------------------------------------------
 BYTEDANCE_VAE_SCALING_FACTOR = 0.9152   # configs_3b/main.yaml:57 (scaling_factor); latent denorm.
 BYTEDANCE_VAE_SHIFTING_FACTOR = 0.0     # infer.py (shifting_factor default); latent denorm shift.

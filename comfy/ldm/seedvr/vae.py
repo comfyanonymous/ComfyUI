@@ -24,12 +24,7 @@ from comfy.ldm.seedvr.constants import (
     BYTEDANCE_VAE_SHIFTING_FACTOR,
     BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE,
     BYTEDANCE_VAE_TEMPORAL_DOWNSAMPLE,
-    CIELAB_DELTA,
-    CIELAB_KAPPA,
-    D65_WHITE_X,
-    D65_WHITE_Z,
     SEEDVR2_LATENT_CHANNELS,
-    WAVELET_DECOMP_LEVELS,
 )
 from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.modules.diffusionmodules.model import vae_attention

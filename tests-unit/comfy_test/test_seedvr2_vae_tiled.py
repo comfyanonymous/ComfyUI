@@ -174,10 +174,7 @@ def test_decode_tiled_vae_maps_temporal_args_to_latent_slicing_min_size():
         captured.update(kwargs)
         return torch.zeros(1, 3, 1, 16, 16)
 
-    with (
-        patch.object(vae_mod, "tiled_vae", side_effect=_fake_tiled_vae),
-        patch.object(vae_mod, "lab_color_transfer", side_effect=lambda content, style: content),
-    ):
+    with patch.object(vae_mod, "tiled_vae", side_effect=_fake_tiled_vae):
         wrapper.decode(torch.zeros(1, 16, 2, 2), seedvr2_tiling=seedvr2_tiling)
 
     assert captured["temporal_overlap"] == 7
