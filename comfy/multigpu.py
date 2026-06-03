@@ -17,7 +17,7 @@ class MultiGPUThreadPool:
     """Persistent thread pool for multi-GPU work distribution.
 
     Maintains one worker thread per extra GPU device. Each thread calls
-    torch.cuda.set_device() once at startup so that compiled kernel caches
+    set_torch_device() once at startup so that compiled kernel caches
     (inductor/triton) stay warm across diffusion steps.
     """
 
@@ -37,7 +37,7 @@ class MultiGPUThreadPool:
 
     def _worker_loop(self, device: torch.device, work_q: queue.Queue, result_q: queue.Queue):
         try:
-            torch.cuda.set_device(device)
+            comfy.model_management.set_torch_device(device)
         except Exception as e:
             logging.error(f"MultiGPUThreadPool: failed to set device {device}: {e}")
             while True:
@@ -54,6 +54,8 @@ class MultiGPUThreadPool:
             try:
                 result = fn(*args, **kwargs)
                 result_q.put((result, None))
+            except comfy.model_management.InterruptProcessingException as e:
+                result_q.put((None, e))
             except Exception as e:
                 result_q.put((None, e))
 

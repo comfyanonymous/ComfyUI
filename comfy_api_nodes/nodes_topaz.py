@@ -52,7 +52,7 @@ class TopazImageEnhance(IO.ComfyNode):
         return IO.Schema(
             node_id="TopazImageEnhance",
             display_name="Topaz Image Enhance",
-            category="image/partner/Topaz",
+            category="partner/image/Topaz",
             description="Industry-standard upscaling and image enhancement.",
             inputs=[
                 IO.Combo.Input("model", options=["Reimagine"]),
@@ -235,7 +235,7 @@ class TopazVideoEnhance(IO.ComfyNode):
         return IO.Schema(
             node_id="TopazVideoEnhance",
             display_name="Topaz Video Enhance (Legacy)",
-            category="video/partner/Topaz",
+            category="partner/video/Topaz",
             description="Breathe new life into video with powerful upscaling and recovery technology.",
             inputs=[
                 IO.Video.Input("video"),
@@ -475,7 +475,7 @@ class TopazVideoEnhanceV2(IO.ComfyNode):
         return IO.Schema(
             node_id="TopazVideoEnhanceV2",
             display_name="Topaz Video Enhance",
-            category="video/partner/Topaz",
+            category="partner/video/Topaz",
             description="Breathe new life into video with powerful upscaling and recovery technology.",
             inputs=[
                 IO.Video.Input("video"),
