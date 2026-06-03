@@ -115,12 +115,11 @@ class TripoSplatConditioning(IO.ComfyNode):
         # feature1: DINOv3 token sequence (cls + registers + patches), ImageNet-normalized, with a final non-affine layer norm on top
         comfy.model_management.load_model_gpu(clip_vision.patcher)
         device = clip_vision.load_device
-        model_dtype = next(clip_vision.model.parameters()).dtype
         img = image.movedim(-1, 1).to(device)  # (B,3,H,W) in [0,1]
         mean = torch.tensor(_DINOV3_MEAN, device=device).view(1, 3, 1, 1)
         std = torch.tensor(_DINOV3_STD, device=device).view(1, 3, 1, 1)
         img = (img - mean) / std
-        seq = clip_vision.model(pixel_values=img.to(model_dtype))[0]
+        seq = clip_vision.model(pixel_values=img.float())[0]
         feature1 = F.layer_norm(seq.float(), seq.shape[-1:]).to(comfy.model_management.intermediate_device())
 
         # Second conditioning: the Flux2 VAE latent of the image, carried as a standard reference_latents entry
@@ -233,7 +232,9 @@ class TripoSplatSamplingPreview(IO.ComfyNode):
                     return
                 try:
                     if not state["loaded"]:
-                        comfy.model_management.load_models_gpu([vae.patcher], memory_required=memory_required)
+                        loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
+                        loaded_models.append(vae.patcher)
+                        comfy.model_management.load_models_gpu(loaded_models, memory_required=memory_required)
                         state["loaded"] = True
                     img = decode_x0_to_image(vae, x0, cfg)
                     if state["pbar"] is None:
