@@ -1,4 +1,3 @@
-from __future__ import annotations
 import math
 from enum import Enum
 from typing_extensions import override
@@ -36,7 +35,7 @@ class ResolutionSelector(io.ComfyNode):
         return io.Schema(
             node_id="ResolutionSelector",
             display_name="Resolution Selector",
-            category="utils",
+            category="utilities",
             description="Calculate width and height from aspect ratio and megapixel target. Useful for setting up Empty Latent Image dimensions.",
             inputs=[
                 io.Combo.Input(

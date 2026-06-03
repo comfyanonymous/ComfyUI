@@ -138,11 +138,11 @@ class Attention(nn.Module):
                 k_diff = _apply_rotary_pos_emb(k_diff.float(), freqs).to(k_dtype)
 
         if self.differential:
-            out = (optimized_attention(q, k, v, h, mask=mask, skip_reshape=True)
-                   - optimized_attention(q_diff, k_diff, v, h, mask=mask, skip_reshape=True))
+            out = (optimized_attention(q, k, v, h, mask=mask, skip_reshape=True, low_precision_attention=False)
+                   - optimized_attention(q_diff, k_diff, v, h, mask=mask, skip_reshape=True, low_precision_attention=False))
             del q, k, v, q_diff, k_diff
         else:
-            out = optimized_attention(q, k, v, h, mask=mask, skip_reshape=True)
+            out = optimized_attention(q, k, v, h, mask=mask, skip_reshape=True, low_precision_attention=False)
             del q, k, v
 
         return self.to_out(out)

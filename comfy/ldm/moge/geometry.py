@@ -1,6 +1,5 @@
 """Pure-torch + scipy geometry helpers for MoGe inference and mesh export."""
 
-from __future__ import annotations
 
 from typing import Optional, Tuple
 

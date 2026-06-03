@@ -313,6 +313,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                     dit_config["use_x0"] = True
                 else:
                     dit_config["use_x0"] = False
+                if "{}__sequential__".format(key_prefix) in state_dict_keys: # sequential txt_ids
+                    dit_config["use_sequential_txt_ids"] = True
+                else:
+                    dit_config["use_sequential_txt_ids"] = False
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
             dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
@@ -462,6 +466,23 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_t_extrapolation_ratio"] = 2.0
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
+
+    # PiD (Pixel Diffusion Decoder). Must check BEFORE plain PixelDiT_T2I.
+    _lq_w_key = '{}lq_proj.latent_proj.0.weight'.format(key_prefix)
+    if _lq_w_key in state_dict_keys:
+        in_ch = int(state_dict[_lq_w_key].shape[1])
+        _gate_prefix = '{}lq_proj.gate_modules.'.format(key_prefix)
+        num_gates = len({k[len(_gate_prefix):].split('.')[0]
+                         for k in state_dict_keys if k.startswith(_gate_prefix)})
+        dit_config = {"image_model": "pid",
+                      "lq_latent_channels": in_ch,
+                      "latent_spatial_down_factor": 16 if in_ch >= 64 else 8}
+        if num_gates > 0:
+            dit_config["lq_interval"] = (14 + num_gates - 1) // num_gates
+        return dit_config
+
+    if '{}core.pixel_embedder.proj.weight'.format(key_prefix) in state_dict_keys:  # PixelDiT T2I
+        return {"image_model": "pixeldit_t2i"}
 
     if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys and '{}noise_refiner.0.attention.k_norm.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
         dit_config = {}
@@ -659,6 +680,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
 
+    if '{}cam_out_layer.weight'.format(key_prefix) in state_dict_keys and '{}repo_layers.0.final_map.weight'.format(key_prefix) in state_dict_keys:  # TripoSplat
+        return {"image_model": "triposplat"}
+
     if '{}t_embedder1.mlp.0.weight'.format(key_prefix) in state_dict_keys and '{}x_embedder.proj1.weight'.format(key_prefix) in state_dict_keys:  # HiDream-O1
         return {"image_model": "hidream_o1"}
 
@@ -755,6 +779,30 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["timestep_scale"] = 1000.0
         return dit_config
 
+    if '{}transformer_blocks.0.attn.norm_added_q.weight'.format(key_prefix) in state_dict_keys \
+            and '{}transformer_blocks.0.img_mlp.w1.weight'.format(key_prefix) in state_dict_keys:  # Lens
+        img_in_w = state_dict['{}img_in.weight'.format(key_prefix)]
+        proj_out_w = state_dict['{}proj_out.weight'.format(key_prefix)]
+        multi_layer = '{}txt_norm.0.weight'.format(key_prefix) in state_dict_keys
+        if multi_layer:
+            enc_hidden_dim = state_dict['{}txt_norm.0.weight'.format(key_prefix)].shape[0]
+            # Indices are TE-side; the DiT just consumes L layers in order.
+            selected_layer_index = tuple(range(count_blocks(state_dict_keys, '{}txt_norm.'.format(key_prefix) + '{}.')))
+        else:
+            enc_hidden_dim = state_dict['{}txt_norm.weight'.format(key_prefix)].shape[0]
+            selected_layer_index = (0,)
+
+        return {
+            "image_model": "lens",
+            "in_channels": img_in_w.shape[1],
+            "out_channels": proj_out_w.shape[0] // 4,  # patch_size ** 2 (=2² default)
+            "num_layers": count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.'),
+            "num_attention_heads": img_in_w.shape[0] // 64,  # // attention_head_dim default
+            "enc_hidden_dim": enc_hidden_dim,
+            "multi_layer_encoder_feature": multi_layer,
+            "selected_layer_index": selected_layer_index,
+        }
+
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}
         dit_config["image_model"] = "qwen_image"
@@ -765,6 +813,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         if "{}time_text_embed.addition_t_embedding.weight".format(key_prefix) in state_dict_keys:  # Layered
             dit_config["use_additional_t_cond"] = True
             dit_config["default_ref_method"] = "negative_index"
+        return dit_config
+
+    if '{}embed_image_indicator.weight'.format(key_prefix) in state_dict_keys:  # Ideogram 4
+        dit_config = {}
+        dit_config["image_model"] = "ideogram4"
+        dit_config["in_channels"] = state_dict['{}input_proj.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
         return dit_config
 
     if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5

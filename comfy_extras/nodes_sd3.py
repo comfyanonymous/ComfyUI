@@ -41,7 +41,7 @@ class EmptySD3LatentImage(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="EmptySD3LatentImage",
-            category="latent/sd3",
+            category="model/latent/sd3",
             inputs=[
                 io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
@@ -113,7 +113,7 @@ class ControlNetApplySD3(io.ComfyNode):
         return io.Schema(
             node_id="ControlNetApplySD3",
             display_name="Apply Controlnet with VAE",
-            category="conditioning/controlnet",
+            category="model/conditioning/controlnet",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),

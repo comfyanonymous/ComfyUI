@@ -35,6 +35,7 @@ import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
 import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
+import comfy.ldm.lens.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
@@ -45,12 +46,16 @@ import comfy.ldm.wan.model_animate
 import comfy.ldm.wan.ar_model
 import comfy.ldm.wan.model_wandancer
 import comfy.ldm.hunyuan3d.model
+import comfy.ldm.triposplat.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.chroma_radiance.model
+import comfy.ldm.pixeldit.model
+import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
+import comfy.ldm.ideogram4.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
 import comfy.ldm.ace.ace_step15
@@ -1058,6 +1063,27 @@ class Flux2(Flux):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
+
+class Lens(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(
+            model_config, model_type, device=device,
+            unet_model=comfy.ldm.lens.model.LensTransformer2DModel,
+        )
+
+    def encode_adm(self, **kwargs):
+        return None  # Lens has no pooled/ADM conditioning.
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        return out
+
 class GenmoMochi(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.genmo.joint_model.asymm_models_joint.AsymmDiTJoint)
@@ -1374,6 +1400,53 @@ class ZImagePixelSpace(Lumina2):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiTPixelSpace)
         self.memory_usage_factor_conds = ("ref_latents",)
+
+
+class PixelDiTT2I(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device,
+                         unet_model=comfy.ldm.pixeldit.model.PixDiT_T2I)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out["attention_mask"] = comfy.conds.CONDRegular(attention_mask)
+        return out
+
+
+class PiD(PixelDiTT2I):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        BaseModel.__init__(self, model_config, model_type, device=device,
+                           unet_model=comfy.ldm.pixeldit.pid.PidNet)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        lq_latent = kwargs.get("lq_latent", None)
+        if lq_latent is not None:
+            out["lq_latent"] = comfy.conds.CONDRegular(lq_latent)
+        degrade_sigma = kwargs.get("degrade_sigma", None)
+        if degrade_sigma is not None:
+            out["degrade_sigma"] = comfy.conds.CONDRegular(degrade_sigma)
+        return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "lq_latent" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
+            lq = cond_value.cond
+            dim = window.dim
+            if dim >= lq.ndim:
+                return None
+            lq_proj = self.diffusion_model.lq_proj
+            ratio = lq_proj.sr_scale * lq_proj.latent_spatial_down_factor
+            # Map x window indices -> lq indices (deduplicated, sorted, in-bounds).
+            lq_size = lq.size(dim)
+            lq_indices = sorted({i // ratio for i in window.index_list if 0 <= i // ratio < lq_size})
+            if not lq_indices:
+                return None
+            idx = tuple([slice(None)] * dim + [lq_indices])
+            return cond_value._copy_with(lq[idx].to(device))
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
 
 class WAN21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
@@ -1735,6 +1808,24 @@ class Hunyuan3Dv2_1(BaseModel):
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
 
+class TripoSplat(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.triposplat.model.LatentSeqMMFlowModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None) # DINOv3 token sequence -> cross-attention context.
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None) # Flux2 VAE image latent -> additive second conditioning.
+        if ref_latents is not None:
+            out['ref_latents'] = comfy.conds.CONDList(list(ref_latents))
+        latent_shapes = kwargs.get("latent_shapes", None) # {latent, camera} nested latent
+        if latent_shapes is not None:
+            out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+        return out
+
+
 class HiDream(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hidream.model.HiDreamImageTransformer2DModel)
@@ -1926,6 +2017,21 @@ class QwenImage(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+class Ideogram4(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.ideogram4.model.Ideogram4Transformer2DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if torch.numel(attention_mask) != attention_mask.sum():
+                out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
 class HunyuanImage21(BaseModel):

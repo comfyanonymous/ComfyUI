@@ -197,3 +197,10 @@ class TestMathExpressionExecute:
     def test_pow_huge_exponent_raises(self):
         with pytest.raises(ValueError, match="Exponent .* exceeds maximum"):
             self._exec("pow(a, b)", a=10, b=10000000)
+
+    def test_huge_int_result_raises_value_error(self):
+        # Exponent is within the allowed MAX_EXPONENT range, so the result is a
+        # finite Python int that is nonetheless too large to convert to float.
+        # This must raise a clean ValueError, not an uncaught OverflowError.
+        with pytest.raises(ValueError, match="too large to represent as a float"):
+            self._exec("2 ** 3999")
