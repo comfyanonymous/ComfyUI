@@ -1757,7 +1757,7 @@ class Ideogram4(supported_models_base.BASE):
         "shift": 1.0,
     }
 
-    memory_usage_factor = 1.8  # TODO
+    memory_usage_factor = 11.6
 
     unet_extra_config = {
         "num_attention_heads": 18,
