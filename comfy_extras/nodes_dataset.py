@@ -395,23 +395,17 @@ class ImageProcessingNode(io.ComfyNode):
 
     @classmethod
     def _ensure_image_list(cls, images):
-        """Normalize to a flat list of individual (H,W,C) tensors."""
-
-        # raw tensor
+        """Normalize to a flat list of [1, H, W, C] tensors."""
         if isinstance(images, torch.Tensor):
-            if images.ndim == 4:
-                return [images[i] for i in range(images.shape[0])]
-            if images.ndim == 3:
-                return [images]
-            raise ValueError(f"Unexpected image tensor ndim: {images.ndim}, shape: {images.shape}")
+            if images.ndim != 4:
+                raise ValueError(f"Expected 4D image tensor, got shape {tuple(images.shape)}")
+            return [images[i:i+1] for i in range(images.shape[0])]
 
-        # flatten batched images inside a list/tuple
         flat = []
         for item in images:
-            if isinstance(item, torch.Tensor) and item.ndim == 4:
-                flat.extend([item[i] for i in range(item.shape[0])])
-            else:
-                flat.append(item)
+            if not isinstance(item, torch.Tensor) or item.ndim != 4:
+                raise ValueError(f"Expected 4D image tensor, got {type(item).__name__} shape {getattr(item, 'shape', None)}")
+            flat.extend([item[i:i+1] for i in range(item.shape[0])])
         return flat
 
     @classmethod
