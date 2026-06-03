@@ -95,7 +95,7 @@ def pin_memory(module, subset="weights", size=None):
         extended = True
         pin = comfy_aimdo.torch.hostbuf_to_tensor(hostbuf)[offset:offset + size]
         pin.untyped_storage()._comfy_hostbuf = hostbuf
-        if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 0) != 0:
+        if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 1) != 0:
                 del pin
                 hostbuf.truncate(offset, do_unregister=False)
                 return _steal_pin(module, stack, buckets, size, priority)
