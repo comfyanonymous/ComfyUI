@@ -29,3 +29,10 @@ def test_view_content_disposition_adds_utf8_filename_parameter():
 
     assert 'filename="caf_.png"' in header
     assert "filename*=UTF-8''caf%C3%A9.png" in header
+
+
+def test_view_content_disposition_escapes_path_separators():
+    header = content_disposition_header("nested/image.png", "inline")
+
+    assert 'filename="nested/image.png"' in header
+    assert "filename*=UTF-8''nested%2Fimage.png" in header
