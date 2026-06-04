@@ -43,6 +43,7 @@ class BFLFluxEraseRequest(BaseModel):
         "white (255) marks areas to remove, black (0) marks areas to preserve.",
     )
     dilate_pixels: int = Field(10)
+    seed: int | None = Field(None)
     output_format: str = Field("png")
 
 
