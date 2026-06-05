@@ -755,6 +755,18 @@ class File3DKSPLAT(ComfyTypeIO):
     Type = File3D
 
 
+@comfytype(io_type="FILE_3D_SPLAT_ANY")
+class File3DSplatAny(ComfyTypeIO):
+    """General 3D Gaussian splat file type - accepts any supported splat container (.ply / .spz / .splat / .ksplat)."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_POINT_CLOUD_ANY")
+class File3DPointCloudAny(ComfyTypeIO):
+    """General point cloud file type - accepts any supported point cloud container (currently .ply)."""
+    Type = File3D
+
+
 @comfytype(io_type="HOOKS")
 class Hooks(ComfyTypeIO):
     if TYPE_CHECKING:
@@ -2336,6 +2348,8 @@ __all__ = [
     "File3DSPLAT",
     "File3DSPZ",
     "File3DKSPLAT",
+    "File3DSplatAny",
+    "File3DPointCloudAny",
     "Hooks",
     "HookKeyframes",
     "TimestepsRange",
