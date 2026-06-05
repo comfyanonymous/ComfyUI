@@ -89,13 +89,26 @@ def pin_memory(module, subset="weights", size=None):
         not comfy.model_management.ensure_pin_registerable(registerable_size)):
         return _steal_pin(module, stack, buckets, size, priority)
 
+    extended = False
     try:
-        hostbuf.extend(size=size)
+        hostbuf.extend(size=size, register=False)
+        extended = True
+        pin = comfy_aimdo.torch.hostbuf_to_tensor(hostbuf)[offset:offset + size]
+        pin.untyped_storage()._comfy_hostbuf = hostbuf
+        if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 1) != 0:
+            comfy.model_management.discard_cuda_async_error()
+            comfy.model_management.free_registrations(size)
+            if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 1) != 0:
+                comfy.model_management.discard_cuda_async_error()
+                del pin
+                hostbuf.truncate(offset, do_unregister=False)
+                return _steal_pin(module, stack, buckets, size, priority)
     except RuntimeError:
+        if extended:
+            hostbuf.truncate(offset, do_unregister=False)
         return _steal_pin(module, stack, buckets, size, priority)
 
-    module._pin = comfy_aimdo.torch.hostbuf_to_tensor(hostbuf)[offset:offset + size]
-    module._pin.untyped_storage()._comfy_hostbuf = hostbuf
+    module._pin = pin
     stack.append((module, offset))
     module._pin_registered = True
     module._pin_stack_index = len(stack) - 1

@@ -488,7 +488,7 @@ class SplatToFile3D(IO.ComfyNode):
                                        "spz: Niantic gzip-compressed (~10x smaller), base color only "
                                        ),
             ],
-            outputs=[IO.File3DAny.Output(display_name="model_3d")],
+            outputs=[IO.File3DSplatAny.Output(display_name="model_3d")],
         )
 
     @classmethod
@@ -516,7 +516,7 @@ class File3DToSplat(IO.ComfyNode):
             inputs=[
                 IO.MultiType.Input(
                     IO.File3DAny.Input("model_3d"),
-                    types=[IO.File3DPLY, IO.File3DSPLAT, IO.File3DKSPLAT, IO.File3DSPZ],
+                    types=[IO.File3DSplatAny, IO.File3DPLY, IO.File3DSPLAT, IO.File3DKSPLAT, IO.File3DSPZ],
                     tooltip="A gaussian splat 3D file",
                 ),
             ],
