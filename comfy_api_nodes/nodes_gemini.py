@@ -1424,6 +1424,26 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                     tooltip="Foundational instructions that dictate an AI's behavior.",
                     advanced=True,
                 ),
+                IO.Float.Input(
+                    "temperature",
+                    default=1.0,
+                    min=0.0,
+                    max=2.0,
+                    step=0.01,
+                    optional=True,
+                    tooltip="Controls randomness in generation. Lower is more focused/deterministic.",
+                    advanced=True,
+                ),
+                IO.Float.Input(
+                    "top_p",
+                    default=0.95,
+                    min=0.0,
+                    max=1.0,
+                    step=0.01,
+                    optional=True,
+                    tooltip="Nucleus sampling threshold. Lower is more focused, higher more diverse.",
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -1460,6 +1480,8 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
         seed: int,
         response_modalities: str,
         system_prompt: str = "",
+        temperature: float = 1.0,
+        top_p: float = 0.95,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_choice = model["model"]
@@ -1499,6 +1521,8 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                     responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
                     imageConfig=image_config,
                     thinkingConfig=GeminiThinkingConfig(thinkingLevel=model["thinking_level"]),
+                    temperature=temperature,
+                    topP=top_p,
                 ),
                 systemInstruction=gemini_system_prompt,
             ),
