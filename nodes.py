@@ -969,7 +969,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -2362,6 +2362,7 @@ async def init_builtin_extra_nodes():
         "nodes_model_downscale.py",
         "nodes_images.py",
         "nodes_video_model.py",
+        "nodes_ideogram4.py",
         "nodes_train.py",
         "nodes_dataset.py",
         "nodes_sag.py",

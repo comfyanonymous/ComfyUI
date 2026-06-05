@@ -42,9 +42,11 @@ async def _upload_image_to_krea_assets(cls: type[IO.ComfyNode], image: Input.Ima
 
 
 _MODEL_MEDIUM = "Krea 2 Medium"
+_MODEL_MEDIUM_TURBO = "Krea 2 Medium Turbo"
 _MODEL_LARGE = "Krea 2 Large"
 _MODEL_ENDPOINTS: dict[str, str] = {
     _MODEL_MEDIUM: "/proxy/krea/generate/image/krea/krea-2/medium",
+    _MODEL_MEDIUM_TURBO: "/proxy/krea/generate/image/krea/krea-2/medium-turbo",
     _MODEL_LARGE: "/proxy/krea/generate/image/krea/krea-2/large",
 }
 
@@ -57,7 +59,7 @@ _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 
 
 def _krea_model_inputs() -> list:
-    """Nested inputs shared by both Krea 2 Medium and Large under the DynamicCombo."""
+    """Nested inputs shared by Krea 2 Medium, Medium Turbo and Large under the DynamicCombo."""
     return [
         IO.Combo.Input(
             "aspect_ratio",
@@ -123,6 +125,7 @@ class Krea2ImageNode(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(_MODEL_MEDIUM, _krea_model_inputs()),
+                        IO.DynamicCombo.Option(_MODEL_MEDIUM_TURBO, _krea_model_inputs()),
                         IO.DynamicCombo.Option(_MODEL_LARGE, _krea_model_inputs()),
                     ],
                     tooltip="Krea 2 Medium is best for expressive illustrations; "
@@ -151,14 +154,15 @@ class Krea2ImageNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isLarge := widgets.model = "krea 2 large";
+                  $rates := {
+                    "krea 2 medium turbo": {"text": 0.015, "style": 0.0175, "moodboard": 0.02},
+                    "krea 2 medium": {"text": 0.03, "style": 0.035, "moodboard": 0.04},
+                    "krea 2 large": {"text": 0.06, "style": 0.065, "moodboard": 0.07}
+                  };
+                  $r := $lookup($rates, widgets.model);
                   $hasMoodboard := $length($lookup(widgets, "model.moodboard_id")) > 0;
                   $hasStyle := $lookup(inputs, "model.style_reference").connected;
-                  $usd := $hasMoodboard
-                    ? ($isLarge ? 0.07 : 0.04)
-                    : ($hasStyle
-                        ? ($isLarge ? 0.065 : 0.035)
-                        : ($isLarge ? 0.06 : 0.03));
+                  $usd := $hasMoodboard ? $r.moodboard : ($hasStyle ? $r.style : $r.text);
                   {"type":"usd","usd": $usd}
                 )
                 """,

@@ -19,7 +19,7 @@ class SaveWEBM(io.ComfyNode):
             category="video",
             is_experimental=True,
             inputs=[
-                io.Image.Input("images"),
+                io.Image.Input("images", tooltip="RGBA images are saved with their alpha channel as transparency (vp9 codec only)."),
                 io.String.Input("filename_prefix", default="ComfyUI"),
                 io.Combo.Input("codec", options=["vp9", "av1"]),
                 io.Float.Input("fps", default=24.0, min=0.01, max=1000.0, step=0.01),
@@ -45,18 +45,25 @@ class SaveWEBM(io.ComfyNode):
             for x in cls.hidden.extra_pnginfo:
                 container.metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
+        # Save transparency when the images carry an alpha channel (RGBA) and the codec supports it.
+        # vp9 -> yuva420p; other codecs have no usable alpha path, so the alpha is ignored.
+        save_alpha = images.shape[-1] == 4 and codec == "vp9"
+
         codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
         stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
         stream.width = images.shape[-2]
         stream.height = images.shape[-3]
-        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
+        stream.pix_fmt = "yuva420p" if save_alpha else ("yuv420p10le" if codec == "av1" else "yuv420p")
         stream.bit_rate = 0
         stream.options = {'crf': str(crf)}
         if codec == "av1":
             stream.options["preset"] = "6"
 
         for frame in images:
-            frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
+            if save_alpha:
+                frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :4] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgba")
+            else:
+                frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
             for packet in stream.encode(frame):
                 container.mux(packet)
         container.mux(stream.encode())
