@@ -815,6 +815,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["default_ref_method"] = "negative_index"
         return dit_config
 
+    if '{}embed_image_indicator.weight'.format(key_prefix) in state_dict_keys:  # Ideogram 4
+        dit_config = {}
+        dit_config["image_model"] = "ideogram4"
+        dit_config["in_channels"] = state_dict['{}input_proj.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
+        return dit_config
+
     if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
         dit_config = {}
         model_dim = state_dict['{}visual_embeddings.in_layer.bias'.format(key_prefix)].shape[0]

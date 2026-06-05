@@ -1,5 +1,7 @@
 import math
 import comfy.samplers
+import comfy.sampler_helpers
+import comfy.patcher_extension
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 from comfy.k_diffusion import sa_solver
@@ -894,6 +896,84 @@ class DualCFGGuider(io.ComfyNode):
 
     get_guider = execute
 
+class Guider_DualModel(comfy.samplers.CFGGuider):
+    # Runs the positive (cond) pass on the main model and the negative (uncond) pass on a separate model
+    def __init__(self, model_patcher, uncond_model_patcher):
+        super().__init__(model_patcher)
+        self.uncond_model_patcher = uncond_model_patcher
+        self.uncond_inner = None
+
+    def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None, latent_shapes=None):
+        self.uncond_inner = None
+        self.uncond_loaded = []
+        self._uncond_neg = None
+        # skip at cfg 1.0
+        if not math.isclose(self.cfg, 1.0):
+            uc = {"negative": list(map(lambda a: a.copy(), self.conds["negative"]))}
+            self.uncond_inner, uc, self.uncond_loaded = comfy.sampler_helpers.prepare_sampling(
+                self.uncond_model_patcher, noise.shape, uc, self.uncond_model_patcher.model_options)
+            self._uncond_neg = uc["negative"]
+            self.uncond_model_patcher.pre_run()
+        try:
+            return super().outer_sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
+        finally:
+            if self.uncond_inner is not None:
+                self.uncond_model_patcher.cleanup()
+                comfy.sampler_helpers.cleanup_models({"negative": self._uncond_neg}, self.uncond_loaded)
+                self.uncond_inner = None
+
+    def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
+        if self.uncond_inner is not None:
+            li = latent_image
+            if li is not None and torch.count_nonzero(li) > 0:
+                li = self.uncond_inner.process_latent_in(li)
+            self._uncond_conds = comfy.samplers.process_conds(
+                self.uncond_inner, noise, {"negative": self._uncond_neg}, device, li, denoise_mask, seed, latent_shapes=latent_shapes)["negative"]
+        return super().inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
+
+    def predict_noise(self, x, timestep, model_options={}, seed=None):
+        positive = self.conds.get("positive", None)
+        if self.uncond_inner is None:  # cfg == 1 or no negative -> single model, cond only
+            return comfy.samplers.calc_cond_batch(self.inner_model, [positive], x, timestep, model_options)[0]
+        cond = comfy.samplers.calc_cond_batch(self.inner_model, [positive], x, timestep, model_options)[0]
+
+        uncond_model_options = model_options
+        if "multigpu_clones" in model_options: # TODO: support multigpu instead of just running uncond on a single GPU
+            uncond_model_options = {k: v for k, v in model_options.items() if k != "multigpu_clones"}
+        uncond = comfy.samplers.calc_cond_batch(self.uncond_inner, [self._uncond_conds], x, timestep, uncond_model_options)[0]
+        return comfy.samplers.cfg_function(self.inner_model, cond, uncond, self.cfg, x, timestep,
+                                           model_options=model_options, cond=positive, uncond=self._uncond_conds)
+
+class DualModelGuider(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="DualModelGuider",
+            display_name="Dual Model CFG Guider",
+            category="model/sampling/guiders",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model", tooltip="Model used for the positive (conditional) pass."),
+                io.Model.Input("model_negative", optional=True, tooltip="Model used for the negative (unconditional) pass. Use the same model for ordinary CFG."),
+                io.Conditioning.Input("positive"),
+                io.Float.Input("cfg", default=4.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Conditioning.Input("negative", optional=True, tooltip="Negative conditioning run on the negative model. Leave unconnected for a text-free (image-only) unconditional pass."),
+            ],
+            outputs=[io.Guider.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model, positive, cfg, model_negative=None, negative=None) -> io.NodeOutput:
+        if negative is None:
+            negative = [[None, {}]]  # null cond -> no cross_attn -> model runs image-only
+
+        guider = Guider_DualModel(model, model_negative) if model_negative is not None else comfy.samplers.CFGGuider(model)
+        guider.set_conds(positive, negative)
+        guider.set_cfg(cfg)
+        return io.NodeOutput(guider)
+
+    get_guider = execute
+
 class DisableNoise(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -1054,11 +1134,53 @@ class ManualSigmas(io.ComfyNode):
         sigmas = torch.FloatTensor(sigmas)
         return io.NodeOutput(sigmas)
 
+class CFGOverride(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="CFGOverride",
+            display_name="CFG Override",
+            description="Override cfg to a fixed value over a [start, end] percent slice of the steps. "
+                        "With multiple overrides, the one nearest the sampler wins on overlap.",
+            category="sampling/custom_sampling",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("cfg", default=1.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
+            ],
+            outputs=[io.Model.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model, cfg, start_percent, end_percent) -> io.NodeOutput:
+        ms = model.get_model_object("model_sampling")
+        sigma_hi = ms.percent_to_sigma(start_percent)  # percent->sigma decreasing, so hi >= lo
+        sigma_lo = ms.percent_to_sigma(end_percent)
+
+        def predict_noise_wrapper(executor, *args, **kwargs):
+            sigma = float(args[1].flatten()[0])        # args = (x, timestep, model_options, seed)
+            if not (sigma_lo <= sigma <= sigma_hi):
+                return executor(*args, **kwargs)
+            guider = executor.class_obj                # guider.cfg feeds cond_scale
+            saved = guider.cfg
+            guider.cfg = cfg
+            try:
+                return executor(*args, **kwargs)
+            finally:
+                guider.cfg = saved                     # restore for other steps/overrides
+
+        m = model.clone()
+        m.add_wrapper(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, predict_noise_wrapper)
+        return io.NodeOutput(m)
+
+
 class CustomSamplersExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SamplerCustom,
+            CFGOverride,
             BasicScheduler,
             KarrasScheduler,
             ExponentialScheduler,
@@ -1087,6 +1209,7 @@ class CustomSamplersExtension(ComfyExtension):
             SamplingPercentToSigma,
             CFGGuider,
             DualCFGGuider,
+            DualModelGuider,
             BasicGuider,
             RandomNoise,
             DisableNoise,
