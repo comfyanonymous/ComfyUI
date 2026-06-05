@@ -534,6 +534,15 @@ class FluxEraseNode(IO.ComfyNode):
                     max=25,
                     tooltip="Expands the mask boundaries to ensure clean coverage of the object's edges.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                    optional=True,
+                ),
             ],
             outputs=[IO.Image.Output()],
             hidden=[
@@ -553,6 +562,7 @@ class FluxEraseNode(IO.ComfyNode):
         image: Input.Image,
         mask: Input.Image,
         dilate_pixels: int = 10,
+        seed: int = 0,
     ) -> IO.NodeOutput:
         validate_image_dimensions(image, min_width=256, min_height=256)
         mask = resize_mask_to_image(mask, image)
@@ -565,6 +575,7 @@ class FluxEraseNode(IO.ComfyNode):
                 image=tensor_to_base64_string(image[:, :, :, :3]),  # make sure image will have alpha channel removed
                 mask=mask,
                 dilate_pixels=dilate_pixels,
+                seed=seed,
             ),
         )
 
