@@ -6,9 +6,6 @@ Provenance prefixes:
                     the upstream config/source path it was lifted from.
 - unprefixed standards (``ROPE_THETA``, ``CIELAB_*``, ``D65_*``) - published literature /
                     ISO / CIE values; cite the standard.
-
-The numz/AInVFX custom node is used only as a behavioral-parity benchmark; it is the
-origin of none of these values and appears here nowhere.
 """
 
 # --------------------------------------------------------------------------------------

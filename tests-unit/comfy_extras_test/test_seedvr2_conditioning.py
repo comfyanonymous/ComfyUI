@@ -123,7 +123,7 @@ def test_seedvr2_conditioning_schema_exposes_model_passthrough_output():
             "model",
             "vae_conditioning",
         ]
-        assert schema.inputs[1].display_name == "LATENT"
+        assert schema.inputs[1].display_name == "latent"
         assert [output.display_name for output in schema.outputs] == [
             "model",
             "positive",

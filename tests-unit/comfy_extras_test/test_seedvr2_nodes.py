@@ -10,21 +10,6 @@ from comfy.cli_args import args as cli_args
 if not torch.cuda.is_available():
     cli_args.cpu = True
 
-import comfy_extras.nodes_seedvr as nodes_seedvr  # noqa: E402
-
-
-def test_resize_simple_multiplier_resolves_upscaled_shorter_edge():
-    images = torch.zeros(1, 3, 16, 20, 3)
-
-    output = nodes_seedvr.SeedVR2Resize.execute(images, 4.0)
-
-    input_pixels, original_image, upscaled_shorter_edge = output.result
-    assert tuple(input_pixels.shape) == (1, 5, 64, 80, 3)
-    assert input_pixels.min().item() == 0.0
-    assert input_pixels.max().item() == 0.0
-    assert original_image is images
-    assert upscaled_shorter_edge == 64
-
 
 def test_seedvr_node_signature_matches_schema():
     mock_mm = MagicMock()
@@ -46,7 +31,7 @@ def test_seedvr_node_signature_matches_schema():
         sys.modules.pop("comfy_extras.nodes_seedvr", None)
         try:
             nodes_seedvr = importlib.import_module("comfy_extras.nodes_seedvr")
-            for node_cls in (nodes_seedvr.SeedVR2Resize, nodes_seedvr.SeedVR2ResizeAdvanced):
+            for node_cls in (nodes_seedvr.SeedVR2Preprocess, nodes_seedvr.SeedVR2PostProcessing, nodes_seedvr.SeedVR2Conditioning, nodes_seedvr.SeedVR2ProgressiveSampler):
                 schema_ids = [i.id for i in node_cls.define_schema().inputs]
                 exec_params = [
                     p for p in inspect.signature(node_cls.execute).parameters.keys()

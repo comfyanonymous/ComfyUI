@@ -17,12 +17,9 @@ def _schema_ids(items):
 def test_seedvr2_post_processing_schema():
     schema = nodes_seedvr.SeedVR2PostProcessing.define_schema()
 
-    assert _schema_ids(schema.inputs) == ["decoded", "original_image", "upscaled_shorter_edge", "color_correction_method"]
-    assert schema.inputs[2].default is None
-    assert schema.inputs[2].min == 2
-    assert schema.inputs[2].force_input is True
-    assert schema.inputs[3].options == ["lab", "wavelet", "adain", "none"]
-    assert schema.inputs[3].default == "lab"
+    assert _schema_ids(schema.inputs) == ["images", "original_resized_images", "color_correction_method"]
+    assert schema.inputs[2].options == ["lab", "wavelet", "adain", "none"]
+    assert schema.inputs[2].default == "lab"
     assert schema.outputs[0].get_io_type() == "IMAGE"
 
 
@@ -53,7 +50,7 @@ def test_seedvr2_post_processing_unknown_color_correction_method_raises():
     decoded = torch.zeros(1, 2, 4, 4, 3)
     original = torch.zeros(1, 2, 4, 4, 3)
     try:
-        nodes_seedvr.SeedVR2PostProcessing.execute(decoded, original, 4, "bogus")
+        nodes_seedvr.SeedVR2PostProcessing.execute(decoded, original, "bogus")
     except ValueError as exc:
         assert "color_correction_method" in str(exc)
     else:

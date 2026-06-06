@@ -83,7 +83,7 @@ def test_auto_chunking_walks_two_three_four_chunk_ladder():
         out = SeedVR2ProgressiveSampler.execute(
             model=None, seed=0, steps=2, cfg=1.0,
             sampler_name="euler", scheduler="simple",
-            positive=pos, negative=neg, latent_image=latent,
+            positive=pos, negative=neg, latent=latent,
             denoise=1.0, frames_per_chunk=65, temporal_overlap=0,
             chunking_mode="auto",
         )
@@ -119,7 +119,7 @@ def test_t3_invalid_frames_per_chunk_raises_value_error(bad_chunk):
             SeedVR2ProgressiveSampler.execute(
                 model=None, seed=0, steps=2, cfg=1.0,
                 sampler_name="euler", scheduler="simple",
-                positive=pos, negative=neg, latent_image=latent,
+                positive=pos, negative=neg, latent=latent,
                 denoise=1.0, frames_per_chunk=bad_chunk, temporal_overlap=0,
             )
     assert str(bad_chunk) in str(excinfo.value)
