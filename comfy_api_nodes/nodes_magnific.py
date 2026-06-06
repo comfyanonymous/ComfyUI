@@ -61,7 +61,7 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageUpscalerCreativeNode",
             display_name="Magnific Image Upscale (Creative)",
-            category="image/partner/Magnific",
+            category="partner/image/Magnific",
             description="Prompt‑guided enhancement, stylization, and 2x/4x/8x/16x upscaling. "
             "Maximum output: 25.3 megapixels.",
             inputs=[
@@ -240,7 +240,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageUpscalerPreciseV2Node",
             display_name="Magnific Image Upscale (Precise V2)",
-            category="image/partner/Magnific",
+            category="partner/image/Magnific",
             description="High-fidelity upscaling with fine control over sharpness, grain, and detail. "
             "Maximum output: 10060×10060 pixels.",
             inputs=[
@@ -400,7 +400,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageStyleTransferNode",
             display_name="Magnific Image Style Transfer",
-            category="image/partner/Magnific",
+            category="partner/image/Magnific",
             description="Transfer the style from a reference image to your input image.",
             inputs=[
                 IO.Image.Input("image", tooltip="The image to apply style transfer to."),
@@ -549,7 +549,7 @@ class MagnificImageRelightNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageRelightNode",
             display_name="Magnific Image Relight",
-            category="image/partner/Magnific",
+            category="partner/image/Magnific",
             description="Relight an image with lighting adjustments and optional reference-based light transfer.",
             inputs=[
                 IO.Image.Input("image", tooltip="The image to relight."),
@@ -789,7 +789,7 @@ class MagnificImageSkinEnhancerNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageSkinEnhancerNode",
             display_name="Magnific Image Skin Enhancer",
-            category="image/partner/Magnific",
+            category="partner/image/Magnific",
             description="Skin enhancement for portraits with multiple processing modes.",
             inputs=[
                 IO.Image.Input("image", tooltip="The portrait image to enhance."),

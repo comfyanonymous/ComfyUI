@@ -4,17 +4,20 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.bfl import (
+    BFLFluxEraseRequest,
     BFLFluxExpandImageRequest,
     BFLFluxFillImageRequest,
     BFLFluxKontextProGenerateRequest,
     BFLFluxProGenerateResponse,
     BFLFluxProUltraGenerateRequest,
     BFLFluxStatusResponse,
+    BFLFluxVTORequest,
     BFLStatus,
     Flux2ProGenerateRequest,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
+    convert_mask_to_image,
     download_url_to_image_tensor,
     get_number_of_images,
     poll_op,
@@ -22,17 +25,9 @@ from comfy_api_nodes.util import (
     sync_op,
     tensor_to_base64_string,
     validate_aspect_ratio_string,
+    validate_image_dimensions,
     validate_string,
 )
-
-
-def convert_mask_to_image(mask: Input.Image):
-    """
-    Make mask have the expected amount of dims (4) and channels (3) to be recognized as an image.
-    """
-    mask = mask.unsqueeze(-1)
-    mask = torch.cat([mask] * 3, dim=-1)
-    return mask
 
 
 class FluxProUltraImageNode(IO.ComfyNode):
@@ -42,7 +37,7 @@ class FluxProUltraImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="FluxProUltraImageNode",
             display_name="Flux 1.1 [pro] Ultra Image",
-            category="image/partner/BFL",
+            category="partner/image/BFL",
             description="Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.",
             inputs=[
                 IO.String.Input(
@@ -160,7 +155,7 @@ class FluxKontextProImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id=cls.NODE_ID,
             display_name=cls.DISPLAY_NAME,
-            category="image/partner/BFL",
+            category="partner/image/BFL",
             description="Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.",
             inputs=[
                 IO.String.Input(
@@ -282,7 +277,7 @@ class FluxProExpandNode(IO.ComfyNode):
         return IO.Schema(
             node_id="FluxProExpandNode",
             display_name="Flux.1 Expand Image",
-            category="image/partner/BFL",
+            category="partner/image/BFL",
             description="Outpaints image based on prompt.",
             inputs=[
                 IO.Image.Input("image"),
@@ -419,7 +414,7 @@ class FluxProFillNode(IO.ComfyNode):
         return IO.Schema(
             node_id="FluxProFillNode",
             display_name="Flux.1 Fill Image",
-            category="image/partner/BFL",
+            category="partner/image/BFL",
             description="Inpaints image based on mask and prompt.",
             inputs=[
                 IO.Image.Input("image"),
@@ -519,6 +514,174 @@ class FluxProFillNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
 
 
+class FluxEraseNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxEraseNode",
+            display_name="Flux Erase Image",
+            category="partner/image/BFL",
+            description="Removes the masked object from an image and reconstructs the background. "
+            "Paint the mask over what you want to erase.",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Mask.Input("mask", tooltip="White areas are removed; black areas are preserved."),
+                IO.Int.Input(
+                    "dilate_pixels",
+                    default=10,
+                    min=0,
+                    max=25,
+                    tooltip="Expands the mask boundaries to ensure clean coverage of the object's edges.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                    optional=True,
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"range_usd","min_usd":0.03,"max_usd":0.06,"format":{"approximate":true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        mask: Input.Image,
+        dilate_pixels: int = 10,
+        seed: int = 0,
+    ) -> IO.NodeOutput:
+        validate_image_dimensions(image, min_width=256, min_height=256)
+        mask = resize_mask_to_image(mask, image)
+        mask = tensor_to_base64_string(convert_mask_to_image(mask))
+        initial_response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/bfl/v1/flux-tools/erase-v1", method="POST"),
+            response_model=BFLFluxProGenerateResponse,
+            data=BFLFluxEraseRequest(
+                image=tensor_to_base64_string(image[:, :, :, :3]),  # make sure image will have alpha channel removed
+                mask=mask,
+                dilate_pixels=dilate_pixels,
+                seed=seed,
+            ),
+        )
+
+        def price_extractor(_r: BaseModel) -> float | None:
+            return None if initial_response.cost is None else initial_response.cost / 100
+
+        response = await poll_op(
+            cls,
+            ApiEndpoint(initial_response.polling_url),
+            response_model=BFLFluxStatusResponse,
+            status_extractor=lambda r: r.status,
+            progress_extractor=lambda r: r.progress,
+            price_extractor=price_extractor,
+            completed_statuses=[BFLStatus.ready],
+            failed_statuses=[
+                BFLStatus.request_moderated,
+                BFLStatus.content_moderated,
+                BFLStatus.error,
+                BFLStatus.task_not_found,
+            ],
+            queued_statuses=[],
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+
+
+class FluxVTONode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxVTONode",
+            display_name="Flux Virtual Try-On",
+            category="partner/image/BFL",
+            description="Virtual try-on: dresses the person in the provided garment.",
+            inputs=[
+                IO.Image.Input("person", tooltip="Image of the person to dress."),
+                IO.Image.Input("garment", tooltip="Image of the garment to apply."),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Optional natural-language styling instruction (e.g. how the garment should fit).",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"range_usd","min_usd":0.0375,"max_usd":0.075,"format":{"approximate":true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        person: Input.Image,
+        garment: Input.Image,
+        prompt: str = "",
+        seed: int = 0,
+    ) -> IO.NodeOutput:
+        initial_response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/bfl/v1/flux-tools/vto-v1", method="POST"),
+            response_model=BFLFluxProGenerateResponse,
+            data=BFLFluxVTORequest(
+                prompt=prompt,
+                person=tensor_to_base64_string(person[:, :, :, :3]),
+                garment=tensor_to_base64_string(garment[:, :, :, :3]),
+                seed=seed,
+            ),
+        )
+
+        def price_extractor(_r: BaseModel) -> float | None:
+            return None if initial_response.cost is None else initial_response.cost / 100
+
+        response = await poll_op(
+            cls,
+            ApiEndpoint(initial_response.polling_url),
+            response_model=BFLFluxStatusResponse,
+            status_extractor=lambda r: r.status,
+            progress_extractor=lambda r: r.progress,
+            price_extractor=price_extractor,
+            completed_statuses=[BFLStatus.ready],
+            failed_statuses=[
+                BFLStatus.request_moderated,
+                BFLStatus.content_moderated,
+                BFLStatus.error,
+                BFLStatus.task_not_found,
+            ],
+            queued_statuses=[],
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+
+
 class Flux2ProImageNode(IO.ComfyNode):
 
     NODE_ID = "Flux2ProImageNode"
@@ -545,7 +708,7 @@ class Flux2ProImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id=cls.NODE_ID,
             display_name=cls.DISPLAY_NAME,
-            category="image/partner/BFL",
+            category="partner/image/BFL",
             description="Generates images synchronously based on prompt and resolution.",
             inputs=[
                 IO.String.Input(
@@ -716,7 +879,7 @@ class Flux2ImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="Flux2ImageNode",
             display_name="Flux.2 Image",
-            category="image/partner/BFL",
+            category="partner/image/BFL",
             description="Generate images via Flux.2 [pro] or Flux.2 [max] from a prompt and optional reference images.",
             inputs=[
                 IO.String.Input(
@@ -853,6 +1016,8 @@ class BFLExtension(ComfyExtension):
             FluxKontextMaxImageNode,
             FluxProExpandNode,
             FluxProFillNode,
+            FluxEraseNode,
+            FluxVTONode,
             Flux2ProImageNode,
             Flux2MaxImageNode,
             Flux2ImageNode,

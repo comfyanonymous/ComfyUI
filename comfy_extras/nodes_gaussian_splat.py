@@ -488,7 +488,7 @@ class SplatToFile3D(IO.ComfyNode):
                                        "spz: Niantic gzip-compressed (~10x smaller), base color only "
                                        ),
             ],
-            outputs=[IO.File3DAny.Output(display_name="model_3d")],
+            outputs=[IO.File3DSplatAny.Output(display_name="model_3d")],
         )
 
     @classmethod
@@ -516,7 +516,7 @@ class File3DToSplat(IO.ComfyNode):
             inputs=[
                 IO.MultiType.Input(
                     IO.File3DAny.Input("model_3d"),
-                    types=[IO.File3DPLY, IO.File3DSPLAT, IO.File3DKSPLAT, IO.File3DSPZ],
+                    types=[IO.File3DSplatAny, IO.File3DPLY, IO.File3DSPLAT, IO.File3DKSPLAT, IO.File3DSPZ],
                     tooltip="A gaussian splat 3D file",
                 ),
             ],
@@ -968,7 +968,8 @@ class RenderSplat(IO.ComfyNode):
         bg = _hex_to_rgb(background)
         bg_imgs = None
         if bg_image is not None:  # resize the plate(s) to the render size: (B,H,W,3)
-            bi = comfy.utils.common_upscale(bg_image.movedim(-1, 1), width, height, "bicubic", "disabled")
+            bi = bg_image[... , :3].movedim(-1, 1)  # (B,3,H,W)
+            bi = comfy.utils.common_upscale(bi, width, height, "bicubic", "disabled")
             bg_imgs = bi.movedim(1, -1).clamp(0, 1)
         n_frames = abs(int(frames)) or 1         # magnitude = frame count (0 -> single still)
         orbit_dir = -1.0 if frames < 0 else 1.0  # sign = orbit direction
