@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import comfy.model_management
 from comfy.ldm.sam3.sam import PositionEmbeddingRandom
 
-from .dinov3 import Dinov3Backbone
+from comfy.image_encoders.dino3 import DINOV3_VITH_CONFIG, DINOv3ViTModel
 from .prompt import PromptEncoder, PromptableDecoder
 from ..mhr.mhr_head import MHRHead
 from ..mhr.mhr_rig import MHRRig
@@ -50,7 +50,7 @@ class SAM3DBody(nn.Module):
 
         self.image_size = IMAGE_SIZE
 
-        self.backbone = Dinov3Backbone(device=device, dtype=dtype, operations=operations)
+        self.backbone = DINOv3ViTModel(DINOV3_VITH_CONFIG, dtype=dtype, device=device, operations=ops)
         embed_dims = self.backbone.embed_dims
 
         # MHR rig shared between body + hand pose heads via a non-registered
@@ -612,7 +612,7 @@ class SAM3DBody(nn.Module):
             batch["ray_cond_hand"] = ray_cond[self.hand_batch_idx].clone()
         ray_cond = None
 
-        image_embeddings = self.backbone(x.type(self.backbone_dtype))
+        image_embeddings = self.backbone.forward_features(x.type(self.backbone_dtype))
         # bf16 mantissa too lossy for the heads — promote back. fp16 survives.
         if self.backbone_dtype != torch.float16:
             image_embeddings = image_embeddings.type(x.dtype)

@@ -159,7 +159,7 @@ class DINOv3ViTEmbeddings(nn.Module):
     def __init__(self, hidden_size, num_register_tokens, num_channels, patch_size, dtype, device, operations):
         super().__init__()
         self.cls_token = nn.Parameter(torch.empty(1, 1, hidden_size, device=device, dtype=dtype))
-        self.mask_token = nn.Parameter(torch.empty(1, 1, hidden_size, device=device, dtype=dtype))
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, hidden_size, device=device, dtype=dtype))
         self.register_tokens = nn.Parameter(torch.empty(1, num_register_tokens, hidden_size, device=device, dtype=dtype))
         self.patch_embeddings = operations.Conv2d(
             num_channels, hidden_size, kernel_size=patch_size, stride=patch_size, device=device, dtype=dtype
@@ -240,6 +240,10 @@ class DINOv3ViTModel(nn.Module):
             for _ in range(num_hidden_layers)])
         self.norm = operations.LayerNorm(hidden_size, eps=layer_norm_eps, dtype=dtype, device=device)
 
+        self.patch_size = patch_size
+        self.embed_dim = self.embed_dims = hidden_size
+        self.num_prefix_tokens = 1 + num_register_tokens  # cls + register
+
     def get_input_embeddings(self):
         return self.embeddings.patch_embeddings
 
@@ -257,3 +261,12 @@ class DINOv3ViTModel(nn.Module):
             sequence_output = norm(hidden_states)
         pooled_output = sequence_output[:, 0, :]
         return sequence_output, None, pooled_output, None
+
+    def forward_features(self, pixel_values, **kwargs):
+        """Dense (B, C, H, W) patch-feature grid, CLS + register tokens dropped."""
+        sequence_output = self.forward(pixel_values, **kwargs)[0]
+        b = pixel_values.shape[0]
+        h = pixel_values.shape[-2] // self.patch_size
+        w = pixel_values.shape[-1] // self.patch_size
+        patches = sequence_output[:, self.num_prefix_tokens:, :]
+        return patches.reshape(b, h, w, self.embed_dim).permute(0, 3, 1, 2).contiguous()

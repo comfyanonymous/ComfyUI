@@ -2457,7 +2457,7 @@ async def init_builtin_extra_nodes():
         "nodes_moge.py",
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
-        "nodes_triposplat.py"
+        "nodes_triposplat.py",
         "nodes_sam3d_body.py",
     ]
 

@@ -35,7 +35,7 @@ def rainbow_colors_from_canonical(
     Returns:
         (N_v, 3) float32 RGB in [0, 1].
     """
-    key = (id(positions), round(float(tilt_x_deg), 3), round(float(tilt_z_deg), 3))
+    key = (hash(positions.tobytes()), round(float(tilt_x_deg), 3), round(float(tilt_z_deg), 3))
     cached = _rainbow_cache.get(key)
     if cached is not None:
         return cached

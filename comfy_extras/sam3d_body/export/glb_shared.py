@@ -94,32 +94,36 @@ def _skel_state_compose_np(s1: np.ndarray, s2: np.ndarray) -> np.ndarray:
     return np.concatenate([t_res, q_res, s_res], axis=-1)
 
 
+def _gaussian_smooth_time(arr: np.ndarray, window: int) -> np.ndarray:
+    """Edge-replicate Gaussian smoothing along axis 0 (time); sigma = window/4.
+    Endpoints replicate so they aren't pulled toward zero. Returns float64."""
+    a = np.asarray(arr, dtype=np.float64)
+    n = a.shape[0]
+    half = window // 2
+    sigma = max(0.5, window / 4.0)
+    x = np.arange(-half, half + 1, dtype=np.float64)
+    kernel = np.exp(-x * x / (2.0 * sigma * sigma))
+    kernel = kernel / kernel.sum()
+    padded = np.concatenate([
+        np.broadcast_to(a[:1], (half,) + a.shape[1:]),
+        a,
+        np.broadcast_to(a[-1:], (half,) + a.shape[1:]),
+    ], axis=0)
+    out = np.zeros_like(a)
+    for k, w in enumerate(kernel):
+        out += w * padded[k:k + n]
+    return out
+
+
 def gaussian_smooth_quats(q_seq: np.ndarray, window: int) -> np.ndarray:
     """Gaussian-smooth a (N, NJ, 4) quaternion sequence along time. Sign-aligns
     per joint first, convolves per-component, renormalizes. Suppresses multi-
     frame bone spikes at extreme poses without needing the upstream Smooth node."""
     if window <= 1 or q_seq.shape[0] < 2:
         return q_seq
-    aligned = quat_sign_fix_per_joint(q_seq).astype(np.float64)
-    n = q_seq.shape[0]
-    half = window // 2
-    sigma = max(0.5, window / 4.0)
-    x = np.arange(-half, half + 1, dtype=np.float64)
-    kernel = np.exp(-x * x / (2.0 * sigma * sigma))
-    kernel = kernel / kernel.sum()
-    # Edge-replicate padding so endpoints don't get pulled toward zero.
-    pad = half
-    padded = np.concatenate([
-        np.broadcast_to(aligned[:1], (pad,) + aligned.shape[1:]),
-        aligned,
-        np.broadcast_to(aligned[-1:], (pad,) + aligned.shape[1:]),
-    ], axis=0)
-    out = np.zeros_like(aligned)
-    for k, w in enumerate(kernel):
-        out += w * padded[k:k + n]
+    out = _gaussian_smooth_time(quat_sign_fix_per_joint(q_seq), window)
     norms = np.linalg.norm(out, axis=-1, keepdims=True)
-    out = out / np.maximum(norms, 1e-12)
-    return out.astype(np.float32)
+    return (out / np.maximum(norms, 1e-12)).astype(np.float32)
 
 
 def gaussian_smooth_positions(seq: np.ndarray, window: int) -> np.ndarray:
@@ -128,22 +132,7 @@ def gaussian_smooth_positions(seq: np.ndarray, window: int) -> np.ndarray:
     derives sphere translations + limb TRS from them."""
     if window <= 1 or seq.shape[0] < 2:
         return seq
-    s = np.asarray(seq, dtype=np.float64)
-    n = s.shape[0]
-    half = window // 2
-    sigma = max(0.5, window / 4.0)
-    x = np.arange(-half, half + 1, dtype=np.float64)
-    kernel = np.exp(-x * x / (2.0 * sigma * sigma))
-    kernel = kernel / kernel.sum()
-    padded = np.concatenate([
-        np.broadcast_to(s[:1], (half,) + s.shape[1:]),
-        s,
-        np.broadcast_to(s[-1:], (half,) + s.shape[1:]),
-    ], axis=0)
-    out = np.zeros_like(s)
-    for k, wgt in enumerate(kernel):
-        out += wgt * padded[k:k + n]
-    return out.astype(np.float32)
+    return _gaussian_smooth_time(seq, window).astype(np.float32)
 
 
 def quat_sign_fix_per_joint(q_seq: np.ndarray) -> np.ndarray:
@@ -261,7 +250,8 @@ class GLBWriter:
         self.accessors.append({
             "bufferView": view_idx, "componentType": _FLOAT,
             "count": a.shape[0], "type": "VEC3",
-            "min": a.min(axis=0).tolist(), "max": a.max(axis=0).tolist(),
+            "min": a.min(axis=0).tolist() if a.shape[0] else [0.0, 0.0, 0.0],
+            "max": a.max(axis=0).tolist() if a.shape[0] else [0.0, 0.0, 0.0],
         })
         return len(self.accessors) - 1
 

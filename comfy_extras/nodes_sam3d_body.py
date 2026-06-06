@@ -15,7 +15,6 @@ from typing_extensions import override
 import folder_paths
 
 from comfy.ldm.sam3d_body.model.model import SAM3DBody
-from comfy.ldm.sam3d_body.model.dinov3 import apply_dinov3_qkv_bias_mask
 from comfy_extras.sam3d_body.utils import (
         apply_camera_override,
         cam_int_from_fov,
@@ -78,8 +77,6 @@ class SAM3DBody_Loader(io.ComfyNode):
 
         model = SAM3DBody(dtype=torch_dtype, operations=operations)
         model.load_state_dict(sd, strict=False)
-
-        apply_dinov3_qkv_bias_mask(model.backbone)
 
         model.eval()
         model.backbone_dtype = torch_dtype
@@ -308,8 +305,8 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
 
     @classmethod
     def execute(cls, mhr_pose_data, sam3d_body_model, image,
-                strength=1.0, mouth_strength=1.0, eye_strength=1.0, brow_strength=1.0,
-                input_threshold=0.15, blendshape_smooth_window=7) -> io.NodeOutput:
+                strength=1.0, mouth_strength=1.0, eye_strength=2.0, brow_strength=2.0,
+                input_threshold=0.02, blendshape_smooth_window=7) -> io.NodeOutput:
 
         comfy.model_management.load_model_gpu(sam3d_body_model)
         inner: SAM3DBody = sam3d_body_model.model
