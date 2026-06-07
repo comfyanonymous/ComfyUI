@@ -24,6 +24,7 @@ import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.z_image
+import comfy.text_encoders.ideogram4
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
@@ -1746,6 +1747,44 @@ class Omnigen2(supported_models_base.BASE):
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.omnigen2.Omnigen2Tokenizer, comfy.text_encoders.omnigen2.te(**hunyuan_detect))
 
+class Ideogram4(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "ideogram4",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 1.0,
+    }
+
+    memory_usage_factor = 11.6
+
+    unet_extra_config = {
+        "num_attention_heads": 18,
+        "attention_head_dim": 256,
+        "intermediate_size": 12288,
+        "adaln_dim": 512,
+        "llm_features_dim": 53248,
+        "rope_theta": 5000000,
+        "mrope_section": [24, 20, 20],
+        "norm_eps": 1e-5,
+    }
+    latent_format = latent_formats.Flux2
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Ideogram4(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_8b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.ideogram4.Ideogram4Tokenizer, comfy.text_encoders.ideogram4.te(**hunyuan_detect))
+
 class QwenImage(supported_models_base.BASE):
     unet_config = {
         "image_model": "qwen_image",
@@ -2233,6 +2272,7 @@ models = [
     ACEStep15,
     Omnigen2,
     QwenImage,
+    Ideogram4,
     Flux2,
     Lens,
     Kandinsky5Image,

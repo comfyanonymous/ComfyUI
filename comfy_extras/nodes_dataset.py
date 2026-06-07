@@ -412,6 +412,21 @@ class ImageProcessingNode(io.ComfyNode):
         return has_group
 
     @classmethod
+    def _ensure_image_list(cls, images):
+        """Normalize to a flat list of [1, H, W, C] tensors."""
+        if isinstance(images, torch.Tensor):
+            if images.ndim != 4:
+                raise ValueError(f"Expected 4D image tensor, got shape {tuple(images.shape)}")
+            return [images[i:i+1] for i in range(images.shape[0])]
+
+        flat = []
+        for item in images:
+            if not isinstance(item, torch.Tensor) or item.ndim != 4:
+                raise ValueError(f"Expected 4D image tensor, got {type(item).__name__} shape {getattr(item, 'shape', None)}")
+            flat.extend([item[i:i+1] for i in range(item.shape[0])])
+        return flat
+
+    @classmethod
     def define_schema(cls):
         if cls.node_id is None:
             raise NotImplementedError(f"{cls.__name__} must set node_id class variable")
@@ -457,6 +472,9 @@ class ImageProcessingNode(io.ComfyNode):
     def execute(cls, images, **kwargs):
         """Execute the node. Routes to _process or _group_process based on mode."""
         is_group = cls._detect_processing_mode()
+
+        if is_group:
+            images = cls._ensure_image_list(images)
 
         # Extract scalar values from lists for parameters
         params = {}
