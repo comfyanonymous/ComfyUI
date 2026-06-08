@@ -818,6 +818,30 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
 
     return key_map
 
+def anima_to_diffusers(mmdit_config, output_prefix=""):
+    num_blocks = mmdit_config.get("num_blocks", 0)
+    key_map = {}
+
+    for i in range(num_blocks):
+        prefix_from = "transformer_blocks.{}".format(i)
+        prefix_to = "{}blocks.{}".format(output_prefix, i)
+
+        # attn1 is self attention, attn2 is cross attention
+        for attn_from, attn_to in (("attn1", "self_attn"), ("attn2", "cross_attn")):
+            block_map = {
+                "{}.to_q.weight".format(attn_from): "{}.q_proj.weight".format(attn_to),
+                "{}.to_k.weight".format(attn_from): "{}.k_proj.weight".format(attn_to),
+                "{}.to_v.weight".format(attn_from): "{}.v_proj.weight".format(attn_to),
+                "{}.to_out.0.weight".format(attn_from): "{}.output_proj.weight".format(attn_to),
+            }
+            for k, v in block_map.items():
+                key_map["{}.{}".format(prefix_from, k)] = "{}.{}".format(prefix_to, v)
+
+        key_map["{}.ff.net.0.proj.weight".format(prefix_from)] = "{}.mlp.layer1.weight".format(prefix_to)
+        key_map["{}.ff.net.2.weight".format(prefix_from)] = "{}.mlp.layer2.weight".format(prefix_to)
+
+    return key_map
+
 def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
         return tensor.narrow(dim, 0, batch_size)
