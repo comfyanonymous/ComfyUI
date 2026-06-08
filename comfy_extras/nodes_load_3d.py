@@ -164,8 +164,8 @@ class Preview3DAdvanced(IO.ComfyNode):
             ],
             outputs=[
                 IO.File3DAny.Output(display_name="model_3d"),
-                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
                 IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
                 IO.Int.Output(display_name="width"),
                 IO.Int.Output(display_name="height"),
             ],
@@ -182,8 +182,8 @@ class Preview3DAdvanced(IO.ComfyNode):
         model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
         return IO.NodeOutput(
             model_3d,
-            model_3d_info,
             camera_info,
+            model_3d_info,
             width,
             height,
             ui=UI.PreviewUI3DAdvanced(filename, camera_info, model_3d_info),
@@ -232,8 +232,8 @@ class PreviewGaussianSplat(IO.ComfyNode):
             ],
             outputs=[
                 IO.File3DSplatAny.Output(display_name="model_3d"),
-                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
                 IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
                 IO.Int.Output(display_name="width"),
                 IO.Int.Output(display_name="height"),
             ],
@@ -250,8 +250,8 @@ class PreviewGaussianSplat(IO.ComfyNode):
         model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
         return IO.NodeOutput(
             model_3d,
-            model_3d_info,
             camera_info,
+            model_3d_info,
             width,
             height,
             ui=UI.PreviewUI3DAdvanced(filename, camera_info, model_3d_info),
@@ -291,8 +291,8 @@ class PreviewPointCloud(IO.ComfyNode):
             ],
             outputs=[
                 IO.File3DPointCloudAny.Output(display_name="model_3d"),
-                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
                 IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
                 IO.Int.Output(display_name="width"),
                 IO.Int.Output(display_name="height"),
             ],
@@ -309,8 +309,8 @@ class PreviewPointCloud(IO.ComfyNode):
         model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
         return IO.NodeOutput(
             model_3d,
-            model_3d_info,
             camera_info,
+            model_3d_info,
             width,
             height,
             ui=UI.PreviewUI3DAdvanced(filename, camera_info, model_3d_info),
