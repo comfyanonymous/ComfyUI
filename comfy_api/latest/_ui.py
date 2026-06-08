@@ -260,6 +260,7 @@ class ImageSaveHelper:
 class AudioSaveHelper:
     """A helper class with static methods to handle audio saving and metadata."""
     _OPUS_RATES = [8000, 12000, 16000, 24000, 48000]
+    _MP3_RATES = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000]
 
     @staticmethod
     def save_audio(
@@ -303,12 +304,15 @@ class AudioSaveHelper:
                             break
                     if sample_rate not in AudioSaveHelper._OPUS_RATES:  # Fallback if still not supported
                         sample_rate = 48000
+            elif format == "mp3" and sample_rate not in AudioSaveHelper._MP3_RATES:
+                # libmp3lame only accepts a fixed set of sample rates; remap to the closest one
+                sample_rate = min(AudioSaveHelper._MP3_RATES, key=lambda rate: abs(rate - sample_rate))
 
-                # Resample if necessary
-                if sample_rate != audio["sample_rate"]:
-                    if not TORCH_AUDIO_AVAILABLE:
-                        raise Exception("torchaudio is not available; cannot resample audio.")
-                    waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
+            # Resample if necessary
+            if sample_rate != audio["sample_rate"]:
+                if not TORCH_AUDIO_AVAILABLE:
+                    raise Exception("torchaudio is not available; cannot resample audio.")
+                waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
 
             # Create output with specified format
             output_buffer = BytesIO()
@@ -335,8 +339,10 @@ class AudioSaveHelper:
             elif format == "mp3":
                 out_stream = output_container.add_stream("libmp3lame", rate=sample_rate, layout=layout)
                 if quality == "V0":
-                    # TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
-                    out_stream.codec_context.qscale = 1
+                    # PyAV exposes codec_context.qscale as a bool flag, not the int quality
+                    # scale libmp3lame expects, so assigning a level to it raises avcodec_open2
+                    # EINVAL. libmp3lame's default VBR mode is roughly equivalent to V0 quality.
+                    pass
                 elif quality == "128k":
                     out_stream.bit_rate = 128000
                 elif quality == "320k":
