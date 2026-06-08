@@ -437,7 +437,7 @@ def precompute_freqs_cis(head_dim, position_ids, theta, rope_scale=None, rope_di
                 cos = cos.unsqueeze(1)
                 sin = sin.unsqueeze(1)
         sin_split = sin.shape[-1] // 2
-        out.append((cos, sin[..., : sin_split], -sin[..., sin_split :]))
+        out.append((cos, sin[..., : sin_split], torch.neg(sin[..., sin_split :])))
 
     if len(out) == 1:
         return out[0]
