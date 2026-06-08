@@ -244,7 +244,7 @@ class SeedVR2Preprocess(io.ComfyNode):
             category="image/upscaling",
             description="Pad a resized image for SeedVR2 model. Alpha channel is dropped. The node Post-Process SeedVR2 Output re-applies it from the original resized image.",
             inputs=[
-                io.Image.Input("resized_images", tooltip="The already-resized (SeedVR2-sized) image(s). Any alpha is dropped before padding for the model and re-applied downstream by Post-Process SeedVR2 Output."),
+                io.Image.Input("resized_images", tooltip="The resized image to process."),
             ],
             outputs=[
                 io.Image.Output("processed_images"),
