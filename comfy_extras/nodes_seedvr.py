@@ -247,7 +247,7 @@ class SeedVR2Preprocess(io.ComfyNode):
                 io.Image.Input("resized_images", tooltip="The resized image to process."),
             ],
             outputs=[
-                io.Image.Output("processed_images"),
+                io.Image.Output("images"),
             ]
         )
 
