@@ -266,7 +266,7 @@ class SeedVR2PostProcessing(io.ComfyNode):
             node_id="SeedVR2PostProcessing",
             display_name="Post-Process SeedVR2 Output",
             category="image/upscaling",
-            description="Align the upscaled output to the original resized image's geometry (de-pad) and optionally color-correct it against that image.",
+            description="Align the generated image with the original resized image and apply color correction.",
             inputs=[
                 io.Image.Input("images", tooltip="The decoded upscaled image to color-correct."),
                 io.Image.Input("original_resized_images", tooltip="The original resized (pre-pad) image used as the geometry and color reference."),
