@@ -474,7 +474,7 @@ class SeedVR2Conditioning(io.ComfyNode):
             description="Build SeedVR2 positive/negative conditioning from a VAE latent.",
             inputs=[
                 io.Model.Input("model", tooltip="The SeedVR2 model."),
-                io.Latent.Input("vae_conditioning", display_name="latent", tooltip="The VAE-encoded latent to condition on."),
+                io.Latent.Input("vae_conditioning", display_name="latent"),
             ],
             outputs=[
                 io.Model.Output(display_name = "model"),
