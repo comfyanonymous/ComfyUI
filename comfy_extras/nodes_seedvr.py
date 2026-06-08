@@ -270,7 +270,7 @@ class SeedVR2PostProcessing(io.ComfyNode):
             inputs=[
                 io.Image.Input("images", tooltip="The generated image to process."),
                 io.Image.Input("original_resized_images", tooltip="The original resized image before pre-processing, used as reference."),
-                io.Combo.Input("color_correction_method", options=["lab", "wavelet", "adain", "none"], default="lab", tooltip="How to match the output's color to the original. lab: transfer color in CIELAB space, preserving detail (most faithful). wavelet: transfer low-frequency color, keeping upscaled high-frequency detail. adain: match per-channel mean/std (fastest, global tint). none: skip color transfer (geometry alignment only)."),
+                io.Combo.Input("color_correction_method", options=["lab", "wavelet", "adain", "none"], default="lab", tooltip="Method to match the generated image colors to the original image. lab: transfer color in CIELAB space, preserving detail (most faithful). wavelet: transfer low-frequency color, keeping upscaled high-frequency detail. adain: match per-channel mean/std (fastest, global tint). none: skip color transfer (geometry alignment only)."),
             ],
             outputs=[io.Image.Output(display_name="images")],
         )
