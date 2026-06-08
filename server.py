@@ -200,6 +200,20 @@ def create_block_external_middleware():
     return block_external_middleware
 
 
+def is_path_within_directory(path, directory):
+    """Returns True if `path` resolves to a location inside `directory`.
+
+    os.path.commonpath raises ValueError when the two paths don't share a
+    drive (e.g. on Windows when one is on C: and the other on D:). That case
+    simply means `path` cannot be inside `directory`, so it is treated as such
+    rather than letting the exception bubble up as an unhandled error.
+    """
+    try:
+        return os.path.commonpath((os.path.abspath(path), directory)) == directory
+    except ValueError:
+        return False
+
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -477,7 +491,7 @@ class PromptServer():
 
                 if original_ref.get("subfolder", "") != "":
                     full_output_dir = os.path.join(output_dir, original_ref["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                    if not is_path_within_directory(full_output_dir, output_dir):
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
@@ -534,7 +548,7 @@ class PromptServer():
 
                     if "subfolder" in request.rel_url.query:
                         full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                        if not is_path_within_directory(full_output_dir, output_dir):
                             return web.Response(status=403)
                         output_dir = full_output_dir
 
