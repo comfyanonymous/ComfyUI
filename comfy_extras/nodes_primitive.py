@@ -97,24 +97,6 @@ class Boolean(io.ComfyNode):
         return io.NodeOutput(value)
 
 
-class Color(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="PrimitiveColor",
-            display_name="Color",
-            category="utilities/primitive",
-            inputs=[
-                io.Color.Input("value", default="#ffffff"),
-            ],
-            outputs=[io.Color.Output()],
-        )
-
-    @classmethod
-    def execute(cls, value: str) -> io.NodeOutput:
-        return io.NodeOutput(value)
-
-
 class PrimitivesExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -124,7 +106,6 @@ class PrimitivesExtension(ComfyExtension):
             Int,
             Float,
             Boolean,
-            Color,
         ]
 
 async def comfy_entrypoint() -> PrimitivesExtension:
