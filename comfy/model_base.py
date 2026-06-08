@@ -54,7 +54,10 @@ import comfy.ldm.pixeldit.model
 import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.seedvr.model
+
 import comfy.ldm.qwen_image.model
+import comfy.ldm.ideogram4.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
 import comfy.ldm.ace.ace_step15
@@ -925,6 +928,16 @@ class HunyuanDiT(BaseModel):
         target_height = kwargs.get("target_height", height)
 
         out['image_meta_size'] = comfy.conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
+        return out
+
+class SeedVR2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device, comfy.ldm.seedvr.model.NaDiT)
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        condition = kwargs.get("condition", None)
+        if condition is not None:
+            out["condition"] = comfy.conds.CONDRegular(condition)
         return out
 
 class PixArt(BaseModel):
@@ -2016,6 +2029,21 @@ class QwenImage(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+class Ideogram4(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.ideogram4.model.Ideogram4Transformer2DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if torch.numel(attention_mask) != attention_mask.sum():
+                out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
 class HunyuanImage21(BaseModel):

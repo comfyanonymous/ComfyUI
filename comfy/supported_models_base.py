@@ -115,7 +115,7 @@ class BASE:
         replace_prefix = {"": self.vae_key_prefix[0]}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def set_inference_dtype(self, dtype, manual_cast_dtype):
+    def set_inference_dtype(self, dtype, manual_cast_dtype, device=None):
         self.unet_config['dtype'] = dtype
         self.manual_cast_dtype = manual_cast_dtype
 
