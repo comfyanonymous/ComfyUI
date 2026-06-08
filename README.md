@@ -65,6 +65,14 @@ Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon,
 ## Examples
 See what ComfyUI can do with the [newer template workflows](https://comfy.org/workflows) or old [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
 
+## API
+
+If you want to automate local ComfyUI runs or integrate it into another tool:
+
+- `openapi.yaml` documents the newer `/api/*` endpoints, including `POST /api/prompt`, `GET /api/queue`, and `GET /api/jobs/{job_id}`.
+- [`script_examples/`](script_examples/README.md) contains small Python examples for the local scripting endpoints and websocket flow.
+- In the UI, use `File -> Export (API)` to export the current workflow in API format before sending it to the backend.
+
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - NOTE: There are many more models supported than the list below, if you want to see what is supported see our templates list inside ComfyUI.
