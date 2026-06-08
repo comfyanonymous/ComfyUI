@@ -231,6 +231,13 @@ parser.add_argument(
     help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
 )
 
+parser.add_argument("--http-proxy", type=str, default=None, metavar="URL",
+    help="HTTP/HTTPS proxy URL (e.g. http://127.0.0.1:7890). Sets HTTP_PROXY and HTTPS_PROXY environment variables so all outbound traffic is routed through the proxy.")
+parser.add_argument("--https-proxy", type=str, default=None, metavar="URL",
+    help="HTTPS proxy URL. If not set, --http-proxy is used for both HTTP and HTTPS traffic.")
+parser.add_argument("--no-proxy", type=str, default=None, metavar="HOSTS",
+    help="Comma-separated list of hosts that should bypass the proxy (e.g. localhost,127.0.0.1,*.local).")
+
 database_default_path = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
 )

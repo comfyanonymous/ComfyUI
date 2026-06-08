@@ -10,6 +10,8 @@ if args.list_feature_flags:
     raise SystemExit(0)
 
 import os
+import logging
+import sys
 import importlib.util
 import shutil
 import importlib.metadata
@@ -17,6 +19,74 @@ import folder_paths
 import time
 from comfy.cli_args import enables_dynamic_vram
 from app.logger import setup_logger
+
+
+def _redact_proxy_url(url: str) -> str:
+    """Return url with userinfo replaced by *** to prevent credential leaks in logs."""
+    from urllib.parse import urlsplit, urlunsplit
+    try:
+        parts = urlsplit(url)
+        if '@' in (parts.netloc or ''):
+            _, hostinfo = parts.netloc.rsplit('@', 1)
+            return urlunsplit(parts._replace(netloc=f"***:***@{hostinfo}"))
+    except Exception:
+        return '***'
+    return url
+
+
+def _apply_proxy_env_vars() -> None:
+    """Apply proxy environment variables.
+
+    Priority: CLI args override everything. Settings file fills in only when
+    neither a CLI arg nor an existing environment variable is present.
+    """
+    import json as _json
+
+    http_proxy_cli = args.http_proxy
+    https_proxy_cli = args.https_proxy
+    no_proxy_cli = args.no_proxy
+
+    settings_http = settings_https = settings_no_proxy = ""
+    user_dir = args.user_directory or os.path.join(
+        args.base_directory or os.path.dirname(os.path.realpath(__file__)), "user"
+    )
+    settings_path = os.path.join(user_dir, "default", "comfy.settings.json")
+    if os.path.isfile(settings_path):
+        try:
+            with open(settings_path) as f:
+                cfg = _json.load(f)
+            settings_http = cfg.get("Comfy.Network.Proxy.HttpUrl") or ""
+            settings_https = cfg.get("Comfy.Network.Proxy.HttpsUrl") or ""
+            settings_no_proxy = cfg.get("Comfy.Network.Proxy.NoProxy") or ""
+        except (OSError, _json.JSONDecodeError) as exc:
+            logging.warning("Could not load proxy settings from %s: %s", settings_path, exc)
+
+    def _force(upper: str, lower: str, value: str) -> None:
+        os.environ[upper] = value
+        os.environ[lower] = value
+
+    def _fill(upper: str, lower: str, value: str) -> None:
+        if value and not os.environ.get(upper):
+            os.environ[upper] = value
+            os.environ[lower] = value
+
+    # CLI args take precedence over all existing environment variables
+    if http_proxy_cli:
+        _force('HTTP_PROXY', 'http_proxy', http_proxy_cli)
+        if not https_proxy_cli:
+            _force('HTTPS_PROXY', 'https_proxy', http_proxy_cli)
+    if https_proxy_cli:
+        _force('HTTPS_PROXY', 'https_proxy', https_proxy_cli)
+    if no_proxy_cli:
+        _force('NO_PROXY', 'no_proxy', no_proxy_cli)
+
+    # Settings file values only fill gaps (existing env vars take precedence)
+    _fill('HTTP_PROXY', 'http_proxy', settings_http)
+    if not os.environ.get('HTTPS_PROXY'):
+        _fill('HTTPS_PROXY', 'https_proxy', settings_https or settings_http)
+    _fill('NO_PROXY', 'no_proxy', settings_no_proxy)
+
+
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 from app.assets.seeder import asset_seeder
@@ -25,8 +95,6 @@ import itertools
 import utils.extra_config
 from utils.mime_types import init_mime_types
 import faulthandler
-import logging
-import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
@@ -36,6 +104,12 @@ if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
+    _apply_proxy_env_vars()
+
+if os.environ.get('HTTP_PROXY'):
+    logging.info("HTTP proxy configured: %s", _redact_proxy_url(os.environ['HTTP_PROXY']))
+if os.environ.get('HTTPS_PROXY'):
+    logging.info("HTTPS proxy configured: %s", _redact_proxy_url(os.environ['HTTPS_PROXY']))
 
 faulthandler.enable(file=sys.stderr, all_threads=False)
 
