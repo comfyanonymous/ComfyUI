@@ -37,6 +37,18 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
+    # Early port availability check — fail fast before slow custom node loading
+    import socket as _early_socket
+    _port = getattr(args, 'port', 8188)
+    try:
+        with _early_socket.socket(_early_socket.AF_INET, _early_socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            if s.connect_ex(('127.0.0.1', _port)) == 0:
+                print(f"ERROR: Port {_port} is already in use. Please free the port or specify a different one with --port.", file=sys.stderr)
+                raise SystemExit(1)
+    except OSError:
+        pass
+
 faulthandler.enable(file=sys.stderr, all_threads=False)
 
 import comfy_aimdo.control
