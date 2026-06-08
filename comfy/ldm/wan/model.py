@@ -1739,3 +1739,132 @@ class SCAILWanModel(WanModel):
 
         freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent)
         return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, **kwargs)[:, :, :t, :h, :w]
+
+
+class SCAIL2WanModel(SCAILWanModel):
+    """SCAIL-2: SCAIL-Preview + an additive binary multi-identity mask stream."""
+
+    def __init__(self, model_type="scail2", patch_size=(1, 2, 2), in_dim=20, mask_in_dim=28, dim=5120, operations=None, device=None, dtype=None, **kwargs):
+        super().__init__(model_type=model_type, patch_size=patch_size, in_dim=in_dim, dim=dim, operations=operations, device=device, dtype=dtype, **kwargs)
+        self.patch_embedding_mask = operations.Conv3d(mask_in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32)
+
+    def forward_orig(self, x, t, context, clip_fea=None, freqs=None, transformer_options={}, pose_latents=None, reference_latent=None, ref_mask_latents=None, sam_latents=None, **kwargs):
+        if reference_latent is not None:
+            x = torch.cat((reference_latent, x), dim=2)
+
+        x = self.patch_embedding(x.float()).to(x.dtype)
+        if ref_mask_latents is not None:
+            x = x + self.patch_embedding_mask(ref_mask_latents.float()).to(x.dtype)
+        grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
+        x = x.flatten(2).transpose(1, 2)
+
+        scail_pose_seq_len = 0
+        if pose_latents is not None:
+            scail_x = self.patch_embedding_pose(pose_latents.float()).to(x.dtype)
+            if sam_latents is not None:
+                scail_x = scail_x + self.patch_embedding_mask(sam_latents.float()).to(x.dtype)
+            scail_x = scail_x.flatten(2).transpose(1, 2)
+            scail_pose_seq_len = scail_x.shape[1]
+            x = torch.cat([x, scail_x], dim=1)
+            del scail_x
+
+        e = self.time_embedding(sinusoidal_embedding_1d(self.freq_dim, t.flatten()).to(dtype=x[0].dtype))
+        e = e.reshape(t.shape[0], -1, e.shape[-1])
+        e0 = self.time_projection(e).unflatten(2, (6, self.dim))
+
+        context = self.text_embedding(context)
+
+        context_img_len = None
+        if clip_fea is not None:
+            if self.img_emb is not None:
+                context_clip = self.img_emb(clip_fea)
+                context = torch.cat([context_clip, context], dim=1)
+            context_img_len = clip_fea.shape[-2]
+
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
+        for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
+            if ("double_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], context_img_len=context_img_len, transformer_options=args["transformer_options"])
+                    return out
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs, "transformer_options": transformer_options}, {"original_block": block_wrap})
+                x = out["img"]
+            else:
+                x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+        x = self.head(x, e)
+
+        if scail_pose_seq_len > 0:
+            x = x[:, :-scail_pose_seq_len]
+
+        x = self.unpatchify(x, grid_sizes)
+
+        if reference_latent is not None:
+            x = x[:, :, reference_latent.shape[2]:]
+
+        return x
+
+    # Reads the first element of ref_mask_flag and assumes a uniform mode across the batch.
+    def rope_encode(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, pose_latents=None, reference_latent=None, ref_mask_flag=None, transformer_options={}):
+        is_replacement = ref_mask_flag is not None and not bool(ref_mask_flag.flatten()[0].item())
+        if not is_replacement:
+            return super().rope_encode(t, h, w, t_start=t_start, steps_t=steps_t, steps_h=steps_h, steps_w=steps_w, device=device, dtype=dtype, pose_latents=pose_latents, reference_latent=reference_latent, transformer_options=transformer_options)
+
+        REF_ROPE_H = 120.0
+        POSE_ROPE_W = 120.0
+
+        ref_t_patches = 0
+        if reference_latent is not None:
+            ref_t_patches = (reference_latent.shape[2] + (self.patch_size[0] // 2)) // self.patch_size[0]
+        main_t_patches = t - ref_t_patches
+
+        parts = []
+        if ref_t_patches > 0:
+            ref_tf = {"rope_options": {"shift_y": REF_ROPE_H, "shift_x": 0.0, "scale_y": 1.0, "scale_x": 1.0}}
+            parts.append(super(SCAILWanModel, self).rope_encode(ref_t_patches, h, w, t_start=0, device=device, dtype=dtype, transformer_options=ref_tf))
+        if main_t_patches > 0:
+            parts.append(super(SCAILWanModel, self).rope_encode(main_t_patches, h, w, t_start=0, device=device, dtype=dtype, transformer_options=transformer_options))
+
+        if pose_latents is not None:
+            F_pose, H_pose, W_pose = pose_latents.shape[-3], pose_latents.shape[-2], pose_latents.shape[-1]
+            h_scale = h / H_pose
+            w_scale = w / W_pose
+            h_shift = (h_scale - 1) / 2
+            w_shift = (w_scale - 1) / 2
+            pose_tf = {"rope_options": {"shift_y": h_shift, "shift_x": POSE_ROPE_W + w_shift, "scale_y": h_scale, "scale_x": w_scale}}
+            parts.append(super(SCAILWanModel, self).rope_encode(F_pose, H_pose, W_pose, t_start=0, device=device, dtype=dtype, transformer_options=pose_tf))
+
+        return torch.cat(parts, dim=1)
+
+    def _forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, pose_latents=None, ref_mask_latents=None, sam_latents=None, **kwargs):
+        bs, c, t, h, w = x.shape
+        x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
+
+        if pose_latents is not None:
+            pose_latents = comfy.ldm.common_dit.pad_to_patch_size(pose_latents, self.patch_size)
+        if ref_mask_latents is not None:
+            ref_mask_latents = comfy.ldm.common_dit.pad_to_patch_size(ref_mask_latents, self.patch_size)
+        if sam_latents is not None:
+            sam_latents = comfy.ldm.common_dit.pad_to_patch_size(sam_latents, self.patch_size)
+
+        t_len = t
+        if time_dim_concat is not None:
+            time_dim_concat = comfy.ldm.common_dit.pad_to_patch_size(time_dim_concat, self.patch_size)
+            x = torch.cat([x, time_dim_concat], dim=2)
+            t_len = x.shape[2]
+
+        reference_latent = None
+        if "reference_latent" in kwargs:
+            reference_latent = comfy.ldm.common_dit.pad_to_patch_size(kwargs.pop("reference_latent"), self.patch_size)
+            t_len += reference_latent.shape[2]
+
+        ref_mask_flag = kwargs.pop("ref_mask_flag", None)
+
+        freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, ref_mask_flag=ref_mask_flag)
+        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, ref_mask_latents=ref_mask_latents, sam_latents=sam_latents, **kwargs)[:, :, :t, :h, :w]
