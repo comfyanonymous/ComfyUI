@@ -139,7 +139,7 @@ class WanSCAILToVideo(io.ComfyNode):
                 io.Float.Input("pose_start", default=0.0, min=0.0, max=1.0, step=0.01, tooltip="Start step to use pose conditioning."),
                 io.Float.Input("pose_end", default=1.0, min=0.0, max=1.0, step=0.01, tooltip="End step to use pose conditioning."),
                 io.Image.Input("reference_image", optional=True, tooltip="Reference image, for multiple references composite all on single image."),
-                io.Image.Input("reference_image_mask", optional=True, tooltip="SCAIL-2 only. Single-frame colored ref mask at the reference image's full resolution."),
+                io.Image.Input("reference_image_mask", optional=True, tooltip="SCAIL-2 only. Single-frame colored mask at the same resolution as reference_image."),
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True, tooltip="CLIP vision features for conditioning. Model is trained with stretch resize to aspect ratio."),
                 io.Int.Input("video_frame_offset", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1, tooltip="Cumulative output frame this chunk begins at. Wire from the previous chunk's video_frame_offset output."),
                 io.Int.Input("previous_frame_count", default=5, min=1, max=nodes.MAX_RESOLUTION, step=4, tooltip="Tail frames of previous_frames to anchor. SCAIL-2 trained at 5 (81-frame chunks, 76-frame step)."),
@@ -244,7 +244,7 @@ class WanSCAILToVideo(io.ComfyNode):
 
 
 class SCAIL2ColoredMask(io.ComfyNode):
-    """Render SAM3 tracks for the driving video and (optionally) the reference
+    """Render SAM3 tracks for the driving pose video and (optionally) the reference
     image into the two colored masks WanSCAILToVideo consumes. Shared `sort_by`
     across both outputs guarantees identity K maps to the same color on both
     sides, for multi-person workflow consistency.
@@ -259,13 +259,13 @@ class SCAIL2ColoredMask(io.ComfyNode):
             display_name="Create SCAIL-2 Colored Mask",
             category="conditioning/video_models/scail",
             inputs=[
-                SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving video. Will be rendered into the pose_video_mask output."),
+                SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving pose video. Will be rendered into the pose_video_mask output."),
                 SAM3TrackData.Input("ref_track_data", optional=True,
-                                    tooltip="SAM3 track of the reference image. Optional — wire it for the reference_image_mask output."),
+                                    tooltip="SAM3 track of the reference image."),
                 io.String.Input("object_indices", default="",
-                                tooltip="Comma-separated object indices to include (e.g. '0,2,3'). Applied to both sides. Empty = all."),
+                                tooltip="Comma-separated list of person indices to include (e.g. '0,2,3'). Applied to both reference and pose video masks. Empty = all."),
                 io.Combo.Input("sort_by", options=["none", "left_to_right", "area"], default="left_to_right",
-                               tooltip="Applied to both sides identically so that color index order matches. left_to_right = by first-frame centroid; area = descending mask area; none = SAM3's original order."),
+                               tooltip="Order in which palette colors are assigned to the tracked objects (applied to both reference and pose video so each identity keeps the same color). left_to_right = leftmost object (by first-frame centroid) gets the first color; area = biggest object (by first-frame mask area) gets the first color; none = keep SAM3's order."),
                 io.Boolean.Input("replacement_mode", default=False,
                                  tooltip="False = mask_video has black bg (Animation Mode). True = white bg (Replacement Mode). Set the matching replacement_mode on WanSCAILToVideo. reference_image_mask is always black-bg regardless."),
             ],
