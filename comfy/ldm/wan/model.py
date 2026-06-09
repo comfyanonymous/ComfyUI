@@ -1631,13 +1631,15 @@ class SCAILWanModel(WanModel):
 
         self.patch_embedding_pose = operations.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32)
 
-    def forward_orig(self, x, t, context, clip_fea=None, freqs=None, transformer_options={}, pose_latents=None, reference_latent=None, **kwargs):
+    def forward_orig(self, x, t, context, clip_fea=None, freqs=None, transformer_options={}, pose_latents=None, reference_latent=None, ref_mask_latents=None, sam_latents=None, **kwargs):
 
         if reference_latent is not None:
             x = torch.cat((reference_latent, x), dim=2)
 
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
+        if ref_mask_latents is not None:  # SCAIL-2 additive mask stream
+            x = x + self.patch_embedding_mask(ref_mask_latents.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
         transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
@@ -1645,6 +1647,8 @@ class SCAILWanModel(WanModel):
         scail_pose_seq_len = 0
         if pose_latents is not None:
             scail_x = self.patch_embedding_pose(pose_latents.float()).to(x.dtype)
+            if sam_latents is not None:  # SCAIL-2 additive mask stream
+                scail_x = scail_x + self.patch_embedding_mask(sam_latents.float()).to(x.dtype)
             scail_x = scail_x.flatten(2).transpose(1, 2)
             scail_pose_seq_len = scail_x.shape[1]
             x = torch.cat([x, scail_x], dim=1)
@@ -1695,7 +1699,36 @@ class SCAILWanModel(WanModel):
 
         return x
 
-    def rope_encode(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, pose_latents=None, reference_latent=None, transformer_options={}):
+    # ref_mask_flag is a scalar bool (CONDConstant, SCAIL-2 only). False => replacement mode,
+    # which places ref/pose via H/W rope shifts instead of the animation-mode temporal offset.
+    def rope_encode(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, pose_latents=None, reference_latent=None, ref_mask_flag=None, transformer_options={}):
+        if ref_mask_flag is not None and not bool(ref_mask_flag):
+            REF_ROPE_H = 120.0
+            POSE_ROPE_W = 120.0
+
+            ref_t_patches = 0
+            if reference_latent is not None:
+                ref_t_patches = (reference_latent.shape[2] + (self.patch_size[0] // 2)) // self.patch_size[0]
+            main_t_patches = t - ref_t_patches
+
+            parts = []
+            if ref_t_patches > 0:
+                ref_tf = {"rope_options": {"shift_y": REF_ROPE_H, "shift_x": 0.0, "scale_y": 1.0, "scale_x": 1.0}}
+                parts.append(super().rope_encode(ref_t_patches, h, w, t_start=0, device=device, dtype=dtype, transformer_options=ref_tf))
+            if main_t_patches > 0:
+                parts.append(super().rope_encode(main_t_patches, h, w, t_start=0, device=device, dtype=dtype, transformer_options=transformer_options))
+
+            if pose_latents is not None:
+                F_pose, H_pose, W_pose = pose_latents.shape[-3], pose_latents.shape[-2], pose_latents.shape[-1]
+                h_scale = h / H_pose
+                w_scale = w / W_pose
+                h_shift = (h_scale - 1) / 2
+                w_shift = (w_scale - 1) / 2
+                pose_tf = {"rope_options": {"shift_y": h_shift, "shift_x": POSE_ROPE_W + w_shift, "scale_y": h_scale, "scale_x": w_scale}}
+                parts.append(super().rope_encode(F_pose, H_pose, W_pose, t_start=0, device=device, dtype=dtype, transformer_options=pose_tf))
+
+            return torch.cat(parts, dim=1)
+
         main_freqs = super().rope_encode(t, h, w, t_start=t_start, steps_t=steps_t, steps_h=steps_h, steps_w=steps_w, device=device, dtype=dtype, transformer_options=transformer_options)
 
         if pose_latents is None:
@@ -1719,12 +1752,16 @@ class SCAILWanModel(WanModel):
 
         return torch.cat([main_freqs, pose_freqs], dim=1)
 
-    def _forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, pose_latents=None, **kwargs):
+    def _forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, pose_latents=None, ref_mask_latents=None, sam_latents=None, **kwargs):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
 
         if pose_latents is not None:
             pose_latents = comfy.ldm.common_dit.pad_to_patch_size(pose_latents, self.patch_size)
+        if ref_mask_latents is not None:  # SCAIL-2
+            ref_mask_latents = comfy.ldm.common_dit.pad_to_patch_size(ref_mask_latents, self.patch_size)
+        if sam_latents is not None:  # SCAIL-2
+            sam_latents = comfy.ldm.common_dit.pad_to_patch_size(sam_latents, self.patch_size)
 
         t_len = t
         if time_dim_concat is not None:
@@ -1737,5 +1774,15 @@ class SCAILWanModel(WanModel):
             reference_latent = comfy.ldm.common_dit.pad_to_patch_size(kwargs.pop("reference_latent"), self.patch_size)
             t_len += reference_latent.shape[2]
 
-        freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent)
-        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, **kwargs)[:, :, :t, :h, :w]
+        ref_mask_flag = kwargs.pop("ref_mask_flag", None)  # SCAIL-2
+
+        freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, ref_mask_flag=ref_mask_flag)
+        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, ref_mask_latents=ref_mask_latents, sam_latents=sam_latents, **kwargs)[:, :, :t, :h, :w]
+
+
+class SCAIL2WanModel(SCAILWanModel):
+    """SCAIL-2: SCAIL-Preview + an additive binary multi-identity mask stream."""
+
+    def __init__(self, model_type="scail2", patch_size=(1, 2, 2), in_dim=20, mask_in_dim=28, dim=5120, operations=None, device=None, dtype=None, **kwargs):
+        super().__init__(model_type=model_type, patch_size=patch_size, in_dim=in_dim, dim=dim, operations=operations, device=device, dtype=dtype, **kwargs)
+        self.patch_embedding_mask = operations.Conv3d(mask_in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32)
