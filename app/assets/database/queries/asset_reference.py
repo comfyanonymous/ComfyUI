@@ -647,22 +647,29 @@ def upsert_reference(
     if created:
         return True, False
 
+    update_conditions = [
+        AssetReference.asset_id != asset_id,
+        AssetReference.mtime_ns.is_(None),
+        AssetReference.mtime_ns != int(mtime_ns),
+        AssetReference.is_missing == True,  # noqa: E712
+        AssetReference.deleted_at.isnot(None),
+    ]
+    update_values = {
+        "asset_id": asset_id,
+        "mtime_ns": int(mtime_ns),
+        "is_missing": False,
+        "deleted_at": None,
+        "updated_at": now,
+    }
+    if owner_id:
+        update_conditions.append(AssetReference.owner_id != owner_id)
+        update_values["owner_id"] = owner_id
+
     upd = (
         sa.update(AssetReference)
         .where(AssetReference.file_path == file_path)
-        .where(
-            sa.or_(
-                AssetReference.asset_id != asset_id,
-                AssetReference.mtime_ns.is_(None),
-                AssetReference.mtime_ns != int(mtime_ns),
-                AssetReference.is_missing == True,  # noqa: E712
-                AssetReference.deleted_at.isnot(None),
-            )
-        )
-        .values(
-            asset_id=asset_id, mtime_ns=int(mtime_ns), is_missing=False,
-            deleted_at=None, updated_at=now,
-        )
+        .where(sa.or_(*update_conditions))
+        .values(**update_values)
     )
     res2 = session.execute(upd)
     updated = int(res2.rowcount or 0) > 0

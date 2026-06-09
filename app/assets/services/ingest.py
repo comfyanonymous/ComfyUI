@@ -6,6 +6,7 @@ from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
 
+import folder_paths
 import app.assets.services.hashing as hashing
 from app.assets.database.queries import (
     add_tags_to_reference,
@@ -149,6 +150,7 @@ def register_output_files(
     file_paths: Sequence[str],
     user_metadata: UserMetadata = None,
     job_id: str | None = None,
+    owner_id: str = "",
 ) -> int:
     """Register a batch of output file paths as assets.
 
@@ -160,12 +162,57 @@ def register_output_files(
             continue
         try:
             if ingest_existing_file(
-                abs_path, user_metadata=user_metadata, job_id=job_id
+                abs_path, user_metadata=user_metadata, job_id=job_id, owner_id=owner_id
             ):
                 registered += 1
         except Exception:
             logging.exception("Failed to register output: %s", abs_path)
     return registered
+
+
+def collect_output_absolute_paths(output_data: dict) -> list[str]:
+    """Extract absolute output/temp paths from a node UI output or history result."""
+    if not isinstance(output_data, dict):
+        return []
+
+    if isinstance(output_data.get("outputs"), dict):
+        node_outputs = output_data["outputs"].values()
+    else:
+        node_outputs = [output_data]
+
+    paths: list[str] = []
+    seen: set[str] = set()
+    for node_output in node_outputs:
+        if not isinstance(node_output, dict):
+            continue
+        for items in node_output.values():
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                item_type = item.get("type")
+                if item_type not in ("output", "temp"):
+                    continue
+                base_dir = folder_paths.get_directory_by_type(item_type)
+                if base_dir is None:
+                    continue
+                base_dir = os.path.abspath(base_dir)
+                filename = item.get("filename")
+                if not filename:
+                    continue
+                abs_path = os.path.abspath(
+                    os.path.join(base_dir, item.get("subfolder", ""), filename)
+                )
+                try:
+                    if os.path.commonpath((base_dir, abs_path)) != base_dir:
+                        continue
+                except ValueError:
+                    continue
+                if abs_path not in seen:
+                    seen.add(abs_path)
+                    paths.append(abs_path)
+    return paths
 
 
 def ingest_existing_file(
@@ -195,6 +242,8 @@ def ingest_existing_file(
         existing_ref = get_reference_by_file_path(session, locator)
         if existing_ref is not None:
             now = get_utc_now()
+            if owner_id and existing_ref.owner_id != owner_id:
+                existing_ref.owner_id = owner_id
             existing_ref.mtime_ns = mtime_ns
             existing_ref.job_id = job_id
             existing_ref.is_missing = False

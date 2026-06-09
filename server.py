@@ -36,8 +36,15 @@ from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 from app.assets.seeder import asset_seeder
 from app.assets.api.routes import register_assets_routes
-from app.assets.services.ingest import register_file_in_place
-from app.assets.services.asset_management import resolve_hash_to_path
+from app.assets.services.ingest import (
+    collect_output_absolute_paths,
+    register_file_in_place,
+    register_output_files,
+)
+from app.assets.services.asset_management import (
+    is_file_visible_to_owner,
+    resolve_hash_to_path,
+)
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -54,10 +61,83 @@ from middleware.cache_middleware import cache_control
 if args.enable_manager:
     import comfyui_manager
 
+INTERNAL_USER_ID_KEY = "_comfy_user_id"
+
 
 def _remove_sensitive_from_queue(queue: list) -> list:
     """Remove sensitive data (index 5) from queue item tuples."""
-    return [item[:5] for item in queue]
+    return [_scrub_prompt_tuple(item[:5]) for item in queue]
+
+
+def _scrub_prompt_tuple(prompt_tuple):
+    """Remove internal-only prompt metadata before returning queue data."""
+    if not isinstance(prompt_tuple, (list, tuple)):
+        return prompt_tuple
+    if len(prompt_tuple) <= 3 or not isinstance(prompt_tuple[3], dict):
+        return prompt_tuple
+    out = list(prompt_tuple)
+    extra_data = dict(out[3])
+    extra_data.pop(INTERNAL_USER_ID_KEY, None)
+    out[3] = extra_data
+    return tuple(out) if isinstance(prompt_tuple, tuple) else out
+
+
+def _scrub_history_for_response(history: dict) -> dict:
+    """Remove internal-only prompt metadata from history responses."""
+    out = {}
+    for prompt_id, item in history.items():
+        if not isinstance(item, dict):
+            continue
+        clean_item = dict(item)
+        if "prompt" in clean_item:
+            clean_item["prompt"] = _scrub_prompt_tuple(clean_item["prompt"])
+        out[prompt_id] = clean_item
+    return out
+
+
+def _prompt_tuple_owner_id(prompt_tuple) -> str | None:
+    """Return the stored owner id, or None for legacy prompts without one."""
+    try:
+        extra_data = prompt_tuple[3]
+    except Exception:
+        return "default"
+    if not isinstance(extra_data, dict):
+        return "default"
+    if INTERNAL_USER_ID_KEY not in extra_data:
+        return None
+    return str(extra_data.get(INTERNAL_USER_ID_KEY) or "default")
+
+
+def _prompt_tuple_visible_to_user(prompt_tuple, owner_id: str) -> bool:
+    """Return whether a prompt tuple is visible to the requesting user."""
+    prompt_owner_id = _prompt_tuple_owner_id(prompt_tuple)
+    return prompt_owner_id is None or prompt_owner_id == str(owner_id or "default")
+
+
+def _filter_queue_for_user(queue: list, owner_id: str) -> list:
+    """Filter queue entries to those visible to the requesting user."""
+    return [item for item in queue if _prompt_tuple_visible_to_user(item, owner_id)]
+
+
+def _filter_history_for_user(history: dict, owner_id: str) -> dict:
+    """Filter history entries to those visible to the requesting user."""
+    return {
+        prompt_id: item
+        for prompt_id, item in history.items()
+        if isinstance(item, dict)
+        and _prompt_tuple_visible_to_user(item.get("prompt"), owner_id)
+    }
+
+
+def _slice_history(history: dict, max_items: int | None, offset: int) -> dict:
+    """Return a stable paginated slice of a history mapping."""
+    items = list(history.items())
+    if offset < 0 and max_items is not None:
+        offset = len(items) - max_items
+    offset = max(offset, 0)
+    if max_items is None:
+        return dict(items[offset:])
+    return dict(items[offset:offset + max_items])
 
 
 async def send_socket_catch_exception(function, message):
@@ -382,7 +462,7 @@ class PromptServer():
                 return a.hexdigest() == b.hexdigest()
             return False
 
-        def image_upload(post, image_save_function=None):
+        def image_upload(post, image_save_function=None, owner_id=""):
             image = post.get("image")
             overwrite = post.get("overwrite")
             image_is_duplicate = False
@@ -431,7 +511,12 @@ class PromptServer():
                 if args.enable_assets:
                     try:
                         tag = image_upload_type if image_upload_type in ("input", "output") else "input"
-                        result = register_file_in_place(abs_path=filepath, name=filename, tags=[tag])
+                        result = register_file_in_place(
+                            abs_path=filepath,
+                            name=filename,
+                            tags=[tag],
+                            owner_id=owner_id,
+                        )
                         resp["asset"] = {
                             "id": result.ref.id,
                             "name": result.ref.name,
@@ -450,12 +535,20 @@ class PromptServer():
         @routes.post("/upload/image")
         async def upload_image(request):
             post = await request.post()
-            return image_upload(post)
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+            return image_upload(post, owner_id=owner_id)
 
 
         @routes.post("/upload/mask")
         async def upload_mask(request):
             post = await request.post()
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
 
             def image_save_function(image, post, filepath):
                 original_ref = json.loads(post.get("original_ref"))
@@ -497,7 +590,7 @@ class PromptServer():
                         original_pil.putalpha(new_alpha)
                         original_pil.save(filepath, compress_level=4, pnginfo=metadata)
 
-            return image_upload(post, image_save_function)
+            return image_upload(post, image_save_function, owner_id=owner_id)
 
         @routes.get("/view")
         async def view_image(request):
@@ -542,6 +635,14 @@ class PromptServer():
                     file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
+                    if args.enable_assets and not asset_seeder.is_disabled():
+                        try:
+                            owner_id = self.user_manager.get_request_user_id(request)
+                        except KeyError:
+                            return web.Response(status=403)
+                        if not is_file_visible_to_owner(file, owner_id=owner_id):
+                            return web.Response(status=403)
+
                     if 'preview' in request.rel_url.query:
                         with Image.open(file) as img:
                             preview_info = request.rel_url.query['preview'].split(';')
@@ -844,11 +945,20 @@ class PromptServer():
                         status=400
                     )
 
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
             running, queued = self.prompt_queue.get_current_queue_volatile()
             history = self.prompt_queue.get_history()
 
+            running = _filter_queue_for_user(running, owner_id)
+            queued = _filter_queue_for_user(queued, owner_id)
+            history = _filter_history_for_user(history, owner_id)
             running = _remove_sensitive_from_queue(running)
             queued = _remove_sensitive_from_queue(queued)
+            history = _scrub_history_for_response(history)
 
             jobs, total = get_all_jobs(
                 running, queued, history,
@@ -882,11 +992,20 @@ class PromptServer():
                     status=400
                 )
 
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
             running, queued = self.prompt_queue.get_current_queue_volatile()
             history = self.prompt_queue.get_history(prompt_id=job_id)
 
+            running = _filter_queue_for_user(running, owner_id)
+            queued = _filter_queue_for_user(queued, owner_id)
+            history = _filter_history_for_user(history, owner_id)
             running = _remove_sensitive_from_queue(running)
             queued = _remove_sensitive_from_queue(queued)
+            history = _scrub_history_for_response(history)
 
             job = get_job(job_id, running, queued, history)
             if job is None:
@@ -909,24 +1028,55 @@ class PromptServer():
             else:
                 offset = -1
 
-            return web.json_response(self.prompt_queue.get_history(max_items=max_items, offset=offset))
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
+            history = self.prompt_queue.get_history()
+            history = _filter_history_for_user(history, owner_id)
+            history = _slice_history(history, max_items=max_items, offset=offset)
+            history = _scrub_history_for_response(history)
+            return web.json_response(history)
 
         @routes.get("/history/{prompt_id}")
         async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
-            return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
+            history = self.prompt_queue.get_history(prompt_id=prompt_id)
+            history = _filter_history_for_user(history, owner_id)
+            history = _scrub_history_for_response(history)
+            return web.json_response(history)
 
         @routes.get("/queue")
         async def get_queue(request):
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            queue_info['queue_running'] = _remove_sensitive_from_queue(current_queue[0])
-            queue_info['queue_pending'] = _remove_sensitive_from_queue(current_queue[1])
+            queue_info['queue_running'] = _remove_sensitive_from_queue(
+                _filter_queue_for_user(current_queue[0], owner_id)
+            )
+            queue_info['queue_pending'] = _remove_sensitive_from_queue(
+                _filter_queue_for_user(current_queue[1], owner_id)
+            )
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
         async def post_prompt(request):
             logging.info("got prompt")
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
             json_data =  await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
@@ -957,6 +1107,7 @@ class PromptServer():
 
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
+                extra_data[INTERNAL_USER_ID_KEY] = owner_id
                 if valid[0]:
                     outputs_to_execute = valid[2]
                     sensitive = {}
@@ -1038,16 +1189,36 @@ class PromptServer():
 
         @routes.post("/history")
         async def post_history(request):
+            try:
+                owner_id = self.user_manager.get_request_user_id(request)
+            except KeyError:
+                return web.Response(status=403)
+
             json_data =  await request.json()
             if "clear" in json_data:
                 if json_data["clear"]:
-                    self.prompt_queue.wipe_history()
+                    history = self.prompt_queue.get_history()
+                    history = _filter_history_for_user(history, owner_id)
+                    for history_id in history.keys():
+                        self.prompt_queue.delete_history_item(history_id)
             if "delete" in json_data:
                 to_delete = json_data['delete']
                 for id_to_delete in to_delete:
-                    self.prompt_queue.delete_history_item(id_to_delete)
+                    history = self.prompt_queue.get_history(prompt_id=id_to_delete)
+                    if _filter_history_for_user(history, owner_id):
+                        self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+
+    def register_output_assets(self, output_ui, prompt_id: str, owner_id: str):
+        if not args.enable_assets or asset_seeder.is_disabled():
+            return
+        try:
+            paths = collect_output_absolute_paths(output_ui)
+            if paths:
+                register_output_files(paths, job_id=prompt_id, owner_id=owner_id)
+        except Exception:
+            logging.warning("Failed to register node output assets", exc_info=True)
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout

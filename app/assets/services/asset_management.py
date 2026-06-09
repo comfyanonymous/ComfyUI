@@ -13,6 +13,7 @@ from app.assets.database.queries import (
     soft_delete_reference_by_id,
     fetch_reference_asset_and_tags,
     get_asset_by_hash as queries_get_asset_by_hash,
+    get_reference_by_file_path,
     get_reference_by_id,
     get_reference_with_owner_check,
     list_references_page,
@@ -319,6 +320,22 @@ def resolve_hash_to_path(
         content_type=ctype,
         download_name=display_name,
     )
+
+
+def is_file_visible_to_owner(
+    abs_path: str,
+    owner_id: str = "",
+) -> bool:
+    """Return whether a file-backed asset reference is visible to owner_id."""
+    locator = os.path.abspath(abs_path)
+    owner_id = (owner_id or "").strip()
+    with create_session() as session:
+        ref = get_reference_by_file_path(session, locator)
+        if not ref:
+            return os.path.isfile(locator)
+        if ref.deleted_at is not None:
+            return False
+        return ref.owner_id == "" or ref.owner_id == owner_id
 
 
 def resolve_asset_for_download(
