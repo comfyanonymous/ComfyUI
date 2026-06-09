@@ -11,7 +11,7 @@ import node_helpers
 import comfy.model_management
 import comfy.utils
 from comfy_api.latest import ComfyExtension, io
-
+from comfy.ldm.sam3.tracker import unpack_masks
 
 SAM3TrackData = io.Custom("SAM3_TRACK_DATA")
 
@@ -28,7 +28,6 @@ DEFAULT_PALETTE = [
 
 
 def _unpack(track_data):
-    from comfy.ldm.sam3.tracker import unpack_masks
     packed = track_data["packed_masks"]
     if packed is None or packed.shape[1] == 0:
         return None
@@ -43,16 +42,6 @@ def _first_frame_cx_area(masks_bool):
     area = first.sum(dim=(-1, -2)).clamp_(min=1)
     cx = (first * grid_x).sum(dim=(-1, -2)) / area
     return (cx / W).tolist(), (area / n_pixels).tolist()
-
-
-def _sort_tracks(track_data, sort_by):
-    masks_bool = _unpack(track_data)
-    if masks_bool is None:
-        return []
-    cx, area = _first_frame_cx_area(masks_bool)
-    if sort_by == "x":
-        return sorted(range(len(cx)), key=lambda i: cx[i])
-    return sorted(range(len(area)), key=lambda i: -area[i])  # "area"
 
 
 def _subset_track_data(track_data, obj_indices):
@@ -70,19 +59,12 @@ def _subset_track_data(track_data, obj_indices):
     return out
 
 
-def _bg_to_rgb(background):
-    if background.startswith("white"):
-        return (1.0, 1.0, 1.0)
-    return (0.0, 0.0, 0.0)
-
-
 def _render_colored_masks(track_data, background="black"):
-    from comfy.ldm.sam3.tracker import unpack_masks
     packed = track_data["packed_masks"]
     H, W = track_data["orig_size"]
     device = comfy.model_management.intermediate_device()
     dtype = comfy.model_management.intermediate_dtype()
-    bg_rgb = _bg_to_rgb(background)
+    bg_rgb = (1.0, 1.0, 1.0) if background.startswith("white") else (0.0, 0.0, 0.0)
     if packed is None or packed.shape[1] == 0:
         T = track_data.get("n_frames", 1) if packed is None else packed.shape[0]
         out = torch.empty(T, H, W, 3, device=device, dtype=dtype)
@@ -277,19 +259,19 @@ class SCAIL2ColoredMask(io.ComfyNode):
             display_name="SCAIL-2 Colored Mask",
             category="conditioning/video_models/scail",
             inputs=[
-                SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving video. Will be rendered into the driving_mask_video output."),
+                SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving video. Will be rendered into the pose_video_mask output."),
                 SAM3TrackData.Input("ref_track_data", optional=True,
-                                    tooltip="SAM3 track of the reference image. Optional — wire it for the ref_mask_image output."),
+                                    tooltip="SAM3 track of the reference image. Optional — wire it for the reference_image_mask output."),
                 io.String.Input("object_indices", default="",
                                 tooltip="Comma-separated object indices to include (e.g. '0,2,3'). Applied to both sides. Empty = all."),
-                io.Combo.Input("sort_by", options=["none", "x", "area"],
-                               tooltip="Applied to both sides identically so index K = same logical slot. x = left-to-right by first-frame centroid; area = descending mask area; none = SAM3's order."),
+                io.Combo.Input("sort_by", options=["none", "left_to_right", "area"], default="left_to_right",
+                               tooltip="Applied to both sides identically so that color index order matches. left_to_right = by first-frame centroid; area = descending mask area; none = SAM3's original order."),
                 io.Boolean.Input("replacement_mode", default=False,
-                                 tooltip="False = mask_video has black bg (Animation Mode). True = white bg (Replacement Mode). Set the matching replacement_mode on WanSCAILToVideo. ref_mask_image is always black-bg regardless."),
+                                 tooltip="False = mask_video has black bg (Animation Mode). True = white bg (Replacement Mode). Set the matching replacement_mode on WanSCAILToVideo. reference_image_mask is always black-bg regardless."),
             ],
             outputs=[
-                io.Image.Output("driving_mask_video"),
-                io.Image.Output("ref_mask_image"),
+                io.Image.Output("pose_video_mask"),
+                io.Image.Output("reference_image_mask"),
             ],
             is_experimental=True,
         )
@@ -297,8 +279,14 @@ class SCAIL2ColoredMask(io.ComfyNode):
     @classmethod
     def execute(cls, driving_track_data, object_indices, sort_by, replacement_mode, ref_track_data=None):
         def _prep(td):
-            if sort_by != "none":
-                td = _subset_track_data(td, _sort_tracks(td, sort_by))
+            masks_bool = _unpack(td)
+            if sort_by != "none" and masks_bool is not None:
+                cx, area = _first_frame_cx_area(masks_bool)
+                if sort_by == "left_to_right":
+                    order = sorted(range(len(cx)), key=lambda i: cx[i])
+                else:  # "area"
+                    order = sorted(range(len(area)), key=lambda i: -area[i])
+                td = _subset_track_data(td, order)
             if object_indices.strip():
                 indices = [int(i.strip()) for i in object_indices.split(",") if i.strip().isdigit()]
                 packed = td.get("packed_masks")
@@ -312,12 +300,12 @@ class SCAIL2ColoredMask(io.ComfyNode):
 
         if ref_track_data is not None:
             ref = _prep(ref_track_data)
-            ref_mask_image = _render_colored_masks(ref, "black")
+            reference_image_mask = _render_colored_masks(ref, "black")
         else:
             H, W = drv["orig_size"]
-            ref_mask_image = torch.zeros(1, H, W, 3, device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
+            reference_image_mask = torch.zeros(1, H, W, 3, device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
 
-        return io.NodeOutput(mask_video, ref_mask_image)
+        return io.NodeOutput(mask_video, reference_image_mask)
 
 
 class SCAILExtension(ComfyExtension):
