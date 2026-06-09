@@ -40,7 +40,8 @@ class BerniniConditioning(io.ComfyNode):
             node_id="BerniniConditioning",
             display_name="Bernini Conditioning",
             category="conditioning/video_models",
-            description="Conditioning node for Bernini in-context video/image conditioning. It can be used for the following tasks: t2v (text-to-video), v2v (video-to-video), rv2v (reference-guided video editing), r2v (reference-to-video), ads2v (insert image/video into video).",
+            description="Conditioning node for Bernini in-context video/image conditioning. It can be used for the following tasks: t2v (text-to-video), v2v (video-to-video), rv2v (reference-guided video editing), r2v (reference-to-video), ads2v (insert image/video into video)."
+                         "Reference image(s) injected as in-context tokens (task r2v or rv2v), encoded independently at its own native aspect ratio (long edge capped at ref_max_size)",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -57,10 +58,7 @@ class BerniniConditioning(io.ComfyNode):
                     template=io.Autogrow.TemplatePrefix(
                         input=io.Image.Input("reference_image", tooltip=(
                             "A reference image injected as an in-context token (task r2v or rv2v).")),
-                        prefix="reference_image_", min=0, max=8),
-                    tooltip=(
-                        "Reference image(s) injected as in-context tokens (task r2v or rv2v). Each slot is "
-                        "encoded independently at its own native aspect ratio (long edge capped at ref_max_size)")),
+                        prefix="reference_image_", min=0, max=8)),
                 io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True, tooltip=(
                     "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio and snapped to 16px.")),
             ],
