@@ -1253,6 +1253,15 @@ class PromptServer():
 
         if verbose:
             logging.info("Starting server\n")
+            if args.debug_hang:
+                logging.info(
+                    f"{'-' * 80}\n"
+                    "ComfyUI has been started in debug-hang mode. Run your workflow as normal up to\n"
+                    "the point of the hang or freeze, then use ctrl-C in the cmd or controlling\n"
+                    "terminal to dump the python backtraces for debugging. Please attach the extra\n"
+                    "debug info to your bug report.\n"
+                    f"{'-' * 80}"
+                )
         for addr in addresses:
             address = addr[0]
             port = addr[1]
