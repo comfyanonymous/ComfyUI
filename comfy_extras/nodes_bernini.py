@@ -57,7 +57,7 @@ class BerniniConditioning(io.ComfyNode):
                 io.Autogrow.Input("reference_images", optional=True,
                     template=io.Autogrow.TemplatePrefix(
                         input=io.Image.Input("reference_image", tooltip=(
-                            "A reference image injected as an in-context token (task r2v or rv2v).")),
+                            "Reference image injected as an in-context token (r2v, rv2v).")),
                         prefix="reference_image_", min=0, max=8)),
                 io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True, tooltip=(
                     "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio and snapped to 16px.")),
