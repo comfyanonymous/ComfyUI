@@ -248,15 +248,15 @@ class SCAIL2ColoredMask(io.ComfyNode):
     image into the two colored masks WanSCAILToVideo consumes. Shared `sort_by`
     across both outputs guarantees identity K maps to the same color on both
     sides, for multi-person workflow consistency.
-    ref_mask is always rendered black-bg (model convention)
-    mask_video bg follows replacement_mode: black = Animation Mode, white = Replacement Mode
+    reference_image_mask is always rendered black-bg (model convention)
+    pose_video_mask bg follows replacement_mode: black = Animation Mode, white = Replacement Mode
     """
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="SCAIL2ColoredMask",
-            display_name="SCAIL-2 Colored Mask",
+            display_name="Create SCAIL-2 Colored Mask",
             category="conditioning/video_models/scail",
             inputs=[
                 SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving video. Will be rendered into the pose_video_mask output."),
