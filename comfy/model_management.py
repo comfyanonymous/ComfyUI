@@ -958,8 +958,6 @@ def loaded_models(only_currently_used=False):
 def cleanup_models_gc():
     do_gc = False
 
-    reset_cast_buffers()
-
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
         if cur.is_dead():
