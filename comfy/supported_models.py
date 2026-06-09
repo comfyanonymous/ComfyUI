@@ -1450,6 +1450,17 @@ class WAN21_SCAIL(WAN21_T2V):
         out = model_base.WAN21_SCAIL(self, image_to_video=False, device=device)
         return out
 
+
+class WAN21_SCAIL2(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "scail2",
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21_SCAIL2(self, image_to_video=False, device=device)
+        return out
+
 class WAN22_WanDancer(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -2259,6 +2270,7 @@ models = [
     WAN22_Animate,
     WAN21_FlowRVS,
     WAN21_SCAIL,
+    WAN21_SCAIL2,
     WAN22_WanDancer,
     Hunyuan3Dv2mini,
     Hunyuan3Dv2,
