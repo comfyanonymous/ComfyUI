@@ -105,6 +105,21 @@ def _extract_job_metadata(extra_data: dict) -> tuple[Optional[int], Optional[str
     return create_time, workflow_id
 
 
+def extract_workflow_id(extra_data: dict) -> Optional[str]:
+    """Extract workflow_id from extra_data.
+
+    Args:
+        extra_data: The extra_data dict containing workflow information
+
+    Returns:
+        The workflow_id if present, otherwise None
+    """
+    if not extra_data:
+        return None
+    extra_pnginfo = extra_data.get('extra_pnginfo', {})
+    return extra_pnginfo.get('workflow', {}).get('id')
+
+
 def is_previewable(media_type: str, item: dict) -> bool:
     """
     Check if an output item is previewable.

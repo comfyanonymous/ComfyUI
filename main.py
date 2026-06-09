@@ -30,6 +30,7 @@ import signal
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
+from comfy_execution.jobs import extract_workflow_id
 from comfy_api import feature_flags
 from app.database.db import init_db, dependencies_available
 
@@ -349,7 +350,11 @@ def prompt_worker(q, server_instance):
                             completed=e.success,
                             messages=e.status_messages), process_item=remove_sensitive)
             if server_instance.client_id is not None:
-                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
+                workflow_id = extract_workflow_id(extra_data)
+                executing_msg = {"node": None, "prompt_id": prompt_id}
+                if workflow_id is not None:
+                    executing_msg["workflow_id"] = workflow_id
+                server_instance.send_sync("executing", executing_msg, server_instance.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
@@ -413,6 +418,12 @@ def hijack_progress(server_instance):
         if node_id is None:
             node_id = server_instance.last_node_id
         progress = {"value": value, "max": total, "prompt_id": prompt_id, "node": node_id}
+        
+        # Add workflow_id if available from progress state
+        progress_state = get_progress_state()
+        if hasattr(progress_state, 'workflow_id') and progress_state.workflow_id is not None:
+            progress["workflow_id"] = progress_state.workflow_id
+        
         get_progress_state().update_progress(node_id, value, total, preview_image)
 
         server_instance.send_sync("progress", progress, server_instance.client_id)
