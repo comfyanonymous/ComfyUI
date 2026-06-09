@@ -213,7 +213,7 @@ def run_batched_single_chunk(inner: SAM3DBody, frames_rgb: List[torch.Tensor], p
         pose_output = outputs
         batch_lhand = batch_rhand = None
 
-    out = {k: v.cpu().numpy() for k, v in pose_output["mhr"].items()
+    out = {k: v.float().cpu().numpy() for k, v in pose_output["mhr"].items()
            if v is not None and k != "faces"}
 
     # Snapshot batch['bbox'] to CPU before we release `batch` references
