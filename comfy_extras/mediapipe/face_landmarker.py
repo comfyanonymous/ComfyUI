@@ -556,14 +556,7 @@ def _blazeface_input_warp(image_chw_raw: Tensor, target: int = _BF_INPUT_SIZE) -
 
 
 class FaceLandmarker(nn.Module):
-    """BlazeFace → FaceMesh v2 → blendshapes. `detector_variant` selects 'short'
-    (128², ≤2m), 'full' (192² FPN, ≤5m), or 'both' — which holds both detectors
-    alongside shared mesh/blendshapes so detect_batch can run them and per-frame
-    keep whichever found more faces (tie → short). State dict uses inner-module
-    prefixes `detector.*` (short or single-variant), `detector_full.*` (only
-    under 'both'), `mesh.*`, `blendshapes.*`; the outer FaceLandmarkerModel
-    wrapper rewrites `detector_{variant}.*` keys to `detector.*` before loading.
-    """
+    """BlazeFace → FaceMesh v2 → blendshapes."""
 
     def __init__(self, device=None, dtype=None, operations=None, detector_variant: str = "short"):
         super().__init__()
@@ -589,7 +582,7 @@ class FaceLandmarker(nn.Module):
                            variant: Optional[str] = None):
         """Batched detector pass. Returns (img_raws, sub_rects, sizes, per_frame_decoded)
         where per_frame_decoded[b] is (N, 17) in tensor-normalized [0,1] coords.
-        `variant` overrides per-call (required on 'both'-mode instances)."""
+        `variant` overrides per-call."""
         if not images_rgb_uint8:
             return [], [], [], []
         if variant is None:
