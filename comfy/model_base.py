@@ -54,8 +54,6 @@ import comfy.ldm.pixeldit.model
 import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
-import comfy.ldm.seedvr.model
-
 import comfy.ldm.qwen_image.model
 import comfy.ldm.ideogram4.model
 import comfy.ldm.kandinsky5.model
@@ -928,16 +926,6 @@ class HunyuanDiT(BaseModel):
         target_height = kwargs.get("target_height", height)
 
         out['image_meta_size'] = comfy.conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
-        return out
-
-class SeedVR2(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device, comfy.ldm.seedvr.model.NaDiT)
-    def extra_conds(self, **kwargs):
-        out = super().extra_conds(**kwargs)
-        condition = kwargs.get("condition", None)
-        if condition is not None:
-            out["condition"] = comfy.conds.CONDRegular(condition)
         return out
 
 class PixArt(BaseModel):
