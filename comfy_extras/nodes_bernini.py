@@ -8,8 +8,7 @@ from comfy_api.latest import ComfyExtension, io
 
 
 def _resize_long_edge(image, max_size, stride=16):
-    """Resize (preserve aspect) so the long edge <= max_size, then snap each side to `stride`
-    (snapping can nudge a side up/down by < stride, so it never scales up by more than that)."""
+    """Resize (preserve aspect) so the long edge <= max_size, then snap each side to `stride`"""
     h, w = image.shape[1], image.shape[2]
     scale = min(max_size / max(h, w), 1.0)
     nh = max(stride, round(h * scale / stride) * stride)
@@ -21,21 +20,18 @@ class BerniniConditioning(io.ComfyNode):
     """Bernini in-context conditioning for a Wan2.2-A14B model.
 
     Attaches the VAE-encoded source video / reference images to the conditioning
-    an ordered list of clean latents (source video first, then each reference image),
-    which the Wan model appends as extra tokens with per-stream source_id rope.
+    source video first, then each reference image
 
     The task is inferred from which inputs are connected:
-      (nothing)                  -> t2v
-      source_video               -> v2v
-      source_video + ref images  -> rv2v
-      ref images only            -> r2v   (each kept at native aspect)
-      source_video + ref_video   -> video insertion / "ads2v"
+      (nothing)                  -> t2v (text-to-video)
+      source_video               -> v2v (video-to-video)
+      source_video + ref_images  -> rv2v (reference-guided video editing)
+      ref_images only            -> r2v (reference-to-video)
+      source_video + ref_video   -> ads2v (insert image/video into video)
 
     source_video is the edit base / canvas (resized to width x height).
-    reference_video is moving content to composite in (e.g. a clip to play on a
-    screen), kept at its native aspect like the reference images. Streams are
-    ordered source_video, reference_video, then reference_images -> source_id
-    1, 2, 3... matching the reference repo's [base, content, refs].
+    reference_video is moving content to composite in.
+    Streams are ordered source_video, reference_video, then reference_images -> source_id (1, 2, 3, ...).
     """
 
     @classmethod
@@ -44,8 +40,7 @@ class BerniniConditioning(io.ComfyNode):
             node_id="BerniniConditioning",
             display_name="Bernini Conditioning",
             category="conditioning/video_models",
-            description="Conditioning node for Bernini in-context video/image conditioning. Attach source video and/or reference images to the positive/negative conditioning, "
-                        "which the Wan model will append as extra tokens with per-stream source_id rope.",
+            description="Conditioning node for Bernini in-context video/image conditioning. It can be used for the following tasks: t2v (text-to-video), v2v (video-to-video), rv2v (reference-guided video editing), r2v (reference-to-video), ads2v (insert image/video into video).",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -55,10 +50,9 @@ class BerniniConditioning(io.ComfyNode):
                 io.Int.Input("length", default=81, min=1, max=8192, step=4),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
                 io.Image.Input("source_video", optional=True, tooltip=(
-                    "Source video to edit/restyle (task v2v or rv2v). Resized to width/height and trimmed to length. Acts as the edit base / canvas.")),
+                    "Source video to edit or restyle (v2v, rv2v). Resized to width/height and trimmed to length.")),
                 io.Image.Input("reference_video", optional=True, tooltip=(
-                    "Moving content to composite into the source video (video insertion / ads2v),"
-                    "e.g. a clip to play on a screen. Kept at native aspect (long edge capped at ref_max_size), trimmed to length.")),
+                    "Video to insert into the source video (ads2v).")),
                 io.Autogrow.Input("reference_images", optional=True,
                     template=io.Autogrow.TemplatePrefix(
                         input=io.Image.Input("reference_image", tooltip=(
@@ -66,10 +60,9 @@ class BerniniConditioning(io.ComfyNode):
                         prefix="reference_image_", min=0, max=8),
                     tooltip=(
                         "Reference image(s) injected as in-context tokens (task r2v or rv2v). Each slot is "
-                        "encoded independently at its own native aspect ratio (long edge capped at "
-                        "ref_max_size), so connect mixed-size references to separate slots.")),
+                        "encoded independently at its own native aspect ratio (long edge capped at ref_max_size)")),
                 io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True, tooltip=(
-                    "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio and snapped to 16px (snapping may nudge a side by <16px).")),
+                    "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio and snapped to 16px.")),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -84,7 +77,6 @@ class BerniniConditioning(io.ComfyNode):
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8],
                              device=comfy.model_management.intermediate_device())
 
-        # Ordered list of condition streams -> source_id by list order:
         # source_video (1), reference_video (2), reference_images (3, 4, ...).
         context = []
         if source_video is not None:
