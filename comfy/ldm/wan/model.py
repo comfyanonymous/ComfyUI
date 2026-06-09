@@ -1810,9 +1810,9 @@ class SCAIL2WanModel(SCAILWanModel):
 
         return x
 
-    # Reads the first element of ref_mask_flag and assumes a uniform mode across the batch.
+    # ref_mask_flag is a scalar bool (CONDConstant); the mode is uniform across the batch.
     def rope_encode(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, pose_latents=None, reference_latent=None, ref_mask_flag=None, transformer_options={}):
-        is_replacement = ref_mask_flag is not None and not bool(ref_mask_flag.flatten()[0].item())
+        is_replacement = ref_mask_flag is not None and not bool(ref_mask_flag)
         if not is_replacement:
             return super().rope_encode(t, h, w, t_start=t_start, steps_t=steps_t, steps_h=steps_h, steps_w=steps_w, device=device, dtype=dtype, pose_latents=pose_latents, reference_latent=reference_latent, transformer_options=transformer_options)
 

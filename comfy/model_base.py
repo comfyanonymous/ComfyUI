@@ -1758,7 +1758,6 @@ class WAN21_SCAIL2(WAN21_SCAIL):
     """SCAIL-2: SCAIL-Preview + an additive binary multi-identity mask stream."""
 
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
-        # Bypass WAN21.__init__ to override unet_model to SCAIL2WanModel.
         super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.SCAIL2WanModel)
         self.memory_usage_factor_conds = ("reference_latent", "pose_latents", "ref_mask_latents", "sam_latents")
         self.memory_usage_shape_process = {
@@ -1770,29 +1769,29 @@ class WAN21_SCAIL2(WAN21_SCAIL):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
 
-        sam_28ch = kwargs.get("sam_28ch", None)
-        if sam_28ch is not None:
-            out['sam_latents'] = comfy.conds.CONDRegular(sam_28ch.movedim(1, 2).contiguous())
+        driving_mask_28ch = kwargs.get("driving_mask_28ch", None)
+        if driving_mask_28ch is not None:
+            out['sam_latents'] = comfy.conds.CONDRegular(driving_mask_28ch.movedim(1, 2).contiguous())
 
-        ref_sam_28ch = kwargs.get("ref_sam_28ch", None)
-        if ref_sam_28ch is not None:
-            out['ref_mask_latents'] = comfy.conds.CONDRegular(ref_sam_28ch.movedim(1, 2).contiguous())
+        ref_mask_28ch = kwargs.get("ref_mask_28ch", None)
+        if ref_mask_28ch is not None:
+            out['ref_mask_latents'] = comfy.conds.CONDRegular(ref_mask_28ch.movedim(1, 2).contiguous())
 
         ref_mask_flag = kwargs.get("ref_mask_flag", None)
         if ref_mask_flag is not None:
-            out['ref_mask_flag'] = comfy.conds.CONDRegular(ref_mask_flag)
+            out['ref_mask_flag'] = comfy.conds.CONDConstant(ref_mask_flag)
 
         return out
 
     def extra_conds_shapes(self, **kwargs):
         out = super().extra_conds_shapes(**kwargs)
-        sam_28ch = kwargs.get("sam_28ch", None)
-        if sam_28ch is not None:
-            s = sam_28ch.shape
+        driving_mask_28ch = kwargs.get("driving_mask_28ch", None)
+        if driving_mask_28ch is not None:
+            s = driving_mask_28ch.shape
             out['sam_latents'] = [s[0], 28, s[1], s[3], s[4]]
-        ref_sam_28ch = kwargs.get("ref_sam_28ch", None)
-        if ref_sam_28ch is not None:
-            s = ref_sam_28ch.shape
+        ref_mask_28ch = kwargs.get("ref_mask_28ch", None)
+        if ref_mask_28ch is not None:
+            s = ref_mask_28ch.shape
             out['ref_mask_latents'] = [s[0], 28, s[1], s[3], s[4]]
         return out
 
@@ -1802,9 +1801,7 @@ class WAN21_SCAIL2(WAN21_SCAIL):
         return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
 
     def concat_cond(self, **kwargs):
-        # Override base path that short-circuits to 4 zeros when image_to_video=False
-        # and extra_channels == image.shape[1]: history needs the mask channels to be 1
-        # at anchor slots.
+        # The 4 extra channels are the history_mask (1 at clean-anchor frames).
         noise = kwargs.get("noise", None)
         extra_channels = self.diffusion_model.patch_embedding.weight.shape[1] - noise.shape[1]
         if extra_channels != 4:
