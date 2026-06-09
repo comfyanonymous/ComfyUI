@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import av
 import torch
@@ -17,10 +15,11 @@ class SaveWEBM(io.ComfyNode):
         return io.Schema(
             node_id="SaveWEBM",
             search_aliases=["export webm"],
-            category="image/video",
+            display_name="Save WEBM",
+            category="video",
             is_experimental=True,
             inputs=[
-                io.Image.Input("images"),
+                io.Image.Input("images", tooltip="RGBA images are saved with their alpha channel as transparency (vp9 codec only)."),
                 io.String.Input("filename_prefix", default="ComfyUI"),
                 io.Combo.Input("codec", options=["vp9", "av1"]),
                 io.Float.Input("fps", default=24.0, min=0.01, max=1000.0, step=0.01),
@@ -46,18 +45,25 @@ class SaveWEBM(io.ComfyNode):
             for x in cls.hidden.extra_pnginfo:
                 container.metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
+        # Save transparency when the images carry an alpha channel (RGBA) and the codec supports it.
+        # vp9 -> yuva420p; other codecs have no usable alpha path, so the alpha is ignored.
+        save_alpha = images.shape[-1] == 4 and codec == "vp9"
+
         codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
         stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
         stream.width = images.shape[-2]
         stream.height = images.shape[-3]
-        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
+        stream.pix_fmt = "yuva420p" if save_alpha else ("yuv420p10le" if codec == "av1" else "yuv420p")
         stream.bit_rate = 0
         stream.options = {'crf': str(crf)}
         if codec == "av1":
             stream.options["preset"] = "6"
 
         for frame in images:
-            frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
+            if save_alpha:
+                frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :4] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgba")
+            else:
+                frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
             for packet in stream.encode(frame):
                 container.mux(packet)
         container.mux(stream.encode())
@@ -72,7 +78,7 @@ class SaveVideo(io.ComfyNode):
             node_id="SaveVideo",
             search_aliases=["export video"],
             display_name="Save Video",
-            category="image/video",
+            category="video",
             essentials_category="Basics",
             description="Saves the input images to your ComfyUI output directory.",
             inputs=[
@@ -121,7 +127,8 @@ class CreateVideo(io.ComfyNode):
             node_id="CreateVideo",
             search_aliases=["images to video"],
             display_name="Create Video",
-            category="image/video",
+            category="video",
+            essentials_category="Video Tools",
             description="Create a video from images.",
             inputs=[
                 io.Image.Input("images", tooltip="The images to create a video from."),
@@ -146,7 +153,7 @@ class GetVideoComponents(io.ComfyNode):
             node_id="GetVideoComponents",
             search_aliases=["extract frames", "split video", "video to images", "demux"],
             display_name="Get Video Components",
-            category="image/video",
+            category="video",
             description="Extracts all components from a video: frames, audio, and framerate.",
             inputs=[
                 io.Video.Input("video", tooltip="The video to extract components from."),
@@ -174,7 +181,7 @@ class LoadVideo(io.ComfyNode):
             node_id="LoadVideo",
             search_aliases=["import video", "open video", "video file"],
             display_name="Load Video",
-            category="image/video",
+            category="video",
             essentials_category="Basics",
             inputs=[
                 io.Combo.Input("file", options=sorted(files), upload=io.UploadType.video),
@@ -216,7 +223,7 @@ class VideoSlice(io.ComfyNode):
                 "frame load cap",
                 "start time",
             ],
-            category="image/video",
+            category="video",
             essentials_category="Video Tools",
             inputs=[
                 io.Video.Input("video"),

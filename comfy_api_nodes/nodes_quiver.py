@@ -17,6 +17,44 @@ from comfy_api_nodes.util import (
 )
 from comfy_extras.nodes_images import SVG
 
+_ARROW_MODELS = ["arrow-1.1", "arrow-1.1-max", "arrow-preview"]
+
+
+def _arrow_sampling_inputs():
+    """Shared sampling inputs for all Arrow model variants."""
+    return [
+        IO.Float.Input(
+            "temperature",
+            default=1.0,
+            min=0.0,
+            max=2.0,
+            step=0.1,
+            display_mode=IO.NumberDisplay.slider,
+            tooltip="Randomness control. Higher values increase randomness.",
+            advanced=True,
+        ),
+        IO.Float.Input(
+            "top_p",
+            default=1.0,
+            min=0.05,
+            max=1.0,
+            step=0.05,
+            display_mode=IO.NumberDisplay.slider,
+            tooltip="Nucleus sampling parameter.",
+            advanced=True,
+        ),
+        IO.Float.Input(
+            "presence_penalty",
+            default=0.0,
+            min=-2.0,
+            max=2.0,
+            step=0.1,
+            display_mode=IO.NumberDisplay.slider,
+            tooltip="Token presence penalty.",
+            advanced=True,
+        ),
+    ]
+
 
 class QuiverTextToSVGNode(IO.ComfyNode):
     @classmethod
@@ -24,7 +62,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="QuiverTextToSVGNode",
             display_name="Quiver Text to SVG",
-            category="api node/image/Quiver",
+            category="partner/image/Quiver",
             description="Generate an SVG from a text prompt using Quiver AI.",
             inputs=[
                 IO.String.Input(
@@ -39,6 +77,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
                     default="",
                     tooltip="Additional style or formatting guidance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Autogrow.Input(
                     "reference_images",
@@ -53,43 +92,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
                 ),
                 IO.DynamicCombo.Input(
                     "model",
-                    options=[
-                        IO.DynamicCombo.Option(
-                            "arrow-preview",
-                            [
-                                IO.Float.Input(
-                                    "temperature",
-                                    default=1.0,
-                                    min=0.0,
-                                    max=2.0,
-                                    step=0.1,
-                                    display_mode=IO.NumberDisplay.slider,
-                                    tooltip="Randomness control. Higher values increase randomness.",
-                                    advanced=True,
-                                ),
-                                IO.Float.Input(
-                                    "top_p",
-                                    default=1.0,
-                                    min=0.05,
-                                    max=1.0,
-                                    step=0.05,
-                                    display_mode=IO.NumberDisplay.slider,
-                                    tooltip="Nucleus sampling parameter.",
-                                    advanced=True,
-                                ),
-                                IO.Float.Input(
-                                    "presence_penalty",
-                                    default=0.0,
-                                    min=-2.0,
-                                    max=2.0,
-                                    step=0.1,
-                                    display_mode=IO.NumberDisplay.slider,
-                                    tooltip="Token presence penalty.",
-                                    advanced=True,
-                                ),
-                            ],
-                        ),
-                    ],
+                    options=[IO.DynamicCombo.Option(m, _arrow_sampling_inputs()) for m in _ARROW_MODELS],
                     tooltip="Model to use for SVG generation.",
                 ),
                 IO.Int.Input(
@@ -112,7 +115,16 @@ class QuiverTextToSVGNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.429}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $contains(widgets.model, "max")
+                    ? {"type":"usd","usd":0.3575}
+                    : $contains(widgets.model, "preview")
+                      ? {"type":"usd","usd":0.429}
+                      : {"type":"usd","usd":0.286}
+                )
+                """,
             ),
         )
 
@@ -131,7 +143,7 @@ class QuiverTextToSVGNode(IO.ComfyNode):
         if reference_images:
             references = []
             for key in reference_images:
-                url = await upload_image_to_comfyapi(cls, reference_images[key])
+                url = await upload_image_to_comfyapi(cls, reference_images[key], mime_type="image/png")
                 references.append(QuiverImageObject(url=url))
             if len(references) > 4:
                 raise ValueError("Maximum 4 reference images are allowed.")
@@ -165,7 +177,7 @@ class QuiverImageToSVGNode(IO.ComfyNode):
         return IO.Schema(
             node_id="QuiverImageToSVGNode",
             display_name="Quiver Image to SVG",
-            category="api node/image/Quiver",
+            category="partner/image/Quiver",
             description="Vectorize a raster image into SVG using Quiver AI.",
             inputs=[
                 IO.Image.Input(
@@ -176,12 +188,13 @@ class QuiverImageToSVGNode(IO.ComfyNode):
                     "auto_crop",
                     default=False,
                     tooltip="Automatically crop to the dominant subject.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
-                            "arrow-preview",
+                            m,
                             [
                                 IO.Int.Input(
                                     "target_size",
@@ -189,39 +202,12 @@ class QuiverImageToSVGNode(IO.ComfyNode):
                                     min=128,
                                     max=4096,
                                     tooltip="Square resize target in pixels.",
-                                ),
-                                IO.Float.Input(
-                                    "temperature",
-                                    default=1.0,
-                                    min=0.0,
-                                    max=2.0,
-                                    step=0.1,
-                                    display_mode=IO.NumberDisplay.slider,
-                                    tooltip="Randomness control. Higher values increase randomness.",
                                     advanced=True,
                                 ),
-                                IO.Float.Input(
-                                    "top_p",
-                                    default=1.0,
-                                    min=0.05,
-                                    max=1.0,
-                                    step=0.05,
-                                    display_mode=IO.NumberDisplay.slider,
-                                    tooltip="Nucleus sampling parameter.",
-                                    advanced=True,
-                                ),
-                                IO.Float.Input(
-                                    "presence_penalty",
-                                    default=0.0,
-                                    min=-2.0,
-                                    max=2.0,
-                                    step=0.1,
-                                    display_mode=IO.NumberDisplay.slider,
-                                    tooltip="Token presence penalty.",
-                                    advanced=True,
-                                ),
+                                *_arrow_sampling_inputs(),
                             ],
-                        ),
+                        )
+                        for m in _ARROW_MODELS
                     ],
                     tooltip="Model to use for SVG vectorization.",
                 ),
@@ -245,7 +231,16 @@ class QuiverImageToSVGNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.429}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $contains(widgets.model, "max")
+                    ? {"type":"usd","usd":0.3575}
+                    : $contains(widgets.model, "preview")
+                      ? {"type":"usd","usd":0.429}
+                      : {"type":"usd","usd":0.286}
+                )
+                """,
             ),
         )
 
@@ -257,7 +252,7 @@ class QuiverImageToSVGNode(IO.ComfyNode):
         model: dict,
         seed: int,
     ) -> IO.NodeOutput:
-        image_url = await upload_image_to_comfyapi(cls, image)
+        image_url = await upload_image_to_comfyapi(cls, image, mime_type="image/png")
 
         response = await sync_op(
             cls,
