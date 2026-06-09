@@ -3,11 +3,6 @@ components:
         Asset:
             description: Represents a user-owned asset (image, video, or other generated output).
             properties:
-                asset_hash:
-                    deprecated: true
-                    description: 'Deprecated: use hash instead. Blake3 hash of the asset content.'
-                    pattern: ^blake3:[a-f0-9]{64}$
-                    type: string
                 created_at:
                     description: Timestamp when the asset was created
                     format: date-time
@@ -16,8 +11,12 @@ components:
                     description: Display name of the asset. Mirrors name for backwards compatibility.
                     nullable: true
                     type: string
+                file_path:
+                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
+                    nullable: true
+                    type: string
                 hash:
-                    description: Blake3 hash of the asset content. Preferred over asset_hash.
+                    description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
                     type: string
                 id:
@@ -139,17 +138,16 @@ components:
         AssetUpdated:
             description: Response returned when an existing asset is successfully updated.
             properties:
-                asset_hash:
-                    deprecated: true
-                    description: 'Deprecated: use hash instead. Blake3 hash of the asset content.'
-                    pattern: ^blake3:[a-f0-9]{64}$
-                    type: string
                 display_name:
                     description: Display name of the asset. Mirrors name for backwards compatibility.
                     nullable: true
                     type: string
+                file_path:
+                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
+                    nullable: true
+                    type: string
                 hash:
-                    description: Blake3 hash of the asset content. Preferred over asset_hash.
+                    description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
                     type: string
                 id:
@@ -828,7 +826,11 @@ components:
                     type: string
             type: object
         PaginationInfo:
-            description: Offset/limit-based pagination metadata included in list responses.
+            description: |
+                Pagination metadata included in list responses. Supports both legacy
+                offset/limit pagination and cursor-based pagination. When cursor-based
+                pagination is used, `next_cursor` is the primary pagination token and
+                `offset`/`total` may be zero.
             properties:
                 has_more:
                     description: Whether more items are available beyond this page
@@ -837,12 +839,19 @@ components:
                     description: Items per page
                     minimum: 1
                     type: integer
+                next_cursor:
+                    description: |
+                        Opaque cursor for the next page. Pass this value as the `after`
+                        query parameter on the next request. Empty or absent when there
+                        are no more results.
+                    type: string
                 offset:
-                    description: Current offset (0-based)
+                    deprecated: true
+                    description: 'Current offset (0-based). Deprecated: use cursor-based pagination.'
                     minimum: 0
                     type: integer
                 total:
-                    description: Total number of items matching filters
+                    description: Total number of items matching filters (may be 0 when using cursor pagination)
                     minimum: 0
                     type: integer
             required:
@@ -1518,15 +1527,9 @@ paths:
                   schema:
                     default: true
                     type: boolean
-                - description: Filter assets by exact content hash. Preferred over asset_hash.
+                - description: Filter assets by exact content hash.
                   in: query
                   name: hash
-                  schema:
-                    type: string
-                - deprecated: true
-                  description: 'Deprecated: use hash instead. Filter assets by exact content hash.'
-                  in: query
-                  name: asset_hash
                   schema:
                     type: string
                 - description: |
@@ -1571,48 +1574,22 @@ paths:
                 - file
         post:
             description: |
-                Uploads a new asset to the system with associated metadata.
-                Supports two upload methods:
-                1. Direct file upload (multipart/form-data)
-                2. URL-based upload (application/json with source: "url")
+                Creates a new asset from a direct file upload (multipart/form-data) with associated metadata.
 
                 If an asset with the same hash already exists, returns the existing asset.
-            operationId: uploadAsset
+            operationId: createAsset
             requestBody:
                 content:
-                    application/json:
-                        schema:
-                            properties:
-                                name:
-                                    description: Display name for the asset (used to determine file extension)
-                                    type: string
-                                preview_id:
-                                    description: Optional preview asset ID
-                                    format: uuid
-                                    type: string
-                                tags:
-                                    description: Freeform tags for the asset. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
-                                    items:
-                                        type: string
-                                    type: array
-                                url:
-                                    description: HTTP/HTTPS URL to download the asset from
-                                    format: uri
-                                    type: string
-                                user_metadata:
-                                    additionalProperties: true
-                                    description: Custom metadata to store with the asset
-                                    type: object
-                            required:
-                                - url
-                                - name
-                            type: object
                     multipart/form-data:
                         schema:
                             properties:
                                 file:
                                     description: The asset file to upload
                                     format: binary
+                                    type: string
+                                hash:
+                                    description: Content hash of the file.
+                                    pattern: ^(blake3|sha256):[a-f0-9]{64}$
                                     type: string
                                 id:
                                     description: Optional asset ID for idempotent creation. If provided and asset exists, returns existing asset.
@@ -1629,10 +1606,8 @@ paths:
                                     format: uuid
                                     type: string
                                 tags:
-                                    description: Freeform tags for the asset. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
-                                    items:
-                                        type: string
-                                    type: array
+                                    description: JSON-encoded array of freeform tag strings, e.g. '["models","checkpoint"]'. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
+                                    type: string
                                 user_metadata:
                                     description: Custom JSON metadata as a string
                                     type: string
@@ -1641,36 +1616,32 @@ paths:
                             type: object
                 required: true
             responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AssetCreated'
+                    description: |
+                        Asset already existed for this user (deduplicated by content hash); the
+                        existing asset is returned with created_new=false.
                 "201":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/AssetCreated'
-                    description: Asset created successfully
+                    description: Asset created successfully (created_new=true)
                 "400":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Invalid request (bad file, invalid URL, invalid content type, etc.)
+                    description: Invalid request (bad file, invalid content type, etc.)
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
-                "403":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Source URL requires authentication or access denied
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Source URL not found
                 "413":
                     content:
                         application/json:
@@ -1683,19 +1654,13 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unsupported media type
-                "422":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Download failed due to network error or timeout
                 "500":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error
-            summary: Upload a new asset
+            summary: Create a new asset
             tags:
                 - file
     /api/assets/{id}:
@@ -1730,7 +1695,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Asset cannot be deleted because it is referenced by another resource (e.g., workflow version)
+                    description: 'Asset cannot be deleted because it is referenced by another resource, e.g. a workflow version (error code: ASSET_IN_USE)'
                 "500":
                     content:
                         application/json:
@@ -1783,7 +1748,7 @@ paths:
             description: |
                 Updates an asset's metadata. At least one field must be provided.
                 Only name, mime_type, preview_id, and user_metadata can be updated.
-                For tag management, use the dedicated PUT /api/assets/{id}/tags endpoint.
+                For tag management, use POST (add) and DELETE (remove) /api/assets/{id}/tags.
             operationId: updateAsset
             parameters:
                 - description: Asset ID
@@ -1982,76 +1947,6 @@ paths:
             summary: Add tags to asset
             tags:
                 - file
-        put:
-            description: Adds and removes tags from an asset in a single operation
-            operationId: updateAssetTags
-            parameters:
-                - description: Asset ID
-                  in: path
-                  name: id
-                  required: true
-                  schema:
-                    format: uuid
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            description: At least one of add or remove must contain items. Empty arrays are allowed when the other array has items.
-                            minProperties: 1
-                            properties:
-                                add:
-                                    description: Tags to add to the asset. Can be empty if remove has items.
-                                    items:
-                                        type: string
-                                    type: array
-                                remove:
-                                    description: Tags to remove from the asset. Can be empty if add has items.
-                                    items:
-                                        type: string
-                                    type: array
-                            type: object
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/TagsModificationResponse'
-                    description: Tags updated successfully
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Invalid request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Asset not found
-                "422":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Reserved tag validation error
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Internal server error
-            summary: Update asset tags
-            tags:
-                - file
     /api/assets/from-hash:
         post:
             description: |
@@ -2090,12 +1985,20 @@ paths:
                             type: object
                 required: true
             responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AssetCreated'
+                    description: |
+                        Asset reference already existed for this user (deduplicated by content
+                        hash); the existing asset is returned with created_new=false.
                 "201":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/AssetCreated'
-                    description: Asset reference created successfully
+                    description: Asset reference created successfully (created_new=true)
                 "400":
                     content:
                         application/json:
@@ -2887,7 +2790,21 @@ paths:
                         - asc
                         - desc
                     type: string
-                - description: Pagination offset (0-based)
+                - description: |
+                    Opaque cursor for keyset pagination. Pass the `next_cursor` value
+                    from a previous response to fetch the next page.
+                    Cursor pagination is supported only when `sort_by=create_time`
+                    (default). If `sort_by=execution_time`, `after` is ignored and
+                    offset/limit pagination is used.
+                    Cursors are opaque base64url payloads — clients should treat them
+                    as strings and not parse the contents.
+                  example: eyJzIjoiY3JlYXRlX3RpbWUiLCJ2IjoiMTcxNjIwMDAwMDAwMDAwMCIsImlkIjoiYTFiMmMzZDQtZTVmNi03YTg5LWIwYzEtZDJlM2Y0YTViNmM3In0
+                  in: query
+                  name: after
+                  schema:
+                    type: string
+                - deprecated: true
+                  description: 'Pagination offset (0-based). Deprecated: prefer cursor-based pagination via `after`.'
                   in: query
                   name: offset
                   schema:
@@ -2909,6 +2826,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/JobsListResponse'
                     description: Success - Jobs retrieved
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Bad request (e.g. malformed pagination cursor).
                 "401":
                     content:
                         application/json:

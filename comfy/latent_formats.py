@@ -4,7 +4,6 @@ class LatentFormat:
     scale_factor = 1.0
     latent_channels = 4
     latent_dimensions = 2
-    preserve_empty_channel_multiples = False
     latent_rgb_factors = None
     latent_rgb_factors_bias = None
     latent_rgb_factors_reshape = None
@@ -779,10 +778,6 @@ class Hunyuan3Dv2mini(LatentFormat):
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
-
-class SeedVR2(LatentFormat):
-    latent_channels = 16
-    preserve_empty_channel_multiples = True
 
 class ACEAudio15(LatentFormat):
     latent_channels = 64
