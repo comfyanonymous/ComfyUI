@@ -2460,7 +2460,7 @@ async def init_builtin_extra_nodes():
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
         "nodes_triposplat.py",
-        "nodes_depth_anything_3.py",,
+        "nodes_depth_anything_3.py",
         "nodes_sam3d_body.py",
     ]
 
