@@ -18,6 +18,7 @@ from comfy_api_nodes.util._helpers import (
     default_base_url,
     get_auth_header,
     get_node_id,
+    get_usage_source,
     is_processing_interrupted,
 )
 from comfy_api_nodes.util.common_exceptions import ProcessingInterrupted
@@ -176,6 +177,7 @@ async def _stream_sonilo_music(
 
     headers: dict[str, str] = {}
     headers.update(get_auth_header(cls))
+    headers["Comfy-Usage-Source"] = get_usage_source(cls)
     headers.update(endpoint.headers)
 
     node_id = get_node_id(cls)

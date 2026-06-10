@@ -18,6 +18,7 @@ from . import request_logger
 from ._helpers import (
     default_base_url,
     get_auth_header,
+    get_usage_source,
     is_processing_interrupted,
     sleep_with_interrupt,
     to_aiohttp_url,
@@ -65,6 +66,7 @@ async def download_url_to_bytesio(
             raise ValueError("For relative 'cloud' paths, the `cls` parameter is required.")
         url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
         headers = get_auth_header(cls)
+        headers["Comfy-Usage-Source"] = get_usage_source(cls)
 
     while True:
         attempt += 1

@@ -26,6 +26,7 @@ from ._helpers import (
     default_base_url,
     get_auth_header,
     get_node_id,
+    get_usage_source,
     is_processing_interrupted,
     sleep_with_interrupt,
 )
@@ -647,6 +648,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
             payload_headers.update(get_auth_header(cfg.node_cls))
             payload_headers["Comfy-Env"] = get_deploy_environment()
+            payload_headers["Comfy-Usage-Source"] = get_usage_source(cfg.node_cls)
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
 

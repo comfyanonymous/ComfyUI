@@ -35,6 +35,11 @@ def get_auth_header(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
     return {}
 
 
+def get_usage_source(node_cls: type[IO.ComfyNode]) -> str:
+    """Source of the prompt that triggered this API node, defaulting to this server itself."""
+    return node_cls.hidden.comfy_usage_source or "comfyui-server"
+
+
 def default_base_url() -> str:
     return getattr(args, "comfy_api_base", "https://api.comfy.org")
 
