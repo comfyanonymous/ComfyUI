@@ -266,8 +266,17 @@ def list_references_page(
     metadata_filter: dict | None = None,
     sort: str | None = None,
     order: str | None = None,
+    after_cursor_value: object | None = None,
+    after_cursor_id: str | None = None,
 ) -> tuple[list[AssetReference], dict[str, list[str]], int]:
     """List references with pagination, filtering, and sorting.
+
+    When ``after_cursor_value``/``after_cursor_id`` are supplied the query uses
+    keyset pagination — ``offset`` is ignored and a WHERE clause selects rows
+    strictly after the given ``(sort_col, id)`` position in the active sort
+    direction. The cursor value must already be typed for the column
+    (datetime for time sorts, int for size, str for name); the caller decodes
+    the opaque cursor string and resolves to the typed value.
 
     Returns (references, tag_map, total_count).
     """
@@ -297,9 +306,31 @@ def list_references_page(
         "size": Asset.size_bytes,
     }
     sort_col = sort_map.get(sort, AssetReference.created_at)
-    sort_exp = sort_col.desc() if order == "desc" else sort_col.asc()
+    descending = order == "desc"
 
-    base = base.order_by(sort_exp).limit(limit).offset(offset)
+    # Keyset WHERE: (sort_col, id) strictly less-than / greater-than the cursor.
+    # Equivalent to: sort_col <op> v  OR  (sort_col = v AND id <op> cursor_id).
+    if after_cursor_value is not None and after_cursor_id is not None:
+        if descending:
+            keyset = sa.or_(
+                sort_col < after_cursor_value,
+                sa.and_(sort_col == after_cursor_value, AssetReference.id < after_cursor_id),
+            )
+        else:
+            keyset = sa.or_(
+                sort_col > after_cursor_value,
+                sa.and_(sort_col == after_cursor_value, AssetReference.id > after_cursor_id),
+            )
+        base = base.where(keyset)
+
+    # Secondary ORDER BY id (matching the primary direction) gives the keyset
+    # comparison a deterministic tiebreaker on duplicate sort_col values.
+    id_exp = AssetReference.id.desc() if descending else AssetReference.id.asc()
+    sort_exp = sort_col.desc() if descending else sort_col.asc()
+
+    base = base.order_by(sort_exp, id_exp).limit(limit)
+    if after_cursor_id is None:
+        base = base.offset(offset)
 
     count_stmt = (
         select(sa.func.count())

@@ -55,13 +55,11 @@ def validate_tags_exist(session: Session, tags: list[str]) -> None:
         raise ValueError(f"Unknown tags: {missing}")
 
 
-def ensure_tags_exist(
-    session: Session, names: Iterable[str], tag_type: str = "user"
-) -> None:
+def ensure_tags_exist(session: Session, names: Iterable[str]) -> None:
     wanted = normalize_tags(list(names))
     if not wanted:
         return
-    rows = [{"name": n, "tag_type": tag_type} for n in list(dict.fromkeys(wanted))]
+    rows = [{"name": n} for n in list(dict.fromkeys(wanted))]
     ins = (
         sqlite.insert(Tag)
         .values(rows)
@@ -97,7 +95,7 @@ def set_reference_tags(
     to_remove = [t for t in current if t not in desired]
 
     if to_add:
-        ensure_tags_exist(session, to_add, tag_type="user")
+        ensure_tags_exist(session, to_add)
         session.add_all(
             [
                 AssetReferenceTag(
@@ -142,7 +140,7 @@ def add_tags_to_reference(
         return AddTagsResult(added=[], already_present=[], total_tags=total)
 
     if create_if_missing:
-        ensure_tags_exist(session, norm, tag_type="user")
+        ensure_tags_exist(session, norm)
 
     current = set(get_reference_tags(session, reference_id))
 
@@ -289,7 +287,6 @@ def list_tags_with_usage(
     q = (
         select(
             Tag.name,
-            Tag.tag_type,
             func.coalesce(counts_sq.c.cnt, 0).label("count"),
         )
         .select_from(Tag)
@@ -331,7 +328,7 @@ def list_tags_with_usage(
     rows = (session.execute(q.limit(limit).offset(offset))).all()
     total = (session.execute(total_q)).scalar_one()
 
-    rows_norm = [(name, ttype, int(count or 0)) for (name, ttype, count) in rows]
+    rows_norm = [(name, int(count or 0)) for (name, count) in rows]
     return rows_norm, int(total or 0)
 
 

@@ -26,6 +26,7 @@ import utils.extra_config
 from utils.mime_types import init_mime_types
 import faulthandler
 import logging
+import signal
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
@@ -37,7 +38,19 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-faulthandler.enable(file=sys.stderr, all_threads=False)
+faulthandler.enable(file=sys.stderr, all_threads=args.debug_hang)
+if __name__ == "__main__" and args.debug_hang:
+    dumping_traceback = False
+
+    def dump_traceback_on_sigint(signum, frame):
+        global dumping_traceback
+        if dumping_traceback:
+            raise KeyboardInterrupt
+        dumping_traceback = True
+        faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, dump_traceback_on_sigint)
 
 import comfy_aimdo.control
 
