@@ -173,6 +173,7 @@ class Preview3DAdvanced(IO.ComfyNode):
 
     @classmethod
     def execute(cls, model_3d: Types.File3D, viewport_state, width: int, height: int, **kwargs) -> IO.NodeOutput:
+        """Render a 3D mesh preview and emit camera/model metadata passthrough outputs."""
         filename = f"preview3d_advanced_{uuid.uuid4().hex}.{model_3d.format}"
         model_3d.save_to(os.path.join(folder_paths.get_temp_directory(), filename))
 
@@ -241,6 +242,7 @@ class PreviewGaussianSplat(IO.ComfyNode):
 
     @classmethod
     def execute(cls, model_3d: Types.File3D, viewport_state, width: int, height: int, **kwargs) -> IO.NodeOutput:
+        """Render a gaussian splat preview and emit camera/model metadata passthrough outputs."""
         filename = f"preview_splat_{uuid.uuid4().hex}.{model_3d.format}"
         model_3d.save_to(os.path.join(folder_paths.get_temp_directory(), filename))
 
@@ -300,6 +302,7 @@ class PreviewPointCloud(IO.ComfyNode):
 
     @classmethod
     def execute(cls, model_3d: Types.File3D, viewport_state, width: int, height: int, **kwargs) -> IO.NodeOutput:
+        """Render a point-cloud preview and emit camera/model metadata passthrough outputs."""
         filename = f"preview_pointcloud_{uuid.uuid4().hex}.{model_3d.format}"
         model_3d.save_to(os.path.join(folder_paths.get_temp_directory(), filename))
 
