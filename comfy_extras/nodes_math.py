@@ -4,7 +4,6 @@ Provides a ComfyMathExpression node that evaluates math expressions
 against dynamically-grown numeric inputs.
 """
 
-from __future__ import annotations
 
 import math
 import string
@@ -70,7 +69,7 @@ class MathExpressionNode(io.ComfyNode):
         return io.Schema(
             node_id="ComfyMathExpression",
             display_name="Math Expression",
-            category="logic",
+            category="utilities",
             search_aliases=[
                 "expression", "formula", "calculate", "calculator",
                 "eval", "math",
@@ -103,11 +102,18 @@ class MathExpressionNode(io.ComfyNode):
                 f"Math Expression '{expression}' must evaluate to a numeric result, "
                 f"got {type(result).__name__}: {result!r}"
             )
-        if not math.isfinite(result):
+        try:
+            float_result = float(result)
+        except OverflowError:
+            raise ValueError(
+                f"Math Expression '{expression}' produced a result too large to "
+                f"represent as a float: {result}"
+            ) from None
+        if not math.isfinite(float_result):
             raise ValueError(
                 f"Math Expression '{expression}' produced a non-finite result: {result}"
             )
-        return io.NodeOutput(float(result), int(result), bool(result))
+        return io.NodeOutput(float_result, int(result), bool(result))
 
 
 class MathExtension(ComfyExtension):

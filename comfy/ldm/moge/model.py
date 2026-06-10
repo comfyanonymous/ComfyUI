@@ -4,7 +4,6 @@ V1: DINOv2 backbone + multi-output head (points, mask).
 V2: DINOv2 encoder + neck + per-output heads (points, mask, normal, optional metric-scale MLP).
 """
 
-from __future__ import annotations
 
 from numbers import Number
 from typing import Any, Dict, List, Optional, Tuple, Union

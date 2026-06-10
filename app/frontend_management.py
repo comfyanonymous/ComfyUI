@@ -1,4 +1,3 @@
-from __future__ import annotations
 import argparse
 import logging
 import os
@@ -62,6 +61,8 @@ def get_comfy_package_versions():
 def check_comfy_packages_versions():
     """Warn for every comfy* package whose installed version is below requirements.txt."""
     from packaging.version import InvalidVersion, parse as parse_pep440
+    outdated_packages = []
+
     for pkg in get_comfy_package_versions():
         installed_str = pkg["installed"]
         required_str = pkg["required"]
@@ -73,19 +74,26 @@ def check_comfy_packages_versions():
             logging.error(f"Failed to check {pkg['name']} version: {e}")
             continue
         if outdated:
-            app.logger.log_startup_warning(
-                f"""
+            outdated_packages.append((pkg["name"], installed_str, required_str))
+        else:
+            logging.info("{} version: {}".format(pkg["name"], installed_str))
+
+    if outdated_packages:
+        package_warnings = "\n".join(
+            f"Installed {name} version {installed} is lower than the recommended version {required}."
+            for name, installed, required in outdated_packages
+        )
+        app.logger.log_startup_warning(
+            f"""
 ________________________________________________________________________
 WARNING WARNING WARNING WARNING WARNING
 
-Installed {pkg["name"]} version {installed_str} is lower than the recommended version {required_str}.
+{package_warnings}
 
 {get_missing_requirements_message()}
 ________________________________________________________________________
 """.strip()
-            )
-        else:
-            logging.info("{} version: {}".format(pkg["name"], installed_str))
+        )
 
 
 REQUEST_TIMEOUT = 10  # seconds

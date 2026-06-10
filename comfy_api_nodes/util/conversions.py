@@ -415,14 +415,48 @@ def trim_video(video: Input.Video, duration_sec: float) -> Input.Video:
         raise RuntimeError(f"Failed to trim video: {str(e)}") from e
 
 
-def resize_video_to_pixel_budget(video: Input.Video, total_pixels: int) -> Input.Video:
-    """Downscale a video to fit within ``total_pixels`` (w * h), preserving aspect ratio.
+def downscale_video_to_max_pixels(video: Input.Video, max_pixels: int) -> Input.Video:
+    """Downscale a video to fit within ``max_pixels`` (w * h), preserving aspect ratio.
 
     Returns the original video object untouched when it already fits. Preserves frame rate, duration, and audio.
     Aspect ratio is preserved up to a fraction of a percent (even-dim rounding).
     """
     src_w, src_h = video.get_dimensions()
-    scale_dims = _compute_downscale_dims(src_w, src_h, total_pixels)
+    scale_dims = _compute_downscale_dims(src_w, src_h, max_pixels)
+    if scale_dims is None:
+        return video
+    return _apply_video_scale(video, scale_dims)
+
+
+def _compute_upscale_dims(src_w: int, src_h: int, total_pixels: int) -> tuple[int, int] | None:
+    """Return upscaled (w, h) with even dims meeting at least ``total_pixels``, or None if already large enough.
+
+    Source aspect ratio is preserved; output may drift by a fraction of a percent because both dimensions
+    are rounded up to even values (many codecs require divisible-by-2). The result is guaranteed to be at
+    least ``total_pixels``.
+    """
+    pixels = src_w * src_h
+    if pixels >= total_pixels:
+        return None
+    scale = math.sqrt(total_pixels / pixels)
+    new_w = math.ceil(src_w * scale)
+    new_h = math.ceil(src_h * scale)
+    if new_w % 2:
+        new_w += 1
+    if new_h % 2:
+        new_h += 1
+    return new_w, new_h
+
+
+def upscale_video_to_min_pixels(video: Input.Video, min_pixels: int) -> Input.Video:
+    """Upscale a video to meet at least ``min_pixels`` (w * h), preserving aspect ratio.
+
+    Returns the original video object untouched when it already meets the minimum. Preserves frame rate,
+    duration, and audio. Aspect ratio is preserved up to a fraction of a percent (even-dim rounding).
+    Note: upscaling a low-resolution source does not add real detail; downstream model quality may suffer.
+    """
+    src_w, src_h = video.get_dimensions()
+    scale_dims = _compute_upscale_dims(src_w, src_h, min_pixels)
     if scale_dims is None:
         return video
     return _apply_video_scale(video, scale_dims)
@@ -434,6 +468,11 @@ def _apply_video_scale(video: Input.Video, scale_dims: tuple[int, int]) -> Input
     output_buffer = BytesIO()
     input_container = None
     output_container = None
+
+    # get_stream_source() is untrimmed, so apply the trim window in this same pass.
+    # start_time is normalized (>= 0); duration == 0 means "until the end".
+    start_time, duration = video.get_active_trim_window()
+    trimming = bool(start_time or duration)
 
     try:
         input_source = video.get_stream_source()
@@ -453,16 +492,45 @@ def _apply_video_scale(video: Input.Video, scale_dims: tuple[int, int]) -> Input
                 audio_stream.layout = stream.layout
                 break
 
+        in_video = input_container.streams.video[0]
+        start_pts = int(start_time / in_video.time_base) if trimming else 0
+        end_pts = int((start_time + duration) / in_video.time_base) if duration else None
+        if start_pts:
+            input_container.seek(start_pts, stream=in_video)
+
+        encoded = 0
         for frame in input_container.decode(video=0):
+            if trimming:
+                if frame.pts is None or frame.pts < start_pts:
+                    continue
+                if end_pts is not None and frame.pts >= end_pts:
+                    break
             frame = frame.reformat(width=out_w, height=out_h, format="yuv420p")
+            # Re-wrap as a fresh frame: dropping irregular source timestamps (VFR/AVI/GIF/...)
+            # lets the encoder assign clean ones and avoids mp4 muxer errors.
+            frame = av.VideoFrame.from_ndarray(frame.to_ndarray(format="yuv420p"), format="yuv420p")
             for packet in video_stream.encode(frame):
                 output_container.mux(packet)
+            encoded += 1
         for packet in video_stream.encode():
             output_container.mux(packet)
+
+        if encoded == 0:
+            raise ValueError(
+                f"resize produced no frames (start_time={start_time}, duration={duration} "
+                "selected nothing from the source)"
+            )
 
         if audio_stream is not None:
             input_container.seek(0)
             for audio_frame in input_container.decode(audio=0):
+                if trimming:
+                    if audio_frame.time is None or audio_frame.time < start_time:
+                        continue
+                    if duration and audio_frame.time > start_time + duration:
+                        break
+                # Carry odd audio time bases the mp4 muxer rejects; reset pts, encoder assigns clean ones (MP3-in-AVI)
+                audio_frame.pts = None
                 for packet in audio_stream.encode(audio_frame):
                     output_container.mux(packet)
             for packet in audio_stream.encode():

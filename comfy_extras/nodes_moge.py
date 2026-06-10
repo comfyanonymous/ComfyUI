@@ -1,6 +1,5 @@
 """ComfyUI nodes for the native MoGe (Monocular Geometry Estimation) integration."""
 
-from __future__ import annotations
 
 import torch
 
@@ -9,6 +8,7 @@ import folder_paths
 from comfy_api.latest import ComfyExtension, Types, io
 from typing_extensions import override
 
+from comfy.ldm.colormap import turbo as _turbo
 from comfy.ldm.moge.model import MoGeModel
 from comfy.ldm.moge.geometry import triangulate_grid_mesh
 from comfy.ldm.moge.panorama import get_panorama_cameras, split_panorama_image, merge_panorama_depth, spherical_uv_to_directions, _uv_grid
@@ -26,19 +26,6 @@ MoGeGeometry = io.Custom("MOGE_GEOMETRY")
 #   "mask":       torch.Tensor (B, H, W) bool
 #   "normal":     torch.Tensor (B, H, W, 3) -- v2 only
 #   "image":      torch.Tensor (B, H, W, 3) in [0, 1], CPU (always present)
-
-
-def _turbo(x: torch.Tensor) -> torch.Tensor:
-    """Anton Mikhailov polynomial approximation of the turbo colormap."""
-    x = x.clamp(0.0, 1.0)
-    x2 = x * x
-    x3 = x2 * x
-    x4 = x2 * x2
-    x5 = x4 * x
-    r = 0.13572138 + 4.61539260*x - 42.66032258*x2 + 132.13108234*x3 - 152.94239396*x4 + 59.28637943*x5
-    g = 0.09140261 + 2.19418839*x + 4.84296658*x2 - 14.18503333*x3 + 4.27729857*x4 + 2.82956604*x5
-    b = 0.10667330 + 12.64194608*x - 60.58204836*x2 + 110.36276771*x3 - 89.90310912*x4 + 27.34824973*x5
-    return torch.stack([r, g, b], dim=-1).clamp(0.0, 1.0)
 
 
 def _normals_from_points(points: torch.Tensor) -> torch.Tensor:
@@ -79,7 +66,7 @@ class LoadMoGeModel(io.ComfyNode):
         return io.Schema(
             node_id="LoadMoGeModel",
             display_name="Load MoGe Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 io.Combo.Input("model_name", options=folder_paths.get_filename_list("geometry_estimation")),
             ],
@@ -105,7 +92,7 @@ class MoGePanoramaInference(io.ComfyNode):
             node_id="MoGePanoramaInference",
             search_aliases=["moge", "panorama", "depth", "geometry", "depth estimation", "geometry estimation"],
             display_name="Run MoGe Panorama Inference",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             description="Run MoGe on an equirectangular panorama by splitting it into 12 perspective views, running inference on each, and merging the results into a single depth map.",
             inputs=[
                 MoGeModelType.Input("moge_model"),
@@ -227,7 +214,7 @@ class MoGeInference(io.ComfyNode):
             search_aliases=["moge", "depth", "geometry", "depth estimation", "geometry estimation"],
             display_name="Run MoGe Inference",
             description="Run MoGe on a single image to estimate depth and geometry.",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             inputs=[
                 MoGeModelType.Input("moge_model"),
                 io.Image.Input("image"),
@@ -284,7 +271,7 @@ class MoGeRender(io.ComfyNode):
             search_aliases=["moge", "render", "geometry", "depth", "normal"],
             display_name="Render MoGe Geometry",
             description="Render a depth map or normal map from geometry data",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
                 io.Combo.Input("output", options=["depth", "depth_colored", "normal_opengl", "normal_directx", "mask"], default="depth",
@@ -351,7 +338,7 @@ class MoGePointMapToMesh(io.ComfyNode):
             search_aliases=["moge", "mesh", "geometry", "point map"],
             display_name="Convert MoGe Point Map to Mesh",
             description="Convert a MoGe point map into a 3D mesh.",
-            category="image/geometry_estimation",
+            category="image/geometry estimation",
             inputs=[
                 MoGeGeometry.Input("moge_geometry"),
                 io.Int.Input("batch_index", default=0, min=0, max=4096,

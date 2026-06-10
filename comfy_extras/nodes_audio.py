@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import av
 import torchaudio
 import torch
@@ -18,7 +16,7 @@ class EmptyLatentAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="EmptyLatentAudio",
             display_name="Empty Latent Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             essentials_category="Audio",
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
@@ -43,7 +41,7 @@ class ConditioningStableAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ConditioningStableAudio",
-            category="conditioning",
+            category="model/conditioning",
             inputs=[
                 IO.Conditioning.Input("positive"),
                 IO.Conditioning.Input("negative"),
@@ -72,7 +70,7 @@ class VAEEncodeAudio(IO.ComfyNode):
             node_id="VAEEncodeAudio",
             search_aliases=["audio to latent"],
             display_name="VAE Encode Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Vae.Input("vae"),
@@ -117,7 +115,7 @@ class VAEDecodeAudio(IO.ComfyNode):
             node_id="VAEDecodeAudio",
             search_aliases=["latent to audio"],
             display_name="VAE Decode Audio",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -139,7 +137,7 @@ class VAEDecodeAudioTiled(IO.ComfyNode):
             node_id="VAEDecodeAudioTiled",
             search_aliases=["latent to audio"],
             display_name="VAE Decode Audio (Tiled)",
-            category="latent/audio",
+            category="model/latent/audio",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -160,7 +158,7 @@ class SaveAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudio",
             search_aliases=["export flac"],
-            display_name="Save Audio (FLAC)",
+            display_name="Save Audio (FLAC) (Deprecated)",
             category="audio",
             essentials_category="Audio",
             inputs=[
@@ -169,6 +167,7 @@ class SaveAudio(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -188,7 +187,7 @@ class SaveAudioMP3(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudioMP3",
             search_aliases=["export mp3"],
-            display_name="Save Audio (MP3)",
+            display_name="Save Audio (MP3) (Deprecated)",
             category="audio",
             essentials_category="Audio",
             inputs=[
@@ -198,6 +197,7 @@ class SaveAudioMP3(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -219,7 +219,7 @@ class SaveAudioOpus(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudioOpus",
             search_aliases=["export opus"],
-            display_name="Save Audio (Opus)",
+            display_name="Save Audio (Opus) (Deprecated)",
             category="audio",
             inputs=[
                 IO.Audio.Input("audio"),
@@ -228,6 +228,7 @@ class SaveAudioOpus(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -241,6 +242,54 @@ class SaveAudioOpus(IO.ComfyNode):
         )
 
     save_opus = execute  # TODO: remove
+
+
+class SaveAudioAdvanced(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveAudioAdvanced",
+            search_aliases=["save audio", "export audio", "output audio", "write audio", "flac", "mp3", "opus"],
+            display_name="Save Audio (Advanced)",
+            description="Saves the input audio to your ComfyUI output directory.",
+            category="audio",
+            inputs=[
+                IO.Audio.Input("audio", tooltip="The audio to save."),
+                IO.String.Input(
+                    "filename_prefix",
+                    default="audio/ComfyUI",
+                    tooltip=(
+                        "The prefix for the file to save. May include formatting tokens "
+                        "such as %date:yyyy-MM-dd%."
+                    ),
+                ),
+                IO.DynamicCombo.Input(
+                    "format",
+                    options=[
+                        IO.DynamicCombo.Option("flac", []),
+                        IO.DynamicCombo.Option("mp3", [
+                            IO.Combo.Input("quality", options=["V0", "128k", "320k"], default="V0"),
+                        ]),
+                        IO.DynamicCombo.Option("opus", [
+                            IO.Combo.Input("quality", options=["64k", "96k", "128k", "192k", "320k"], default="128k"),
+                        ]),
+                    ],
+                    tooltip="The file format in which to save the audio.",
+                ),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, audio, filename_prefix: str, format: dict) -> IO.NodeOutput:
+        file_format = format.get("format", None)
+        quality = format.get("quality", None)
+        if quality:
+            ui=UI.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=file_format, quality=quality)
+        else:
+            ui=UI.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=file_format)
+        return IO.NodeOutput(ui=ui)
 
 
 class PreviewAudio(IO.ComfyNode):
@@ -824,6 +873,7 @@ class AudioExtension(ComfyExtension):
             SaveAudio,
             SaveAudioMP3,
             SaveAudioOpus,
+            SaveAudioAdvanced,
             LoadAudio,
             PreviewAudio,
             ConditioningStableAudio,

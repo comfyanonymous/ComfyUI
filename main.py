@@ -26,6 +26,7 @@ import utils.extra_config
 from utils.mime_types import init_mime_types
 import faulthandler
 import logging
+import signal
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
@@ -37,7 +38,19 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-faulthandler.enable(file=sys.stderr, all_threads=False)
+faulthandler.enable(file=sys.stderr, all_threads=args.debug_hang)
+if __name__ == "__main__" and args.debug_hang:
+    dumping_traceback = False
+
+    def dump_traceback_on_sigint(signum, frame):
+        global dumping_traceback
+        if dumping_traceback:
+            raise KeyboardInterrupt
+        dumping_traceback = True
+        faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, dump_traceback_on_sigint)
 
 import comfy_aimdo.control
 
@@ -218,7 +231,7 @@ import comfy.model_patcher
 if args.enable_dynamic_vram or (enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl()):
     if (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
         logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
-    elif comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
+    elif comfy_aimdo.control.init_devices(d.index for d in comfy.model_management.get_all_torch_devices()):
         if args.verbose == 'DEBUG':
             comfy_aimdo.control.set_log_debug()
         elif args.verbose == 'CRITICAL':
@@ -286,8 +299,8 @@ def prompt_worker(q, server_instance):
     cache_ram = 0
     cache_ram_inactive = 0
     if not args.cache_classic and not args.cache_none and args.cache_lru <= 0:
-        cache_ram = min(32.0, max(4.0, comfy.model_management.total_ram * 0.25 / 1024.0))
-        cache_ram_inactive = min(96.0, max(12.0, comfy.model_management.total_ram * 0.75 / 1024.0))
+        cache_ram = min(10.0, max(2.0, comfy.model_management.total_ram * 0.10 / 1024.0))
+        cache_ram_inactive = min(96.0, comfy.model_management.total_ram / 1024.0)
         if len(args.cache_ram) > 0:
             cache_ram = args.cache_ram[0]
         if len(args.cache_ram) > 1:
@@ -344,9 +357,9 @@ def prompt_worker(q, server_instance):
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
+                logging.info(f"Prompt executed in {execution_time}", extra={'color': 'green'})
             else:
-                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+                logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={'color': 'green'})
 
             if not asset_seeder.is_disabled():
                 paths = _collect_output_absolute_paths(e.history_result)
@@ -463,13 +476,6 @@ def start_comfyui(asyncio_loop=None):
         logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
-
-    if args.windows_standalone_build:
-        try:
-            import new_updater
-            new_updater.update_windows_updater()
-        except:
-            pass
 
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()

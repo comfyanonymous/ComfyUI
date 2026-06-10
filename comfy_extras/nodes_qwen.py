@@ -112,7 +112,7 @@ class EmptyQwenImageLayeredLatentImage(io.ComfyNode):
         return io.Schema(
             node_id="EmptyQwenImageLayeredLatentImage",
             display_name="Empty Qwen Image Layered Latent",
-            category="latent/qwen",
+            category="model/latent/qwen",
             inputs=[
                 io.Int.Input("width", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),

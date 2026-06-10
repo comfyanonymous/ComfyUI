@@ -51,6 +51,9 @@ class FeedForward(nn.Module):
         return hidden_states
 
 
+# Addin this back because Nunchaku custom nodes rely on it, see comment here:
+# https://github.com/Comfy-Org/ComfyUI/pull/14178#issuecomment-4640475161
+# TODO: Eventually remove this once we natively support SVDQuants
 def apply_rotary_emb(x, freqs_cis):
     if x.shape[1] == 0:
         return x

@@ -11,7 +11,7 @@ class LoadBackgroundRemovalModel(IO.ComfyNode):
         return IO.Schema(
             node_id="LoadBackgroundRemovalModel",
             display_name="Load Background Removal Model",
-            category="loaders",
+            category="model/loaders",
             inputs=[
                 IO.Combo.Input("bg_removal_name", options=sorted(files), tooltip="The model used to remove backgrounds from images"),
             ],
@@ -36,15 +36,15 @@ class RemoveBackground(IO.ComfyNode):
             category="image/background removal",
             description="Generates a foreground mask to remove the background from an image using a background removal model.",
             inputs=[
-                IO.Image.Input("image", tooltip="Input image to remove the background from"),
-                IO.BackgroundRemoval.Input("bg_removal_model", tooltip="Background removal model used to generate the mask")
+                IO.BackgroundRemoval.Input("bg_removal_model", tooltip="Background removal model used to generate the mask"),
+                IO.Image.Input("image", tooltip="Input image to remove the background from")
             ],
             outputs=[
                 IO.Mask.Output("mask", tooltip="Generated foreground mask")
             ]
         )
     @classmethod
-    def execute(cls, image, bg_removal_model):
+    def execute(cls, bg_removal_model, image):
         mask = bg_removal_model.encode_image(image)
         return IO.NodeOutput(mask)
 

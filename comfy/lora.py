@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from __future__ import annotations
 import comfy.memory_management
 import comfy.utils
 import comfy.model_management
@@ -357,6 +356,12 @@ def model_lora_keys_unet(model, key_map={}):
             if k.startswith("diffusion_model.") and k.endswith(".weight"):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["transformer.{}".format(key_lora)] = k
+
+    if isinstance(model, (comfy.model_base.LTXV, comfy.model_base.LTXAV)):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["{}".format(key_lora)] = k
 
     return key_map
 

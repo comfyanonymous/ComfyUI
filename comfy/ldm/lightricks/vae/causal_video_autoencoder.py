@@ -1,4 +1,3 @@
-from __future__ import annotations
 import threading
 import torch
 from torch import nn
