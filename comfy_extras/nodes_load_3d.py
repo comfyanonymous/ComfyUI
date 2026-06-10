@@ -2,6 +2,7 @@ import nodes
 import folder_paths
 import os
 import uuid
+import json
 
 from typing_extensions import override
 from comfy_api.latest import IO, UI, ComfyExtension, InputImpl, Types
@@ -11,6 +12,52 @@ from pathlib import Path
 
 def normalize_path(path):
     return path.replace('\\', '/')
+
+
+def _default_camera_info():
+    # Fallback values for legacy string payloads where viewport metadata is unavailable.
+    return {
+        "position": {"x": 0.0, "y": 0.0, "z": 2.0},
+        "target": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "zoom": 1.0,
+        "cameraType": "perspective",
+        "fov": 50.0,
+        "aspect": 1.0,
+        "near": 0.01,
+        "far": 1000.0,
+    }
+
+
+def _coerce_load3d_input(image):
+    if isinstance(image, dict):
+        return image
+
+    if isinstance(image, str):
+        image = image.strip()
+        if not image:
+            raise ValueError("Load3D expected viewport state, got an empty string payload.")
+
+        # Newer frontends may serialize the LOAD_3D dict as JSON text.
+        if image.startswith("{"):
+            try:
+                parsed = json.loads(image)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+
+        # Legacy compatibility: treat raw string as the image path and synthesize
+        # a minimal viewport payload so image output still works.
+        return {
+            "image": image,
+            "mask": image,
+            "normal": image,
+            "camera_info": _default_camera_info(),
+            "recording": "",
+            "model_3d_info": [],
+        }
+
+    raise TypeError(f"Load3D expected dict or string payload, got: {type(image).__name__}")
 
 class Load3D(IO.ComfyNode):
     @classmethod
@@ -61,9 +108,18 @@ class Load3D(IO.ComfyNode):
 
     @classmethod
     def execute(cls, model_file, image, **kwargs) -> IO.NodeOutput:
-        image_path = folder_paths.get_annotated_filepath(image['image'])
-        mask_path = folder_paths.get_annotated_filepath(image['mask'])
-        normal_path = folder_paths.get_annotated_filepath(image['normal'])
+        image_payload = _coerce_load3d_input(image)
+
+        image_value = image_payload.get('image')
+        if not image_value:
+            raise ValueError("Load3D payload is missing required key: image")
+
+        mask_value = image_payload.get('mask') or image_value
+        normal_value = image_payload.get('normal') or image_value
+
+        image_path = folder_paths.get_annotated_filepath(image_value)
+        mask_path = folder_paths.get_annotated_filepath(mask_value)
+        normal_path = folder_paths.get_annotated_filepath(normal_value)
 
         load_image_node = nodes.LoadImage()
         output_image, ignore_mask = load_image_node.load_image(image=image_path)
@@ -72,8 +128,8 @@ class Load3D(IO.ComfyNode):
 
         video = None
 
-        if image['recording'] != "":
-            recording_video_path = folder_paths.get_annotated_filepath(image['recording'])
+        if image_payload.get('recording', "") != "":
+            recording_video_path = folder_paths.get_annotated_filepath(image_payload['recording'])
 
             video = InputImpl.VideoFromFile(recording_video_path)
 
@@ -82,8 +138,9 @@ class Load3D(IO.ComfyNode):
         if model_file and model_file != "none":
             file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
             mesh_path = model_file
-        model_3d_info = image.get('model_3d_info', [])
-        return IO.NodeOutput(output_image, output_mask, mesh_path, normal_image, image['camera_info'], video, file_3d, model_3d_info)
+        model_3d_info = image_payload.get('model_3d_info', [])
+        camera_info = image_payload.get('camera_info') or _default_camera_info()
+        return IO.NodeOutput(output_image, output_mask, mesh_path, normal_image, camera_info, video, file_3d, model_3d_info)
 
     process = execute  # TODO: remove
 
