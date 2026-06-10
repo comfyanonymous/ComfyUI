@@ -1819,14 +1819,14 @@ class WAN21_SCAIL2(WAN21_SCAIL):
             # Return sliced view omitting retain_index_list
             return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=0)
         if cond_key == "ref_mask_latents" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
-            # The ref mask is just a single frame padded with zero frames, so just grab the first frames for all windows
+            # The ref mask is just a single frame padded with frames of zeros, so just grab the first frames for all windows
             full_ref_mask = cond_value.cond
             video_frame_count = x_in.shape[2]
             if full_ref_mask.shape[2] != video_frame_count + 1:
                 return None
             window_length = len(window.index_list)
 
-            # account for the causal anchor frame at the end of the ref mask if it exists
+            # Account for the causal anchor frame if it exists
             anchor_index = getattr(window, "causal_anchor_index", None)
             if anchor_index is not None and anchor_index >= 0:
                 window_length += 1
