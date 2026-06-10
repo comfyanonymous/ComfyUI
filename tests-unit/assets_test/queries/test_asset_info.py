@@ -158,6 +158,56 @@ class TestListReferencesPage:
         refs, _, _ = list_references_page(session, sort="name", order="asc")
         assert refs[0].name == "large"
 
+    def test_job_ids_filter(self, session: Session):
+        asset = _make_asset(session, "hash1")
+        job_a = str(uuid.uuid4())
+        job_b = str(uuid.uuid4())
+        ref_a = _make_reference(session, asset, name="from_job_a")
+        ref_a.job_id = job_a
+        ref_b = _make_reference(session, asset, name="from_job_b")
+        ref_b.job_id = job_b
+        _make_reference(session, asset, name="no_job")
+        session.commit()
+
+        # Single job filter
+        refs, _, total = list_references_page(session, job_ids=[job_a])
+        assert total == 1
+        assert refs[0].name == "from_job_a"
+
+        # Multi-job filter (IN)
+        refs, _, total = list_references_page(session, job_ids=[job_a, job_b])
+        names = sorted(r.name for r in refs)
+        assert total == 2
+        assert names == ["from_job_a", "from_job_b"]
+
+        # Unknown job id matches nothing
+        refs, _, total = list_references_page(session, job_ids=[str(uuid.uuid4())])
+        assert total == 0
+        assert refs == []
+
+        # Empty/None means no filter -> all three references
+        refs, _, total = list_references_page(session, job_ids=[])
+        assert total == 3
+        refs, _, total = list_references_page(session, job_ids=None)
+        assert total == 3
+
+    def test_job_ids_combined_with_other_filters(self, session: Session):
+        asset = _make_asset(session, "hash1")
+        job_a = str(uuid.uuid4())
+        ref_match = _make_reference(session, asset, name="match.bin")
+        ref_match.job_id = job_a
+        ref_wrong_name = _make_reference(session, asset, name="other.bin")
+        ref_wrong_name.job_id = job_a
+        ref_wrong_job = _make_reference(session, asset, name="match.bin")
+        ref_wrong_job.job_id = str(uuid.uuid4())
+        session.commit()
+
+        refs, _, total = list_references_page(
+            session, job_ids=[job_a], name_contains="match"
+        )
+        assert total == 1
+        assert refs[0].id == ref_match.id
+
 
 class TestFetchReferenceAssetAndTags:
     def test_returns_none_for_nonexistent(self, session: Session):

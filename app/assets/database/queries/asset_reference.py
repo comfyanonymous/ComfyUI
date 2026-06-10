@@ -264,6 +264,7 @@ def list_references_page(
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
     metadata_filter: dict | None = None,
+    job_ids: Sequence[str] | None = None,
     sort: str | None = None,
     order: str | None = None,
     after_cursor_value: object | None = None,
@@ -292,6 +293,9 @@ def list_references_page(
     if name_contains:
         escaped, esc = escape_sql_like_string(name_contains)
         base = base.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
+
+    if job_ids:
+        base = base.where(AssetReference.job_id.in_(list(job_ids)))
 
     base = apply_tag_filters(base, include_tags, exclude_tags)
     base = apply_metadata_filter(base, metadata_filter)
@@ -345,6 +349,8 @@ def list_references_page(
         count_stmt = count_stmt.where(
             AssetReference.name.ilike(f"%{escaped}%", escape=esc)
         )
+    if job_ids:
+        count_stmt = count_stmt.where(AssetReference.job_id.in_(list(job_ids)))
     count_stmt = apply_tag_filters(count_stmt, include_tags, exclude_tags)
     count_stmt = apply_metadata_filter(count_stmt, metadata_filter)
 
