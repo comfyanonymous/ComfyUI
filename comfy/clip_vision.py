@@ -139,10 +139,10 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
         json_config = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "image_encoders"), "dino2_giant.json")
     elif 'encoder.layer.23.layer_scale2.lambda1' in sd:
         json_config = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "image_encoders"), "dino2_large.json")
-    elif 'layer.9.attention.o_proj.bias' in sd: # dinov3 large (24 layers)
-        json_config = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "image_encoders"), "dino3_large.json")
     elif 'layer.0.mlp.gate_proj.weight' in sd and 'layer.31.norm1.weight' in sd: # Dinov3 ViT-H/16+ (SwiGLU gated MLP, 32 layers)
         json_config = comfy.image_encoders.dino3.DINOV3_VITH_CONFIG
+    elif 'layer.9.attention.o_proj.bias' in sd: # dinov3 large (24 layers); generic o_proj.bias key, so must come after the ViT-H check
+        json_config = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "image_encoders"), "dino3_large.json")
     else:
         return None
 
