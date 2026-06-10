@@ -80,7 +80,8 @@ def get_mesh_batch_item(mesh, index):
 
 
 def save_glb(vertices, faces, filepath, metadata=None,
-             uvs=None, vertex_colors=None, texture_image=None):
+             uvs=None, vertex_colors=None, texture_image=None,
+             metallic_roughness_image=None):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -92,6 +93,8 @@ def save_glb(vertices, faces, filepath, metadata=None,
     uvs: torch.Tensor of shape (N, 2) - Optional per-vertex texture coordinates
     vertex_colors: torch.Tensor of shape (N, 3) or (N, 4) - Optional per-vertex colors in [0, 1]
     texture_image: PIL.Image - Optional baseColor texture, embedded as PNG
+    metallic_roughness_image: PIL.Image - Optional glTF metallicRoughness texture
+        (R unused, G=roughness, B=metallic), embedded as PNG
     """
 
     # Convert tensors to numpy arrays
@@ -126,12 +129,18 @@ def save_glb(vertices, faces, filepath, metadata=None,
         buf = BytesIO()
         texture_image.save(buf, format="PNG")
         texture_png_bytes = buf.getvalue()
+    mr_png_bytes = None
+    if metallic_roughness_image is not None:
+        buf = BytesIO()
+        metallic_roughness_image.save(buf, format="PNG")
+        mr_png_bytes = buf.getvalue()
 
     vertices_buffer = vertices_np.tobytes()
     indices_buffer = faces_np.tobytes()
     uvs_buffer = uvs_np.tobytes() if uvs_np is not None else b""
     colors_buffer = colors_np.tobytes() if colors_np is not None else b""
     texture_buffer = texture_png_bytes if texture_png_bytes is not None else b""
+    mr_buffer = mr_png_bytes if mr_png_bytes is not None else b""
 
     def pad_to_4_bytes(buffer):
         padding_length = (4 - (len(buffer) % 4)) % 4
@@ -142,6 +151,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     uvs_buffer_padded = pad_to_4_bytes(uvs_buffer)
     colors_buffer_padded = pad_to_4_bytes(colors_buffer)
     texture_buffer_padded = pad_to_4_bytes(texture_buffer)
+    mr_buffer_padded = pad_to_4_bytes(mr_buffer)
 
     buffer_data = b"".join([
         vertices_buffer_padded,
@@ -149,6 +159,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
         uvs_buffer_padded,
         colors_buffer_padded,
         texture_buffer_padded,
+        mr_buffer_padded,
     ])
 
     vertices_byte_length = len(vertices_buffer)
@@ -158,6 +169,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     uvs_byte_offset = indices_byte_offset + len(indices_buffer_padded)
     colors_byte_offset = uvs_byte_offset + len(uvs_buffer_padded)
     texture_byte_offset = colors_byte_offset + len(colors_buffer_padded)
+    mr_byte_offset = texture_byte_offset + len(texture_buffer_padded)
 
     buffer_views = [
         {
@@ -251,8 +263,24 @@ def save_glb(vertices, faces, filepath, metadata=None,
         })
         images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
         samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
-        textures.append({"source": 0, "sampler": 0})
-        pbr["baseColorTexture"] = {"index": 0, "texCoord": 0}
+        textures.append({"source": len(images) - 1, "sampler": 0})
+        pbr["baseColorTexture"] = {"index": len(textures) - 1, "texCoord": 0}
+
+    if mr_png_bytes is not None and "TEXCOORD_0" in primitive_attributes:
+        buffer_views.append({
+            "buffer": 0,
+            "byteOffset": mr_byte_offset,
+            "byteLength": len(mr_buffer),
+        })
+        images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
+        if not samplers:
+            samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
+        textures.append({"source": len(images) - 1, "sampler": 0})
+        pbr["metallicRoughnessTexture"] = {"index": len(textures) - 1, "texCoord": 0}
+        # When a metallicRoughness texture is present, the factors scale it; use 1.0
+        # so the texture values pass through unchanged (glTF convention).
+        pbr["metallicFactor"] = 1.0
+        pbr["roughnessFactor"] = 1.0
 
     materials.append({
         "pbrMetallicRoughness": pbr,
@@ -373,12 +401,20 @@ class SaveGLB(IO.ComfyNode):
                 assert texture_np.ndim == 4 and texture_np.shape[-1] == 3, (
                     f"texture must be (B, H, W, 3) RGB, got shape {tuple(texture_np.shape)}"
                 )
+            mr_b = getattr(mesh, "metallic_roughness", None)
+            mr_np = None
+            if mr_b is not None:
+                mr_np = (mr_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                assert mr_np.ndim == 4 and mr_np.shape[-1] == 3, (
+                    f"metallic_roughness must be (B, H, W, 3), got shape {tuple(mr_np.shape)}"
+                )
             for i in range(mesh.vertices.shape[0]):
                 vertices_i, faces_i, v_colors, uvs_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
                 tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
+                mr_img = Image.fromarray(mr_np[i], mode="RGB") if mr_np is not None else None
                 f = f"{filename}_{counter:05}_.glb"
                 save_glb(
                     vertices_i, faces_i,
@@ -387,6 +423,7 @@ class SaveGLB(IO.ComfyNode):
                     uvs=uvs_i,
                     vertex_colors=v_colors,
                     texture_image=tex_img,
+                    metallic_roughness_image=mr_img,
                 )
                 results.append({
                     "filename": f,
