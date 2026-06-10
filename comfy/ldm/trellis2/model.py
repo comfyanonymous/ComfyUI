@@ -8,7 +8,7 @@ from comfy.ldm.trellis2.attention import (
 )
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
 from comfy.ldm.flux.math import apply_rope, apply_rope1
-
+from comfy.ldm.trellis2 import sampling_preview
 
 class SparseGELU(nn.GELU):
     def forward(self, input: VarLenTensor) -> VarLenTensor:
@@ -1099,6 +1099,8 @@ class Trellis2(nn.Module):
         proj_feat_pack = kwargs.get("proj_feat_pack")
         # Pre-computed per-stage back-projected features
         proj_feats = kwargs.get("trellis2_proj_feats")
+
+        sampling_preview.set_context(mode=mode, coords=coords, coord_counts=coord_counts)
 
         is_first_shape_pass = False
         if mode == "shape_generation_512":

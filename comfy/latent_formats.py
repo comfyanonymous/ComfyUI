@@ -762,6 +762,7 @@ class Hunyuan3Dv2_1(LatentFormat):
 
 class Trellis2(LatentFormat): # TODO
     latent_channels = 32
+    trellis3d_preview = True  # routes the sampler preview to Trellis3DPreviewer
 class Hunyuan3Dv2mini(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
