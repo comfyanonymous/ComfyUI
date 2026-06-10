@@ -490,6 +490,11 @@ def start_comfyui(asyncio_loop=None):
         init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
         init_api_nodes=not args.disable_api_nodes
     ))
+
+    # Re-apply Comfy's cuDNN benchmark policy after custom-node imports. Benchmark
+    # mode can request near-card-sized autotune workspaces, and some custom nodes set it at import time.
+    comfy.model_management.set_cudnn_benchmark()
+
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
