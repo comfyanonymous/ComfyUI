@@ -15,6 +15,7 @@ def normalize_path(path):
 
 
 def _default_camera_info():
+    """Return a minimal default camera payload for fallback LOAD_3D inputs."""
     # Fallback values for legacy string payloads where viewport metadata is unavailable.
     return {
         "position": {"x": 0.0, "y": 0.0, "z": 2.0},
@@ -29,6 +30,13 @@ def _default_camera_info():
 
 
 def _coerce_load3d_input(image):
+    """Normalize LOAD_3D input into a dictionary payload.
+
+    Accepts:
+    - dict payloads (preferred)
+    - JSON-serialized dict strings
+    - legacy raw string paths (fallback)
+    """
     if isinstance(image, dict):
         return image
 
