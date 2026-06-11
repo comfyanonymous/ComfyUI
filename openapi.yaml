@@ -1067,6 +1067,9 @@ components:
                         comfyui_version:
                             description: ComfyUI version
                             type: string
+                        deploy_environment:
+                            description: How this ComfyUI instance is deployed (e.g. cloud, local-git, local-portable, local-desktop)
+                            type: string
                         embedded_python:
                             description: Whether using embedded Python
                             type: boolean
