@@ -49,7 +49,7 @@ class SAM3DBody_Loader(io.ComfyNode):
         return io.Schema(
             node_id="SAM3DBody_Loader",
             display_name="Load SAM3D Body Model",
-            category="image/detection/sam3dbody/", #TODO: better category?
+            category="image/detection",
             inputs=[
                 io.Combo.Input(
                     "model_file",
@@ -252,7 +252,7 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
             node_id="SAM3DBody_FaceExpression",
             description="Drive MHR face blendshapes from the core MediaPipe Face Landmarker.",
             display_name="Face Expression to SAM3D Body", #TODO: better name?
-            category="image/detection/sam3dbody/",
+            category="image/detection",
             inputs=[
                 SAM3DBodyModel.Input("sam3d_body_model"),
                 MHRPoseData.Input("mhr_pose_data"),
@@ -448,7 +448,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
             node_id="SAM3DBody_Smooth",
             description="Reduce frame-to-frame jitter via temporal smoothing.",
             display_name="Smooth SAM3D Body Pose Data",
-            category="image/detection/sam3dbody/",
+            category="image/detection",
             inputs=[
                 MHRPoseData.Input("mhr_pose_data"),
                 io.Float.Input(
@@ -833,7 +833,7 @@ class SAM3DBody_Render(io.ComfyNode):
         return io.Schema(
             node_id="SAM3DBody_Render",
             display_name="Render SAM3D Body",
-            category="image/detection/sam3dbody/",
+            category="image/detection",
             inputs=[
                 MHRPoseData.Input("mhr_pose_data"),
                 io.Image.Input(
