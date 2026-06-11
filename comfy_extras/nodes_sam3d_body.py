@@ -54,10 +54,10 @@ class SAM3DBody_Loader(io.ComfyNode):
                 io.Combo.Input(
                     "model_file",
                     options=folder_paths.get_filename_list("detection"),
-                    tooltip="SAM 3D Body weights (.safetensors) in the 'detection' folder",
+
                 ),
             ],
-            outputs=[SAM3DBodyModel.Output("model", display_name="sam3d_body_model")],
+            outputs=[SAM3DBodyModel.Output(display_name="sam3d_body_model")],
         )
 
 
@@ -126,40 +126,35 @@ class SAM3DBody_Predict(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SAM3DBody_Predict",
-            display_name="Predict SAM3D Body",
-            category="image/detection/sam3dbody/",
+            display_name="Run SAM3D Body Prediction",
+            category="image/detection",
             inputs=[
                 SAM3DBodyModel.Input("sam3d_body_model"),
                 io.Image.Input("image"),
                 SAM3TrackData.Input(
-                    "sam3_track_data", optional=True,
-                    tooltip=("Output of SAM3 Video Track, required for multi-person detection"),
+                    "track_data", optional=True,
+                    tooltip=("Tracking data from SAM3 Video Track, required for multi-person detection"),
                 ),
                 io.BoundingBox.Input(
                     "bboxes", optional=True, force_input=True,
                     tooltip=(
-                        "Per-frame person boxes (e.g. RT-DETR Detect with class_name='person'). "
-                        "Use for better detection as alternative to SAM3 tracks."
+                        "Per-frame bounding boxes used for better detection. Can be used as an alternative to tracking data. "
                     ),
                 ),
                 io.Boolean.Input(
                     "run_hand_refinement", default=True,
                     tooltip="Improves hand pose at the cost of extra inference time and memory use"),
                 io.Float.Input(
-                    "fov_degrees",
-                    default=0.0, min=0.0, max=170.0, step=0.5,
+                    "fov",
                     tooltip=(
-                        "Vertical FOV in degrees. Affects predicted depth (cam_t.z) and "
-                        "absolute scale. 0 = fall back to ~53° (16:9). Feed MoGeGeometryToFOV "
-                        "here to derive it from a MoGe estimate."
+                        "Vertical FoV in degrees. Affects predicted depth and absolute scale. 0 = fall back to ~53° (16:9)."
                     ),
                 ),
                 io.Int.Input(
                     "chunk_size", #TODO: automate?
                     default=64, min=1, max=512, step=1, advanced=True,
                     tooltip=(
-                        "Max person-crops per forward. Higher = throughput + VRAM; "
-                        "per-chunk frame count is chunk_size / persons_per_frame."
+                        "Max frames to process as a batch. Larger values utilize more VRAM for faster inference."
                     ),
                 ),
             ],
@@ -167,7 +162,7 @@ class SAM3DBody_Predict(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, sam3d_body_model, image, sam3_track_data=None, bboxes=None, run_hand_refinement=True, fov_degrees=0.0, chunk_size=64) -> io.NodeOutput:
+    def execute(cls, sam3d_body_model, image, sam3_track_data=None, bboxes=None, run_hand_refinement=True, fov=0.0, chunk_size=64) -> io.NodeOutput:
         comfy.model_management.load_model_gpu(sam3d_body_model)
         inner: SAM3DBody = sam3d_body_model.model
 
@@ -187,8 +182,8 @@ class SAM3DBody_Predict(io.ComfyNode):
             per_frame_bboxes = [full_frame_bbox.clone() for _ in range(B)]
             per_frame_masks = None
         inference_type = "full" if run_hand_refinement else "body"
-        # fov_degrees > 0 sets intrinsics; else None falls back to prepare_batch's diagonal default.
-        cam_int = cam_int_from_fov(int(H), int(W), float(fov_degrees))
+        # fov > 0 sets intrinsics; else None falls back to prepare_batch's diagonal default.
+        cam_int = cam_int_from_fov(int(H), int(W), float(fov))
 
         frames_rgb: List[Optional[torch.Tensor]] = []
         for f in range(B):
@@ -259,8 +254,8 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
             display_name="Face Expression to SAM3D Body", #TODO: better name?
             category="image/detection/sam3dbody/",
             inputs=[
-                MHRPoseData.Input("mhr_pose_data"),
                 SAM3DBodyModel.Input("sam3d_body_model"),
+                MHRPoseData.Input("mhr_pose_data"),
                 io.Image.Input("image"),
                 io.Float.Input(
                     "strength", default=1.0, min=0.0, max=4.0, step=0.05,
@@ -268,17 +263,17 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "mouth_strength", default=1.0, min=0.0, max=4.0, step=0.05,
-                    tooltip="Multiplier on mouth/jaw shapes. MP's jawOpen saturates near 1.0.",
+                    tooltip="Multiplier on mouth/jaw shapes. MediaPipe's jawOpen saturates near 1.0.",
                     advanced=True,
                 ),
                 io.Float.Input(
                     "eye_strength", default=2.0, min=0.0, max=4.0, step=0.05,
-                    tooltip="Multiplier on eye shapes. MP rarely exceeds 0.5; 2-3x often needed.",
+                    tooltip="Multiplier on eye shapes. MediaPipe rarely exceeds 0.5; 2-3x often needed.",
                     advanced=True,
                 ),
                 io.Float.Input(
                     "brow_strength", default=2.0, min=0.0, max=4.0, step=0.05,
-                    tooltip="Multiplier on brow/cheek/sneer shapes. MP outputs ~0.1-0.3; 2-3x.",
+                    tooltip="Multiplier on brow/cheek/sneer shapes. MediaPipe outputs ~0.1-0.3; 2-3x.",
                     advanced=True,
                 ),
                 io.Float.Input(
@@ -451,23 +446,23 @@ class SAM3DBody_Smooth(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SAM3DBody_Smooth",
-            description="Reduce frame-to-frame jitter via vertex-space temporal averaging",
-            display_name="Smooth SAM3D Body Pose Frames",
+            description="Reduce frame-to-frame jitter via temporal smoothing.",
+            display_name="Smooth SAM3D Body Pose Data",
             category="image/detection/sam3dbody/",
             inputs=[
                 MHRPoseData.Input("mhr_pose_data"),
                 io.Float.Input(
                     "strength",
                     default=1.0, min=0.0, max=1.0, step=0.05,
-                    tooltip="Blend raw (0) → smoothed (1).",
+                    tooltip="Smoothing strength. 0 = raw, 1 = smoothed.",
                 ),
                 io.Combo.Input(
                     "method",
                     options=["gaussian", "savgol"],
                     default="gaussian", advanced=True,
                     tooltip=(
-                        "'gaussian': symmetric weighted average, best general-purpose smoother. "
-                        "'savgol': sliding polynomial fit, preserves sharp peaks."
+                        "gaussian: symmetric weighted average, best general-purpose smoother./n"
+                        "savgol: sliding polynomial fit, preserves sharp peaks."
                     ),
                 ),
                 io.Int.Input(
@@ -477,11 +472,11 @@ class SAM3DBody_Smooth(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "rotation_threshold_deg",
-                    default=15.0, min=0.0, max=45.0, step=1.0, advanced=True,
+                    default=30.0, min=0.0, max=90.0, step=1.0, advanced=True,
                     tooltip=(
-                        "Disables smoothing for this root-rotation rate (deg/frame) to preserve fast spins. "
-                        "15° suits most content, low values trigger on ordinary jitter and "
-                        "silently sabotage smoothing. 0 = disable."
+                        "Disables smoothing for this root rotation rate (degree/frame) to preserve fast spins. "
+                        "30° suits most content, low values might disable smoothing on ordinary jitter and "
+                        "silently impacts quality. 0 = disable."
                     ),
                 ),
             ],
@@ -870,11 +865,9 @@ class SAM3DBody_Render(io.ComfyNode):
                     ),
                 ),
                 io.Float.Input(
-                    "camera_fov", default=0.0, min=0.0, max=170.0, step=0.5, advanced=True,
+                    "fov", default=0.0, min=0.0, max=170.0, step=0.5, advanced=True,
                     tooltip=(
-                        "Vertical FOV for the camera_info override. 0 = keep the SAM3D "
-                        "predicted camera's FOV (only the viewpoint changes). Any non-zero "
-                        "value overrides the lens. Ignored when camera_info is unwired."
+                        "Override the vertical FoV of the camera_info. Ignored when camera_info is empty. 0 = keep the FoV of the camera_info."
                     ),
                 ),
                 io.DynamicCombo.Input(
@@ -900,7 +893,7 @@ class SAM3DBody_Render(io.ComfyNode):
 
 
     @classmethod
-    def execute(cls, mhr_pose_data, background=None, width=0, height=0, camera_info=None, camera_fov=0.0, render_style=None) -> io.NodeOutput:
+    def execute(cls, mhr_pose_data, background=None, width=0, height=0, camera_info=None, fov=0.0, render_style=None) -> io.NodeOutput:
         render_style = render_style or {"render_style": "mesh"}
         mode_key = render_style.get("render_style", "mesh")
 
@@ -919,7 +912,7 @@ class SAM3DBody_Render(io.ComfyNode):
             px_scale = min(new_W / native_W, new_H / native_H)
 
         if camera_info is not None:
-            mhr_pose_data = apply_camera_override(mhr_pose_data, camera_info, H, W, fov_deg=float(camera_fov))
+            mhr_pose_data = apply_camera_override(mhr_pose_data, camera_info, H, W, fov_deg=float(fov))
 
         B = len(mhr_pose_data["frames"])
         if B == 0:
