@@ -267,7 +267,8 @@ class SCAIL2ColoredMask(io.ComfyNode):
                 io.Combo.Input("sort_by", options=["none", "left_to_right", "area"], default="left_to_right",
                                tooltip="Order in which palette colors are assigned to the tracked objects (applied to both reference and pose video so each identity keeps the same color). left_to_right = leftmost object (by first-frame centroid) gets the first color; area = biggest object (by first-frame mask area) gets the first color; none = keep SAM3's order."),
                 io.Boolean.Input("replacement_mode", default=False,
-                                 tooltip="False = Animation Mode (pose black bg, reference white bg). True = Replacement Mode (pose white bg, reference black bg)."),
+                                 tooltip="False = Animation Mode (pose_video_mask has black background, reference_image_mask has white background). "
+                                         "True = Replacement Mode (pose_video_mask has white background, reference_image_mask has black background)."),
             ],
             outputs=[
                 io.Image.Output("pose_video_mask"),
