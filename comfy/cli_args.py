@@ -133,7 +133,7 @@ upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disabl
 parser.add_argument("--enable-manager", action="store_true", help="Enable the ComfyUI-Manager feature.")
 manager_group = parser.add_mutually_exclusive_group()
 manager_group.add_argument("--disable-manager-ui", action="store_true", help="Disables only the ComfyUI-Manager UI and endpoints. Scheduled installations and similar background tasks will still operate.")
-manager_group.add_argument("--enable-manager-legacy-ui", action="store_true", help="Enables the legacy UI of ComfyUI-Manager")
+manager_group.add_argument("--enable-manager-legacy-ui", action="store_true", help="Enables the legacy UI of ComfyUI-Manager. Implies --enable-manager.")
 
 
 vram_group = parser.add_mutually_exclusive_group()
@@ -257,6 +257,10 @@ if args.disable_auto_launch:
 
 if args.force_fp16:
     args.fp16_unet = True
+
+# '--enable-manager-legacy-ui' is meaningless unless the manager is enabled, so imply '--enable-manager'.
+if args.enable_manager_legacy_ui:
+    args.enable_manager = True
 
 
 # '--fast' is not provided, use an empty set
