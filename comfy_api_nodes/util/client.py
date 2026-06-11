@@ -19,14 +19,11 @@ from comfy import utils
 from comfy_api.latest import IO
 from server import PromptServer
 
-from comfy.deploy_environment import get_deploy_environment
-
 from . import request_logger
 from ._helpers import (
     default_base_url,
-    get_auth_header,
+    get_comfy_api_headers,
     get_node_id,
-    get_usage_source,
     is_processing_interrupted,
     sleep_with_interrupt,
 )
@@ -646,9 +643,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
 
         payload_headers = {"Accept": "*/*"} if expect_binary else {"Accept": "application/json"}
         if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
-            payload_headers.update(get_auth_header(cfg.node_cls))
-            payload_headers["Comfy-Env"] = get_deploy_environment()
-            payload_headers["Comfy-Usage-Source"] = get_usage_source(cfg.node_cls)
+            payload_headers.update(get_comfy_api_headers(cfg.node_cls))
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
 

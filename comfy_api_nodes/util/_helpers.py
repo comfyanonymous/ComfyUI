@@ -9,6 +9,7 @@ from io import BytesIO
 from yarl import URL
 
 from comfy.cli_args import args
+from comfy.deploy_environment import get_deploy_environment
 from comfy.model_management import processing_interrupted
 from comfy_api.latest import IO
 
@@ -38,6 +39,21 @@ def get_auth_header(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
 def get_usage_source(node_cls: type[IO.ComfyNode]) -> str:
     """Source of the prompt that triggered this API node, defaulting to this server itself."""
     return node_cls.hidden.comfy_usage_source or "comfyui-server"
+
+
+def get_comfy_api_headers(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
+    """Common headers (auth, deploy environment, usage source) for Comfy API requests.
+
+    Centralizes the shared header set so every Comfy API request sends a consistent
+    set and new shared headers only need to be added in one place. Intended for
+    relative/cloud URLs resolved against ``default_base_url()``; because the result
+    includes auth, callers must not attach it to arbitrary absolute/presigned URLs.
+    """
+    return {
+        **get_auth_header(node_cls),
+        "Comfy-Env": get_deploy_environment(),
+        "Comfy-Usage-Source": get_usage_source(node_cls),
+    }
 
 
 def default_base_url() -> str:
