@@ -245,6 +245,11 @@ class KV_Attn_Input:
         cache_key = "{}_{}".format(extra_options["block_type"], extra_options["block_index"])
         if cache_key in self.cache:
             kk, vv = self.cache[cache_key]
+
+            # Fix batch size changing.
+            kk = comfy.utils.repeat_to_batch_size(kk, k.shape[0])
+            vv = comfy.utils.repeat_to_batch_size(vv, v.shape[0])
+
             self.set_cache = False
             return {"q": q, "k": torch.cat((k, kk), dim=2), "v": torch.cat((v, vv), dim=2)}
 
