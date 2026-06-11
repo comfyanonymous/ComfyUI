@@ -896,6 +896,11 @@ components:
                     additionalProperties: true
                     description: The workflow graph to execute
                     type: object
+                prompt_id:
+                    description: Optional client-supplied job id. Must be a UUID in canonical lowercase hyphenated form; it is echoed back in the response. Omitted or null means the server generates one.
+                    format: uuid
+                    nullable: true
+                    type: string
                 workflow_id:
                     description: UUID identifying the cloud workflow entity to associate with this job
                     type: string
@@ -1061,6 +1066,9 @@ components:
                             type: string
                         comfyui_version:
                             description: ComfyUI version
+                            type: string
+                        deploy_environment:
+                            description: How this ComfyUI instance is deployed (e.g. cloud, local-git, local-portable, local-desktop)
                             type: string
                         embedded_python:
                             description: Whether using embedded Python
@@ -1960,8 +1968,8 @@ paths:
                         schema:
                             properties:
                                 hash:
-                                    description: Hash of the existing asset. Supports Blake3 (blake3:) or SHA256 (sha256:) formats
-                                    pattern: ^(blake3|sha256):[a-f0-9]{64}$
+                                    description: 'Blake3 content hash of the existing asset (blake3: prefix)'
+                                    pattern: ^blake3:[a-f0-9]{64}$
                                     type: string
                                 mime_type:
                                     description: MIME type of the asset (e.g., "image/png", "video/mp4")

@@ -534,8 +534,10 @@ try:
 except:
     pass
 
-if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
-    torch.backends.cudnn.benchmark = True
+
+def set_cudnn_benchmark():
+    if torch.cuda.is_available() and torch.backends.cudnn.is_available():
+        torch.backends.cudnn.benchmark = PerformanceFeature.AutoTune in args.fast
 
 try:
     if torch_version_numeric >= (2, 5):
@@ -957,8 +959,6 @@ def loaded_models(only_currently_used=False):
 
 def cleanup_models_gc():
     do_gc = False
-
-    reset_cast_buffers()
 
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]

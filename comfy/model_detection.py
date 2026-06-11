@@ -862,6 +862,95 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["enc_h"] = state_dict['{}encoder.pan_blocks.1.cv4.conv.weight'.format(key_prefix)].shape[0]
         return dit_config
 
+    # Depth Anything 3 (repackaged to ComfyUI's native Dinov2Model layout via scripts/convert_da3.py)
+    if '{}backbone.embeddings.patch_embeddings.projection.weight'.format(key_prefix) in state_dict_keys:
+        dit_config = {}
+        dit_config["image_model"] = "DepthAnything3"
+
+        patch_w = state_dict['{}backbone.embeddings.patch_embeddings.projection.weight'.format(key_prefix)]
+        embed_dim = patch_w.shape[0]
+        depth = count_blocks(state_dict_keys, '{}backbone.encoder.layer.'.format(key_prefix) + '{}.')
+
+        # Backbone preset is determined by embed_dim (matches vits/vitb/vitl/vitg).
+        backbone_name = {384: "vits", 768: "vitb", 1024: "vitl", 1536: "vitg"}.get(embed_dim)
+        if backbone_name is None:
+            return None
+        dit_config["backbone_name"] = backbone_name
+
+        # Detect DA3 extensions on top of vanilla DINOv2.
+        has_camera_token = '{}backbone.embeddings.camera_token'.format(key_prefix) in state_dict_keys
+        # qk-norm shows up as `attention.q_norm.weight` on enabled blocks.
+        qknorm_indices = [
+            i for i in range(depth)
+            if '{}backbone.encoder.layer.{}.attention.q_norm.weight'.format(key_prefix, i) in state_dict_keys
+        ]
+        qknorm_start = qknorm_indices[0] if qknorm_indices else -1
+
+        # The DA3 main-series configs always set alt_start == qknorm_start == rope_start.
+        # cat_token=True is implied by the presence of camera_token.
+        if has_camera_token:
+            dit_config["alt_start"] = qknorm_start
+            dit_config["rope_start"] = qknorm_start
+            dit_config["qknorm_start"] = qknorm_start
+            dit_config["cat_token"] = True
+        else:
+            dit_config["alt_start"] = -1
+            dit_config["rope_start"] = -1
+            dit_config["qknorm_start"] = -1
+            dit_config["cat_token"] = False
+
+        # Detect head type and config.
+        has_aux = '{}head.scratch.refinenet1_aux.out_conv.weight'.format(key_prefix) in state_dict_keys
+        dit_config["head_dim_in"] = state_dict['{}head.projects.0.weight'.format(key_prefix)].shape[1]
+        dit_config["head_features"] = state_dict['{}head.scratch.refinenet1.out_conv.weight'.format(key_prefix)].shape[0]
+        dit_config["head_out_channels"] = [
+            state_dict['{}head.projects.{}.weight'.format(key_prefix, i)].shape[0]
+            for i in range(4)
+        ]
+        if has_aux:
+            # DualDPT: dim_in = 2 * embed_dim (because cat_token doubles token width).
+            dit_config["head_type"] = "dualdpt"
+            dit_config["head_output_dim"] = 2
+            dit_config["head_use_sky_head"] = False
+        else:
+            dit_config["head_type"] = "dpt"
+            dit_config["head_output_dim"] = state_dict[
+                '{}head.scratch.output_conv2.2.weight'.format(key_prefix)
+            ].shape[0]
+            dit_config["head_use_sky_head"] = (
+                '{}head.scratch.sky_output_conv2.0.weight'.format(key_prefix) in state_dict_keys
+            )
+
+        # out_layers: hard-coded per upstream YAML config (depth-aware default).
+        if depth >= 24:
+            # vitl: depths used vary between DA3-Large (DualDPT) and Mono/Metric (DPT).
+            if has_aux:
+                dit_config["out_layers"] = [11, 15, 19, 23]
+            else:
+                dit_config["out_layers"] = [4, 11, 17, 23]
+        else:
+            # vits/vitb: 12 blocks
+            dit_config["out_layers"] = [5, 7, 9, 11]
+
+        # Camera encoder/decoder presence (multi-view + pose path).
+        has_cam_enc = '{}cam_enc.token_norm.weight'.format(key_prefix) in state_dict_keys
+        has_cam_dec = '{}cam_dec.fc_t.weight'.format(key_prefix) in state_dict_keys
+        dit_config["has_cam_enc"] = has_cam_enc
+        dit_config["has_cam_dec"] = has_cam_dec
+        if has_cam_enc:
+            cam_enc_w = state_dict.get(
+                '{}cam_enc.pose_branch.fc2.weight'.format(key_prefix)
+            )
+            if cam_enc_w is not None:
+                dit_config["cam_dim_out"] = cam_enc_w.shape[0]
+        if has_cam_dec:
+            cam_dec_w = state_dict.get(
+                '{}cam_dec.fc_t.weight'.format(key_prefix)
+            )
+            if cam_dec_w is not None:
+                dit_config["cam_dec_dim_in"] = cam_dec_w.shape[1]
+        return dit_config
+
     if '{}layers.0.mlp.linear_fc2.weight'.format(key_prefix) in state_dict_keys: # Ernie Image
         dit_config = {}
         dit_config["image_model"] = "ernie"

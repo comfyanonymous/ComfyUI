@@ -355,7 +355,7 @@ def insert_asset_specs(specs: list[SeedAssetSpec], tag_pool: set[str]) -> int:
         return 0
     with create_session() as sess:
         if tag_pool:
-            ensure_tags_exist(sess, tag_pool, tag_type="user")
+            ensure_tags_exist(sess, tag_pool)
         result = batch_insert_seed_assets(sess, specs=specs, owner_id="")
         sess.commit()
         return result.inserted_refs

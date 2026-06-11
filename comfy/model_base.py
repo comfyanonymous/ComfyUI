@@ -65,6 +65,7 @@ import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
 import comfy.ldm.hidream_o1.model
 from comfy.ldm.hidream_o1.conditioning import build_extra_conds
+import comfy.ldm.depth_anything_3.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1518,7 +1519,25 @@ class WAN21(BaseModel):
         if reference_latents is not None:
             out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
 
+        # In-context reference conditioning (Bernini)
+        context_latents = kwargs.get("context_latents", None)
+        if context_latents is not None:
+            out['context_latents'] = comfy.conds.CONDList([self.process_latent_in(l) for l in context_latents])
+
         return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        # In-context cond slicing (Bernini)
+        if cond_key == "context_latents" and isinstance(getattr(cond_value, "cond", None), list):
+            dim = window.dim
+            out = []
+            for lat in cond_value.cond:
+                if lat.ndim > dim and lat.shape[dim] > 1 and lat.shape[dim] == x_in.shape[dim]:
+                    out.append(window.get_tensor(lat, device, dim=dim, retain_index_list=retain_index_list))
+                else:
+                    out.append(lat.to(device))
+            return cond_value._copy_with(out)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
 
 
 class WAN21_CausalAR(WAN21):
@@ -1797,7 +1816,24 @@ class WAN21_SCAIL2(WAN21_SCAIL):
 
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         if cond_key in ("sam_latents", "pose_latents"):
-            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=1)
+            # Return sliced view omitting retain_index_list
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=0)
+        if cond_key == "ref_mask_latents" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
+            # The ref mask is just a single frame padded with frames of zeros, so just grab the first frames for all windows
+            full_ref_mask = cond_value.cond
+            video_frame_count = x_in.shape[2]
+            if full_ref_mask.shape[2] != video_frame_count + 1:
+                return None
+            window_length = len(window.index_list)
+
+            # Account for the causal anchor frame if it exists
+            anchor_index = getattr(window, "causal_anchor_index", None)
+            if anchor_index is not None and anchor_index >= 0:
+                window_length += 1
+
+            window_ref_mask = full_ref_mask[:, :, :window_length + 1].to(device)
+            return cond_value._copy_with(window_ref_mask)
+
         return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
 
     def concat_cond(self, **kwargs):
@@ -2300,6 +2336,12 @@ class Kandinsky5Image(Kandinsky5):
 class RT_DETR_v4(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.rt_detr.rtdetr_v4.RTv4)
+
+
+class DepthAnything3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device,
+                         unet_model=comfy.ldm.depth_anything_3.model.DepthAnything3Net)
 
 class ErnieImage(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
