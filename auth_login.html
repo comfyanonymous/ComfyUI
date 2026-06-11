@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI - API Key Required</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 32px;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="password"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .show-password {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #666;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .show-password input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .info-box {
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            padding: 12px 16px;
+            margin-top: 24px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .info-box strong {
+            color: #667eea;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .remember-me input[type="checkbox"] {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>🎨 ComfyUI</h1>
+            <p>API Key Authentication</p>
+        </div>
+
+        <div class="error-message" id="errorMessage">
+            Invalid API key. Please try again.
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="apiKey">API Key</label>
+                <input 
+                    type="password" 
+                    id="apiKey" 
+                    name="apiKey" 
+                    placeholder="Enter your API key"
+                    autocomplete="off"
+                    required
+                >
+                <label class="show-password">
+                    <input type="checkbox" id="showPassword">
+                    Show API key
+                </label>
+            </div>
+
+            <label class="remember-me">
+                <input type="checkbox" id="rememberMe" checked>
+                Remember me (store in browser)
+            </label>
+
+            <button type="submit">Login</button>
+        </form>
+
+        <div class="info-box">
+            <strong>Note:</strong> Your API key is required to access ComfyUI. 
+            If you don't have one, please contact your administrator or check the server configuration.
+        </div>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const apiKeyInput = document.getElementById('apiKey');
+        const errorMessage = document.getElementById('errorMessage');
+        const showPasswordCheckbox = document.getElementById('showPassword');
+        const rememberMeCheckbox = document.getElementById('rememberMe');
+
+        // Check if API key is already stored
+        const storedApiKey = localStorage.getItem('comfyui_api_key') || sessionStorage.getItem('comfyui_api_key');
+        if (storedApiKey) {
+            // Try to validate the stored key
+            validateAndRedirect(storedApiKey, false);
+        }
+
+        // Show/hide password
+        showPasswordCheckbox.addEventListener('change', function() {
+            apiKeyInput.type = this.checked ? 'text' : 'password';
+        });
+
+        // Form submission
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const apiKey = apiKeyInput.value.trim();
+            
+            if (!apiKey) {
+                showError('Please enter an API key');
+                return;
+            }
+
+            await validateAndRedirect(apiKey, true);
+        });
+
+        async function validateAndRedirect(apiKey, showErrors) {
+            try {
+                // Test the API key by making a request to the health endpoint
+                const response = await fetch('/health', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                if (response.ok) {
+                    // API key is valid, store it
+                    if (rememberMeCheckbox.checked) {
+                        localStorage.setItem('comfyui_api_key', apiKey);
+                        sessionStorage.removeItem('comfyui_api_key');
+                    } else {
+                        sessionStorage.setItem('comfyui_api_key', apiKey);
+                        localStorage.removeItem('comfyui_api_key');
+                    }
+                    
+                    // Redirect to main page
+                    window.location.href = '/';
+                } else {
+                    if (showErrors) {
+                        showError('Invalid API key. Please check and try again.');
+                    } else {
+                        // Stored key is invalid, clear it
+                        localStorage.removeItem('comfyui_api_key');
+                        sessionStorage.removeItem('comfyui_api_key');
+                    }
+                }
+            } catch (error) {
+                console.error('Validation error:', error);
+                if (showErrors) {
+                    showError('Failed to validate API key. Please check your connection.');
+                }
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+            setTimeout(() => {
+                errorMessage.classList.remove('show');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
