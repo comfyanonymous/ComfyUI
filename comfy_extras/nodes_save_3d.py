@@ -1,7 +1,3 @@
-"""Save-side 3D nodes: mesh packing/slicing helpers + GLB writer + SaveGLB
-node, plus pose-data exporters (BuildPoseGLB / SavePoseBVH) that accept either
-SAM3DBody Predict's MHR pose data or external-rig pose data from Kimodo."""
-
 import json
 import logging
 import os
@@ -459,7 +455,7 @@ class BuildPoseGLB(IO.ComfyNode):
             inputs=[
                 IO.MultiType.Input(
                     "pose_data", types=[MHRPoseData, KimodoPoseData],
-                    tooltip=("MHR pose data from SAM3DBody_Predict, Kimodo. "),
+                    tooltip=("3D pose data."),
                 ),
                 SAM3DBodyModel.Input("sam3d_body_model", optional=True),
                 IO.DynamicCombo.Input(
@@ -657,7 +653,7 @@ class BuildPoseGLB(IO.ComfyNode):
                     tooltip="-1 = all tracks; ≥0 = single track.",
                 ),
             ],
-            outputs=[IO.File3DGLB.Output("glb")],
+            outputs=[IO.File3DGLB.Output("model_3d")],
         )
 
     @classmethod
