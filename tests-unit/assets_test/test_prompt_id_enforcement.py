@@ -1,9 +1,9 @@
 """POST /prompt enforces canonical-UUID job ids at creation time.
 
-Lives in assets_test because it uses this suite's booted-server fixture and
-because the invariant exists for the assets pipeline: the GET /api/assets
-``job_ids`` filter matches stored job ids exactly, so a job minted with a
-non-canonical id would produce assets the filter can never find.
+Lives in assets_test because it uses this suite's booted-server fixture. The
+invariant itself is pipeline-wide: a job id is stored and compared verbatim
+downstream — history keys, websocket correlation, and /interrupt matching —
+so a job minted with a non-canonical id would miss every exact-match lookup.
 
 The prompt bodies here are intentionally invalid workflows — prompt_id
 validation happens before workflow validation, so a rejected id returns

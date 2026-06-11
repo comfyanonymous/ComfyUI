@@ -35,8 +35,8 @@ class TestValidateJobId:
     )
     def test_non_canonical_spellings_rejected(self, variant):
         # uuid.UUID parses all of these, but accepting them would silently
-        # rewrite the client's id (history keys, websocket events, and the
-        # assets job_ids filter all match the stored form exactly).
+        # rewrite the client's id (history keys, websocket events, and
+        # /interrupt matching all match the stored form exactly).
         with pytest.raises(ValueError):
             validate_job_id(variant)
 

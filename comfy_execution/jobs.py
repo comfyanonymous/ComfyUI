@@ -25,10 +25,9 @@ def validate_job_id(value) -> str:
 
     Job ids must be UUIDs in the canonical lowercase hyphenated form. The id
     is stored and compared verbatim everywhere downstream — history keys,
-    websocket events, /interrupt matching, and the assets ``job_ids`` filter
-    (a String(36) column matched exactly) — so accepting another spelling
-    would either rewrite the client's id behind its back or mint a job whose
-    outputs the filter can never find. Rejecting loudly beats both.
+    websocket events, and /interrupt matching — so accepting another spelling
+    would silently rewrite the client's id and then miss every exact-match
+    lookup. Rejecting loudly beats that.
 
     Returns the id unchanged. Raises ValueError when the value is not a
     string in canonical UUID form.
