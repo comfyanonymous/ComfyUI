@@ -37,8 +37,12 @@ def get_auth_header(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
 
 
 def get_usage_source(node_cls: type[IO.ComfyNode]) -> str:
-    """Source of the prompt that triggered this API node, defaulting to this server itself."""
-    return node_cls.hidden.comfy_usage_source or "comfyui-server"
+    """Source of the prompt that triggered this API node.
+
+    Defaults to "comfyui-api" when the submitting client didn't identify itself,
+    i.e. a direct API call to this server.
+    """
+    return node_cls.hidden.comfy_usage_source or "comfyui-api"
 
 
 def get_comfy_api_headers(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
