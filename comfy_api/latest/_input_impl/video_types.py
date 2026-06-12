@@ -257,6 +257,7 @@ class VideoFromFile(VideoInput):
 
         image_format = 'gbrpf32le'
         process_image_format = lambda a: a
+        align_graph = None
         audio = None
 
         streams = [video_stream]
@@ -310,7 +311,22 @@ class VideoFromFile(VideoInput):
 
                             checked_alpha = True
 
-                        img = frame.to_ndarray(format=image_format)  # shape: (H, W, 4)
+                        if image_format in ('gbrpf32le', 'gbrapf32le') and frame.width % 32 != 0:
+                            if align_graph is None:
+                                pad_w = ((frame.width + 31) // 32) * 32
+                                g = av.filter.Graph()
+                                g_src = g.add_buffer(width=frame.width, height=frame.height,
+                                                     format=frame.format.name, time_base=video_stream.time_base)
+                                g_pad = g.add('pad', f'{pad_w}:{frame.height}:0:0')
+                                g_sink = g.add('buffersink')
+                                g_src.link_to(g_pad)
+                                g_pad.link_to(g_sink)
+                                g.configure()
+                                align_graph = (g, g_src, g_sink)
+                            align_graph[1].push(frame)
+                            img = np.ascontiguousarray(align_graph[2].pull().to_ndarray(format=image_format)[:, :frame.width])
+                        else:
+                            img = frame.to_ndarray(format=image_format)
                         if frame.rotation != 0:
                             k = int(round(frame.rotation // 90))
                             img = np.rot90(img, k=k, axes=(0, 1)).copy()
