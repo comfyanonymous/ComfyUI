@@ -15,6 +15,23 @@ class VideoCodec(str, Enum):
         """
         return [member.value for member in cls]
 
+
+class VideoBitDepth(str, Enum):
+    AUTO = "auto"
+    BIT_8 = "8-bit"
+    BIT_10 = "10-bit"
+
+    @classmethod
+    def as_input(cls) -> list[str]:
+        """Returns a list of bit depth names that can be used as node input."""
+        return [member.value for member in cls]
+
+    def bits(self) -> Optional[int]:
+        """Returns the numeric bit depth, or None for AUTO."""
+        if self == VideoBitDepth.AUTO:
+            return None
+        return int(self.value.split("-")[0])
+
 class VideoContainer(str, Enum):
     AUTO = "auto"
     MP4 = "mp4"

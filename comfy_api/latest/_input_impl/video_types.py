@@ -10,7 +10,7 @@ import json
 import numpy as np
 import math
 import torch
-from .._util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoBitDepth, VideoComponents
 import logging
 
 
@@ -52,12 +52,19 @@ def get_open_write_kwargs(
     return open_kwargs
 
 
+def video_stream_bit_depth(stream) -> int:
+    """Best-effort bit depth of a video stream's pixel format; defaults to 8."""
+    if stream is None or stream.format is None or not stream.format.components:
+        return 8
+    return max(component.bits for component in stream.format.components)
+
+
 class VideoFromFile(VideoInput):
     """
     Class representing video input from a file.
     """
 
-    def __init__(self, file: str | io.BytesIO, *, start_time: float=0, duration: float=0):
+    def __init__(self, file: str | io.BytesIO, *, start_time: float=0, duration: float=0, bit_depth_cap: int | None = None):
         """
         Initialize the VideoFromFile object based off of either a path on disk or a BytesIO object
         containing the file contents.
@@ -65,6 +72,18 @@ class VideoFromFile(VideoInput):
         self.__file = file
         self.__start_time = start_time
         self.__duration = duration
+        self.__bit_depth_cap = bit_depth_cap
+
+    def with_bit_depth_cap(self, bit_depth_cap: Optional[int]) -> "VideoFromFile":
+        """A copy of this video (sharing the same source) whose saved files default to the capped bit depth.
+
+        Returns self when the cap is already in place; None lifts the cap.
+        """
+        if bit_depth_cap == self.__bit_depth_cap:
+            return self
+        return VideoFromFile(
+            self.__file, start_time=self.__start_time, duration=self.__duration, bit_depth_cap=bit_depth_cap
+        )
 
     def get_stream_source(self) -> str | io.BytesIO:
         """
@@ -377,25 +396,35 @@ class VideoFromFile(VideoInput):
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
+        bit_depth: VideoBitDepth = VideoBitDepth.AUTO,
     ):
+        bit_depth = VideoBitDepth(bit_depth)
+        if bit_depth == VideoBitDepth.AUTO and self.__bit_depth_cap is not None and self.__bit_depth_cap < 10:
+            bit_depth = VideoBitDepth.BIT_8
         if isinstance(self.__file, io.BytesIO):
             self.__file.seek(0)  # Reset the BytesIO object to the beginning
         with av.open(self.__file, mode='r') as container:
             container_format = container.format.name
-            video_encoding = container.streams.video[0].codec.name if len(container.streams.video) > 0 else None
+            video_stream = container.streams.video[0] if len(container.streams.video) > 0 else None
+            video_encoding = video_stream.codec.name if video_stream is not None else None
+            source_bit_depth = video_stream_bit_depth(video_stream)
             reuse_streams = True
             if format != VideoContainer.AUTO and format not in container_format.split(","):
                 reuse_streams = False
             if codec != VideoCodec.AUTO and codec != video_encoding and video_encoding is not None:
                 reuse_streams = False
+            if bit_depth != VideoBitDepth.AUTO and video_encoding is not None and bit_depth.bits() != source_bit_depth:
+                reuse_streams = False
             if self.__start_time or self.__duration:
                 reuse_streams = False
 
             if not reuse_streams:
+                if bit_depth == VideoBitDepth.AUTO:
+                    bit_depth = VideoBitDepth.BIT_10 if source_bit_depth >= 10 else VideoBitDepth.BIT_8
                 components = self.get_components_internal(container)
                 video = VideoFromComponents(components)
                 return video.save_to(
-                    path, format=format, codec=codec, metadata=metadata
+                    path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth
                 )
 
             streams = container.streams
@@ -440,6 +469,7 @@ class VideoFromFile(VideoInput):
             self.get_stream_source(),
             start_time=start_time + self.__start_time,
             duration=duration,
+            bit_depth_cap=self.__bit_depth_cap,
         )
         if trimmed.get_duration() < duration and strict_duration:
             return None
@@ -467,12 +497,15 @@ class VideoFromComponents(VideoInput):
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
+        bit_depth: VideoBitDepth = VideoBitDepth.AUTO,
     ):
         """Save the video to a file path or BytesIO buffer."""
         if format != VideoContainer.AUTO and format != VideoContainer.MP4:
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
             raise ValueError("Only H264 codec is supported for now")
+        # AUTO is 8-bit: tensor components have no source bit depth to preserve.
+        is_10bit = VideoBitDepth(bit_depth) == VideoBitDepth.BIT_10
         extra_kwargs = {}
         if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
             extra_kwargs["format"] = format.value
@@ -488,10 +521,11 @@ class VideoFromComponents(VideoInput):
 
             frame_rate = Fraction(round(self.__components.frame_rate * 1000), 1000)
             # Create a video stream
+            pix_fmt = 'yuv420p10le' if is_10bit else 'yuv420p'
             video_stream = output.add_stream('h264', rate=frame_rate)
             video_stream.width = self.__components.images.shape[2]
             video_stream.height = self.__components.images.shape[1]
-            video_stream.pix_fmt = 'yuv420p'
+            video_stream.pix_fmt = pix_fmt
 
             # Create an audio stream
             audio_sample_rate = 1
@@ -505,9 +539,14 @@ class VideoFromComponents(VideoInput):
 
             # Encode video
             for i, frame in enumerate(self.__components.images):
-                img = (frame * 255).clamp(0, 255).byte().cpu().numpy() # shape: (H, W, 3)
-                frame = av.VideoFrame.from_ndarray(img, format='rgb24')
-                frame = frame.reformat(format='yuv420p')  # Convert to YUV420P as required by h264
+                if is_10bit:
+                    # 16-bit RGB keeps float precision through the conversion to 10-bit YUV.
+                    img = (frame.float() * 65535).clamp(0, 65535).cpu().numpy().astype(np.uint16)  # shape: (H, W, 3)
+                    frame = av.VideoFrame.from_ndarray(img, format='rgb48le')
+                else:
+                    img = (frame * 255).clamp(0, 255).byte().cpu().numpy() # shape: (H, W, 3)
+                    frame = av.VideoFrame.from_ndarray(img, format='rgb24')
+                frame = frame.reformat(format=pix_fmt)
                 packet = video_stream.encode(frame)
                 output.mux(packet)
 
@@ -534,3 +573,19 @@ class VideoFromComponents(VideoInput):
             return None
         #TODO Consider tracking duration and trimming at time of save?
         return VideoFromFile(self.get_stream_source(), start_time=start_time, duration=duration)
+
+
+def apply_video_input_accepts(values: list, input_info: dict | None) -> list:
+    """Apply a VIDEO input's `accepts` declaration to its bound values.
+
+    Inputs declaring `accepts={"depth": 10}` receive uncapped videos.
+    For the rest, file-backed videos are replaced with copies that save as 8-bit by default,
+    so existing nodes keep producing 8-bit files.
+    VideoFromFile subclasses and other VideoInput implementations own their depth behavior and pass through unchanged.
+    """
+    accepts = (input_info or {}).get("accepts") or {}
+    cap = None if accepts.get("depth", 8) >= 10 else 8
+    return [
+        value.with_bit_depth_cap(cap) if type(value) is VideoFromFile else value
+        for value in values
+    ]

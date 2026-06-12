@@ -3,6 +3,8 @@ import av
 import torch
 import folder_paths
 import json
+import inspect
+import logging
 from typing import Optional
 from typing_extensions import override
 from fractions import Fraction
@@ -71,6 +73,15 @@ class SaveWEBM(io.ComfyNode):
 
         return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
+
+def _save_to_supports_bit_depth(video) -> bool:
+    try:
+        params = inspect.signature(video.save_to).parameters
+    except (TypeError, ValueError):
+        return True  # not introspectable; assume the current contract
+    return "bit_depth" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 class SaveVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -82,17 +93,26 @@ class SaveVideo(io.ComfyNode):
             essentials_category="Basics",
             description="Saves the input images to your ComfyUI output directory.",
             inputs=[
-                io.Video.Input("video", tooltip="The video to save."),
+                io.Video.Input("video", tooltip="The video to save.", accepts={"depth": 10}),
                 io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
                 io.Combo.Input("format", options=Types.VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
                 io.Combo.Input("codec", options=Types.VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+                io.Combo.Input(
+                    "bit_depth",
+                    options=Types.VideoBitDepth.as_input(),
+                    default="auto",
+                    tooltip="Bit depth used when the video has to be re-encoded."
+                    " 'auto' keeps the bit depth of the source video (videos created from images are saved as 8-bit)."
+                    " 10-bit keeps smoother gradients with less banding, but some players may not support it.",
+                    optional=True,
+                ),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
         )
 
     @classmethod
-    def execute(cls, video: Input.Video, filename_prefix, format: str, codec) -> io.NodeOutput:
+    def execute(cls, video: Input.Video, filename_prefix, format: str, codec, bit_depth: str = "auto") -> io.NodeOutput:
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix,
@@ -110,11 +130,22 @@ class SaveVideo(io.ComfyNode):
             if len(metadata) > 0:
                 saved_metadata = metadata
         file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(format)}"
+        bit_depth = Types.VideoBitDepth(bit_depth)
+        save_kwargs = {}
+        if bit_depth != Types.VideoBitDepth.AUTO:
+            if _save_to_supports_bit_depth(video):
+                save_kwargs["bit_depth"] = bit_depth
+            else:
+                logging.warning(
+                    "%s.save_to() does not support bit_depth; saving at the source's default depth.",
+                    type(video).__name__,
+                )
         video.save_to(
             os.path.join(full_output_folder, file),
             format=Types.VideoContainer(format),
             codec=codec,
-            metadata=saved_metadata
+            metadata=saved_metadata,
+            **save_kwargs,
         )
 
         return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
@@ -226,7 +257,7 @@ class VideoSlice(io.ComfyNode):
             category="video",
             essentials_category="Video Tools",
             inputs=[
-                io.Video.Input("video"),
+                io.Video.Input("video", accepts={"depth": 10}),
                 io.Float.Input(
                     "start_time",
                     default=0.0,

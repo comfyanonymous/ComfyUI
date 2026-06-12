@@ -662,6 +662,26 @@ class Video(ComfyTypeIO):
     if TYPE_CHECKING:
         Type = VideoInput
 
+    class Input(Input):
+        """Video input socket.
+
+        `accepts` declares which video properties the node handles itself; only "depth" (8 or 10) is supported for now,
+        e.g. `accepts={"depth": 10}`. Inputs without it receive videos whose saved files are capped to 8-bit.
+        """
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                     extra_dict=None, raw_link: bool=None, advanced: bool=None, accepts: dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link, advanced)
+            if accepts is not None:
+                unknown_keys = set(accepts) - {"depth"}
+                if unknown_keys:
+                    raise ValueError(f"Unsupported keys in Video.Input accepts: {sorted(unknown_keys)}")
+                if "depth" in accepts and accepts["depth"] not in (8, 10):
+                    raise ValueError("Video.Input accepts['depth'] must be 8 or 10")
+            self.accepts = accepts
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({"accepts": self.accepts})
+
 @comfytype(io_type="SVG")
 class SVG(ComfyTypeIO):
     Type = _SVG

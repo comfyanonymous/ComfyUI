@@ -43,6 +43,7 @@ from comfy_execution.utils import CurrentNodeContext
 from comfy_execution.asset_enrichment import enrich_output_with_assets
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io, _io
+from comfy_api.latest._input_impl.video_types import apply_video_input_accepts
 from comfy_execution.cache_provider import _has_cache_providers, _get_cache_providers, _logger as _cache_logger
 
 
@@ -164,7 +165,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
     missing_keys = {}
     for x in inputs:
         input_data = inputs[x]
-        _, input_category, input_info = get_input_info(class_def, x, valid_inputs)
+        input_type, input_category, input_info = get_input_info(class_def, x, valid_inputs)
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
@@ -182,6 +183,8 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                 mark_missing()
                 continue
             obj = cached.outputs[output_index]
+            if input_type == io.Video.io_type:
+                obj = apply_video_input_accepts(obj, input_info)
             input_data_all[x] = obj
         elif input_category is not None or (is_v3 and class_def.ACCEPT_ALL_INPUTS):
             input_data_all[x] = [input_data]
