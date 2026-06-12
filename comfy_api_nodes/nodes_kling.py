@@ -436,7 +436,7 @@ async def execute_text2video(
             negative_prompt=negative_prompt if negative_prompt else None,
             duration=KlingVideoGenDuration(duration),
             mode=KlingVideoGenMode(model_mode),
-            model_name=KlingVideoGenModelName(model_name),
+            model_name=model_name,
             cfg_scale=cfg_scale,
             aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
             camera_control=camera_control,

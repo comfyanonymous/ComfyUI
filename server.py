@@ -971,6 +971,11 @@ class PromptServer():
 
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
+
+                if "comfy_usage_source" not in extra_data:
+                    usage_source = request.headers.get("Comfy-Usage-Source")
+                    if usage_source:
+                        extra_data["comfy_usage_source"] = usage_source
                 if valid[0]:
                     outputs_to_execute = valid[2]
                     sensitive = {}
