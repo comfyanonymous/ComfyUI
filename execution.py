@@ -45,6 +45,40 @@ from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_re
 from comfy_api.latest import io, _io
 from comfy_execution.cache_provider import _has_cache_providers, _get_cache_providers, _logger as _cache_logger
 
+# Immutable set of trusted node classes that are allowed to receive credentials.
+# Populated at module load time from the comfy_api_nodes package to prevent
+# spoofing via __module__ name manipulation.
+def _build_trusted_node_classes() -> frozenset:
+    """Build an immutable set of trusted node class objects from comfy_api_nodes."""
+    trusted: set = set()
+    try:
+        import comfy_api_nodes as _can
+        import pkgutil, importlib, inspect
+        for _importer, _modname, _ispkg in pkgutil.walk_packages(
+            path=_can.__path__,
+            prefix=_can.__name__ + ".",
+            onerror=lambda x: None,
+        ):
+            try:
+                _mod = importlib.import_module(_modname)
+                for _name, _obj in inspect.getmembers(_mod, inspect.isclass):
+                    if _obj.__module__ and _obj.__module__.startswith(_can.__name__):
+                        trusted.add(_obj)
+            except Exception:
+                pass
+    except ImportError:
+        pass
+    return frozenset(trusted)
+
+_TRUSTED_NODE_CLASSES: frozenset = _build_trusted_node_classes()
+
+
+def _is_trusted_node(class_def: type) -> bool:
+    """Return True only if class_def is a known-trusted node class."""
+    return class_def in _TRUSTED_NODE_CLASSES
+
+
+
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -196,7 +230,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                 hidden_inputs_v3[io.Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
             if io.Hidden.unique_id.name in hidden:
                 hidden_inputs_v3[io.Hidden.unique_id] = unique_id
-            _is_trusted = getattr(class_def, '__module__', '').startswith('comfy_api_nodes')
+            _is_trusted = _is_trusted_node(class_def)
             if io.Hidden.auth_token_comfy_org.name in hidden:
                 hidden_inputs_v3[io.Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None) if _is_trusted else None
             if io.Hidden.api_key_comfy_org.name in hidden:
@@ -206,7 +240,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
     else:
         if "hidden" in valid_inputs:
             h = valid_inputs["hidden"]
-            _is_trusted = getattr(class_def, '__module__', '').startswith('comfy_api_nodes')
+            _is_trusted = _is_trusted_node(class_def)
             for x in h:
                 if h[x] == "PROMPT":
                     input_data_all[x] = [dynprompt.get_original_prompt() if dynprompt is not None else {}]
