@@ -817,6 +817,27 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["default_ref_method"] = "negative_index"
         return dit_config
 
+    # JoyImageEdit: dual-stream double_blocks with img_attn_qkv, a condition_embedder
+    # time_embedder, and a 5D Conv3d img_in (kernel [1,2,2]).
+    if (
+        '{}double_blocks.0.attn.img_attn_qkv.weight'.format(key_prefix) in state_dict_keys
+        and '{}condition_embedder.time_embedder.linear_1.weight'.format(key_prefix) in state_dict_keys
+        and '{}img_in.weight'.format(key_prefix) in state_dict_keys
+        and len(state_dict['{}img_in.weight'.format(key_prefix)].shape) == 5
+    ):
+        img_in = state_dict['{}img_in.weight'.format(key_prefix)]
+        dit_config = {}
+        dit_config["image_model"] = "joyimage"
+        dit_config["in_channels"] = img_in.shape[1]
+        dit_config["hidden_size"] = img_in.shape[0]
+        dit_config["patch_size"] = list(img_in.shape[2:])
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
+        head_dim = state_dict['{}double_blocks.0.attn.img_attn_q_norm.weight'.format(key_prefix)].shape[0]
+        dit_config["num_attention_heads"] = dit_config["hidden_size"] // head_dim
+        # text_dim from the text-embedder input projection
+        dit_config["text_dim"] = state_dict['{}condition_embedder.text_embedder.linear_1.weight'.format(key_prefix)].shape[1]
+        return dit_config
+
     if '{}embed_image_indicator.weight'.format(key_prefix) in state_dict_keys:  # Ideogram 4
         dit_config = {}
         dit_config["image_model"] = "ideogram4"

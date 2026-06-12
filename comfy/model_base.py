@@ -55,6 +55,7 @@ import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
+import comfy.ldm.joyimage.model
 import comfy.ldm.ideogram4.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
@@ -2128,6 +2129,136 @@ class QwenImage(BaseModel):
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
+
+class JoyImage(BaseModel):
+    # JoyImageEdit: 6D stacking + [last, first, ...] rotation, plus hard-wired guidance rescale,
+    # are deliberately handled HERE (not in the transformer) so the transformer stays 5D-in / 5D-out.
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.joyimage.model.JoyImageTransformer3DModel)
+        self.memory_usage_factor_conds = ("ref_latents",)
+
+    @staticmethod
+    def _guidance_rescale_cfg(args):
+        # CFG combine + per-row L2 rescale in eps-space (guidance rescale).
+        cond = args["cond"]
+        uncond = args["uncond"]
+        cond_scale = args["cond_scale"]
+        comb = uncond + cond_scale * (cond - uncond)
+        cond_norm = torch.norm(cond, dim=1, keepdim=True)
+        comb_norm = torch.norm(comb, dim=1, keepdim=True)
+        return comb * (cond_norm / comb_norm.clamp_min(1e-6))
+
+    def _ensure_guidance_rescale_installed(self):
+        # Self-install the hard-wired guidance rescale once the patcher binds (sd.py doesn't expose a hook
+        # for this; doing it here keeps the edit confined to model_base.py). Idempotent; refuses to install
+        # if a different sampler_cfg_function is already present (e.g. a CFGNorm node) so the user's
+        # override does not silently shadow JoyImage's required rescale.
+        patcher = self.current_patcher
+        if patcher is None:
+            return
+        existing = patcher.model_options.get("sampler_cfg_function", None)
+        if existing is JoyImage._guidance_rescale_cfg:
+            return
+        if existing is not None:
+            raise RuntimeError(
+                "JoyImage requires its built-in CFG guidance-rescale function "
+                "(comb * cond_norm / comb_norm); an external sampler_cfg_function "
+                "(e.g. CFGNorm) is already installed and would override it. "
+                "Remove the external function before sampling JoyImage."
+            )
+        patcher.set_model_sampler_cfg_function(JoyImage._guidance_rescale_cfg)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is None or len(ref_latents) == 0:
+            raise ValueError(
+                "JoyImageEdit is an edit model: every conditioning (positive AND negative) must carry "
+                "reference_latents. Connect the same image+vae into both TextEncodeJoyImageEdit nodes. "
+                "Empty negative prompts still need image+vae wired."
+            )
+        latents = []
+        for lat in ref_latents:
+            latents.append(self.process_latent_in(lat))
+        out['ref_latents'] = comfy.conds.CONDList(latents)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
+        # 6D stacking + [last, first, ...] rotation: bring noise (5D x) and the ref_latents (CONDList -> list)
+        # into a single 5D tensor (B, C, n*T, H, W) where slot 0 along T is the noise after rotation.
+        if c_concat is not None:
+            raise ValueError("JoyImage does not support c_concat / noise_concat conditioning")
+        self._ensure_guidance_rescale_installed()
+        sigma = t
+        xc = self.model_sampling.calculate_input(sigma, x)
+        context = c_crossattn
+        dtype = self.get_dtype_inference()
+        xc = xc.to(dtype)
+        device = xc.device
+        t_in = self.model_sampling.timestep(t).float()
+        if context is not None:
+            context = comfy.model_management.cast_to_device(context, device, dtype)
+
+        extra_conds = {}
+        for o in kwargs:
+            extra = kwargs[o]
+            if hasattr(extra, "dtype"):
+                extra = convert_tensor(extra, dtype, device)
+            elif isinstance(extra, list):
+                ex = []
+                for ext in extra:
+                    ex.append(convert_tensor(ext, dtype, device))
+                extra = ex
+            extra_conds[o] = extra
+
+        ref_latents = extra_conds.pop("ref_latents", None)
+        if ref_latents is None or len(ref_latents) == 0:
+            raise ValueError("JoyImageEdit forward requires ref_latents; got none.")
+
+        # Build 6D (B, n, C, T, H, W) with refs first then noise, then rotate
+        # [last, first, ...] so the noise moves to the front, and reshape to 5D (B, C, n*T, H, W).
+        b, c, t_noise, h, w = xc.shape
+        ref_5d = []
+        for r in ref_latents:
+            if r.shape[-3:] != xc.shape[-3:]:
+                raise ValueError(
+                    "JoyImageEdit: reference latent spatial/temporal shape {} must match noise {}.".format(
+                        tuple(r.shape), tuple(xc.shape)
+                    )
+                )
+            ref_5d.append(r.to(device=device, dtype=dtype))
+        stacked = torch.stack([*ref_5d, xc], dim=1)  # (B, n, C, T, H, W)
+        n = stacked.shape[1]
+        rotated = torch.cat([stacked[:, -1:], stacked[:, :-1]], dim=1)  # noise -> front
+        flat = rotated.permute(0, 2, 1, 3, 4, 5).reshape(b, c, n * t_noise, h, w)
+
+        if control is not None:
+            raise ValueError("JoyImageEdit: control (ControlNet) is not supported by the transformer.")
+
+        # The transformer's forward signature is (hidden_states, timestep, encoder_hidden_states); it does
+        # not accept control/_options/extra_conds. Pass context positionally; the text-encoder
+        # output IS what's threaded into encoder_hidden_states.
+        if extra_conds:
+            raise ValueError("JoyImageEdit: unexpected extra_conds keys {} reached the transformer.".format(list(extra_conds.keys())))
+
+        model_output = self.diffusion_model(flat, t_in, context)
+
+        # After the rotation noise sat at slot 0; pluck it back out from the n*T axis.
+        c_out = model_output.shape[1]
+        out_6d = model_output.reshape(b, c_out, n, t_noise, h, w)
+        noise_pred = out_6d[:, :, 0]  # (B, C, T, H, W)
+
+        return self.model_sampling.calculate_denoised(sigma, noise_pred.float(), x)
 
 class Ideogram4(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

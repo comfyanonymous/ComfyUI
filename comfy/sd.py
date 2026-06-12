@@ -73,6 +73,7 @@ import comfy.text_encoders.gemma4
 import comfy.text_encoders.cogvideo
 import comfy.text_encoders.sa3
 import comfy.text_encoders.gpt_oss
+import comfy.text_encoders.joyimage
 
 import comfy.model_patcher
 import comfy.lora
@@ -1301,6 +1302,7 @@ class CLIPType(Enum):
     LENS = 28
     PIXELDIT = 29
     IDEOGRAM4 = 30
+    JOYIMAGE = 31
 
 
 
@@ -1356,6 +1358,7 @@ class TEModel(Enum):
     GPT_OSS_20B = 33
     QWEN3VL_4B = 34
     QWEN3VL_8B = 35
+    QWEN3VL_8B_JOYIMAGE = 36
 
 
 def detect_te_model(sd):
@@ -1417,6 +1420,8 @@ def detect_te_model(sd):
         if weight.shape[0] == 5120:
             return TEModel.QWEN35_27B
         return TEModel.QWEN35_2B
+    if "model.language_model.layers.0.self_attn.q_norm.weight" in sd and "model.visual.patch_embed.proj.weight" in sd:
+        return TEModel.QWEN3VL_8B_JOYIMAGE
     if "model.visual.deepstack_merger_list.0.norm.weight" in sd:  # DeepStack is unique to Qwen3-VL
         return TEModel.QWEN3VL_4B if sd["model.visual.merger.linear_fc2.weight"].shape[0] == 2560 else TEModel.QWEN3VL_8B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
@@ -1627,6 +1632,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 qwen3vl_type = {TEModel.QWEN3VL_4B: "qwen3vl_4b", TEModel.QWEN3VL_8B: "qwen3vl_8b"}[te_model]
                 clip_target.clip = comfy.text_encoders.qwen3vl.te(**llama_detect(clip_data), model_type=qwen3vl_type)
                 clip_target.tokenizer = comfy.text_encoders.qwen3vl.tokenizer(model_type=qwen3vl_type)
+        elif te_model == TEModel.QWEN3VL_8B_JOYIMAGE:
+            joyimage_detect = comfy.text_encoders.hunyuan_video.llama_detect(clip_data[0], "model.language_model.")
+            clip_target.clip = comfy.text_encoders.joyimage.te(**joyimage_detect)
+            clip_target.tokenizer = comfy.text_encoders.joyimage.JoyImageTokenizer
         elif te_model == TEModel.QWEN3_06B:
             clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.anima.AnimaTokenizer
