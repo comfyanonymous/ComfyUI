@@ -26,6 +26,7 @@ import utils.extra_config
 from utils.mime_types import init_mime_types
 import faulthandler
 import logging
+import signal
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
@@ -37,7 +38,19 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-faulthandler.enable(file=sys.stderr, all_threads=False)
+faulthandler.enable(file=sys.stderr, all_threads=args.debug_hang)
+if __name__ == "__main__" and args.debug_hang:
+    dumping_traceback = False
+
+    def dump_traceback_on_sigint(signum, frame):
+        global dumping_traceback
+        if dumping_traceback:
+            raise KeyboardInterrupt
+        dumping_traceback = True
+        faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, dump_traceback_on_sigint)
 
 import comfy_aimdo.control
 
@@ -477,6 +490,11 @@ def start_comfyui(asyncio_loop=None):
         init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
         init_api_nodes=not args.disable_api_nodes
     ))
+
+    # Re-apply Comfy's cuDNN benchmark policy after custom-node imports. Benchmark
+    # mode can request near-card-sized autotune workspaces, and some custom nodes set it at import time.
+    comfy.model_management.set_cudnn_benchmark()
+
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()

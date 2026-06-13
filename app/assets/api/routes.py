@@ -39,6 +39,7 @@ from app.assets.services import (
     update_asset_metadata,
     upload_from_temp_path,
 )
+from app.assets.services.cursor import InvalidCursorError
 from app.assets.services.tagging import list_tag_histogram
 
 ROUTES = web.RouteTableDef()
@@ -174,7 +175,7 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
         user_metadata=result.ref.user_metadata or {},
         metadata=result.ref.system_metadata,
         job_id=result.ref.job_id,
-        prompt_id=result.ref.job_id,  # deprecated: mirrors job_id for cloud compat
+        prompt_id=result.ref.job_id,  # deprecated alias of job_id, kept for compatibility
         created_at=result.ref.created_at,
         updated_at=result.ref.updated_at,
         last_access_time=result.ref.last_access_time,
@@ -211,24 +212,37 @@ async def list_assets_route(request: web.Request) -> web.Response:
     order_candidate = (q.order or "desc").lower()
     order = order_candidate if order_candidate in {"asc", "desc"} else "desc"
 
-    result = list_assets_page(
-        owner_id=USER_MANAGER.get_request_user_id(request),
-        include_tags=q.include_tags,
-        exclude_tags=q.exclude_tags,
-        name_contains=q.name_contains,
-        metadata_filter=q.metadata_filter,
-        limit=q.limit,
-        offset=q.offset,
-        sort=sort,
-        order=order,
-    )
+    try:
+        result = list_assets_page(
+            owner_id=USER_MANAGER.get_request_user_id(request),
+            include_tags=q.include_tags,
+            exclude_tags=q.exclude_tags,
+            name_contains=q.name_contains,
+            metadata_filter=q.metadata_filter,
+            limit=q.limit,
+            offset=q.offset,
+            sort=sort,
+            order=order,
+            after=q.after,
+        )
+    except InvalidCursorError as e:
+        return _build_error_response(400, "INVALID_CURSOR", str(e))
 
     summaries = [_build_asset_response(item) for item in result.items]
+
+    # has_more semantics differ by mode:
+    #   - cursor mode: a non-empty next_cursor means there are more results.
+    #   - offset mode: derived from total - (offset + page size).
+    if q.after is not None:
+        has_more = result.next_cursor is not None
+    else:
+        has_more = (q.offset + len(summaries)) < result.total
 
     payload = schemas_out.AssetsList(
         assets=summaries,
         total=result.total,
-        has_more=(q.offset + len(summaries)) < result.total,
+        has_more=has_more,
+        next_cursor=result.next_cursor,
     )
     return web.json_response(payload.model_dump(mode="json", exclude_none=True))
 
@@ -519,18 +533,14 @@ async def update_asset_route(request: web.Request) -> web.Response:
 @_require_assets_feature_enabled
 async def delete_asset_route(request: web.Request) -> web.Response:
     reference_id = str(uuid.UUID(request.match_info["id"]))
-    delete_content_param = request.query.get("delete_content")
-    delete_content = (
-        False
-        if delete_content_param is None
-        else delete_content_param.lower() not in {"0", "false", "no"}
-    )
 
     try:
+        # Deleting an asset is a soft delete of the reference; the underlying
+        # content is preserved (it may be shared with other references).
         deleted = delete_asset_reference(
             reference_id=reference_id,
             owner_id=USER_MANAGER.get_request_user_id(request),
-            delete_content_if_orphan=delete_content,
+            delete_content_if_orphan=False,
         )
     except Exception:
         logging.exception(
@@ -575,8 +585,8 @@ async def get_tags(request: web.Request) -> web.Response:
     )
 
     tags = [
-        schemas_out.TagUsage(name=name, count=count, type=tag_type)
-        for (name, tag_type, count) in rows
+        schemas_out.TagUsage(name=name, count=count)
+        for (name, count) in rows
     ]
     payload = schemas_out.TagsList(
         tags=tags, total=total, has_more=(query.offset + len(tags)) < total

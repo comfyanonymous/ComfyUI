@@ -75,7 +75,7 @@ def list_tags(
             owner_id=owner_id,
         )
 
-    return [TagUsage(name, tag_type, count) for name, tag_type, count in rows], total
+    return [TagUsage(name, count) for name, count in rows], total
 
 
 def list_tag_histogram(

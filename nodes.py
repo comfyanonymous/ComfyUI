@@ -2404,6 +2404,7 @@ async def init_builtin_extra_nodes():
         "nodes_video.py",
         "nodes_lumina2.py",
         "nodes_wan.py",
+        "nodes_bernini.py",
         "nodes_lotus.py",
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
@@ -2450,6 +2451,7 @@ async def init_builtin_extra_nodes():
         "nodes_rtdetr.py",
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
+        "nodes_scail.py",
         "nodes_void.py",
         "nodes_wandancer.py",
         "nodes_hidream_o1.py",
@@ -2457,7 +2459,8 @@ async def init_builtin_extra_nodes():
         "nodes_moge.py",
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
-        "nodes_triposplat.py"
+        "nodes_triposplat.py",
+        "nodes_depth_anything_3.py",
     ]
 
     import_failed = []
