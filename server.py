@@ -218,9 +218,6 @@ class PromptServer():
             return True
 
         self.model_file_manager = ModelFileManager(is_download_model_enabled=_is_model_download_enabled)
-            if hasattr(self.user_manager.settings, "get_settings")
-            else True
-        )
         self.custom_node_manager = CustomNodeManager()
         self.subgraph_manager = SubgraphManager()
         self.node_replace_manager = NodeReplaceManager()
