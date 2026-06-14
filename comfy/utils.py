@@ -31,7 +31,8 @@ import itertools
 from torch.nn.functional import interpolate
 from tqdm.auto import trange
 from einops import rearrange
-from comfy.cli_args import args
+from comfy.cli_args import args, enables_dynamic_vram
+from tqdm import tqdm
 import json
 import time
 import threading
@@ -1106,7 +1107,7 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return rows * cols
 
 @torch.inference_mode()
-def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None):
+def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None, term_pbar_desc=None):
     dims = len(tile)
 
     if not (isinstance(upscale_amount, (tuple, list))):
@@ -1164,6 +1165,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
     output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
 
+    term_pbar = None
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
 
@@ -1178,6 +1180,9 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         out_div = torch.zeros([s.shape[0], 1] + mult_list_upscale(s.shape[2:]), device=output_device)
 
         positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+
+        if term_pbar_desc and term_pbar is None:
+            term_pbar = tqdm(desc=term_pbar_desc, total=samples.shape[0] * sum(1 for e in itertools.product(*positions)))
 
         for it in itertools.product(*positions):
             s_in = s
@@ -1218,12 +1223,16 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
             if pbar is not None:
                 pbar.update(1)
+            if term_pbar:
+                term_pbar.update(1)
 
         out.div_(out_div)
+    if term_pbar:
+        term_pbar.close()
     return output
 
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
-    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None, term_pbar_desc=None):
+    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar, term_pbar_desc=term_pbar_desc)
 
 def model_trange(*args, **kwargs):
     if not comfy.memory_management.aimdo_enabled:
@@ -1266,7 +1275,7 @@ PROGRESS_THROTTLE_MIN_INTERVAL = 0.1  # 100ms minimum between updates
 PROGRESS_THROTTLE_MIN_PERCENT = 0.5   # 0.5% minimum progress change
 
 class ProgressBar:
-    def __init__(self, total, node_id=None):
+    def __init__(self, total, node_id=None, term_desc=None):
         global PROGRESS_BAR_HOOK
         self.total = total
         self.current = 0
@@ -1274,13 +1283,23 @@ class ProgressBar:
         self.node_id = node_id
         self._last_update_time = 0.0
         self._last_sent_value = -1
+        self.term_pbar = None
+        if term_desc:
+            self.term_pbar = tqdm(total=total, desc=term_desc)
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
             self.total = total
         if value > self.total:
             value = self.total
+        inc = value - self.current
         self.current = value
+
+        if self.term_pbar and inc > 0:
+            self.term_pbar.update(inc)
+            if value >= self.total:
+                self.term_pbar.close()
+
         if self.hook is not None:
             current_time = time.perf_counter()
             is_first = (self._last_sent_value < 0)
