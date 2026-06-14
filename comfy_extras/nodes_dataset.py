@@ -10,6 +10,30 @@ from typing_extensions import override
 import folder_paths
 import node_helpers
 from comfy_api.latest import ComfyExtension, io
+import comfy.hooks
+
+# Datasets produced by MakeTrainingDataset can embed comfy.hooks objects in their
+# conditioning (clip.encode_from_tokens_scheduled stores a HookGroup under "hooks"
+# when the CLIP has hooks applied). LoadTrainingDataset loads shards with
+# weights_only=True, so register these known classes as safe globals; otherwise such
+# datasets fail to load. Only data-bearing hooks (e.g. WeightHook) round-trip this way.
+torch.serialization.add_safe_globals([
+    comfy.hooks.HookGroup,
+    comfy.hooks.Hook,
+    comfy.hooks.WeightHook,
+    comfy.hooks.ObjectPatchHook,
+    comfy.hooks.AdditionalModelsHook,
+    comfy.hooks.TransformerOptionsHook,
+    comfy.hooks.InjectionsHook,
+    comfy.hooks._HookRef,
+    comfy.hooks.HookKeyframe,
+    comfy.hooks.HookKeyframeGroup,
+    comfy.hooks.EnumHookMode,
+    comfy.hooks.EnumHookType,
+    comfy.hooks.EnumWeightTarget,
+    comfy.hooks.EnumHookScope,
+    comfy.hooks.default_should_register,
+])
 
 
 def load_and_process_images(image_files, input_dir):
