@@ -324,6 +324,8 @@ class VideoFromFile(VideoInput):
 
                             checked_alpha = True
 
+                        # Fix non-deterministic video decode when the video width is not a multiple of 32
+                        # For non-yuvj pixel formats (all H.264/H.265 video)
                         if image_format in ('gbrpf32le', 'gbrapf32le') and frame.width % 32 != 0:
                             if align_graph is None:
                                 pad_w = ((frame.width + 31) // 32) * 32
