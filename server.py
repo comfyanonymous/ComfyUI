@@ -206,7 +206,21 @@ class PromptServer():
         PromptServer.instance = self
 
         self.user_manager = UserManager()
-        self.model_file_manager = ModelFileManager()
+        def _is_model_download_enabled():
+            settings_path = os.path.join(folder_paths.get_user_directory(), "default", "comfy.settings.json")
+            try:
+                if os.path.isfile(settings_path):
+                    with open(settings_path) as f:
+                        settings = json.load(f)
+                    return settings.get("Comfy.ModelDownloadEnabled", True)
+            except Exception:
+                pass
+            return True
+
+        self.model_file_manager = ModelFileManager(is_download_model_enabled=_is_model_download_enabled)
+            if hasattr(self.user_manager.settings, "get_settings")
+            else True
+        )
         self.custom_node_manager = CustomNodeManager()
         self.subgraph_manager = SubgraphManager()
         self.node_replace_manager = NodeReplaceManager()
