@@ -3,7 +3,20 @@ from typing import Optional
 from folder_paths import folder_names_and_paths, get_directory_by_type
 from api_server.services.terminal_service import TerminalService
 import app.logger
+import ipaddress
 import os
+
+
+@web.middleware
+async def _local_only_middleware(request: web.Request, handler):
+    """Restrict access to localhost connections only."""
+    remote = request.remote or ""
+    try:
+        if not ipaddress.ip_address(remote).is_loopback:
+            raise web.HTTPForbidden(reason="Internal routes are only accessible from localhost")
+    except ValueError:
+        raise web.HTTPForbidden(reason="Internal routes are only accessible from localhost")
+    return await handler(request)
 
 class InternalRoutes:
     '''
@@ -72,7 +85,7 @@ class InternalRoutes:
 
     def get_app(self):
         if self._app is None:
-            self._app = web.Application()
+            self._app = web.Application(middlewares=[_local_only_middleware])
             self.setup_routes()
             self._app.add_routes(self.routes)
         return self._app
