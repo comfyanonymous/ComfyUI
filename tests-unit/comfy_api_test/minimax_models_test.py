@@ -1,4 +1,3 @@
-import pytest
 from comfy_api_nodes.apis.minimax import MiniMaxChatModel
 
 
