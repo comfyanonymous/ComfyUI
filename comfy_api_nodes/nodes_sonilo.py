@@ -111,11 +111,10 @@ class SoniloTextToMusic(IO.ComfyNode):
                 ),
                 IO.Int.Input(
                     "duration",
-                    default=0,
-                    min=0,
+                    default=30,
+                    min=1,
                     max=360,
-                    tooltip="Target duration in seconds. Set to 0 to let the model "
-                    "infer the duration from the prompt. Maximum: 6 minutes.",
+                    tooltip="Target duration in seconds. Maximum: 6 minutes.",
                 ),
                 IO.Int.Input(
                     "seed",
@@ -150,14 +149,13 @@ class SoniloTextToMusic(IO.ComfyNode):
     async def execute(
         cls,
         prompt: str,
-        duration: int = 0,
+        duration: int = 1,
         seed: int = 0,
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=True, min_length=1)
+        validate_string(prompt, strip_whitespace=True, min_length=1, max_length=1000)
         form = aiohttp.FormData()
         form.add_field("prompt", prompt)
-        if duration > 0:
-            form.add_field("duration", str(duration))
+        form.add_field("duration", str(duration))
         audio_bytes = await _stream_sonilo_music(
             cls,
             ApiEndpoint(path="/proxy/sonilo/t2m/generate", method="POST"),
