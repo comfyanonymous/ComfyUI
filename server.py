@@ -27,6 +27,7 @@ import logging
 
 import mimetypes
 from comfy.cli_args import args
+from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
 from comfy_api import feature_flags
@@ -690,6 +691,7 @@ class PromptServer():
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
+                    "deploy_environment": get_deploy_environment(),
                     "argv": sys.argv
                 },
                 "devices": device_entries
