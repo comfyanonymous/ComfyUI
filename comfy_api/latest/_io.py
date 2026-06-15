@@ -713,6 +713,12 @@ class File3DFBX(ComfyTypeIO):
     Type = File3D
 
 
+@comfytype(io_type="FILE_3D_BVH")
+class File3DBVH(ComfyTypeIO):
+    """BVH format 3D file - skeletal motion capture animation (no geometry)."""
+    Type = File3D
+
+
 @comfytype(io_type="FILE_3D_OBJ")
 class File3DOBJ(ComfyTypeIO):
     """OBJ format 3D file - simple geometry format."""
@@ -2349,6 +2355,7 @@ __all__ = [
     "File3DGLB",
     "File3DGLTF",
     "File3DFBX",
+    "File3DBVH",
     "File3DOBJ",
     "File3DSTL",
     "File3DUSDZ",

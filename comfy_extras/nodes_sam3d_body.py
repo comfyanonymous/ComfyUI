@@ -33,12 +33,7 @@ from comfy_extras.sam3d_body.utils import image_to_uint8
 
 
 SAM3TrackData = io.Custom("SAM3_TRACK_DATA")
-# MHRPoseData = SAM3DBody_Predict's native output (carries mhr_model_params,
-# shape_params, expr_params, MHR70 keypoint layout, canonical_colors keyed to
-# MHR mesh, hand_vert_mask from MHR LBS). The export-side consumers
-# (BuildPoseGLB / SavePoseBVH in comfy_extras/nodes_save_3d.py) also accept
-# KIMODO_POSE_DATA via a MultiType union — those types are mirrored there.
-MHRPoseData = io.Custom("MHR_POSE_DATA")
+MHRPoseData = io.Custom("MHR_POSE_DATA") # mhr_model_params, shape_params, expr_params, MHR70 keypoint layout, canonical_colors keyed to MHR mesh, hand_vert_mask from MHR LBS).
 SAM3DBodyModel = io.Custom("SAM3D_BODY_MODEL")
 
 # Loader
@@ -151,7 +146,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                     ),
                 ),
                 io.Int.Input(
-                    "chunk_size", #TODO: automate?
+                    "batch_size", #TODO: automate?
                     default=64, min=1, max=512, step=1, advanced=True,
                     tooltip=(
                         "Max frames to process as a batch. Larger values utilize more VRAM for faster inference."
@@ -162,7 +157,7 @@ class SAM3DBody_Predict(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, sam3d_body_model, image, sam3_track_data=None, bboxes=None, run_hand_refinement=True, fov=0.0, chunk_size=64) -> io.NodeOutput:
+    def execute(cls, sam3d_body_model, image, track_data=None, bboxes=None, run_hand_refinement=True, fov=0.0, batch_size=64) -> io.NodeOutput:
         comfy.model_management.load_model_gpu(sam3d_body_model)
         inner: SAM3DBody = sam3d_body_model.model
 
@@ -171,8 +166,8 @@ class SAM3DBody_Predict(io.ComfyNode):
 
         # Precedence: SAM3 track (masks + boxes) > detector boxes > full-frame fallback.
         per_frame_bboxes, per_frame_masks = (None, None)
-        if sam3_track_data is not None:
-            per_frame_bboxes, per_frame_masks = inputs_from_sam3_track(sam3_track_data, B, H, W)
+        if track_data is not None:
+            per_frame_bboxes, per_frame_masks = inputs_from_sam3_track(track_data, B, H, W)
         if per_frame_bboxes is None and bboxes:
             per_frame_bboxes = _per_frame_bboxes_from_detections(bboxes, B)
             per_frame_masks = None
@@ -209,7 +204,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                 image_size, inference_type,
                 cam_int=cam_int,
                 pbar=pbar,
-                crops_per_chunk=int(chunk_size),
+                crops_per_chunk=int(batch_size),
             )
         else:
             # Mixed K per frame — call the batched path once per frame.
@@ -459,7 +454,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
                 io.Combo.Input(
                     "method",
                     options=["gaussian", "savgol"],
-                    default="gaussian", advanced=True,
+                    default="savgol", advanced=True,
                     tooltip=(
                         "gaussian: symmetric weighted average, best general-purpose smoother./n"
                         "savgol: sliding polynomial fit, preserves sharp peaks."
@@ -471,7 +466,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
                     tooltip="Temporal window in frames (odd values).",
                 ),
                 io.Float.Input(
-                    "rotation_threshold_deg",
+                    "rotation_threshold_degrees",
                     default=30.0, min=0.0, max=90.0, step=1.0, advanced=True,
                     tooltip=(
                         "Disables smoothing for this root rotation rate (degree/frame) to preserve fast spins. "
@@ -484,7 +479,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mhr_pose_data, method, window, strength, rotation_threshold_deg) -> io.NodeOutput:
+    def execute(cls, mhr_pose_data, method, window, strength, rotation_threshold_degrees) -> io.NodeOutput:
         if strength <= 0.0 or window <= 1:
             return io.NodeOutput(mhr_pose_data)
 
@@ -514,7 +509,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
         smoothed = [list(f) for f in frames]
 
         base_blend = float(strength)
-        rot_thresh = float(np.deg2rad(max(0.0, rotation_threshold_deg)))
+        rot_thresh = float(np.deg2rad(max(0.0, rotation_threshold_degrees)))
 
         for pid in range(max_p):
             valid = np.array([pid < len(f) for f in frames], dtype=bool)
@@ -861,13 +856,7 @@ class SAM3DBody_Render(io.ComfyNode):
                     "camera_info", optional=True,
                     tooltip=(
                         "Free 6DOF camera override. When wired, the pose is re-projected through this camera "
-                        "(position/target/zoom) instead of the predicted one. "
-                    ),
-                ),
-                io.Float.Input(
-                    "fov", default=0.0, min=0.0, max=170.0, step=0.5, advanced=True,
-                    tooltip=(
-                        "Override the vertical FoV of the camera_info. Ignored when camera_info is empty. 0 = keep the FoV of the camera_info."
+                        "(position/target/zoom/rotation/FoV) instead of the predicted one. "
                     ),
                 ),
                 io.DynamicCombo.Input(
@@ -893,7 +882,7 @@ class SAM3DBody_Render(io.ComfyNode):
 
 
     @classmethod
-    def execute(cls, mhr_pose_data, background=None, width=0, height=0, camera_info=None, fov=0.0, render_style=None) -> io.NodeOutput:
+    def execute(cls, mhr_pose_data, background=None, width=0, height=0, camera_info=None, render_style=None) -> io.NodeOutput:
         render_style = render_style or {"render_style": "mesh"}
         mode_key = render_style.get("render_style", "mesh")
 
@@ -912,7 +901,7 @@ class SAM3DBody_Render(io.ComfyNode):
             px_scale = min(new_W / native_W, new_H / native_H)
 
         if camera_info is not None:
-            mhr_pose_data = apply_camera_override(mhr_pose_data, camera_info, H, W, fov_deg=float(fov))
+            mhr_pose_data = apply_camera_override(mhr_pose_data, camera_info, H, W)
 
         B = len(mhr_pose_data["frames"])
         if B == 0:
