@@ -908,6 +908,7 @@ class SAM3DBody_Render(io.ComfyNode):
             return io.NodeOutput(torch.zeros(1, H, W, 3, dtype=torch.float32))
 
         out_device = comfy.model_management.intermediate_device()
+        out_dtype = comfy.model_management.intermediate_dtype()
         bg_t = None if background is None else background.to(device=out_device, dtype=torch.float32)
 
         if bg_t is not None and tuple(bg_t.shape[1:3]) != (H, W): # Match the background to the render resolution
@@ -1037,12 +1038,10 @@ class SAM3DBody_Render(io.ComfyNode):
                     rainbow_tilt_z_deg=rainbow_tilt_z,
                     person_brightness_falloff=person_palette_falloff,
                 )
-            frames_out.append(img)
+            frames_out.append(img.to(device=out_device, dtype=out_dtype))
             pbar.update(1)
 
         out_image = torch.stack(frames_out, dim=0)
-        if out_image.device != out_device:
-            out_image = out_image.to(out_device)
         return io.NodeOutput(out_image)
 
 
