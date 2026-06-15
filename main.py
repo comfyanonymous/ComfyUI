@@ -52,9 +52,31 @@ if __name__ == "__main__" and args.debug_hang:
 
     signal.signal(signal.SIGINT, dump_traceback_on_sigint)
 
+import platform
+
 import comfy_aimdo.control
 
-if enables_dynamic_vram():
+
+def _is_wsl_pre_torch():
+    """Mirror of `comfy.model_management.is_wsl()` for use before torch is
+    imported. The full implementation lives in `comfy.model_management`,
+    which transitively imports torch — and `aimdo.so` is loaded below in
+    non-WSL configurations *before* that import so its CUDA hooks are in
+    place when torch initializes its bindings."""
+    version = platform.uname().release
+    return version.endswith("-Microsoft") or version.endswith("microsoft-standard-WSL2")
+
+
+# Mirror the WSL exclusion from the `init_device` guard further down so
+# `aimdo.so` is not `dlopen`'d at all on WSL. The library is loaded with
+# `RTLD_NOW | RTLD_GLOBAL`, and its module-load side effects (CUDA hook
+# installation, allocator interposition) apply regardless of whether
+# `init_device()` is later called — which is why setting
+# `--disable-dynamic-vram` is currently the only thing that prevents the
+# regression reported in #13458 on WSL + NVIDIA. The explicit
+# `--enable-dynamic-vram` flag still forces the load through, matching
+# the override semantics of the `init_device` guard.
+if args.enable_dynamic_vram or (enables_dynamic_vram() and not _is_wsl_pre_torch()):
     comfy_aimdo.control.init()
 
 if os.name == "nt":
