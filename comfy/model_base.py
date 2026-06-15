@@ -1747,10 +1747,14 @@ class WAN21_SCAIL(WAN21):
 
         reference_latents = kwargs.get("reference_latents", None)
         if reference_latents is not None:
-            ref_latent = self.process_latent_in(reference_latents[-1])
-            ref_mask = torch.ones_like(ref_latent[:, :4])
-            ref_latent = torch.cat([ref_latent, ref_mask], dim=1)
-            out['reference_latent'] = comfy.conds.CONDRegular(ref_latent)
+            # SCAIL-2 multi-reference: reference_latents[0] is the primary ref, [1:] are additional
+            # references. Stack as [additional..., primary] so the primary stays adjacent to the video.
+            ordered = list(reference_latents[1:]) + list(reference_latents[:1])
+            stacked = []
+            for lat in ordered:
+                lat = self.process_latent_in(lat)
+                stacked.append(torch.cat([lat, torch.ones_like(lat[:, :4])], dim=1))
+            out['reference_latent'] = comfy.conds.CONDRegular(torch.cat(stacked, dim=2))
 
         pose_latents = kwargs.get("pose_video_latent", None)
         if pose_latents is not None:
@@ -1792,6 +1796,7 @@ class WAN21_SCAIL2(WAN21_SCAIL):
         if driving_mask_28ch is not None:
             out['sam_latents'] = comfy.conds.CONDRegular(driving_mask_28ch.movedim(1, 2).contiguous())
 
+        # ref_mask_28ch holds one identity mask per stacked reference frame (additional refs first, then the primary ref), followed by zeros over the video frames.
         ref_mask_28ch = kwargs.get("ref_mask_28ch", None)
         if ref_mask_28ch is not None:
             out['ref_mask_latents'] = comfy.conds.CONDRegular(ref_mask_28ch.movedim(1, 2).contiguous())
@@ -1819,10 +1824,11 @@ class WAN21_SCAIL2(WAN21_SCAIL):
             # Return sliced view omitting retain_index_list
             return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=0)
         if cond_key == "ref_mask_latents" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
-            # The ref mask is just a single frame padded with frames of zeros, so just grab the first frames for all windows
+            # The ref mask is N leading ref frames padded with frames of zeros, so just grab the first frames for all windows
             full_ref_mask = cond_value.cond
             video_frame_count = x_in.shape[2]
-            if full_ref_mask.shape[2] != video_frame_count + 1:
+            ref_frame_count = full_ref_mask.shape[2] - video_frame_count
+            if ref_frame_count < 1:
                 return None
             window_length = len(window.index_list)
 
@@ -1831,7 +1837,7 @@ class WAN21_SCAIL2(WAN21_SCAIL):
             if anchor_index is not None and anchor_index >= 0:
                 window_length += 1
 
-            window_ref_mask = full_ref_mask[:, :, :window_length + 1].to(device)
+            window_ref_mask = full_ref_mask[:, :, :window_length + ref_frame_count].to(device)
             return cond_value._copy_with(window_ref_mask)
 
         return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
