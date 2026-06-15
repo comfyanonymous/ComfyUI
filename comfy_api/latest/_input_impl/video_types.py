@@ -52,6 +52,12 @@ def get_open_write_kwargs(
     return open_kwargs
 
 
+def video_stream_bit_depth(stream) -> int:
+    if stream is None or stream.format is None or not stream.format.components:
+        return 8
+    return max(component.bits for component in stream.format.components)
+
+
 class VideoFromFile(VideoInput):
     """
     Class representing video input from a file.
@@ -96,6 +102,13 @@ class VideoFromFile(VideoInput):
                     assert isinstance(stream, av.VideoStream)
                     return stream.width, stream.height
         raise ValueError(f"No video stream found in file '{self.__file}'")
+
+    def get_bit_depth(self) -> int:
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)  # Reset the BytesIO object to the beginning
+        with av.open(self.__file, mode="r") as container:
+            video_stream = container.streams.video[0] if len(container.streams.video) > 0 else None
+            return video_stream_bit_depth(video_stream)
 
     def get_duration(self) -> float:
         """
@@ -257,6 +270,7 @@ class VideoFromFile(VideoInput):
 
         image_format = 'gbrpf32le'
         process_image_format = lambda a: a
+        align_graph = None
         audio = None
 
         streams = [video_stream]
@@ -310,7 +324,24 @@ class VideoFromFile(VideoInput):
 
                             checked_alpha = True
 
-                        img = frame.to_ndarray(format=image_format)  # shape: (H, W, 4)
+                        # Fix non-deterministic video decode when the video width is not a multiple of 32
+                        # For non-yuvj pixel formats (all H.264/H.265 video)
+                        if image_format in ('gbrpf32le', 'gbrapf32le') and frame.width % 32 != 0:
+                            if align_graph is None:
+                                pad_w = ((frame.width + 31) // 32) * 32
+                                g = av.filter.Graph()
+                                g_src = g.add_buffer(width=frame.width, height=frame.height,
+                                                     format=frame.format.name, time_base=video_stream.time_base)
+                                g_pad = g.add('pad', f'{pad_w}:{frame.height}:0:0')
+                                g_sink = g.add('buffersink')
+                                g_src.link_to(g_pad)
+                                g_pad.link_to(g_sink)
+                                g.configure()
+                                align_graph = (g, g_src, g_sink)
+                            align_graph[1].push(frame)
+                            img = np.ascontiguousarray(align_graph[2].pull().to_ndarray(format=image_format)[:, :frame.width])
+                        else:
+                            img = frame.to_ndarray(format=image_format)
                         if frame.rotation != 0:
                             k = int(round(frame.rotation // 90))
                             img = np.rot90(img, k=k, axes=(0, 1)).copy()
@@ -377,25 +408,32 @@ class VideoFromFile(VideoInput):
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
+        bit_depth: int | None = None,
     ):
         if isinstance(self.__file, io.BytesIO):
             self.__file.seek(0)  # Reset the BytesIO object to the beginning
         with av.open(self.__file, mode='r') as container:
             container_format = container.format.name
-            video_encoding = container.streams.video[0].codec.name if len(container.streams.video) > 0 else None
+            video_stream = container.streams.video[0] if len(container.streams.video) > 0 else None
+            video_encoding = video_stream.codec.name if video_stream is not None else None
+            source_bit_depth = video_stream_bit_depth(video_stream)
             reuse_streams = True
             if format != VideoContainer.AUTO and format not in container_format.split(","):
                 reuse_streams = False
             if codec != VideoCodec.AUTO and codec != video_encoding and video_encoding is not None:
                 reuse_streams = False
+            if bit_depth is not None and video_encoding is not None and bit_depth != source_bit_depth:
+                reuse_streams = False
             if self.__start_time or self.__duration:
                 reuse_streams = False
 
             if not reuse_streams:
+                if bit_depth is None:
+                    bit_depth = source_bit_depth
                 components = self.get_components_internal(container)
                 video = VideoFromComponents(components)
                 return video.save_to(
-                    path, format=format, codec=codec, metadata=metadata
+                    path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth,
                 )
 
             streams = container.streams
@@ -451,8 +489,10 @@ class VideoFromComponents(VideoInput):
     Class representing video input from tensors.
     """
 
-    def __init__(self, components: VideoComponents):
+    def __init__(self, components: VideoComponents, bit_depth: int = 8):
         self.__components = components
+        # Tensor components have no inherent bit depth; this is the depth used when encoding.
+        self.__bit_depth = bit_depth
 
     def get_components(self) -> VideoComponents:
         return VideoComponents(
@@ -461,18 +501,26 @@ class VideoFromComponents(VideoInput):
             frame_rate=self.__components.frame_rate,
         )
 
+    def get_bit_depth(self) -> int:
+        return self.__bit_depth
+
     def save_to(
         self,
         path: str,
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
+        bit_depth: int | None = None,
     ):
         """Save the video to a file path or BytesIO buffer."""
         if format != VideoContainer.AUTO and format != VideoContainer.MP4:
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
             raise ValueError("Only H264 codec is supported for now")
+        # None means "use the depth this video was created with" (CreateVideo's choice).
+        if bit_depth is None:
+            bit_depth = self.__bit_depth
+        is_10bit = bit_depth >= 10
         extra_kwargs = {}
         if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
             extra_kwargs["format"] = format.value
@@ -488,10 +536,11 @@ class VideoFromComponents(VideoInput):
 
             frame_rate = Fraction(round(self.__components.frame_rate * 1000), 1000)
             # Create a video stream
+            pix_fmt = "yuv420p10le" if is_10bit else "yuv420p"
             video_stream = output.add_stream('h264', rate=frame_rate)
             video_stream.width = self.__components.images.shape[2]
             video_stream.height = self.__components.images.shape[1]
-            video_stream.pix_fmt = 'yuv420p'
+            video_stream.pix_fmt = pix_fmt
 
             # Create an audio stream
             audio_sample_rate = 1
@@ -505,9 +554,14 @@ class VideoFromComponents(VideoInput):
 
             # Encode video
             for i, frame in enumerate(self.__components.images):
-                img = (frame * 255).clamp(0, 255).byte().cpu().numpy() # shape: (H, W, 3)
-                frame = av.VideoFrame.from_ndarray(img, format='rgb24')
-                frame = frame.reformat(format='yuv420p')  # Convert to YUV420P as required by h264
+                if is_10bit:
+                    # 16-bit RGB keeps float precision through the conversion to 10-bit YUV.
+                    img = (frame.float() * 65535).clamp(0, 65535).cpu().numpy().astype(np.uint16)  # shape: (H, W, 3)
+                    frame = av.VideoFrame.from_ndarray(img, format="rgb48le")
+                else:
+                    img = (frame * 255).clamp(0, 255).byte().cpu().numpy() # shape: (H, W, 3)
+                    frame = av.VideoFrame.from_ndarray(img, format='rgb24')
+                frame = frame.reformat(format=pix_fmt)
                 packet = video_stream.encode(frame)
                 output.mux(packet)
 
