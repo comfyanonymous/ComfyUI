@@ -284,6 +284,8 @@ def build_glb_skeletal(
         for e in range(NEXPR):
             expr_morph_accs.append(w.add_vec3_f32_no_minmax(eb[e]))
 
+    samplers: List[dict] = []
+    channels: List[dict] = []
     for track_i, (person_k, frame_indices) in enumerate(tracks):
         person_root = {"name": f"track{track_i:02d}", "children": []}
         nodes.append(person_root)
@@ -484,9 +486,6 @@ def build_glb_skeletal(
         times = np.asarray(frame_indices, dtype=np.float32) / float(fps)
         time_acc = w.add_scalar_f32(times)
 
-        samplers: List[dict] = []
-        channels: List[dict] = []
-
         for j in range(NJ):
             t_j = local_t[:, j, :]
             q_j = local_q[:, j, :]
@@ -556,8 +555,9 @@ def build_glb_skeletal(
                 "target": {"node": body_mesh_node_idx, "path": "weights"},
             })
 
+    if samplers:
         animations.append({
-            "name": f"track{track_i:02d}",
+            "name": "all_tracks",
             "samplers": samplers, "channels": channels,
         })
 

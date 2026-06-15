@@ -905,6 +905,8 @@ def build_glb_openpose(
     animations: List[dict] = []
     scene_root_indices: List[int] = []
 
+    samplers: List[dict] = []
+    channels: List[dict] = []
     for track_i, (person_k, frame_indices) in enumerate(tracks):
         body_seq = _extract_openpose_keypoints(pose_data, frame_indices, person_k)
         n_frames = body_seq.shape[0]
@@ -1105,8 +1107,6 @@ def build_glb_openpose(
 
         times = np.asarray(frame_indices, dtype=np.float32) / float(fps)
         time_acc = w.add_scalar_f32(times)
-        samplers: List[dict] = []
-        channels: List[dict] = []
         for j in range(K):
             t_j = kp_seq[:, j, :].astype(np.float32)
             if (np.ptp(t_j, axis=0) < 1e-6).all():
@@ -1167,8 +1167,9 @@ def build_glb_openpose(
                     "target": {"node": person_root_idx, "path": "translation"},
                 })
 
+    if samplers:
         animations.append({
-            "name": f"track{track_i:02d}",
+            "name": "all_tracks",
             "samplers": samplers, "channels": channels,
         })
 
