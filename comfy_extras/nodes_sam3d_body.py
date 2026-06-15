@@ -143,7 +143,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                     "fov",
                     tooltip=(
                         "Vertical FoV in degrees. Affects predicted depth and absolute scale. 0 = fall back to ~53° (16:9)."
-                    ),
+                    ), advanced=True
                 ),
                 io.Int.Input(
                     "batch_size", #TODO: automate?
@@ -454,7 +454,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
                 io.Combo.Input(
                     "method",
                     options=["gaussian", "savgol"],
-                    default="savgol", advanced=True,
+                    default="savgol",
                     tooltip=(
                         "gaussian: symmetric weighted average, best general-purpose smoother./n"
                         "savgol: sliding polynomial fit, preserves sharp peaks."

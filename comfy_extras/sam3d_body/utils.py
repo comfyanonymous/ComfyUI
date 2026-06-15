@@ -67,6 +67,17 @@ def inputs_from_sam3_track(track_data, B: int, H: int, W: int):
 BATCHED_CROPS_PER_CHUNK = 64
 
 
+def _quat_to_mat_wxyz(w: float, x: float, y: float, z: float) -> np.ndarray:
+    """(3,3) rotation from a wxyz quaternion; columns are the rotated axes."""
+    n = math.sqrt(w * w + x * x + y * y + z * z) or 1.0
+    w, x, y, z = w / n, x / n, y / n, z / n
+    return np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ], dtype=np.float32)
+
+
 def cam_int_from_fov(height: int, width: int, fov_degrees: float) -> Optional[torch.Tensor]:
     """(1,3,3) intrinsic matrix from a vertical FOV in degrees. Matches MoGe2's
     convention (vertical focal for both axes). Returns None for fov<=0 so the
@@ -83,19 +94,28 @@ def cam_int_from_fov(height: int, width: int, fov_degrees: float) -> Optional[to
 
 
 def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, Any],
-                          H: int, W: int, fov_deg: float = 0.0) -> Dict[str, Any]:
+                          H: int, W: int) -> Dict[str, Any]:
     """Re-project every frame's pose through a Load3D 6DOF camera (position/
     target/zoom + optional FOV). Returns a new mhr_pose_data; unchanged on
     empty/invalid input."""
     first_frame = mhr_pose_data["frames"][0] if mhr_pose_data["frames"] else []
     if not first_frame:
         return mhr_pose_data
-    # GLB exports the rig root at origin, so Load3D coords are root-relative
-    roots = [np.asarray(p["pred_cam_t"], dtype=np.float32).reshape(3)
-             for p in first_frame if p.get("pred_cam_t") is not None]
+    # Per-person rig root (pred_cam_t) and body centroid (mesh mean), in camera space.
+    roots, centroids = [], []
+    for p in first_frame:
+        cam_t = p.get("pred_cam_t")
+        if cam_t is None:
+            continue
+        cam_t = np.asarray(cam_t, dtype=np.float32).reshape(3)
+        roots.append(cam_t)
+        v = p.get("pred_vertices")
+        centroids.append(np.asarray(v, dtype=np.float32).reshape(-1, 3).mean(axis=0) + cam_t
+                         if v is not None else cam_t)
     if not roots:
         return mhr_pose_data
-    subj_center = np.mean(np.stack(roots, axis=0), axis=0)
+    subj_root = np.mean(np.stack(roots, axis=0), axis=0)
+    subj_centroid = np.mean(np.stack(centroids, axis=0), axis=0)
 
     # Meter-scale, so Three.js coords map 1:1 (Three.js Y-up → flip Y,Z)
     pos = camera_info.get("position") or {}
@@ -103,26 +123,50 @@ def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, 
     pos_v = np.array([float(pos.get("x", 0.0)), -float(pos.get("y", 5.0)), -float(pos.get("z", 0.0))], dtype=np.float32)
     tgt_v = np.array([float(tgt.get("x", 0.0)), -float(tgt.get("y", 0.0)), -float(tgt.get("z", 0.0))], dtype=np.float32)
     offset = pos_v - tgt_v
-    if float(np.linalg.norm(offset)) < 1e-6:
-        return mhr_pose_data
+    has_offset = float(np.linalg.norm(offset)) >= 1e-6
+    q = camera_info.get("quaternion")
+    if not has_offset and not q:
+        return mhr_pose_data  # no viewpoint and no orientation -> nothing to apply
 
     zoom = float(camera_info.get("zoom", 1.0)) or 1.0
-    target = subj_center + tgt_v
-    eye = target + offset / max(0.01, zoom)
+    # SAM3D roots near the feet. A target at the origin -> center the body centroid
+    if float(np.linalg.norm(tgt_v)) < 1e-6:
+        target = subj_centroid
+    else:
+        target = subj_root + tgt_v
 
-    # Look-at basis. z = -offset (already non-zero); x degenerates only when
-    # looking straight along world-up, then fall back to world +X.
-    z_axis = -offset / float(np.linalg.norm(offset))
-    x_axis = np.cross(z_axis, np.array([0.0, -1.0, 0.0], dtype=np.float32))
-    x_norm = float(np.linalg.norm(x_axis))
-    x_axis = x_axis / x_norm if x_norm > 1e-6 else np.array([1.0, 0.0, 0.0], dtype=np.float32)
-    y_axis = np.cross(z_axis, x_axis)
+    if q:
+        mv = lambda v: np.array([v[0], -v[1], -v[2]], dtype=np.float32)
+        norm = lambda v: v / max(1e-6, float(np.linalg.norm(v)))
+        Rc = _quat_to_mat_wxyz(
+            float(q.get("w", 1.0)), float(q.get("x", 0.0)),
+            float(q.get("y", 0.0)), float(q.get("z", 0.0)),
+        )  # columns = camera world axes
+        x_axis = norm(mv(Rc[:, 0]))   # camera +X -> image right
+        y_axis = norm(mv(-Rc[:, 1]))  # image +Y is down -> negative of camera up
+        z_axis = norm(mv(-Rc[:, 2]))  # camera looks down local -Z -> view direction
+    else:
+        # x degenerates only when looking straight along world-up -> world +X.
+        z_axis = -offset / float(np.linalg.norm(offset))
+        x_axis = np.cross(z_axis, np.array([0.0, -1.0, 0.0], dtype=np.float32))
+        x_norm = float(np.linalg.norm(x_axis))
+        x_axis = x_axis / x_norm if x_norm > 1e-6 else np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        y_axis = np.cross(z_axis, x_axis)
     R = np.stack([x_axis, y_axis, z_axis], axis=0).astype(np.float32)
 
-    # fov_deg > 0 overrides the lens; 0 keeps the SAM3D predicted focal so only
-    # the viewpoint changes. Three.js fov is vertical → focal from image height.
-    if fov_deg > 0:
-        new_focal = float(H) / (2.0 * float(np.tan(np.deg2rad(fov_deg) / 2.0)))
+    # Eye: dolly along the given offset; for a rotation-only camera (position ==
+    # target) keep the predicted viewing distance so only orientation/roll changes.
+    if has_offset:
+        eye = target + offset / max(0.01, zoom)
+    else:
+        d = max(0.1, float(target[2]))
+        eye = target - z_axis * (d / max(0.01, zoom))
+
+    # Lens: use the camera's own FoV; else the SAM3D predicted focal (viewpoint-
+    # only change). Three.js fov is vertical → focal from image height.
+    cam_fov = float(camera_info.get("fov", 0.0) or 0.0)
+    if cam_fov > 0:
+        new_focal = float(H) / (2.0 * float(np.tan(np.deg2rad(cam_fov) / 2.0)))
     else:
         f0 = first_frame[0].get("focal_length")
         new_focal = (float(np.asarray(f0, dtype=np.float32).reshape(-1)[0]) if f0 is not None
