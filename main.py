@@ -55,7 +55,7 @@ if __name__ == "__main__" and args.debug_hang:
 import comfy_aimdo.control
 
 if enables_dynamic_vram():
-    comfy_aimdo.control.init()
+    comfy_aimdo.control.init(simple_vram_headroom=None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3))
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
