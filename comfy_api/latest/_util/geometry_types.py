@@ -38,7 +38,8 @@ class MESH:
                  metallic_roughness: torch.Tensor | None = None,
                  vertex_counts: torch.Tensor | None = None,
                  face_counts: torch.Tensor | None = None,
-                 unlit: bool = False):
+                 unlit: bool = False,
+                 normals: torch.Tensor | None = None):
 
         assert (vertex_counts is None) == (face_counts is None), \
             "vertex_counts and face_counts must be provided together (both or neither)"
@@ -46,6 +47,9 @@ class MESH:
         self.faces = faces                  # faces: (B, M, 3)
         self.uvs = uvs                      # uvs: (B, N, 2)
         self.vertex_colors = vertex_colors  # vertex_colors: (B, N, 3 or 4)
+        # Optional per-vertex normals: (B, N, 3). When None, SaveGLB computes smooth
+        # area-weighted normals so viewers don't fall back to flat (per-face) shading.
+        self.normals = normals
         self.texture = texture              # texture (baseColor): (B, H, W, 3)
         # glTF metallicRoughness texture: (B, H, W, 3), R unused, G=roughness, B=metallic
         self.metallic_roughness = metallic_roughness

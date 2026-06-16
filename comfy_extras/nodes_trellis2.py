@@ -333,6 +333,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         trellis_vae = vae.first_stage_model
         coord_counts = samples.get("coord_counts")
         model_frame = samples.get("model_frame", "y_up")
+        coord_resolution = samples.get("coord_resolution")
 
         samples = samples["samples"]
         samples, coords = flatten_batched_sparse_latent(samples, coords, coord_counts)
@@ -358,7 +359,9 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         if color_feats.shape[0] > 0 and color_feats.shape[-1] >= 3:
             _calibrate_tex_rgb(cal_in_latent, cal_in_coords, color_feats[:, :3], voxel_coords)
 
-        if voxel_coords.numel() > 0 and voxel_coords.shape[-1] >= 3:
+        if coord_resolution is not None:
+            tex_resolution = int(coord_resolution) * 16
+        elif voxel_coords.numel() > 0 and voxel_coords.shape[-1] >= 3:
             spatial = voxel_coords[:, -3:] if voxel_coords.shape[-1] == 4 else voxel_coords
             max_idx = int(spatial.max().item()) + 1
             tex_resolution = next((r for r in (256, 512, 1024, 1536, 2048) if r >= max_idx), max_idx)

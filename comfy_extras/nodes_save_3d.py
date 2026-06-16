@@ -19,7 +19,8 @@ from comfy.cli_args import args
 from comfy_api.latest import ComfyExtension, IO, Types
 
 
-def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None, unlit=False):
+def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None, unlit=False,
+                             normals=None, metallic_roughness=None):
     # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
     # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
     # colors and uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
@@ -55,9 +56,20 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=Non
             )
             packed_uvs[i, :u.shape[0]] = u
 
+    packed_normals = None
+    if normals is not None:
+        packed_normals = normals[0].new_zeros((batch_size, max_vertices, normals[0].shape[1]))
+        for i, nrm in enumerate(normals):
+            assert nrm.shape[0] == vertices[i].shape[0], (
+                f"normals[{i}] has {nrm.shape[0]} entries, expected {vertices[i].shape[0]} (1:1 with vertices)"
+            )
+            packed_normals[i, :nrm.shape[0]] = nrm
+
     return Types.MESH(packed_vertices, packed_faces,
                       uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
-                      vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit)
+                      metallic_roughness=metallic_roughness,
+                      vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit,
+                      normals=packed_normals)
 
 
 def get_mesh_batch_item(mesh, index):
@@ -65,6 +77,7 @@ def get_mesh_batch_item(mesh, index):
     # if the mesh carries per-item counts (variable-size batch).
     v_colors = getattr(mesh, "vertex_colors", None)
     v_uvs = getattr(mesh, "uvs", None)
+    v_normals = getattr(mesh, "normals", None)
     if getattr(mesh, "vertex_counts", None) is not None:
         vertex_count = int(mesh.vertex_counts[index].item())
         face_count = int(mesh.face_counts[index].item())
@@ -72,16 +85,102 @@ def get_mesh_batch_item(mesh, index):
         faces = mesh.faces[index, :face_count]
         colors = v_colors[index, :vertex_count] if v_colors is not None else None
         uvs = v_uvs[index, :vertex_count] if v_uvs is not None else None
-        return vertices, faces, colors, uvs
+        normals = v_normals[index, :vertex_count] if v_normals is not None else None
+        return vertices, faces, colors, uvs, normals
 
     colors = v_colors[index] if v_colors is not None else None
     uvs = v_uvs[index] if v_uvs is not None else None
-    return mesh.vertices[index], mesh.faces[index], colors, uvs
+    normals = v_normals[index] if v_normals is not None else None
+    return mesh.vertices[index], mesh.faces[index], colors, uvs, normals
+
+
+def _smooth_vertex_normals(vertices_np, faces_np):
+    """Area-weighted per-vertex normals (unit length), fully smooth — no vertex splitting.
+
+    Un-normalized face normals (the raw cross product) have magnitude 2*area, so
+    accumulating them onto their vertices yields an area-weighted average."""
+    tris = vertices_np[faces_np]                                  # (M, 3, 3)
+    face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    normals = np.zeros((vertices_np.shape[0], 3), dtype=np.float64)
+    for k in range(3):
+        np.add.at(normals, faces_np[:, k], face_n)
+    lens = np.linalg.norm(normals, axis=1, keepdims=True)
+    normals /= np.where(lens > 1e-12, lens, 1.0)
+    return normals.astype(np.float32)
+
+
+def _compute_vertex_normals(vertices_np, faces_np, crease_angle=None):
+    """Compute per-vertex normals, returning (vertices, faces_uint32, normals, remap).
+
+    crease_angle is None (or >= 180) -> fully smooth normals; vertices/faces are
+    returned unchanged and remap is None.
+
+    Otherwise vertices are split along edges whose dihedral angle exceeds
+    crease_angle (degrees) so hard creases stay sharp while smooth regions still
+    interpolate. remap maps each output vertex back to its source index, so the
+    caller can duplicate any per-vertex attributes (uvs / colors) to match."""
+    faces_i = faces_np.astype(np.int64)
+    if crease_angle is None or crease_angle >= 180.0:
+        return (vertices_np, faces_i.astype(np.uint32),
+                _smooth_vertex_normals(vertices_np, faces_i), None)
+
+    M = faces_i.shape[0]
+    tris = vertices_np[faces_i]
+    face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    areas = np.linalg.norm(face_n, axis=1, keepdims=True)
+    face_unit = face_n / np.where(areas > 1e-12, areas, 1.0)
+    cos_thresh = math.cos(math.radians(crease_angle))
+
+    # Union faces that share an edge whose dihedral angle is below the crease
+    # threshold; each connected component becomes one smoothing group.
+    parent = list(range(M))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    edge_faces = {}
+    for fi in range(M):
+        a, b, c = int(faces_i[fi, 0]), int(faces_i[fi, 1]), int(faces_i[fi, 2])
+        for u, v in ((a, b), (b, c), (c, a)):
+            edge_faces.setdefault((u, v) if u < v else (v, u), []).append(fi)
+    for fl in edge_faces.values():
+        if len(fl) == 2 and float(np.dot(face_unit[fl[0]], face_unit[fl[1]])) >= cos_thresh:
+            ra, rb = find(fl[0]), find(fl[1])
+            if ra != rb:
+                parent[ra] = rb
+
+    # Emit one output vertex per (original vertex, smoothing group) pair.
+    new_index = {}
+    remap = []
+    out_faces = np.empty((M, 3), dtype=np.int64)
+    for fi in range(M):
+        g = find(fi)
+        for k in range(3):
+            ov = int(faces_i[fi, k])
+            key = (ov, g)
+            ni = new_index.get(key)
+            if ni is None:
+                ni = len(remap)
+                new_index[key] = ni
+                remap.append(ov)
+            out_faces[fi, k] = ni
+
+    remap = np.asarray(remap, dtype=np.int64)
+    normals = np.zeros((remap.shape[0], 3), dtype=np.float64)
+    for k in range(3):
+        np.add.at(normals, out_faces[:, k], face_n)
+    lens = np.linalg.norm(normals, axis=1, keepdims=True)
+    normals /= np.where(lens > 1e-12, lens, 1.0)
+    return (vertices_np[remap], out_faces.astype(np.uint32), normals.astype(np.float32), remap)
 
 
 def save_glb(vertices, faces, filepath, metadata=None,
              uvs=None, vertex_colors=None, texture_image=None,
-             metallic_roughness_image=None, unlit=False):
+             metallic_roughness_image=None, unlit=False,
+             normals=None):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -95,6 +194,9 @@ def save_glb(vertices, faces, filepath, metadata=None,
     texture_image: PIL.Image - Optional baseColor texture, embedded as PNG
     metallic_roughness_image: PIL.Image - Optional glTF metallicRoughness texture
         (R unused, G=roughness, B=metallic), embedded as PNG
+    normals: torch.Tensor of shape (N, 3) - Optional per-vertex normals, written as the
+        glTF NORMAL attribute. When omitted, NO normals are written and viewers fall back
+        to flat (per-face) shading — use the MeshSmoothNormals node to generate them.
     """
 
     # Convert tensors to numpy arrays
@@ -123,6 +225,12 @@ def save_glb(vertices, faces, filepath, metadata=None,
         raise ValueError(
             f"save_glb: vertex_colors has {colors_np.shape[0]} entries but vertex count is {n_verts}"
         )
+
+    normals_np = normals.cpu().numpy().astype(np.float32) if normals is not None else None
+    if normals_np is not None and normals_np.shape[0] != n_verts:
+        raise ValueError(
+            f"save_glb: normals has {normals_np.shape[0]} entries but vertex count is {n_verts}"
+        )
     faces_np = faces_signed.astype(np.uint32)
     texture_png_bytes = None
     if texture_image is not None:
@@ -139,6 +247,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     indices_buffer = faces_np.tobytes()
     uvs_buffer = uvs_np.tobytes() if uvs_np is not None else b""
     colors_buffer = colors_np.tobytes() if colors_np is not None else b""
+    normals_buffer = normals_np.tobytes() if normals_np is not None else b""
     texture_buffer = texture_png_bytes if texture_png_bytes is not None else b""
     mr_buffer = mr_png_bytes if mr_png_bytes is not None else b""
 
@@ -150,6 +259,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     indices_buffer_padded = pad_to_4_bytes(indices_buffer)
     uvs_buffer_padded = pad_to_4_bytes(uvs_buffer)
     colors_buffer_padded = pad_to_4_bytes(colors_buffer)
+    normals_buffer_padded = pad_to_4_bytes(normals_buffer)
     texture_buffer_padded = pad_to_4_bytes(texture_buffer)
     mr_buffer_padded = pad_to_4_bytes(mr_buffer)
 
@@ -158,6 +268,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
         indices_buffer_padded,
         uvs_buffer_padded,
         colors_buffer_padded,
+        normals_buffer_padded,
         texture_buffer_padded,
         mr_buffer_padded,
     ])
@@ -168,7 +279,8 @@ def save_glb(vertices, faces, filepath, metadata=None,
     indices_byte_offset = len(vertices_buffer_padded)
     uvs_byte_offset = indices_byte_offset + len(indices_buffer_padded)
     colors_byte_offset = uvs_byte_offset + len(uvs_buffer_padded)
-    texture_byte_offset = colors_byte_offset + len(colors_buffer_padded)
+    normals_byte_offset = colors_byte_offset + len(colors_buffer_padded)
+    texture_byte_offset = normals_byte_offset + len(normals_buffer_padded)
     mr_byte_offset = texture_byte_offset + len(texture_buffer_padded)
 
     buffer_views = [
@@ -238,6 +350,23 @@ def save_glb(vertices, faces, filepath, metadata=None,
             "type": "VEC3" if colors_np.shape[1] == 3 else "VEC4",
         })
         primitive_attributes["COLOR_0"] = accessor_idx
+
+    if normals_np is not None and len(normals_np) > 0:
+        buffer_views.append({
+            "buffer": 0,
+            "byteOffset": normals_byte_offset,
+            "byteLength": len(normals_buffer),
+            "target": 34962
+        })
+        accessor_idx = len(accessors)
+        accessors.append({
+            "bufferView": len(buffer_views) - 1,
+            "byteOffset": 0,
+            "componentType": 5126,  # FLOAT
+            "count": len(normals_np),
+            "type": "VEC3",
+        })
+        primitive_attributes["NORMAL"] = accessor_idx
 
     primitive = {
         "attributes": primitive_attributes,
@@ -428,7 +557,7 @@ class SaveGLB(IO.ComfyNode):
                     f"metallic_roughness must be (B, H, W, 3), got shape {tuple(mr_np.shape)}"
                 )
             for i in range(mesh.vertices.shape[0]):
-                vertices_i, faces_i, v_colors, uvs_i = get_mesh_batch_item(mesh, i)
+                vertices_i, faces_i, v_colors, uvs_i, normals_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
@@ -444,6 +573,7 @@ class SaveGLB(IO.ComfyNode):
                     texture_image=tex_img,
                     metallic_roughness_image=mr_img,
                     unlit=getattr(mesh, "unlit", False),
+                    normals=normals_i,
                 )
                 results.append({
                     "filename": f,
@@ -542,13 +672,89 @@ class RotateMesh(IO.ComfyNode):
             out.vertices = [rotate(v) for v in mesh.vertices]
         else:
             out.vertices = rotate(mesh.vertices)
+        # Normals are directions; rotate them too (R is orthogonal) so they stay valid.
+        nrm = getattr(mesh, "normals", None)
+        if nrm is not None:
+            out.normals = [rotate(n) for n in nrm] if isinstance(nrm, list) else rotate(nrm)
+        return IO.NodeOutput(out)
+
+
+class MeshSmoothNormals(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="MeshSmoothNormals",
+            display_name="Smooth Mesh Normals",
+            category="3d",
+            description=(
+                "Compute smooth per-vertex normals and attach them to the mesh. Meshes "
+                "without normals are shaded flat (per-face) by glTF viewers; this makes "
+                "them shade smoothly. With crease_angle below 180, edges sharper than the "
+                "threshold are kept hard by splitting vertices along them."
+            ),
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.Float.Input("crease_angle", default=180.0, min=0.0, max=180.0, step=1.0,
+                               tooltip="Edges whose dihedral angle exceeds this (degrees) stay "
+                                       "hard (vertices are split). 180 = fully smooth; lower "
+                                       "preserves sharp edges (e.g. ~30-60 for hard-surface)."),
+            ],
+            outputs=[IO.Mesh.Output("mesh")],
+        )
+
+    @classmethod
+    def execute(cls, mesh: Types.MESH, crease_angle: float) -> IO.NodeOutput:
+        crease = None if crease_angle >= 180.0 else float(crease_angle)
+        batch_size = mesh.vertices.shape[0]
+
+        if crease is None:
+            # Fully smooth: topology is unchanged, so just attach a normals tensor that
+            # matches the existing (possibly zero-padded) vertex layout and keep all fields.
+            normals_padded = torch.zeros_like(mesh.vertices)
+            for i in range(batch_size):
+                v_i, f_i, _, _, _ = get_mesh_batch_item(mesh, i)
+                if v_i.shape[0] == 0 or f_i.shape[0] == 0:
+                    continue
+                n_i = _smooth_vertex_normals(v_i.cpu().numpy().astype(np.float32),
+                                             f_i.cpu().numpy().astype(np.int64))
+                normals_padded[i, :n_i.shape[0]] = torch.from_numpy(n_i).to(mesh.vertices)
+            out = copy.copy(mesh)
+            out.normals = normals_padded
+            return IO.NodeOutput(out)
+
+        # Crease split changes per-item vertex counts -> rebuild as a variable-size batch.
+        v_list, f_list, n_list = [], [], []
+        c_list = [] if mesh.vertex_colors is not None else None
+        u_list = [] if mesh.uvs is not None else None
+        for i in range(batch_size):
+            v_i, f_i, c_i, u_i, _ = get_mesh_batch_item(mesh, i)
+            if v_i.shape[0] == 0 or f_i.shape[0] == 0:
+                continue
+            dev = v_i.device
+            vo, fo, no, remap = _compute_vertex_normals(
+                v_i.cpu().numpy().astype(np.float32),
+                f_i.cpu().numpy().astype(np.int64), crease)
+            remap_t = torch.from_numpy(remap)
+            v_list.append(torch.from_numpy(vo).to(dev, mesh.vertices.dtype))
+            f_list.append(torch.from_numpy(fo.astype(np.int64)).to(dev, mesh.faces.dtype))
+            n_list.append(torch.from_numpy(no).to(dev, mesh.vertices.dtype))
+            if c_list is not None:
+                c_list.append(c_i[remap_t.to(c_i.device)])
+            if u_list is not None:
+                u_list.append(u_i[remap_t.to(u_i.device)])
+        if not v_list:
+            return IO.NodeOutput(mesh)
+        out = pack_variable_mesh_batch(
+            v_list, f_list, colors=c_list, uvs=u_list,
+            texture=mesh.texture, unlit=getattr(mesh, "unlit", False),
+            normals=n_list, metallic_roughness=getattr(mesh, "metallic_roughness", None))
         return IO.NodeOutput(out)
 
 
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB, RotateMesh]
+        return [SaveGLB, RotateMesh, MeshSmoothNormals]
 
 
 async def comfy_entrypoint() -> Save3DExtension:
