@@ -13,6 +13,7 @@ async def register_replacements():
     await register_replacements_preview3d()
     await register_replacements_svdimg2vid()
     await register_replacements_conditioningavg()
+    await register_replacements_sdposedrawkeypoints()
 
 async def register_replacements_longeredge():
     # No dynamic inputs here
@@ -90,6 +91,27 @@ async def register_replacements_conditioningavg():
     await api.node_replacement.register(io.NodeReplace(
             new_node_id="ConditioningAverage",
             old_node_id="ConditioningAverage ",
+        ))
+
+async def register_replacements_sdposedrawkeypoints():
+    # Add checkbox for draw head
+    await api.node_replacement.register(io.NodeReplace(
+            new_node_id="SDPoseDrawKeypointsV2",
+            old_node_id="SDPoseDrawKeypoints",
+            old_widget_ids=["draw_body", "draw_hands", "draw_face", "draw_feet", "stick_width", "face_point_size", "score_threshold"],
+            input_mapping=[
+                {"new_id": "keypoints", "old_id": "keypoints"},
+                {"new_id": "draw_body", "old_id": "draw_body"},
+                {"new_id": "draw_hands", "old_id": "draw_hands"},
+                {"new_id": "draw_face", "old_id": "draw_face"},
+                {"new_id": "draw_feet", "old_id": "draw_feet"},
+                {"new_id": "stick_width", "old_id": "stick_width"},
+                {"new_id": "face_point_size", "old_id": "face_point_size"},
+                {"new_id": "score_threshold", "old_id": "score_threshold"},
+                {"new_id": "draw_head", "set_value": True},
+            ],
+            # just to test the frontend output_mapping code, does nothing really here
+            output_mapping=[{"new_idx": 0, "old_idx": 0}],
         ))
 
 class NodeReplacementsExtension(ComfyExtension):
