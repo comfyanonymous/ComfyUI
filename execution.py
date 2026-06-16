@@ -40,6 +40,7 @@ from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
+from comfy_execution.asset_enrichment import enrich_output_with_assets
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io, _io
 from comfy_execution.cache_provider import _has_cache_providers, _get_cache_providers, _logger as _cache_logger
@@ -199,6 +200,8 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                 hidden_inputs_v3[io.Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
             if io.Hidden.api_key_comfy_org.name in hidden:
                 hidden_inputs_v3[io.Hidden.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
+            if io.Hidden.comfy_usage_source.name in hidden:
+                hidden_inputs_v3[io.Hidden.comfy_usage_source] = extra_data.get("comfy_usage_source", None)
     else:
         if "hidden" in valid_inputs:
             h = valid_inputs["hidden"]
@@ -215,6 +218,8 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                     input_data_all[x] = [extra_data.get("auth_token_comfy_org", None)]
                 if h[x] == "API_KEY_COMFY_ORG":
                     input_data_all[x] = [extra_data.get("api_key_comfy_org", None)]
+                if h[x] == "COMFY_USAGE_SOURCE":
+                    input_data_all[x] = [extra_data.get("comfy_usage_source", None)]
     v3_data["hidden_inputs"] = hidden_inputs_v3
     return input_data_all, missing_keys, v3_data
 
@@ -418,6 +423,7 @@ def _is_intermediate_output(dynprompt, node_id):
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     return getattr(class_def, 'HAS_INTERMEDIATE_OUTPUT', False)
 
+
 def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
     if server.client_id is None:
         return
@@ -552,6 +558,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 asyncio.create_task(await_completion())
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
+            # Enrich at output-processing time (not in the send path) so assets
+            # are registered even when no client is connected, and the asset id
+            # flows into ui_outputs and the cache alongside the raw entries.
+            output_ui = enrich_output_with_assets(output_ui)
             ui_outputs[unique_id] = {
                 "meta": {
                     "node_id": unique_id,

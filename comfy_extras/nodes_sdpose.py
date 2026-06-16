@@ -96,8 +96,12 @@ class KeypointDraw:
         # Body connections - matching DWPose limbSeq (1-indexed, converted to 0-indexed)
         self.body_limbSeq = [
             [2, 3], [2, 6], [3, 4], [4, 5], [6, 7], [7, 8], [2, 9], [9, 10],
-            [10, 11], [2, 12], [12, 13], [13, 14], [2, 1], [1, 15], [15, 17],
-            [1, 16], [16, 18]
+            [10, 11], [2, 12], [12, 13], [13, 14]
+        ]
+
+        # Head connections (1-indexed, converted to 0-indexed)
+        self.head_edges = [
+            [2, 1], [1, 15], [15, 17], [1, 16], [16, 18]
         ]
 
         # Colors matching DWPose
@@ -215,7 +219,7 @@ class KeypointDraw:
         return unique_pts if len(unique_pts) > 1 else [[center[0], center[1]], [center[0], center[1]]]
 
     def draw_wholebody_keypoints(self, canvas, keypoints, scores=None, threshold=0.3,
-                                 draw_body=True, draw_feet=True, draw_face=True, draw_hands=True, stick_width=4, face_point_size=3):
+                                 draw_body=True, draw_head=True, draw_feet=True, draw_face=True, draw_hands=True, stick_width=4, face_point_size=3):
         """
         Draw wholebody keypoints (134 keypoints after processing) in DWPose style.
 
@@ -237,9 +241,17 @@ class KeypointDraw:
         """
         H, W, C = canvas.shape
 
-        # Draw body limbs
-        if draw_body and len(keypoints) >= 18:
-            for i, limb in enumerate(self.body_limbSeq):
+        # Draw body limbs & head connections
+        if (draw_body or draw_head) and len(keypoints) >= 18:
+            colorIndexOffset = 0
+            edges = []
+            if draw_body:
+                edges += self.body_limbSeq
+            else:
+                colorIndexOffset += len(self.body_limbSeq)
+            if draw_head:
+                edges += self.head_edges
+            for i, limb in enumerate(edges):
                 # Convert from 1-indexed to 0-indexed
                 idx1, idx2 = limb[0] - 1, limb[1] - 1
 
@@ -262,11 +274,17 @@ class KeypointDraw:
 
                 polygon = self.draw.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stick_width), int(angle), 0, 360, 1)
 
-                self.draw.fillConvexPoly(canvas, polygon, self.colors[i % len(self.colors)])
+                self.draw.fillConvexPoly(canvas, polygon, self.colors[(i + colorIndexOffset) % len(self.colors)])
 
-        # Draw body keypoints
-        if draw_body and len(keypoints) >= 18:
+        # Draw body & head keypoints
+        if (draw_body or draw_head) and len(keypoints) >= 18:
+            head_keypoints = {0, 14, 15, 16, 17} # nose, eyes, ears
+            neck_point = 1
             for i in range(18):
+                if not draw_head and i in head_keypoints:
+                    continue
+                if not draw_body and i not in head_keypoints and i != neck_point:
+                    continue
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
@@ -365,6 +383,7 @@ class SDPoseDrawKeypoints(io.ComfyNode):
                 io.Int.Input("stick_width", default=4, min=1, max=10, step=1),
                 io.Int.Input("face_point_size", default=3, min=1, max=10, step=1),
                 io.Float.Input("score_threshold", default=0.3, min=0.0, max=1.0, step=0.01),
+                io.Boolean.Input("draw_head", default=True),
             ],
             outputs=[
                 io.Image.Output(),
@@ -372,7 +391,7 @@ class SDPoseDrawKeypoints(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold) -> io.NodeOutput:
+    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold, draw_head) -> io.NodeOutput:
         if not keypoints:
             return io.NodeOutput(torch.zeros((1, 64, 64, 3), dtype=torch.float32))
         height = keypoints[0]["canvas_height"]
@@ -405,7 +424,7 @@ class SDPoseDrawKeypoints(io.ComfyNode):
                 canvas = drawer.draw_wholebody_keypoints(
                     canvas, kp, sc,
                     threshold=score_threshold,
-                    draw_body=draw_body, draw_feet=draw_feet,
+                    draw_body=draw_body, draw_head=draw_head, draw_feet=draw_feet,
                     draw_face=draw_face, draw_hands=draw_hands,
                     stick_width=stick_width, face_point_size=face_point_size,
                 )

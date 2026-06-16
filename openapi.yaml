@@ -1062,6 +1062,9 @@ components:
                         comfyui_version:
                             description: ComfyUI version
                             type: string
+                        deploy_environment:
+                            description: How this ComfyUI instance is deployed (e.g. cloud, local-git, local-portable, local-desktop)
+                            type: string
                         embedded_python:
                             description: Whether using embedded Python
                             type: boolean
@@ -1792,7 +1795,9 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Invalid request (no fields provided)
+                    description: |
+                        Invalid request — no fields provided, or `preview_id` is the zero UUID
+                        (`INVALID_PREVIEW_ID`).
                 "401":
                     content:
                         application/json:
@@ -1804,7 +1809,10 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Asset not found
+                    description: |
+                        Asset not found — returned both when the asset being updated does
+                        not exist and when `preview_id` does not reference an asset
+                        accessible to the caller.
                 "500":
                     content:
                         application/json:
@@ -3042,6 +3050,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/PromptErrorResponse'
                     description: Payment required - Insufficient credits
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PromptErrorResponse'
+                    description: Workflow JSON too large
                 "429":
                     content:
                         application/json:

@@ -180,7 +180,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             if pin is not None:
                 cast_maybe_lowvram_patch([pin], dest, offload_stream)
                 return
-            if signature is None:
+            if signature is None or args.high_ram:
                 comfy.pinned_memory.pin_memory(m, subset=subset, size=size)
                 pin = comfy.pinned_memory.get_pin(m, subset=subset)
             cast_maybe_lowvram_patch(source, pin, offload_stream, xfer_dest2=dest)
@@ -299,21 +299,21 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
 
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
 
-    if hasattr(s, "_v"):
+    if hasattr(s, "_v") and comfy.model_management.is_device_cpu(device):
 
         #vbar doesn't support CPU weights, but some custom nodes have weird paths
         #that might switch the layer to the CPU and expect it to work. We have to take
         #a clone conservatively as we are mmapped and some SFT files are packed misaligned
         #If you are a custom node author reading this, please move your layer to the GPU
         #or declare your ModelPatcher as CPU in the first place.
-        if comfy.model_management.is_device_cpu(device):
-            materialize_meta_param(s, ["weight", "bias"])
-            weight = s.weight.to(dtype=dtype, copy=True)
-            if isinstance(weight, QuantizedTensor):
-                weight = weight.dequantize()
-            bias = s.bias.to(dtype=bias_dtype, copy=True) if s.bias is not None else None
-            return format_return((weight, bias, (None, None, None)), offloadable)
+        materialize_meta_param(s, ["weight", "bias"])
+        weight = s.weight.to(dtype=dtype, copy=True)
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        bias = s.bias.to(dtype=bias_dtype, copy=True) if s.bias is not None else None
+        return format_return((weight, bias, (None, None, None)), offloadable)
 
+    elif hasattr(s, "_v") and s.weight.device != device:
         prefetched = hasattr(s, "_prefetch")
         offload_stream = None
         offload_device = None
