@@ -92,6 +92,21 @@ def _render_colored_masks(track_data, background="black"):
     return torch.where(any_mask.unsqueeze(-1), color_overlay, bg_tensor.expand_as(color_overlay))
 
 
+def _render_mask_as_identity(mask, background="black"):
+    """Plain comfy MASK (B,H,W) or (H,W) -> (B,H,W,3) rendered as a single identity (palette[0])
+    on the given background. A batch is treated as multiple views of that one subject."""
+    device = comfy.model_management.intermediate_device()
+    dtype = comfy.model_management.intermediate_dtype()
+    if mask.ndim == 2:
+        mask = mask.unsqueeze(0)
+    mask = mask.to(device=device, dtype=dtype)
+    B, H, W = mask.shape
+    bg_rgb = (1.0, 1.0, 1.0) if background.startswith("white") else (0.0, 0.0, 0.0)
+    color = torch.tensor(DEFAULT_PALETTE[0], device=device, dtype=dtype).view(1, 1, 1, 3)
+    bg = torch.tensor(bg_rgb, device=device, dtype=dtype).view(1, 1, 1, 3)
+    return torch.where((mask > 0.5).unsqueeze(-1), color.expand(B, H, W, 3), bg.expand(B, H, W, 3))
+
+
 def _extract_mask_to_28ch(rgb_video):
     """Colored RGB mask (T, H, W, 3) in [0, 1] -> SCAIL-2 28-channel binary latent
     (1, T_lat, 28, H_lat, W_lat). 7 per-color binary channels (white/r/g/b/y/m/c)
@@ -269,8 +284,8 @@ class SCAIL2ColoredMask(io.ComfyNode):
             category="conditioning/video_models/scail",
             inputs=[
                 SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving pose video. Will be rendered into the pose_video_mask output."),
-                SAM3TrackData.Input("ref_track_data", optional=True,
-                                    tooltip="SAM3 track of the reference image, or of a batch of reference images (one identity per image, colors assigned in batch order)."),
+                io.MultiType.Input("ref_track_data", [SAM3TrackData, io.Mask], optional=True, display_name="reference_masks",
+                                   tooltip="SAM3 track of the reference image(s) (one identity per object, colored in batch order), or a plain MASK of the reference subject (rendered as a single identity)."),
                 io.String.Input("object_indices", default="",
                                 tooltip="Comma-separated list of person indices to include (e.g. '0,2,3'). Applied to both reference and pose video masks. Empty = all."),
                 io.Combo.Input("sort_by", options=["none", "left_to_right", "area"], default="left_to_right",
@@ -311,8 +326,10 @@ class SCAIL2ColoredMask(io.ComfyNode):
         ref_bg = "black" if replacement_mode else "white"
 
         if ref_track_data is not None:
-            ref = _prep(ref_track_data)
-            reference_image_mask = _render_colored_masks(ref, ref_bg)
+            if isinstance(ref_track_data, torch.Tensor):  # plain comfy MASK
+                reference_image_mask = _render_mask_as_identity(ref_track_data, ref_bg)
+            else:
+                reference_image_mask = _render_colored_masks(_prep(ref_track_data), ref_bg)
         else:
             H, W = drv["orig_size"]
             fill_value = 1.0 if ref_bg == "white" else 0.0
