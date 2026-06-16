@@ -1618,3 +1618,76 @@ def simplify(
                 out_n if out_n else None,
                 out_s)
     return qem_simplify(vertices, faces, target, colors, normals, max_edge_length, config)
+
+
+def cluster_decimate(
+    vertices: torch.Tensor, faces: torch.Tensor,
+    target_verts: int = 1_000_000,
+    colors: Optional[torch.Tensor] = None,
+    face_chunk: int = 4_000_000,
+) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    """Vertex-cluster decimation (Rossignac-Borrel): bin verts into a ~target_verts grid,
+    average per cell, remap faces (chunked), drop degenerate/duplicate. Fast O(V+F) prepass
+    for huge meshes before QEM/remesh. Returns (verts, faces, colors)."""
+    if vertices.shape[0] == 0 or faces.shape[0] == 0:
+        return vertices, faces, colors
+
+    device = vertices.device
+    bbox = vertices.max(dim=0)[0] - vertices.min(dim=0)[0]
+    bbox_min = vertices.min(dim=0)[0]
+    # cell size so the bbox holds ~3× target_verts cells (surface occupancy ~1/3)
+    cell_count_target = max(target_verts * 3, 1000)
+    extent_max = float(bbox.max().item())
+    cells_per_axis = (cell_count_target ** (1 / 3))
+    cell_size = extent_max / max(1.0, cells_per_axis)
+    scale = 1.0 / max(cell_size, 1e-20)
+
+    q = ((vertices - bbox_min) * scale).floor().to(torch.int64)
+    extent = (bbox * scale).floor().to(torch.int64) + 2
+    Wy = extent[1]
+    Wz = extent[2]
+    key = (q[:, 0] * Wy + q[:, 1]) * Wz + q[:, 2]
+
+    unique_key, inv = torch.unique(key, return_inverse=True)
+    n_unique = unique_key.shape[0]
+    counts = torch.zeros(n_unique, dtype=vertices.dtype, device=device)
+    counts.scatter_add_(0, inv, torch.ones(vertices.shape[0], dtype=vertices.dtype, device=device))
+    counts_div = counts.unsqueeze(-1).clamp_min(1.0)
+
+    new_verts = torch.zeros((n_unique, 3), dtype=vertices.dtype, device=device)
+    new_verts.scatter_add_(0, inv.unsqueeze(-1).expand_as(vertices), vertices)
+    new_verts = new_verts / counts_div
+
+    new_colors = None
+    if colors is not None:
+        new_colors = torch.zeros((n_unique, colors.shape[1]), dtype=colors.dtype, device=device)
+        new_colors.scatter_add_(0, inv.unsqueeze(-1).expand_as(colors), colors)
+        new_colors = new_colors / counts_div.to(colors.dtype)
+
+    # remap faces in chunks (face tensor can be huge); drop degenerates per chunk
+    out_chunks = []
+    F = faces.shape[0]
+    for fs in range(0, F, face_chunk):
+        fe = min(fs + face_chunk, F)
+        cf = inv[faces[fs:fe].long()]
+        nondeg = ((cf[:, 0] != cf[:, 1]) & (cf[:, 1] != cf[:, 2]) & (cf[:, 0] != cf[:, 2]))
+        if nondeg.any():
+            out_chunks.append(cf[nondeg])
+    if out_chunks:
+        new_faces = torch.cat(out_chunks, dim=0)
+    else:
+        new_faces = torch.empty((0, 3), dtype=faces.dtype, device=device)
+
+    # drop duplicate faces (same vertex set after clustering)
+    if new_faces.numel() > 0:
+        key_sorted = torch.sort(new_faces, dim=1)[0]
+        P = n_unique + 1
+        packed = (key_sorted[:, 0].long() * P + key_sorted[:, 1].long()) * P + key_sorted[:, 2].long()
+        _, first = torch.unique(packed, return_inverse=True)
+        arange = torch.arange(packed.shape[0], device=device, dtype=torch.int64)
+        first_idx = torch.full((int(first.max().item()) + 1,), packed.shape[0],
+                               dtype=torch.int64, device=device)
+        first_idx.scatter_reduce_(0, first, arange, reduce="amin", include_self=True)
+        new_faces = new_faces[first_idx]
+
+    return new_verts.to(vertices.dtype), new_faces.to(faces.dtype), new_colors

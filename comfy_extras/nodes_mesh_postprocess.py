@@ -6,9 +6,20 @@ from comfy_api.latest import ComfyExtension, IO, Types
 import copy
 import comfy.utils
 import comfy.model_management
-from comfy_extras.qem_decimate.qem_core import simplify as qem_decimate_simplify, QEMConfig
+from server import PromptServer
+from comfy_extras.mesh3d.postprocess.qem_decimate import (
+    simplify as qem_decimate_simplify, QEMConfig, cluster_decimate as qem_cluster_decimate,
+)
+from comfy_extras.mesh3d.postprocess.remesh import remesh_narrow_band_dc
+from comfy_extras.mesh3d.uv_unwrap import mesh as _uv_mesh
+from comfy_extras.mesh3d.uv_unwrap import segment as _uv_seg
+from comfy_extras.mesh3d.uv_unwrap import parameterize as _uv_param
+from comfy_extras.mesh3d.uv_unwrap import pack as _uv_pack
+import warnings
 import logging
 import scipy
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 def get_mesh_batch_item(mesh, index):
     if hasattr(mesh, "vertex_counts") and mesh.vertex_counts is not None:
@@ -2162,6 +2173,566 @@ class DecimateMesh(IO.ComfyNode):
         return result
 
 
+class RemeshMesh(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        # sign_mode picks the scalar field, and exposes only the knobs relevant to it
+        # (DynamicCombo: udf sub-widgets show for 'udf', sdf sub-widgets for 'sdf').
+        sign_mode_options = [
+            IO.DynamicCombo.Option(key="udf", inputs=[
+                IO.Boolean.Input("qef", default=False,
+                                 tooltip="Experimental: place dual vertices via QEF (closest-triangle normals) "
+                                         "instead of edge-crossing centroid. QEF is sign-agnostic so it works "
+                                         "in UDF too — pulls the ±eps surface back onto the planes for sharper "
+                                         "edges. May misbehave near the UDF double shell; compare with it off."),
+                IO.Boolean.Input("drop_inverted_components", default=True,
+                                 tooltip="Drop closed components with inward normals (negative signed volume) — "
+                                         "the inner shell UDF produces on closed regions."),
+                IO.Boolean.Input("drop_enclosed_components", default=True,
+                                 tooltip="Drop components whose bbox is inside the largest's AND fail a raycast "
+                                         "point-in-mesh test. Disable if you have legitimate parts inside others."),
+            ]),
+            IO.DynamicCombo.Option(key="sdf", inputs=[
+                IO.Boolean.Input("qef", default=True,
+                                 tooltip="Place dual vertices via QEF solve from closest-triangle normals "
+                                         "(recovers sharp features) vs edge-crossing centroid."),
+                IO.Boolean.Input("manifold", default=False,
+                                 tooltip="Manifold Dual Contouring: emit 1-4 dual verts per voxel for "
+                                         "multi-sheet (thin/touching) cases. Slower; guarantees manifold output."),
+            ]),
+        ]
+        return IO.Schema(
+            node_id="RemeshMesh",
+            display_name="Remesh Mesh (Narrow-Band DC)",
+            category="latent/3d",
+            description=(
+                "Re-extracts a uniformly tessellated mesh by sampling a distance field on a "
+                "narrow-band voxel grid and contouring it with Dual Contouring, on the active "
+                "compute device. Normalizes topology of messy / non-manifold / self-intersecting "
+                "input; run before DecimateMesh to hit an exact face count. Output stays welded."
+            ),
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.Int.Input("target_faces", default=0, min=0, max=50_000_000,
+                             tooltip="0 = use 'resolution'. >0 = auto-pick resolution to roughly hit this "
+                                     "face count (±30-50%); usually overshoot then DecimateMesh to exact."),
+                IO.Int.Input("resolution", default=256, min=32, max=1024,
+                             tooltip="Voxel grid resolution (used when target_faces=0). Higher = more detail, "
+                                     "slower. 256 ~ 100k faces, 512 ~ 1M."),
+                IO.DynamicCombo.Input("sign_mode", options=sign_mode_options, display_name="sign_mode",
+                                      tooltip="udf: robust to messy/non-manifold input (double shell cleaned by "
+                                              "the inner-shell filters). sdf: clean single surface with optional "
+                                              "QEF sharp-feature recovery, but needs consistent winding."),
+                IO.Float.Input("band", default=1.0, min=0.5, max=4.0, step=0.1,
+                               tooltip="Narrow-band width in voxel units (which voxels are sampled). In UDF "
+                                       "mode also offsets the surface by this many voxels."),
+                IO.Float.Input("project_back", default=0.0, min=0.0, max=1.0, step=0.05,
+                               tooltip="Lerp output verts toward the closest point on the original surface "
+                                       "(0 = pure DC, 1 = snapped). Recovers voxelization-lost detail."),
+                IO.Boolean.Input("fix_poles", default=False,
+                                 tooltip="Collapse valence-3 vertex pairs (DC T-junction artifact). Cheap; "
+                                         "improves shading and downstream simplification."),
+                IO.Int.Input("smooth_iters", default=0, min=0, max=20,
+                             tooltip="Taubin λ|μ smoothing iterations (0 = off). Volume-preserving; cleans DC "
+                                     "stairstepping. 2-3 is enough; higher rounds off QEF sharp features."),
+                IO.Float.Input("drop_small_components", default=0.01, min=0.0, max=0.5, step=0.005,
+                               tooltip="Drop components with fewer than this fraction of the largest component's "
+                                       "faces (inner-shell fragments, noise). 0 disables."),
+                IO.Int.Input("precluster_max_verts", default=0, min=0, max=50_000_000,
+                             tooltip="Safety fallback: if input has more verts than this (>0), cluster-decimate "
+                                     "it down first so the distance-field queries don't OOM on huge inputs. "
+                                     "0 = off; 1-2M is reasonable for very large meshes."),
+            ],
+            outputs=[IO.Mesh.Output("mesh")],
+            hidden=[IO.Hidden.unique_id],
+        )
+
+    @classmethod
+    def execute(cls, mesh, target_faces, resolution, sign_mode, band,
+                project_back, fix_poles, smooth_iters,
+                drop_small_components, precluster_max_verts):
+        mode = sign_mode.get("sign_mode", "udf")
+        # mode-specific sub-widgets (absent ones fall back to defaults)
+        qef = bool(sign_mode.get("qef", True))
+        manifold = bool(sign_mode.get("manifold", False))
+        drop_inverted_components = bool(sign_mode.get("drop_inverted_components", True))
+        drop_enclosed_components = bool(sign_mode.get("drop_enclosed_components", True))
+
+        # ComfyUI passes meshes on CPU; remesh is far faster on GPU. Run on the
+        # selected compute device and return on the mesh's original device.
+        compute_device = comfy.model_management.get_torch_device()
+        counts = {"in": 0, "out": 0}
+
+        def _fn(v, f, c):
+            counts["in"] += int(f.shape[0])
+            try:
+                src_device = v.device
+                vv = v.to(compute_device).float()
+                ff = f.to(compute_device).to(torch.int64)
+                cc = c.to(compute_device).float() if c is not None else None
+
+                # safety fallback: cluster-decimate very large inputs before the field queries
+                if precluster_max_verts > 0 and vv.shape[0] > precluster_max_verts:
+                    vv, ff, cc = qem_cluster_decimate(
+                        vv, ff, target_verts=int(precluster_max_verts), colors=cc)
+
+                # Fixed [-0.5,0.5] cube domain (matches cumesh / TRELLIS2). scale ≈ 1.0
+                # for any resolution, so this is consistent in target_faces auto mode too.
+                rs_scale = (resolution + 3.0 * band) / resolution
+                rs_center = torch.zeros(3, dtype=vv.dtype, device=compute_device)
+
+                rv, rf, rc = remesh_narrow_band_dc(
+                    vv, ff,
+                    resolution=int(resolution), target_faces=int(target_faces),
+                    band=float(band), project_back=float(project_back),
+                    qef=qef, sign_mode=mode,
+                    manifold=manifold, fix_poles=bool(fix_poles),
+                    smooth_iters=int(smooth_iters),
+                    drop_small_components=float(drop_small_components),
+                    drop_inverted_components=drop_inverted_components,
+                    drop_enclosed_components=drop_enclosed_components,
+                    scale=rs_scale, center=rs_center, colors=cc)
+
+                v = rv.to(src_device)
+                f = rf.to(src_device)
+                c = rc.to(src_device) if rc is not None else None
+            except Exception as e:
+                logging.warning(f"RemeshMesh: remesh failed, passing mesh through unchanged: {e!r}")
+            counts["out"] += int(f.shape[0])
+            return v, f, c
+
+        result = _process_mesh_batch(mesh, _fn)
+
+        # Send progress text to display the face change on the node
+        if cls.hidden.unique_id:
+            PromptServer.instance.send_progress_text(
+                f"faces: {counts['in']} -> {counts['out']}", cls.hidden.unique_id)
+
+        return result
+
+
+def _pack_uv_meshes(vs, fs, uvs, colors):
+    """Pack per-item (verts, faces, uvs[, colors]) into a MESH; stack if single, else pad with counts."""
+    if len(vs) == 1:
+        m = Types.MESH(vertices=vs[0].unsqueeze(0), faces=fs[0].unsqueeze(0), uvs=uvs[0].unsqueeze(0))
+        if colors is not None:
+            m.vertex_colors = colors[0].unsqueeze(0)
+        return m
+    bsz = len(vs)
+    dev = vs[0].device
+    maxv = max(v.shape[0] for v in vs)
+    maxf = max(f.shape[0] for f in fs)
+    pv = vs[0].new_zeros((bsz, maxv, 3))
+    pf = fs[0].new_zeros((bsz, maxf, 3))
+    pu = uvs[0].new_zeros((bsz, maxv, 2))
+    for i, (v, f, u) in enumerate(zip(vs, fs, uvs)):
+        pv[i, :v.shape[0]] = v
+        pf[i, :f.shape[0]] = f
+        pu[i, :u.shape[0]] = u
+    vc = torch.tensor([v.shape[0] for v in vs], device=dev, dtype=torch.int64)
+    fc = torch.tensor([f.shape[0] for f in fs], device=dev, dtype=torch.int64)
+    m = Types.MESH(vertices=pv, faces=pf, uvs=pu, vertex_counts=vc, face_counts=fc)
+    if colors is not None:
+        pc = colors[0].new_zeros((bsz, maxv, colors[0].shape[1]))
+        for i, c in enumerate(colors):
+            pc[i, :c.shape[0]] = c
+        m.vertex_colors = pc
+    return m
+
+
+def _uv_weld_vertices(v, f, weld_distance):
+    """Merge coincident verts; returns (welded_v, welded_f, welded_to_orig) (last None if no welding)."""
+    v_np = v.cpu().numpy()
+    f_np = f.cpu().numpy()
+    if v_np.size == 0:
+        return v, f, None
+    extent = float(np.linalg.norm(v_np.max(axis=0) - v_np.min(axis=0)))
+    tol = weld_distance if weld_distance > 0.0 else 1e-5 * extent
+    if tol <= 0.0:
+        return v, f, None
+    keys = np.round(v_np / tol).astype(np.int64)
+    _, inv = np.unique(keys, axis=0, return_inverse=True)
+    n_unique = int(inv.max()) + 1
+    if n_unique >= v_np.shape[0]:
+        return v, f, None
+    v_welded = np.zeros((n_unique, 3), dtype=np.float32)
+    counts = np.zeros(n_unique, dtype=np.int64)
+    np.add.at(v_welded, inv, v_np)
+    np.add.at(counts, inv, 1)
+    v_welded /= counts[:, None]
+    welded_to_orig = np.empty(n_unique, dtype=np.int64)
+    welded_to_orig[inv] = np.arange(v_np.shape[0], dtype=np.int64)
+    v_new = torch.from_numpy(v_welded).to(v.dtype).to(v.device)
+    f_new = torch.from_numpy(inv[f_np]).to(f.dtype).to(f.device)
+    return v_new, f_new, welded_to_orig
+
+
+def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance):
+    """UV-unwrap a single mesh; returns (vmapping, indices, uvs) — vmapping maps each output
+    vertex to an input vertex (seam verts duplicated)."""
+    v_in = positions.to(torch.float32)
+    f_in = indices.to(torch.long).reshape(-1, 3)
+    v_in, f_in, welded_to_orig = _uv_weld_vertices(v_in, f_in, weld_distance)
+
+    # drop degenerate faces (repeated index) — they corrupt edge adjacency
+    degen = ((f_in[:, 0] == f_in[:, 1]) | (f_in[:, 1] == f_in[:, 2]) | (f_in[:, 2] == f_in[:, 0]))
+    if bool(degen.any()):
+        f_in = f_in[~degen]
+
+    mesh = _uv_mesh.build_mesh(v_in, f_in)
+    ff = mesh.face_face
+    if ff.numel() and float((ff >= 0).float().mean().item()) < 0.25:
+        warnings.warn("[uv_unwrap] mesh face-adjacency < 25% — vertices appear un-welded "
+                      "(triangle soup); UV charts will be per-face. Raise weld_distance.")
+
+    if segmenter == "pec":
+        if mesh.faces.device.type != "cuda":
+            raise RuntimeError("segmenter='pec' requires a CUDA mesh; use 'adaptive' for CPU.")
+        face_chart = _uv_seg.cluster_charts_pec(mesh, target_chart_count=0, max_cost=1.0)
+    elif segmenter == "adaptive":
+        face_chart = _uv_seg.segment_charts(mesh, max_cost=2.0, target_chart_count=0)
+    else:
+        raise ValueError(f"unknown segmenter '{segmenter}'. valid: pec, adaptive")
+
+    n_charts = int(face_chart.max().item()) + 1 if face_chart.numel() else 0
+    areas_cpu = _uv_mesh.chart_3d_areas(mesh.face_area, face_chart, n_charts).detach().cpu()
+
+    # per-chart loop runs on CPU/numpy to avoid per-chart GPU sync
+    face_chart_np = face_chart.cpu().numpy()
+    faces_np = mesh.faces.cpu().numpy()
+    vertices_np = mesh.vertices.cpu().numpy()
+    face_face_np = mesh.face_face.cpu().numpy()
+    sorted_face_idx_np = np.argsort(face_chart_np, kind="stable")
+    chart_counts_np = np.bincount(face_chart_np, minlength=n_charts)
+    chart_offsets_np = np.empty(n_charts + 1, dtype=np.int64)
+    chart_offsets_np[0] = 0
+    np.cumsum(chart_counts_np, out=chart_offsets_np[1:])
+
+    all_chart_uvs, all_chart_3d_areas, all_chart_uv_areas, all_chart_faces = [], [], [], []
+    chart_records = []
+    for c in range(n_charts):
+        gfi_np = sorted_face_idx_np[chart_offsets_np[c]:chart_offsets_np[c + 1]]
+        chart_faces_global = faces_np[gfi_np]
+        used_verts_np = np.unique(chart_faces_global)
+        local_faces_np = np.searchsorted(used_verts_np, chart_faces_global)
+        local_verts_np = vertices_np[used_verts_np]
+        ff_global = face_face_np[gfi_np]
+        ff_safe = np.maximum(ff_global, 0)
+        nb_chart = np.where(ff_global >= 0, face_chart_np[ff_safe], -1)
+        keep = (ff_global >= 0) & (nb_chart == c)
+        local_neighbor = np.searchsorted(gfi_np, ff_safe)
+        local_ff_np = np.where(keep, local_neighbor, -1)
+
+        lf = torch.from_numpy(local_faces_np)
+        uvs = _uv_param.parametrize_chart(
+            torch.from_numpy(local_verts_np), lf, torch.from_numpy(local_ff_np))
+        ua, ub, uc = uvs[lf[:, 0]], uvs[lf[:, 1]], uvs[lf[:, 2]]
+        uv_area_sum = float(0.5 * (
+            (ub[:, 0] - ua[:, 0]) * (uc[:, 1] - ua[:, 1])
+            - (uc[:, 0] - ua[:, 0]) * (ub[:, 1] - ua[:, 1])).abs().sum().item())
+        chart_records.append({"local_faces": lf, "vmap": torch.from_numpy(used_verts_np),
+                              "global_face_idx": torch.from_numpy(gfi_np)})
+        all_chart_uvs.append(uvs)
+        all_chart_3d_areas.append(float(areas_cpu[c].item()))
+        all_chart_uv_areas.append(uv_area_sum)
+        all_chart_faces.append(lf)
+
+    # auto-tune texel density to land near `resolution` (assumes ~0.62 pack fill)
+    total_3d_area = sum(all_chart_3d_areas) or 1.0
+    target_dim = float(resolution) if resolution > 0 else 1024.0
+    tex_per_unit = math.sqrt((target_dim * target_dim) * 0.62 / total_3d_area)
+
+    placements, atlas_w, atlas_h = _uv_pack.pack_bitmap(
+        all_chart_uvs, all_chart_3d_areas, all_chart_uv_areas, all_chart_faces,
+        texels_per_unit=tex_per_unit, padding_texels=padding)
+    placed = _uv_pack.apply_placements(all_chart_uvs, placements, atlas_w, atlas_h)
+
+    n_in_faces = mesh.faces.shape[0]
+    out_indices = np.zeros((n_in_faces, 3), dtype=np.int64)
+    out_uvs_list, out_vmap_list, v_cursor = [], [], 0
+    for c, rec in enumerate(chart_records):
+        vmap_np = rec["vmap"].cpu().numpy()
+        local_faces_np = rec["local_faces"].cpu().numpy()
+        global_face_idx = rec["global_face_idx"].cpu().numpy()
+        out_uvs_list.append(placed[c].cpu().numpy())
+        if welded_to_orig is not None:
+            vmap_np = welded_to_orig[vmap_np]
+        out_vmap_list.append(vmap_np)
+        out_indices[global_face_idx] = local_faces_np + v_cursor
+        v_cursor += vmap_np.shape[0]
+
+    vmapping_out = np.concatenate(out_vmap_list) if out_vmap_list else np.empty(0, dtype=np.int64)
+    uvs_out = np.concatenate(out_uvs_list) if out_uvs_list else np.empty((0, 2), dtype=np.float32)
+    return vmapping_out, out_indices, uvs_out
+
+
+class UnwrapMesh(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="UnwrapMesh",
+            display_name="Unwrap Mesh UVs",
+            category="latent/3d",
+            description=(
+                "Generates a UV atlas (pure-torch, no xatlas dependency): segments the surface into "
+                "charts, parameterizes each, and packs them into a [0,1] atlas. Verts on chart seams "
+                "are duplicated. Run after DecimateMesh/RemeshMesh, before texture baking."
+            ),
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.Combo.Input("segmenter", options=["pec", "adaptive"], default="pec",
+                               tooltip="pec: fast parallel-edge-collapse charting (CUDA; falls back to "
+                                       "adaptive on CPU). adaptive: CPU charting, slower."),
+                IO.Int.Input("resolution", default=1024, min=0, max=8192, step=256,
+                             tooltip="Target atlas resolution used to auto-scale texel density (0 = fit-to-content)."),
+                IO.Int.Input("padding", default=1, min=0, max=16,
+                             tooltip="Texel padding between charts in the packed atlas."),
+                IO.Float.Input("weld_distance", default=0.0, min=0.0, max=1.0, step=0.0001,
+                               tooltip="Merge radius for coincident verts as a fraction of mesh extent "
+                                       "(0 = auto, 1e-5). Raise to ~0.001 if you get per-triangle charts "
+                                       "(unwelded / triangle-soup input)."),
+            ],
+            outputs=[IO.Mesh.Output("mesh")],
+            hidden=[IO.Hidden.unique_id],
+        )
+
+    @classmethod
+    def execute(cls, mesh, segmenter, resolution, padding, weld_distance):
+        compute_device = comfy.model_management.get_torch_device()
+        seg = segmenter
+        if seg == "pec" and compute_device.type != "cuda":
+            seg = "adaptive"
+        seg_device = compute_device if seg == "pec" else torch.device("cpu")
+
+        is_list = isinstance(mesh.vertices, list)
+        is_batched = not is_list and mesh.vertices.ndim == 3
+        bsz = len(mesh.vertices) if is_list else (mesh.vertices.shape[0] if is_batched else 1)
+        bar = comfy.utils.ProgressBar(bsz)
+
+        out_v, out_f, out_uv, out_c = [], [], [], []
+        for i in range(bsz):
+            if is_list or is_batched:
+                vi, fi = mesh.vertices[i], mesh.faces[i]
+                ci = None
+                vc = getattr(mesh, "vertex_colors", None)
+                if vc is not None:
+                    ci = vc[i] if (isinstance(vc, list) or vc.ndim == 3) else vc
+            else:
+                vi, fi = mesh.vertices, mesh.faces
+                ci = getattr(mesh, "vertex_colors", None)
+
+            src_device = vi.device
+            vnp = vi.detach().cpu().numpy().astype(np.float32)
+            extent = float(np.linalg.norm(vnp.max(0) - vnp.min(0))) if vnp.shape[0] else 0.0
+            weld_abs = weld_distance * extent if weld_distance > 0.0 else 0.0
+
+            vmapping, indices, uvs = _uv_unwrap(
+                vi.to(seg_device).float(), fi.to(seg_device).long(),
+                seg, int(resolution), int(padding), weld_abs)
+            uvs = uvs.copy()
+            uvs[:, 1] = 1.0 - uvs[:, 1]                       # UV y flipped vs trimesh
+
+            out_v.append(torch.from_numpy(vnp[vmapping]).to(src_device))
+            out_f.append(torch.from_numpy(indices).to(device=src_device, dtype=torch.long))
+            out_uv.append(torch.from_numpy(uvs.astype(np.float32)).to(src_device))
+            if ci is not None:
+                cnp = ci.detach().cpu().numpy()
+                out_c.append(torch.from_numpy(np.ascontiguousarray(cnp[vmapping])).to(src_device))
+            bar.update(1)
+
+        out_mesh = _pack_uv_meshes(out_v, out_f, out_uv, out_c if out_c else None)
+        if getattr(mesh, "texture", None) is not None:
+            out_mesh.texture = mesh.texture
+
+        if cls.hidden.unique_id:
+            PromptServer.instance.send_progress_text(
+                f"UV: {out_v[0].shape[0]}v / {out_f[0].shape[0]}f, atlas ~{resolution}px",
+                cls.hidden.unique_id)
+        return IO.NodeOutput(out_mesh)
+
+
+def _uv_sorted_edge_keys(indices: np.ndarray):
+    """Undirected edge keys per face-edge, sorted; returns (sorted_keys, face_id, lo, hi, first_mask)."""
+    a = indices.ravel().astype(np.int64)
+    b = np.roll(indices, -1, axis=1).ravel().astype(np.int64)
+    lo = np.minimum(a, b)
+    hi = np.maximum(a, b)
+    V = int(indices.max()) + 1
+    key = lo * V + hi
+    order = np.argsort(key, kind="stable")
+    sk = key[order]
+    fid = (np.arange(a.size, dtype=np.int64) // 3)[order]
+    first = np.ones(sk.size, dtype=bool)
+    first[1:] = sk[1:] != sk[:-1]
+    return sk, fid, lo[order], hi[order], first
+
+
+def _uv_faces_to_chart_ids(indices: np.ndarray) -> np.ndarray:
+    """Chart = connected component of faces adjacent iff they share a (non-seam-duplicated) UV vertex."""
+    F = indices.shape[0]
+    if F == 0:
+        return np.empty(0, dtype=np.int64)
+    _sk, fid, _lo, _hi, first = _uv_sorted_edge_keys(indices)
+    group_id = np.cumsum(first) - 1
+    starts = np.nonzero(first)[0]
+    rows = fid[starts[group_id[~first]]]
+    cols = fid[~first]
+    if rows.size == 0:
+        return np.arange(F, dtype=np.int64)
+    adj = csr_matrix((np.ones(rows.size, dtype=np.int8), (rows, cols)), shape=(F, F))
+    _, labels = connected_components(adj, directed=False)
+    return labels.astype(np.int64)
+
+
+_UV_TAB20 = np.array([
+    [0.121568627, 0.466666667, 0.705882353], [0.682352941, 0.780392157, 0.909803922],
+    [1.000000000, 0.498039216, 0.054901961], [1.000000000, 0.733333333, 0.470588235],
+    [0.172549020, 0.627450980, 0.172549020], [0.596078431, 0.874509804, 0.541176471],
+    [0.839215686, 0.152941176, 0.156862745], [1.000000000, 0.596078431, 0.588235294],
+    [0.580392157, 0.403921569, 0.741176471], [0.772549020, 0.690196078, 0.835294118],
+    [0.549019608, 0.337254902, 0.294117647], [0.768627451, 0.611764706, 0.580392157],
+    [0.890196078, 0.466666667, 0.760784314], [0.968627451, 0.713725490, 0.823529412],
+    [0.498039216, 0.498039216, 0.498039216], [0.780392157, 0.780392157, 0.780392157],
+    [0.737254902, 0.741176471, 0.133333333], [0.858823529, 0.858823529, 0.552941176],
+    [0.090196078, 0.745098039, 0.811764706], [0.619607843, 0.854901961, 0.898039216],
+], dtype=np.float32)
+
+
+def _uv_palette(n: int) -> np.ndarray:
+    rng = np.random.RandomState(42)
+    perm = rng.permutation(max(1, n))
+    out = np.empty((n, 3), dtype=np.float32)
+    for i in range(n):
+        out[i] = _UV_TAB20[perm[i % len(perm)] % 20]
+    return out
+
+
+def _uv_render_atlas(uvs_np, indices_np, resolution, device,
+                     bg=(0.13, 0.13, 0.13), edge=(0.0, 0.0, 0.0)):
+    """Tile-based torch rasterizer of the UV atlas (charts colored, borders outlined); returns (H,W,3)."""
+    w = h = int(resolution)
+    chart_ids_np = _uv_faces_to_chart_ids(indices_np)
+    uvs = torch.from_numpy(uvs_np).to(device=device, dtype=torch.float32)
+    indices = torch.from_numpy(indices_np).to(device=device, dtype=torch.long)
+    chart_ids = torch.from_numpy(chart_ids_np).to(device=device, dtype=torch.long)
+
+    img = torch.zeros((h, w, 3), dtype=torch.float32, device=device)
+    img[..., 0] = bg[0]; img[..., 1] = bg[1]; img[..., 2] = bg[2]
+    if indices.numel() == 0:
+        return img
+
+    n_charts = int(chart_ids.max().item()) + 1 if chart_ids.numel() else 1
+    colors = torch.from_numpy(_uv_palette(n_charts)).to(device=device, dtype=torch.float32)
+
+    uv_px = uvs.clone()
+    uv_px[:, 0] = uv_px[:, 0].clamp(0.0, 1.0) * (w - 1)
+    uv_px[:, 1] = uv_px[:, 1].clamp(0.0, 1.0) * (h - 1)
+
+    tri = uv_px[indices]
+    x0 = tri[:, 0, 0]; y0 = tri[:, 0, 1]
+    x1 = tri[:, 1, 0]; y1 = tri[:, 1, 1]
+    x2 = tri[:, 2, 0]; y2 = tri[:, 2, 1]
+    denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+    nondegen = denom.abs() > 1e-20
+
+    xmin = torch.minimum(torch.minimum(x0, x1), x2).floor().clamp_(0, w - 1).long()
+    xmax = torch.maximum(torch.maximum(x0, x1), x2).ceil().clamp_(0, w - 1).long()
+    ymin = torch.minimum(torch.minimum(y0, y1), y2).floor().clamp_(0, h - 1).long()
+    ymax = torch.maximum(torch.maximum(y0, y1), y2).ceil().clamp_(0, h - 1).long()
+
+    # full point-in-triangle over all (pixel, tri) pairs is O(H*W*F); tile and test only bbox-overlapping tris
+    TILE = 64
+    eps = 1e-6
+    for ty in range(0, h, TILE):
+        ty_end = min(ty + TILE, h)
+        for tx in range(0, w, TILE):
+            tx_end = min(tx + TILE, w)
+            tri_mask = (nondegen & (xmin < tx_end) & (xmax >= tx)
+                        & (ymin < ty_end) & (ymax >= ty))
+            if not tri_mask.any():
+                continue
+            idx = torch.nonzero(tri_mask, as_tuple=True)[0]
+            ys = torch.arange(ty, ty_end, dtype=torch.float32, device=device) + 0.5
+            xs = torch.arange(tx, tx_end, dtype=torch.float32, device=device) + 0.5
+            yy, xx = torch.meshgrid(ys, xs, indexing="ij")
+            sub_x0 = x0[idx][:, None, None]; sub_y0 = y0[idx][:, None, None]
+            sub_x1 = x1[idx][:, None, None]; sub_y1 = y1[idx][:, None, None]
+            sub_x2 = x2[idx][:, None, None]; sub_y2 = y2[idx][:, None, None]
+            sub_den = denom[idx][:, None, None]
+            bx = ((sub_y1 - sub_y2) * (xx - sub_x2) + (sub_x2 - sub_x1) * (yy - sub_y2)) / sub_den
+            by = ((sub_y2 - sub_y0) * (xx - sub_x2) + (sub_x0 - sub_x2) * (yy - sub_y2)) / sub_den
+            bz = 1.0 - bx - by
+            inside = (bx >= -eps) & (by >= -eps) & (bz >= -eps)
+            if not inside.any():
+                continue
+            hit_any = inside.any(dim=0)
+            best_tri = idx[inside.int().argmax(dim=0)]
+            tile_color = colors[chart_ids[best_tri]]
+            tile_img = img[ty:ty_end, tx:tx_end]
+            tile_img[hit_any] = tile_color[hit_any]
+            img[ty:ty_end, tx:tx_end] = tile_img
+
+    # chart outlines: a chart border is an open boundary in UV space (seam verts duplicated) → edges with 1 incident face
+    _sk, _fid, lo, hi, first = _uv_sorted_edge_keys(indices_np)
+    starts = np.nonzero(first)[0]
+    counts = np.diff(np.append(starts, first.size))
+    boundary = counts == 1
+    uv_cpu = uv_px.cpu().numpy()
+    px_xs, px_ys = [], []
+    for a, b in zip(lo[starts[boundary]], hi[starts[boundary]]):
+        p0 = uv_cpu[a]; p1 = uv_cpu[b]
+        steps = int(max(abs(p1[0] - p0[0]), abs(p1[1] - p0[1])) + 1)
+        if steps <= 1:
+            continue
+        ts = np.linspace(0.0, 1.0, steps)
+        xs = (p0[0] + (p1[0] - p0[0]) * ts).astype(np.int32)
+        ys = (p0[1] + (p1[1] - p0[1]) * ts).astype(np.int32)
+        valid = (xs >= 0) & (xs < w) & (ys >= 0) & (ys < h)
+        px_xs.append(xs[valid]); px_ys.append(ys[valid])
+    if px_xs:
+        xs_all = torch.from_numpy(np.concatenate(px_xs)).to(device=device, dtype=torch.long)
+        ys_all = torch.from_numpy(np.concatenate(px_ys)).to(device=device, dtype=torch.long)
+        img[ys_all, xs_all] = torch.tensor(edge, dtype=torch.float32, device=device)
+
+    return img
+
+
+class RenderUVAtlas(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="RenderUVAtlas",
+            display_name="Render UV Atlas",
+            category="latent/3d",
+            description=("Renders a mesh's UV layout as an image — each chart a distinct color, "
+                         "outlined where it borders other charts. Run UnwrapMesh first."),
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.Int.Input("resolution", default=1024, min=64, max=4096, step=64),
+            ],
+            outputs=[IO.Image.Output("image")],
+        )
+
+    @classmethod
+    def execute(cls, mesh, resolution):
+        uvs_t = getattr(mesh, "uvs", None)
+        if uvs_t is None:
+            raise RuntimeError("mesh has no UVs to render. Run UnwrapMesh first.")
+        uvs_np = uvs_t.detach().cpu().numpy()
+        if uvs_np.ndim == 3:
+            uvs_np = uvs_np[0]
+        f = mesh.faces
+        if torch.is_tensor(f):
+            f = f.detach().cpu().numpy()
+        if f.ndim == 3:
+            f = f[0]
+        f = np.ascontiguousarray(f, dtype=np.int64)
+        uvs_np = np.ascontiguousarray(uvs_np, dtype=np.float32)
+        device = comfy.model_management.get_torch_device()
+        img = _uv_render_atlas(uvs_np, f, int(resolution), device)
+        return IO.NodeOutput(img.detach().cpu().unsqueeze(0))
+
+
 class FillHoles(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -2379,6 +2950,9 @@ class PostProcessMeshExtension(ComfyExtension):
             FillHolesV2,
             WeldVertices,
             DecimateMesh,
+            RemeshMesh,
+            UnwrapMesh,
+            RenderUVAtlas,
             PaintMesh,
             BakeTextureFromVoxel,
             MeshTextureToImage,
