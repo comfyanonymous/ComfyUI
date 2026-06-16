@@ -100,8 +100,7 @@ class SoniloTextToMusic(IO.ComfyNode):
             node_id="SoniloTextToMusic",
             display_name="Sonilo Text to Music",
             category="partner/audio/Sonilo",
-            description="Generate music from a text prompt using Sonilo's AI model. "
-            "Leave duration at 0 to let the model infer it from the prompt.",
+            description="Generate music from a text prompt using Sonilo's AI model.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -135,13 +134,7 @@ class SoniloTextToMusic(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""
-                (
-                  widgets.duration > 0
-                    ? {"type":"usd","usd": 0.005 * widgets.duration}
-                    : {"type":"usd","usd": 0.005, "format":{"suffix":"/second"}}
-                )
-                """,
+                expr='{"type":"usd","usd": 0.0025 * widgets.duration}',
             ),
         )
 
