@@ -95,7 +95,7 @@ def _make_asset(
 def _ensure_missing_tag(session: Session):
     """Ensure the 'missing' tag exists."""
     if not session.get(Tag, "missing"):
-        session.add(Tag(name="missing", tag_type="system"))
+        session.add(Tag(name="missing"))
         session.flush()
 
 

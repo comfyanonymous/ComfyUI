@@ -14,8 +14,8 @@ class RTDETR_detect(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="RTDETR_detect",
-            display_name="RT-DETR Detect",
-            category="detection/",
+            display_name="Run Real-Time Detection (RT-DETR)",
+            category="image/detection",
             search_aliases=["bbox", "bounding box", "object detection", "coco"],
             inputs=[
                 io.Model.Input("model", display_name="model"),
@@ -32,10 +32,12 @@ class RTDETR_detect(io.ComfyNode):
     def execute(cls, model, image, threshold, class_name, max_detections) -> io.NodeOutput:
         B, H, W, C = image.shape
 
-        image_in = comfy.utils.common_upscale(image.movedim(-1, 1), 640, 640, "bilinear", crop="disabled")
-
         comfy.model_management.load_model_gpu(model)
-        results = model.model.diffusion_model(image_in, (W, H))  # list of B dicts
+        results = []
+        for i in range(0, B, 32):
+            batch = image[i:i + 32]
+            image_in = comfy.utils.common_upscale(batch.movedim(-1, 1), 640, 640, "bilinear", crop="disabled")
+            results.extend(model.model.diffusion_model(image_in, (W, H)))
 
         all_bbox_dicts = []
 
@@ -69,7 +71,7 @@ class DrawBBoxes(io.ComfyNode):
         return io.Schema(
             node_id="DrawBBoxes",
             display_name="Draw BBoxes",
-            category="detection/",
+            category="image/detection",
             search_aliases=["bbox", "bounding box", "object detection", "rt_detr", "visualize detections", "coco"],
             inputs=[
                 io.Image.Input("image", optional=True),

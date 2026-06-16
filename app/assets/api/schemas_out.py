@@ -10,6 +10,7 @@ class Asset(BaseModel):
 
     id: str
     name: str
+    hash: str | None = None
     asset_hash: str | None = None
     size: int | None = None
     mime_type: str | None = None
@@ -40,12 +41,13 @@ class AssetsList(BaseModel):
     assets: list[Asset]
     total: int
     has_more: bool
+    # Opaque cursor for the next page. Omitted when there are no more results.
+    next_cursor: str | None = None
 
 
 class TagUsage(BaseModel):
     name: str
     count: int
-    type: str
 
 
 class TagsList(BaseModel):

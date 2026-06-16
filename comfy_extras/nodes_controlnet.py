@@ -9,7 +9,7 @@ class SetUnionControlNetType(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SetUnionControlNetType",
-            category="conditioning/controlnet",
+            category="model/conditioning/controlnet",
             inputs=[
                 io.ControlNet.Input("control_net"),
                 io.Combo.Input("type", options=["auto"] + list(UNION_CONTROLNET_TYPES.keys())),
@@ -39,7 +39,7 @@ class ControlNetInpaintingAliMamaApply(io.ComfyNode):
         return io.Schema(
             node_id="ControlNetInpaintingAliMamaApply",
             search_aliases=["masked controlnet"],
-            category="conditioning/controlnet",
+            category="model/conditioning/controlnet",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
