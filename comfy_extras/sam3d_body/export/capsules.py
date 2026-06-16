@@ -18,13 +18,11 @@ import comfy.model_management
 
 from .glb_shared import (
     OPENPOSE_18_PAIRS,
-    OPENPOSE18_TO_MHR70,
     OPENPOSE_RAINBOW_18,
     SCAIL_LIMB_COLORS_17,
     OPENPOSE_HAND_PAIRS,
-    OPENPOSE_HAND21_TO_MHR70_R,
-    OPENPOSE_HAND21_TO_MHR70_L,
     OPENPOSE_HAND_COLORS_21,
+    openpose_render_keypoints,
 )
 
 
@@ -37,6 +35,7 @@ def _limb_palette_rgb01(palette: str) -> np.ndarray:
 
 def _build_specs_from_pose(
     persons: List[Dict[str, Any]],
+    pose_data: Dict[str, Any],
     *,
     include_hands: bool,
     palette: str,
@@ -61,17 +60,14 @@ def _build_specs_from_pose(
     falloff = max(0.0, min(1.0, float(person_brightness_falloff)))
 
     for k, person in enumerate(persons):
-        kp2d_full = person.get("pred_keypoints_3d")
         cam_t = person.get("pred_cam_t")
-        if kp2d_full is None or cam_t is None:
-            continue
-        kp = np.asarray(kp2d_full, dtype=np.float32)
-        if kp.ndim != 2 or kp.shape[1] != 3 or kp.shape[0] < 70:
+        body_op = openpose_render_keypoints(person, pose_data, "body", dim=3)
+        if body_op is None or cam_t is None:
             continue
         cam_t_np = np.asarray(cam_t, dtype=np.float32).reshape(3)
-        # pred_keypoints_3d is camera frame (Y-down post-flip); add cam_t to
-        # place the subject in front of the camera.
-        kp_cam = kp + cam_t_np[None, :]
+        # op-keypoints are camera frame (Y-down); add cam_t to place the
+        # subject in front of the camera.
+        body_kp = body_op + cam_t_np[None, :]
 
         pastel = 0.0 if k == 0 else (1.0 - falloff ** k)
 
@@ -83,7 +79,6 @@ def _build_specs_from_pose(
         # SCAIL skips face bones (13..16) and redirects limb 12 into a short
         # head stub blending spine + neck→nose direction.
         body_limb_count = 13 if palette == "scail" else len(OPENPOSE_18_PAIRS)
-        body_kp = kp_cam[OPENPOSE18_TO_MHR70]
         spine_dir = None
         if palette == "scail":
             mid_hip = 0.5 * (body_kp[8] + body_kp[11])  # 8=RHip, 11=LHip
@@ -117,10 +112,11 @@ def _build_specs_from_pose(
                                    dtype=np.float32))
 
         if include_hands:
-            r_kp = kp_cam[OPENPOSE_HAND21_TO_MHR70_R]
-            l_kp = kp_cam[OPENPOSE_HAND21_TO_MHR70_L]
+            hand_ops = [openpose_render_keypoints(person, pose_data, p, dim=3)
+                        for p in ("hand_r", "hand_l")]
+            hand_kps = [h + cam_t_np[None, :] for h in hand_ops if h is not None]
             for limb_i, (a, b) in enumerate(OPENPOSE_HAND_PAIRS):
-                for hand_kp in (r_kp, l_kp):
+                for hand_kp in hand_kps:
                     sa, sb = hand_kp[a], hand_kp[b]
                     if not (np.all(np.isfinite(sa)) and np.all(np.isfinite(sb))):
                         continue
@@ -380,7 +376,7 @@ def render_pose_data_capsules(
     cx, cy = W * 0.5, H * 0.5
 
     starts_np, ends_np, colors_np, is_hand_np = _build_specs_from_pose(
-        persons, include_hands=include_hands, palette=palette,
+        persons, pose_data, include_hands=include_hands, palette=palette,
         person_brightness_falloff=person_brightness_falloff,
     )
 

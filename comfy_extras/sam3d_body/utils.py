@@ -178,6 +178,12 @@ def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, 
 
     center = np.array([W * 0.5, H * 0.5], dtype=np.float32)
     reproj = {"pred_keypoints_3d": "pred_keypoints_2d", "pred_face_keypoints_3d": "pred_face_keypoints_2d"}
+    # External rigs (e.g. Kimodo) store pred_joint_coords rig-native Y-up; the
+    # render openpose/scail keypoint provider resolves from them and flips Y/Z.
+    # Transform them through the camera too (in camera space, then back to Y-up)
+    # so those keypoints follow the override instead of staying in the old frame.
+    override = mhr_pose_data.get("_skeleton_override")
+    joints_y_up = override is not None and not bool(override.get("per_frame_y_down", False))
     new_frames: List[List[Dict[str, Any]]] = []
     for frame in mhr_pose_data["frames"]:
         scaled = []
@@ -197,6 +203,17 @@ def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, 
                 if k in reproj:  # re-project the new 3D to 2D image coords
                     z = np.maximum(cam[..., 2:3], 1e-6)
                     p[reproj[k]] = (cam[..., :2] * new_focal / z + center).astype(np.float32)
+            jc = p.get("pred_joint_coords")
+            if jc is not None:
+                jc = np.asarray(jc, dtype=np.float32).copy()
+                if joints_y_up:
+                    jc[..., 1] *= -1.0
+                    jc[..., 2] *= -1.0
+                jc = (jc + cam_t - eye) @ R.T
+                if joints_y_up:
+                    jc[..., 1] *= -1.0
+                    jc[..., 2] *= -1.0
+                p["pred_joint_coords"] = jc.astype(np.float32)
             p["pred_cam_t"] = np.zeros(3, dtype=np.float32)
             p["focal_length"] = np.array(new_focal, dtype=np.float32)
             scaled.append(p)

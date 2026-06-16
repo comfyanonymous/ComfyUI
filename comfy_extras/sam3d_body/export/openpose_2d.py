@@ -19,10 +19,8 @@ from PIL import Image
 from comfy_extras.pose.keypoint_draw import KeypointDraw
 
 from .glb_shared import (
-    OPENPOSE18_TO_MHR70,
-    OPENPOSE_HAND21_TO_MHR70_L,
-    OPENPOSE_HAND21_TO_MHR70_R,
     OPENPOSE_HAND_COLORS_21,
+    openpose_render_keypoints,
     select_face_landmark_vert_ids,
 )
 
@@ -53,32 +51,31 @@ def _project_face_landmarks_2d(
 
 
 def _pack_dwpose_134(
-    person: Dict[str, Any], *, include_body: bool, include_hands: bool,
+    person: Dict[str, Any], pose_data: Dict[str, Any], *,
+    include_body: bool, include_hands: bool, H: int, W: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Pack a SAM3D person dict into (kp, scores): (134, 2) DWPose-layout
     coords + (134,) confidence. Face slot (24-91) is left zeroed; face dots
     are drawn separately so SAM3D's 238-sapiens / rig-fallback counts work.
-    Non-finite or out-of-band entries get score=0 and are filtered downstream."""
+    Non-finite or out-of-band entries get score=0 and are filtered downstream.
+
+    Keypoints come from the shared provider: MHR reindexes `pred_keypoints_2d`,
+    external rigs (Kimodo) resolve + project from `pred_joint_coords`."""
     kp = np.zeros((134, 2), dtype=np.float32)
     scores = np.zeros(134, dtype=np.float32)
 
-    kp2d_full = person.get("pred_keypoints_2d")
-    if kp2d_full is None:
-        return kp, scores
-    kp2d = np.asarray(kp2d_full, dtype=np.float32)
-    if kp2d.ndim != 2 or kp2d.shape[1] != 2 or kp2d.shape[0] < 70:
-        return kp, scores
-
     if include_body:
-        body_xy = kp2d[OPENPOSE18_TO_MHR70]
-        finite = np.isfinite(body_xy).all(axis=1)
-        kp[:18][finite] = body_xy[finite]
-        scores[:18][finite] = 1.0
+        body_xy = openpose_render_keypoints(person, pose_data, "body", dim=2, H=H, W=W)
+        if body_xy is not None:
+            finite = np.isfinite(body_xy).all(axis=1)
+            kp[:18][finite] = body_xy[finite]
+            scores[:18][finite] = 1.0
 
     if include_hands:
-        for slot_start, mhr_idx in ((92, OPENPOSE_HAND21_TO_MHR70_R),
-                                    (113, OPENPOSE_HAND21_TO_MHR70_L)):
-            hand_xy = kp2d[mhr_idx]
+        for slot_start, part in ((92, "hand_r"), (113, "hand_l")):
+            hand_xy = openpose_render_keypoints(person, pose_data, part, dim=2, H=H, W=W)
+            if hand_xy is None:
+                continue
             finite = np.isfinite(hand_xy).all(axis=1)
             kp[slot_start:slot_start + 21][finite] = hand_xy[finite]
             scores[slot_start:slot_start + 21][finite] = 1.0
@@ -190,7 +187,8 @@ def render_pose_data_openpose(
         pre = canvas.copy() if pastel > 0 else None
 
         kp134, scores134 = _pack_dwpose_134(
-            person, include_body=include_body, include_hands=include_hands,
+            person, pose_data, include_body=include_body,
+            include_hands=include_hands, H=H, W=W,
         )
         _KD.draw_wholebody_keypoints(
             canvas, kp134, scores=scores134, threshold=0.5,

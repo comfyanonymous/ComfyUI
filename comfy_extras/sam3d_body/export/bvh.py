@@ -16,10 +16,9 @@ from typing import Any, Dict, List
 import numpy as np
 
 from .glb_shared import (
-    bind_skel_state,
+    Rig,
     bone_locals_from_globals,
     collect_tracks,
-    extract_rig_static,
     global_skel_state_from_pose_data,
     quat_sign_fix_per_joint,
     unflip,
@@ -49,9 +48,14 @@ def _quat_to_zxy_euler_deg(quat: np.ndarray) -> np.ndarray:
     return out.astype(np.float32)
 
 
-def _find_bvh_root(parents: np.ndarray) -> int:
+def _find_bvh_root(parents: np.ndarray, is_external: bool = False) -> int:
     """First child of the rig's world anchor so the static origin→body stick
-    bone gets left out. Falls back to the first root joint."""
+    bone gets left out. Falls back to the first root joint.
+
+    MHR's joint 0 is a static world anchor whose single child is the pelvis, so
+    skipping it is correct. External rigs (e.g. SOMA-77) whose root is already
+    the articulated body root with multiple child chains must keep the root —
+    descending into one child would drop the sibling limbs from the BVH."""
     NJ = parents.shape[0]
     world_anchors = [j for j in range(NJ)
                      if not (0 <= int(parents[j]) < NJ and int(parents[j]) != j)]
@@ -64,6 +68,8 @@ def _find_bvh_root(parents: np.ndarray) -> int:
             children[p].append(j)
     wa = world_anchors[0]
     if children[wa]:
+        if is_external and len(children[wa]) > 1:
+            return wa
         return children[wa][0]
     return wa
 
@@ -80,7 +86,7 @@ def _build_children_map(parents: np.ndarray) -> List[List[int]]:
 
 def build_bvh(
     pose_data: Dict[str, Any],
-    model: Any,
+    model: Any = None,
     *,
     fps: float = 24.0,
     camera_translation: str = "off",
@@ -89,6 +95,10 @@ def build_bvh(
 ) -> bytes:
     """Build a BVH file from pose_data. Returns UTF-8 encoded text bytes.
 
+    `model` may be None when pose_data carries a `_skeleton_override` (external
+    rigs, e.g. Kimodo); the rig hierarchy/offsets/bind are read from the
+    override instead of the MHR model.
+
     `units` is "cm" (default, standard mocap convention) or "m". Affects the
     OFFSET and root-position values; rotations are independent of units.
     """
@@ -96,9 +106,10 @@ def build_bvh(
         raise ValueError(f"build_bvh: units must be 'cm' or 'm', got {units!r}")
     unit_scale = 100.0 if units == "cm" else 1.0
 
-    rig_static = extract_rig_static(model)
-    NJ = int(rig_static["num_joints"])
-    parents = rig_static["parents"]
+    rig = Rig.from_pose_data(pose_data, model)
+    is_external = not rig.can_rerun_fk
+    NJ = rig.num_joints
+    parents = rig.parents
     frames = pose_data["frames"]
 
     tracks = collect_tracks(pose_data, track_index)
@@ -109,16 +120,16 @@ def build_bvh(
     if n_frames == 0:
         raise ValueError("build_bvh: track has zero frames")
 
-    body_root = _find_bvh_root(parents)
+    body_root = _find_bvh_root(parents, is_external)
     children_map = _build_children_map(parents)
 
     # Bone OFFSETs come from MHR's translation_offsets (joint position
     # relative to parent in parent's local-bind frame). For the BVH root,
     # we use its bind world position so the skeleton sits at the right
     # spot when imported.
-    bind_global = bind_skel_state(model)                     # (NJ, 8) cm
+    bind_global = rig.bind_global_cm                         # (NJ, 8) cm
     bind_pos_m = bind_global[:, :3].astype(np.float64) * 0.01  # (NJ, 3) m
-    offset_m = rig_static["joint_translation_offsets"].astype(np.float64) * 0.01
+    offset_m = rig.joint_offsets_cm.astype(np.float64) * 0.01
 
     # DFS order rooted at body_root — matches per-frame channel order.
     bvh_order: List[int] = []
@@ -133,6 +144,7 @@ def build_bvh(
     # treated as the hierarchy root in BVH-space.
     rig_global_m = global_skel_state_from_pose_data(
         pose_data, frame_indices, person_k, NJ,
+        joint_coords_y_down=rig.per_frame_y_down,
     )
     rig_global_m[..., 3:7] = quat_sign_fix_per_joint(rig_global_m[..., 3:7])
     bvh_parents = parents.copy()

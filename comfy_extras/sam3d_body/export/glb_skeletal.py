@@ -24,14 +24,12 @@ import numpy as np
 
 from .glb_shared import (
     GLBWriter,
+    Rig,
     bake_vertex_colors,
-    bind_skel_state,
     bone_locals_from_globals,
     collect_tracks,
-    compact_skin_to_n,
     compute_normals,
     compute_pastel_mix,
-    extract_rig_static,
     flat_shade_mesh,
     gaussian_smooth_quats,
     global_skel_state_from_pose_data,
@@ -41,7 +39,6 @@ from .glb_shared import (
     quat_sign_fix_per_joint,
     rotation_align,
     unflip,
-    zero_pose_rest_verts,
 )
 
 from comfy_extras.sam3d_body.utils import jet_colormap
@@ -220,30 +217,22 @@ def build_glb_skeletal(
     if not tracks:
         raise ValueError("build_glb_skeletal: no valid tracks in pose_data")
 
-    rig_static = extract_rig_static(model, pose_data)
-    NJ = rig_static["num_joints"]
-    NV = rig_static["num_verts"]
-    NEXPR = rig_static["num_expr"]
-    parents = rig_static["parents"]
-    is_external = bool(rig_static.get("_external", False))
-    if is_external:
+    rig = Rig.from_pose_data(pose_data, model)
+    NJ = rig.num_joints
+    NV = rig.num_verts
+    NEXPR = rig.num_expr
+    parents = rig.parents
+    if not rig.can_rerun_fk:
         # External rigs have no PCA pose params to re-run; only stored globals
-        # are available, and kimodo stores joint coords already Y-up.
+        # are available, and they store joint coords already Y-up.
         use_stored_global_rots = True
-    joint_coords_y_down = not is_external
-    # Compact sparse skinning to 8 influences per vertex into glTF's two
-    # JOINTS_*/WEIGHTS_* sets. MHR averages ~2.8 influences/vert but some
-    # shoulder/hip verts have 5-8 where multiple joints cancel — keeping only
-    # 4 there leaks per-bone rotation noise into the rendered mesh.
-    if is_external:
-        joints_8 = rig_static["lbs_compact_joints"]
-        weights_8 = rig_static["lbs_compact_weights"]
-        actual_max_inf = rig_static["lbs_compact_max_inf"]
-    else:
-        joints_8, weights_8, actual_max_inf = compact_skin_to_n(
-            rig_static["lbs_skin_indices"], rig_static["lbs_vert_indices"],
-            rig_static["lbs_skin_weights"], NV, max_inf=8,
-        )
+    joint_coords_y_down = rig.per_frame_y_down
+    # Skinning is already compacted to ≤8 influences per vertex (MHR averages
+    # ~2.8 but some shoulder/hip verts hit 5-8; keeping only 4 there leaks
+    # per-bone rotation noise into the rendered mesh).
+    joints_8 = rig.lbs_joints
+    weights_8 = rig.lbs_weights
+    actual_max_inf = rig.lbs_max_inf
     joints_set0 = np.ascontiguousarray(joints_8[:, :4])
     weights_set0 = np.ascontiguousarray(weights_8[:, :4])
     use_set1 = actual_max_inf > 4
@@ -252,10 +241,8 @@ def build_glb_skeletal(
     # Derive bone locals from the rig's bind globals rather than recomputing
     # FK ourselves, so any mismatch between `parents` and the rig's actual FK
     # is absorbed into the local TRS instead of producing wrong globals.
-    bind_global_cm = bind_skel_state(model, pose_data)
-    bind_global_m = bind_global_cm.copy().astype(np.float32)
-    bind_global_m[:, :3] *= 0.01
-    bind_local = bone_locals_from_globals(bind_global_m[None], rig_static["parents"])[0]
+    bind_global_m = rig.bind_global_m
+    bind_local = bone_locals_from_globals(bind_global_m[None], parents)[0]
 
     # IBP = inverse of bind global. With bone defaults set to bind_local and
     # FK composed via `parents`, skin_matrix at rest = identity.
@@ -280,7 +267,7 @@ def build_glb_skeletal(
 
     expr_morph_accs: List[int] = []
     if include_face_morphs and NEXPR > 0:
-        eb = rig_static["expr_basis"].astype(np.float32) * 0.01
+        eb = rig.expr_basis.astype(np.float32) * 0.01
         for e in range(NEXPR):
             expr_morph_accs.append(w.add_vec3_f32_no_minmax(eb[e]))
 
@@ -329,16 +316,14 @@ def build_glb_skeletal(
         body_mesh_node_idx: Optional[int] = None
 
         if include_body:
-            # External rigs have no PCA shape — `zero_pose_rest_verts` short-
-            # circuits to `pose_data["_skeleton_override"]["rest_verts_m"]`,
-            # so zeroed shape_params is safe there.
-            if is_external:
-                shape_params_arr = np.zeros(0, dtype=np.float32)
-            else:
-                shape_params_arr = np.asarray(
-                    frames[frame_indices[0]][person_k]["shape_params"], dtype=np.float32,
-                )
-            rest_v = zero_pose_rest_verts(model, shape_params_arr, pose_data=pose_data)
+            # MHR rest verts depend on the subject's shape_params; external rigs
+            # ship fixed rest verts and ignore the arg (so the empty external
+            # `shape_params` is harmless).
+            shape_params_arr = np.asarray(
+                frames[frame_indices[0]][person_k].get("shape_params", []),
+                dtype=np.float32,
+            )
+            rest_v = rig.rest_verts_m(shape_params_arr)
             normals = compute_normals(rest_v, faces_native)
             positions_acc = w.add_vec3_f32(rest_v)
             normals_acc = w.add_vec3_f32(normals)
@@ -393,7 +378,7 @@ def build_glb_skeletal(
             color_idx_per_vert: Optional[np.ndarray] = None
             hw = float(bone_vis_radius_m)
             bv_v, bv_n, bv_f, bv_j, bv_w, child_per_vert = _build_bone_octahedrons_mesh(
-                bind_global_m[:, :3], rig_static["parents"], half_width_m=hw,
+                bind_global_m[:, :3], parents, half_width_m=hw,
             )
             if bv_v.shape[0] > 0:
                 F = bv_f.shape[0]
@@ -458,7 +443,7 @@ def build_glb_skeletal(
         # local translation (t_local inherits parent sign via q_parent_inv)
         # and produces visible "axis resets" mid-animation.
         rig_global_m[..., 3:7] = quat_sign_fix_per_joint(rig_global_m[..., 3:7])
-        bone_local_anim = bone_locals_from_globals(rig_global_m, rig_static["parents"])
+        bone_local_anim = bone_locals_from_globals(rig_global_m, parents)
         local_t = bone_local_anim[..., :3].astype(np.float32)
         local_q = bone_local_anim[..., 3:7].astype(np.float32)
         local_s = bone_local_anim[..., 7].astype(np.float32)

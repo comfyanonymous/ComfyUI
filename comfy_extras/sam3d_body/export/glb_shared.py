@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import struct
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -505,9 +506,15 @@ def extract_rig_static(model: Any, pose_data: Optional[Dict[str, Any]] = None) -
         # so we don't need MHR's PCA pose / expression bases.
         parents = np.asarray(override["parents"], dtype=np.int32)
         rest_v = np.asarray(override["rest_verts_m"], dtype=np.float32)
+        # BVH needs parent-relative bone OFFSETs (cm). MHR ships these directly;
+        # external rigs only give bind globals, so derive locals from them.
+        bind_global_m = np.asarray(override["bind_global_m"], dtype=np.float32)
+        local_bind = bone_locals_from_globals(bind_global_m[None], parents)[0]
+        joint_translation_offsets = (local_bind[:, :3] * 100.0).astype(np.float32)
         return {
             "parents": parents,
             "parents_pmi": parents,
+            "joint_translation_offsets": joint_translation_offsets,  # (NJ, 3) cm
             "lbs_compact_joints": np.asarray(override["lbs_compact_joints"], dtype=np.uint16),
             "lbs_compact_weights": np.asarray(override["lbs_compact_weights"], dtype=np.float32),
             "lbs_compact_max_inf": int(override.get("lbs_compact_max_inf", 4)),
@@ -735,6 +742,77 @@ def bind_skel_state(model: Any, pose_data: Optional[Dict[str, Any]] = None) -> n
         return bind_m
     zero_mp = np.zeros((1, 204), dtype=np.float32)
     return global_skel_state_per_frame(model, zero_mp)[0]
+
+
+@dataclass
+class Rig:
+    """Normalized static rig for the GLB/BVH exporters, independent of where it
+    came from: an MHR model (`Rig.from_pose_data(pose_data, model)`) or an inline
+    `pose_data["_skeleton_override"]` (external rigs, e.g. ComfyUI-Kimodo).
+
+    Consumers read these fields and never branch on the source. The only
+    source-dependent operation is `rest_verts_m` — MHR rest verts depend on the
+    subject's `shape_params`; external rigs ship fixed rest verts.
+    """
+    parents: np.ndarray             # (NJ,) int32, -1 = root
+    joint_offsets_cm: np.ndarray    # (NJ, 3) parent-relative bind offsets, cm
+    bind_global_cm: np.ndarray      # (NJ, 8) bind global [t cm | q xyzw | s]
+    lbs_joints: np.ndarray          # (V, 8) uint16 — compacted skin influences
+    lbs_weights: np.ndarray         # (V, 8) f32
+    lbs_max_inf: int                # ≤ 8; lets callers skip JOINTS_1 when ≤ 4
+    faces: np.ndarray               # (F, 3) uint32
+    num_joints: int
+    num_verts: int
+    num_expr: int                   # 0 = no face morphs
+    per_frame_y_down: bool          # pred_joint_coords stored y-down (MHR) vs y-up (external)
+    can_rerun_fk: bool              # True = per-frame FK re-runnable from mhr_model_params
+    expr_basis: Optional[np.ndarray] = None      # (E, V, 3) cm — MHR only
+    _model: Any = None
+    _rest_override: Optional[np.ndarray] = None  # (V, 3) m — external only
+
+    @property
+    def bind_global_m(self) -> np.ndarray:
+        b = self.bind_global_cm.astype(np.float32).copy()
+        b[:, :3] *= 0.01
+        return b
+
+    def rest_verts_m(self, shape_params: np.ndarray) -> np.ndarray:
+        """Zero-pose rest verts (V, 3) in rig-native Y-up metres."""
+        if self._rest_override is not None:
+            return self._rest_override
+        return zero_pose_rest_verts(self._model, shape_params)
+
+    @classmethod
+    def from_pose_data(cls, pose_data: Optional[Dict[str, Any]], model: Any = None) -> "Rig":
+        rs = extract_rig_static(model, pose_data)
+        external = bool(rs.get("_external", False))
+        if external:
+            joints8 = np.asarray(rs["lbs_compact_joints"], dtype=np.uint16)
+            weights8 = np.asarray(rs["lbs_compact_weights"], dtype=np.float32)
+            max_inf = int(rs["lbs_compact_max_inf"])
+            override = _get_skeleton_override(pose_data) or {}
+            per_y_down = bool(override.get("per_frame_y_down", False))
+            rest_override = np.asarray(override["rest_verts_m"], dtype=np.float32)
+            expr_basis = None
+        else:
+            joints8, weights8, max_inf = compact_skin_to_n(
+                rs["lbs_skin_indices"], rs["lbs_vert_indices"],
+                rs["lbs_skin_weights"], int(rs["num_verts"]), max_inf=8,
+            )
+            per_y_down = True
+            rest_override = None
+            expr_basis = rs["expr_basis"] if int(rs["num_expr"]) > 0 else None
+        return cls(
+            parents=np.asarray(rs["parents"], dtype=np.int32),
+            joint_offsets_cm=np.asarray(rs["joint_translation_offsets"], dtype=np.float32),
+            bind_global_cm=np.asarray(bind_skel_state(model, pose_data), dtype=np.float32),
+            lbs_joints=joints8, lbs_weights=weights8, lbs_max_inf=max_inf,
+            faces=np.asarray(rs["faces"], dtype=np.uint32),
+            num_joints=int(rs["num_joints"]), num_verts=int(rs["num_verts"]),
+            num_expr=int(rs["num_expr"]),
+            per_frame_y_down=per_y_down, can_rerun_fk=not external,
+            expr_basis=expr_basis, _model=model, _rest_override=rest_override,
+        )
 
 
 def ibp_from_bind_global(bind_skel_state_m: np.ndarray) -> np.ndarray:
@@ -1067,6 +1145,87 @@ OPENPOSE_HAND_COLORS_21 = (np.array([
 DWPOSE_HAND_COLORS_21 = np.tile(
     np.array([[0.0, 0.0, 1.0]], dtype=np.float32), (21, 1)
 )
+
+
+def resolve_openpose_keypoints_from_joints(
+    joints: np.ndarray, mapping: np.ndarray, weights: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """(K, 2) joint-index map resolved against (J, D) joint positions -> (K, D).
+    Row (a, b): b == -1 uses joints[a]; b >= 0 returns w*joints[a]+(1-w)*joints[b]
+    (w defaults 0.5 = midpoint; w outside [0, 1] extrapolates past the segment)."""
+    a = mapping[:, 0].astype(np.int64)
+    b = mapping[:, 1].astype(np.int64)
+    pos_a = joints[a]
+    has_b = b >= 0
+    if not has_b.any():
+        return pos_a.astype(np.float32, copy=False)
+    b_safe = np.where(has_b, b, a)
+    pos_b = joints[b_safe]
+    if weights is None:
+        w_a = np.where(has_b, 0.5, 1.0).astype(np.float32)
+    else:
+        w_a = np.where(has_b, np.asarray(weights, dtype=np.float32), 1.0)
+    w_b = (1.0 - w_a).astype(np.float32)
+    out = pos_a * w_a[:, None] + pos_b * w_b[:, None]
+    return out.astype(np.float32, copy=False)
+
+
+# part -> (override map key, override weight key, MHR70 reindex map)
+_OPENPOSE_RENDER_MAPS = {
+    "body": ("openpose18_joint_indices", "openpose18_joint_weights", OPENPOSE18_TO_MHR70),
+    "hand_r": ("openpose_hand21_r_joint_indices", "openpose_hand21_r_joint_weights", OPENPOSE_HAND21_TO_MHR70_R),
+    "hand_l": ("openpose_hand21_l_joint_indices", "openpose_hand21_l_joint_weights", OPENPOSE_HAND21_TO_MHR70_L),
+}
+
+
+def openpose_render_keypoints(
+    person: Dict[str, Any], pose_data: Optional[Dict[str, Any]], part: str,
+    *, dim: int, H: int = 0, W: int = 0,
+) -> Optional[np.ndarray]:
+    """OpenPose keypoints for one person, in op-layout, CAMERA frame (Y-down).
+    `part` in {'body','hand_r','hand_l'}. dim=3 -> (K, 3) metres pre-cam_t-add;
+    dim=2 -> (K, 2) image pixels. Returns None when the source data is missing.
+
+    External rigs (override carries the joint-index map) resolve from per-frame
+    `pred_joint_coords` (rig-native Y-up -> flipped to camera Y-down, matching
+    the pred_vertices convention). MHR reindexes the stored
+    `pred_keypoints_{3d,2d}` via the MHR70 map."""
+    map_key, w_key, mhr_map = _OPENPOSE_RENDER_MAPS[part]
+    override = _get_skeleton_override(pose_data)
+    ext_map = override.get(map_key) if override is not None else None
+
+    if ext_map is not None:
+        joints = person.get("pred_joint_coords")
+        if joints is None:
+            return None
+        w = override.get(w_key)
+        kp3d = resolve_openpose_keypoints_from_joints(
+            np.asarray(joints, dtype=np.float32),
+            np.asarray(ext_map, dtype=np.int64),
+            None if w is None else np.asarray(w, dtype=np.float32),
+        ).copy()
+        kp3d[:, 1] *= -1.0   # rig-native Y-up -> camera Y-down
+        kp3d[:, 2] *= -1.0
+        if dim == 3:
+            return kp3d
+        cam_t = person.get("pred_cam_t")
+        focal = person.get("focal_length")
+        if cam_t is None or focal is None:
+            return None
+        pts3 = kp3d + np.asarray(cam_t, dtype=np.float32).reshape(1, 3)
+        z = np.maximum(pts3[:, 2:3], 1e-6)
+        f = float(np.asarray(focal, dtype=np.float32).reshape(-1)[0])
+        xy = pts3[:, :2] * f + np.array([W * 0.5, H * 0.5], dtype=np.float32)[None, :] * z
+        return (xy / z).astype(np.float32)
+
+    key = "pred_keypoints_3d" if dim == 3 else "pred_keypoints_2d"
+    kp_full = person.get(key)
+    if kp_full is None:
+        return None
+    kp_full = np.asarray(kp_full, dtype=np.float32)
+    if kp_full.ndim != 2 or kp_full.shape[0] < 70:
+        return None
+    return kp_full[mhr_map]
 
 
 # Face landmarks from the MHR rig (option `face_source="rig"`).

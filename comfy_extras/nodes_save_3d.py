@@ -684,8 +684,13 @@ class BuildPoseFile(IO.ComfyNode):
         fmt = format.get("format", "glb")
 
         if fmt == "bvh":
-            if sam3d_body_model is None:
-                raise ValueError("Create 3D Animation: 'bvh' format needs the `sam3d_body_model` input.")
+            # External rigs (e.g. Kimodo) supply pose_data["_skeleton_override"]
+            has_external_rig = isinstance(pose_data, dict) and ("_skeleton_override" in pose_data)
+            if sam3d_body_model is None and not has_external_rig:
+                raise ValueError(
+                    "Create 3D Animation: 'bvh' format needs the `sam3d_body_model` input OR a "
+                    "`_skeleton_override` dict in pose_data (e.g. from KimodoSample)."
+                )
             # BVH carries one skeleton; -1 (all tracks) collapses to the first.
             ti = int(track_index)
             if ti < 0:

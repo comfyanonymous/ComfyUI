@@ -40,6 +40,7 @@ from .glb_shared import (
     gaussian_smooth_positions,
     make_lit_material,
     quat_sign_fix_per_joint,
+    resolve_openpose_keypoints_from_joints,
     rotation_align,
     rotmat_to_quat_np,
     select_face_landmark_vert_ids,
@@ -109,7 +110,7 @@ def _openpose_bind_at_rig_rest(
     rest_pos = np.asarray(override["bind_global_m"], dtype=np.float32)[:, :3]
     op18_w = override.get("openpose18_joint_weights")
     parts: List[np.ndarray] = [
-        _resolve_openpose_keypoints_from_joints(
+        resolve_openpose_keypoints_from_joints(
             rest_pos, np.asarray(op18, dtype=np.int64),
             weights=None if op18_w is None else np.asarray(op18_w, dtype=np.float32),
         )
@@ -121,11 +122,11 @@ def _openpose_bind_at_rig_rest(
             return None
         op21_r_w = override.get("openpose_hand21_r_joint_weights")
         op21_l_w = override.get("openpose_hand21_l_joint_weights")
-        parts.append(_resolve_openpose_keypoints_from_joints(
+        parts.append(resolve_openpose_keypoints_from_joints(
             rest_pos, np.asarray(op21_r, dtype=np.int64),
             weights=None if op21_r_w is None else np.asarray(op21_r_w, dtype=np.float32),
         ))
-        parts.append(_resolve_openpose_keypoints_from_joints(
+        parts.append(resolve_openpose_keypoints_from_joints(
             rest_pos, np.asarray(op21_l, dtype=np.int64),
             weights=None if op21_l_w is None else np.asarray(op21_l_w, dtype=np.float32),
         ))
@@ -135,39 +136,6 @@ def _openpose_bind_at_rig_rest(
             return None
         parts.append(np.asarray(rest_verts, dtype=np.float32)[face_vert_ids])
     return np.concatenate(parts, axis=0).astype(np.float32)
-
-
-def _resolve_openpose_keypoints_from_joints(
-    joints: np.ndarray, mapping: np.ndarray,
-    weights: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """Resolve a `(K, 2)` joint-index → keypoint mapping against a per-frame
-    `(J, 3)` joint-position array.
-
-    Row `(a, b)` with `b == -1` uses `joints[a]` directly (any weight ignored).
-    Row `(a, b)` with `b >= 0` returns `w * joints[a] + (1 - w) * joints[b]`:
-      - default (weights=None): `w = 0.5` → plain midpoint, useful for
-        keypoints that genuinely lie between two joints (Nose ≈ midpoint of
-        eyes).
-      - explicit `w` outside [0, 1] EXTRAPOLATES past the line segment, which
-        is how we approximate landmarks that have no rig joint AND no
-        in-between joint pair (Ears ≈ RightEye + (RightEye − LeftEye), i.e.
-        `w_a = 2.0` along the eye→ear axis)."""
-    a = mapping[:, 0].astype(np.int64)
-    b = mapping[:, 1].astype(np.int64)
-    pos_a = joints[a]
-    has_b = b >= 0
-    if not has_b.any():
-        return pos_a.astype(np.float32, copy=False)
-    b_safe = np.where(has_b, b, a)
-    pos_b = joints[b_safe]
-    if weights is None:
-        w_a = np.where(has_b, 0.5, 1.0).astype(np.float32)
-    else:
-        w_a = np.where(has_b, np.asarray(weights, dtype=np.float32), 1.0)
-    w_b = (1.0 - w_a).astype(np.float32)
-    out = pos_a * w_a[:, None] + pos_b * w_b[:, None]
-    return out.astype(np.float32, copy=False)
 
 
 def _extract_openpose_keypoints(
@@ -219,7 +187,7 @@ def _extract_openpose_keypoints(
                     f"missing at frame={t}, track={person_k}."
                 )
             joints = np.asarray(person["pred_joint_coords"], dtype=np.float32)
-            out[t_idx] = _resolve_openpose_keypoints_from_joints(
+            out[t_idx] = resolve_openpose_keypoints_from_joints(
                 joints, op18, weights=op18_w,
             )
         return out
@@ -306,10 +274,10 @@ def _extract_openpose_hand_keypoints(
                     "per-frame `pred_joint_coords` for hands."
                 )
             joints = np.asarray(person["pred_joint_coords"], dtype=np.float32)
-            out[t_idx, :21] = _resolve_openpose_keypoints_from_joints(
+            out[t_idx, :21] = resolve_openpose_keypoints_from_joints(
                 joints, op21_r, weights=op21_r_w,
             )
-            out[t_idx, 21:] = _resolve_openpose_keypoints_from_joints(
+            out[t_idx, 21:] = resolve_openpose_keypoints_from_joints(
                 joints, op21_l, weights=op21_l_w,
             )
         return out

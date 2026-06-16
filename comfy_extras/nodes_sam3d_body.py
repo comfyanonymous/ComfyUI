@@ -34,6 +34,7 @@ from comfy_extras.sam3d_body.utils import image_to_uint8
 
 SAM3TrackData = io.Custom("SAM3_TRACK_DATA")
 MHRPoseData = io.Custom("MHR_POSE_DATA") # mhr_model_params, shape_params, expr_params, MHR70 keypoint layout, canonical_colors keyed to MHR mesh, hand_vert_mask from MHR LBS).
+KimodoPoseData = io.Custom("KIMODO_POSE_DATA") # external Y-up rig (ComfyUI-Kimodo); carries per-frame pred_vertices/pred_cam_t/canonical_colors so the mesh rasterizer is rig-agnostic.
 SAM3DBodyModel = io.Custom("SAM3D_BODY_MODEL")
 
 # Loader
@@ -827,10 +828,18 @@ class SAM3DBody_Render(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SAM3DBody_Render",
-            display_name="Render SAM3D Body",
+            display_name="Render 3D Body Pose",
+            search_aliases=["Render SAM3D Body", "sam3d render", "kimodo render"],
             category="image/detection",
             inputs=[
-                MHRPoseData.Input("mhr_pose_data"),
+                io.MultiType.Input(
+                    "pose_data", types=[MHRPoseData, KimodoPoseData],
+                    tooltip=(
+                        "MHR pose data, or external Y-up rig pose data (KimodoSample). "
+                        "All render styles work for external rigs that carry OpenPose "
+                        "joint maps in their _skeleton_override (KimodoSample does)."
+                    ),
+                ),
                 io.Image.Input(
                     "background",
                     optional=True,
@@ -882,11 +891,11 @@ class SAM3DBody_Render(io.ComfyNode):
 
 
     @classmethod
-    def execute(cls, mhr_pose_data, background=None, width=0, height=0, camera_info=None, render_style=None) -> io.NodeOutput:
+    def execute(cls, pose_data, background=None, width=0, height=0, camera_info=None, render_style=None) -> io.NodeOutput:
         render_style = render_style or {"render_style": "mesh"}
         mode_key = render_style.get("render_style", "mesh")
 
-        native_H, native_W = mhr_pose_data["image_size"]
+        native_H, native_W = pose_data["image_size"]
         new_W, new_H = int(width), int(height)
         if new_W == 0 and new_H == 0:
             H, W = native_H, native_W
@@ -896,14 +905,14 @@ class SAM3DBody_Render(io.ComfyNode):
                 new_W = max(1, round(native_W * new_H / native_H))
             elif new_H == 0:
                 new_H = max(1, round(native_H * new_W / native_W))
-            mhr_pose_data = _scale_pose_data(mhr_pose_data, new_H, new_W)
+            pose_data = _scale_pose_data(pose_data, new_H, new_W)
             H, W = new_H, new_W
             px_scale = min(new_W / native_W, new_H / native_H)
 
         if camera_info is not None:
-            mhr_pose_data = apply_camera_override(mhr_pose_data, camera_info, H, W)
+            pose_data = apply_camera_override(pose_data, camera_info, H, W)
 
-        B = len(mhr_pose_data["frames"])
+        B = len(pose_data["frames"])
         if B == 0:
             return io.NodeOutput(torch.zeros(1, H, W, 3, dtype=torch.float32))
 
@@ -951,11 +960,11 @@ class SAM3DBody_Render(io.ComfyNode):
             region = str(render_style.get("region", "full_body"))
 
             if region == "hands_only":
-                hand_mask = mhr_pose_data["hand_vert_mask"]
-                faces_full = np.asarray(mhr_pose_data["faces"])
+                hand_mask = pose_data["hand_vert_mask"]
+                faces_full = np.asarray(pose_data["faces"])
                 keep = hand_mask[faces_full].all(axis=1)
-                mhr_pose_data = dict(mhr_pose_data)
-                mhr_pose_data["faces"] = np.ascontiguousarray(
+                pose_data = dict(pose_data)
+                pose_data["faces"] = np.ascontiguousarray(
                     faces_full[keep], dtype=faces_full.dtype,
                 )
         else:  # silhouette — no shader/opacity controls, mask is binary
@@ -980,7 +989,7 @@ class SAM3DBody_Render(io.ComfyNode):
                 bg_f = bg_t[min(f, bg_t.shape[0] - 1)]
             if mode_key == "openpose_2d":
                 img = render_pose_data_openpose(
-                    mhr_pose_data, frame_idx=f, W=W, H=H,
+                    pose_data, frame_idx=f, W=W, H=H,
                     background=bg_f,
                     composite=composite,
                     marker_radius_px=marker_radius_px,
@@ -993,7 +1002,7 @@ class SAM3DBody_Render(io.ComfyNode):
                 )
             elif mode_key == "openpose_3d":
                 img = render_pose_data_capsules(
-                    mhr_pose_data, frame_idx=f, W=W, H=H,
+                    pose_data, frame_idx=f, W=W, H=H,
                     background=bg_f,
                     composite=composite,
                     radius_m=op3d_radius_m,
@@ -1005,7 +1014,7 @@ class SAM3DBody_Render(io.ComfyNode):
             elif mode_key == "scail":
                 # SCAIL renders body as 3D capsules + 2D openpose hands on top
                 img = render_pose_data_capsules(
-                    mhr_pose_data, frame_idx=f, W=W, H=H,
+                    pose_data, frame_idx=f, W=W, H=H,
                     background=bg_f,
                     composite=composite,
                     radius_m=cap_radius_m,
@@ -1017,7 +1026,7 @@ class SAM3DBody_Render(io.ComfyNode):
                     scail_overlay_px = max(1, int(round(4 * px_scale)))
                     scail_face_px = max(1, int(round(1 * px_scale)))
                     img = render_pose_data_openpose(
-                        mhr_pose_data, frame_idx=f, W=W, H=H,
+                        pose_data, frame_idx=f, W=W, H=H,
                         background=img,
                         composite="over",
                         include_body=False,
@@ -1031,7 +1040,7 @@ class SAM3DBody_Render(io.ComfyNode):
                     )
             else:
                 img = render_pose_data(
-                    mhr_pose_data, frame_idx=f, W=W, H=H,
+                    pose_data, frame_idx=f, W=W, H=H,
                     background=bg_f, composite=composite, opacity=opacity,
                     shader_preset=shader_key,
                     rainbow_tilt_x_deg=rainbow_tilt_x,
