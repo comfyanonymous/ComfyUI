@@ -374,7 +374,6 @@ class SDPoseDrawKeypoints(io.ComfyNode):
             display_name="SDPose Draw Keypoints",
             category="image/detection",
             search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "pose"],
-            is_deprecated=True,
             inputs=[
                 io.Custom("POSE_KEYPOINT").Input("keypoints"),
                 io.Boolean.Input("draw_body", default=True),
@@ -384,76 +383,7 @@ class SDPoseDrawKeypoints(io.ComfyNode):
                 io.Int.Input("stick_width", default=4, min=1, max=10, step=1),
                 io.Int.Input("face_point_size", default=3, min=1, max=10, step=1),
                 io.Float.Input("score_threshold", default=0.3, min=0.0, max=1.0, step=0.01),
-            ],
-            outputs=[
-                io.Image.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold) -> io.NodeOutput:
-        if not keypoints:
-            return io.NodeOutput(torch.zeros((1, 64, 64, 3), dtype=torch.float32))
-        height = keypoints[0]["canvas_height"]
-        width  = keypoints[0]["canvas_width"]
-
-        def _parse(flat, n):
-            arr = np.array(flat, dtype=np.float32).reshape(n, 3)
-            return arr[:, :2], arr[:, 2]
-
-        def _zeros(n):
-            return np.zeros((n, 2), dtype=np.float32), np.zeros(n, dtype=np.float32)
-
-        pose_outputs = []
-        drawer = KeypointDraw()
-
-        for frame in tqdm(keypoints, desc="Drawing keypoints on frames"):
-            canvas = np.zeros((height, width, 3), dtype=np.uint8)
-            for person in frame["people"]:
-                body_kp,  body_sc  = _parse(person["pose_keypoints_2d"],       18)
-                foot_raw = person.get("foot_keypoints_2d")
-                foot_kp,  foot_sc  = _parse(foot_raw, 6) if foot_raw else _zeros(6)
-                face_kp,  face_sc  = _parse(person["face_keypoints_2d"],       70)
-                face_kp,  face_sc  = face_kp[:68], face_sc[:68]  # drop appended eye kp; body already draws them
-                rhand_kp, rhand_sc = _parse(person["hand_right_keypoints_2d"], 21)
-                lhand_kp, lhand_sc = _parse(person["hand_left_keypoints_2d"],  21)
-
-                kp = np.concatenate([body_kp, foot_kp, face_kp, rhand_kp, lhand_kp], axis=0)
-                sc = np.concatenate([body_sc, foot_sc, face_sc, rhand_sc, lhand_sc], axis=0)
-
-                canvas = drawer.draw_wholebody_keypoints(
-                    canvas, kp, sc,
-                    threshold=score_threshold,
-                    draw_body=draw_body, draw_head=True, draw_feet=draw_feet,
-                    draw_face=draw_face, draw_hands=draw_hands,
-                    stick_width=stick_width, face_point_size=face_point_size,
-                )
-            pose_outputs.append(canvas)
-
-        pose_outputs_np = np.stack(pose_outputs) if len(pose_outputs) > 1 else np.expand_dims(pose_outputs[0], 0)
-        final_pose_output = torch.from_numpy(pose_outputs_np).to(
-            device=comfy.model_management.intermediate_device(),
-            dtype=comfy.model_management.intermediate_dtype()) / 255.0
-        return io.NodeOutput(final_pose_output)
-
-class SDPoseDrawKeypointsV2(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SDPoseDrawKeypointsV2",
-            display_name="SDPose Draw Keypoints V2",
-            category="image/detection",
-            search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "pose"],
-            inputs=[
-                io.Custom("POSE_KEYPOINT").Input("keypoints"),
-                io.Boolean.Input("draw_body", default=True),
                 io.Boolean.Input("draw_head", default=True),
-                io.Boolean.Input("draw_hands", default=True),
-                io.Boolean.Input("draw_face", default=True),
-                io.Boolean.Input("draw_feet", default=False),
-                io.Int.Input("stick_width", default=4, min=1, max=10, step=1),
-                io.Int.Input("face_point_size", default=3, min=1, max=10, step=1),
-                io.Float.Input("score_threshold", default=0.3, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[
                 io.Image.Output(),
@@ -461,7 +391,7 @@ class SDPoseDrawKeypointsV2(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, keypoints, draw_body, draw_head, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold) -> io.NodeOutput:
+    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold, draw_head) -> io.NodeOutput:
         if not keypoints:
             return io.NodeOutput(torch.zeros((1, 64, 64, 3), dtype=torch.float32))
         height = keypoints[0]["canvas_height"]
@@ -837,7 +767,6 @@ class SDPoseExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SDPoseKeypointExtractor,
-            SDPoseDrawKeypointsV2,
             SDPoseDrawKeypoints,
             SDPoseFaceBBoxes,
             CropByBBoxes,
