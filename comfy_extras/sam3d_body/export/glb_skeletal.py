@@ -219,7 +219,7 @@ def build_glb_skeletal(
 
     rig = Rig.from_pose_data(pose_data, model)
     NJ = rig.num_joints
-    NV = rig.num_verts
+    # NV = rig.num_verts
     NEXPR = rig.num_expr
     parents = rig.parents
     if not rig.can_rerun_fk:
