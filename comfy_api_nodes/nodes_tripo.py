@@ -1,6 +1,6 @@
 from typing_extensions import override
 
-from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.tripo import (
     TripoAnimateRetargetRequest,
     TripoAnimateRigRequest,
@@ -8,6 +8,7 @@ from comfy_api_nodes.apis.tripo import (
     TripoFileEmptyReference,
     TripoFileReference,
     TripoImageToModelRequest,
+    TripoImportModelRequest,
     TripoModelVersion,
     TripoMultiviewToModelRequest,
     TripoOrientation,
@@ -21,6 +22,7 @@ from comfy_api_nodes.apis.tripo import (
     TripoTaskType,
     TripoTextToModelRequest,
     TripoTextureModelRequest,
+    TripoTexturePrompt,
     TripoUrlReference,
 )
 from comfy_api_nodes.util import (
@@ -28,6 +30,7 @@ from comfy_api_nodes.util import (
     download_url_to_file_3d,
     poll_op,
     sync_op,
+    upload_3d_model_to_comfyapi,
     upload_images_to_comfyapi,
 )
 
@@ -538,6 +541,14 @@ class TripoTextureNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
+                IO.String.Input(
+                    "texture_prompt",
+                    default="",
+                    multiline=True,
+                    optional=True,
+                    tooltip="Optional text guidance for texturing. Required in practice for imported "
+                    "models (Tripo: Import Model), which carry no source image to infer colors from.",
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -571,6 +582,7 @@ class TripoTextureNode(IO.ComfyNode):
         texture_seed: int | None = None,
         texture_quality: str | None = None,
         texture_alignment: str | None = None,
+        texture_prompt: str = "",
     ) -> IO.NodeOutput:
         response = await sync_op(
             cls,
@@ -583,6 +595,7 @@ class TripoTextureNode(IO.ComfyNode):
                 texture_seed=texture_seed,
                 texture_quality=texture_quality,
                 texture_alignment=texture_alignment,
+                texture_prompt=TripoTexturePrompt(text=texture_prompt.strip()) if texture_prompt.strip() else None,
             ),
         )
         return await poll_until_finished(cls, response, average_duration=80)
@@ -913,6 +926,90 @@ class TripoConversionNode(IO.ComfyNode):
             ),
         )
         return await poll_until_finished(cls, response, average_duration=30)
+
+
+class TripoImportModelNode(IO.ComfyNode):
+    """Imports an external 3D model into Tripo, producing a MODEL_TASK_ID for post-processing nodes."""
+
+    SUPPORTED_FORMATS = ("glb", "fbx", "obj", "stl")
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoImportModelNode",
+            display_name="Tripo: Import Model",
+            category="partner/3d/Tripo",
+            description="Import an external 3D model (e.g. from Rodin, Hunyuan3D or a local file) into Tripo "
+            "to use it with Tripo's post-processing nodes: Texture, Rig, Convert. "
+            "GLB is recommended: textures survive import only when embedded in the file. "
+            "Note that texturing an imported model requires a texture prompt.",
+            inputs=[
+                IO.MultiType.Input(
+                    "model_3d",
+                    types=[IO.File3DGLB, IO.File3DFBX, IO.File3DOBJ, IO.File3DSTL, IO.File3DAny],
+                    tooltip="3D model to import (GLB / FBX / OBJ / STL, up to 150 MB). "
+                    "OBJ and STL files carry no embedded textures.",
+                ),
+            ],
+            outputs=[
+                IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"text","text":"Free"}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(cls, model_3d: Types.File3D) -> IO.NodeOutput:
+        file_format = (model_3d.format or "").lstrip(".").lower()
+        if file_format == "gltf":
+            raise ValueError(
+                "GLTF (.gltf) references external files and cannot be imported. Export a single-file GLB instead."
+            )
+        if file_format not in cls.SUPPORTED_FORMATS:
+            raise ValueError(
+                f"Unsupported 3D format '{file_format or 'unknown'}'. "
+                f"Tripo import supports: {', '.join(f.upper() for f in cls.SUPPORTED_FORMATS)}."
+            )
+        size = len(model_3d.get_bytes())
+        if size > 150 * 1024 * 1024:
+            raise ValueError(f"Model file is {size / (1024 * 1024):.1f} MB; Tripo import allows up to 150 MB.")
+
+        url = await upload_3d_model_to_comfyapi(cls, model_3d, file_format)
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/import", method="POST"),
+            response_model=TripoTaskResponse,
+            data=TripoImportModelRequest(url=url, format=file_format),
+        )
+        if response.code != 0:
+            raise RuntimeError(f"Failed to import model: {response.error}")
+
+        task_id = response.data.task_id
+        response_poll = await poll_op(
+            cls,
+            poll_endpoint=ApiEndpoint(path=f"/proxy/tripo/v2/openapi/task/{task_id}"),
+            response_model=TripoTaskResponse,
+            failed_statuses=[
+                TripoTaskStatus.FAILED,
+                TripoTaskStatus.CANCELLED,
+                TripoTaskStatus.UNKNOWN,
+                TripoTaskStatus.BANNED,
+                TripoTaskStatus.EXPIRED,
+            ],
+            status_extractor=lambda x: x.data.status,
+            progress_extractor=lambda x: x.data.progress,
+            estimated_duration=10,
+        )
+        if response_poll.data.status != TripoTaskStatus.SUCCESS:
+            raise RuntimeError(f"Failed to import model: {response_poll}")
+        return IO.NodeOutput(task_id)
 
 
 def _p1_price_expr(*, geometry_credits: int, textured_credits: int, detailed_credits: int) -> str:
@@ -1292,6 +1389,7 @@ class TripoExtension(ComfyExtension):
             TripoP1TextToModelNode,
             TripoP1ImageToModelNode,
             TripoP1MultiviewToModelNode,
+            TripoImportModelNode,
             TripoTextureNode,
             TripoRefineNode,
             TripoRigNode,
