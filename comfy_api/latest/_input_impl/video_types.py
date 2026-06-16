@@ -325,21 +325,25 @@ class VideoFromFile(VideoInput):
                             checked_alpha = True
 
                         # Fix non-deterministic video decode when the video width is not a multiple of 32
-                        # For non-yuvj pixel formats (all H.264/H.265 video)
+                        # For non-yuvj pixel formats: most H.264/H.265 video and static images (e.g. lossy WebP via LoadImage)
+                        # Pad both axes to a multiple of 32 and smear the border so the alignment padding never bleeds into the cropped edges
                         if image_format in ('gbrpf32le', 'gbrapf32le') and frame.width % 32 != 0:
                             if align_graph is None:
                                 pad_w = ((frame.width + 31) // 32) * 32
+                                pad_h = ((frame.height + 31) // 32) * 32
                                 g = av.filter.Graph()
                                 g_src = g.add_buffer(width=frame.width, height=frame.height,
                                                      format=frame.format.name, time_base=video_stream.time_base)
-                                g_pad = g.add('pad', f'{pad_w}:{frame.height}:0:0')
+                                g_pad = g.add('pad', f'{pad_w}:{pad_h}:0:0')
+                                g_fill = g.add('fillborders', f'left=0:right={pad_w - frame.width}:top=0:bottom={pad_h - frame.height}:mode=smear')
                                 g_sink = g.add('buffersink')
                                 g_src.link_to(g_pad)
-                                g_pad.link_to(g_sink)
+                                g_pad.link_to(g_fill)
+                                g_fill.link_to(g_sink)
                                 g.configure()
                                 align_graph = (g, g_src, g_sink)
                             align_graph[1].push(frame)
-                            img = np.ascontiguousarray(align_graph[2].pull().to_ndarray(format=image_format)[:, :frame.width])
+                            img = np.ascontiguousarray(align_graph[2].pull().to_ndarray(format=image_format)[:frame.height, :frame.width])
                         else:
                             img = frame.to_ndarray(format=image_format)
                         if frame.rotation != 0:
