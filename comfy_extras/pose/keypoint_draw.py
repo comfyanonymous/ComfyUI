@@ -41,12 +41,18 @@ class KeypointDraw:
             [0, 17], [17, 18], [18, 19], [19, 20], # pinky
         ]
 
-        # Body connections - matching DWPose limbSeq (1-indexed, converted to 0-indexed)
+        # Head connections (1-indexed, converted to 0-indexed): nose-neck, eyes, ears
+        self.head_edges = [
+            [2, 1], [1, 15], [15, 17], [1, 16], [16, 18]
+        ]
+
+        # Body connections - matching DWPose limbSeq (1-indexed, converted to 0-indexed).
+        # body_limbSeq is the full 18-point skeleton (body + head_edges last); the head
+        # edges are kept as the trailing entries so callers can toggle them via draw_head.
         self.body_limbSeq = [
             [2, 3], [2, 6], [3, 4], [4, 5], [6, 7], [7, 8], [2, 9], [9, 10],
-            [10, 11], [2, 12], [12, 13], [13, 14], [2, 1], [1, 15], [15, 17],
-            [1, 16], [16, 18]
-        ]
+            [10, 11], [2, 12], [12, 13], [13, 14],
+        ] + self.head_edges
 
         # Colors matching DWPose
         self.colors = [
@@ -163,7 +169,7 @@ class KeypointDraw:
         return unique_pts if len(unique_pts) > 1 else [[center[0], center[1]], [center[0], center[1]]]
 
     def draw_wholebody_keypoints(self, canvas, keypoints, scores=None, threshold=0.3,
-                                 draw_body=True, draw_feet=True, draw_face=True, draw_hands=True,
+                                 draw_body=True, draw_head=True, draw_feet=True, draw_face=True, draw_hands=True,
                                  stick_width=4, face_point_size=3,
                                  marker_radius=4, hand_stick_width=2, hand_marker_radius=4,
                                  limb_alpha=1.0, hand_dot_color=(0, 0, 255)):
@@ -182,6 +188,7 @@ class KeypointDraw:
             keypoints: Array of keypoint coordinates
             scores: Optional confidence scores for each keypoint
             threshold: Minimum confidence threshold for drawing keypoints
+            draw_head: Toggle head edges/keypoints (nose, eyes, ears) independently of draw_body.
             stick_width: Body limb half-width (passed to ellipse2Poly).
             face_point_size: Radius of the white face dots.
             marker_radius: Radius of body/foot dots. Defaults to 4 (DWPose).
@@ -207,9 +214,19 @@ class KeypointDraw:
 
         do_alpha = float(limb_alpha) < 1.0
 
-        # Draw body limbs
-        if draw_body and len(keypoints) >= 18:
-            for i, limb in enumerate(self.body_limbSeq):
+        # Draw body limbs & head connections. body_limbSeq holds the full skeleton
+        # with head edges trailing; draw_body / draw_head toggle each group while the
+        # color index stays aligned to the full sequence.
+        if (draw_body or draw_head) and len(keypoints) >= 18:
+            body_core = self.body_limbSeq[:len(self.body_limbSeq) - len(self.head_edges)]
+            edges, color_offset = [], 0
+            if draw_body:
+                edges += body_core
+            else:
+                color_offset += len(body_core)
+            if draw_head:
+                edges += self.head_edges
+            for i, limb in enumerate(edges):
                 # Convert from 1-indexed to 0-indexed
                 idx1, idx2 = limb[0] - 1, limb[1] - 1
 
@@ -232,15 +249,21 @@ class KeypointDraw:
 
                 polygon = self.draw.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stick_width), int(angle), 0, 360, 1)
 
-                color = self.colors[i % len(self.colors)]
+                color = self.colors[(i + color_offset) % len(self.colors)]
                 if do_alpha:
                     _fill_poly_alpha(canvas, polygon, color, limb_alpha, self.draw)
                 else:
                     self.draw.fillConvexPoly(canvas, polygon, color)
 
-        # Draw body keypoints
-        if draw_body and len(keypoints) >= 18:
+        # Draw body & head keypoints
+        if (draw_body or draw_head) and len(keypoints) >= 18:
+            head_keypoints = {0, 14, 15, 16, 17} # nose, eyes, ears
+            neck_point = 1
             for i in range(18):
+                if not draw_head and i in head_keypoints:
+                    continue
+                if not draw_body and i not in head_keypoints and i != neck_point:
+                    continue
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
