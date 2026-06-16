@@ -178,7 +178,7 @@ class Trellis3DPreviewer(LatentPreviewer):
         pmax = proj.amax(dim=0, keepdim=True)
         return ((proj - pmin) / (pmax - pmin + 1e-8)).clamp(0, 1)
 
-    def _texture(self, x0, coords):
+    def _texture(self, x0, coords, model_frame=None):
         if coords.shape[-1] == 4:
             b0 = coords[:, 0] == 0
             spatial = coords[b0][:, 1:4].float()
@@ -187,9 +187,11 @@ class Trellis3DPreviewer(LatentPreviewer):
         n0 = spatial.shape[0]
         if n0 == 0:
             return None
+        if model_frame == "z_up":
+            spatial = torch.stack([spatial[:, 0], spatial[:, 2], -spatial[:, 1]], dim=-1)
         latent = x0[0, :, :n0, 0].float().transpose(0, 1)        # [n0, C]
         colors = self._latent_color(latent)                      # [n0, 3]
-        res = float(spatial.max().item()) + 1.0
+        res = float(spatial.abs().max().item()) + 1.0
         rad = max(1, int(round(self._SIZE * self._FILL / max(res, 1) / 2)))
         return self._splat(spatial, colors, rad)
 
@@ -202,7 +204,7 @@ class Trellis3DPreviewer(LatentPreviewer):
             mode = ctx.get("mode")
             coords = ctx.get("coords")
             if mode == "texture_generation" and coords is not None:
-                return self._texture(x0, coords)
+                return self._texture(x0, coords, model_frame=ctx.get("model_frame"))
         except Exception as e:
             logging.debug(f"Trellis3DPreviewer: skipping preview ({e})")
         return None

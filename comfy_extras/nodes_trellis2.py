@@ -861,13 +861,16 @@ class Trellis2TextureStage(IO.ComfyNode):
             shape_slat = shape_slat.squeeze(-1).transpose(1, 2).reshape(-1, channels)
 
         latent = torch.zeros(batch_size, channels, max_tokens, 1)
+        proj_pack = _proj_pack_from_conditioning(positive)
+        model_frame = shape_latent.get("model_frame",
+                                       "y_up" if proj_pack is not None else "z_up")
         extras = {
             "trellis2_generation_mode": "texture_generation",
             "trellis2_coords": coords,
             "trellis2_coord_counts": counts,
             "trellis2_shape_slat": shape_slat,
+            "trellis2_model_frame": model_frame,
         }
-        proj_pack = _proj_pack_from_conditioning(positive)
         if proj_pack is not None and coord_resolution is not None:
             extras["trellis2_proj_feats"] = compute_stage_proj_feats(
                 proj_pack, "tex_1024", coords=coords, coord_resolution=coord_resolution,

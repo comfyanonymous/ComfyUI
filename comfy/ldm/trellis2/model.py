@@ -1100,7 +1100,8 @@ class Trellis2(nn.Module):
         # Pre-computed per-stage back-projected features
         proj_feats = kwargs.get("trellis2_proj_feats")
 
-        sampling_preview.set_context(mode=mode, coords=coords, coord_counts=coord_counts)
+        sampling_preview.set_context(mode=mode, coords=coords, coord_counts=coord_counts,
+                                     model_frame=kwargs.get("trellis2_model_frame"))
 
         is_first_shape_pass = False
         if mode == "shape_generation_512":

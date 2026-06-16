@@ -1741,7 +1741,7 @@ class Trellis2(BaseModel):
         # CONDConstant: shared across pos/neg
         for k in ("trellis2_coords", "trellis2_coord_counts",
                   "trellis2_generation_mode", "trellis2_shape_slat",
-                  "trellis2_proj_feats"):
+                  "trellis2_proj_feats", "trellis2_model_frame"):
             v = kwargs.get(k)
             if v is not None:
                 out[k] = comfy.conds.CONDConstant(v)

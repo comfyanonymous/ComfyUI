@@ -17,10 +17,11 @@ _context = {}
 _tex_rgb = None
 
 
-def set_context(mode=None, coords=None, coord_counts=None):
+def set_context(mode=None, coords=None, coord_counts=None, model_frame=None):
     _context["mode"] = mode
     _context["coords"] = coords
     _context["coord_counts"] = coord_counts
+    _context["model_frame"] = model_frame
 
 
 def get_context():
