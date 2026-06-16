@@ -166,12 +166,10 @@ def prepare_batch(
             mask_score_t = torch.ones((n,), dtype=torch.float32)
 
     img_size_t = torch.tensor([W_out, H_out], dtype=torch.float32).expand(n, 2).contiguous()
-    ori_img_size_t = torch.tensor([width, height], dtype=torch.float32).expand(n, 2).contiguous()
 
     batch = {
         "img": img_t.unsqueeze(0),                  # (1, N, 3, H_out, W_out)
         "img_size": img_size_t.unsqueeze(0),        # (1, N, 2)
-        "ori_img_size": ori_img_size_t.unsqueeze(0),# (1, N, 2)
         "bbox_center": centers.unsqueeze(0),        # (1, N, 2)
         "bbox_scale": scales.unsqueeze(0),          # (1, N, 2)
         "bbox": boxes_t.unsqueeze(0),               # (1, N, 4)

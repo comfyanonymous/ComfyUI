@@ -29,38 +29,37 @@ class PromptEncoder(nn.Module):
         Encodes prompts for input to SAM's mask decoder.
         """
         super().__init__()
-        ops = operations if operations is not None else nn
         self.embed_dim = embed_dim
         self.num_body_joints = num_body_joints
 
         # Keypoint prompts
         self.pe_layer = PositionEmbeddingRandom(embed_dim // 2)
         self.point_embeddings = nn.ModuleList(
-            [ops.Embedding(1, embed_dim, device=device, dtype=dtype) for _ in range(self.num_body_joints)]
+            [operations.Embedding(1, embed_dim, device=device, dtype=dtype) for _ in range(self.num_body_joints)]
         )
-        self.not_a_point_embed = ops.Embedding(1, embed_dim, device=device, dtype=dtype)
-        self.invalid_point_embed = ops.Embedding(1, embed_dim, device=device, dtype=dtype)
+        self.not_a_point_embed = operations.Embedding(1, embed_dim, device=device, dtype=dtype)
+        self.invalid_point_embed = operations.Embedding(1, embed_dim, device=device, dtype=dtype)
 
         # Mask prompt: 5-stage 2x2 strided conv downscaling to embed_dim.
-        LN2d = LayerNorm2d_op(ops)
+        LN2d = LayerNorm2d_op(operations)
         mask_in_chans = 256
         self.mask_downscaling = nn.Sequential(
-            ops.Conv2d(1, mask_in_chans // 64, kernel_size=2, stride=2, device=device, dtype=dtype),
+            operations.Conv2d(1, mask_in_chans // 64, kernel_size=2, stride=2, device=device, dtype=dtype),
             LN2d(mask_in_chans // 64, device=device, dtype=dtype),
             nn.GELU(),
-            ops.Conv2d(mask_in_chans // 64, mask_in_chans // 16, kernel_size=2, stride=2, device=device, dtype=dtype),
+            operations.Conv2d(mask_in_chans // 64, mask_in_chans // 16, kernel_size=2, stride=2, device=device, dtype=dtype),
             LN2d(mask_in_chans // 16, device=device, dtype=dtype),
             nn.GELU(),
-            ops.Conv2d(mask_in_chans // 16, mask_in_chans // 4, kernel_size=2, stride=2, device=device, dtype=dtype),
+            operations.Conv2d(mask_in_chans // 16, mask_in_chans // 4, kernel_size=2, stride=2, device=device, dtype=dtype),
             LN2d(mask_in_chans // 4, device=device, dtype=dtype),
             nn.GELU(),
-            ops.Conv2d(mask_in_chans // 4, mask_in_chans, kernel_size=2, stride=2, device=device, dtype=dtype),
+            operations.Conv2d(mask_in_chans // 4, mask_in_chans, kernel_size=2, stride=2, device=device, dtype=dtype),
             LN2d(mask_in_chans, device=device, dtype=dtype),
             nn.GELU(),
-            ops.Conv2d(mask_in_chans, embed_dim, kernel_size=1, device=device, dtype=dtype),
+            operations.Conv2d(mask_in_chans, embed_dim, kernel_size=1, device=device, dtype=dtype),
         )
         # Trained values for the gating conv and no_mask_embed are loaded from the state dict
-        self.no_mask_embed = ops.Embedding(1, embed_dim, device=device, dtype=dtype)
+        self.no_mask_embed = operations.Embedding(1, embed_dim, device=device, dtype=dtype)
 
     def get_dense_pe(self, size: Tuple[int, int]) -> torch.Tensor:
         """Positional encoding over the image-embedding grid; (1, C, H, W)."""
@@ -120,8 +119,7 @@ class PromptEncoder(nn.Module):
             Bx(embed_dim)x(embed_H)x(embed_W)
         """
         bs = self._get_batch_size(keypoints, boxes, masks)
-        # Anchor device on the input prompts so we don't pull the offloaded
-        # CPU embedding device under dynamic loading.
+
         ref = keypoints if keypoints is not None else boxes if boxes is not None else masks
         device = ref.device if ref is not None else self.point_embeddings[0].weight.device
         weight_dtype = self.invalid_point_embed.weight.dtype
@@ -136,23 +134,10 @@ class PromptEncoder(nn.Module):
 
         return sparse_embeddings, sparse_masks
 
-    def get_mask_embeddings(
-        self,
-        masks: Optional[torch.Tensor] = None,
-        bs: int = 1,
-        size: Tuple[int, int] = (16, 16),  # [H, W]
-    ) -> torch.Tensor:
-        """Embeds mask inputs."""
-        # masks is always on the active device when present; fall back to the
-        # downscaling Conv's weight device when it isn't (rare callers).
-        ref = masks if masks is not None else next(self.mask_downscaling.parameters())
-        no_mask_embeddings = self.no_mask_embed.weight.to(ref).reshape(1, -1, 1, 1).expand(
-            bs, -1, size[0], size[1]
-        )
-        if masks is not None:
-            mask_embeddings = self.mask_downscaling(masks)
-        else:
-            mask_embeddings = no_mask_embeddings
+    def get_mask_embeddings(self, masks: torch.Tensor, bs: int = 1, size: Tuple[int, int] = (16, 16)) -> torch.Tensor:
+        """Embeds mask inputs. Caller casts both outputs to its working dtype."""
+        no_mask_embeddings = self.no_mask_embed.weight.reshape(1, -1, 1, 1).expand(bs, -1, size[0], size[1])
+        mask_embeddings = self.mask_downscaling(masks)
         return mask_embeddings, no_mask_embeddings
 
 
@@ -170,12 +155,9 @@ class PromptableDecoder(nn.Module):
         repeat_pe: bool = False,
         do_interm_preds: bool = False,
         keypoint_token_update: bool = False,
-        device=None,
-        dtype=None,
-        operations=None,
+        device=None, dtype=None, operations=None,
     ):
         super().__init__()
-        ops = operations if operations is not None else nn
 
         self.layers = nn.ModuleList(
             TransformerDecoderLayer(
@@ -193,7 +175,7 @@ class PromptableDecoder(nn.Module):
             for i in range(depth)
         )
 
-        self.norm_final = ops.LayerNorm(dims, eps=1e-6, device=device, dtype=dtype)
+        self.norm_final = operations.LayerNorm(dims, eps=1e-6, device=device, dtype=dtype)
         self.do_interm_preds = do_interm_preds
         self.keypoint_token_update = keypoint_token_update
 

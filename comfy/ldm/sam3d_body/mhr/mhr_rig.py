@@ -1,7 +1,7 @@
 # Adapted from facebookresearch/MHR (Apache 2.0):
 #   https://github.com/facebookresearch/MHR/blob/main/mhr/mhr.py
 # Skinning ops follow facebookincubator/momentum (Apache 2.0) — formulas
-# verbatim from the TorchScript source bundled in the upstream mhr_model.pt
+# verbatim from the upstream mhr_model.pt
 # (pymomentum.{skel_state,quaternion,backend.skel_state_backend}).
 # Original Copyright (c) Meta Platforms, Inc. and affiliates.
 
@@ -52,7 +52,7 @@ def _skel_multiply(s1, s2):
 
     Mirrors pymomentum.skel_state.multiply: both quaternions are renormalized
     before composition. With many FK levels the previously-normalized quats
-    drift in ULPs; the JIT renormalizes defensively, so we do too to stay
+    drift in ULPs; upstream renormalizes defensively, so we do too to stay
     bit-close to its outputs.
     """
     t1, sc1 = s1[..., :3], s1[..., 7:8]
@@ -78,7 +78,7 @@ def _skel_transform_points(skel_state, points):
 
 
 def _global_skel_state_from_local(local, pmi_levels):
-    """FK walk in fp64 (matches the JIT's use_double_precision=True path).
+    """FK walk in fp64 (matches upstream's use_double_precision=True path).
 
     `pmi_levels` is a precomputed list of (source_idx, target_idx) tensor pairs,
     one per BFS level. Avoids per-call torch.split + tolist() sync.
@@ -95,7 +95,7 @@ def _global_skel_state_from_local(local, pmi_levels):
 class MHRRig(nn.Module):
     """Plain-PyTorch reimplementation of Meta's MHR rig.
 
-    All math runs in fp32 (FK upcast to fp64 internally, matching the JIT's
+    All math runs in fp32 (FK upcast to fp64 internally, matching upstream's
     use_double_precision=True backend) regardless of the host model's dtype.
     """
 
@@ -110,13 +110,11 @@ class MHRRig(nn.Module):
     POSE_CORR_HIDDEN = 3000
     POSE_CORR_SPARSE_NNZ = 53136
 
-    def __init__(self, device=None, dtype=None, operations=None):
+    def __init__(self, device=None):
         super().__init__()
-        del dtype, operations
-        f32 = torch.float32
 
         # All buffers are populated by load_state_dict from the `mhr.*` keys
-        def _p(*shape, dtype=f32):
+        def _p(*shape, dtype=torch.float32):
             return nn.Parameter(torch.empty(*shape, dtype=dtype, device=device), requires_grad=False)
         def _b(name, *shape, dtype):
             self.register_buffer(name, torch.empty(*shape, dtype=dtype, device=device))
@@ -147,10 +145,10 @@ class MHRRig(nn.Module):
         self._pmi_levels_cache = None
 
     def forward(self, identity_coeffs, model_parameters, expr_coeffs, apply_correctives: bool = True):
-        f32 = self.base_shape.dtype
-        identity_coeffs = identity_coeffs.to(f32)
-        model_parameters = model_parameters.to(f32)
-        expr_coeffs = expr_coeffs.to(f32)
+        dtype = self.base_shape.dtype
+        identity_coeffs = identity_coeffs.to(dtype)
+        model_parameters = model_parameters.to(dtype)
+        expr_coeffs = expr_coeffs.to(dtype)
         B = identity_coeffs.shape[0]
 
         identity_rest = self.base_shape + torch.einsum("nvd,bn->bvd", self.identity_basis, identity_coeffs)

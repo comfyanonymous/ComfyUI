@@ -1,11 +1,9 @@
 """BVH export for SAM 3D Body pose_data.
 
-BVH stores explicit bone OFFSETs per joint, so any standard importer
-(Blender, Maya, MotionBuilder, etc.) reconstructs anatomical bone orientations
-directly — no heuristic guessing as needed for glTF. We skip the rig's joint 0
-(static world anchor) and use joint 1 as the BVH ROOT (6 channels: XYZ pos +
-ZXY rot); every other joint gets 3 channels (ZXY rot only). Rotations are
-intrinsic Z-X-Y Euler degrees.
+BVH stores explicit bone OFFSETs per joint, so standard importers reconstruct
+anatomical bone orientations directly (unlike glTF). We skip the rig's joint 0
+(static world anchor) and use joint 1 as the ROOT (6 channels: XYZ pos + ZXY
+rot); other joints get 3 channels. Rotations are intrinsic Z-X-Y Euler degrees.
 """
 
 from __future__ import annotations
@@ -49,13 +47,10 @@ def _quat_to_zxy_euler_deg(quat: np.ndarray) -> np.ndarray:
 
 
 def _find_bvh_root(parents: np.ndarray, is_external: bool = False) -> int:
-    """First child of the rig's world anchor so the static origin→body stick
-    bone gets left out. Falls back to the first root joint.
-
-    MHR's joint 0 is a static world anchor whose single child is the pelvis, so
-    skipping it is correct. External rigs (e.g. SOMA-77) whose root is already
-    the articulated body root with multiple child chains must keep the root —
-    descending into one child would drop the sibling limbs from the BVH."""
+    """First child of the rig's world anchor, dropping the origin→body stick.
+    Falls back to the first root joint. External rigs whose root is already the
+    articulated body root with multiple child chains keep the root — descending
+    into one child would drop the sibling limbs."""
     NJ = parents.shape[0]
     world_anchors = [j for j in range(NJ)
                      if not (0 <= int(parents[j]) < NJ and int(parents[j]) != j)]
@@ -93,14 +88,11 @@ def build_bvh(
     track_index: int = -1,
     units: str = "cm",
 ) -> bytes:
-    """Build a BVH file from pose_data. Returns UTF-8 encoded text bytes.
+    """Build a BVH file from pose_data. Returns UTF-8 text bytes.
 
     `model` may be None when pose_data carries a `_skeleton_override` (external
-    rigs, e.g. Kimodo); the rig hierarchy/offsets/bind are read from the
-    override instead of the MHR model.
-
-    `units` is "cm" (default, standard mocap convention) or "m". Affects the
-    OFFSET and root-position values; rotations are independent of units.
+    rigs); the rig hierarchy/offsets/bind come from the override. `units` is
+    "cm" (default) or "m" — affects OFFSET/root-position, not rotations.
     """
     if units not in ("cm", "m"):
         raise ValueError(f"build_bvh: units must be 'cm' or 'm', got {units!r}")
@@ -123,10 +115,8 @@ def build_bvh(
     body_root = _find_bvh_root(parents, is_external)
     children_map = _build_children_map(parents)
 
-    # Bone OFFSETs come from MHR's translation_offsets (joint position
-    # relative to parent in parent's local-bind frame). For the BVH root,
-    # we use its bind world position so the skeleton sits at the right
-    # spot when imported.
+    # Bone OFFSETs = translation_offsets (joint position relative to parent).
+    # The BVH root uses its bind world position so the skeleton imports in place.
     bind_global = rig.bind_global_cm                         # (NJ, 8) cm
     bind_pos_m = bind_global[:, :3].astype(np.float64) * 0.01  # (NJ, 3) m
     offset_m = rig.joint_offsets_cm.astype(np.float64) * 0.01
@@ -139,9 +129,8 @@ def build_bvh(
             _visit(c)
     _visit(body_root)
 
-    # Use pose_data's stored pred_global_rots/pred_joint_coords (authoritative)
-    # rather than re-running rig.forward, then derive locals with body_root
-    # treated as the hierarchy root in BVH-space.
+    # Stored pred_global_rots/pred_joint_coords (authoritative); derive locals
+    # with body_root as the BVH-space hierarchy root.
     rig_global_m = global_skel_state_from_pose_data(
         pose_data, frame_indices, person_k, NJ,
         joint_coords_y_down=rig.per_frame_y_down,
@@ -203,9 +192,8 @@ def build_bvh(
     lines.append(f"Frames: {n_frames}")
     lines.append(f"Frame Time: {1.0 / float(fps):.6f}")
 
-    # Channel matrix: root pos (3) + root rot (3) + non-root rots (3 each) per
-    # frame, columns in `bvh_order` order. Vectorized — savetxt's C-side
-    # formatting beats Python f-strings by ~10× on long clips.
+    # Channel matrix per frame: root pos (3) + root rot (3) + non-root rots
+    # (3 each), columns in `bvh_order`. savetxt is far faster than f-strings.
     non_root_idx = np.asarray(bvh_order[1:], dtype=np.int64)
     motion = np.concatenate([
         root_pos_m * unit_scale,                                 # (N, 3)

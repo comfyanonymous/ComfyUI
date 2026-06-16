@@ -1,19 +1,11 @@
 """GLB export — skeletal (real armature) mode.
 
-Rebuilds an Armature with the MHR 127-bone rig:
-  - per-frame local TRS comes from re-running param_transform on the saved
-    `mhr_model_params`;
-  - rest verts come from a zero-pose forward with each person's `shape_params`;
-  - sparse triplet skinning is compacted to glTF's max-4-influences-per-vertex form;
-  - facial expression is re-exposed as 72 morph targets driven by `expr_params`
-    so face animation survives plain glTF skinning.
-
-Optional bone visualization (octahedrons) is rigidly
-skinned alongside the body mesh — used to preview the armature in glTF
-viewers that don't draw bones.
-
-Shared GLB infra (writer, math, rig static extraction, shaders, normals)
-stays in `glb_shared.py`; only this mode's geometry + assembly live here.
+Rebuilds an Armature with the MHR 127-bone rig: per-frame local TRS from
+param_transform on `mhr_model_params`, rest verts from a zero-pose forward,
+sparse skinning compacted to glTF's 4-influence form, and facial expression as
+72 morph targets driven by `expr_params`. Optional octahedron bone-vis is
+rigidly skinned alongside for viewers that don't draw bones. Shared infra lives
+in `glb_shared.py`.
 """
 
 from __future__ import annotations
@@ -44,8 +36,7 @@ from .glb_shared import (
 from comfy_extras.sam3d_body.utils import jet_colormap
 
 def _bone_colors_rgb(bind_pos_m: np.ndarray, scheme: str) -> Optional[np.ndarray]:
-    """Per-bone RGB color (NJ, 3) float32 in [0, 1]. Returns None for 'white'
-    (no per-bone color → bone-vis mesh uses default unlit material)."""
+    """Per-bone RGB (NJ, 3) float32 in [0, 1]. None for 'white' (default material)."""
     if scheme == "rainbow_y":
         y = bind_pos_m[:, 1].astype(np.float32)
         y_min, y_max = float(y.min()), float(y.max())
@@ -55,9 +46,8 @@ def _bone_colors_rgb(bind_pos_m: np.ndarray, scheme: str) -> Optional[np.ndarray
 
 
 def _octahedron_unit() -> Tuple[np.ndarray, np.ndarray]:
-    """Canonical Blender-style bone octahedron. Head at origin, tail at +Y,
-    unit length, ridge at 1/10 height. 6 verts, 8 triangles. Faces wound
-    so cross(v1-v0, v2-v0) points OUTWARD from the bone axis."""
+    """Canonical Blender-style bone octahedron: head at origin, tail at +Y, unit
+    length, ridge at 1/10 height. 6 verts, 8 triangles, faces wound outward."""
     v = np.array([
         [0.0, 0.0, 0.0],   # 0: head
         [0.0, 1.0, 0.0],   # 1: tail
@@ -78,18 +68,16 @@ def _octahedron_unit() -> Tuple[np.ndarray, np.ndarray]:
 def _bone_edges(
     joint_pos_m: np.ndarray, parents: np.ndarray,
 ) -> List[Tuple[int, int, np.ndarray, np.ndarray]]:
-    """Return one (parent_idx, child_idx, head_pos, tail_pos) tuple per
-    parent→child edge in the hierarchy, skipping edges whose PARENT is a
-    root joint (those typically anchor the skeleton at world origin and
-    just look like a stray stick from origin to the body). Zero-length
-    edges are skipped too."""
+    """One (parent_idx, child_idx, head_pos, tail_pos) per parent→child edge.
+    Skips edges whose parent is a root (world-anchor sticks) and zero-length
+    edges."""
     NJ = joint_pos_m.shape[0]
     out: List[Tuple[int, int, np.ndarray, np.ndarray]] = []
     for c in range(NJ):
         p = int(parents[c])
         if not (0 <= p < NJ and p != c):
             continue
-        # Skip if parent itself is a root — that bone is a world-anchor stick.
+        # Skip world-anchor sticks: parent itself is a root.
         gp = int(parents[p])
         if not (0 <= gp < NJ and gp != p):
             continue
@@ -104,9 +92,8 @@ def _bone_edges(
 def _build_bone_octahedrons_mesh(
     bind_joint_pos_m: np.ndarray, parents: np.ndarray, half_width_m: float = 0.02,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """One Blender-style octahedron per parent→child edge. Returns
-    (verts, normals, faces, joints, weights, child_idx_per_vert);
-    child_idx feeds per-bone color lookup at the call site."""
+    """One octahedron per parent→child edge. Returns (verts, normals, faces,
+    joints, weights, child_idx_per_vert); child_idx feeds per-bone color."""
     base_v, base_f = _octahedron_unit()
     canonical = np.array([0.0, 1.0, 0.0], dtype=np.float32)
 
@@ -117,8 +104,7 @@ def _build_bone_octahedrons_mesh(
     out_w: List[List[float]] = []
     child_per_vert: List[int] = []
 
-    # Width scales with length so short bones (fingers, face) don't look chunky
-    # next to long ones (limbs, spine). `half_width_m` caps long bones.
+    # Width scales with length (capped by half_width_m) so short bones aren't chunky.
     WIDTH_RATIO = 0.1
     MIN_WIDTH = 0.001
     for parent_idx, child_idx, head, tail in _bone_edges(bind_joint_pos_m, parents):
@@ -151,8 +137,8 @@ def _build_bone_octahedrons_mesh(
         out_n.extend(n_world.tolist())
         for face in base_f:
             out_f.append([int(face[0]) + v_off, int(face[1]) + v_off, int(face[2]) + v_off])
-        # Dual skin head→parent, tail→child, ridges blend by canonical Y so the
-        # bone stretches between joints instead of going rigid with one.
+        # Dual skin (head→parent, tail→child); ridges blend by canonical Y so
+        # the bone stretches between joints instead of going rigid with one.
         for k in range(base_v.shape[0]):
             y_canon = float(base_v[k, 1])
             w_parent = max(0.0, 1.0 - y_canon)
@@ -196,22 +182,17 @@ def build_glb_skeletal(
     bone_vis_color: str = "white",
     include_body_mesh: bool = True,
 ) -> bytes:
-    """Build pose_data as a real Armature GLB blob with per-bone TRS keyframes.
+    """Build pose_data as a real Armature GLB with per-bone TRS keyframes. For
+    MHR, facial expression is exposed as 72 morph targets when
+    include_face_morphs=True.
 
-    For MHR (default) facial expression is exposed as 72 morph targets driven
-    by expr_params per frame when include_face_morphs=True.
-
-    External skeletons (e.g. ComfyUI-Kimodo) can supply a
-    ``pose_data["_skeleton_override"]`` dict to bypass the MHR rig extraction
-    entirely. When present, ``model`` may be None and the rig data, bind pose,
-    skin weights, and rest verts come from the override. Per-frame skeletal
-    state still reads ``pred_global_rots`` / ``pred_joint_coords`` from each
-    person dict (kimodo populates these from its own FK output). See
-    ``glb.shared._get_skeleton_override`` for the override schema.
+    External skeletons (e.g. ComfyUI-Kimodo) can supply
+    ``pose_data["_skeleton_override"]`` to bypass MHR rig extraction (``model``
+    may be None then); per-frame state still reads ``pred_global_rots`` /
+    ``pred_joint_coords``. See ``glb_shared._get_skeleton_override`` for the schema.
     """
     frames = pose_data["frames"]
-    # Only `pred_cam_t` is camera-y-down; mhr_model_params, lbs_*, expr_basis,
-    # faces are all rig-native (Y-up).
+    # Only `pred_cam_t` is camera-y-down; everything else is rig-native Y-up.
     faces_native = np.ascontiguousarray(pose_data["faces"], dtype=np.uint32)
     tracks = collect_tracks(pose_data, track_index)
     if not tracks:
@@ -219,17 +200,14 @@ def build_glb_skeletal(
 
     rig = Rig.from_pose_data(pose_data, model)
     NJ = rig.num_joints
-    # NV = rig.num_verts
     NEXPR = rig.num_expr
     parents = rig.parents
     if not rig.can_rerun_fk:
-        # External rigs have no PCA pose params to re-run; only stored globals
-        # are available, and they store joint coords already Y-up.
+        # External rigs have no PCA pose params to re-run; use stored globals.
         use_stored_global_rots = True
     joint_coords_y_down = rig.per_frame_y_down
-    # Skinning is already compacted to ≤8 influences per vertex (MHR averages
-    # ~2.8 but some shoulder/hip verts hit 5-8; keeping only 4 there leaks
-    # per-bone rotation noise into the rendered mesh).
+    # Skin already compacted to ≤8 influences/vertex (some shoulder/hip verts
+    # need >4, else per-bone rotation noise leaks into the mesh).
     joints_8 = rig.lbs_joints
     weights_8 = rig.lbs_weights
     actual_max_inf = rig.lbs_max_inf
@@ -238,14 +216,12 @@ def build_glb_skeletal(
     use_set1 = actual_max_inf > 4
     joints_set1 = np.ascontiguousarray(joints_8[:, 4:8]) if use_set1 else None
     weights_set1 = np.ascontiguousarray(weights_8[:, 4:8]) if use_set1 else None
-    # Derive bone locals from the rig's bind globals rather than recomputing
-    # FK ourselves, so any mismatch between `parents` and the rig's actual FK
-    # is absorbed into the local TRS instead of producing wrong globals.
+    # Derive bone locals from bind globals so any `parents`/FK mismatch is
+    # absorbed into the local TRS instead of producing wrong globals.
     bind_global_m = rig.bind_global_m
     bind_local = bone_locals_from_globals(bind_global_m[None], parents)[0]
 
-    # IBP = inverse of bind global. With bone defaults set to bind_local and
-    # FK composed via `parents`, skin_matrix at rest = identity.
+    # IBP = inverse of bind global → skin_matrix at rest is identity.
     ibp_mat4 = ibp_from_bind_global(bind_global_m)
 
     w = GLBWriter()
@@ -316,9 +292,7 @@ def build_glb_skeletal(
         body_mesh_node_idx: Optional[int] = None
 
         if include_body:
-            # MHR rest verts depend on the subject's shape_params; external rigs
-            # ship fixed rest verts and ignore the arg (so the empty external
-            # `shape_params` is harmless).
+            # MHR rest verts depend on shape_params; external rigs ignore the arg.
             shape_params_arr = np.asarray(
                 frames[frame_indices[0]][person_k].get("shape_params", []),
                 dtype=np.float32,
@@ -349,8 +323,8 @@ def build_glb_skeletal(
                 "indices": indices_acc,
                 "mode": 4,
             }
-            # See-through body when bones are shown, else opaque (only when a
-            # vertex-color shader baked COLOR_0 — otherwise default material).
+            # See-through body when bones are shown, else opaque (only if a
+            # shader baked COLOR_0; otherwise default material).
             if color_acc is not None or include_bones:
                 materials.append(make_lit_material(opacity=0.35 if include_bones else 1.0))
                 primitive["material"] = len(materials) - 1
@@ -373,8 +347,7 @@ def build_glb_skeletal(
         if include_bones:
             bone_palette = _bone_colors_rgb(bind_global_m[:, :3], bone_vis_color)
 
-            # Indexes `bone_palette`: octahedrons use the bone's child joint so
-            # every bone has its own color regardless of skin target.
+            # Color by child joint so every bone has its own color.
             color_idx_per_vert: Optional[np.ndarray] = None
             hw = float(bone_vis_radius_m)
             bv_v, bv_n, bv_f, bv_j, bv_w, child_per_vert = _build_bone_octahedrons_mesh(
@@ -422,8 +395,8 @@ def build_glb_skeletal(
                 nodes.append(bv_mesh_node)
                 person_root["children"].append(len(nodes) - 1)
 
-        # Per-frame GLOBAL skel state → bone locals via parent-inverse.
-        # Default uses the rig's stored output; the fallback re-runs FK.
+        # Per-frame global skel state → bone locals via parent-inverse. Stored
+        # output by default; fallback re-runs FK.
         if use_stored_global_rots:
             rig_global_m = global_skel_state_from_pose_data(
                 pose_data, frame_indices, person_k, NJ,
@@ -437,11 +410,9 @@ def build_glb_skeletal(
             rig_global_cm = global_skel_state_per_frame(model, mp_per_frame)
             rig_global_m = rig_global_cm.copy().astype(np.float32)
             rig_global_m[..., :3] *= 0.01
-        # Sign-fix on the GLOBAL quats BEFORE deriving locals. The rig's
-        # Euler-XYZ parametrization wraps at ±180° for spinning joints; if we
-        # only fix locals, the parent's flip propagates into the child's
-        # local translation (t_local inherits parent sign via q_parent_inv)
-        # and produces visible "axis resets" mid-animation.
+        # Sign-fix global quats BEFORE deriving locals: a parent's ±180° flip
+        # would otherwise propagate into the child's local translation and cause
+        # visible "axis resets" mid-animation.
         rig_global_m[..., 3:7] = quat_sign_fix_per_joint(rig_global_m[..., 3:7])
         bone_local_anim = bone_locals_from_globals(rig_global_m, parents)
         local_t = bone_local_anim[..., :3].astype(np.float32)
@@ -449,20 +420,17 @@ def build_glb_skeletal(
         local_s = bone_local_anim[..., 7].astype(np.float32)
         # Second pass on locals catches residual drift from the parent-inverse.
         local_q = quat_sign_fix_per_joint(local_q)
-        # Hemisphere-align frame 0 with the bind quat so pause/play takes the
-        # short path; then re-propagate.
+        # Align frame 0 with the bind quat so pause/play takes the short path.
         bind_q = bind_local[:, 3:7].astype(np.float32)
         if local_q.shape[0] > 0:
             d0 = (bind_q * local_q[0]).sum(axis=-1)
             sign0 = np.where(d0 < 0, -1.0, 1.0).astype(np.float32)[:, None]
             local_q[0] = local_q[0] * sign0
             local_q = quat_sign_fix_per_joint(local_q)
-        # Optional smoothing for multi-frame rig spikes (e.g. q.w discontinuity
-        # at handstand) that the upstream Smooth node may not catch.
+        # Optional smoothing for multi-frame rig spikes (e.g. q.w at handstand).
         if bone_smooth_window and bone_smooth_window > 1:
             local_q = gaussian_smooth_quats(local_q, int(bone_smooth_window))
-        # fp64 renormalize → fp32 keyframes. Viewers' nlerp amplifies non-unit
-        # drift into visible flips otherwise.
+        # fp64 renormalize → fp32; viewers' nlerp amplifies non-unit drift.
         lq64 = local_q.astype(np.float64)
         lq64 = lq64 / np.maximum(np.linalg.norm(lq64, axis=-1, keepdims=True), 1e-12)
         local_q = lq64.astype(np.float32)
@@ -527,7 +495,7 @@ def build_glb_skeletal(
                     "target": {"node": person_root_idx, "path": "translation"},
                 })
 
-        # Body-mesh-only: bone-vis primitives have no morph targets.
+        # Body mesh only — bone-vis primitives have no morph targets.
         if expr_morph_accs and body_mesh_node_idx is not None:
             expr_per_frame = np.stack([
                 np.asarray(frames[t][person_k]["expr_params"], dtype=np.float32)

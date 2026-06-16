@@ -1,15 +1,11 @@
-"""GLB export for SAM 3D Body pose_data.
+"""Shared GLB export helpers for SAM 3D Body pose_data.
 
-Mode: skeletal — rebuilds the MHR 127-bone rig. Per-frame local TRS comes from
-re-running param_transform on saved mhr_model_params; rest verts from a
-zero-pose forward with the person's shape_params; sparse triplet skinning is
-compacted to glTF's max-4-influences form; facial expression is re-exposed as
-72 morph targets driven by expr_params.
-
-pred_vertices/pred_cam_t are camera-y-down — un-flipped here so the GLB lives
-in glTF-spec Y-up. Pose correctives are dropped (glTF skinning can't represent
-them); deformation at extreme joint angles will differ from the SAM3DBody
-renderer by the corrective amount.
+Skeletal mode rebuilds the MHR 127-bone rig: per-frame local TRS from
+param_transform on mhr_model_params, rest verts from a zero-pose forward,
+sparse skinning compacted to glTF's 4-influence form, expression re-exposed as
+72 morph targets. Camera-y-down data is un-flipped to glTF Y-up. Pose
+correctives are dropped (glTF skinning can't represent them), so extreme joint
+angles differ from the SAM3DBody renderer by the corrective amount.
 """
 
 from __future__ import annotations
@@ -24,12 +20,11 @@ import torch
 
 from comfy_extras.sam3d_body.rasterizer import rainbow_colors_from_canonical
 
-# fp32-rounded ln(2). Used as `exp(x * _LN2)` to compute 2**x bit-identically
-# to the rig's own `torch.exp(jp[..., 6:7] * _LN2)`
+# fp32-rounded ln(2); exp(x * _LN2) matches the rig's own 2**x bit-for-bit.
 _LN2 = 0.6931471824645996
 
 
-# Quaternion / rotation helpers (xyzw convention, matching MHR rig)
+# Quaternion / rotation helpers (xyzw, matching MHR rig)
 
 def _euler_xyz_to_quat_np(angles: np.ndarray) -> np.ndarray:
     """(roll, pitch, yaw) -> (x, y, z, w). Mirrors mhr_rig._euler_xyz_to_quat."""
@@ -96,8 +91,7 @@ def _skel_state_compose_np(s1: np.ndarray, s2: np.ndarray) -> np.ndarray:
 
 
 def _gaussian_smooth_time(arr: np.ndarray, window: int) -> np.ndarray:
-    """Edge-replicate Gaussian smoothing along axis 0 (time); sigma = window/4.
-    Endpoints replicate so they aren't pulled toward zero. Returns float64."""
+    """Edge-replicate Gaussian smoothing along time (sigma = window/4). float64."""
     a = np.asarray(arr, dtype=np.float64)
     n = a.shape[0]
     half = window // 2
@@ -117,9 +111,8 @@ def _gaussian_smooth_time(arr: np.ndarray, window: int) -> np.ndarray:
 
 
 def gaussian_smooth_quats(q_seq: np.ndarray, window: int) -> np.ndarray:
-    """Gaussian-smooth a (N, NJ, 4) quaternion sequence along time. Sign-aligns
-    per joint first, convolves per-component, renormalizes. Suppresses multi-
-    frame bone spikes at extreme poses without needing the upstream Smooth node."""
+    """Smooth a (N, NJ, 4) quaternion sequence along time: sign-align per joint,
+    convolve per-component, renormalize. Calms bone spikes at extreme poses."""
     if window <= 1 or q_seq.shape[0] < 2:
         return q_seq
     out = _gaussian_smooth_time(quat_sign_fix_per_joint(q_seq), window)
@@ -128,18 +121,16 @@ def gaussian_smooth_quats(q_seq: np.ndarray, window: int) -> np.ndarray:
 
 
 def gaussian_smooth_positions(seq: np.ndarray, window: int) -> np.ndarray:
-    """Gaussian-smooth a (N, K, 3) position sequence along time (edge-replicate
-    padding). Used to calm jittery keypoint tracks before the openpose rig
-    derives sphere translations + limb TRS from them."""
+    """Smooth a (N, K, 3) position sequence along time. Calms jittery keypoint
+    tracks before the openpose rig derives sphere translations + limb TRS."""
     if window <= 1 or seq.shape[0] < 2:
         return seq
     return _gaussian_smooth_time(seq, window).astype(np.float32)
 
 
 def quat_sign_fix_per_joint(q_seq: np.ndarray) -> np.ndarray:
-    """Walk (N, NJ, 4) along time, flip sign whenever consecutive frames sit
-    on opposite hemispheres. Eliminates long-path slerp glitches (mid-anim
-    cartwheel flip). fp64 to avoid drift; normalizes input defensively."""
+    """Walk (N, NJ, 4) along time, flipping sign when consecutive frames sit on
+    opposite hemispheres. Avoids long-path slerp glitches. fp64 internally."""
     out = np.array(q_seq, dtype=np.float64, copy=True)
     norms = np.linalg.norm(out, axis=-1, keepdims=True)
     out = out / np.maximum(norms, 1e-12)
@@ -151,11 +142,9 @@ def quat_sign_fix_per_joint(q_seq: np.ndarray) -> np.ndarray:
 
 
 def bone_locals_from_globals(rig_global: np.ndarray, parents: np.ndarray) -> np.ndarray:
-    """Globals (N, NJ, 8) + parents -> per-bone local TRS (N, NJ, 8) such that
-    FK over (parents, bone_local) reproduces rig_global. local =
-    inverse(parent_global) ∘ child_global makes this robust to hierarchy-
-    convention mismatches: glTF FK gives back exactly rig_global even if
-    `parents` doesn't match the rig's pmi-walk."""
+    """Globals (N, NJ, 8) + parents -> per-bone local TRS so FK reproduces
+    rig_global. local = inverse(parent_global) ∘ child_global, robust to
+    hierarchy-convention mismatches in `parents`."""
     N, NJ, _ = rig_global.shape
     bone_local = np.zeros_like(rig_global)
     for j in range(NJ):
@@ -188,8 +177,7 @@ def _quat_to_mat3_np(q: np.ndarray) -> np.ndarray:
 
 def collect_tracks(pose_data: Dict[str, Any], track_index: int) -> List[Tuple[int, List[int]]]:
     """List of (person_index, frame_indices). track_index == -1 means every
-    present track; empty tracks are dropped. Same person index across frames
-    is assumed same subject (Smooth/Predict enforce this on tracked bboxes)."""
+    present track; empty tracks dropped. Same person index = same subject."""
     frames = pose_data["frames"]
     max_p = max((len(f) for f in frames), default=0)
     if max_p == 0:
@@ -257,8 +245,7 @@ class GLBWriter:
         return len(self.accessors) - 1
 
     def add_vec3_f32_no_minmax(self, arr: np.ndarray) -> int:
-        """Morph-target POSITIONs: spec lets us skip min/max, avoiding a
-        per-frame delta bbox."""
+        """Morph-target POSITIONs: spec lets us skip min/max."""
         a = np.ascontiguousarray(arr, dtype=np.float32)
         view_idx = self._add_view(a.tobytes(), target=_BYTE_ARRAY)
         self.accessors.append({
@@ -288,9 +275,8 @@ class GLBWriter:
         return len(self.accessors) - 1
 
     def add_scalar_f32_flat(self, arr: np.ndarray, count: int) -> int:
-        """Animation-output scalars: `count` is keyframes, not floats. Morph-
-        target weight tracks store N_morph weights per keyframe as flat float32
-        with count=N_keyframes."""
+        """Animation-output scalars: `count` is keyframes, not floats (morph
+        weight tracks store N_morph weights per keyframe)."""
         a = np.ascontiguousarray(arr, dtype=np.float32).reshape(-1)
         view_idx = self._add_view(a.tobytes())
         self.accessors.append({
@@ -382,9 +368,8 @@ def bake_vertex_colors(
     rainbow_tilt_z_deg: float,
     pastel_mix: float,
 ) -> Optional[np.ndarray]:
-    """Per-vertex RGB matching the renderer's shader preset, on the canonical
-    mesh. Returns (N_v, 3) float32 in [0, 1], or None for `default` (let the
-    viewer's default material handle shading)."""
+    """Per-vertex RGB matching the renderer's shader preset. Returns (N_v, 3)
+    float32 in [0, 1], or None for `default` (use the viewer's material)."""
     if shader == "default" or canonical_colors is None:
         return None
 
@@ -432,8 +417,8 @@ def compute_normals(verts: np.ndarray, faces: np.ndarray) -> np.ndarray:
 
 
 def _parents_from_pmi(rig: Any) -> np.ndarray:
-    """Parent index per joint from skel_pmi. pmi is (2, 266): row 0 = child,
-    row 1 = parent, split into BFS levels by skel_pmi_buffer_sizes. Roots = -1."""
+    """Parent index per joint from skel_pmi ((2, 266): row 0 child, row 1
+    parent, split into BFS levels by skel_pmi_buffer_sizes). Roots = -1."""
     NJ = int(rig.NUM_JOINTS)
     pmi = rig.skel_pmi.cpu().numpy()
     sizes = rig.skel_pmi_buffer_sizes.cpu().numpy().tolist()
@@ -450,47 +435,29 @@ def _parents_from_pmi(rig: Any) -> np.ndarray:
 
 def _get_skeleton_override(pose_data: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Return ``_skeleton_override`` dict if present. Non-MHR skeletons supply
-    this to bypass MHR rig extraction (see ComfyUI-Kimodo). Required keys:
-        parents:              (NJ,) int32, -1 = root
-        bind_global_m:        (NJ, 8) f32   — [t.xyz | q.xyzw | scale], meters
-        lbs_compact_joints:   (V, 8) uint16 — pre-compacted skin influences
-        lbs_compact_weights:  (V, 8) f32
-        lbs_compact_max_inf:  int           — actual max influences (≤ 8)
-        rest_verts_m:         (V, 3) f32
-        faces:                (F, 3) uint32
-    Optional:
-        per_frame_y_down:     bool — set False if pred_joint_coords are already
-                                     rig-native Y-up (kimodo). Default True (MHR).
-        openpose18_joint_indices:        (18, 2) int32 — body OpenPose-18 → joint
-                                         index pair, resolved against per-frame
-                                         `pred_joint_coords`. Each row is
-                                         (joint_a, joint_b); b == -1 = single
-                                         joint, else default midpoint of the two
-                                         (lets producers approximate keypoints
-                                         with no matching joint, e.g. Nose ≈
-                                         midpoint(LeftEye, RightEye)). Enables
-                                         `SAM3DBody_ToGLB(mode="openpose")` on
-                                         external rigs.
-        openpose18_joint_weights:        (18,) f32 — optional per-keypoint blend
-                                         weight for the (a, b) mapping above.
-                                         Position = w*joints[a] + (1-w)*joints[b]
-                                         when b ≥ 0 (default w=0.5 → midpoint).
-                                         Values outside [0, 1] EXTRAPOLATE past
-                                         the line segment — used to approximate
-                                         landmarks with no nearby joint pair
-                                         (e.g. ears: w=2.0 along the eye→eye
-                                         axis puts each ear one eye-distance
-                                         outside the corresponding eye). Ignored
-                                         for single-joint rows (b = -1).
-        openpose_hand21_r_joint_indices: (21, 2) int32 — right-hand OpenPose-21
-                                         (wrist + 5 fingers × 4 joints, base→tip)
-                                         → joint index pair. Required (alongside
-                                         the L counterpart) for openpose mode
-                                         with include_hands=True.
-        openpose_hand21_l_joint_indices: (21, 2) int32 — left-hand counterpart.
-        openpose_hand21_r_joint_weights: (21,) f32 — optional, same semantics as
-                                         `openpose18_joint_weights`.
-        openpose_hand21_l_joint_weights: (21,) f32 — optional, same as above.
+    this to bypass MHR rig extraction (see ComfyUI-Kimodo).
+
+    Required keys:
+        parents:             (NJ,) int32, -1 = root
+        bind_global_m:       (NJ, 8) f32 — [t.xyz | q.xyzw | scale], meters
+        lbs_compact_joints:  (V, 8) uint16 — pre-compacted skin influences
+        lbs_compact_weights: (V, 8) f32
+        lbs_compact_max_inf: int — actual max influences (≤ 8)
+        rest_verts_m:        (V, 3) f32
+        faces:               (F, 3) uint32
+
+    Optional (enable openpose mode on external rigs):
+        per_frame_y_down:    bool — False if pred_joint_coords are already Y-up
+                             (kimodo). Default True (MHR).
+        openpose18_joint_indices:        (18, 2) int32 — body keypoint → (a, b)
+                             joints, resolved against `pred_joint_coords`.
+                             b == -1 = single joint, else midpoint of (a, b).
+        openpose18_joint_weights:        (18,) f32 — blend w: w*a + (1-w)*b
+                             (default 0.5; outside [0,1] extrapolates; ignored
+                             when b == -1).
+        openpose_hand21_{r,l}_joint_indices: (21, 2) int32 — per-hand keypoint
+                             maps; both required for include_hands=True.
+        openpose_hand21_{r,l}_joint_weights: (21,) f32 — optional, same as above.
     """
     if pose_data is None:
         return None
@@ -502,12 +469,10 @@ def extract_rig_static(model: Any, pose_data: Optional[Dict[str, Any]] = None) -
     use that instead of MHR-specific `model.head_pose.mhr` buffers."""
     override = _get_skeleton_override(pose_data)
     if override is not None:
-        # External rig: caller pre-compacts skin and supplies bind global directly,
-        # so we don't need MHR's PCA pose / expression bases.
+        # External rig: skin pre-compacted, bind global supplied directly.
         parents = np.asarray(override["parents"], dtype=np.int32)
         rest_v = np.asarray(override["rest_verts_m"], dtype=np.float32)
-        # BVH needs parent-relative bone OFFSETs (cm). MHR ships these directly;
-        # external rigs only give bind globals, so derive locals from them.
+        # BVH needs parent-relative bone offsets (cm); derive from bind globals.
         bind_global_m = np.asarray(override["bind_global_m"], dtype=np.float32)
         local_bind = bone_locals_from_globals(bind_global_m[None], parents)[0]
         joint_translation_offsets = (local_bind[:, :3] * 100.0).astype(np.float32)
@@ -560,29 +525,26 @@ def compact_skin_to_n(
     skin_indices: np.ndarray, vert_indices: np.ndarray, weights: np.ndarray,
     num_verts: int, max_inf: int = 8,
 ) -> Tuple[np.ndarray, np.ndarray, int]:
-    """Sparse (joint, vert, weight) triplets -> dense (joints[V, max_inf],
-    weights[V, max_inf]). Keeps `max_inf` largest-magnitude influences,
-    renormalizes. `actual_max` lets the caller skip JOINTS_1/WEIGHTS_1 when
-    nothing exceeds 4 influences."""
+    """Sparse (joint, vert, weight) triplets -> dense (joints, weights) of shape
+    (V, max_inf), keeping the largest influences and renormalizing. `actual_max`
+    lets the caller skip JOINTS_1/WEIGHTS_1 when nothing exceeds 4 influences."""
     joints = np.zeros((num_verts, max_inf), dtype=np.uint16)
     out_w = np.zeros((num_verts, max_inf), dtype=np.float32)
     counts = np.zeros(num_verts, dtype=np.int32)
 
     if vert_indices.size:
-        # lexsort secondary key first: groups by vert, weights descending within group.
+        # Group by vert, weights descending within each group.
         order = np.lexsort((-weights, vert_indices))
         vi_sorted = vert_indices[order]
         sk_sorted = skin_indices[order]
         w_sorted = weights[order]
 
-        # Per-row rank within its vertex group: 0 at each group start, +1 elsewhere.
-        # group_start[i] is True when vi_sorted[i] starts a new vertex.
+        # Per-row rank within its vertex group (0 at each group start).
         n = vi_sorted.size
         group_start = np.empty(n, dtype=bool)
         group_start[0] = True
         np.not_equal(vi_sorted[1:], vi_sorted[:-1], out=group_start[1:])
         pos = np.arange(n, dtype=np.int64)
-        # Position of each row's group start, broadcast forward.
         group_start_pos = np.maximum.accumulate(np.where(group_start, pos, 0))
         rank = pos - group_start_pos
 
@@ -609,9 +571,8 @@ def zero_pose_rest_verts(
     model: Any, shape_params: np.ndarray, expr_zero: bool = True,
     pose_data: Optional[Dict[str, Any]] = None,
 ) -> np.ndarray:
-    """Rig with zero pose + this subject's shape -> rest verts (V, 3) in
-    rig-native Y-up meters. External-skeleton path returns `rest_verts_m`
-    directly (no PCA shape space to expand)."""
+    """Zero pose + this subject's shape -> rest verts (V, 3) in rig-native Y-up
+    meters. External path returns `rest_verts_m` directly."""
     override = _get_skeleton_override(pose_data)
     if override is not None:
         return np.asarray(override["rest_verts_m"], dtype=np.float32)
@@ -624,14 +585,11 @@ def zero_pose_rest_verts(
     sp = torch.from_numpy(np.ascontiguousarray(shape_params, dtype=np.float32)).to(device)
     if sp.ndim == 1:
         sp = sp.unsqueeze(0)
-    # mhr.forward(identity_coeffs, model_parameters, expr_coeffs):
-    # identity_rest = base_shape + identity_basis @ shape;
-    # cat([model_params, zeros]) through param_transform; expr added.
+    # rig.forward(shape, model_params, expr); zero pose + zero expr.
     model_params = torch.zeros(1, 204, device=device, dtype=dtype)
     expr = torch.zeros(1, 72, device=device, dtype=dtype)
     verts, _ = rig(sp.to(dtype), model_params, expr, apply_correctives=False)
-    # Rig outputs cm; mhr_head divides by 100 for meters. Match that.
-    verts_m = verts[0].cpu().float().numpy() / 100.0
+    verts_m = verts[0].cpu().float().numpy() / 100.0  # cm -> m
     return verts_m.astype(np.float32)
 
 
@@ -639,7 +597,7 @@ def global_skel_state_per_frame(
     model: Any, mhr_model_params: np.ndarray,
 ) -> np.ndarray:
     """Rig FK over a batch of mhr_model_params -> (N, NJ, 8) = (t cm, q xyzw,
-    scale). Bones are shape- and expression-independent so we pass zeros."""
+    scale). Bones are shape/expression-independent, so pass zeros."""
     inner = model.model if hasattr(model, "model") else model
     rig = inner.head_pose.mhr
     device = next(rig.parameters()).device
@@ -655,8 +613,8 @@ def global_skel_state_per_frame(
 
 
 def rotmat_to_quat_np(R: np.ndarray) -> np.ndarray:
-    """(..., 3, 3) -> (..., 4) xyzw. Shepperd 1978 branched, largest-component
-    pick for stability. Cross-frame sign-fixing is the caller's job."""
+    """(..., 3, 3) -> (..., 4) xyzw. Shepperd 1978, largest-component pick.
+    Cross-frame sign-fixing is the caller's job."""
     shape = R.shape[:-2]
     Rf = R.reshape(-1, 3, 3).astype(np.float64)
     M = Rf.shape[0]
@@ -703,14 +661,12 @@ def global_skel_state_from_pose_data(
     pose_data: Dict[str, Any], frame_indices: List[int], person_k: int,
     NJ: int, *, joint_coords_y_down: bool = True,
 ) -> np.ndarray:
-    """Build per-frame skel_state from stored pred_global_rots + pred_joint_coords,
-    bypassing rig.forward. Returns (N, NJ, 8) in METERS, MHR-native frame.
+    """Per-frame skel_state from stored pred_global_rots + pred_joint_coords,
+    bypassing rig.forward. Returns (N, NJ, 8) in meters, MHR-native frame.
 
-    pred_global_rots are MHR-native (no y/z flip). For MHR, pred_joint_coords
-    are stored y-down (post-flip), so un-flip when `joint_coords_y_down=True`.
-    External skeletons (Kimodo) store y-up already → pass False. Scale
-    defaults to 1 (rig scale isn't preserved in pose_data; close to 1 for
-    typical body poses)."""
+    pred_global_rots are MHR-native. pred_joint_coords are y-down for MHR
+    (un-flipped when `joint_coords_y_down=True`); external rigs store y-up
+    (pass False). Scale defaults to 1 (not preserved in pose_data)."""
     frames = pose_data["frames"]
     N = len(frame_indices)
     rotmat = np.zeros((N, NJ, 3, 3), dtype=np.float32)
@@ -731,10 +687,8 @@ def global_skel_state_from_pose_data(
 
 
 def bind_skel_state(model: Any, pose_data: Optional[Dict[str, Any]] = None) -> np.ndarray:
-    """Rig FK with all-zero params -> bind-pose global skel state (NJ, 8) in cm.
-    Inverse of `lbs_inverse_bind_pose` modulo precision; used as bones' static
-    TRS so the rest mesh looks correct with no animation playing. External
-    rig: convert override's `bind_global_m` from m → cm to match this contract."""
+    """Rig FK with all-zero params -> bind-pose global skel state (NJ, 8) in cm,
+    used as bones' static TRS. External rig: convert `bind_global_m` m -> cm."""
     override = _get_skeleton_override(pose_data)
     if override is not None:
         bind_m = np.asarray(override["bind_global_m"], dtype=np.float32).copy()
@@ -746,13 +700,10 @@ def bind_skel_state(model: Any, pose_data: Optional[Dict[str, Any]] = None) -> n
 
 @dataclass
 class Rig:
-    """Normalized static rig for the GLB/BVH exporters, independent of where it
-    came from: an MHR model (`Rig.from_pose_data(pose_data, model)`) or an inline
-    `pose_data["_skeleton_override"]` (external rigs, e.g. ComfyUI-Kimodo).
-
-    Consumers read these fields and never branch on the source. The only
-    source-dependent operation is `rest_verts_m` — MHR rest verts depend on the
-    subject's `shape_params`; external rigs ship fixed rest verts.
+    """Normalized static rig for the GLB/BVH exporters, source-independent: MHR
+    model or inline `pose_data["_skeleton_override"]` (external rigs). Consumers
+    never branch on the source. Only `rest_verts_m` is source-dependent — MHR
+    expands it from `shape_params`; external rigs ship it fixed.
     """
     parents: np.ndarray             # (NJ,) int32, -1 = root
     joint_offsets_cm: np.ndarray    # (NJ, 3) parent-relative bind offsets, cm
@@ -816,9 +767,8 @@ class Rig:
 
 
 def ibp_from_bind_global(bind_skel_state_m: np.ndarray) -> np.ndarray:
-    """Inverse-bind MAT4 by inverting the rig's bind global (meters). Guarantees
-    IBP[j] = inverse(FK over bind local TRS) — exactly what glTF skinning
-    needs given bones default to the bind local TRS. Returns (NJ, 4, 4)
+    """Inverse-bind MAT4 from the rig's bind global (meters). IBP[j] =
+    inverse(FK over bind local TRS), as glTF skinning needs. Returns (NJ, 4, 4)
     column-major."""
     NJ = bind_skel_state_m.shape[0]
     t = bind_skel_state_m[:, :3].astype(np.float32)
@@ -877,10 +827,8 @@ def _ibp_to_mat4(ibp_skel: np.ndarray) -> np.ndarray:
 
 
 def uv_sphere_unit(n_lat: int = 9, n_lon: int = 16) -> Tuple[np.ndarray, np.ndarray]:
-    """Unit UV sphere, poles ±Y. `n_lat` kept ODD by default so one ring
-    lands at the equator. Default (9, 16) gives 146 verts / 288 faces — n_lon
-    matches the 16-segment cylinder used by capsule limbs AND the equator
-    ring aligns 1-to-1 with the cylinder end ring, so silhouettes meet flush."""
+    """Unit UV sphere, poles ±Y. `n_lat` odd so a ring lands at the equator;
+    n_lon=16 matches the capsule cylinder so end rings meet flush."""
     verts: List[List[float]] = [[0.0, -1.0, 0.0]]  # south pole at index 0
     for i in range(1, n_lat + 1):
         lat = -0.5 * np.pi + np.pi * i / (n_lat + 1)
@@ -924,8 +872,8 @@ def uv_sphere_unit(n_lat: int = 9, n_lon: int = 16) -> Tuple[np.ndarray, np.ndar
 def flat_shade_mesh(
     verts: np.ndarray, faces: np.ndarray, joints: np.ndarray, weights: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Smooth -> flat by duplicating verts per face; each triangle gets 3
-    unique verts sharing its face normal. Skinning attrs duplicated alongside."""
+    """Flat-shade by duplicating verts per face; each triangle gets 3 unique
+    verts sharing its face normal. Skinning attrs duplicated alongside."""
     F = faces.shape[0]
     new_v = np.zeros((F * 3, 3), dtype=np.float32)
     new_n = np.zeros((F * 3, 3), dtype=np.float32)
@@ -949,9 +897,8 @@ def flat_shade_mesh(
 def smooth_shade_mesh(
     verts: np.ndarray, faces: np.ndarray, joints: np.ndarray, weights: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Area-weighted per-vertex normals (smooth shading). Geometry, skinning,
-    indexing pass through unchanged so vertex colors stay aligned. Orphan
-    verts get +Y fallback."""
+    """Area-weighted per-vertex normals. Geometry/skinning/indexing pass through
+    unchanged so vertex colors stay aligned. Orphan verts get +Y fallback."""
     Nv = int(verts.shape[0])
     v0 = verts[faces[:, 0]]
     v1 = verts[faces[:, 1]]
@@ -994,11 +941,9 @@ def rotation_align(from_vec: np.ndarray, to_vec: np.ndarray) -> np.ndarray:
 def make_lit_material(
     roughness: float = 0.85, double_sided: bool = False, opacity: float = 1.0,
 ) -> dict:
-    """Lit PBR material using vertex COLOR_0 multiplicatively. KHR_materials_unlit
-    is intentionally off so viewer lighting reveals surface form. metallic=0
-    keeps the surface dielectric so vertex colors stay readable. roughness=0.85
-    suits dense rainbow body meshes; 0.3 matches SCAIL-Pose's glossy rig look.
-    opacity < 1 switches to alpha-blend (e.g. see-through body mesh over bones)."""
+    """Lit PBR material using vertex COLOR_0. Dielectric (metallic=0) so colors
+    stay readable; roughness 0.85 suits rainbow body meshes, 0.3 the glossy
+    SCAIL rig. opacity < 1 switches to alpha-blend."""
     a = float(max(0.0, min(1.0, opacity)))
     mat = {
         "pbrMetallicRoughness": {
@@ -1182,14 +1127,12 @@ def openpose_render_keypoints(
     person: Dict[str, Any], pose_data: Optional[Dict[str, Any]], part: str,
     *, dim: int, H: int = 0, W: int = 0,
 ) -> Optional[np.ndarray]:
-    """OpenPose keypoints for one person, in op-layout, CAMERA frame (Y-down).
+    """OpenPose keypoints for one person, op-layout, camera frame (Y-down).
     `part` in {'body','hand_r','hand_l'}. dim=3 -> (K, 3) metres pre-cam_t-add;
-    dim=2 -> (K, 2) image pixels. Returns None when the source data is missing.
+    dim=2 -> (K, 2) pixels. Returns None when source data is missing.
 
-    External rigs (override carries the joint-index map) resolve from per-frame
-    `pred_joint_coords` (rig-native Y-up -> flipped to camera Y-down, matching
-    the pred_vertices convention). MHR reindexes the stored
-    `pred_keypoints_{3d,2d}` via the MHR70 map."""
+    External rigs resolve from `pred_joint_coords` (Y-up -> flipped to Y-down);
+    MHR reindexes stored `pred_keypoints_{3d,2d}` via the MHR70 map."""
     map_key, w_key, mhr_map = _OPENPOSE_RENDER_MAPS[part]
     override = _get_skeleton_override(pose_data)
     ext_map = override.get(map_key) if override is not None else None
@@ -1228,11 +1171,9 @@ def openpose_render_keypoints(
     return kp_full[mhr_map]
 
 
-# Face landmarks from the MHR rig (option `face_source="rig"`).
-# MHR has no face bones — face deforms via expr_params morphs — so landmarks
-# are sourced from `pred_vertices` at fixed vertex IDs picked by NN against
-# anatomically-plausible target xyz in canonical Y-up. Iterate visually in
-# Blender and tweak targets if landmarks land off-surface.
+# Face landmarks (face_source="rig"). MHR has no face bones, so landmarks are
+# sourced from `pred_vertices` at vertex IDs picked by NN against the target xyz
+# below. Tweak targets if landmarks land off-surface.
 
 # (name, target_xyz) in MHR canonical Y-up meters.
 FACE_LANDMARK_TARGETS: Tuple[Tuple[str, Tuple[float, float, float]], ...] = (
@@ -1290,10 +1231,8 @@ def select_face_landmark_vert_ids(
     face_mask: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Pick MHR head vertex IDs for each `FACE_LANDMARK_TARGETS` by NN in
-    canonical positions. Filter: `face_mask` (verts that deform with any of
-    the 72 expression axes) if available — keeps chin/jaw search off the
-    neck. Otherwise a position bbox (less reliable; throat verts sometimes
-    pull chin targets)."""
+    canonical positions, restricted to `face_mask` verts (expression-deforming)
+    when available, else a position bbox (less reliable around the chin/jaw)."""
     P = np.asarray(canonical_positions, dtype=np.float32).reshape(-1, 3)
     if face_mask is not None and np.asarray(face_mask).any():
         valid = np.where(np.asarray(face_mask).reshape(-1))[0]

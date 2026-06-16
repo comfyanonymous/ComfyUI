@@ -1,16 +1,10 @@
 """GLB export — OpenPose 18-keypoint visualization mode.
 
-Independent of the MHR rig — sourced from pose_data's `pred_keypoints_3d`
-(the model's regressed surface keypoints). Each track becomes an armature
-with a sibling joint per keypoint; sphere markers + stick/capsule limbs are
-skinned to those joints.
-
-Optional hand keypoints (also from `pred_keypoints_3d`, indices 21..62) and
-face landmarks (sampled from `pred_vertices` at fixed head-mesh vertex IDs)
-extend the same armature.
-
-OpenPose-shared tables / palettes / mappings live in `glb_shared.py` and are
-imported below — they're also used by the 2D and 3D renderers in this package.
+Sourced from pose_data's `pred_keypoints_3d`, independent of the MHR rig. Each
+track becomes an armature with a joint per keypoint; sphere markers and limbs
+are skinned to those joints. Optional hands (`pred_keypoints_3d` 21..62) and
+face landmarks (`pred_vertices` at fixed vertex IDs) extend the same armature.
+Shared tables/palettes/mappings live in `glb_shared.py`.
 """
 
 from __future__ import annotations
@@ -55,9 +49,8 @@ def _finalize_skinned_mesh(
     joints: np.ndarray, weights: np.ndarray, vert_colors: np.ndarray,
     smooth_shade: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Apply smooth or flat shading to an indexed sphere/stick group mesh and
-    pack per-vertex colors. Smooth keeps the indexed mesh + per-vertex colors;
-    flat duplicates verts per face and gathers face-corner colors."""
+    """Shade a skinned group mesh and pack per-vertex colors. Smooth keeps the
+    indexed mesh; flat duplicates verts per face and gathers face-corner colors."""
     if smooth_shade:
         v_f, n_f, f_f, j_f, w_f = smooth_shade_mesh(verts, faces, joints, weights)
         return v_f, n_f, f_f, j_f, w_f, vert_colors.astype(np.float32)
@@ -73,10 +66,8 @@ def _finalize_skinned_mesh(
 def _pair_colors_from_kp(
     pairs: Tuple[Tuple[int, int], ...], kp_colors: np.ndarray, endpoint: int = 1,
 ) -> np.ndarray:
-    """Per-limb color = endpoint-vertex color from `kp_colors`. Default
-    `endpoint=1` picks the second (distal) vertex of each pair, which is
-    the OpenPose-canonical per-finger gradient when fingers go base→tip
-    (wrist=0 → thumb1=1 → thumb2=2 …)."""
+    """Per-limb color from `kp_colors`. `endpoint=1` (default) picks the distal
+    vertex of each pair — the OpenPose per-finger gradient for base→tip fingers."""
     n = len(pairs)
     out = np.zeros((n, 3), dtype=np.float32)
     for i, (a, b) in enumerate(pairs):
@@ -88,19 +79,13 @@ def _openpose_bind_at_rig_rest(
     pose_data: Dict[str, Any], *,
     include_hands: bool, face_vert_ids: Optional[np.ndarray],
 ) -> Optional[np.ndarray]:
-    """OpenPose keypoint positions at the rig's REST pose (T-pose at authoring
-    origin), built from the `_skeleton_override`'s `bind_global_m` (joint rest
-    TRS) and `rest_verts_m` (mesh rest verts for face landmarks).
+    """OpenPose keypoint positions at the rig's REST pose, from the override's
+    `bind_global_m` (joint rest TRS) and `rest_verts_m` (face landmarks).
 
-    Used as the static-bind for openpose-mode geometry so the GLB's static
-    POSITION attribute sits at rig origin — matching skeletal mode's bind and
-    producing the same 'snap from rest to scene-frame-0' transition at the
-    start of playback. Without this, the static geometry is at scene-frame-0
-    (kp_seq[0]) and viewers that auto-fit on static POSITION will center on
-    the scene location, hiding the per-frame motion.
-
-    Returns None when the override is missing or doesn't carry all the needed
-    mappings — caller falls back to per-frame extraction (kp_seq[0])."""
+    Used as the static-bind so the GLB's static POSITION sits at rig origin,
+    matching skeletal mode and producing the same rest→scene-frame-0 transition.
+    Returns None when the override lacks the needed mappings — caller then falls
+    back to per-frame extraction (kp_seq[0])."""
     override = pose_data.get("_skeleton_override") if isinstance(pose_data, dict) else None
     if override is None or "bind_global_m" not in override:
         return None
@@ -141,19 +126,12 @@ def _openpose_bind_at_rig_rest(
 def _extract_openpose_keypoints(
     pose_data: Dict[str, Any], frame_indices: List[int], person_k: int,
 ) -> np.ndarray:
-    """(N, 18, 3) OpenPose keypoint positions in rig-native Y-up metres.
+    """(N, 18, 3) OpenPose keypoints in rig-native Y-up metres.
 
-    Two sources, in priority order:
-
-    1. **External-skeleton path** — when pose_data has `_skeleton_override`
-       with `openpose18_joint_indices` ((18, 2) int32, see
-       `_resolve_openpose_keypoints_from_joints`), synthesize from each
-       person's `pred_joint_coords` directly. The override frame is already
-       rig-native Y-up, so no axis flip.
-    2. **MHR70 path** (default for SAM3DBody_Predict output) — re-index the
-       first 70 of 308 MHR keypoints (`pred_keypoints_3d`) to COCO-18.
-       Stored y-down (post `j3d[..., [1,2]] *= -1` in sam3d_body), so we
-       un-flip y/z to match rig-native Y-up.
+    External-skeleton path: when the override carries `openpose18_joint_indices`
+    ((18, 2) int32), synthesize from each person's `pred_joint_coords` (already
+    Y-up, no flip). MHR70 path (default): re-index `pred_keypoints_3d` to COCO-18
+    and un-flip y/z (stored y-down by sam3d_body).
     """
     frames = pose_data["frames"]
     N = len(frame_indices)
@@ -195,10 +173,8 @@ def _extract_openpose_keypoints(
     for t_idx, t in enumerate(frame_indices):
         person = frames[t][person_k]
         if "pred_keypoints_3d" not in person:
-            # Diagnose the source: external-skeleton producers ship
-            # `_skeleton_override` instead of MHR70 keypoints. If the
-            # producer didn't populate `openpose18_joint_indices` either,
-            # we can't synthesize the 18-keypoint set.
+            # External-skeleton producer without `openpose18_joint_indices`:
+            # can't synthesize the 18-keypoint set.
             if override is not None:
                 raise ValueError(
                     "build_glb_openpose: this pose_data carries "
@@ -229,15 +205,11 @@ def _extract_openpose_keypoints(
 def _extract_openpose_hand_keypoints(
     pose_data: Dict[str, Any], frame_indices: List[int], person_k: int,
 ) -> np.ndarray:
-    """(N, 42, 3) right+left OpenPose hand keypoints (21 + 21) in rig-native
-    Y-up frame.
+    """(N, 42, 3) right+left OpenPose hand keypoints (21+21) in rig-native Y-up.
 
-    External-skeleton path: requires `openpose_hand21_r_joint_indices` AND
-    `openpose_hand21_l_joint_indices` ((21, 2) int32 each) in the override.
-    Resolved against per-frame `pred_joint_coords` like the body path.
-
-    MHR70 path: re-orders `pred_keypoints_3d` indices 21..62 to OpenPose-21
-    (wrist + 5 fingers, thumb→pinky, base→tip)."""
+    External-skeleton path: needs `openpose_hand21_{r,l}_joint_indices` ((21, 2)
+    int32) in the override, resolved against `pred_joint_coords`. MHR70 path:
+    re-orders `pred_keypoints_3d` 21..62 to OpenPose-21 (wrist + 5 fingers)."""
     frames = pose_data["frames"]
     N = len(frame_indices)
     out = np.zeros((N, 42, 3), dtype=np.float32)
@@ -307,10 +279,8 @@ def _extract_face_landmarks_from_verts(
     pose_data: Dict[str, Any], frame_indices: List[int], person_k: int,
     vert_ids: np.ndarray,
 ) -> np.ndarray:
-    """(N, K_face, 3) face landmarks sampled from per-frame `pred_vertices`
-    at the supplied head-mesh vertex IDs, unflipped to MHR-native Y-up.
-    Each landmark inherits per-frame shape/expr/pose deformation for free
-    since `pred_vertices` already has it baked in."""
+    """(N, K_face, 3) face landmarks sampled from `pred_vertices` at the given
+    vertex IDs, unflipped to Y-up. Per-frame deformation is already baked in."""
     frames = pose_data["frames"]
     N = len(frame_indices)
     K = int(vert_ids.shape[0])
@@ -335,18 +305,11 @@ def _build_openpose_spheres(
     smooth_shade: bool = False,
     joint_indices: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """UV sphere per OpenPose keypoint, rigidly skinned to that keypoint's
-    joint, vertex-colored from kp_colors. `base_joint_idx` is added to the
-    emitted JOINTS_0 indices so callers can place this group at any offset
-    in the shared skin (body=0, right hand=18, etc.). `joint_indices` (when
-    given) overrides that with explicit per-sphere joint indices, so callers
-    can skip keypoints (e.g. SCAIL head dots).
-
-    `smooth_shade=True` keeps the indexed mesh and writes per-vertex
-    normals via face-normal averaging — round shading on the spheres.
-    `smooth_shade=False` (default) flat-shades by duplicating verts per
-    face, matching the existing OpenPose-mode look. Returns
-    (verts, normals, faces, joints4, weights4, vert_colors)."""
+    """UV sphere per keypoint, rigidly skinned to that keypoint's joint and
+    vertex-colored from kp_colors. `base_joint_idx` offsets the emitted JOINTS_0
+    indices (body=0, right hand=18, …); `joint_indices`, if given, sets explicit
+    per-sphere indices so callers can skip keypoints (e.g. SCAIL head dots).
+    Returns (verts, normals, faces, joints4, weights4, vert_colors)."""
     sv, sf = uv_sphere_unit()
     K = bind_kp_m.shape[0]
     Nv = sv.shape[0]
@@ -376,43 +339,23 @@ def _capsule_mesh_local(
     end_width_frac: float = 0.3,
     shape: str = "ellipsoid",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build a per-limb mesh in limb-local frame along +Y from y=0 (head
-    pole) to y=L (tail pole).
+    """Per-limb mesh in limb-local frame along +Y from y=0 (head) to y=L (tail).
 
-    `shape` selects the silhouette:
-      - 'ellipsoid' (default): tips are small hemispheres of radius
-        `W * end_width_frac`; body has ellipsoidal radius profile
-        sin(π*u) from w_end at the junctions to W at the middle. Gives
-        a fat-middle / narrow-end stretched-ellipse look.
-      - 'capsule': SCAIL-style "rig" limb — an OPEN cylinder of constant
-        radius W with no hemisphere caps. Pair with sphere joint markers
-        of the same radius so the spheres seamlessly cap the open
-        cylinder ends (the cylinder cross-section ring at the endpoint
-        lies exactly on the sphere surface). Drawing hemisphere caps
-        inside the joint sphere creates a visible bump where the cap
-        pokes out unevenly when sphere radius ≠ cap radius — open
-        cylinders avoid that.
+    `shape`:
+      - 'ellipsoid' (default): hemisphere tips of radius `W * end_width_frac`,
+        ellipsoidal sin(π·u) body profile (fat middle, narrow ends).
+      - 'capsule': SCAIL "rig" limb — an OPEN cylinder of constant radius W,
+        no caps. Pair with same-radius sphere markers so they cap the ends
+        seamlessly (caps would bump out when sphere radius ≠ cap radius).
 
-    Per-limb mesh is required because the cap height (w_end) depends on
-    the limb width — a single canonical mesh can't produce true
-    hemispheres for arbitrary L:W ratios in ellipsoid mode.
+    A per-limb mesh is needed because cap height depends on width — one
+    canonical mesh can't give true hemispheres for arbitrary L:W in ellipsoid.
 
-    Returns:
-        verts: (Nv, 3) float32 — limb-local positions in meters.
-        faces: (Nf, 3) uint32 — triangle indices.
-        weights: (Nv, 2) float32 — (head, tail) skinning weights, linearly
-            interpolated by axial position (sums to 1).
+    Returns (verts (Nv,3), faces (Nf,3), weights (Nv,2) head/tail, sums to 1).
     """
     W = max(1e-6, min(float(W), float(L) * 0.5 - 1e-6))
     if str(shape) == "capsule":
-        # SCAIL-style "rig" limb: an OPEN cylinder of constant radius W,
-        # no hemisphere caps. The sphere joint markers at each endpoint
-        # provide the rounded ends of the bone — when sphere_radius ==
-        # cylinder_radius, the cylinder cross-section ring at the bone
-        # endpoint lies exactly on the sphere surface, so silhouette is
-        # seamless. Hemisphere caps would create a visible bump where
-        # the cap pokes out of the sphere if cap_r ≠ marker_r, so we
-        # omit them entirely.
+        # Open cylinder, no caps — sphere markers cap the ends (see docstring).
         cap_r = 0.0
         body_r = W
         if n_cap_lat is None:
@@ -425,7 +368,7 @@ def _capsule_mesh_local(
         end_frac = float(min(0.95, max(0.05, end_width_frac)))
         cap_r = max(1e-7, W * end_frac)
         body_r = W
-        # Ellipsoid defaults: more body rings to sample the sin(π·u) curve.
+        # More body rings to sample the sin(π·u) curve.
         if n_cap_lat is None:
             n_cap_lat = 3
         if n_body is None:
@@ -473,10 +416,7 @@ def _capsule_mesh_local(
             phi = 2.0 * np.pi * k / n_lon
             verts.append([body_r * float(np.cos(phi)), 0.0, body_r * float(np.sin(phi))])
 
-    # Body intermediate rings (between the cap junctions for capped meshes,
-    # between the two end rings for open cylinders). For 'capsule' mode
-    # n_body=0 by default — no intermediate rings needed for a constant-
-    # radius cylinder.
+    # Body intermediate rings (none for 'capsule', n_body=0 by default).
     body_rings: List[int] = []
     is_ellipsoid = str(shape) == "ellipsoid"
     for j in range(1, n_body + 1):
@@ -572,11 +512,8 @@ def _scail_redirect_neck_stub(body_kp: np.ndarray) -> np.ndarray:
 def _openpose_limb_rest_trs(
     bind_kp_m: np.ndarray, pairs: Tuple[Tuple[int, int], ...],
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Per-limb rest TRS:
-        midpoints (K_pairs, 3): rest midpoint between bind_kp_m[a] and bind_kp_m[b].
-        rest_axes (K_pairs, 3): unit direction a→b at rest (or +Y if degenerate).
-    Caller uses `midpoints` as each limb joint's rest translation (rotation =
-    identity), and `rest_axes` to compute per-frame alignment rotations."""
+    """Per-limb rest TRS: midpoints (K_pairs, 3) and unit a→b axes (or +Y if
+    degenerate). Caller uses midpoints as rest translation, axes for alignment."""
     K_pairs = len(pairs)
     mid = np.zeros((K_pairs, 3), dtype=np.float32)
     axis = np.zeros((K_pairs, 3), dtype=np.float32)
@@ -595,13 +532,10 @@ def _openpose_limb_rest_trs(
 def _openpose_limb_anim_trs(
     kp_seq: np.ndarray, pairs: Tuple[Tuple[int, int], ...], rest_axes: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Per-frame limb TRS:
-        anim_mid  (N, K_pairs, 3): midpoint of (kp_seq[t][a], kp_seq[t][b]).
-        anim_quat (N, K_pairs, 4): rotation (xyzw) that aligns each limb's rest
-                                   axis to its frame-t axis.
-    Together with rest TRS, this drives `skin_matrix(t) = T(mid_t) * R_t *
-    T(-mid_rest)` so each capsule rigidly rotates about its rest midpoint to
-    track the limb's current direction — no LBS cross-section thinning."""
+    """Per-frame limb TRS: anim_mid (N, K_pairs, 3) midpoints and anim_quat
+    (N, K_pairs, 4 xyzw) aligning each limb's rest axis to its frame-t axis.
+    Drives skin_matrix(t) = T(mid_t)·R_t·T(-mid_rest) — rigid rotation about
+    the rest midpoint, no LBS cross-section thinning."""
     N = kp_seq.shape[0]
     K_pairs = len(pairs)
     anim_mid = np.zeros((N, K_pairs, 3), dtype=np.float32)
@@ -616,7 +550,7 @@ def _openpose_limb_anim_trs(
             n = float(np.linalg.norm(d))
             if n > 1e-9:
                 R[t, k] = rotation_align(ax_rest, d / n)
-    quat = rotmat_to_quat_np(R).astype(np.float32)  # (N, K_pairs, 4) xyzw
+    quat = rotmat_to_quat_np(R).astype(np.float32)
     return anim_mid, quat
 
 
@@ -628,20 +562,14 @@ def _build_openpose_sticks(
     smooth_shade: bool = False,
     end_width_frac: float = 0.3,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Capsule (cylinder + hemispherical caps) per limb pair (a, b).
+    """Capsule per limb pair (a, b), each sized to its own length/width so caps
+    are true hemispheres regardless of L:W. Ellipsoid mode auto-clamps width to
+    `length * 0.1` so short limbs don't look chunky.
 
-    Each limb gets its own mesh sized to that limb's length and width so
-    the caps are TRUE hemispheres of radius `half_width_eff` — the limb
-    silhouette is rounded-rectangle-like, regardless of L:W ratio. Width
-    auto-clamped to `length * 0.1` so short limbs (face/ear) don't look
-    chunky next to long ones.
-
-    Skinning: rigid (weight=1) binding to a per-limb joint at
-    `limb_joint_base_idx + limb_idx` — the caller animates that joint with
-    midpoint translation + rest-to-current rotation so each capsule rotates
-    rigidly with its limb (avoids translation-only LBS cross-section
-    thinning). Returns flat-shaded (verts, normals, faces, joints4,
-    weights4, vert_colors)."""
+    Rigid (weight=1) binding to a per-limb joint at `limb_joint_base_idx +
+    limb_idx`, which the caller animates with midpoint translation + rotation
+    (avoids LBS thinning). Returns (verts, normals, faces, joints4, weights4,
+    vert_colors)."""
     canonical = np.array([0.0, 1.0, 0.0], dtype=np.float32)
 
     out_v_chunks: List[np.ndarray] = []
@@ -663,13 +591,10 @@ def _build_openpose_sticks(
         unit_dir = direction / length
         R = rotation_align(canonical, unit_dir)
         if is_capsule:
-            # SCAIL-style uniform radius — every bone gets the same width.
-            # `_capsule_mesh_local` clamps internally to L/2-eps so very
-            # short bones don't go degenerate.
+            # Uniform radius — every bone the same width (clamped internally).
             half_width_eff = max(MIN_WIDTH, half_width_m)
         else:
-            # Ellipsoid mode: original auto-thinning so short face/ear
-            # limbs don't look chunky next to long body limbs.
+            # Auto-thin so short face/ear limbs aren't chunky next to body limbs.
             half_width_eff = max(MIN_WIDTH, min(length * WIDTH_RATIO, half_width_m))
 
         v_local, f_local, _weights_unused = _capsule_mesh_local(
@@ -678,10 +603,8 @@ def _build_openpose_sticks(
         v_world = v_local @ R.T + head
         Nv = v_local.shape[0]
 
-        # Rigid binding to the per-limb joint. The 2-bone (head, tail) weights
-        # from `_capsule_mesh_local` are discarded — they're translation-only
-        # under glTF LBS and don't rotate the cross-section, causing visible
-        # thinning when the limb axis changes between rest and animated pose.
+        # Rigid binding to the per-limb joint; the 2-bone weights are discarded
+        # (translation-only under LBS, would thin the cross-section).
         j_arr = np.zeros((Nv, 4), dtype=np.uint16)
         j_arr[:, 0] = limb_idx + limb_joint_base_idx
         w_arr = np.zeros((Nv, 4), dtype=np.float32)
@@ -730,40 +653,24 @@ def build_glb_openpose(
     stick_end_width_frac: float = 0.6,
     bone_smooth_window: int = 0,
 ) -> bytes:
-    """Build a GLB containing an OpenPose-style 3D skeleton — sphere markers
-    per keypoint plus rainbow-colored sticks between standard limb pairs.
-    Body keypoints are sourced from pose_data's `pred_keypoints_3d` (no rig
-    forward needed). Optional hand keypoints (also from `pred_keypoints_3d`)
-    and face landmarks (sampled from `pred_vertices` at fixed head-mesh
-    vertex IDs) extend the same per-track armature.
+    """Build a GLB of an OpenPose-style 3D skeleton — sphere markers per keypoint
+    plus colored sticks between limb pairs, one armature per track. Body from
+    `pred_keypoints_3d`; optional hands (same source) and face landmarks
+    (`pred_vertices`) extend each armature.
 
     Args:
-        include_hands: append the standard 21+21 OpenPose hand keypoints to
-            each track's armature (right hand at MHR70 indices 21..41,
-            left at 42..62).
-        hand_marker_radius_m: per-hand sphere radius. 0 = auto = 0.4 ×
-            `marker_radius_m` (hand keypoints are anatomically smaller than
-            body joints; matches DWPose's smaller hand dots).
-        hand_stick_radius_m: per-hand limb half-width. 0 = auto = 0.5 ×
-            `stick_radius_m`.
-        hand_color_style: 'dwpose' (default) = solid-blue hand dots,
-            rainbow per-finger sticks (controlnet_aux/dwpose convention);
-            'openpose' = rainbow per-finger dots AND sticks (matches
-            poseParameters.cpp::HAND_COLORS_RENDER).
-        face_style: 'disabled' (default) | 'full' | 'eyes_mouth' — face
-            landmarks sampled from `pred_vertices` at vertex IDs picked from
-            `pose_data["canonical_colors"]["positions"]`. 'full' = all ~30
-            contour points; 'eyes_mouth' = the eyes + outer-lip subset.
-        face_marker_radius_m: per-face landmark sphere radius. 0 = auto =
-            0.3 × `marker_radius_m` — face landmarks are densely packed
-            around the eyes/mouth/jaw and need to be much smaller than
-            body keypoints to keep the layout legible. Face landmarks are
-            rendered as standalone dots (no contour lines), matching
-            DWPose's face_pose draw style.
-        palette: body color scheme. 'openpose' = standard rainbow gradient
-            per keypoint (canonical OpenPose convention); 'scail' =
-            SCAIL-Pose style — warm hues right side, cool hues left side,
-            grey neck-to-nose centerline, distinct per-limb colors.
+        include_hands: append the 21+21 OpenPose hand keypoints per track.
+        hand_marker_radius_m: hand sphere radius. 0 = auto = 0.4 × marker_radius_m.
+        hand_stick_radius_m: hand limb half-width. 0 = auto = 0.5 × stick_radius_m.
+        hand_color_style: 'dwpose' (default) = solid-blue dots + rainbow sticks;
+            'openpose' = rainbow dots AND sticks.
+        face_style: 'disabled' (default) | 'full' (~30 contour pts) | 'eyes_mouth'
+            (eyes + outer-lip subset); sampled at vertex IDs from
+            `canonical_colors["positions"]`.
+        face_marker_radius_m: face landmark sphere radius. 0 = auto = 0.3 ×
+            marker_radius_m. Rendered as dots only, no contour lines.
+        palette: 'openpose' = rainbow gradient per keypoint; 'scail' = warm right
+            / cool left, grey centerline, distinct per-limb colors.
     """
     is_scail = str(palette) == "scail"
     # SCAIL drops the face bones (13..16) and eye/ear spheres; keeps nose (idx 0,
@@ -771,13 +678,11 @@ def build_glb_openpose(
     body_pairs = OPENPOSE_18_PAIRS[:13] if is_scail else OPENPOSE_18_PAIRS
     body_sphere_kp = (np.arange(14, dtype=np.int64)
                       if is_scail else np.arange(18, dtype=np.int64))
-    if str(palette) == "scail":
+    if is_scail:
         body_sphere_colors = SCAIL_KEYPOINT_COLORS_18
         body_stick_colors = SCAIL_LIMB_COLORS_17
     elif str(palette) == "openpose":
-        # Existing OpenPose behavior: same rainbow array used for both
-        # spheres (per-keypoint) and sticks (per-limb, indexed 0..16 of
-        # the 18-element rainbow — yields a legible per-limb gradient).
+        # Same rainbow array drives both spheres and sticks.
         body_sphere_colors = OPENPOSE_RAINBOW_18
         body_stick_colors = OPENPOSE_RAINBOW_18
     else:
@@ -892,13 +797,9 @@ def build_glb_openpose(
         if bone_smooth_window and bone_smooth_window > 1:
             kp_seq = gaussian_smooth_positions(kp_seq, int(bone_smooth_window))
 
-        # Static-bind = rig's REST pose when available (override path); else
-        # fall back to frame 0 of the motion. The rest-pose bind makes the
-        # GLB's static POSITION attribute sit at rig origin, so viewers
-        # auto-fit/center on rig origin and the animation visibly snaps from
-        # rest to scene-frame-0 — matching skeletal mode's behavior. Without
-        # this, openpose's static geometry is at scene-frame-0 and viewers
-        # mis-center on the scene location, masking the motion entirely.
+        # Static-bind = rig REST pose when available, else frame 0. The rest
+        # bind keeps static POSITION at rig origin so viewers auto-center there
+        # and the motion is visible (see _openpose_bind_at_rig_rest).
         bind_kp_m_rest = _openpose_bind_at_rig_rest(
             pose_data, include_hands=include_hands, face_vert_ids=face_vert_ids,
         )
@@ -914,7 +815,7 @@ def build_glb_openpose(
         person_root_idx = len(nodes) - 1
         scene_root_indices.append(person_root_idx)
 
-        # K keypoint joint nodes (spheres bind here, rigid translation only).
+        # K keypoint joint nodes (spheres bind here, translation only).
         joint_node_indices: List[int] = []
         for j in range(K):
             nodes.append({
@@ -926,9 +827,7 @@ def build_glb_openpose(
             joint_node_indices.append(len(nodes) - 1)
         person_root["children"].extend(joint_node_indices)
 
-        # Per-limb REST TRS (midpoint + axis) and per-frame TRS (midpoint +
-        # quaternion that aligns rest-axis → frame-t-axis). Sticks bind
-        # rigidly to these joints so each capsule rotates with its limb.
+        # Per-limb rest + per-frame TRS; sticks bind rigidly to these joints.
         limb_rest_mids_list: List[np.ndarray] = []
         limb_rest_axes_list: List[np.ndarray] = []
         limb_anim_mids_list: List[np.ndarray] = []
@@ -951,12 +850,10 @@ def build_glb_openpose(
                 limb_rest_axes_list.append(raxis_h)
                 limb_anim_mids_list.append(amid_h)
                 limb_anim_quats_list.append(aquat_h)
-        limb_rest_mids = np.concatenate(limb_rest_mids_list, axis=0)         # (K_limbs, 3)
-        limb_anim_mids = np.concatenate(limb_anim_mids_list, axis=1)         # (N, K_limbs, 3)
-        limb_anim_quats = np.concatenate(limb_anim_quats_list, axis=1)       # (N, K_limbs, 4)
-        # Hemisphere-align consecutive quats per limb so LINEAR interpolation
-        # takes the short path (otherwise large per-frame rotations can flip
-        # signs and produce visible "twist back" artifacts mid-playback).
+        limb_rest_mids = np.concatenate(limb_rest_mids_list, axis=0)
+        limb_anim_mids = np.concatenate(limb_anim_mids_list, axis=1)
+        limb_anim_quats = np.concatenate(limb_anim_quats_list, axis=1)
+        # Hemisphere-align consecutive quats so LINEAR interp takes the short path.
         limb_anim_quats = quat_sign_fix_per_joint(limb_anim_quats).astype(np.float32)
 
         limb_joint_indices: List[int] = []
@@ -970,8 +867,8 @@ def build_glb_openpose(
             limb_joint_indices.append(len(nodes) - 1)
         person_root["children"].extend(limb_joint_indices)
 
-        # Combined skin: keypoint joints (IBM = T(-bind_kp_m)) then limb joints
-        # (IBM = T(-limb_rest_mid)). Both yield identity skin_matrix at rest.
+        # Combined skin: keypoint joints then limb joints; IBM = T(-rest) for
+        # both, yielding identity skin_matrix at rest.
         all_joint_indices = joint_node_indices + limb_joint_indices
         ibm = np.tile(np.eye(4, dtype=np.float32), (K + K_limbs, 1, 1))
         ibm[:K, :3, 3] = -bind_kp_m
@@ -985,10 +882,8 @@ def build_glb_openpose(
         })
         skin_idx = len(skins) - 1
 
-        # Per-group geometry. Spheres bind to keypoint joints (base_joint_idx
-        # ∈ [0, K)); sticks bind to limb joints (limb_joint_base_idx ∈
-        # [K, K + K_limbs)). Groups stack body → right hand → left hand →
-        # face for keypoint joints, and body → R-hand → L-hand for limbs.
+        # Per-group geometry. Spheres bind to keypoint joints [0, K); sticks to
+        # limb joints [K, K+K_limbs). Stacked body → R-hand → L-hand → face.
         group_meshes: List[Tuple[np.ndarray, np.ndarray, np.ndarray,
                                  np.ndarray, np.ndarray, np.ndarray]] = []
         sp = _build_openpose_spheres(
@@ -1008,9 +903,7 @@ def build_glb_openpose(
         group_meshes.append(st)
 
         if include_hands:
-            # Hand stick colors stay rainbow per-finger regardless of
-            # `hand_color_style` — only the sphere dots switch to solid
-            # blue under 'dwpose'. Matches controlnet_aux/dwpose/util.py.
+            # Hand sticks stay rainbow per-finger; only dots switch under 'dwpose'.
             hand_pair_colors = _pair_colors_from_kp(
                 OPENPOSE_HAND_PAIRS, OPENPOSE_HAND_COLORS_21, endpoint=1,
             )
@@ -1033,9 +926,7 @@ def build_glb_openpose(
         if K_face > 0:
             f_off = K_body + K_hands
             f_bind = bind_kp_m[f_off:f_off + K_face]
-            # DWPose face = dots only, no contour lines
-            # (controlnet_aux/dwpose/util.py::draw_facepose draws white
-            # circles per landmark and never connects them).
+            # DWPose face = dots only, no contour lines.
             group_meshes.append(_build_openpose_spheres(
                 f_bind, float(face_marker_radius_m),
                 FACE_LANDMARK_COLORS, base_joint_idx=f_off,
@@ -1087,9 +978,8 @@ def build_glb_openpose(
                 "target": {"node": joint_node_indices[j], "path": "translation"},
             })
 
-        # Per-limb-joint translation + rotation channels. Stationary limbs
-        # have their constant TRS baked into the node so they don't bloat the
-        # animation buffer.
+        # Per-limb-joint translation + rotation; stationary limbs bake their
+        # constant TRS into the node instead of an animation channel.
         for k in range(K_limbs):
             t_k = limb_anim_mids[:, k, :].astype(np.float32)
             if (np.ptp(t_k, axis=0) < 1e-6).all():
@@ -1103,9 +993,7 @@ def build_glb_openpose(
                     "target": {"node": limb_joint_indices[k], "path": "translation"},
                 })
             q_k = limb_anim_quats[:, k, :].astype(np.float32)
-            # ptp on the absolute value handles the +q == -q ambiguity, but
-            # `quat_sign_fix_per_joint` already aligned signs so a plain ptp
-            # is fine here.
+            # Plain ptp is fine — signs already aligned by quat_sign_fix_per_joint.
             if (np.ptp(q_k, axis=0) < 1e-6).all():
                 nodes[limb_joint_indices[k]]["rotation"] = q_k[0].tolist()
             else:

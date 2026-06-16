@@ -4,25 +4,15 @@ import torch
 import torch.nn as nn
 
 from ..utils import euler_to_rotmat, rot6d_to_rotmat, rotmat_to_euler, unitquat_to_rotmat
-from .mhr_utils import compact_cont_to_model_params_body, compact_cont_to_model_params_hand, compact_model_params_to_cont_body, mhr_param_hand_mask
+from .mhr_utils import compact_cont_to_model_params_body, compact_cont_to_model_params_hand, mhr_param_hand_mask
 
 from ..model.transformer import MLP
 
 
 class MHRHead(nn.Module):
 
-    def __init__(
-        self,
-        input_dim: int,
-        mhr_rig,
-        mlp_depth: int = 1,
-        extra_joint_regressor: str = "",
-        mlp_channel_div_factor: int = 8,
-        enable_hand_model=False,
-        device=None,
-        dtype=None,
-        operations=None,
-    ):
+    def __init__(self, input_dim: int, mhr_rig, mlp_depth: int = 1, mlp_channel_div_factor: int = 8, enable_hand_model=False,
+        device=None, dtype=None, operations=None):
         super().__init__()
         # Store the shared MHRRig as a non-registered Python attribute
         object.__setattr__(self, "mhr", mhr_rig)
@@ -48,9 +38,7 @@ class MHRHead(nn.Module):
             hidden_dim=input_dim // mlp_channel_div_factor,
             output_dim=self.npose,
             num_layers=mlp_depth,
-            device=device,
-            dtype=dtype,
-            operations=operations,
+            device=device, dtype=dtype, operations=operations,
         )
 
         # MHR Parameters
@@ -75,28 +63,25 @@ class MHRHead(nn.Module):
         self.local_to_world_wrist = _p(3, 3)
         self.nonhand_param_idxs = _p(145, dtype=torch.int64)
         # Hand-painted per-vertex face region RGB (rainbow_face_semantic shader).
-        # Optional — loaded from the .safetensors if present, otherwise the
-        # render path falls back to a coarse geometric approximation.
-        self.register_buffer(
-            "face_region_rgb", torch.zeros(18439, 3, dtype=torch.float32),
-        )
+        self.register_buffer("face_region_rgb", torch.zeros(18439, 3, dtype=torch.float32))
 
-    def canonical_vertices(self, device=None):
+    def canonical_vertices(self):
         """Return the T-pose vertices for the mean shape (scaled to meters).
 
         Runs MHR with zero pose / shape / scale / expression so the returned
         mesh is the canonical rest pose — fixed per-model
         """
-        dev = device or self.scale_mean.device
-        dt = self.scale_mean.dtype
+        device = self.scale_mean.device
+        dtype = self.scale_mean.dtype
         B = 1
-        global_trans = torch.zeros(B, 3, device=dev, dtype=dt)
-        global_rot   = torch.zeros(B, 3, device=dev, dtype=dt)
-        body_pose    = torch.zeros(B, 130, device=dev, dtype=dt)
-        hand_pose    = torch.zeros(B, self.num_hand_comps * 2, device=dev, dtype=dt)
-        scale        = torch.zeros(B, self.num_scale_comps, device=dev, dtype=dt)
-        shape        = torch.zeros(B, self.num_shape_comps, device=dev, dtype=dt)
-        expr         = torch.zeros(B, self.num_face_comps, device=dev, dtype=dt)
+        global_trans = torch.zeros(B, 3, device=device, dtype=dtype)
+        global_rot   = torch.zeros(B, 3, device=device, dtype=dtype)
+        body_pose    = torch.zeros(B, 130, device=device, dtype=dtype)
+        hand_pose    = torch.zeros(B, self.num_hand_comps * 2, device=device, dtype=dtype)
+        scale        = torch.zeros(B, self.num_scale_comps, device=device, dtype=dtype)
+        shape        = torch.zeros(B, self.num_shape_comps, device=device, dtype=dtype)
+        expr         = torch.zeros(B, self.num_face_comps, device=device, dtype=dtype)
+
         verts = self.mhr_forward(
             global_trans=global_trans,
             global_rot=global_rot,
@@ -107,20 +92,6 @@ class MHRHead(nn.Module):
             expr_params=expr,
         )  # single-tensor shape (1, N_v, 3) in meters
         return verts[0]
-
-    def get_zero_pose_init(self, factor=1.0):
-        # Initialize pose token with zero-initialized learnable params
-        # Note: bias/initial value should be zero-pose in cont, not all-zeros
-        weights = torch.zeros(1, self.npose)
-        weights[:, : 6 + self.body_cont_dim] = torch.cat(
-            [
-                torch.FloatTensor([1, 0, 0, 0, 1, 0]),
-                compact_model_params_to_cont_body(torch.zeros(1, 133)).squeeze()
-                * factor,
-            ],
-            dim=0,
-        )
-        return weights
 
     def replace_hands_in_pose(self, full_pose_params, hand_pose_params):
         assert full_pose_params.shape[1] == 136
@@ -159,12 +130,9 @@ class MHRHead(nn.Module):
         shape_params,
         expr_params=None,
         return_keypoints=False,
-        do_pcblend=True,
         return_joint_coords=False,
         return_model_params=False,
         return_joint_rotations=False,
-        scale_offsets=None,
-        vertex_offsets=None,
     ):
         # Align everything to the static buffers
         dt = self.scale_mean.dtype
@@ -206,14 +174,10 @@ class MHRHead(nn.Module):
             shape_params = shape_params[None]
         # Convert scale...
         scales = self.scale_mean[None, :] + scale_params @ self.scale_comps
-        if scale_offsets is not None:
-            scales = scales + scale_offsets
 
         # Now, figure out the pose.
         ## 10 here is because it's more stable to optimize global translation in meters.
-        full_pose_params = torch.cat(
-            [global_trans * 10, global_rot, body_pose_params], dim=1
-        )  # B x 127
+        full_pose_params = torch.cat([global_trans * 10, global_rot, body_pose_params], dim=1)  # B x 127
         ## Put in hands
         if hand_pose_params is not None:
             full_pose_params = self.replace_hands_in_pose(
@@ -268,14 +232,7 @@ class MHRHead(nn.Module):
         else:
             return tuple(to_return)
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        init_estimate: Optional[torch.Tensor] = None,
-        do_pcblend=True,
-        slim_keypoints=False,
-        intermediate: bool = False,
-    ):
+    def forward(self, x: torch.Tensor, init_estimate: Optional[torch.Tensor] = None, intermediate: bool = False):
         """
         Args:
             x: pose token with shape [B, C], usually C=DECODER.DIM
@@ -331,7 +288,6 @@ class MHRHead(nn.Module):
             scale_params=pred_scale,
             shape_params=pred_shape,
             expr_params=pred_face,
-            do_pcblend=do_pcblend,
             return_keypoints=True,
             return_joint_coords=True,
             return_model_params=True,
@@ -356,7 +312,7 @@ class MHRHead(nn.Module):
         # Head-MLP outputs are promoted to fp32 here so the external
         # pose_output["mhr"] contract has a stable dtype regardless of what
         # the head ran at (fp16/bf16 for speed). MHR-derived outputs are
-        # already fp32 from MHR's math layers; the cast on them is a no-op.
+        # already fp32 from MHR's math layers.
         output = {
             "pred_pose_raw": torch.cat([global_rot_6d, pred_pose_cont], dim=1).float(),
             "pred_pose_rotmat": None,

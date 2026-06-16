@@ -1,12 +1,9 @@
-"""3D capsule rendering for OpenPose-style skeletons — SCAIL-Pose-equivalent
-torch ray-marching SDF renderer adapted to SAM3DBody pose_data.
+"""3D capsule rendering for OpenPose-style skeletons (SCAIL-Pose look).
 
-Each limb is drawn as a true 3D capsule (cylinder + hemispherical caps),
-projected through the per-person camera (`pred_cam_t` + `focal_length` +
-image_size) so closer limbs appear thicker/brighter — the SCAIL-Pose
-visual style. Self-contained: no dependency on the SCAIL-Pose package.
-
-Output: (H, W, 3) fp32 torch.Tensor in [0, 1].
+Each limb is a true 3D capsule (cylinder + hemispherical caps), projected
+through the per-person camera (`pred_cam_t` + `focal_length` + image_size) so
+closer limbs appear thicker/brighter. Self-contained analytic ray-capsule
+renderer. Output: (H, W, 3) fp32 torch.Tensor in [0, 1].
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -41,14 +38,12 @@ def _build_specs_from_pose(
     palette: str,
     person_brightness_falloff: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Flatten body + optional hand limbs for one frame into
-    (starts, ends, colors_rgba, is_hand) in camera coords (Y-down, +Z forward).
-    Drops endpoints that are non-finite or behind the camera. `is_hand` flags
-    the hand limbs so the renderer can draw them thinner.
+    """Flatten body + optional hand limbs for one frame into (starts, ends,
+    colors_rgba, is_hand) in camera coords (Y-down, +Z forward). Drops non-finite
+    or behind-camera endpoints; `is_hand` lets the renderer draw hands thinner.
 
-    `person_brightness_falloff` mixes each per-person limb color toward white
-    by `1 - falloff^k` for track index `k` (track 0 stays vivid). Matches the
-    mesh rasterizer and GLB exporters."""
+    `person_brightness_falloff` mixes each per-person color toward white by
+    `1 - falloff^k` for track k (track 0 stays vivid)."""
     starts: List[np.ndarray] = []
     ends: List[np.ndarray] = []
     colors: List[np.ndarray] = []
@@ -65,8 +60,7 @@ def _build_specs_from_pose(
         if body_op is None or cam_t is None:
             continue
         cam_t_np = np.asarray(cam_t, dtype=np.float32).reshape(3)
-        # op-keypoints are camera frame (Y-down); add cam_t to place the
-        # subject in front of the camera.
+        # op-keypoints are camera frame; add cam_t to place the subject in front.
         body_kp = body_op + cam_t_np[None, :]
 
         pastel = 0.0 if k == 0 else (1.0 - falloff ** k)
@@ -148,10 +142,9 @@ def _ray_capsule_t(
     ba_len: torch.Tensor,      # (M,) segment length
     radius: torch.Tensor,      # (M,) per-capsule radius
 ) -> torch.Tensor:
-    """Closed-form ray-capsule intersection. Returns (K, M) tensor of ray
-    parameters t to the nearest valid hit per capsule, +inf where the ray
-    misses. A capsule is the union of (cylinder body, hemisphere at A,
-    hemisphere at B); each component is a quadratic root-find."""
+    """Closed-form ray-capsule intersection -> (K, M) ray params t to the nearest
+    valid hit per capsule, +inf on miss. Capsule = union of (cylinder, hemisphere
+    at A, hemisphere at B), each a quadratic root-find."""
     INF = float("inf")
     r_sq = radius * radius                      # (M,)
 
@@ -238,9 +231,8 @@ def _render_capsules_torch(
     z_min = float(min(starts[:, 2].min().item(), ends[:, 2].min().item()))
     z_near = max(0.05, z_min - float(radius.max().item()))
 
-    # Union of per-capsule screen-space bboxes. Pixels outside this mask
-    # provably can't hit any capsule, so the analytic intersection only runs
-    # on the relevant subset of the canvas (~5-15% at 1080p for typical poses).
+    # Union of per-capsule screen-space bboxes — pixels outside can't hit any
+    # capsule, so intersection only runs on the relevant subset of the canvas.
     sz = starts[:, 2].clamp(min=z_near)
     ez = ends[:, 2].clamp(min=z_near)
     sx_p = starts[:, 0] * fx / sz + cx
@@ -261,16 +253,13 @@ def _render_capsules_torch(
         if xmax_i > xmin_i and ymax_i > ymin_i:
             coarse_mask[ymin_i:ymax_i, xmin_i:xmax_i] = True
 
-    # Analytic ray-capsule intersection. One pass over the masked pixels —
-    # the previous SDF marcher took up to MAX_STEPS=96 iterations per pixel
-    # plus 6 SDF evaluations per hit pixel for finite-difference normals.
+    # Analytic ray-capsule intersection, one pass over the masked pixels.
     INF = float("inf")
     flat_t = torch.full((N,), INF, device=device, dtype=torch.float32)
     flat_m_idx = torch.full((N,), -1, device=device, dtype=torch.long)
     active_idx = torch.nonzero(coarse_mask.view(-1), as_tuple=False).squeeze(1)
     if active_idx.numel() > 0:
-        # Cap per-chunk (K, M) tensors to ~4M elements to keep peak memory
-        # manageable when both K (image pixels) and M (capsules) are large.
+        # Cap per-chunk (K, M) tensors to ~4M elements to bound peak memory.
         chunk_max = max(1, int(4_000_000 / max(M, 1)))
         for i0 in range(0, active_idx.numel(), chunk_max):
             sub = active_idx[i0 : i0 + chunk_max]
@@ -284,7 +273,7 @@ def _render_capsules_torch(
                 flat_t[winners] = t_min[hit]
                 flat_m_idx[winners] = m_idx[hit]
 
-    # Shade: analytic normal (P - closest_point_on_segment) → soft Lambert × depth fade.
+    # Shade via analytic normal (P - closest point on segment).
     out = torch.zeros((N, 3), dtype=torch.float32, device=device)
     if background_rgb is not None:
         out = background_rgb.to(device=device, dtype=torch.float32).reshape(N, 3).clone()
@@ -306,10 +295,10 @@ def _render_capsules_torch(
 
         col = colors[m_h, :3]
         if flat_shade:
-            # Solid per-limb color (OpenPose look) — no lighting/depth modulation.
+            # Solid per-limb color (OpenPose look) — no lighting/depth.
             out[hit_idx] = col
             return out.view(H, W, 3).clamp(0.0, 1.0)
-        # SCAIL Blinn-Phong (render_torch.py:290-331). Headlight: light = +Z.
+        # SCAIL Blinn-Phong, headlight along +Z.
         diff = torch.clamp(-(normals[:, 2]), min=0.0)
         diffuse = 0.45 + 0.55 * diff
 
@@ -319,7 +308,7 @@ def _render_capsules_torch(
         half_dir = half_dir / half_dir.norm(dim=-1, keepdim=True).clamp(min=1e-8)
         spec = torch.clamp((normals * half_dir).sum(dim=-1), min=0.0).pow(32)
 
-        # Mild depth fade matches SCAIL's mm-scale ramp in our meter units.
+        # Mild depth fade.
         z_vals = p_hit[:, 2]
         z_lo, z_hi = float(z_vals.min().item()), float(z_vals.max().item())
         if z_hi - z_lo > 1e-6:
@@ -351,21 +340,18 @@ def render_pose_data_capsules(
     hand_radius_scale: float = 0.4,
     device: Optional[torch.device] = None,
 ) -> torch.Tensor:
-    """Render a frame's pose_data as 3D capsules projected through the per-
-    person camera. Returns (H, W, 3) fp32 in [0, 1].
+    """Render a frame's pose_data as 3D capsules through the per-person camera.
+    Returns (H, W, 3) fp32 in [0, 1].
 
-    `composite='over'` paints over `background` (black if None);
-    `composite='mesh_only'` always uses a black canvas.
-
-    `radius_m` is in METERS (matching `pred_keypoints_3d` / `pred_cam_t`).
-    Hand limbs use `radius_m * hand_radius_scale` (their bones are far shorter
-    than body limbs). Camera fx/fy come from each person's `focal_length`.
+    `composite='over'` paints over `background` (black if None); 'mesh_only'
+    uses a black canvas. `radius_m` is in meters; hand limbs use
+    `radius_m * hand_radius_scale`. fx/fy come from each person's `focal_length`.
     """
     persons = pose_data["frames"][frame_idx]
     if device is None:
         device = comfy.model_management.get_torch_device()
 
-    # SAM3DBody shares one camera across the clip — pick from the first valid person.
+    # SAM3DBody shares one camera across the clip — use the first valid person.
     fx = fy = float(min(H, W))
     for person in persons:
         f = person.get("focal_length")

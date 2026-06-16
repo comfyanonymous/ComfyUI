@@ -34,8 +34,7 @@ def _bbox_from_mask(mask: torch.Tensor) -> Optional[torch.Tensor]:
 
 def inputs_from_sam3_track(track_data, B: int, H: int, W: int):
     """Unpack SAM3_TRACK_DATA into per-frame per-object bboxes + masks at image
-    resolution. Returns (per_frame_bboxes, per_frame_masks) or
-    (None, None) when the track is empty / frame count doesn't match"""
+    resolution. Returns (None, None) on empty track / frame-count mismatch."""
 
     packed = track_data.get("packed_masks") if isinstance(track_data, dict) else None
     if packed is None:
@@ -100,7 +99,7 @@ def cam_int_from_fov(height: int, width: int, fov_degrees: float) -> Optional[to
 def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, Any],
                           H: int, W: int) -> Dict[str, Any]:
     """Re-project every frame's pose through a Load3D 6DOF camera (position/
-    target/zoom + optional FOV). Returns a new mhr_pose_data; unchanged on
+    target/zoom + optional FOV). Returns a new mhr_pose_data, unchanged on
     empty/invalid input."""
     first_frame = mhr_pose_data["frames"][0] if mhr_pose_data["frames"] else []
     if not first_frame:
@@ -158,16 +157,16 @@ def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, 
         y_axis = np.cross(z_axis, x_axis)
     R = np.stack([x_axis, y_axis, z_axis], axis=0).astype(np.float32)
 
-    # Eye: dolly along the given offset; for a rotation-only camera (position ==
-    # target) keep the predicted viewing distance so only orientation/roll changes.
+    # Eye: dolly along the offset; rotation-only camera keeps the predicted
+    # viewing distance so only orientation/roll changes.
     if has_offset:
         eye = target + offset / max(0.01, zoom)
     else:
         d = max(0.1, float(target[2]))
         eye = target - z_axis * (d / max(0.01, zoom))
 
-    # Lens: use the camera's own FoV; else the SAM3D predicted focal (viewpoint-
-    # only change). Three.js fov is vertical → focal from image height.
+    # Lens: camera FoV if given, else the SAM3D predicted focal. Three.js fov
+    # is vertical → focal from image height.
     cam_fov = float(camera_info.get("fov", 0.0) or 0.0)
     if cam_fov > 0:
         new_focal = float(H) / (2.0 * float(np.tan(np.deg2rad(cam_fov) / 2.0)))
@@ -178,10 +177,8 @@ def apply_camera_override(mhr_pose_data: Dict[str, Any], camera_info: Dict[str, 
 
     center = np.array([W * 0.5, H * 0.5], dtype=np.float32)
     reproj = {"pred_keypoints_3d": "pred_keypoints_2d", "pred_face_keypoints_3d": "pred_face_keypoints_2d"}
-    # External rigs (e.g. Kimodo) store pred_joint_coords rig-native Y-up; the
-    # render openpose/scail keypoint provider resolves from them and flips Y/Z.
-    # Transform them through the camera too (in camera space, then back to Y-up)
-    # so those keypoints follow the override instead of staying in the old frame.
+    # External rigs store pred_joint_coords Y-up; transform them through the
+    # camera too (in camera space, then back to Y-up) so they follow the override.
     override = mhr_pose_data.get("_skeleton_override")
     joints_y_up = override is not None and not bool(override.get("per_frame_y_down", False))
     new_frames: List[List[Dict[str, Any]]] = []
@@ -242,8 +239,7 @@ def run_batched_single_chunk(inner: SAM3DBody, frames_rgb: List[torch.Tensor], p
     img_per_crop = [frames_rgb[f] for f in range(N) for _ in range(K)]
 
     if per_frame_masks is not None:
-        # Broadcast a single-mask bundle to per-bbox: when the user supplied one
-        # mask but multiple bboxes per frame, each bbox gets the same mask.
+        # One mask but multiple bboxes per frame → each bbox gets the same mask.
         flat_masks = []
         for f in range(N):
             mf = per_frame_masks[f]

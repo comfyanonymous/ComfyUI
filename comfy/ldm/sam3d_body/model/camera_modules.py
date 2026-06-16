@@ -43,15 +43,6 @@ class FourierPositionEncoding(nn.Module):
         self.num_bands = num_bands
         self.max_resolution = [max_resolution] * n
 
-    @property
-    def channels(self):
-        num_dims = len(self.max_resolution)
-        encoding_size = self.num_bands * num_dims
-        encoding_size *= 2  # sin-cos
-        encoding_size += num_dims  # concat
-
-        return encoding_size
-
     def forward(self, pos: torch.Tensor):
         fourier_pos_enc = _generate_fourier_features(pos, num_bands=self.num_bands, max_resolution=self.max_resolution)
         return fourier_pos_enc
@@ -118,9 +109,7 @@ class PerspectiveHead(nn.Module):
         pred_cam: torch.Tensor,
         bbox_center: torch.Tensor, # [N, 2], in original image space (w, h)
         bbox_size: torch.Tensor, # [N,], in original image space
-        img_size: torch.Tensor,
         cam_int: torch.Tensor, # [B, 3, 3]
-        use_intrin_center: bool = False,
     ):
         batch_size = points_3d.shape[0]
         pred_cam = pred_cam.clone()
@@ -133,12 +122,8 @@ class PerspectiveHead(nn.Module):
         focal_length = cam_int[:, 0, 0]
         tz = 2 * focal_length / bs
 
-        if not use_intrin_center:
-            cx = 2 * (bbox_center[:, 0] - (img_size[:, 0] / 2)) / bs
-            cy = 2 * (bbox_center[:, 1] - (img_size[:, 1] / 2)) / bs
-        else:
-            cx = 2 * (bbox_center[:, 0] - (cam_int[:, 0, 2])) / bs
-            cy = 2 * (bbox_center[:, 1] - (cam_int[:, 1, 2])) / bs
+        cx = 2 * (bbox_center[:, 0] - cam_int[:, 0, 2]) / bs
+        cy = 2 * (bbox_center[:, 1] - cam_int[:, 1, 2]) / bs
 
         pred_cam_t = torch.stack([tx + cx, ty + cy, tz], dim=-1)
 
