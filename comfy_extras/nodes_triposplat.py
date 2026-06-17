@@ -65,7 +65,7 @@ class TripoSplatPreprocessImage(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoSplatPreprocessImage",
             display_name="TripoSplat Preprocess Image",
-            category="3d/conditioning",
+            category="model/conditioning/triposplat",
             description="Crop center each image to a square canvas on a black background and add padding.",
             inputs=[
                 IO.Image.Input("image"),
@@ -95,7 +95,7 @@ class TripoSplatConditioning(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoSplatConditioning",
             display_name="TripoSplat Conditioning",
-            category="3d/conditioning",
+            category="model/conditioning/triposplat",
             description="Encode the image with DINOv3 and the Flux2 VAE into TripoSplat positive/negative "
                         "conditioning, and create the fixed size noise target (latent + camera) for the KSampler",
             inputs=[

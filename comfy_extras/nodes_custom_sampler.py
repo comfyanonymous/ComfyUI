@@ -729,7 +729,7 @@ class SamplerCustom(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerCustom",
-            category="model/sampling/custom_sampling",
+            category="model/sampling/custom",
             inputs=[
                 io.Model.Input("model"),
                 io.Boolean.Input("add_noise", default=True, advanced=True),
@@ -933,9 +933,10 @@ class Guider_DualModel(comfy.samplers.CFGGuider):
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
         positive = self.conds.get("positive", None)
-        if self.uncond_inner is None:  # cfg == 1 or no negative -> single model, cond only
-            return comfy.samplers.calc_cond_batch(self.inner_model, [positive], x, timestep, model_options)[0]
         cond = comfy.samplers.calc_cond_batch(self.inner_model, [positive], x, timestep, model_options)[0]
+        # uncond model not loaded (base cfg==1/no negative), or cfg driven to 1.0 this step -> single model, cond only
+        if self.uncond_inner is None or (math.isclose(self.cfg, 1.0) and not model_options.get("disable_cfg1_optimization", False)):
+            return cond
 
         uncond_model_options = model_options
         if "multigpu_clones" in model_options: # TODO: support multigpu instead of just running uncond on a single GPU
@@ -1014,7 +1015,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerCustomAdvanced",
-            category="model/sampling/custom_sampling",
+            category="model/sampling/custom",
             inputs=[
                 io.Noise.Input("noise"),
                 io.Guider.Input("guider"),
@@ -1140,9 +1141,9 @@ class CFGOverride(io.ComfyNode):
         return io.Schema(
             node_id="CFGOverride",
             display_name="CFG Override",
-            description="Override cfg to a fixed value over a [start, end] percent slice of the steps. "
+            description="Override cfg to a fixed value over a [start, end] percent (sigma) range. "
                         "With multiple overrides, the one nearest the sampler wins on overlap.",
-            category="sampling/custom_sampling",
+            category="model/sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("cfg", default=1.0, min=0.0, max=100.0, step=0.1, round=0.01),

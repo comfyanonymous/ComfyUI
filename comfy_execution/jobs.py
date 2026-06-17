@@ -3,6 +3,7 @@ Job utilities for the /api/jobs endpoint.
 Provides normalization and helper functions for job status tracking.
 """
 
+import uuid
 from typing import Optional
 
 from comfy_api.internal import prune_dict
@@ -17,6 +18,25 @@ class JobStatus:
     CANCELLED = 'cancelled'
 
     ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
+
+
+def validate_job_id(value) -> str:
+    """Validate a client-supplied job (prompt) id.
+
+    Job ids must be UUIDs in the canonical lowercase hyphenated form. The id
+    is stored and compared verbatim everywhere downstream — history keys,
+    websocket events, and /interrupt matching — so accepting another spelling
+    would silently rewrite the client's id and then miss every exact-match
+    lookup. Rejecting loudly beats that.
+
+    Returns the id unchanged. Raises ValueError when the value is not a
+    string in canonical UUID form.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"job id must be a string, got {type(value).__name__}")
+    if str(uuid.UUID(value)) != value:
+        raise ValueError("job id must be a UUID in canonical lowercase hyphenated form")
+    return value
 
 
 # Media types that can be previewed in the frontend
