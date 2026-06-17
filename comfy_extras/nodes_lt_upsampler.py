@@ -13,7 +13,7 @@ class LTXVLatentUpsampler(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="LTXVLatentUpsampler",
-            category="model/latent/video",
+            category="model/latent/ltxv",
             is_experimental=True,
             inputs=[
                 IO.Latent.Input("samples"),

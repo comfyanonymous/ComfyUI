@@ -285,7 +285,7 @@ class AudioSaveHelper:
         results = []
         for batch_number, waveform in enumerate(audio["waveform"].cpu()):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{counter:05}_.{format}"
+            file = f"{filename_with_batch_num}_{counter:05}.{format}"
             output_path = os.path.join(full_output_folder, file)
 
             # Use original sample rate initially
