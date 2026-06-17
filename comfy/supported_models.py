@@ -1769,7 +1769,7 @@ class Boogu(Omnigen2):
         "shift": 3.16,
     }
 
-    memory_usage_factor = 1.95 #TODO
+    memory_usage_factor = 2.15
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Boogu(self, device=device)

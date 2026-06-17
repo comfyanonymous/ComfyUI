@@ -26,13 +26,14 @@ class TextEncodeBooguEdit(io.ComfyNode):
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.String.Input("negative_prompt", multiline=True, dynamic_prompts=True, advanced=True),
                 io.Vae.Input("vae"),
                 io.Autogrow.Input(
                     "images",
                     template=io.Autogrow.TemplateNames(
                         io.Image.Input("image"),
                         names=[f"image_{i}" for i in range(1, 17)],
-                        min=1,
+                        min=0,
                     ),
                     tooltip="Reference image(s) to edit. Boogu focuses on one reference per sample; more are allowed.",
                 ),
@@ -44,7 +45,7 @@ class TextEncodeBooguEdit(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, vae=None, images: io.Autogrow.Type = None) -> io.NodeOutput:
+    def execute(cls, clip, prompt, negative_prompt, vae=None, images: io.Autogrow.Type = None) -> io.NodeOutput:
         ref_latents = []
         images_vl = []
 
@@ -75,7 +76,7 @@ class TextEncodeBooguEdit(io.ComfyNode):
 
         # positive: instruction + vision tokens; negative: empty (no vision). Ref latent on both.
         positive = clip.encode_from_tokens_scheduled(clip.tokenize(prompt, images=images_vl))
-        negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
+        negative = clip.encode_from_tokens_scheduled(clip.tokenize(negative_prompt))
 
         if len(ref_latents) > 0:
             positive = node_helpers.conditioning_set_values(positive, {"reference_latents": ref_latents}, append=True)
