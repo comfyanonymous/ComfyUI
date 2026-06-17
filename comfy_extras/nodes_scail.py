@@ -245,7 +245,7 @@ class WanSCAILToVideo(io.ComfyNode):
 
         # The ref mask binds reference frames to identities, so it only applies when there's a reference image.
         if reference_image_mask is not None and reference_image is not None:
-            ref_mask_hw = comfy.utils.common_upscale(reference_image_mask.movedim(-1, 1), width, height, "bicubic", "center").movedim(1, -1)
+            ref_mask_hw = comfy.utils.common_upscale(reference_image_mask.movedim(-1, 1), width, height, "nearest-exact", "center").movedim(1, -1)
             n_masks = ref_mask_hw.shape[0]
             n_ref = reference_image.shape[0]
 
@@ -289,7 +289,7 @@ class SCAIL2ColoredMask(io.ComfyNode):
                 io.String.Input("object_indices", default="",
                                 tooltip="Comma-separated list of person indices to include (e.g. '0,2,3'). Applied to both reference and pose video masks. Empty = all."),
                 io.Combo.Input("sort_by", options=["none", "left_to_right", "area"], default="left_to_right",
-                               tooltip="Order in which palette colors are assigned to the tracked objects (applied to both reference and pose video so each identity keeps the same color). left_to_right = leftmost object (by first-frame centroid) gets the first color; area = biggest object (by first-frame mask area) gets the first color; none = keep SAM3's order."),
+                               tooltip="Order in which palette colors are assigned to the tracked objects (applied to both reference and pose video so each identity keeps the same color). Objects that appear in earlier frames always come first; within a frame, left_to_right = leftmost object (by centroid at first appearance) gets the first color, area = biggest object (by mask area at first appearance) gets the first color; none = keep SAM3's order."),
                 io.Boolean.Input("replacement_mode", default=False,
                                  tooltip="False = Animation Mode (pose_video_mask has black background, reference_image_mask has white background). "
                                          "True = Replacement Mode (pose_video_mask has white background, reference_image_mask has black background)."),
