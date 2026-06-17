@@ -143,7 +143,7 @@ class WanSCAILToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanSCAILToVideo",
-            category="model/conditioning/video_models",
+            category="model/conditioning/wan/scail",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -281,7 +281,7 @@ class SCAIL2ColoredMask(io.ComfyNode):
         return io.Schema(
             node_id="SCAIL2ColoredMask",
             display_name="Create SCAIL-2 Colored Mask",
-            category="conditioning/video_models/scail",
+            category="model/conditioning/wan/scail",
             inputs=[
                 SAM3TrackData.Input("driving_track_data", tooltip="SAM3 track of the driving pose video. Will be rendered into the pose_video_mask output."),
                 io.MultiType.Input("ref_track_data", [SAM3TrackData, io.Mask], optional=True, display_name="reference_masks",
@@ -291,8 +291,8 @@ class SCAIL2ColoredMask(io.ComfyNode):
                 io.Combo.Input("sort_by", options=["none", "left_to_right", "area"], default="left_to_right",
                                tooltip="Order in which palette colors are assigned to the tracked objects (applied to both reference and pose video so each identity keeps the same color). Objects that appear in earlier frames always come first; within a frame, left_to_right = leftmost object (by centroid at first appearance) gets the first color, area = biggest object (by mask area at first appearance) gets the first color; none = keep SAM3's order."),
                 io.Boolean.Input("replacement_mode", default=False,
-                                 tooltip="False = Animation Mode (pose_video_mask has black background, reference_image_mask has white background). "
-                                         "True = Replacement Mode (pose_video_mask has white background, reference_image_mask has black background)."),
+                    tooltip="False = Animation Mode (pose_video_mask has black background, reference_image_mask has white background). "
+                    "True = Replacement Mode (pose_video_mask has white background, reference_image_mask has black background)."),
             ],
             outputs=[
                 io.Image.Output("pose_video_mask"),
