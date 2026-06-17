@@ -100,6 +100,7 @@
           "links": []
         }
       ],
+      "title": "Text to Image (Anima Base 1.0)",
       "properties": {
         "proxyWidgets": [
           [
@@ -149,8 +150,7 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [],
-      "title": "Text to Image (Anima)"
+      "widgets_values": []
     }
   ],
   "links": [],
@@ -168,7 +168,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Text to Image (Anima)",
+        "name": "Text to Image (Anima Base 1.0)",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -754,7 +754,7 @@
               "secondTabWidth": 65
             },
             "widgets_values": [
-              0,
+              875817230929465,
               "fixed",
               30,
               4,
@@ -1078,11 +1078,11 @@
         ],
         "extra": {},
         "category": "Image generation and editing/Text to image",
-        "description": "This subgraph converts text prompts into non-photorealistic illustrations using a 2-billion-parameter model optimized for anime and artistic styles. It is ideal for generating concept art, character designs, or stylized illustrations where photorealism is not required. The model excels with anime and artistic content but performs poorly on realistic subjects."
+        "description": "This subgraph generates non-photorealistic illustrations from text prompts using a 2-billion-parameter model optimized for anime concepts, characters, and styles. It is ideal for creating artistic images, concept art, or stylized illustrations where photorealism is not required. The model excels with anime and artistic content but performs poorly on realistic subjects."
       }
     ]
   },
   "extra": {
-    "BlueprintDescription": "This subgraph converts text prompts into non-photorealistic illustrations using a 2-billion-parameter model optimized for anime and artistic styles. It is ideal for generating concept art, character designs, or stylized illustrations where photorealism is not required. The model excels with anime and artistic content but performs poorly on realistic subjects."
+    "BlueprintDescription": "This subgraph generates non-photorealistic illustrations from text prompts using a 2-billion-parameter model optimized for anime concepts, characters, and styles. It is ideal for creating artistic images, concept art, or stylized illustrations where photorealism is not required. The model excels with anime and artistic content but performs poorly on realistic subjects."
   }
 }

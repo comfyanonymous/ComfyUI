@@ -39,9 +39,9 @@ class BerniniConditioning(io.ComfyNode):
         return io.Schema(
             node_id="BerniniConditioning",
             display_name="Bernini Conditioning",
-            category="conditioning/video_models",
+            category="model/conditioning/bernini",
             description="Conditioning node for Bernini in-context video/image conditioning. It can be used for the following tasks: t2v (text-to-video), v2v (video-to-video), rv2v (reference-guided video editing), r2v (reference-to-video), ads2v (insert image/video into video)."
-                         "Reference images injected as in-context tokens (r2v, rv2v) are encoded independently at their own native aspect ratio (long edge capped at ref_max_size)",
+                "Reference images injected as in-context tokens (r2v, rv2v) are encoded independently at their own native aspect ratio (long edge capped at ref_max_size)",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -50,14 +50,11 @@ class BerniniConditioning(io.ComfyNode):
                 io.Int.Input("height", default=480, min=16, max=8192, step=16),
                 io.Int.Input("length", default=81, min=1, max=8192, step=4),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
-                io.Image.Input("source_video", optional=True, tooltip=(
-                    "Source video to edit or restyle (v2v, rv2v). Resized to width/height and trimmed to length.")),
-                io.Image.Input("reference_video", optional=True, tooltip=(
-                    "Video to insert into the source video (ads2v).")),
+                io.Image.Input("source_video", optional=True, tooltip=("Source video to edit or restyle (v2v, rv2v). Resized to width/height and trimmed to length.")),
+                io.Image.Input("reference_video", optional=True, tooltip=("Video to insert into the source video (ads2v).")),
                 io.Autogrow.Input("reference_images", optional=True,
                     template=io.Autogrow.TemplatePrefix(
-                        input=io.Image.Input("reference_image", tooltip=(
-                            "Reference image injected as an in-context token (r2v, rv2v).")),
+                        input=io.Image.Input("reference_image", tooltip=("Reference image injected as an in-context token (r2v, rv2v).")),
                         prefix="reference_image_", min=0, max=8)),
                 io.Int.Input("ref_max_size", default=848, min=16, max=8192, step=16, optional=True, tooltip=(
                     "Max size for the long edge of reference_video and reference_images. Resized with preserved aspect ratio and snapped to 16px.")),
@@ -70,10 +67,8 @@ class BerniniConditioning(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, positive, negative, vae, width, height, length, batch_size,
-                source_video=None, reference_video=None, reference_images=None, ref_max_size=848) -> io.NodeOutput:
-        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8],
-                             device=comfy.model_management.intermediate_device())
+    def execute(cls, positive, negative, vae, width, height, length, batch_size, source_video=None, reference_video=None, reference_images=None, ref_max_size=848) -> io.NodeOutput:
+        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
 
         # source_video (1), reference_video (2), reference_images (3, 4, ...).
         context = []
@@ -106,9 +101,7 @@ class BerniniConditioning(io.ComfyNode):
 class BerniniExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
-        return [
-            BerniniConditioning,
-        ]
+        return [BerniniConditioning,]
 
 
 async def comfy_entrypoint() -> BerniniExtension:
