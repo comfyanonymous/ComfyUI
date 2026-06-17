@@ -11,7 +11,7 @@ class TextEncodeAceStepAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="TextEncodeAceStepAudio",
-            category="model/conditioning",
+            category="model/conditioning/ace",
             inputs=[
                 IO.Clip.Input("clip"),
                 IO.String.Input("tags", multiline=True, dynamic_prompts=True),
@@ -33,7 +33,7 @@ class TextEncodeAceStepAudio15(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="TextEncodeAceStepAudio1.5",
-            category="model/conditioning",
+            category="model/conditioning/ace",
             inputs=[
                 IO.Clip.Input("clip"),
                 IO.String.Input("tags", multiline=True, dynamic_prompts=True),
@@ -67,7 +67,7 @@ class EmptyAceStepLatentAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="EmptyAceStepLatentAudio",
             display_name="Empty Ace Step 1.0 Latent Audio",
-            category="model/latent/audio",
+            category="model/latent/ace",
             inputs=[
                 IO.Float.Input("seconds", default=120.0, min=1.0, max=1000.0, step=0.1),
                 IO.Int.Input(
@@ -90,7 +90,7 @@ class EmptyAceStep15LatentAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="EmptyAceStep1.5LatentAudio",
             display_name="Empty Ace Step 1.5 Latent Audio",
-            category="model/latent/audio",
+            category="model/latent/ace",
             inputs=[
                 IO.Float.Input("seconds", default=120.0, min=1.0, max=1000.0, step=0.01),
                 IO.Int.Input(
@@ -111,8 +111,8 @@ class ReferenceAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ReferenceTimbreAudio",
-            display_name="Reference Audio",
-            category="advanced/conditioning/audio",
+            display_name="Set Reference Audio",
+            category="model/conditioning",
             is_experimental=True,
             description="This node sets the reference audio for ace step 1.5",
             inputs=[
