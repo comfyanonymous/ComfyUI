@@ -8,7 +8,7 @@ import time
 import nodes
 import folder_paths
 import execution
-from comfy_execution.jobs import JobStatus, get_job, get_all_jobs
+from comfy_execution.jobs import JobStatus, get_job, get_all_jobs, validate_job_id
 import uuid
 import urllib
 import json
@@ -27,6 +27,7 @@ import logging
 
 import mimetypes
 from comfy.cli_args import args
+from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
 from comfy_api import feature_flags
@@ -690,6 +691,7 @@ class PromptServer():
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
+                    "deploy_environment": get_deploy_environment(),
                     "argv": sys.argv
                 },
                 "devices": device_entries
@@ -942,7 +944,21 @@ class PromptServer():
 
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
-                prompt_id = str(json_data.get("prompt_id", uuid.uuid4()))
+                client_prompt_id = json_data.get("prompt_id")
+                if client_prompt_id is None:
+                    # Absent or explicit null: the server mints the id.
+                    prompt_id = str(uuid.uuid4())
+                else:
+                    try:
+                        prompt_id = validate_job_id(client_prompt_id)
+                    except ValueError:
+                        error = {
+                            "type": "invalid_prompt_id",
+                            "message": "prompt_id must be a valid UUID",
+                            "details": "prompt_id must be a UUID string in canonical lowercase hyphenated form; omit it to let the server generate one",
+                            "extra_info": {}
+                        }
+                        return web.json_response({"error": error, "node_errors": {}}, status=400)
 
                 partial_execution_targets = None
                 if "partial_execution_targets" in json_data:
@@ -957,6 +973,11 @@ class PromptServer():
 
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
+
+                if "comfy_usage_source" not in extra_data:
+                    usage_source = request.headers.get("Comfy-Usage-Source")
+                    if usage_source:
+                        extra_data["comfy_usage_source"] = usage_source
                 if valid[0]:
                     outputs_to_execute = valid[2]
                     sensitive = {}
@@ -1253,6 +1274,15 @@ class PromptServer():
 
         if verbose:
             logging.info("Starting server\n")
+            if args.debug_hang:
+                logging.info(
+                    f"{'-' * 80}\n"
+                    "ComfyUI has been started in debug-hang mode. Run your workflow as normal up to\n"
+                    "the point of the hang or freeze, then use ctrl-C in the cmd or controlling\n"
+                    "terminal to dump the python backtraces for debugging. Please attach the extra\n"
+                    "debug info to your bug report.\n"
+                    f"{'-' * 80}"
+                )
         for addr in addresses:
             address = addr[0]
             port = addr[1]

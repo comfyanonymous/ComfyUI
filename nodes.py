@@ -969,7 +969,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -2362,6 +2362,7 @@ async def init_builtin_extra_nodes():
         "nodes_model_downscale.py",
         "nodes_images.py",
         "nodes_video_model.py",
+        "nodes_ideogram4.py",
         "nodes_train.py",
         "nodes_dataset.py",
         "nodes_sag.py",
@@ -2403,6 +2404,7 @@ async def init_builtin_extra_nodes():
         "nodes_video.py",
         "nodes_lumina2.py",
         "nodes_wan.py",
+        "nodes_bernini.py",
         "nodes_lotus.py",
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
@@ -2449,6 +2451,7 @@ async def init_builtin_extra_nodes():
         "nodes_rtdetr.py",
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
+        "nodes_scail.py",
         "nodes_void.py",
         "nodes_wandancer.py",
         "nodes_hidream_o1.py",
@@ -2456,6 +2459,8 @@ async def init_builtin_extra_nodes():
         "nodes_moge.py",
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
+        "nodes_triposplat.py",
+        "nodes_depth_anything_3.py",
     ]
 
     import_failed = []

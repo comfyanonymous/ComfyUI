@@ -436,7 +436,7 @@ async def execute_text2video(
             negative_prompt=negative_prompt if negative_prompt else None,
             duration=KlingVideoGenDuration(duration),
             mode=KlingVideoGenMode(model_mode),
-            model_name=KlingVideoGenModelName(model_name),
+            model_name=model_name,
             cfg_scale=cfg_scale,
             aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
             camera_control=camera_control,
@@ -642,7 +642,7 @@ class KlingCameraControls(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingCameraControls",
             display_name="Kling Camera Controls",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Allows specifying configuration options for Kling Camera Controls and motion control effects.",
             inputs=[
                 IO.Combo.Input("camera_control_type", options=KlingCameraControlType),
@@ -762,7 +762,7 @@ class KlingTextToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingTextToVideoNode",
             display_name="Kling Text to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Kling Text to Video Node",
             inputs=[
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -849,7 +849,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProTextToVideoNode",
             display_name="Kling 3.0 Omni Text to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Use text prompts to generate videos with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -998,7 +998,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProFirstLastFrameNode",
             display_name="Kling 3.0 Omni First-Last-Frame to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Use a start frame, an optional end frame, or reference images with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -1205,7 +1205,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProImageToVideoNode",
             display_name="Kling 3.0 Omni Image to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Use up to 7 reference images to generate a video with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -1374,7 +1374,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProVideoToVideoNode",
             display_name="Kling 3.0 Omni Video to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Use a video and up to 4 reference images to generate a video with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -1485,7 +1485,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProEditVideoNode",
             display_name="Kling 3.0 Omni Edit Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             essentials_category="Video Generation",
             description="Edit an existing video with the latest model from Kling.",
             inputs=[
@@ -1593,7 +1593,7 @@ class OmniProImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProImageNode",
             display_name="Kling 3.0 Omni Image",
-            category="image/partner/Kling",
+            category="partner/image/Kling",
             description="Create or edit images with the latest model from Kling.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-image-o1"]),
@@ -1721,7 +1721,7 @@ class KlingCameraControlT2VNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingCameraControlT2VNode",
             display_name="Kling Text to Video (Camera Control)",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Transform text into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original text.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -1783,7 +1783,7 @@ class KlingImage2VideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingImage2VideoNode",
             display_name="Kling Image(First Frame) to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.Image.Input("start_frame", tooltip="The reference image used to generate the video."),
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -1882,7 +1882,7 @@ class KlingCameraControlI2VNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingCameraControlI2VNode",
             display_name="Kling Image to Video (Camera Control)",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Transform still images into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original image.",
             inputs=[
                 IO.Image.Input(
@@ -1953,7 +1953,7 @@ class KlingStartEndFrameNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingStartEndFrameNode",
             display_name="Kling Start-End Frame to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Generate a video sequence that transitions between your provided start and end images. The node creates all frames in between, producing a smooth transformation from the first frame to the last.",
             inputs=[
                 IO.Image.Input(
@@ -2047,7 +2047,7 @@ class KlingVideoExtendNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingVideoExtendNode",
             display_name="Kling Video Extend",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Kling Video Extend Node. Extend videos made by other Kling nodes. The video_id is created by using other Kling Nodes.",
             inputs=[
                 IO.String.Input(
@@ -2128,7 +2128,7 @@ class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingDualCharacterVideoEffectNode",
             display_name="Kling Dual Character Video Effects",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Achieve different special effects when generating a video based on the effect_scene. First image will be positioned on left side, second on right side of the composite.",
             inputs=[
                 IO.Image.Input("image_left", tooltip="Left side image"),
@@ -2218,7 +2218,7 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingSingleImageVideoEffectNode",
             display_name="Kling Video Effects",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Achieve different special effects when generating a video based on the effect_scene.",
             inputs=[
                 IO.Image.Input(
@@ -2291,7 +2291,7 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingLipSyncAudioToVideoNode",
             display_name="Kling Lip Sync Video with Audio",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             essentials_category="Video Generation",
             description="Kling Lip Sync Audio to Video Node. Syncs mouth movements in a video file to the audio content of an audio file. When using, ensure that the audio contains clearly distinguishable vocals and that the video contains a distinct face. The audio file should not be larger than 5MB. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length.",
             inputs=[
@@ -2343,7 +2343,7 @@ class KlingLipSyncTextToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingLipSyncTextToVideoNode",
             display_name="Kling Lip Sync Video with Text",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Kling Lip Sync Text to Video Node. Syncs mouth movements in a video file to a text prompt. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length.",
             inputs=[
                 IO.Video.Input("video"),
@@ -2411,7 +2411,7 @@ class KlingVirtualTryOnNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingVirtualTryOnNode",
             display_name="Kling Virtual Try On",
-            category="image/partner/Kling",
+            category="partner/image/Kling",
             description="Kling Virtual Try On Node. Input a human image and a cloth image to try on the cloth on the human. You can merge multiple clothing item pictures into one image with a white background.",
             inputs=[
                 IO.Image.Input("human_image"),
@@ -2478,7 +2478,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingImageGenerationNode",
             display_name="Kling 3.0 Image",
-            category="image/partner/Kling",
+            category="partner/image/Kling",
             description="Kling Image Generation Node. Generate an image from a text prompt with an optional reference image.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -2615,7 +2615,7 @@ class TextToVideoWithAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingTextToVideoWithAudio",
             display_name="Kling 2.6 Text to Video with Audio",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v2-6"]),
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt."),
@@ -2683,7 +2683,7 @@ class ImageToVideoWithAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingImageToVideoWithAudio",
             display_name="Kling 2.6 Image(First Frame) to Video with Audio",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v2-6"]),
                 IO.Image.Input("start_frame"),
@@ -2753,7 +2753,7 @@ class MotionControl(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingMotionControl",
             display_name="Kling Motion Control",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.String.Input("prompt", multiline=True),
                 IO.Image.Input("reference_image"),
@@ -2854,7 +2854,7 @@ class KlingVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingVideoNode",
             display_name="Kling 3.0 Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Generate videos with Kling V3. "
             "Supports text-to-video and image-to-video with optional storyboard multi-prompt and audio generation.",
             inputs=[
@@ -3077,7 +3077,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingFirstLastFrameNode",
             display_name="Kling 3.0 First-Last-Frame to Video",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Generate videos with Kling V3 using first and last frames.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, default=""),
@@ -3202,7 +3202,7 @@ class KlingAvatarNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingAvatarNode",
             display_name="Kling Avatar 2.0",
-            category="video/partner/Kling",
+            category="partner/video/Kling",
             description="Generate broadcast-style digital human videos from a single photo and an audio file.",
             inputs=[
                 IO.Image.Input(

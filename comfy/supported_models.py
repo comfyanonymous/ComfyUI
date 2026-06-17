@@ -24,6 +24,7 @@ import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.z_image
+import comfy.text_encoders.ideogram4
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
@@ -1449,6 +1450,17 @@ class WAN21_SCAIL(WAN21_T2V):
         out = model_base.WAN21_SCAIL(self, image_to_video=False, device=device)
         return out
 
+
+class WAN21_SCAIL2(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "scail2",
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21_SCAIL2(self, image_to_video=False, device=device)
+        return out
+
 class WAN22_WanDancer(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1537,6 +1549,30 @@ class Hunyuan3Dv2mini(Hunyuan3Dv2):
     }
 
     latent_format = latent_formats.Hunyuan3Dv2mini
+
+class TripoSplat(supported_models_base.BASE):
+    # Image -> 3D gaussian splat flow denoiser
+    unet_config = {
+        "image_model": "triposplat",
+    }
+
+    unet_extra_config = {}
+
+    sampling_settings = {
+        "shift": 3.0,
+    }
+
+    memory_usage_factor = 0.6
+
+    latent_format = latent_formats.TripoSplat
+
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.TripoSplat(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
 
 class HiDream(supported_models_base.BASE):
     unet_config = {
@@ -1721,6 +1757,44 @@ class Omnigen2(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.omnigen2.Omnigen2Tokenizer, comfy.text_encoders.omnigen2.te(**hunyuan_detect))
+
+class Ideogram4(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "ideogram4",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 1.0,
+    }
+
+    memory_usage_factor = 11.6
+
+    unet_extra_config = {
+        "num_attention_heads": 18,
+        "attention_head_dim": 256,
+        "intermediate_size": 12288,
+        "adaln_dim": 512,
+        "llm_features_dim": 53248,
+        "rope_theta": 5000000,
+        "mrope_section": [24, 20, 20],
+        "norm_eps": 1e-5,
+    }
+    latent_format = latent_formats.Flux2
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Ideogram4(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_8b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.ideogram4.Ideogram4Tokenizer, comfy.text_encoders.ideogram4.te(**hunyuan_detect))
 
 class QwenImage(supported_models_base.BASE):
     unet_config = {
@@ -1982,6 +2056,23 @@ class RT_DETR_v4(supported_models_base.BASE):
         return None
 
 
+class DepthAnything3(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "DepthAnything3",
+    }
+
+    # Mono path: no num_heads / num_head_channels needed.
+    unet_extra_config = {}
+
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.DepthAnything3(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
+
+
 class ErnieImage(supported_models_base.BASE):
     unet_config = {
         "image_model": "ernie",
@@ -2196,10 +2287,12 @@ models = [
     WAN22_Animate,
     WAN21_FlowRVS,
     WAN21_SCAIL,
+    WAN21_SCAIL2,
     WAN22_WanDancer,
     Hunyuan3Dv2mini,
     Hunyuan3Dv2,
     Hunyuan3Dv2_1,
+    TripoSplat,
     HiDream,
     HiDreamO1,
     Chroma,
@@ -2208,6 +2301,7 @@ models = [
     ACEStep15,
     Omnigen2,
     QwenImage,
+    Ideogram4,
     Flux2,
     Lens,
     Kandinsky5Image,
@@ -2221,4 +2315,5 @@ models = [
     CogVideoX_I2V,
     CogVideoX_T2V,
     SVD_img2vid,
+    DepthAnything3,
 ]

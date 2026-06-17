@@ -16,6 +16,7 @@ import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
+import comfy.ldm.triposplat.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.cogvideo.vae
 import comfy.ldm.hunyuan_video.vae
@@ -57,6 +58,7 @@ import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
+import comfy.text_encoders.ideogram4
 import comfy.text_encoders.ovis
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.jina_clip_2
@@ -894,6 +896,16 @@ class VAE:
                 #Force cast it for --disable-dynamic-vram users until there is a true core fix.
                 if not comfy.memory_management.aimdo_enabled:
                     self.disable_offload = True
+            elif "gs.base_offset_scale" in sd and "octree.out_proj.weight" in sd:  # TripoSplat octree gaussian decoder
+                self.first_stage_model = comfy.ldm.triposplat.vae.OctreeGaussianDecoder()
+                self.latent_channels = 16
+                self.latent_dim = 1
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                # The generic VAE.encode/decode path isn't used: VAEDecodeTripoSplat calls the gaussian
+                # decoder directly (structured GaussianSplat objects, not a tensor and reserves VRAM itself from num_gaussians.
+                def _no_generic_io(*args, **kwargs):
+                    raise RuntimeError("TripoSplat gaussian decoder: use the 'TripoSplat Decode' (VAEDecodeTripoSplat)")
+                self.memory_used_encode = self.memory_used_decode = _no_generic_io
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -1287,6 +1299,7 @@ class CLIPType(Enum):
     COGVIDEOX = 27
     LENS = 28
     PIXELDIT = 29
+    IDEOGRAM4 = 30
 
 
 
@@ -1585,8 +1598,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.ovis.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.ovis.OvisTokenizer
         elif te_model == TEModel.QWEN3_8B:
-            clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type="qwen3_8b")
-            clip_target.tokenizer = comfy.text_encoders.flux.KleinTokenizer8B
+            if clip_type == CLIPType.IDEOGRAM4:
+                clip_target.clip = comfy.text_encoders.ideogram4.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.ideogram4.Ideogram4Tokenizer
+            else:
+                clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type="qwen3_8b")
+                clip_target.tokenizer = comfy.text_encoders.flux.KleinTokenizer8B
         elif te_model == TEModel.JINA_CLIP_2:
             clip_target.clip = comfy.text_encoders.jina_clip_2.JinaClip2TextModelWrapper
             clip_target.tokenizer = comfy.text_encoders.jina_clip_2.JinaClip2TokenizerWrapper
