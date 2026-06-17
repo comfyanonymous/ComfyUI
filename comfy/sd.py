@@ -1633,8 +1633,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.qwen3vl.te(**llama_detect(clip_data), model_type=qwen3vl_type)
                 clip_target.tokenizer = comfy.text_encoders.qwen3vl.tokenizer(model_type=qwen3vl_type)
         elif te_model == TEModel.QWEN3VL_8B_JOYIMAGE:
-            joyimage_detect = comfy.text_encoders.hunyuan_video.llama_detect(clip_data[0], "model.language_model.")
-            clip_target.clip = comfy.text_encoders.joyimage.te(**joyimage_detect)
+            # Remap the HF Qwen3VLForConditionalGeneration layout to the Qwen3VL
+            # namespace (model.*, visual.*, model.lm_head.*).
+            clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
+            clip_target.clip = comfy.text_encoders.joyimage.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.joyimage.JoyImageTokenizer
         elif te_model == TEModel.QWEN3_06B:
             clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))

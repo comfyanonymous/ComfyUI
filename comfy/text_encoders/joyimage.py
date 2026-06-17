@@ -1,21 +1,21 @@
-"""JoyImageEdit text encoder: Qwen3-VL multimodal stack feeding the JoyImageEdit DiT.
-
-Plugs the generic Qwen3-VL stack from `comfy.text_encoders.qwen3_vl` into the
-`SDClipModel` / `SD1ClipModel` contract, adding only the JoyImage-specific
-templates, drop_idx, tokenizer wrapper, and `te()` factory.
+"""JoyImageEdit text encoder: a stock Qwen3-VL-8B multimodal stack feeding the
+JoyImageEdit DiT, built on `comfy.text_encoders.qwen3vl` with the
+JoyImage-specific prompt templates, system-prompt strip, image preprocessing,
+and conditioning-path multimodal handling.
 """
 
-import os
+import math
+from typing import List, Optional
 
-from transformers import Qwen2Tokenizer
+import torch
+import torch.nn.functional as F
 
 from comfy import sd1_clip
-from comfy.text_encoders.qwen3_vl import Qwen3VLBase
+from comfy.text_encoders.qwen3vl import Qwen3VL, Qwen3VLTokenizer
 
 # Prompt templates for the text-only and image-conditioned modes. The
 # image-conditioned template wraps the user text with a single
-# `<|vision_start|><|image_pad|><|vision_end|>` block; this encoder supports one
-# user turn per call.
+# `<|vision_start|><|image_pad|><|vision_end|>` block; one user turn per call.
 JOYIMAGE_TEMPLATE_TEXT = (
     "<|im_start|>system\n \\nDescribe the image by detailing the color, shape, size, texture, "
     "quantity, text, spatial relationships of the objects and background:<|im_end|>\n"
@@ -28,50 +28,140 @@ JOYIMAGE_TEMPLATE_IMAGE = (
     "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{}<|im_end|>\n<|im_start|>assistant\n"
 )
 
-# Tokens 0..33 of either formatted template (system prompt + leading
-# `<|im_start|>` of the user block) are stripped from the encoded output by
-# JoyImageTEModel.encode_token_weights so that the kept tail begins at the
-# `user` token (prefix[:34] decodes to the system block ending at the leading
-# `<|im_start|>` of the user turn).
+# Number of leading template tokens (system prompt + the user block's opening
+# `<|im_start|>`) stripped from the encoded output by
+# JoyImageTEModel.encode_token_weights, so the kept sequence begins at the
+# `user` token.
 JOYIMAGE_DROP_IDX = 34
 
-# Special-token ids from the JoyImage Qwen3-VL tokenizer (vocab is shared
-# with Qwen2.5 / Qwen3 — vocab_size 151936).
+# Special-token ids (vocab shared with Qwen2.5 / Qwen3, vocab_size 151936).
 IMAGE_PAD_TOKEN = 151655
 PAD_TOKEN = 151643
 
 
-class Qwen3VL8B_JoyImage(Qwen3VLBase):
-    """Bind `Qwen3VLBase` to the JoyImage-specific config dict shape.
+# ---------------------------------------------------------------------------
+# Image preprocessing
+# ---------------------------------------------------------------------------
 
-    The JoyImage checkpoint follows the standard Qwen3-VL 8B text dims
-    (4096 / 36L / 32H / 8 kv / silu / qkv_bias=False, q/k_norm=gemma3) plus
-    interleaved 3D MRoPE with rope_dims=[24, 20, 20] and rope_theta=5e6 —
-    all defaults of `Qwen3VLConfig`. Vision tower uses the defaults of
-    `Qwen3VLVisionConfig` (1152/4304/4096/16H, 27 blocks, patch_size=16,
-    deepstack_visual_indexes=[8, 16, 24]).
+def process_qwen3vl_image(
+    image: torch.Tensor,
+    min_pixels: int = 65536,
+    max_pixels: int = 16777216,
+    patch_size: int = 16,
+    temporal_patch_size: int = 2,
+    merge_size: int = 2,
+    image_mean: Optional[List[float]] = None,
+    image_std: Optional[List[float]] = None,
+):
+    """Resize, normalize and patch-flatten a single (B=1, H, W, C) image tensor in [0, 1].
+
+    Returns ``(flatten_patches, grid_thw)`` ready for the Qwen3-VL vision tower.
+    Uses bicubic interpolation followed by ``clamp(0, 1)``.
+    """
+    if image_mean is None:
+        image_mean = [0.5, 0.5, 0.5]
+    if image_std is None:
+        image_std = [0.5, 0.5, 0.5]
+
+    if image.dim() == 3:
+        image = image.unsqueeze(0)
+    batch, height, width, channels = image.shape
+    if batch != 1:
+        raise ValueError("process_qwen3vl_image expects one image (B=1) at a time.")
+    device = image.device
+
+    image = image.permute(0, 3, 1, 2)  # (1, C, H, W)
+    img = image[0]
+
+    factor = patch_size * merge_size
+    h_bar = round(height / factor) * factor
+    w_bar = round(width / factor) * factor
+    if h_bar * w_bar > max_pixels:
+        beta = math.sqrt((height * width) / max_pixels)
+        h_bar = max(factor, math.floor(height / beta / factor) * factor)
+        w_bar = max(factor, math.floor(width / beta / factor) * factor)
+    elif h_bar * w_bar < min_pixels:
+        beta = math.sqrt(min_pixels / (height * width))
+        h_bar = math.ceil(height * beta / factor) * factor
+        w_bar = math.ceil(width * beta / factor) * factor
+
+    img_resized = F.interpolate(
+        img.unsqueeze(0), size=(h_bar, w_bar), mode="bicubic", align_corners=False,
+    ).squeeze(0).clamp(0.0, 1.0)
+
+    normalized = img_resized.clone()
+    for c in range(3):
+        normalized[c] = (img_resized[c] - image_mean[c]) / image_std[c]
+
+    grid_h = h_bar // patch_size
+    grid_w = w_bar // patch_size
+    grid_thw = torch.tensor([[1, grid_h, grid_w]], device=device, dtype=torch.long)
+
+    # Single-frame inputs are duplicated along T to fill the 2-frame temporal
+    # patch kernel; matches Qwen2VLImageProcessorFast for static images.
+    pixel_values = normalized.unsqueeze(0).repeat(temporal_patch_size, 1, 1, 1)
+    grid_t = 1
+    channel = pixel_values.shape[1]
+    patches = pixel_values.reshape(
+        grid_t, temporal_patch_size, channel,
+        grid_h // merge_size, merge_size, patch_size,
+        grid_w // merge_size, merge_size, patch_size,
+    )
+    patches = patches.permute(0, 3, 6, 4, 7, 2, 1, 5, 8)
+    flatten_patches = patches.reshape(
+        grid_t * grid_h * grid_w,
+        channel * temporal_patch_size * patch_size * patch_size,
+    )
+    return flatten_patches, grid_thw
+
+
+class Qwen3VL8B_JoyImage(Qwen3VL):
+    """JoyImage Qwen3-VL-8B encoder.
+
+    Stock `qwen3vl_8b` config (text dims 4096 / 36L / 32H / 8 kv; interleaved
+    3D MRoPE rope_dims=[24,20,20], rope_theta=5e6; vision 1152/4304, depth 27,
+    patch_size 16, deepstack_visual_indexes=[8,16,24]).
     """
 
-    def __init__(self, config_dict, dtype, device, operations):
-        super().__init__(config_dict, dtype, device, operations)
+    model_type = "qwen3vl_8b"
 
+    def preprocess_embed(self, embed, device):
+        # Run the vision tower with JoyImage's bicubic+clamp preprocessing and
+        # return ``(merged, {"grid", "deepstack"})``.
+        if embed["type"] == "image":
+            image, grid = process_qwen3vl_image(
+                embed["data"], patch_size=16, image_mean=[0.5, 0.5, 0.5], image_std=[0.5, 0.5, 0.5],
+            )
+            merged, deepstack = self.visual(image.to(device, dtype=torch.float32), grid)
+            return merged, {"grid": grid, "deepstack": deepstack}
+        return None, None
 
-class _JoyImageBaseTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        # Reuse the existing qwen25_tokenizer artefacts shipped with ComfyUI;
-        # the JoyImage tokenizer is the same vocab/merges as Qwen2.5/Qwen3
-        # (vocab_size 151936). The image-pad / vision-start / vision-end
-        # special tokens are present in that vocab.
-        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qwen25_tokenizer")
-        super().__init__(
-            tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory,
-            embedding_size=4096, embedding_key="qwen3vl_8b", tokenizer_class=Qwen2Tokenizer,
-            has_start_token=False, has_end_token=False, pad_to_max_length=False,
-            max_length=99999999, min_length=1, pad_token=PAD_TOKEN, tokenizer_data=tokenizer_data,
+    def forward(self, x, attention_mask=None, embeds=None, num_tokens=None,
+                intermediate_output=None, final_layer_norm_intermediate=True,
+                dtype=None, embeds_info=()):
+        # The conditioning path must build the 3D MRoPE position ids for the
+        # image-token block and inject the deepstack visual features.
+        # `build_image_inputs` returns the kwargs the decoder expects:
+        # (position_ids, visual_pos_masks, deepstack).
+        if embeds is not None:
+            position_ids, visual_pos_masks, deepstack = self.build_image_inputs(embeds, embeds_info)
+        else:
+            position_ids, visual_pos_masks, deepstack = None, None, None
+        return self.model(
+            x,
+            attention_mask=attention_mask,
+            embeds=embeds,
+            num_tokens=num_tokens,
+            intermediate_output=intermediate_output,
+            final_layer_norm_intermediate=final_layer_norm_intermediate,
+            dtype=dtype,
+            position_ids=position_ids,
+            deepstack_embeds=deepstack,
+            visual_pos_masks=visual_pos_masks,
         )
 
 
-class JoyImageTokenizer(sd1_clip.SD1Tokenizer):
+class JoyImageTokenizer(Qwen3VLTokenizer):
     """JoyImageEdit tokenizer.
 
     ``tokenize_with_weights(text, images=[...])`` selects the image-conditioned
@@ -80,13 +170,13 @@ class JoyImageTokenizer(sd1_clip.SD1Tokenizer):
     with an embedding marker so `SDClipModel.process_tokens` routes the image
     through `Qwen3VL8B_JoyImage.preprocess_embed`; ``drop_idx=34`` leading
     template tokens are stripped downstream by
-    `JoyImageTEModel.encode_token_weights`.
+    `JoyImageTEModel.encode_token_weights`. No ``<think>`` block is appended.
     """
 
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(
             embedding_directory=embedding_directory, tokenizer_data=tokenizer_data,
-            name="qwen3vl_8b", tokenizer=_JoyImageBaseTokenizer,
+            model_type="qwen3vl_8b",
         )
         self.llama_template = JOYIMAGE_TEMPLATE_TEXT
         self.llama_template_images = JOYIMAGE_TEMPLATE_IMAGE
@@ -102,8 +192,10 @@ class JoyImageTokenizer(sd1_clip.SD1Tokenizer):
         else:
             llama_text = self.llama_template.format(text)
 
-        tokens = super().tokenize_with_weights(
-            llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs,
+        # Tokenize the already-rendered template via the grandparent
+        # (SD1Tokenizer); calling `super()` would re-apply the Qwen3VL template.
+        tokens = sd1_clip.SD1Tokenizer.tokenize_with_weights(
+            self, llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs,
         )
 
         key_name = next(iter(tokens))
@@ -129,15 +221,10 @@ class JoyImageTokenizer(sd1_clip.SD1Tokenizer):
 class _JoyImageClipModel(sd1_clip.SDClipModel):
     """Qwen3-VL multimodal encoder wrapper.
 
-    ``layer="hidden", layer_idx=-1`` + ``layer_norm_hidden_state=False`` is the
-    pre-norm hook: `SDClipModel.forward` calls the transformer with
-    ``intermediate_output=-1`` (resolved to ``num_layers - 1``) and
-    ``final_layer_norm_intermediate=False``, so the captured intermediate is
-    the **post-layer-N, pre-final-norm** output of the last decoder layer —
-    NOT the post-norm ``last_hidden_state``. **Do NOT 'simplify' to
-    layer="last" / final_layer_norm_intermediate=True**: that returns the
-    post-norm output, which differs by ~10x in scale (std approx 21 vs 2)
-    and produces broken DiT outputs.
+    Conditions on the **pre-final-norm** output of the last decoder layer
+    (``layer="hidden", layer_idx=-1, layer_norm_hidden_state=False``). The
+    post-norm ``last_hidden_state`` differs by ~10x in scale and produces broken
+    DiT outputs, so these flags must not be changed.
     """
 
     def __init__(self, device="cpu", layer="hidden", layer_idx=-1, dtype=None,
