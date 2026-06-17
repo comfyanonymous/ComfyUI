@@ -54,6 +54,7 @@ import comfy.ldm.pixeldit.model
 import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.boogu.model
 import comfy.ldm.qwen_image.model
 import comfy.ldm.ideogram4.model
 import comfy.ldm.kandinsky5.model
@@ -2102,6 +2103,11 @@ class Omnigen2(BaseModel):
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
+
+class Boogu(Omnigen2):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(Omnigen2, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.boogu.model.BooguTransformer2DModel)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
 class QwenImage(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):

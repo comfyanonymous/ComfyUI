@@ -68,6 +68,7 @@ import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
 import comfy.text_encoders.qwen3vl
+import comfy.text_encoders.boogu
 import comfy.text_encoders.ernie
 import comfy.text_encoders.gemma4
 import comfy.text_encoders.cogvideo
@@ -1301,6 +1302,7 @@ class CLIPType(Enum):
     LENS = 28
     PIXELDIT = 29
     IDEOGRAM4 = 30
+    BOOGU = 31
 
 
 
@@ -1622,6 +1624,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.ideogram4.te_qwen3vl(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.ideogram4.Ideogram4Qwen3VLTokenizer
+            elif clip_type == CLIPType.BOOGU and te_model == TEModel.QWEN3VL_8B:  # Boogu-Image: full Qwen3-VL-8B, last hidden state, no-think template.
+                clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
+                clip_target.clip = comfy.text_encoders.boogu.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.boogu.BooguTokenizer
             elif clip_type in (CLIPType.FLUX, CLIPType.FLUX2):  # Flux2 Klein reuses the Qwen3-VL LM (3-layer tap -> 12288); visual unused.
                 klein_model_type = "qwen3_8b" if te_model == TEModel.QWEN3VL_8B else "qwen3_4b"
                 clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type=klein_model_type)
