@@ -289,7 +289,7 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -357,7 +357,7 @@ class BriaVideoGreenScreen(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -433,7 +433,7 @@ class BriaVideoReplaceBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -452,7 +452,10 @@ class BriaVideoReplaceBackground(IO.ComfyNode):
             validate_video_duration(background_video, max_duration=60.0)
             background_url = await upload_video_to_comfyapi(cls, background_video, wait_label="Uploading background")
         else:
-            background_url = await upload_image_to_comfyapi(cls, background_image, wait_label="Uploading background")
+            # Bria's replace_background 500s on RGBA, so drop the alpha channel before upload.
+            background_url = await upload_image_to_comfyapi(
+                cls, background_image[:, :, :, :3], wait_label="Uploading background"
+            )
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/bria/v2/video/edit/replace_background", method="POST"),
@@ -530,7 +533,7 @@ class BriaTransparentVideoBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -571,7 +574,7 @@ class BriaExtension(ComfyExtension):
             BriaRemoveImageBackground,
             BriaRemoveVideoBackground,
             BriaVideoGreenScreen,
-            # BriaVideoReplaceBackground,  # server returns Status 500 when we pass background video
+            BriaVideoReplaceBackground,
             BriaTransparentVideoBackground,
         ]
 

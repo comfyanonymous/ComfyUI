@@ -643,6 +643,8 @@ def free_pins(size, evict_active=False):
     return freed_total
 
 def ensure_pin_budget(size, evict_active=False):
+    if args.high_ram:
+        return True
     if args.fast_disk:
         shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     else:
@@ -1496,6 +1498,8 @@ if not args.disable_pinned_memory:
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
 
 def pinned_hostbuf_size(size):
+    if args.high_ram:
+        return max(0, int(size * 2))
     return max(0, int(min(size, MAX_PINNED_MEMORY) * 2))
 
 def discard_cuda_async_error():
