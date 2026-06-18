@@ -47,6 +47,7 @@ from app.subgraph_manager import SubgraphManager
 from app.node_replace_manager import NodeReplaceManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
+from api_server.utils.http_headers import content_disposition_for_file
 from protocol import BinaryEventTypes
 
 # Import cache control middleware
@@ -561,7 +562,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": content_disposition_for_file(filename, "inline")})
 
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
@@ -581,7 +582,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": content_disposition_for_file(filename, "inline")})
 
                     elif channel == 'a':
                         with Image.open(file) as img:
@@ -598,7 +599,7 @@ class PromptServer():
                             alpha_buffer.seek(0)
 
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": content_disposition_for_file(filename, "inline")})
                     else:
                         # Use the content type from asset resolution if available,
                         # otherwise guess from the filename.
@@ -608,14 +609,17 @@ class PromptServer():
                             or 'application/octet-stream'
                         )
 
+                        disposition_type = "inline"
+
                         # For security, force certain mimetypes to download instead of display
                         if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
                             content_type = 'application/octet-stream'  # Forces download
+                            disposition_type = "attachment"
 
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Disposition": content_disposition_for_file(filename, disposition_type),
                                 "Content-Type": content_type
                             }
                         )
