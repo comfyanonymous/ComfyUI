@@ -50,12 +50,15 @@ def _on_prompt(json_data: dict) -> dict:
 
     for nid in seed_node_ids:
         inputs = prompt[nid].get("inputs", {})
-        master = int(inputs.get("seed", 0))
+        master = inputs.get("seed", 0)
         mode = inputs.get("mode", "placeholders only")
         is_global = bool(inputs.get("global", True))
         is_wired = isinstance(inputs.get("seed"), list)
+        if is_wired:
+            continue
 
-        if is_wired or not is_global:
+        master = int(master)
+        if not is_global:
             targets = _connected_component(nid, adj)
         else:
             targets = set(prompt.keys())
