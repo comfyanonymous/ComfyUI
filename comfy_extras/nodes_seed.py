@@ -54,7 +54,10 @@ def _on_prompt(json_data: dict) -> dict:
         mode = inputs.get("mode", "placeholders only")
         is_global = bool(inputs.get("global", True))
         is_wired = isinstance(inputs.get("seed"), list)
-        if is_wired:
+        # this is safety for the case the node seed is connected,
+        # and the next lines of code can only work before node execution
+        if is_wired and is_global:
+            log.warning("GlobalSeedNode [%s]: seed input is wired in global mode, skipping.", nid)
             continue
 
         master = int(master)
