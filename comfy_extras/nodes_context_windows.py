@@ -1,4 +1,3 @@
-from __future__ import annotations
 from comfy_api.latest import ComfyExtension, io
 import comfy.context_windows
 import nodes
@@ -10,7 +9,7 @@ class ContextWindowsManualNode(io.ComfyNode):
         return io.Schema(
             node_id="ContextWindowsManual",
             display_name="Context Windows (Manual)",
-            category="model_patches",
+            category="model/patch",
             description="Manually set context windows.",
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
@@ -67,6 +66,7 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
         schema.node_id = "WanContextWindowsManual"
         schema.display_name = "WAN Context Windows (Manual)"
         schema.description = "Manually set context windows for WAN-like models (dim=2)."
+        schema.category="model/patch/wan"
         schema.inputs = [
             io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
                 io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window.", advanced=True),

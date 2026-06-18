@@ -1302,7 +1302,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Enhance",
+        "category": "Image generation and editing/Upscale",
         "description": "Upscales images to higher resolution using Z-Image-Turbo."
       }
     ]
