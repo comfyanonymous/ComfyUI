@@ -252,6 +252,19 @@ class Qwen3_8BConfig:
     stop_tokens = [151643, 151645]
 
 @dataclass
+class Qwen3VL_8BConfig(Qwen3_8BConfig):
+    max_position_embeddings: int = 262144
+    rope_theta: float = 5000000.0
+    rope_dims = [24, 20, 20]
+    interleaved_mrope = True
+
+@dataclass
+class Qwen3VL_4BConfig(Qwen3VL_8BConfig):
+    hidden_size: int = 2560
+    intermediate_size: int = 9728
+    lm_head: bool = False  # 4B ties word embeddings
+
+@dataclass
 class Ovis25_2BConfig:
     vocab_size: int = 151936
     hidden_size: int = 2048
@@ -703,7 +716,8 @@ class Llama2_(nn.Module):
                                     interleaved_mrope=getattr(self.config, "interleaved_mrope", False),
                                     device=device)
 
-    def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[], past_key_values=None, input_ids=None):
+    def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True,
+                dtype=None, position_ids=None, embeds_info=[], past_key_values=None, input_ids=None,deepstack_embeds=None, visual_pos_masks=None):
         if embeds is not None:
             x = embeds
         else:
@@ -766,6 +780,10 @@ class Llama2_(nn.Module):
 
             if current_kv is not None:
                 next_key_values.append(current_kv)
+
+            # DeepStack: add per-layer visual features into the first len() decoder layers at image positions (Qwen3-VL)
+            if deepstack_embeds is not None and i < len(deepstack_embeds):
+                x[visual_pos_masks] = x[visual_pos_masks] + deepstack_embeds[i].to(x)
 
             if i == intermediate_output:
                 intermediate = x.clone()
@@ -860,7 +878,7 @@ class BaseGenerate:
                                     torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
         return past_key_values
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None):
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None):
         device = embeds.device
 
         if stop_tokens is None:
@@ -884,10 +902,18 @@ class BaseGenerate:
         generated_token_ids = []
         pbar = comfy.utils.ProgressBar(max_length)
 
+        # MRoPE: prefill uses explicit 3D position_ids, decode continues from the last position
+        next_pos = int(position_ids[:, -1].max()) + 1 if position_ids is not None else None
+
         # Generation loop
         current_input_ids = initial_input_ids
         for step in tqdm(range(max_length), desc="Generating tokens"):
-            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids)
+            # DeepStack visual features are injected on the prefill only; gemma4's forward lacks these kwargs.
+            extra = {}
+            if step == 0 and deepstack_embeds is not None:
+                extra["deepstack_embeds"] = deepstack_embeds
+                extra["visual_pos_masks"] = visual_pos_masks
+            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra)
             logits = self.logits(x)[:, -1]
             next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
             token_id = next_token[0].item()
@@ -895,6 +921,9 @@ class BaseGenerate:
 
             embeds = self.model.embed_tokens(next_token).to(execution_dtype)
             current_input_ids = next_token if initial_input_ids is not None else None
+            if next_pos is not None:  # advance MRoPE position for the next (decode) step
+                position_ids = torch.tensor([[next_pos]], device=device)
+                next_pos += 1
             pbar.update(1)
 
             if token_id in stop_tokens:

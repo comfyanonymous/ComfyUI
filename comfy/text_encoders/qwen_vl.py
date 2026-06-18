@@ -88,6 +88,32 @@ def process_qwen2vl_images(
     return flatten_patches, image_grid_thw
 
 
+def qwen2vl_mrope_position_ids(embeds_info, seq_len, device):
+    # (3, seq_len) T/H/W MRoPE position ids: text runs sequentially, each image span gets its grid positions.
+    # Returns None when there are no image embeds. `extra` is the image grid_thw, or a dict carrying it under "grid".
+    position_ids = None
+    offset = 0
+    for e in embeds_info:
+        if e.get("type") == "image":
+            extra = e.get("extra", None)
+            grid = extra["grid"] if isinstance(extra, dict) else extra
+            start = e.get("index")
+            if position_ids is None:
+                position_ids = torch.zeros((3, seq_len), device=device)
+                position_ids[:, :start] = torch.arange(0, start, device=device)
+            end = e.get("size") + start
+            len_max = int(grid.max()) // 2
+            start_next = len_max + start
+            position_ids[:, end:] = torch.arange(start_next + offset, start_next + (seq_len - end) + offset, device=device)
+            position_ids[0, start:end] = start + offset
+            max_d = int(grid[0][1]) // 2
+            position_ids[1, start:end] = torch.arange(start + offset, start + max_d + offset, device=device).unsqueeze(1).repeat(1, math.ceil((end - start) / max_d)).flatten(0)[:end - start]
+            max_d = int(grid[0][2]) // 2
+            position_ids[2, start:end] = torch.arange(start + offset, start + max_d + offset, device=device).unsqueeze(0).repeat(math.ceil((end - start) / max_d), 1).flatten(0)[:end - start]
+            offset += len_max - (end - start)
+    return position_ids
+
+
 class VisionPatchEmbed(nn.Module):
     def __init__(
         self,

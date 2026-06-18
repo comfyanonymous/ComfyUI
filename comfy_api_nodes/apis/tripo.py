@@ -208,6 +208,10 @@ class TripoMultiviewToModelRequest(BaseModel):
     quad: bool | None = Field(False, description="Whether to apply quad to the generated model")
 
 
+class TripoTexturePrompt(BaseModel):
+    text: str | None = Field(None, description="Text guidance for texture generation")
+
+
 class TripoTextureModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.TEXTURE_MODEL, description="Type of task")
     original_model_task_id: str = Field(..., description="The task ID of the original model")
@@ -218,6 +222,11 @@ class TripoTextureModelRequest(BaseModel):
     texture_quality: TripoTextureQuality | None = Field(None, description="The quality of the texture")
     texture_alignment: TripoTextureAlignment | None = Field(
         TripoTextureAlignment.ORIGINAL_IMAGE, description="The texture alignment method"
+    )
+    texture_prompt: TripoTexturePrompt | None = Field(
+        None,
+        description="Optional guidance for texturing. Required in practice for imported models, "
+        "which carry no source image to infer texture from.",
     )
 
 
@@ -305,6 +314,17 @@ class TripoP1MultiviewToModelRequest(TripoP1CommonRequest):
     files: list[TripoFileReference]
     texture_alignment: str | None = None
     orientation: str | None = None
+
+
+class TripoImportModelRequest(BaseModel):
+    """Request for the comfy-api composite import endpoint (/proxy/tripo/v2/openapi/import).
+
+    The model file is uploaded to ComfyUI API storage first; the backend downloads it from
+    `url`, re-uploads it to Tripo's storage and creates the import_model task server-side.
+    """
+
+    url: str = Field(..., description="ComfyUI API storage download URL of the model file")
+    format: str = Field(..., description='File format: "glb", "fbx", "obj" or "stl"')
 
 
 class TripoTaskOutput(BaseModel):

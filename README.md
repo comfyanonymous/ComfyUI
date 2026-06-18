@@ -140,7 +140,7 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
    - Commits outside of the stable release tags may be very unstable and break many custom nodes.
    - Serves as the foundation for the desktop release
 
-2. **[ComfyUI Desktop](https://github.com/Comfy-Org/desktop)**
+2. **[ComfyUI Desktop](https://github.com/Comfy-Org/Comfy-Desktop)**
    - Builds a new release using the latest stable core version
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
@@ -309,7 +309,7 @@ After this you should have everything installed and can proceed to running Comfy
 
 #### Apple Mac silicon
 
-You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
+You can install ComfyUI in Apple Mac silicon (M1, M2, M3 or M4) with any recent macOS version.
 
 1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
@@ -382,11 +382,7 @@ For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 pyt
 
 ### AMD ROCm Tips
 
-You can enable experimental memory efficient attention on recent pytorch in ComfyUI on some AMD GPUs using this command, it should already be enabled by default on RDNA3. If this improves speed for you on latest pytorch on your GPU please report it so that I can enable it by default.
-
-```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
-
-You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
+You can try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
 
 # Notes
 
