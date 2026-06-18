@@ -1,6 +1,7 @@
 import argparse
 import enum
 import os
+import sys
 import comfy.options
 
 
@@ -245,8 +246,13 @@ parser.add_argument("--list-feature-flags", action="store_true", help="Print the
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
+    args.database_url_explicit = any(
+        arg == "--database-url" or arg.startswith("--database-url=")
+        for arg in sys.argv[1:]
+    )
 else:
     args = parser.parse_args([])
+    args.database_url_explicit = False
 
 if args.cache_ram is not None and len(args.cache_ram) > 2:
     parser.error("--cache-ram accepts at most two values: active GB and inactive GB")
