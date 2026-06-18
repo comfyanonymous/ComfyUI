@@ -72,7 +72,7 @@ def _on_prompt(json_data: dict) -> dict:
             if mode == "overwrite all" or val == 0:
                 node_inputs["seed"] = master
                 log.debug("GlobalSeedNode [%s]: %s.seed → %d", nid, tid, master)
-            processed.add(tid)
+                processed.add(tid)
 
     return json_data
 
