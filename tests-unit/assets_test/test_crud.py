@@ -21,6 +21,8 @@ def test_create_from_hash_success(
     b1 = r1.json()
     assert r1.status_code == 201, b1
     assert b1["asset_hash"] == h
+    assert b1["hash"] == h
+    assert b1["hash"] == b1["asset_hash"]
     assert b1["created_new"] is False
     aid = b1["id"]
 
@@ -39,11 +41,12 @@ def test_get_and_delete_asset(http: requests.Session, api_base: str, seeded_asse
     detail = rg.json()
     assert rg.status_code == 200, detail
     assert detail["id"] == aid
+    assert detail["hash"] == detail["asset_hash"]
     assert "user_metadata" in detail
     assert "filename" in detail["user_metadata"]
 
-    # DELETE (hard delete to also remove underlying asset and file)
-    rd = http.delete(f"{api_base}/api/assets/{aid}?delete_content=true", timeout=120)
+    # Soft delete — the reference is hidden, content is preserved
+    rd = http.delete(f"{api_base}/api/assets/{aid}", timeout=120)
     assert rd.status_code == 204
 
     # GET again -> 404
@@ -57,7 +60,7 @@ def test_soft_delete_hides_from_get(http: requests.Session, api_base: str, seede
     aid = seeded_asset["id"]
     asset_hash = seeded_asset["asset_hash"]
 
-    # Soft-delete (default, no delete_content param)
+    # Soft delete — the reference is hidden, content is preserved
     rd = http.delete(f"{api_base}/api/assets/{aid}", timeout=120)
     assert rd.status_code == 204
 
@@ -78,11 +81,10 @@ def test_soft_delete_hides_from_get(http: requests.Session, api_base: str, seede
     ids = [a["id"] for a in rl.json().get("assets", [])]
     assert aid not in ids
 
-    # Clean up: hard-delete the soft-deleted reference and orphaned asset
-    http.delete(f"{api_base}/api/assets/{aid}?delete_content=true", timeout=120)
+    # The reference is already soft-deleted; content is preserved.
 
 
-def test_delete_upon_reference_count(
+def test_soft_delete_preserves_asset_identity_across_references(
     http: requests.Session, api_base: str, seeded_asset: dict
 ):
     # Create a second reference to the same asset via from-hash
@@ -97,6 +99,7 @@ def test_delete_upon_reference_count(
     copy = r2.json()
     assert r2.status_code == 201, copy
     assert copy["asset_hash"] == src_hash
+    assert copy["hash"] == src_hash
     assert copy["created_new"] is False
 
     # Soft-delete original reference (default) -> asset identity must remain
@@ -115,16 +118,20 @@ def test_delete_upon_reference_count(
     rh2 = http.head(f"{api_base}/api/assets/hash/{src_hash}", timeout=120)
     assert rh2.status_code == 200  # asset identity preserved (soft delete)
 
-    # Re-associate via from-hash, then hard-delete -> orphan content removed
+    # Re-associate via from-hash: it must reuse the same preserved content
+    # (created_new False AND the same hash), proving the soft deletes did not
+    # destroy the underlying asset. Then soft-delete again -> still preserved.
     r3 = http.post(f"{api_base}/api/assets/from-hash", json=payload, timeout=120)
     assert r3.status_code == 201, r3.json()
+    assert r3.json()["created_new"] is False
+    assert r3.json()["asset_hash"] == src_hash  # reused the surviving content
     aid3 = r3.json()["id"]
 
-    rd3 = http.delete(f"{api_base}/api/assets/{aid3}?delete_content=true", timeout=120)
+    rd3 = http.delete(f"{api_base}/api/assets/{aid3}", timeout=120)
     assert rd3.status_code == 204
 
     rh3 = http.head(f"{api_base}/api/assets/hash/{src_hash}", timeout=120)
-    assert rh3.status_code == 404  # orphan content removed
+    assert rh3.status_code == 200  # content preserved (soft delete)
 
 
 def test_update_asset_fields(http: requests.Session, api_base: str, seeded_asset: dict):
@@ -139,6 +146,7 @@ def test_update_asset_fields(http: requests.Session, api_base: str, seeded_asset
     body = ru.json()
     assert ru.status_code == 200, body
     assert body["name"] == payload["name"]
+    assert body["hash"] == body["asset_hash"]
     assert body["tags"] == original_tags  # tags unchanged
     assert body["user_metadata"]["purpose"] == "updated"
     # filename should still be present and normalized by server
@@ -244,7 +252,7 @@ def test_concurrent_delete_same_asset_info_single_204(
 
     # Hit the same endpoint N times in parallel.
     n_tests = 4
-    url = f"{api_base}/api/assets/{aid}?delete_content=false"
+    url = f"{api_base}/api/assets/{aid}"
 
     def _do_delete(delete_url):
         with requests.Session() as s:
@@ -289,7 +297,9 @@ def test_metadata_filename_is_set_for_seed_asset_without_hash(
     assert r1.status_code == 200, body
     matches = [a for a in body.get("assets", []) if a.get("name") == name]
     assert matches, "Seed asset should be visible after sync"
-    assert matches[0].get("asset_hash") is None  # still a seed
+    # Seed assets have no hash; exclude_none drops both keys from the response
+    assert "asset_hash" not in matches[0]
+    assert "hash" not in matches[0]
     aid = matches[0]["id"]
 
     r2 = http.get(f"{api_base}/api/assets/{aid}", timeout=120)

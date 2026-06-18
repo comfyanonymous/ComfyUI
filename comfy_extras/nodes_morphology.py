@@ -13,8 +13,8 @@ class Morphology(io.ComfyNode):
         return io.Schema(
             node_id="Morphology",
             search_aliases=["erode", "dilate"],
-            display_name="ImageMorphology",
-            category="image/postprocessing",
+            display_name="Apply Morphology",
+            category="image/filters",
             inputs=[
                 io.Image.Input("image"),
                 io.Combo.Input(

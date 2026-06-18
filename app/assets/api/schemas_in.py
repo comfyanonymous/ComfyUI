@@ -59,6 +59,11 @@ class ListAssetsQuery(BaseModel):
 
     limit: conint(ge=1, le=500) = 20
     offset: conint(ge=0) = 0
+    # Opaque keyset cursor. When supplied, `offset` is ignored. Cursor pagination
+    # is supported for sort values `created_at`, `updated_at`, `name`, `size`.
+    # Supplying `after` together with `sort=last_access_time` returns
+    # 400 INVALID_CURSOR; that sort only supports offset/limit.
+    after: str | None = None
 
     sort: Literal["name", "created_at", "updated_at", "size", "last_access_time"] = (
         "created_at"
