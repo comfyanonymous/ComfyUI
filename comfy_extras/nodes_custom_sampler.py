@@ -729,7 +729,7 @@ class SamplerCustom(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerCustom",
-            category="model/sampling/custom_sampling",
+            category="model/sampling/custom",
             inputs=[
                 io.Model.Input("model"),
                 io.Boolean.Input("add_noise", default=True, advanced=True),
@@ -1015,7 +1015,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerCustomAdvanced",
-            category="model/sampling/custom_sampling",
+            category="model/sampling/custom",
             inputs=[
                 io.Noise.Input("noise"),
                 io.Guider.Input("guider"),
@@ -1143,7 +1143,7 @@ class CFGOverride(io.ComfyNode):
             display_name="CFG Override",
             description="Override cfg to a fixed value over a [start, end] percent (sigma) range. "
                         "With multiple overrides, the one nearest the sampler wins on overlap.",
-            category="sampling/custom_sampling",
+            category="model/sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("cfg", default=1.0, min=0.0, max=100.0, step=0.1, round=0.01),

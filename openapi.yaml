@@ -673,6 +673,35 @@ components:
                 - created_at
                 - updated_at
             type: object
+        JobsCancelRequest:
+            additionalProperties: false
+            description: Request to cancel multiple jobs by ID.
+            properties:
+                job_ids:
+                    description: Job identifiers (UUIDs) to cancel.
+                    items:
+                        format: uuid
+                        type: string
+                    maxItems: 100
+                    minItems: 1
+                    type: array
+            required:
+                - job_ids
+            type: object
+        JobsCancelResponse:
+            description: Response for POST /api/jobs/cancel.
+            properties:
+                cancelled:
+                    description: |
+                        Job IDs for which a cancel event was successfully dispatched by this
+                        call. Jobs already in a terminal or cancelling state are idempotently
+                        skipped and will not appear here.
+                    items:
+                        type: string
+                    type: array
+            required:
+                - cancelled
+            type: object
         JobsListResponse:
             description: Paginated list of jobs for the authenticated user.
             properties:
@@ -1006,7 +1035,7 @@ components:
                     description: If true, clear all pending jobs from the queue
                     type: boolean
                 delete:
-                    description: Array of PENDING job IDs to cancel
+                    description: Array of job IDs to cancel; pending and running jobs transition to cancelled
                     items:
                         type: string
                     type: array
@@ -1820,6 +1849,83 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error
             summary: Update asset metadata
+            tags:
+                - file
+    /api/assets/{id}/content:
+        get:
+            description: |
+                Returns the binary content of an asset by ID.
+
+                The contract is the same across runtimes — "GET this path and you
+                receive the asset's bytes" — but the mechanism differs:
+                - **Local ComfyUI** streams the bytes directly (`200`,
+                  `application/octet-stream`).
+                - **Cloud** does not proxy large files; it responds `302` with a
+                  `Location` redirect to a short-lived signed storage URL. Clients that
+                  follow redirects (browsers, `fetch`/XHR, `<img>`/`<video>`) receive
+                  the bytes transparently.
+
+                Prefer this over the filename-addressed `/api/view` when you have an
+                asset ID.
+            operationId: getAssetContent
+            parameters:
+                - description: Asset ID
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - description: |
+                    Content-Disposition for the response: `attachment` (download) or
+                    `inline` (render in browser). Defaults to `attachment`.
+                  in: query
+                  name: disposition
+                  schema:
+                    default: attachment
+                    enum:
+                        - inline
+                        - attachment
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/octet-stream:
+                            schema:
+                                format: binary
+                                type: string
+                    description: Asset content stream (local runtime streams the bytes directly)
+                "302":
+                    description: Redirect to a signed storage URL (cloud runtime)
+                    headers:
+                        Cache-Control:
+                            description: Private caching directive scoped to the signed URL lifetime
+                            schema:
+                                type: string
+                        Location:
+                            description: Short-lived signed URL to the asset content in storage
+                            schema:
+                                type: string
+                        Vary:
+                            description: Partitions any cached redirect by auth credentials so a private redirect is not reused across users
+                            schema:
+                                type: string
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Asset not found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Internal server error
+            security:
+                - ApiKeyAuth: []
+                - BearerAuth: []
+                - CookieAuth: []
+            summary: Get asset content
             tags:
                 - file
     /api/assets/{id}/tags:
@@ -2675,14 +2781,20 @@ paths:
             summary: Get internationalisation translation strings
     /api/interrupt:
         post:
+            deprecated: true
             description: |
-                Cancel all currently RUNNING jobs for the authenticated user.
-                This will interrupt any job that is currently in 'in_progress' status.
-                Note: This endpoint only affects running jobs. To cancel pending jobs, use /api/queue.
+                Deprecated. Prefer the jobs-namespace cancel endpoints:
+                POST /api/jobs/{job_id}/cancel for a single job, or
+                POST /api/jobs/cancel to cancel jobs by ID.
+
+                Cancels the first active job for the authenticated user (the currently
+                running job if there is one, otherwise the next pending job). Takes no
+                body and cannot target a specific job — use the jobs-namespace endpoints
+                for that.
             operationId: interruptJob
             responses:
                 "200":
-                    description: Success - Job interrupted or no running job found
+                    description: Success - first active job cancelled, or no active job found
                 "401":
                     content:
                         application/json:
@@ -2695,7 +2807,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error
-            summary: Interrupt currently running jobs
+            summary: Interrupt the first active job
             tags:
                 - queue
     /api/job/{job_id}/status:
@@ -2954,6 +3066,64 @@ paths:
             summary: Cancel a job
             tags:
                 - workflow
+    /api/jobs/cancel:
+        post:
+            description: |
+                Cancel one or more jobs for the authenticated user in a single request.
+
+                State-agnostic: cancels both pending and running jobs (both transition to
+                the cancelled state via the same mechanism as the single-job endpoint).
+
+                Idempotent per job: a job already in a terminal or cancelling state is a
+                no-op and simply will not appear in the returned `cancelled` list.
+
+                Fail-fast on unknown IDs: if any provided job ID does not exist for this
+                user, the request returns 404 and no jobs are cancelled. This surfaces
+                bad IDs to the caller rather than silently dropping them.
+
+                This is the canonical batch-cancel endpoint. The delete operation on
+                POST /api/queue is deprecated in favour of this.
+            operationId: cancelJobs
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/JobsCancelRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/JobsCancelResponse'
+                    description: Success - cancel requests dispatched (or jobs were already terminal)
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Bad Request - job_ids is missing, empty, exceeds the maximum count, or contains an invalid UUID
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Unauthorized - Authentication required
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: One or more job IDs not found for this user (no jobs cancelled)
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Internal server error - cancellation failed
+            summary: Cancel multiple jobs
+            tags:
+                - workflow
     /api/node_replacements:
         get:
             description: |
@@ -3104,9 +3274,18 @@ paths:
             tags:
                 - queue
         post:
+            deprecated: true
             description: |
-                Cancel specific PENDING jobs by ID or clear all pending jobs in the queue.
-                Note: This endpoint only affects pending jobs. To cancel running jobs, use /api/interrupt.
+                Deprecated. Prefer the jobs-namespace cancel endpoints:
+                POST /api/jobs/cancel for cancelling jobs by ID, and
+                POST /api/jobs/{job_id}/cancel for a single job.
+
+                Cancel specific jobs by ID (the `delete` field) or clear all pending
+                jobs in the queue (the `clear` field). Despite the `delete` naming, this
+                does not delete anything — listed jobs transition to the cancelled state,
+                and `delete` cancels both pending and running jobs (not pending-only as
+                previously documented). Job-by-ID cancellation is superseded by
+                POST /api/jobs/cancel; `clear` has no jobs-namespace replacement yet.
             operationId: manageQueue
             requestBody:
                 content:

@@ -9,6 +9,7 @@ import os
 from transformers import Qwen2Tokenizer
 
 import comfy.text_encoders.llama
+import comfy.text_encoders.qwen3vl
 from comfy import sd1_clip
 
 # Reference taps outputs of layers (0,3,...,35); comfy captures layer inputs, offset by +1.
@@ -77,3 +78,43 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
                 model_options["quantization_metadata"] = llama_quantization_metadata
             super().__init__(device=device, dtype=dtype, model_options=model_options)
     return Ideogram4TEModel_
+
+
+# Full Qwen3-VL-8B variant with vision
+
+class Ideogram4Qwen3VLClipModel(comfy.text_encoders.qwen3vl.Qwen3VLClipModel):
+    def __init__(self, device="cpu", dtype=None, attention_mask=True, model_options={}):
+        super().__init__(device=device, layer=IDEOGRAM4_TAP_LAYERS, layer_idx=None, dtype=dtype,
+                         attention_mask=attention_mask, model_options=model_options, model_type="qwen3vl_8b")
+
+
+class Ideogram4Qwen3VLTEModel(sd1_clip.SD1ClipModel):
+    def __init__(self, device="cpu", dtype=None, model_options={}):
+        super().__init__(device=device, dtype=dtype, name="qwen3vl_8b", clip_model=Ideogram4Qwen3VLClipModel, model_options=model_options)
+
+    def encode_token_weights(self, token_weight_pairs):
+        out, pooled, extra = super().encode_token_weights(token_weight_pairs)
+        b, n, seq, h = out.shape  # (B, n_taps=13, seq, 4096), ascending layer order.
+        out = out.permute(0, 2, 3, 1).reshape(b, seq, h * n)  # (B, seq, 4096*13 = 53248).
+        return out, pooled, extra
+
+
+class Ideogram4Qwen3VLTokenizer(comfy.text_encoders.qwen3vl.Qwen3VLTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, model_type="qwen3vl_8b")
+
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, thinking=True, **kwargs):
+        # Ideogram 4 conditions on the no-think template; default thinking=True drops the empty think block qwen3vl adds.
+        return super().tokenize_with_weights(text, return_word_ids=return_word_ids, llama_template=llama_template, images=images, prevent_empty_text=prevent_empty_text, thinking=thinking, **kwargs)
+
+
+def te_qwen3vl(dtype_llama=None, llama_quantization_metadata=None):
+    class Ideogram4Qwen3VLTEModel_(Ideogram4Qwen3VLTEModel):
+        def __init__(self, device="cpu", dtype=None, model_options={}):
+            if dtype_llama is not None:
+                dtype = dtype_llama
+            if llama_quantization_metadata is not None:
+                model_options = model_options.copy()
+                model_options["quantization_metadata"] = llama_quantization_metadata
+            super().__init__(device=device, dtype=dtype, model_options=model_options)
+    return Ideogram4Qwen3VLTEModel_

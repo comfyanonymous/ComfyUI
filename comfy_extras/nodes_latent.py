@@ -262,6 +262,7 @@ class LatentBatch(io.ComfyNode):
         return io.Schema(
             node_id="LatentBatch",
             search_aliases=["combine latents", "merge latents", "join latents"],
+            display_name="Batch Latents (DEPRECATED)",
             category="model/latent/batch",
             is_deprecated=True,
             inputs=[
@@ -447,6 +448,7 @@ class ReplaceVideoLatentFrames(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ReplaceVideoLatentFrames",
+            display_name="Replace Video Latent Frames",
             category="model/latent/batch",
             inputs=[
                 io.Latent.Input("destination", tooltip="The destination latent where frames will be replaced."),

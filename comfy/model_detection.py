@@ -761,6 +761,16 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
+    if '{}double_stream_layers.0.img_instruct_attn.processor.img_to_q.weight'.format(key_prefix) in state_dict_keys:  # Boogu-Image (OmniGen2 derivative + dual-stream stage)
+        dit_config = {}
+        dit_config["image_model"] = "boogu"
+        dit_config["hidden_size"] = state_dict['{}x_embedder.weight'.format(key_prefix)].shape[0]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}single_stream_layers.'.format(key_prefix) + '{}.')
+        dit_config["num_double_stream_layers"] = count_blocks(state_dict_keys, '{}double_stream_layers.'.format(key_prefix) + '{}.')
+        dit_config["num_refiner_layers"] = count_blocks(state_dict_keys, '{}noise_refiner.'.format(key_prefix) + '{}.')
+        dit_config["instruction_feat_dim"] = state_dict['{}time_caption_embed.caption_embedder.0.weight'.format(key_prefix)].shape[0]
+        return dit_config
+
     if '{}time_caption_embed.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys:  # Omnigen2
         dit_config = {}
         dit_config["image_model"] = "omnigen2"
