@@ -996,6 +996,12 @@ class KSAMPLER(Sampler):
         if callback is not None:
             k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
+        # Expose mutable extra_options so sampler functions can re-read
+        # updated values at each step (e.g. s_noise varied by feedback).
+        # Only inject when the sampler has per-step feedback param functions,
+        # otherwise _dynamic_sampler_options would leak to the model call.
+        if hasattr(self, '_feedback_param_fns') and self._feedback_param_fns:
+            extra_args["_dynamic_sampler_options"] = self.extra_options
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
         samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples

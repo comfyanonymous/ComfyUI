@@ -1011,6 +1011,10 @@ class RandomNoise(io.ComfyNode):
 
 
 class SamplerCustomAdvanced(io.ComfyNode):
+    # Declare which outputs are bounded iteration variables that may feed back
+    # through the graph to control upstream parameters (e.g. step_index -> cfg).
+    BOUNDED_FEEDBACK = {"step_index"}
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -1026,6 +1030,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
             outputs=[
                 io.Latent.Output(display_name="output"),
                 io.Latent.Output(display_name="denoised_output"),
+                io.Int.Output(display_name="step_index"),
             ]
         )
 
@@ -1041,8 +1046,30 @@ class SamplerCustomAdvanced(io.ComfyNode):
         if "noise_mask" in latent:
             noise_mask = latent["noise_mask"]
 
+        total_steps = sigmas.shape[-1] - 1
         x0_output = {}
-        callback = latent_preview.prepare_callback(guider.model_patcher, sigmas.shape[-1] - 1, x0_output)
+        callback = latent_preview.prepare_callback(guider.model_patcher, total_steps, x0_output)
+
+        # ---- bounded-feedback per-step updates ----
+        # The execution engine may have injected per-step update functions
+        # onto the guider and/or sampler objects.  Wrap the callback to
+        # apply them before the *next* sampling step.  The k-diffusion
+        # callback fires *after* the model call for step i, so we pass
+        # i+1 so that step N uses parameters computed with a=N.
+        cfg_fn = getattr(guider, '_feedback_cfg_fn', None)
+        param_fns = getattr(sampler, '_feedback_param_fns', None)
+        _has_feedback = cfg_fn is not None or param_fns
+        if _has_feedback:
+            _orig_callback = callback
+            def _feedback_callback(step, x0, x, total_steps):
+                if cfg_fn is not None:
+                    guider.cfg = cfg_fn(step + 1, total_steps)
+                if param_fns is not None:
+                    for key, fn in param_fns.items():
+                        sampler.extra_options[key] = fn(step + 1, total_steps)
+                _orig_callback(step, x0, x, total_steps)
+            callback = _feedback_callback
+        # ----------------------------------------------------
 
         disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
         samples = guider.sample(noise.generate_noise(latent), latent_image, sampler, sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise.seed)
@@ -1061,7 +1088,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
             out_denoised["samples"] = x0_out
         else:
             out_denoised = out
-        return io.NodeOutput(out, out_denoised)
+        return io.NodeOutput(out, out_denoised, total_steps)
 
     sample = execute
 

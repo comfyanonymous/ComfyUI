@@ -110,6 +110,21 @@ class CacheType(Enum):
     RAM_PRESSURE = 3
 
 
+# Initial values for bounded-feedback iteration outputs keyed by ComfyUI type
+# string.  When the DAG contains a feedback loop (e.g. step_index → … → cfg
+# → guider → sampler) the execution engine seeds the iteration output with
+# the default listed here so the downstream chain can evaluate before the
+# iteration-producing node runs.
+_FEEDBACK_DEFAULTS = {
+    "INT": 0,
+    "FLOAT": 0.0,
+    "BOOLEAN": False,
+    "STRING": "",
+    "NUMBER": 0,
+    "PRIMITIVE": 0,
+}
+
+
 class CacheSet:
     def __init__(self, cache_type=None, cache_args={}):
         if cache_type == CacheType.NONE:
@@ -176,12 +191,28 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                 continue # This might be a lazily-evaluated input
             cached = execution_list.get_cache(input_unique_id, unique_id)
             if cached is None or cached.outputs is None:
-                mark_missing()
+                # If this is a bounded-feedback link whose source hasn't
+                # executed yet, supply the type-appropriate initial value
+                # (e.g. step_index=0) so the feedback chain can evaluate
+                # before the iteration-producing node runs.
+                if _is_feedback_link(execution_list, unique_id, input_unique_id, output_index):
+                    default_val = _get_feedback_default(dynprompt, input_unique_id, output_index)
+                    obj = default_val
+                    if isinstance(obj, (int, float, bool, str)):
+                        obj = (obj,)
+                    input_data_all[x] = obj
+                else:
+                    mark_missing()
                 continue
             if output_index >= len(cached.outputs):
                 mark_missing()
                 continue
             obj = cached.outputs[output_index]
+            # Wrap atomic types (int, float, bool, str) in a tuple so
+            # _async_map_node_over_list can call len() on every input.
+            # The slice_dict helper then unwraps: (val,)[0] == val.
+            if isinstance(obj, (int, float, bool, str)):
+                obj = (obj,)
             input_data_all[x] = obj
         elif input_category is not None or (is_v3 and class_def.ACCEPT_ALL_INPUTS):
             input_data_all[x] = [input_data]
@@ -658,6 +689,209 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
     return (ExecutionResult.SUCCESS, None, None)
 
+
+def _is_feedback_link(execution_list, to_node_id, from_node_id, from_socket):
+    """Return True when *to_node_id* receives *from_node_id*:*from_socket*
+    through a bounded-feedback edge (recorded during graph construction)."""
+    edges = execution_list.feedback_links.get(to_node_id, [])
+    return (from_node_id, from_socket) in edges
+
+
+def _get_feedback_default(dynprompt, from_node_id, from_socket):
+    """Return the type-appropriate initial value for a feedback iteration
+    output (e.g. 0 for INT, 0.0 for FLOAT)."""
+    try:
+        class_type = dynprompt.get_node(from_node_id)["class_type"]
+        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        return_types = class_def.RETURN_TYPES
+    except Exception:
+        return 0
+    if from_socket < len(return_types):
+        return _FEEDBACK_DEFAULTS.get(return_types[from_socket], 0)
+    return 0
+
+
+def _build_feedback_fns(dynamic_prompt, from_node_id, from_socket, to_node_id,
+                        cfg_injections, sampler_injections):
+    """Try to build per-step update functions from a feedback edge.
+
+    Walks forward from the feedback-receiving node through intermediate
+    ComfyMathExpression nodes to find targets that need per-step callables.
+    Handles two target types:
+
+    * **CFGGuider** — populates *cfg_injections* keyed by guider node id
+      with a ``cfg_fn(step, total_steps)`` callable.
+    * **Sampler-producing nodes** (any node whose class_type starts with
+      "Sampler" except the iteration node itself) — populates
+      *sampler_injections* keyed by (sampler_node_id, param_name) with a
+      ``param_fn(step, total_steps)`` callable.
+
+    Supports multi-hop chains like::
+
+        iteration_node ──(step_index)──→ MathExpr_A ──→ MathExpr_B ──→ CFGGuider
+                                                                     ├─→ SamplerXXX
+                                                                     └─→ ...
+    """
+    try:
+        prompt = dynamic_prompt.original_prompt
+    except Exception:
+        return
+
+    from simpleeval import simple_eval
+    from comfy_extras.nodes_math import MATH_FUNCTIONS
+
+    # ---- helpers ----
+    def _find_consumers(source_id):
+        consumers = []
+        for nid, n in prompt.items():
+            for iname, ival in n.get("inputs", {}).items():
+                if isinstance(ival, list) and len(ival) == 2 \
+                   and ival[0] == source_id and ival[1] == 0:
+                    consumers.append((nid, n.get("class_type"), iname))
+        return consumers
+
+    def _is_sampler_target(class_type):
+        # Sampler-producing nodes whose parameters can be updated per-step
+        # via KSAMPLER.extra_options.
+        return (class_type is not None
+                and "Sampler" in class_type
+                and class_type != "SamplerCustomAdvanced")
+
+    def _resolve_input_value(source_node_id, source_socket):
+        """Try to resolve a non-feedback linked input to a static value.
+
+        First checks the source node's ``inputs`` dict (API format) for a
+        direct scalar value at the socket.  Falls back to ``widgets_values``
+        positional mapping (workflow-file format).  Returns the resolved
+        value, or None if unresolvable.
+        """
+        try:
+            snode = prompt.get(str(source_node_id))
+            if snode is None:
+                return None
+            class_type = snode.get("class_type", "")
+            inputs = snode.get("inputs", {})
+
+            # API format: inputs are named — find the name that maps to
+            # *source_socket* via the class's INPUT_TYPES ordering.
+            cls = nodes.NODE_CLASS_MAPPINGS.get(class_type)
+            if cls is not None:
+                try:
+                    input_types = cls.INPUT_TYPES()
+                except Exception:
+                    input_types = {}
+                required = input_types.get("required", {})
+                req_names = list(required.keys())
+                if source_socket < len(req_names):
+                    name = req_names[source_socket]
+                    val = inputs.get(name)
+                    if val is not None and not isinstance(val, list):
+                        return val
+
+            # Fallback: widgets_values positional mapping (workflow-file format)
+            wv = snode.get("widgets_values", [])
+            if wv:
+                if class_type in ("PrimitiveInt", "PrimitiveFloat", "PrimitiveBool"):
+                    if source_socket == 0 and len(wv) > 0:
+                        return wv[0]
+                if cls is not None and source_socket < len(req_names) and source_socket < len(wv):
+                    return wv[source_socket]
+            return None
+        except Exception:
+            return None
+
+    def _collect_extra_names(node_id, feedback_from_node, feedback_from_socket,
+                             feedback_var_name):
+        """Collect non-feedback linked inputs from a MathExpression node
+        and resolve them to values. Returns dict of name→value."""
+        extra = {}
+        try:
+            snode = prompt.get(str(node_id))
+            if snode is None:
+                return extra
+            for inp_name, inp_val in snode.get("inputs", {}).items():
+                if not isinstance(inp_val, list) or len(inp_val) != 2:
+                    continue
+                src_id, src_socket = inp_val[0], inp_val[1]
+                # Skip the feedback-linked input — that's the iteration variable
+                if (src_id == str(feedback_from_node)
+                        and int(src_socket) == int(feedback_from_socket)):
+                    continue
+                # This is an additional linked input — try to resolve it
+                val = _resolve_input_value(src_id, src_socket)
+                if val is not None:
+                    var_name = inp_name.rsplit(".", 1)[-1]
+                    extra[var_name] = val
+        except Exception:
+            pass
+        return extra
+
+    # Each chain element is now (expression, feedback_var, extra_names_dict)
+    # ---- depth-first search ----
+    def _dfs(start_id, from_node, from_socket, chain):
+        """Walk the MathExpr chain looking for any target node that needs
+        per-step updates.  Returns a list of (target_type, target_id,
+        input_name, full_chain) tuples, where target_type is 'guider'
+        or 'sampler'."""
+        try:
+            node = dynamic_prompt.get_node(start_id)
+        except Exception:
+            return []
+        if node.get("class_type") != "ComfyMathExpression":
+            return []
+
+        expression = node.get("inputs", {}).get("expression", "")
+        if not expression or not expression.strip():
+            return []
+
+        var_name = None
+        for input_name, input_val in node.get("inputs", {}).items():
+            if isinstance(input_val, list) and len(input_val) == 2 \
+               and input_val[0] == from_node and input_val[1] == from_socket:
+                var_name = input_name.rsplit(".", 1)[-1]
+                break
+        if var_name is None:
+            return []
+
+        # Collect additional (non-feedback) input values for this node
+        extra_names = _collect_extra_names(start_id, from_node, from_socket,
+                                           var_name)
+
+        new_chain = chain + [(expression, var_name, extra_names)]
+        results = []
+
+        for cid, ctype, ciname in _find_consumers(start_id):
+            if ctype == "CFGGuider":
+                results.append(("guider", cid, None, new_chain))
+            elif _is_sampler_target(ctype):
+                results.append(("sampler", cid, ciname, new_chain))
+            elif ctype == "ComfyMathExpression":
+                results.extend(_dfs(cid, start_id, 0, new_chain))
+        return results
+
+    # ---- compose functions from discovered chains ----
+    for target_type, target_id, param_name, chain in \
+            _dfs(to_node_id, from_node_id, from_socket, []):
+        if not chain:
+            continue
+
+        def _make_fn(_chain):
+            def _fn(step, total_steps):
+                val = step
+                for expr_str, var, extra_names in _chain:
+                    ctx = dict(extra_names) if extra_names else {}
+                    ctx[var] = val
+                    val = float(simple_eval(expr_str, names=ctx, functions=MATH_FUNCTIONS))
+                return val
+            return _fn
+
+        if target_type == "guider":
+            cfg_injections[target_id] = _make_fn(chain)
+        elif target_type == "sampler" and param_name:
+            sampler_injections[target_id] = sampler_injections.get(target_id, {})
+            sampler_injections[target_id][param_name] = _make_fn(chain)
+
+
 class PromptExecutor:
     def __init__(self, server, cache_type=False, cache_args=None):
         self.cache_args = cache_args
@@ -774,6 +1008,26 @@ class PromptExecutor:
                 for node_id in list(execute_outputs):
                     execution_list.add_node(node_id)
 
+                # ---- bounded-feedback bootstrap ---------------------------------
+                # Build per-step update functions for feedback chains that
+                # pass through ComfyMathExpression → CFGGuider / SamplerXXX.
+                # These are injected into the guider / sampler after the
+                # target node executes so the sampler can vary parameters
+                # (cfg, s_noise, ...) with step_index.
+                _feedback_cfg_injections = {}       # guider_node_id → cfg_fn
+                _feedback_sampler_injections = {}    # sampler_node_id → {param: fn}
+                for to_node_id, edges in execution_list.feedback_links.items():
+                    for from_node_id, from_socket in edges:
+                        try:
+                            _build_feedback_fns(
+                                dynamic_prompt, from_node_id, from_socket,
+                                to_node_id, _feedback_cfg_injections,
+                                _feedback_sampler_injections,
+                            )
+                        except Exception:
+                            pass   # non-critical – feedback just wonʼt vary per step
+                # -----------------------------------------------------------------
+
                 while not execution_list.is_empty():
                     node_id, error, ex = await execution_list.stage_node_execution()
                     if error is not None:
@@ -789,6 +1043,29 @@ class PromptExecutor:
                     elif result == ExecutionResult.PENDING:
                         execution_list.unstage_node_execution()
                     else: # result == ExecutionResult.SUCCESS:
+                        # ---- bounded-feedback injection ----
+                        # If this node just produced a guider or sampler
+                        # that is part of a feedback cycle, inject per-step
+                        # update function(s).
+                        if node_id in _feedback_cfg_injections:
+                            try:
+                                output = self.caches.outputs.get_local(node_id)
+                                if output is not None and output.outputs is not None \
+                                   and len(output.outputs) > 0 and len(output.outputs[0]) > 0:
+                                    guider = output.outputs[0][0]
+                                    guider._feedback_cfg_fn = _feedback_cfg_injections[node_id]
+                            except Exception:
+                                pass
+                        if node_id in _feedback_sampler_injections:
+                            try:
+                                output = self.caches.outputs.get_local(node_id)
+                                if output is not None and output.outputs is not None \
+                                   and len(output.outputs) > 0 and len(output.outputs[0]) > 0:
+                                    sampler_obj = output.outputs[0][0]
+                                    sampler_obj._feedback_param_fns = _feedback_sampler_injections[node_id]
+                            except Exception:
+                                pass
+                        # ---------------------------------------
                         execution_list.complete_node_execution()
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
@@ -831,6 +1108,34 @@ class PromptExecutor:
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
+def _is_bounded_feedback_cycle(prompt, visiting, unique_id):
+    """Check whether a detected dependency cycle is a *bounded* feedback loop.
+
+    A cycle is bounded when at least one node in it declares ``BOUNDED_FEEDBACK``,
+    i.e. the node has a finite internal iteration whose step / index variable
+    feeds back upstream to control its own parameters (e.g. a sampler's
+    ``step_index`` flowing through a math expression to set ``cfg``).
+
+    Because the iteration is bounded (N steps, then terminates) this isn't an
+    infinite cycle — the DAG can safely allow it and the execution engine will
+    break the feedback edge by seeding the iteration output with an initial value.
+    """
+    cycle_nodes = visiting[visiting.index(unique_id):] + [unique_id]
+    for node_id in cycle_nodes:
+        if node_id not in prompt:
+            continue
+        class_type = prompt[node_id].get('class_type')
+        if class_type is None:
+            continue
+        obj_class = nodes.NODE_CLASS_MAPPINGS.get(class_type)
+        if obj_class is None:
+            continue
+        bounded = getattr(obj_class, 'BOUNDED_FEEDBACK', None)
+        if bounded:
+            return True
+    return False
+
+
 async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
     if visiting is None:
         visiting = []
@@ -842,6 +1147,19 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
     if unique_id in visiting:
         cycle_path_nodes = visiting[visiting.index(unique_id):] + [unique_id]
         cycle_nodes = list(dict.fromkeys(cycle_path_nodes))
+
+        # A bounded feedback cycle is one where at least one node in the cycle
+        # declares BOUNDED_FEEDBACK — meaning its internal iteration is finite
+        # and its iteration output(s) can safely flow back upstream without
+        # causing an infinite loop (e.g. a sampler's step_index controlling cfg).
+        if _is_bounded_feedback_cycle(prompt, visiting, unique_id):
+            # Mark the repeated node as valid and continue the traversal on
+            # other branches. The execution layer handles the feedback edge
+            # by breaking it and seeding the iteration output with an initial
+            # value (e.g. step_index = 0).
+            validated[unique_id] = (True, [], unique_id)
+            return validated[unique_id]
+
         cycle_path = " -> ".join(f"{node_id} ({prompt[node_id]['class_type']})" for node_id in cycle_path_nodes)
         for node_id in cycle_nodes:
             validated[node_id] = (False, [{
