@@ -13,7 +13,7 @@ class CLIPTextEncodeFlux(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CLIPTextEncodeFlux",
-            category="advanced/conditioning/flux",
+            category="model/conditioning/flux",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
@@ -40,7 +40,7 @@ class EmptyFlux2LatentImage(io.ComfyNode):
         return io.Schema(
             node_id="EmptyFlux2LatentImage",
             display_name="Empty Flux 2 Latent",
-            category="model/latent",
+            category="model/latent/flux",
             inputs=[
                 io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
@@ -61,7 +61,7 @@ class FluxGuidance(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FluxGuidance",
-            category="advanced/conditioning/flux",
+            category="model/conditioning/flux",
             inputs=[
                 io.Conditioning.Input("conditioning"),
                 io.Float.Input("guidance", default=3.5, min=0.0, max=100.0, step=0.1),
@@ -84,7 +84,7 @@ class FluxDisableGuidance(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FluxDisableGuidance",
-            category="advanced/conditioning/flux",
+            category="model/conditioning/flux",
             description="This node completely disables the guidance embed on Flux and Flux like models",
             inputs=[
                 io.Conditioning.Input("conditioning"),
@@ -128,7 +128,7 @@ class FluxKontextImageScale(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FluxKontextImageScale",
-            category="advanced/conditioning/flux",
+            category="model/conditioning/flux",
             description="This node resizes the image to one that is more optimal for flux kontext.",
             inputs=[
                 io.Image.Input("image"),
@@ -156,7 +156,7 @@ class FluxKontextMultiReferenceLatentMethod(io.ComfyNode):
         return io.Schema(
             node_id="FluxKontextMultiReferenceLatentMethod",
             display_name="Edit Model Reference Method",
-            category="advanced/conditioning/flux",
+            category="model/conditioning/flux",
             inputs=[
                 io.Conditioning.Input("conditioning"),
                 io.Combo.Input(

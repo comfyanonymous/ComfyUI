@@ -66,6 +66,7 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
         schema.node_id = "WanContextWindowsManual"
         schema.display_name = "WAN Context Windows (Manual)"
         schema.description = "Manually set context windows for WAN-like models (dim=2)."
+        schema.category="model/patch/wan"
         schema.inputs = [
             io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
                 io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window.", advanced=True),
