@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from __future__ import annotations
 import comfy.memory_management
 import comfy.utils
 import comfy.model_management
@@ -358,6 +357,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["transformer.{}".format(key_lora)] = k
 
+    if isinstance(model, (comfy.model_base.LTXV, comfy.model_base.LTXAV)):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["{}".format(key_lora)] = k
+
     return key_map
 
 
@@ -484,16 +489,23 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
 
     return weight
 
-def prefetch_prepared_value(value, allocate_buffer, stream):
+def prefetch_prepared_value(value, counter, destination, stream, copy):
     if isinstance(value, torch.Tensor):
-        dest = allocate_buffer(comfy.memory_management.vram_aligned_size(value))
-        comfy.model_management.cast_to_gathered([value], dest, non_blocking=True, stream=stream)
+        size = comfy.memory_management.vram_aligned_size(value)
+        offset = counter[0]
+        counter[0] += size
+        if destination is None:
+            return value
+
+        dest = destination[offset:offset + size]
+        if copy:
+            comfy.model_management.cast_to_gathered([value], dest, non_blocking=True, stream=stream)
         return comfy.memory_management.interpret_gathered_like([value], dest)[0]
     elif isinstance(value, weight_adapter.WeightAdapterBase):
-        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, allocate_buffer, stream))
+        return type(value)(value.loaded_keys, prefetch_prepared_value(value.weights, counter, destination, stream, copy))
     elif isinstance(value, tuple):
-        return tuple(prefetch_prepared_value(item, allocate_buffer, stream) for item in value)
+        return tuple(prefetch_prepared_value(item, counter, destination, stream, copy) for item in value)
     elif isinstance(value, list):
-        return [prefetch_prepared_value(item, allocate_buffer, stream) for item in value]
+        return [prefetch_prepared_value(item, counter, destination, stream, copy) for item in value]
 
     return value

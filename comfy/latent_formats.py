@@ -150,6 +150,12 @@ class SD3(LatentFormat):
 class StableAudio1(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
+    temporal_downscale_ratio = 2048
+
+class StableAudio3(LatentFormat):
+    latent_channels = 256
+    latent_dimensions = 1
+    temporal_downscale_ratio = 4096
 
 class Flux(SD3):
     latent_channels = 16
@@ -226,6 +232,16 @@ class Flux2(LatentFormat):
         self.latent_rgb_factors_bias = [-0.0329, -0.0718, -0.0851]
         self.latent_rgb_factors_reshape = lambda t: t.reshape(t.shape[0], 32, 2, 2, t.shape[-2], t.shape[-1]).permute(0, 1, 4, 2, 5, 3).reshape(t.shape[0], 32, t.shape[-2] * 2, t.shape[-1] * 2)
         self.taesd_decoder_name = "taef2_decoder"
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent
+
+class TripoSplat(LatentFormat):
+    # Sequence latent (B, 8192, 16) the camera token rides alongside as a second nested latent
+    latent_channels = 16
 
     def process_in(self, latent):
         return latent
@@ -766,6 +782,7 @@ class ACEAudio(LatentFormat):
 class ACEAudio15(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
+    temporal_downscale_ratio = 1764
 
 class ChromaRadiance(LatentFormat):
     latent_channels = 3
@@ -792,11 +809,13 @@ class ZImagePixelSpace(ChromaRadiance):
     """
     pass
 
-
 class HiDreamO1Pixel(ChromaRadiance):
     """Pixel-space latent format for HiDream-O1.
     No VAE — model patches/unpatches raw RGB internally with patch_size=32.
     """
+    pass
+
+class PixelDiTPixel(ChromaRadiance):
     pass
 
 class CogVideoX(LatentFormat):

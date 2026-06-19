@@ -12,7 +12,7 @@ class TextEncodeQwenImageEdit(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="TextEncodeQwenImageEdit",
-            category="advanced/conditioning",
+            category="model/conditioning/qwen image",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
@@ -55,7 +55,7 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="TextEncodeQwenImageEditPlus",
-            category="advanced/conditioning",
+            category="model/conditioning/qwen image",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
@@ -112,7 +112,7 @@ class EmptyQwenImageLayeredLatentImage(io.ComfyNode):
         return io.Schema(
             node_id="EmptyQwenImageLayeredLatentImage",
             display_name="Empty Qwen Image Layered Latent",
-            category="latent/qwen",
+            category="model/latent/qwen",
             inputs=[
                 io.Int.Input("width", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),

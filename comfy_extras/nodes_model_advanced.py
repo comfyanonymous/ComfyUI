@@ -59,7 +59,7 @@ class ModelSamplingDiscrete:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch"
 
     def patch(self, model, sampling, zsnr):
         m = model.clone()
@@ -97,7 +97,7 @@ class ModelSamplingStableCascade:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch/stable cascade"
 
     def patch(self, model, shift):
         m = model.clone()
@@ -123,7 +123,7 @@ class ModelSamplingSD3:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch/stable diffusion"
 
     def patch(self, model, shift, multiplier=1000):
         m = model.clone()
@@ -134,8 +134,11 @@ class ModelSamplingSD3:
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
+        original = m.get_model_object("model_sampling")
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
         model_sampling.set_parameters(shift=shift, multiplier=multiplier)
+        if hasattr(original, "noise_scale"):
+            model_sampling.set_noise_scale(original.noise_scale)
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
 
@@ -147,6 +150,7 @@ class ModelSamplingAuraFlow(ModelSamplingSD3):
                               }}
 
     FUNCTION = "patch_aura"
+    CATEGORY = "model/patch"
 
     def patch_aura(self, model, shift):
         return self.patch(model, shift, multiplier=1.0)
@@ -164,7 +168,7 @@ class ModelSamplingFlux:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch/flux"
 
     def patch(self, model, max_shift, base_shift, width, height):
         m = model.clone()
@@ -199,7 +203,7 @@ class ModelSamplingContinuousEDM:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch"
 
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
@@ -244,7 +248,7 @@ class ModelSamplingContinuousV:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch"
 
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
@@ -270,7 +274,7 @@ class RescaleCFG:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch"
 
     def patch(self, model, multiplier):
         def rescale_cfg(args):
@@ -311,11 +315,11 @@ class ModelNoiseScale:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/model"
+    CATEGORY = "model/patch"
 
     def patch(self, model, noise_scale):
         m = model.clone()
-        original = m.model.model_sampling
+        original = m.get_model_object("model_sampling")
         ms = type(original)(m.model.model_config)
         ms.set_parameters(shift=original.shift, multiplier=original.multiplier)
         ms.set_noise_scale(noise_scale)
@@ -334,7 +338,7 @@ class ModelComputeDtype:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "advanced/debug/model"
+    CATEGORY = "advanced/debug"
 
     def patch(self, model, dtype):
         m = model.clone()

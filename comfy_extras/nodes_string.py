@@ -1,8 +1,39 @@
 import re
 import json
+import string
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
+
+
+class StringFormat(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        autogrow = io.Autogrow.TemplateNames(
+            input=io.AnyType.Input("value"),
+            names=list(string.ascii_lowercase),
+            min=0,
+        )
+        return io.Schema(
+            node_id="StringFormat",
+            display_name="Format Text",
+            category="text",
+            search_aliases=["string", "format"],
+            description="Same as Python's string format method. Supports all of Python's format options and features.",
+            inputs=[
+                io.Autogrow.Input("values", template=autogrow),
+                io.String.Input("f_string", default="{a}", multiline=True),
+            ],
+            outputs=[
+                io.String.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(
+        cls, values: io.Autogrow.Type, f_string: str
+    ) -> io.NodeOutput:
+        return io.NodeOutput(f_string.format(**values))
 
 
 class StringConcatenate(io.ComfyNode):
@@ -413,6 +444,7 @@ class StringExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
+            StringFormat,
             StringConcatenate,
             StringSubstring,
             StringLength,
