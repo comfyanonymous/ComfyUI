@@ -40,15 +40,15 @@ def _make_reference(session: Session, asset: Asset, name: str = "test", owner_id
 
 class TestEnsureTagsExist:
     def test_creates_new_tags(self, session: Session):
-        ensure_tags_exist(session, ["alpha", "beta"], tag_type="user")
+        ensure_tags_exist(session, ["alpha", "beta"])
         session.commit()
 
         tags = session.query(Tag).all()
         assert {t.name for t in tags} == {"alpha", "beta"}
 
     def test_is_idempotent(self, session: Session):
-        ensure_tags_exist(session, ["alpha"], tag_type="user")
-        ensure_tags_exist(session, ["alpha"], tag_type="user")
+        ensure_tags_exist(session, ["alpha"])
+        ensure_tags_exist(session, ["alpha"])
         session.commit()
 
         assert session.query(Tag).count() == 1
@@ -64,13 +64,6 @@ class TestEnsureTagsExist:
         ensure_tags_exist(session, [])
         session.commit()
         assert session.query(Tag).count() == 0
-
-    def test_tag_type_is_set(self, session: Session):
-        ensure_tags_exist(session, ["system-tag"], tag_type="system")
-        session.commit()
-
-        tag = session.query(Tag).filter_by(name="system-tag").one()
-        assert tag.tag_type == "system"
 
 
 class TestGetReferenceTags:
@@ -193,7 +186,7 @@ class TestMissingTagFunctions:
     def test_add_missing_tag_for_asset_id(self, session: Session):
         asset = _make_asset(session, "hash1")
         ref = _make_reference(session, asset)
-        ensure_tags_exist(session, ["missing"], tag_type="system")
+        ensure_tags_exist(session, ["missing"])
 
         add_missing_tag_for_asset_id(session, asset_id=asset.id)
         session.commit()
@@ -204,7 +197,7 @@ class TestMissingTagFunctions:
     def test_add_missing_tag_is_idempotent(self, session: Session):
         asset = _make_asset(session, "hash1")
         ref = _make_reference(session, asset)
-        ensure_tags_exist(session, ["missing"], tag_type="system")
+        ensure_tags_exist(session, ["missing"])
 
         add_missing_tag_for_asset_id(session, asset_id=asset.id)
         add_missing_tag_for_asset_id(session, asset_id=asset.id)
@@ -216,7 +209,7 @@ class TestMissingTagFunctions:
     def test_remove_missing_tag_for_asset_id(self, session: Session):
         asset = _make_asset(session, "hash1")
         ref = _make_reference(session, asset)
-        ensure_tags_exist(session, ["missing"], tag_type="system")
+        ensure_tags_exist(session, ["missing"])
         add_missing_tag_for_asset_id(session, asset_id=asset.id)
 
         remove_missing_tag_for_asset_id(session, asset_id=asset.id)
@@ -237,7 +230,7 @@ class TestListTagsWithUsage:
 
         rows, total = list_tags_with_usage(session)
 
-        tag_dict = {name: count for name, _, count in rows}
+        tag_dict = {name: count for name, count in rows}
         assert tag_dict["used"] == 1
         assert tag_dict["unused"] == 0
         assert total == 2
@@ -252,7 +245,7 @@ class TestListTagsWithUsage:
 
         rows, total = list_tags_with_usage(session, include_zero=False)
 
-        tag_names = {name for name, _, _ in rows}
+        tag_names = {name for name, _ in rows}
         assert "used" in tag_names
         assert "unused" not in tag_names
 
@@ -262,7 +255,7 @@ class TestListTagsWithUsage:
 
         rows, total = list_tags_with_usage(session, prefix="alph")
 
-        tag_names = {name for name, _, _ in rows}
+        tag_names = {name for name, _ in rows}
         assert tag_names == {"alpha", "alphabet"}
 
     def test_order_by_name(self, session: Session):
@@ -271,7 +264,7 @@ class TestListTagsWithUsage:
 
         rows, _ = list_tags_with_usage(session, order="name_asc")
 
-        names = [name for name, _, _ in rows]
+        names = [name for name, _ in rows]
         assert names == ["alpha", "middle", "zebra"]
 
     def test_owner_visibility(self, session: Session):
@@ -287,13 +280,13 @@ class TestListTagsWithUsage:
 
         # Empty owner sees only shared
         rows, _ = list_tags_with_usage(session, owner_id="", include_zero=False)
-        tag_dict = {name: count for name, _, count in rows}
+        tag_dict = {name: count for name, count in rows}
         assert tag_dict.get("shared-tag", 0) == 1
         assert tag_dict.get("owner-tag", 0) == 0
 
         # User1 sees both
         rows, _ = list_tags_with_usage(session, owner_id="user1", include_zero=False)
-        tag_dict = {name: count for name, _, count in rows}
+        tag_dict = {name: count for name, count in rows}
         assert tag_dict.get("shared-tag", 0) == 1
         assert tag_dict.get("owner-tag", 0) == 1
 
