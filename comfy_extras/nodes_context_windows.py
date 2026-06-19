@@ -67,7 +67,8 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
         schema = super().define_schema()
         schema.node_id = "WanContextWindowsManual"
         schema.display_name = "WAN Context Windows (Manual)"
-        schema.description = "Manually set context windows for WAN-like models (dim=2)."
+        schema.display_name = "Wan Context Windows"
+        schema.description = "Set context windows for Wan-like models."
         schema.category="model/patch/wan"
         schema.inputs = [
             io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
