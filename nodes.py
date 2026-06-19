@@ -20,8 +20,6 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
-
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
@@ -2299,6 +2297,9 @@ async def init_external_custom_nodes():
     Returns:
         None
     """
+    # TODO: remove at some point when custom nodes don't break.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
+
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
