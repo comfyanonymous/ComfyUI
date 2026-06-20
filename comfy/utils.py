@@ -119,6 +119,32 @@ def load_safetensors(ckpt):
     return sd, header.get("__metadata__", {}),
 
 
+_LARGE_FILE_MMAP_THRESHOLD = 4_000_000_000  # 4 GB
+
+
+def _load_safetensors_no_mmap(ckpt):
+    # Windows + ROCm/CUDA UMA: large mmaps fail after GPU virtual address space is reserved.
+    # Read tensors sequentially from file instead.
+    sd = {}
+    with open(ckpt, "rb") as fh:
+        header_len = struct.unpack("<Q", fh.read(8))[0]
+        header = json.loads(fh.read(header_len).decode("utf-8"))
+        data_start = 8 + header_len
+        for name, info in header.items():
+            if name == "__metadata__":
+                continue
+            start, end = info["data_offsets"]
+            dtype = _TYPES[info["dtype"]]
+            shape = info["shape"]
+            fh.seek(data_start + start)
+            raw = fh.read(end - start)
+            if raw:
+                sd[name] = torch.frombuffer(bytearray(raw), dtype=dtype).reshape(shape).clone()
+            else:
+                sd[name] = torch.empty(shape, dtype=dtype)
+    return sd, header.get("__metadata__", {})
+
+
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
@@ -127,6 +153,12 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
         try:
             if comfy.memory_management.aimdo_enabled:
                 sd, metadata = load_safetensors(ckpt)
+                if not return_metadata:
+                    metadata = None
+            elif os.path.getsize(ckpt) > _LARGE_FILE_MMAP_THRESHOLD and torch.cuda.is_available():
+                # File > 4 GB with active CUDA/ROCm: mmap would exhaust Windows virtual
+                # address space reserved by UMA GPU init. Use sequential file-read instead.
+                sd, metadata = _load_safetensors_no_mmap(ckpt)
                 if not return_metadata:
                     metadata = None
             else:
