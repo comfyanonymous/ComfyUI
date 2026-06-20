@@ -55,6 +55,12 @@ components:
                     description: URL for asset preview/thumbnail
                     format: uri
                     type: string
+                short_url:
+                    description: Durable, owner-gated short link to this asset's content (relative `/api/s/{id}` path). Stable across the underlying signed URL's expiry — resolving it re-mints a fresh signed URL on every request — so it is safe to persist or share into chat, unlike `preview_url`. Only the minting user can resolve it. Omitted when the short-link surface is disabled or the asset has no resolvable content hash.
+                    nullable: true
+                    type: string
+                    x-runtime:
+                        - cloud
                 size:
                     description: Size of the asset in bytes
                     format: int64
@@ -2981,6 +2987,17 @@ paths:
                   schema:
                     format: uuid
                     type: string
+                - description: |
+                    When present, each output item in the response receives a `short_url` field containing an owner-gated durable link for that asset. Omit this parameter (the default) to receive a response identical to the no-param baseline. The value selects the link's lifetime: use `ephemeral_tool_chain` for short-lived machine-to-machine handoffs (~15 minutes); use `default` for durable human-revisitable links (30 days). Links are minted only for the authenticated request owner and are not resolvable by other users.
+                  in: query
+                  name: short_link
+                  schema:
+                    enum:
+                        - ephemeral_tool_chain
+                        - default
+                    type: string
+                  x-runtime:
+                    - cloud
             responses:
                 "200":
                     content:
