@@ -233,13 +233,8 @@ class VideoSlice(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Video Slice",
-            display_name="Video Slice",
-            search_aliases=[
-                "trim video duration",
-                "skip first frames",
-                "frame load cap",
-                "start time",
-            ],
+            display_name="Trim Video",
+            search_aliases=["trim video duration", "skip first frames", "frame load cap", "start time"],
             category="video",
             essentials_category="Video Tools",
             inputs=[
