@@ -8,6 +8,7 @@ import folder_paths
 from comfy_api.latest import ComfyExtension, Types, io
 from typing_extensions import override
 
+from comfy.ldm.colormap import turbo as _turbo
 from comfy.ldm.moge.model import MoGeModel
 from comfy.ldm.moge.geometry import triangulate_grid_mesh
 from comfy.ldm.moge.panorama import get_panorama_cameras, split_panorama_image, merge_panorama_depth, spherical_uv_to_directions, _uv_grid
@@ -25,19 +26,6 @@ MoGeGeometry = io.Custom("MOGE_GEOMETRY")
 #   "mask":       torch.Tensor (B, H, W) bool
 #   "normal":     torch.Tensor (B, H, W, 3) -- v2 only
 #   "image":      torch.Tensor (B, H, W, 3) in [0, 1], CPU (always present)
-
-
-def _turbo(x: torch.Tensor) -> torch.Tensor:
-    """Anton Mikhailov polynomial approximation of the turbo colormap."""
-    x = x.clamp(0.0, 1.0)
-    x2 = x * x
-    x3 = x2 * x
-    x4 = x2 * x2
-    x5 = x4 * x
-    r = 0.13572138 + 4.61539260*x - 42.66032258*x2 + 132.13108234*x3 - 152.94239396*x4 + 59.28637943*x5
-    g = 0.09140261 + 2.19418839*x + 4.84296658*x2 - 14.18503333*x3 + 4.27729857*x4 + 2.82956604*x5
-    b = 0.10667330 + 12.64194608*x - 60.58204836*x2 + 110.36276771*x3 - 89.90310912*x4 + 27.34824973*x5
-    return torch.stack([r, g, b], dim=-1).clamp(0.0, 1.0)
 
 
 def _normals_from_points(points: torch.Tensor) -> torch.Tensor:

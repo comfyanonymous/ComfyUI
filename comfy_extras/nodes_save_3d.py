@@ -16,7 +16,7 @@ from comfy.cli_args import args
 from comfy_api.latest import ComfyExtension, IO, Types
 
 
-def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None):
+def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None, unlit=False):
     # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
     # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
     # colors and uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
@@ -54,7 +54,7 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=Non
 
     return Types.MESH(packed_vertices, packed_faces,
                       uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
-                      vertex_counts=vertex_counts, face_counts=face_counts)
+                      vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit)
 
 
 def get_mesh_batch_item(mesh, index):
@@ -77,7 +77,7 @@ def get_mesh_batch_item(mesh, index):
 
 
 def save_glb(vertices, faces, filepath, metadata=None,
-             uvs=None, vertex_colors=None, texture_image=None):
+             uvs=None, vertex_colors=None, texture_image=None, unlit=False):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -234,6 +234,17 @@ def save_glb(vertices, faces, filepath, metadata=None,
     textures = []
     samplers = []
     materials = []
+    extensions_used = []
+    if unlit and texture_png_bytes is None:
+        # Flat, light-independent shading (KHR_materials_unlit): COLOR_0 is shown as-is, matching how a
+        # gaussian splat renders (emissive). Without this the viewer lights the mesh and washes the colours.
+        materials.append({
+            "pbrMetallicRoughness": {"baseColorFactor": [1.0, 1.0, 1.0, 1.0], "metallicFactor": 0.0, "roughnessFactor": 1.0},
+            "extensions": {"KHR_materials_unlit": {}},
+            "doubleSided": True,
+        })
+        extensions_used.append("KHR_materials_unlit")
+        primitive["material"] = 0
     if texture_png_bytes is not None and "TEXCOORD_0" in primitive_attributes:
         buffer_views.append({
             "buffer": 0,
@@ -271,6 +282,8 @@ def save_glb(vertices, faces, filepath, metadata=None,
         gltf["textures"] = textures
     if materials:
         gltf["materials"] = materials
+    if extensions_used:
+        gltf["extensionsUsed"] = extensions_used
 
     if metadata:
         gltf["asset"]["extras"] = metadata
@@ -324,6 +337,12 @@ class SaveGLB(IO.ComfyNode):
                         IO.File3DFBX,
                         IO.File3DSTL,
                         IO.File3DUSDZ,
+                        IO.File3DPLY,
+                        IO.File3DSPLAT,
+                        IO.File3DSPZ,
+                        IO.File3DKSPLAT,
+                        IO.File3DSplatAny,
+                        IO.File3DPointCloudAny,
                         IO.File3DAny,
                     ],
                     tooltip="Mesh or 3D file to save",
@@ -376,7 +395,8 @@ class SaveGLB(IO.ComfyNode):
                 save_glb(vertices_i, faces_i, os.path.join(full_output_folder, f), metadata,
                          uvs=uvs_i,
                          vertex_colors=v_colors,
-                         texture_image=tex_img)
+                         texture_image=tex_img,
+                         unlit=getattr(mesh, "unlit", False))
                 results.append({
                     "filename": f,
                     "subfolder": subfolder,

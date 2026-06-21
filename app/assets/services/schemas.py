@@ -56,7 +56,6 @@ class IngestResult:
 
 class TagUsage(NamedTuple):
     name: str
-    tag_type: str
     count: int
 
 
@@ -71,6 +70,7 @@ class AssetSummaryData:
 class ListAssetsResult:
     items: list[AssetSummaryData]
     total: int
+    next_cursor: str | None = None
 
 
 @dataclass(frozen=True)

@@ -264,7 +264,7 @@ class SAM3_VideoTrack(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SAM3_VideoTrack",
-            display_name="SAM3 Video Track",
+            display_name="Run SAM3 Video Track",
             category="image/detection",
             search_aliases=["sam3", "video", "track", "propagate"],
             inputs=[
