@@ -5,7 +5,6 @@ See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/infer
 
 import base64
 import os
-from enum import Enum
 from fnmatch import fnmatch
 from io import BytesIO
 from typing import Any, Literal
@@ -76,15 +75,6 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
     )
     """,
 )
-
-
-class GeminiImageModel(str, Enum):
-    """
-    Gemini Image Model Names allowed by comfy-api
-    """
-
-    gemini_2_5_flash_image_preview = "gemini-2.5-flash-image-preview"
-    gemini_2_5_flash_image = "gemini-2.5-flash-image"
 
 
 async def create_image_parts(
@@ -243,21 +233,15 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
     if not response.modelVersion:
         return None
     # Define prices (Cost per 1,000,000 tokens), see https://cloud.google.com/vertex-ai/generative-ai/pricing
-    if response.modelVersion in ("gemini-2.5-pro-preview-05-06", "gemini-2.5-pro"):
+    if response.modelVersion == "gemini-2.5-pro":
         input_tokens_price = 1.25
         output_text_tokens_price = 10.0
         output_image_tokens_price = 0.0
-    elif response.modelVersion in (
-        "gemini-2.5-flash-preview-04-17",
-        "gemini-2.5-flash",
-    ):
+    elif response.modelVersion == "gemini-2.5-flash":
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 0.0
-    elif response.modelVersion in (
-        "gemini-2.5-flash-image-preview",
-        "gemini-2.5-flash-image",
-    ):
+    elif response.modelVersion == "gemini-2.5-flash-image":
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 30.0
@@ -455,8 +439,6 @@ class GeminiNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model",
                     options=[
-                        "gemini-2.5-pro-preview-05-06",
-                        "gemini-2.5-flash-preview-04-17",
                         "gemini-2.5-pro",
                         "gemini-2.5-flash",
                         "gemini-3-pro-preview",
@@ -904,8 +886,7 @@ class GeminiImage(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=GeminiImageModel,
-                    default=GeminiImageModel.gemini_2_5_flash_image,
+                    options=["gemini-2.5-flash-image"],
                     tooltip="The Gemini model to use for generating responses.",
                 ),
                 IO.Int.Input(
@@ -1424,6 +1405,26 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                     tooltip="Foundational instructions that dictate an AI's behavior.",
                     advanced=True,
                 ),
+                IO.Float.Input(
+                    "temperature",
+                    default=1.0,
+                    min=0.0,
+                    max=2.0,
+                    step=0.01,
+                    optional=True,
+                    tooltip="Controls randomness in generation. Lower is more focused/deterministic.",
+                    advanced=True,
+                ),
+                IO.Float.Input(
+                    "top_p",
+                    default=0.95,
+                    min=0.0,
+                    max=1.0,
+                    step=0.01,
+                    optional=True,
+                    tooltip="Nucleus sampling threshold. Lower is more focused, higher more diverse.",
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -1460,6 +1461,8 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
         seed: int,
         response_modalities: str,
         system_prompt: str = "",
+        temperature: float = 1.0,
+        top_p: float = 0.95,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_choice = model["model"]
@@ -1499,6 +1502,8 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                     responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
                     imageConfig=image_config,
                     thinkingConfig=GeminiThinkingConfig(thinkingLevel=model["thinking_level"]),
+                    temperature=temperature,
+                    topP=top_p,
                 ),
                 systemInstruction=gemini_system_prompt,
             ),

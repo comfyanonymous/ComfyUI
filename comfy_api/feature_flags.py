@@ -25,6 +25,11 @@ CLI_FEATURE_FLAG_REGISTRY: dict[str, FeatureFlagInfo] = {
         "default": False,
         "description": "Show the sign-in button in the frontend even when not signed in",
     },
+    "enable_telemetry": {
+        "type": "bool",
+        "default": False,
+        "description": "Signal the frontend that telemetry collection is enabled",
+    },
 }
 
 

@@ -141,7 +141,7 @@ class TestListTags:
 
         rows, total = list_tags()
 
-        tag_dict = {name: count for name, _, count in rows}
+        tag_dict = {name: count for name, count in rows}
         assert tag_dict["used"] == 1
         assert tag_dict["unused"] == 0
         assert total == 2
@@ -155,7 +155,7 @@ class TestListTags:
 
         rows, total = list_tags(include_zero=False)
 
-        tag_names = {name for name, _, _ in rows}
+        tag_names = {name for name, _ in rows}
         assert "used" in tag_names
         assert "unused" not in tag_names
 
@@ -165,7 +165,7 @@ class TestListTags:
 
         rows, _ = list_tags(prefix="alph")
 
-        tag_names = {name for name, _, _ in rows}
+        tag_names = {name for name, _ in rows}
         assert tag_names == {"alpha", "alphabet"}
 
     def test_order_by_name(self, mock_create_session, session: Session):
@@ -174,7 +174,7 @@ class TestListTags:
 
         rows, _ = list_tags(order="name_asc")
 
-        names = [name for name, _, _ in rows]
+        names = [name for name, _ in rows]
         assert names == ["alpha", "middle", "zebra"]
 
     def test_pagination(self, mock_create_session, session: Session):
@@ -185,7 +185,7 @@ class TestListTags:
 
         assert total == 5
         assert len(rows) == 2
-        names = [name for name, _, _ in rows]
+        names = [name for name, _ in rows]
         assert names == ["b", "c"]
 
     def test_clamps_limit(self, mock_create_session, session: Session):

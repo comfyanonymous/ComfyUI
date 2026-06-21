@@ -25,6 +25,7 @@ import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.z_image
 import comfy.text_encoders.ideogram4
+import comfy.text_encoders.boogu
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
@@ -1450,6 +1451,17 @@ class WAN21_SCAIL(WAN21_T2V):
         out = model_base.WAN21_SCAIL(self, image_to_video=False, device=device)
         return out
 
+
+class WAN21_SCAIL2(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "scail2",
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21_SCAIL2(self, image_to_video=False, device=device)
+        return out
+
 class WAN22_WanDancer(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1746,6 +1758,27 @@ class Omnigen2(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.omnigen2.Omnigen2Tokenizer, comfy.text_encoders.omnigen2.te(**hunyuan_detect))
+
+class Boogu(Omnigen2):
+    unet_config = {
+        "image_model": "boogu",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 3.16,
+    }
+
+    memory_usage_factor = 2.15
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Boogu(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_8b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.boogu.BooguTokenizer, comfy.text_encoders.boogu.te(**hunyuan_detect))
 
 class Ideogram4(supported_models_base.BASE):
     unet_config = {
@@ -2045,6 +2078,23 @@ class RT_DETR_v4(supported_models_base.BASE):
         return None
 
 
+class DepthAnything3(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "DepthAnything3",
+    }
+
+    # Mono path: no num_heads / num_head_channels needed.
+    unet_extra_config = {}
+
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.DepthAnything3(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
+
+
 class ErnieImage(supported_models_base.BASE):
     unet_config = {
         "image_model": "ernie",
@@ -2259,6 +2309,7 @@ models = [
     WAN22_Animate,
     WAN21_FlowRVS,
     WAN21_SCAIL,
+    WAN21_SCAIL2,
     WAN22_WanDancer,
     Hunyuan3Dv2mini,
     Hunyuan3Dv2,
@@ -2271,6 +2322,7 @@ models = [
     ACEStep,
     ACEStep15,
     Omnigen2,
+    Boogu,
     QwenImage,
     Ideogram4,
     Flux2,
@@ -2286,4 +2338,5 @@ models = [
     CogVideoX_I2V,
     CogVideoX_T2V,
     SVD_img2vid,
+    DepthAnything3,
 ]

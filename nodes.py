@@ -20,8 +20,6 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
-
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
@@ -87,7 +85,7 @@ class ConditioningCombine:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "combine"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
     SEARCH_ALIASES = ["combine", "merge conditioning", "combine prompts", "merge prompts", "mix prompts", "add prompt"]
 
     def combine(self, conditioning_1, conditioning_2):
@@ -104,7 +102,7 @@ class ConditioningAverage :
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "addWeighted"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def addWeighted(self, conditioning_to, conditioning_from, conditioning_to_strength):
         out = []
@@ -143,7 +141,7 @@ class ConditioningConcat:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "concat"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def concat(self, conditioning_to, conditioning_from):
         out = []
@@ -176,7 +174,7 @@ class ConditioningSetArea:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def append(self, conditioning, width, height, x, y, strength):
         c = node_helpers.conditioning_set_values(conditioning, {"area": (height // 8, width // 8, y // 8, x // 8),
@@ -197,7 +195,7 @@ class ConditioningSetAreaPercentage:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def append(self, conditioning, width, height, x, y, strength):
         c = node_helpers.conditioning_set_values(conditioning, {"area": ("percentage", height, width, y, x),
@@ -214,7 +212,7 @@ class ConditioningSetAreaStrength:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def append(self, conditioning, strength):
         c = node_helpers.conditioning_set_values(conditioning, {"strength": strength})
@@ -234,7 +232,7 @@ class ConditioningSetMask:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "model/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def append(self, conditioning, mask, set_cond_area, strength):
         set_area_to_bounds = False
@@ -257,7 +255,7 @@ class ConditioningZeroOut:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "zero_out"
 
-    CATEGORY = "advanced/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def zero_out(self, conditioning):
         c = []
@@ -283,11 +281,10 @@ class ConditioningSetTimestepRange:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "set_range"
 
-    CATEGORY = "advanced/conditioning"
+    CATEGORY = "model/conditioning/transform"
 
     def set_range(self, conditioning, start, end):
-        c = node_helpers.conditioning_set_values(conditioning, {"start_percent": start,
-                                                                "end_percent": end})
+        c = node_helpers.conditioning_set_values(conditioning, {"start_percent": start, "end_percent": end})
         return (c, )
 
 class VAEDecode:
@@ -389,7 +386,7 @@ class VAEEncodeForInpaint:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "model/latent/inpaint"
+    CATEGORY = "model/latent"
 
     def encode(self, vae, pixels, mask, grow_mask_by=6):
         downscale_ratio = vae.spacial_compression_encode()
@@ -438,7 +435,7 @@ class InpaintModelConditioning:
     RETURN_NAMES = ("positive", "negative", "latent")
     FUNCTION = "encode"
 
-    CATEGORY = "model/conditioning/inpaint"
+    CATEGORY = "model/conditioning"
 
     def encode(self, positive, negative, pixels, vae, mask, noise_mask=True):
         x = (pixels.shape[1] // 8) * 8
@@ -576,7 +573,7 @@ class CheckpointLoader:
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "model/loaders"
     DEPRECATED = True
 
     def load_checkpoint(self, config_name, ckpt_name):
@@ -622,8 +619,9 @@ class DiffusersLoader:
         return {"required": {"model_path": (paths,), }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
+    DEPRECATED = True
 
-    CATEGORY = "advanced/loaders/deprecated"
+    CATEGORY = "model/loaders"
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
         for search_path in folder_paths.get_folder_paths("diffusers"):
@@ -949,7 +947,7 @@ class UNETLoader:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "model/loaders"
 
     def load_unet(self, unet_name, weight_dtype):
         model_options = {}
@@ -969,7 +967,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -977,9 +975,9 @@ class CLIPLoader:
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "model/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\nlens: gpt-oss-20b\n pixeldit: gemma 2 2B elm"
+    DESCRIPTION = "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -1005,9 +1003,9 @@ class DualCLIPLoader:
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "model/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5\nhidream: at least one of t5 or llama, recommended t5 and llama\nhunyuan_image: qwen2.5vl 7b and byt5 small\nnewbie: gemma-3-4b-it, jina clip v2"
+    DESCRIPTION = "Recipes:\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5\nhidream: at least one of t5 or llama, recommended t5 and llama\nhunyuan_image: qwen2.5vl 7b and byt5 small\nnewbie: gemma-3-4b-it, jina clip v2"
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -1088,7 +1086,7 @@ class StyleModelApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
-    CATEGORY = "model/conditioning/style_model"
+    CATEGORY = "model/conditioning"
 
     def apply_stylemodel(self, conditioning, style_model, clip_vision_output, strength, strength_type):
         cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
@@ -1518,13 +1516,11 @@ class LatentCrop:
 class SetLatentNoiseMask:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT",),
-                              "mask": ("MASK",),
-                              }}
+        return {"required": { "samples": ("LATENT",), "mask": ("MASK",), }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "set_mask"
 
-    CATEGORY = "model/latent/inpaint"
+    CATEGORY = "model/latent"
 
     def set_mask(self, samples, mask):
         s = samples.copy()
@@ -2045,7 +2041,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageBatch": ImageBatch,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "EmptyImage": EmptyImage,
-    "ConditioningAverage": ConditioningAverage ,
+    "ConditioningAverage": ConditioningAverage,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
@@ -2101,6 +2097,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoraLoader": "Load LoRA (Model and CLIP)",
     "LoraLoaderModelOnly": "Load LoRA",
     "CLIPLoader": "Load CLIP",
+    "DualCLIPLoader": "Load CLIP (Dual)",
     "ControlNetLoader": "Load ControlNet Model",
     "DiffControlNetLoader": "Load ControlNet Model (diff)",
     "StyleModelLoader": "Load Style Model",
@@ -2108,6 +2105,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "UNETLoader": "Load Diffusion Model",
     "unCLIPCheckpointLoader": "Load unCLIP Checkpoint",
     "GLIGENLoader": "Load GLIGEN Model",
+    "DiffusersLoader": "Load Diffusers Model (DEPRECATED)",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
     "StyleModelApply": "Apply Style Model",
@@ -2115,12 +2113,16 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
     "ConditioningAverage ": "Conditioning (Average)",
+    "ConditioningAverage": "Conditioning (Average)",
     "ConditioningConcat": "Conditioning (Concat)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
+    "ConditioningSetAreaStrength": "Conditioning (Set Area Strength)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet (DEPRECATED)",
     "ControlNetApplyAdvanced": "Apply ControlNet",
+    "GLIGENTextBoxApply": "Apply GLIGEN Text Box",
+    "ConditioningZeroOut": "Conditioning Zero Out",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
@@ -2134,7 +2136,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentUpscaleBy": "Upscale Latent By",
     "LatentComposite": "Latent Composite",
     "LatentBlend": "Latent Blend",
-    "LatentFromBatch" : "Latent From Batch",
+    "LatentFromBatch" : "Get Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
     "EmptyImage": "Empty Image",
@@ -2295,6 +2297,9 @@ async def init_external_custom_nodes():
     Returns:
         None
     """
+    # TODO: remove at some point when custom nodes don't break.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
+
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -2404,6 +2409,7 @@ async def init_builtin_extra_nodes():
         "nodes_video.py",
         "nodes_lumina2.py",
         "nodes_wan.py",
+        "nodes_bernini.py",
         "nodes_lotus.py",
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
@@ -2420,6 +2426,7 @@ async def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
+        "nodes_boogu.py",
         "nodes_chroma_radiance.py",
         "nodes_pid.py",
         "nodes_model_patch.py",
@@ -2450,6 +2457,7 @@ async def init_builtin_extra_nodes():
         "nodes_rtdetr.py",
         "nodes_frame_interpolation.py",
         "nodes_sam3.py",
+        "nodes_scail.py",
         "nodes_void.py",
         "nodes_wandancer.py",
         "nodes_hidream_o1.py",
@@ -2457,7 +2465,8 @@ async def init_builtin_extra_nodes():
         "nodes_moge.py",
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
-        "nodes_triposplat.py"
+        "nodes_triposplat.py",
+        "nodes_depth_anything_3.py",
     ]
 
     import_failed = []
