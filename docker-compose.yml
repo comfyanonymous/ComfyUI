@@ -1,6 +1,8 @@
 services:
   comfyui:
     build: .
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     ports:
       - "8188:8188"
     volumes:
