@@ -251,21 +251,20 @@ This is the command to install the nightly with ROCm 7.2 which might have some p
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2```
 
 
-### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.
+### AMD GPUs (Experimental: Windows and Linux), newer architectures.
 
-These have less hardware support than the builds above but they work on windows. You also need to install the pytorch version specific to your hardware.
+These have less hardware support than the builds above but they work on windows. See [ROCm/TheRock RELEASES](https://github.com/ROCm/TheRock/blob/main/RELEASES.md#installing-multi-arch-pytorch-python-packages) for more & per-device info.
 
-RDNA 3 (RX 7000 series):
+E.g. for 7900 XTX / 7900 GRE "gfx1100":
 
-```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx110X-all/```
+```
+pip install --index-url https://rocm.nightlies.amd.com/whl-multi-arch/ "torch[device-gfx1100]" "torchvision[device-gfx1100]" torchaudio
+```
 
-RDNA 3.5 (Strix halo/Ryzen AI Max+ 365):
-
-```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx1151/```
-
-RDNA 4 (RX 9000 series):
-
-```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx120X-all/```
+Or all supported devices:
+```
+pip install --index-url https://rocm.nightlies.amd.com/whl-multi-arch/ "torch[device-all]" "torchvision[device-all]" torchaudio
+```
 
 ### Intel GPUs (Windows and Linux)
 
