@@ -25,6 +25,7 @@ import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.z_image
 import comfy.text_encoders.ideogram4
+import comfy.text_encoders.boogu
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
@@ -1758,6 +1759,27 @@ class Omnigen2(supported_models_base.BASE):
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.omnigen2.Omnigen2Tokenizer, comfy.text_encoders.omnigen2.te(**hunyuan_detect))
 
+class Boogu(Omnigen2):
+    unet_config = {
+        "image_model": "boogu",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 3.16,
+    }
+
+    memory_usage_factor = 2.15
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Boogu(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_8b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.boogu.BooguTokenizer, comfy.text_encoders.boogu.te(**hunyuan_detect))
+
 class Ideogram4(supported_models_base.BASE):
     unet_config = {
         "image_model": "ideogram4",
@@ -2300,6 +2322,7 @@ models = [
     ACEStep,
     ACEStep15,
     Omnigen2,
+    Boogu,
     QwenImage,
     Ideogram4,
     Flux2,

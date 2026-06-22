@@ -22,7 +22,7 @@ def apply_rotary_emb(x, freqs_cis):
 
 
 def swiglu(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    return F.silu(x) * y
+    return F.silu(x, inplace=True).mul_(y)
 
 
 class TimestepEmbedding(nn.Module):

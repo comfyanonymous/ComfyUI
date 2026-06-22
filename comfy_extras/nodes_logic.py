@@ -89,7 +89,8 @@ class SwitchNode(io.ComfyNode):
         template = io.MatchType.Template("switch")
         return io.Schema(
             node_id="ComfySwitchNode",
-            display_name="Switch",
+            search_aliases=["if", "then", "switch", "conditional", "branch"],
+            display_name="If/Else Switch",
             category="utilities/logic",
             is_experimental=True,
             inputs=[
