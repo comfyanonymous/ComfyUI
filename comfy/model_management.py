@@ -473,17 +473,29 @@ def _amd_vram_gtt_totals(device=None):
         if not candidates:
             return None
         chosen = None
-        bus_id = None
+        target_bdf = None
         try:
             if device is None:
                 device = get_torch_device()
-            bus_id = getattr(torch.cuda.get_device_properties(device), "pci_bus_id", None)
+            props = torch.cuda.get_device_properties(device)
+            # torch reports the PCI location as integers (pci_domain_id / pci_bus_id
+            # / pci_device_id); amdgpu names its sysfs nodes as a hex
+            # "domain:bus:device.function" BDF. Build the canonical hex BDF so the
+            # two are comparable (the old str(pci_bus_id) compared a decimal bus
+            # number against a hex BDF string and could never match). #14274
+            target_bdf = "%04x:%02x:%02x" % (
+                int(getattr(props, "pci_domain_id", 0) or 0),
+                int(getattr(props, "pci_bus_id", 0) or 0),
+                int(getattr(props, "pci_device_id", 0) or 0),
+            )
         except Exception:
-            bus_id = None
-        if bus_id:
-            bus_id = str(bus_id).lower()
+            target_bdf = None
+        if target_bdf:
             for pci, vram_path, gtt_path in candidates:
-                if pci.lower().endswith(bus_id) or bus_id.endswith(pci.lower()):
+                # candidates carry the realpath() leaf BDF (domain:bus:device.function),
+                # so matching the domain:bus:device part works whether the GPU is
+                # attached directly or sits behind a PCIe bridge (nested sysfs path). #14274
+                if pci.lower().rsplit(".", 1)[0] == target_bdf:
                     chosen = (vram_path, gtt_path)
                     break
         if chosen is None and len(candidates) == 1:
