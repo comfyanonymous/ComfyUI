@@ -20,8 +20,6 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
-
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
@@ -482,11 +480,13 @@ class SaveLatent:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ),
-                              "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
-    RETURN_TYPES = ()
+        return { "required": {
+            "samples": ("LATENT",),
+            "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("samples",)
     FUNCTION = "save"
 
     OUTPUT_NODE = True
@@ -524,7 +524,7 @@ class SaveLatent:
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
-        return { "ui": { "latents": results } }
+        return { "ui": { "latents": results }, "result": (samples,) }
 
 
 class LoadLatent:
@@ -969,7 +969,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1629,14 +1629,18 @@ class SaveImage:
         return {
             "required": {
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
-                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+                "filename_prefix": ("STRING", {
+                    "default": "ComfyUI",
+                    "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."
+                })
             },
             "hidden": {
                 "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
             },
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
     FUNCTION = "save_images"
 
     OUTPUT_NODE = True
@@ -1672,7 +1676,7 @@ class SaveImage:
             })
             counter += 1
 
-        return { "ui": { "images": results } }
+        return { "ui": { "images": results }, "result" : (images,) }
 
 class PreviewImage(SaveImage):
     def __init__(self):
@@ -2299,6 +2303,9 @@ async def init_external_custom_nodes():
     Returns:
         None
     """
+    # TODO: remove at some point when custom nodes don't break.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
+
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -2425,6 +2432,7 @@ async def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
+        "nodes_boogu.py",
         "nodes_chroma_radiance.py",
         "nodes_pid.py",
         "nodes_model_patch.py",

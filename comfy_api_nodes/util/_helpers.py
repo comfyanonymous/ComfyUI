@@ -4,6 +4,8 @@ import os
 import re
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from io import BytesIO
 
 from yarl import URL
@@ -89,6 +91,32 @@ async def sleep_with_interrupt(
         if now >= end:
             break
         await asyncio.sleep(min(1.0, end - now))
+
+
+def _retry_after_wait(value: str | None, fallback: float, max_wait: float) -> float:
+    """Delay before the next retry, honoring a server ``Retry-After`` header."""
+
+    seconds: float | None = None
+    if value is not None:
+        value = value.strip()
+        if value.isascii() and value.isdigit():
+            # delay-seconds form. The ASCII-digit guard keeps exotic Unicode "digit" characters away from float()
+            # an all-digit string always converts (huge values become inf, never raising).
+            seconds = float(value)
+        elif value:
+            # HTTP-date form. parsedate_to_datetime raises OverflowError (not a ValueError) on absurd years/offsets
+            try:
+                parsed = parsedate_to_datetime(value)
+            except (TypeError, ValueError, OverflowError):
+                parsed = None
+            if parsed is not None:
+                if parsed.tzinfo is None:  # naive datetime: HTTP-date is UTC
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                delta = (parsed - datetime.now(timezone.utc)).total_seconds()
+                seconds = delta if delta > 0 else 0.0
+    if seconds is None:
+        return fallback
+    return min(seconds, max_wait)
 
 
 def mimetype_to_extension(mime_type: str) -> str:
