@@ -158,7 +158,7 @@ class SaveAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudio",
             search_aliases=["export flac"],
-            display_name="Save Audio (FLAC) (Deprecated)",
+            display_name="Save Audio (FLAC) (DEPRECATED)",
             category="audio",
             essentials_category="Audio",
             inputs=[
@@ -166,8 +166,9 @@ class SaveAudio(IO.ComfyNode):
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
-            is_output_node=True,
             is_deprecated=True,
+            is_output_node=True,
+            outputs=[IO.Audio.Output("audio")]
         )
 
     @classmethod
@@ -175,10 +176,9 @@ class SaveAudio(IO.ComfyNode):
         if audio is None:
             raise ValueError("SaveAudio: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(
+            audio,
             ui=UI.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=format)
         )
-
-    save_flac = execute  # TODO: remove
 
 
 class SaveAudioMP3(IO.ComfyNode):
@@ -187,7 +187,7 @@ class SaveAudioMP3(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudioMP3",
             search_aliases=["export mp3"],
-            display_name="Save Audio (MP3) (Deprecated)",
+            display_name="Save Audio (MP3) (DEPRECATED)",
             category="audio",
             essentials_category="Audio",
             inputs=[
@@ -196,8 +196,9 @@ class SaveAudioMP3(IO.ComfyNode):
                 IO.Combo.Input("quality", options=["V0", "128k", "320k"], default="V0"),
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
-            is_output_node=True,
             is_deprecated=True,
+            is_output_node=True,
+            outputs=[IO.Audio.Output("audio")]
         )
 
     @classmethod
@@ -205,12 +206,11 @@ class SaveAudioMP3(IO.ComfyNode):
         if audio is None:
             raise ValueError("SaveAudioMP3: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(
+            audio,
             ui=UI.AudioSaveHelper.get_save_audio_ui(
                 audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
             )
         )
-
-    save_mp3 = execute  # TODO: remove
 
 
 class SaveAudioOpus(IO.ComfyNode):
@@ -219,7 +219,7 @@ class SaveAudioOpus(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudioOpus",
             search_aliases=["export opus"],
-            display_name="Save Audio (Opus) (Deprecated)",
+            display_name="Save Audio (Opus) (DEPRECATED)",
             category="audio",
             inputs=[
                 IO.Audio.Input("audio"),
@@ -227,8 +227,9 @@ class SaveAudioOpus(IO.ComfyNode):
                 IO.Combo.Input("quality", options=["64k", "96k", "128k", "192k", "320k"], default="128k"),
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
-            is_output_node=True,
             is_deprecated=True,
+            is_output_node=True,
+            outputs=[IO.Audio.Output("audio")]
         )
 
     @classmethod
@@ -236,12 +237,11 @@ class SaveAudioOpus(IO.ComfyNode):
         if audio is None:
             raise ValueError("SaveAudioOpus: input audio is None (source video may have no audio track).")
         return IO.NodeOutput(
+            audio,
             ui=UI.AudioSaveHelper.get_save_audio_ui(
                 audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
             )
         )
-
-    save_opus = execute  # TODO: remove
 
 
 class SaveAudioAdvanced(IO.ComfyNode):
@@ -258,10 +258,7 @@ class SaveAudioAdvanced(IO.ComfyNode):
                 IO.String.Input(
                     "filename_prefix",
                     default="audio/ComfyUI",
-                    tooltip=(
-                        "The prefix for the file to save. May include formatting tokens "
-                        "such as %date:yyyy-MM-dd%."
-                    ),
+                    tooltip=("The prefix for the file to save. May include formatting tokens such as %date:yyyy-MM-dd%."),
                 ),
                 IO.DynamicCombo.Input(
                     "format",
@@ -279,6 +276,7 @@ class SaveAudioAdvanced(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[IO.Audio.Output("audio")],
         )
 
     @classmethod
@@ -289,7 +287,7 @@ class SaveAudioAdvanced(IO.ComfyNode):
             ui=UI.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=file_format, quality=quality)
         else:
             ui=UI.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=file_format)
-        return IO.NodeOutput(ui=ui)
+        return IO.NodeOutput(audio, ui=ui)
 
 
 class PreviewAudio(IO.ComfyNode):
@@ -305,13 +303,14 @@ class PreviewAudio(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[IO.Audio.Output("audio")]
         )
 
     @classmethod
     def execute(cls, audio) -> IO.NodeOutput:
         if audio is None:
             raise ValueError("PreviewAudio: input audio is None (source video may have no audio track).")
-        return IO.NodeOutput(ui=UI.PreviewAudio(audio, cls=cls))
+        return IO.NodeOutput(audio, ui=UI.PreviewAudio(audio, cls=cls))
 
     save_flac = execute  # TODO: remove
 
