@@ -1600,9 +1600,6 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if clip_type == CLIPType.FLUX or clip_type == CLIPType.FLUX2:
                 clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type="qwen3_4b")
                 clip_target.tokenizer = comfy.text_encoders.flux.KleinTokenizer
-            elif clip_type == CLIPType.KREA2:
-                clip_target.clip = comfy.text_encoders.krea2.te(**llama_detect(clip_data))
-                clip_target.tokenizer = comfy.text_encoders.krea2.Krea2Tokenizer
             else:
                 clip_target.clip = comfy.text_encoders.z_image.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.z_image.ZImageTokenizer
