@@ -1,10 +1,8 @@
 """Krea 2 (K2) — single-stream MMDiT.
 
-Native ComfyUI port of Krea's reference ``mmdit.py`` (``SingleStreamDiT``). Text tokens
-(produced by a Qwen3-VL-4B 12-layer ``txtfusion`` adapter) and patchified image tokens are
+Text tokens produced by a Qwen3-VL-4B 12-layer ``txtfusion`` adapter and patchified image tokens are
 concatenated into one sequence and run through ``layers`` shared transformer blocks with
-AdaLN-single modulation, GQA + per-head QK-norm + sigmoid-gated attention, SwiGLU MLP, and
-3-axis RoPE.
+AdaLN-single modulation, GQA + per-head QK-norm + sigmoid-gated attention, SwiGLU MLP, and 3-axis RoPE.
 """
 
 from typing import Optional
