@@ -959,8 +959,8 @@ class SAM3DBody_Render(io.ComfyNode):
             person_palette_falloff = float(render_style.get("person_palette_falloff", 0.6))
             region = str(render_style.get("region", "full_body"))
 
-            if region == "hands_only":
-                hand_mask = pose_data["hand_vert_mask"]
+            hand_mask = pose_data.get("hand_vert_mask")
+            if region == "hands_only" and hand_mask is not None:
                 faces_full = np.asarray(pose_data["faces"])
                 keep = hand_mask[faces_full].all(axis=1)
                 pose_data = dict(pose_data)

@@ -94,7 +94,7 @@ def batch6DFromXYZ(r, return_9D=False):
     sy = rs[..., 1]
     sz = rs[..., 2]
 
-    result = torch.empty(list(r.shape[:-1]) + [3, 3], dtype=r.dtype).to(r.device)
+    result = torch.empty(list(r.shape[:-1]) + [3, 3], dtype=r.dtype, device=r.device)
 
     result[..., 0, 0] = cy * cz
     result[..., 0, 1] = -cx * sz + sx * sy * cz
