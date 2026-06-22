@@ -1,4 +1,4 @@
-"""Krea 2 (K2) text encoder: Qwen3-VL-4B language model, 12-layer tap.
+"""Krea 2 (K2) text encoder: Qwen3-VL-4B, 12-layer tap.
 
 K2 conditions on a stack of hidden states from 12 layers of Qwen3-VL-4B
 (reference taps ``hidden_states[2,5,8,...,35]``), kept as a ``(B, 12, seq, 2560)`` tensor and
@@ -6,61 +6,39 @@ consumed by the DiT's internal ``txtfusion`` adapter. Comfy carries conditioning
 so the 12-layer stack is flattened to ``(B, seq, 12*2560)`` here and unpacked inside the model.
 """
 
-import os
 import numbers
 
 import torch
-from transformers import Qwen2Tokenizer
 
-import comfy.text_encoders.llama
+import comfy.text_encoders.qwen3vl
 from comfy import sd1_clip
 
 # tap k == hidden_states[k] (no offset).
 KREA2_TAP_LAYERS = [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35]
-QWEN3VL_4B_CONFIG = {"rope_theta": 5000000.0, "final_norm": False, "lm_head": False}
 
 # Identical system template to Qwen-Image; Krea2 strips the system+user-opening prefix.
 KREA2_TEMPLATE = "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
 
 
-class Qwen3VL4BTokenizer(sd1_clip.SDTokenizer):
+class Krea2Tokenizer(comfy.text_encoders.qwen3vl.Qwen3VLTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qwen25_tokenizer")
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory,
-                         embedding_size=2560, embedding_key='qwen3vl_4b', tokenizer_class=Qwen2Tokenizer,
-                         has_start_token=False, has_end_token=False, pad_to_max_length=False,
-                         max_length=99999999, min_length=1, pad_token=151643, tokenizer_data=tokenizer_data)
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, model_type="qwen3vl_4b")
+        self.llama_template = KREA2_TEMPLATE  # conditioning template; image text-gen uses qwen3vl's default image template.
+
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, thinking=True, **kwargs):
+        # Krea2 conditions on the no-think template; thinking=True drops the empty <think> block qwen3vl adds.
+        return super().tokenize_with_weights(text, return_word_ids=return_word_ids, llama_template=llama_template, images=images, prevent_empty_text=prevent_empty_text, thinking=thinking, **kwargs)
 
 
-class Krea2Tokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data,
-                         name="qwen3vl_4b", tokenizer=Qwen3VL4BTokenizer)
-        self.llama_template = KREA2_TEMPLATE
-
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, **kwargs):
-        if text.startswith('<|im_start|>'):
-            llama_text = text
-        elif llama_template is None:
-            llama_text = self.llama_template.format(text)
-        else:
-            llama_text = llama_template.format(text)
-        return super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
-
-
-class Qwen3VL4BModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="hidden", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
-        super().__init__(device=device, layer=KREA2_TAP_LAYERS, layer_idx=None,
-                         textmodel_json_config=dict(QWEN3VL_4B_CONFIG),
-                         dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False,
-                         model_class=comfy.text_encoders.llama.Qwen3_4B,
-                         enable_attention_masks=attention_mask, return_attention_masks=attention_mask,
-                         model_options=model_options)
+class Krea2Qwen3VLClipModel(comfy.text_encoders.qwen3vl.Qwen3VLClipModel):
+    def __init__(self, device="cpu", dtype=None, attention_mask=True, model_options={}):
+        super().__init__(device=device, layer=KREA2_TAP_LAYERS, layer_idx=None, dtype=dtype,
+                         attention_mask=attention_mask, model_options=model_options, model_type="qwen3vl_4b")
 
 
 class Krea2TEModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
-        super().__init__(device=device, dtype=dtype, name="qwen3vl_4b", clip_model=Qwen3VL4BModel, model_options=model_options)
+        super().__init__(device=device, dtype=dtype, name="qwen3vl_4b", clip_model=Krea2Qwen3VLClipModel, model_options=model_options)
 
     def encode_token_weights(self, token_weight_pairs, template_end=-1):
         out, pooled, extra = super().encode_token_weights(token_weight_pairs)  # out: (B, 12, seq, 2560)

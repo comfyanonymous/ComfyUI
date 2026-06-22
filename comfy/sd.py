@@ -1630,7 +1630,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.boogu.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.boogu.BooguTokenizer
-            elif clip_type == CLIPType.KREA2:  # Krea2: Qwen3-VL-4B LM (12-layer tap)
+            elif clip_type == CLIPType.KREA2 and te_model == TEModel.QWEN3VL_4B:  # Krea2: full Qwen3-VL-4B (12-layer tap for conditioning + multimodal generate).
+                clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.krea2.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.krea2.Krea2Tokenizer
             elif clip_type in (CLIPType.FLUX, CLIPType.FLUX2):  # Flux2 Klein reuses the Qwen3-VL LM (3-layer tap -> 12288); visual unused.
