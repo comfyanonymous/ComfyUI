@@ -163,13 +163,25 @@ class SeedanceVirtualLibraryCreateAssetRequest(BaseModel):
     asset_type: str | None = Field(None, description="BytePlus asset type. Defaults to Image server-side when omitted.")
 
 
-# Dollars per 1K tokens, keyed by (model_id, has_video_input).
+# Dollars per 1K tokens, keyed by (model_id, has_video_input, resolution).
 SEEDANCE2_PRICE_PER_1K_TOKENS = {
-    ("dreamina-seedance-2-0-260128", False): 0.007,
-    ("dreamina-seedance-2-0-260128", True): 0.0043,
-    ("dreamina-seedance-2-0-fast-260128", False): 0.0056,
-    ("dreamina-seedance-2-0-fast-260128", True): 0.0033,
+    ("dreamina-seedance-2-0-260128", False, "480p"): 0.007,
+    ("dreamina-seedance-2-0-260128", True, "480p"): 0.0043,
+    ("dreamina-seedance-2-0-260128", False, "720p"): 0.007,
+    ("dreamina-seedance-2-0-260128", True, "720p"): 0.0043,
+    ("dreamina-seedance-2-0-260128", False, "1080p"): 0.0077,
+    ("dreamina-seedance-2-0-260128", True, "1080p"): 0.0047,
+    ("dreamina-seedance-2-0-260128", False, "4k"): 0.004,
+    ("dreamina-seedance-2-0-260128", True, "4k"): 0.0024,
+    ("dreamina-seedance-2-0-fast-260128", False, "480p"): 0.0056,
+    ("dreamina-seedance-2-0-fast-260128", True, "480p"): 0.0033,
+    ("dreamina-seedance-2-0-fast-260128", False, "720p"): 0.0056,
+    ("dreamina-seedance-2-0-fast-260128", True, "720p"): 0.0033,
 }
+
+
+def seedance2_price_per_1k_tokens(model_id: str, has_video_input: bool, resolution: str) -> float | None:
+    return SEEDANCE2_PRICE_PER_1K_TOKENS.get((model_id, has_video_input, resolution))
 
 
 RECOMMENDED_PRESETS = [
