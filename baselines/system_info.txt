@@ -28,7 +28,7 @@ torchaudio:  scottt/rocm-TheRock v6.5.0rc-pytorch/torchaudio-2.6.0a0+1a8f621-cp3
 numpy:       pinned to <2 (1.26.4) for wheel compatibility
 
 --- Startup ---
-cd C:\\Users\\LvHHu\\ComfyUI
+cd %USERPROFILE%\ComfyUI
 .\\venv\\Scripts\\activate
 python main.py
 

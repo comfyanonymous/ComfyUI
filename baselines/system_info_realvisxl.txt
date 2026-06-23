@@ -22,7 +22,7 @@ Functions: _load_safetensors_no_mmap(), _LARGE_FILE_MMAP_THRESHOLD = 4_000_000_0
 Branch:    load_torch_file() elif os.path.getsize > threshold and cuda available
 
 --- Startup command ---
-cd C:\Users\LvHHu\ComfyUI
+cd %USERPROFILE%\ComfyUI
 .\venv\Scripts\activate
 python main.py --disable-dynamic-vram --disable-mmap
 
