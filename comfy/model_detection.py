@@ -834,6 +834,21 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
         return dit_config
 
+    if '{}txtfusion.projector.weight'.format(key_prefix) in state_dict_keys:  # Krea 2 (K2)
+        dit_config = {}
+        dit_config["image_model"] = "krea2"
+        head_dim = 128
+        first_w = state_dict['{}first.weight'.format(key_prefix)]  # (features, channels*patch^2)
+        dit_config["features"] = first_w.shape[0]
+        dit_config["channels"] = first_w.shape[1] // (2 * 2)  # patch=2
+        dit_config["patch"] = 2
+        dit_config["layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        dit_config["heads"] = state_dict['{}blocks.0.attn.wq.weight'.format(key_prefix)].shape[0] // head_dim
+        dit_config["kvheads"] = state_dict['{}blocks.0.attn.wk.weight'.format(key_prefix)].shape[0] // head_dim
+        dit_config["txtlayers"] = state_dict['{}txtfusion.projector.weight'.format(key_prefix)].shape[1]
+        dit_config["txtdim"] = state_dict['{}txtfusion.layerwise_blocks.0.prenorm.scale'.format(key_prefix)].shape[0]
+        return dit_config
+
     if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
         dit_config = {}
         model_dim = state_dict['{}visual_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
