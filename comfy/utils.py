@@ -23,6 +23,7 @@ import struct
 import ctypes
 import os
 import comfy.memory_management
+import comfy.model_management
 import safetensors.torch
 import numpy as np
 from PIL import Image
@@ -130,12 +131,16 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                 if not return_metadata:
                     metadata = None
             else:
+                target_device = device if device.type != "cpu" else (torch.device("mps") if torch.backends.mps.is_available() else device)
                 with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                     sd = {}
                     for k in f.keys():
                         tensor = f.get_tensor(k)
                         if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
                             tensor = tensor.to(device=device, copy=True)
+                        if tensor.dtype in comfy.model_management.FLOAT8_TYPES and comfy.model_management.is_device_mps(target_device):
+                            logging.info(f"Converting FP8 tensor '{k}' to float16 during model loading for MPS compatibility")
+                            tensor = tensor.float().half()
                         sd[k] = tensor
                     if return_metadata:
                         metadata = f.metadata()
@@ -164,6 +169,17 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                     sd = pl_sd
             else:
                 sd = pl_sd
+
+        target_device = device if device.type != "cpu" else (torch.device("mps") if torch.backends.mps.is_available() else device)
+        if comfy.model_management.is_device_mps(target_device):
+            fp8_converted_count = 0
+            for k, tensor in sd.items():
+                if isinstance(tensor, torch.Tensor) and tensor.dtype in comfy.model_management.FLOAT8_TYPES:
+                    sd[k] = tensor.float().half()
+                    fp8_converted_count += 1
+            if fp8_converted_count > 0:
+                logging.info(f"Converted {fp8_converted_count} FP8 tensors to float16 during model loading for MPS compatibility")
+
     return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):

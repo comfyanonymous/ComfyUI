@@ -1451,6 +1451,15 @@ def cast_to_gathered(tensors, r, non_blocking=False, stream=None, r2=None):
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None, r=None):
+    target_device = device if device is not None else weight.device
+    if dtype is not None and dtype in FLOAT8_TYPES and is_device_mps(target_device):
+        logging.warning("FP8 target dtype detected during inference: %s -> float16", dtype)
+        dtype = torch.float16
+    if weight.dtype in FLOAT8_TYPES and is_device_mps(target_device):
+        logging.warning("FP8 weight detected during inference: %s -> float16 - consider using optimized model loading", weight.dtype)
+        weight = weight.cpu().float().to(target_device, dtype=torch.float16)
+        dtype = torch.float16 if dtype is None else dtype
+
     if device is None or weight.device == device:
         if not copy:
             if dtype is None or weight.dtype == dtype:
