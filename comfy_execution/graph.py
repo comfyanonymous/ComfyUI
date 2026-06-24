@@ -1,3 +1,4 @@
+from enum import IntEnum
 from typing import Type, Literal
 
 import nodes
@@ -8,6 +9,13 @@ from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputType
 
 # NOTE: ExecutionBlocker code got moved to graph_utils.py to prevent torch being imported too soon during unit tests
 ExecutionBlocker = ExecutionBlocker
+
+
+class DeferredStagedNodeState(IntEnum):
+    NOT_DEFERRED = 0
+    DEFERRED = 1
+    DEFERRED_WITH_CACHE = 2
+
 
 class DependencyCycleError(Exception):
     pass
@@ -202,9 +210,16 @@ class ExecutionList(TopologicalSort):
         self.staged_node_id = None
         self.execution_cache = {}
         self.execution_cache_listeners = {}
+        self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
 
     def is_cached(self, node_id):
         return self.output_cache.get_local(node_id) is not None
+
+    def defer_staged_node(self, state=DeferredStagedNodeState.DEFERRED_WITH_CACHE):
+        self.deferred_staged_node_state = DeferredStagedNodeState(state)
+
+    def get_defer_staged_state(self):
+        return self.deferred_staged_node_state
 
     def cache_link(self, from_node_id, to_node_id, from_socket=None):
         if to_node_id not in self.execution_cache:
@@ -313,10 +328,12 @@ class ExecutionList(TopologicalSort):
 
     def unstage_node_execution(self):
         assert self.staged_node_id is not None
+        self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
         self.staged_node_id = None
 
     def complete_node_execution(self):
         node_id = self.staged_node_id
+        self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
         self.pop_node(node_id)
         self.execution_cache.pop(node_id, None)
         self.execution_cache_listeners.pop(node_id, None)

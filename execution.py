@@ -34,6 +34,7 @@ from comfy_execution.caching import (
     RAM_CACHE_LARGE_INTERMEDIATE,
 )
 from comfy_execution.graph import (
+    DeferredStagedNodeState,
     DynamicPrompt,
     ExecutionBlocker,
     ExecutionList,
@@ -213,6 +214,8 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                     input_data_all[x] = [dynprompt.get_original_prompt() if dynprompt is not None else {}]
                 if h[x] == "DYNPROMPT":
                     input_data_all[x] = [dynprompt]
+                if h[x] == "EXECUTION_LIST":
+                    input_data_all[x] = [execution_list]
                 if h[x] == "EXTRA_PNGINFO":
                     input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
                 if h[x] == "UNIQUE_ID":
@@ -559,6 +562,12 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     await asyncio.gather(*tasks, return_exceptions=True)
                     unblock()
                 asyncio.create_task(await_completion())
+                return (ExecutionResult.PENDING, None, None)
+            defer_staged_state = execution_list.get_defer_staged_state()
+            if defer_staged_state != DeferredStagedNodeState.NOT_DEFERRED:
+                if defer_staged_state == DeferredStagedNodeState.DEFERRED_WITH_CACHE:
+                    cache_entry = CacheEntry(ui=None, outputs=output_data)
+                    execution_list.cache_update(unique_id, cache_entry)
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
             # Enrich at output-processing time (not in the send path) so assets
