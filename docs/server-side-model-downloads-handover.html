@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Server-Side Model Downloads — Handover</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-card: #1c232c;
+    --border: #2c333d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #79c0ff;
+    --accent-strong: #58a6ff;
+    --green: #7ee787;
+    --yellow: #f0b429;
+    --red: #f47067;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 32px 96px;
+  }
+  header.doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    margin-bottom: 36px;
+  }
+  header.doc-header h1 {
+    font-size: 32px;
+    margin: 0 0 8px;
+    letter-spacing: -0.4px;
+  }
+  header.doc-header .subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  nav.toc {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 40px;
+    font-size: 14px;
+  }
+  nav.toc h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 20px;
+  }
+  nav.toc li { padding: 2px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  h2.section {
+    font-size: 22px;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 12px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 14px;
+    margin: 20px 0 8px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  p { margin: 8px 0 16px; }
+  code {
+    font-family: var(--mono);
+    background: var(--bg-elev);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.92em;
+  }
+  pre {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .callout {
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.warn { border-left-color: var(--yellow); }
+  .callout.danger { border-left-color: var(--red); }
+  .callout .label {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .callout.warn .label { color: var(--yellow); }
+  .callout.danger .label { color: var(--red); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--text-muted);
+    font-weight: 600;
+    background: var(--bg-elev);
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .method {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .method.post { background: #1f3a2b; color: var(--green); }
+  .method.get { background: #1c2f4a; color: var(--accent); }
+  .endpoint {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 20px 0;
+    overflow: hidden;
+  }
+  .endpoint .header {
+    background: var(--bg-elev);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 14px;
+  }
+  .endpoint .body { padding: 14px 20px; font-size: 14px; }
+  .endpoint .body h4:first-child { margin-top: 0; }
+  .flow {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .pill {
+    display: inline-block;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: var(--mono);
+    margin-right: 6px;
+  }
+  .pill.green { color: var(--green); border-color: rgba(126,231,135,0.3); }
+  .pill.yellow { color: var(--yellow); border-color: rgba(240,180,41,0.3); }
+  .pill.red { color: var(--red); border-color: rgba(244,112,103,0.3); }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 24px; }
+  li { margin: 4px 0; }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+  .footnote {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-top: 8px;
+  }
+  .action-required {
+    background: linear-gradient(180deg, rgba(240,180,41,0.08), rgba(240,180,41,0.03));
+    border: 1px solid rgba(240,180,41,0.45);
+    border-left: 4px solid var(--yellow);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 0 0 32px;
+  }
+  .action-required h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    color: var(--yellow);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+  }
+  .action-required p { margin: 8px 0; font-size: 14px; }
+  .action-required ol { padding-left: 22px; margin: 8px 0; font-size: 14px; }
+  .action-required ol li { margin: 6px 0; }
+  .action-required code {
+    background: rgba(0,0,0,0.35);
+  }
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <h1>Server-Side Model Downloads</h1>
+  <div class="subtitle">Handover document · branch <code>feat/server-side-model-downloads</code></div>
+</header>
+
+<section class="action-required">
+  <h2>⚠ Action required before this feature can run end-to-end</h2>
+  <p>
+    <code>HF_CLIENT_ID</code> in <code>app/model_downloader/hf_auth/oauth.py</code> is a
+    placeholder string (<code>"REPLACE_ME_WITH_COMFY_ORG_HF_OAUTH_CLIENT_ID"</code>).
+    HuggingFace will reject the authorize redirect until a real app is registered under a
+    Comfy-Org-controlled HF account and the constant is replaced.
+  </p>
+  <p>
+    Detailed walkthrough is in
+    <a href="#hf-app-setup">§11 — HuggingFace OAuth app setup</a> at the bottom of this doc;
+    it lists each field and which boxes to tick. Until the placeholder is replaced, the
+    backend is otherwise fully functional (state polling, public downloads, gated detection
+    all work) — only the login flow itself fails.
+  </p>
+</section>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#overview">Overview &amp; scope</a></li>
+    <li><a href="#architecture">Architecture at a glance</a></li>
+    <li><a href="#downloader">Download mechanism</a></li>
+    <li><a href="#oauth">HuggingFace OAuth mechanism</a></li>
+    <li><a href="#api">API reference &amp; frontend usage</a></li>
+    <li><a href="#eligibility">Loopback eligibility gate</a></li>
+    <li><a href="#caching">Probe caching strategy</a></li>
+    <li><a href="#fe-be-separation">Frontend ↔ backend separation</a></li>
+    <li><a href="#tests">Tests &amp; OpenAPI spec</a></li>
+    <li><a href="#followups">Open follow-ups &amp; gotchas</a></li>
+    <li><a href="#hf-app-setup">HuggingFace OAuth app setup</a></li>
+  </ol>
+</nav>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="overview">1. Overview &amp; scope</h2>
+
+<p>
+  ComfyUI workflows declare model dependencies inline via <code>properties.models</code>
+  entries on loader nodes — each one carries a filename, a directory (e.g. <code>loras</code>,
+  <code>checkpoints</code>), and a URL to fetch the file from. Until this feature, when a
+  workflow loaded with a missing model, the frontend offered the user a download button that
+  triggered a plain browser download via a synthesized <code>&lt;a download&gt;</code> click.
+  Files landed in the user's <em>Downloads</em> folder; users then had to manually move them
+  into <code>ComfyUI/models/&lt;directory&gt;/</code>. Gated HuggingFace models couldn't be
+  downloaded at all without manual <code>huggingface-cli login</code> + <code>hf_hub_download</code>
+  out-of-band.
+</p>
+
+<p>This change moves the fetch to the server, lands files in the correct on-disk location, and adds
+authenticated HuggingFace support so gated models can be downloaded after a one-click OAuth flow.</p>
+
+<div class="callout">
+  <div class="label">Scope</div>
+  <ul style="margin: 0;">
+    <li>Server-side downloads with progress + cancellation, atomic file placement.</li>
+    <li>Gated-model detection (HF <code>auth_check</code>) with appropriate UI states.</li>
+    <li>HuggingFace OAuth PKCE flow with persisted token; per-process single-token model.</li>
+    <li><strong>Single-tenant local trust model only</strong> — the feature gates itself off
+    on multi-user or non-loopback deployments because there's no real authentication layer
+    in core ComfyUI to map users to their own tokens.</li>
+  </ul>
+</div>
+
+<div class="callout warn">
+  <div class="label">Out of scope</div>
+  Per-user HF tokens, real authentication, multi-tenant isolation. These would require
+  building a user-identity layer in core ComfyUI (sessions, cookies, login). The feature
+  deliberately disables itself rather than ship a half-measure.
+</div>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="architecture">2. Architecture at a glance</h2>
+
+<div class="flow">
+       ┌──────────────────────────────────────────────────────┐
+       │   ComfyUI_frontend  (Vue 3 + Pinia + TypeScript)    │
+       │   - MissingModelCardServerSide.vue                  │
+       │   - HfAuthSettingsPanel.vue                         │
+       │   - useServerSideDownloadsStore  (Pinia)            │
+       │   - serverDownloadsApi.ts        (API client)       │
+       └──────────────────────────┬───────────────────────────┘
+                                  │   HTTP JSON, kebab-case
+                                  │   1 Hz poll when card visible
+                                  ▼
+       ┌──────────────────────────────────────────────────────┐
+       │   ComfyUI  (Python aiohttp)                          │
+       │   app/model_downloader/                              │
+       │     ├─ api/routes.py        ◄── 6 endpoints          │
+       │     ├─ download_server.py   ◄── singleton registry   │
+       │     ├─ downloader.py        ◄── streaming worker     │
+       │     ├─ gated_detection.py   ◄── probe + caches       │
+       │     ├─ allowlist.py         ◄── SSRF allowlist       │
+       │     ├─ paths.py             ◄── model_id ↔ disk      │
+       │     └─ hf_auth/                                      │
+       │         ├─ oauth.py         ◄── PKCE + callback srv  │
+       │         ├─ auth_store.py    ◄── token singleton      │
+       │         ├─ token_store.py   ◄── disk I/O             │
+       │         └─ eligibility.py   ◄── loopback gate        │
+       └──────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+                       ┌─────────────────────┐
+                       │  Filesystem         │
+                       │  models/&lt;dir&gt;/...   │
+                       │  user/hf_auth_token │
+                       └─────────────────────┘
+</div>
+
+<p>Key idea: every concern lives in <code>app/model_downloader/</code> as a self-contained
+subsystem. Wiring into the rest of ComfyUI is two lines in <code>server.py</code>
+(<code>register_routes(self.app)</code>) and one feature-flag entry in
+<code>comfy_api/feature_flags.py</code>.</p>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="downloader">3. Download mechanism</h2>
+
+<h3>3.1 The singleton</h3>
+
+<p>
+  <code>DOWNLOAD_SERVER</code> (in <code>app/model_downloader/download_server.py</code>) is the
+  process-wide registry of in-flight downloads. It exists so that:
+</p>
+<ul>
+  <li>Multiple polling tabs see a single coherent view of "what's downloading right now."</li>
+  <li>At most one download per <code>model_id</code> can run at a time — preventing two
+  concurrent writers to the same destination path.</li>
+  <li>Cancellation is just <em>removal from the registry</em>; the worker discovers cancellation
+  on its next chunk-boundary check.</li>
+</ul>
+
+<h3>3.2 DownloadSession state</h3>
+
+<pre><code>@dataclass
+class DownloadSession:
+    model_id: str             # e.g. "loras/my_lora.safetensors"
+    url: str                  # the URL we're fetching from
+    progress: Optional[float] # fraction in [0,1]; None until total known
+    bytes_downloaded: int
+    total_bytes: Optional[int]
+    epoch: int                # see "atomicity" below</code></pre>
+
+<p>
+  The registry is a plain <code>dict[str, DownloadSession]</code> guarded by a
+  <code>threading.Lock</code> (callable from both the asyncio event-loop thread and
+  the download-worker tasks).
+</p>
+
+<h3>3.3 Download lifecycle</h3>
+
+<div class="flow">
+   POST /api/download-models
+       │
+       ▼
+   ┌─── precondition gate (atomic) ────────────────────────┐
+   │  • parse_model_id          → valid path, known dir   │
+   │  • is_url_allowed          → HF / Civitai / localhost │
+   │  • resolve_existing        → not already on disk     │
+   │  • DOWNLOAD_SERVER.is_downloading? → not in flight   │
+   │  • probe_url               → not gated-without-access │
+   │  Any failure → 400/409, NOTHING is registered.       │
+   └────────────────────────────────────────────────────────┘
+       │
+       ▼
+   try_register(model_id, url)      ◄── new epoch number assigned
+       │
+       ▼
+   schedule_batch(sessions)         ◄── async task started, route returns 202
+       │
+       ▼
+   stream_to_disk(session):
+       • GET url with Authorization (if HF + token stored)
+       • aiohttp .content.iter_chunked(64 KiB)
+       • write to &lt;final_path&gt;.tmp
+       • between each chunk:
+           if not DOWNLOAD_SERVER.is_active(session):
+               raise DownloadCancelled
+       • update_progress() after each chunk
+       │
+       ▼
+   os.replace(tmp_path, final_path) ◄── atomic rename
+       │
+       ▼
+   DOWNLOAD_SERVER.finish(session)
+</div>
+
+<h3>3.4 Atomicity</h3>
+
+<p>Three independent atomicity guarantees, each addressing a different race:</p>
+<ol>
+  <li><strong>File atomicity:</strong> downloads write to <code>&lt;final&gt;.tmp</code> and
+  use <code>os.replace</code> for the promotion. A crashed/cancelled download leaves only
+  the <code>.tmp</code>, never a partial-but-named-correct file that a loader would happily
+  load and silently produce garbage outputs.</li>
+
+  <li><strong>Registry atomicity:</strong> <code>try_register</code> holds the lock and inserts
+  iff no entry exists. A second concurrent request for the same <code>model_id</code> returns
+  <code>None</code>; the route then 409s and rolls back any sessions it had already registered
+  in this batch.</li>
+
+  <li><strong>Epoch-based cancellation:</strong> each <code>DownloadSession</code> carries an
+  <code>epoch</code> counter assigned on registration. If a user cancels and then
+  immediately re-triggers the download (same <code>model_id</code>), a <em>new</em> session
+  with a new epoch is registered. The old worker, still running on the cancelled session,
+  observes <code>is_active(session)</code> as False (epoch mismatch), rolls back its own
+  <code>.tmp</code>, and exits without affecting the new session. Prevents the old worker's
+  late <code>finish()</code> from accidentally evicting the new session.</li>
+</ol>
+
+<h3>3.5 Orphan cleanup</h3>
+
+<p>
+  When the server restarts mid-download, any <code>.tmp</code> file is by definition orphaned.
+  <code>DOWNLOAD_SERVER.sweep_orphan_tmp_files()</code> walks every registered model folder
+  and removes <code>*.tmp</code> files. Idempotent; runs on the first download request rather
+  than module import to keep the import path I/O-free.
+</p>
+
+<h3>3.6 Auth headers (HuggingFace)</h3>
+
+<p>
+  When <code>session.url</code> is on <code>huggingface.co</code> and a token is stored,
+  <code>stream_to_disk</code> attaches <code>Authorization: Bearer &lt;access_token&gt;</code>
+  to the GET. Non-HF URLs receive no auth header (avoids token leakage to other hosts).
+  This is HF's documented way to access gated repos with a personal access token — no
+  reliance on <code>huggingface_hub</code>'s download API.
+</p>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="oauth">4. HuggingFace OAuth mechanism</h2>
+
+<h3>4.1 Why OAuth at all</h3>
+
+<p>
+  Some HF repos are gated — the user has to accept a license / be approved before they can
+  download. The bearer token from a logged-in HF account passes that gate. Rather than
+  asking the user to paste a personal access token (security-awful UX), we run a proper
+  OAuth 2.0 Authorization Code flow with PKCE, identical pattern to what the
+  <code>huggingface-cli login</code> command does internally.
+</p>
+
+<h3>4.2 Where the token lives</h3>
+
+<table>
+  <tr><th>Layer</th><th>Storage</th><th>Notes</th></tr>
+  <tr>
+    <td>In memory</td>
+    <td><code>HF_AUTH_STORE</code> singleton (<code>auth_store.py</code>)</td>
+    <td>Lazily loaded from disk on first access. Mutations also flushed to disk.</td>
+  </tr>
+  <tr>
+    <td>On disk</td>
+    <td><code>&lt;user_dir&gt;/hf_auth_token.json</code></td>
+    <td>Atomic write via <code>.tmp</code> + <code>os.replace</code>, <code>chmod 0600</code>
+    so only the OS user can read it.</td>
+  </tr>
+</table>
+
+<p>Token shape (mirrors what HF returns from the token endpoint):</p>
+<pre><code>{
+  "access_token":  "hf_oauth_…",
+  "refresh_token": "…",         // null if not granted
+  "expires_at":    1739895432.0, // absolute epoch seconds
+  "scope":         "openid profile read-repos"
+}</code></pre>
+
+<h3>4.3 Token lifecycle</h3>
+
+<div class="flow">
+   POST /api/hf-auth-login-start  (only when eligible, see §6)
+        │
+        ├─► generate PKCE verifier + challenge + state
+        ├─► spin up callback server at 127.0.0.1:41954 (port-locked, 5min timeout)
+        ├─► return { authorize_url } to frontend
+        │
+        ▼
+   Frontend: window.open(authorize_url, "_blank")
+        │
+        ▼
+   User authorizes on huggingface.co
+        │
+        ▼
+   HF redirects to http://127.0.0.1:41954/api/auth/huggingface/callback?code=…&state=…
+        │
+        ├─► validate state == expected_state   (CSRF defence)
+        ├─► exchange code + verifier  →  POST https://huggingface.co/oauth/token
+        ├─► HF_AUTH_STORE.set_token(token)     (in memory + disk)
+        ├─► render "Login complete" page in user's tab
+        └─► tear down callback server, release port
+
+   Frontend polls /api/hf-auth-token-status next tick and sees token_available: true.
+
+   On expiry (during any request that needs the token):
+        ├─► get_valid_token() detects expires_at &lt; now + 60s
+        ├─► POST refresh_token to HF token endpoint
+        ├─► HF_AUTH_STORE.set_token(refreshed)
+        └─► return refreshed token to caller
+
+   POST /api/hf-auth-logout
+        ├─► HF_AUTH_STORE.clear() — wipe memory + remove disk file
+        └─► (does NOT revoke the token on HF's side; user can do that
+             at huggingface.co/settings/tokens)
+</div>
+
+<div class="callout warn">
+  <div class="label">Single token, single process</div>
+  Only one token can be stored at a time. Calling <code>login-start</code> while
+  already logged in (or with a pending login flow) will either lock-conflict (409) or
+  overwrite the existing token on success. This is intentional given the
+  single-tenant scope — see <a href="#eligibility">§6</a>.
+</div>
+
+<h3>4.4 PKCE + state protection</h3>
+
+<p>
+  Standard OAuth 2.0 PKCE (RFC 7636) with the SHA-256 method:
+</p>
+<ul>
+  <li>Random 64-byte URL-safe <code>verifier</code> never leaves the server process.</li>
+  <li>SHA-256 hash of the verifier sent as the <code>code_challenge</code> in the
+  authorize URL.</li>
+  <li>Random 32-byte <code>state</code> validated on callback; mismatches return 400 and
+  the token exchange is skipped (CSRF defence).</li>
+</ul>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="api">5. API reference &amp; frontend usage</h2>
+
+<p>All routes live under <code>/api/</code>, use kebab-case paths, and POST for input-bearing
+operations even when they're "read-only" — keeps semantics uniform and avoids URL-length
+limits when payloads grow.</p>
+
+
+<div class="endpoint">
+  <div class="header">
+    <span class="method post">POST</span>
+    <code>/api/models-availability-status</code>
+    <span style="margin-left:auto" class="pill">1 Hz poll</span>
+  </div>
+  <div class="body">
+    <h4>Purpose</h4>
+    <p>One-stop status endpoint. Returns per-model state (available / missing / downloading) plus
+    metadata (file size, HF downloadability) plus current HF auth snapshot, all in one shot.</p>
+
+    <h4>Request</h4>
+<pre><code>{
+  "models": {
+    "loras/foo.safetensors": "https://huggingface.co/org/repo/resolve/main/foo.safetensors",
+    "checkpoints/bar.safetensors": "https://huggingface.co/.../bar.safetensors"
+  }
+}</code></pre>
+
+    <h4>Response</h4>
+<pre><code>{
+  "models": {
+    "loras/foo.safetensors": {
+      "state": "downloading",                     // "available" | "missing" | "downloading"
+      "progress": {
+        "bytes_downloaded": 1024000,
+        "total_bytes":      29145431166,
+        "progress":         0.000035                 // null until total known
+      },
+      "file_size":          29145431166,             // bytes; null if not probed
+      "is_hf_downloadable": true                     // null for non-HF / probe failure
+    },
+    "checkpoints/bar.safetensors": {
+      "state": "missing",
+      "progress": null,
+      "file_size": 1234567890,
+      "is_hf_downloadable": false                    // gated, no access
+    }
+  },
+  "hf_auth": {
+    "token_available": true,
+    "eligible":         true
+  }
+}</code></pre>
+
+    <h4>Frontend usage</h4>
+    <p>
+      Called every <strong>1 second</strong> by <code>useServerSideDownloadsStore.refresh()</code>
+      while the missing-models card is mounted. Timer auto-stops when no row is downloading
+      and every remaining missing row is gated (no further state changes possible without
+      a user action).
+    </p>
+    <p>
+      The polling timer re-arms on user actions: clicking Download, clicking HF login,
+      or a workflow change that re-registers the model list.
+    </p>
+  </div>
+</div>
+
+
+<div class="endpoint">
+  <div class="header">
+    <span class="method post">POST</span>
+    <code>/api/download-models</code>
+    <span style="margin-left:auto" class="pill green">202 on accept</span>
+  </div>
+  <div class="body">
+    <h4>Purpose</h4>
+    <p>Trigger one or more downloads. <strong>Atomic</strong>: either every model passes
+    every precondition (valid id, allowed URL, not on disk, not in flight, not gated-to-us)
+    and all are scheduled, or none are — the request returns an error and the registry is
+    left unchanged.</p>
+
+    <h4>Request</h4>
+<pre><code>{
+  "models": {
+    "loras/foo.safetensors": "https://huggingface.co/.../foo.safetensors"
+  }
+}</code></pre>
+
+    <h4>Response (success)</h4>
+<pre><code>HTTP 202 Accepted
+{
+  "accepted":  true,
+  "scheduled": ["loras/foo.safetensors"]
+}</code></pre>
+
+    <h4>Response (error)</h4>
+<pre><code>HTTP 400 / 409
+{
+  "error": {
+    "code":    "MODEL_NOT_DOWNLOADABLE",  // INVALID_MODEL_ID / URL_NOT_ALLOWED /
+                                          // ALREADY_AVAILABLE / ALREADY_DOWNLOADING /
+                                          // MODEL_NOT_DOWNLOADABLE / EMPTY_REQUEST
+    "message": "…human-readable…",
+    "details": { "model_id": "loras/foo.safetensors", "url": "https://…" }
+  }
+}</code></pre>
+
+    <h4>Frontend usage</h4>
+    <p>Triggered by clicking <em>Download</em> on a row or <em>Download All Available</em> in
+    the card header. On 202, the store immediately calls <code>refresh()</code> so the
+    progress bar appears in the same render tick; the regular 1 Hz polling takes over from there.</p>
+  </div>
+</div>
+
+
+<div class="endpoint">
+  <div class="header">
+    <span class="method post">POST</span>
+    <code>/api/cancel-model-download-session</code>
+  </div>
+  <div class="body">
+    <h4>Request</h4>
+<pre><code>{ "model_id": "loras/foo.safetensors" }</code></pre>
+    <h4>Response</h4>
+<pre><code>{ "cancelled": true }    // or HTTP 404 with NOT_DOWNLOADING if no active session</code></pre>
+    <h4>Frontend usage</h4>
+    <p>The <em>X</em> button on a downloading row. The store re-polls availability immediately
+    so the UI flips back to "missing" without waiting for the next tick.</p>
+    <p>Cancellation is cooperative — the worker checks <code>is_active</code> between chunks
+    (typically &lt;1s latency) and rolls back its own <code>.tmp</code> on the way out.</p>
+  </div>
+</div>
+
+
+<div class="endpoint">
+  <div class="header">
+    <span class="method get">GET</span>
+    <code>/api/hf-auth-token-status</code>
+  </div>
+  <div class="body">
+    <h4>Response</h4>
+<pre><code>{
+  "token_available": true,
+  "username":        "ogluzman"   // resolved via HfApi.whoami(); null if token invalid
+}</code></pre>
+    <h4>Frontend usage</h4>
+    <p>Used by the <em>HuggingFace</em> settings panel on open and after any login/logout
+    action. The general polling path doesn't need this endpoint — the same boolean is
+    embedded in <code>/api/models-availability-status</code> under <code>hf_auth.token_available</code>.
+    Kept separate so the settings panel doesn't have to query the unrelated models endpoint.</p>
+  </div>
+</div>
+
+
+<div class="endpoint">
+  <div class="header">
+    <span class="method post">POST</span>
+    <code>/api/hf-auth-login-start</code>
+  </div>
+  <div class="body">
+    <h4>Request</h4>
+    <p>Empty body.</p>
+    <h4>Response (success)</h4>
+<pre><code>{
+  "authorize_url": "https://huggingface.co/oauth/authorize?client_id=…&amp;state=…&amp;code_challenge=…"
+}</code></pre>
+    <h4>Error responses</h4>
+    <ul>
+      <li><span class="pill red">403</span> <code>HF_AUTH_NOT_ELIGIBLE</code> — deployment fails the loopback / multi-user gate. See §6.</li>
+      <li><span class="pill yellow">409</span> <code>HF_AUTH_IN_PROGRESS</code> — another login attempt holds the callback port.</li>
+    </ul>
+    <h4>Side effect</h4>
+    <p>Spins up the OAuth callback server on <code>127.0.0.1:41954</code> for up to 5 minutes.
+    See §4 for the full lifecycle.</p>
+    <h4>Frontend usage</h4>
+    <p>Triggered from the login banner in the missing-models card, or the <em>Log in with HuggingFace</em>
+    button in the Settings → HuggingFace panel. On 200, the frontend opens the
+    <code>authorize_url</code> in a new tab via <code>window.open(url, "_blank")</code>.</p>
+  </div>
+</div>
+
+
+<div class="endpoint">
+  <div class="header">
+    <span class="method post">POST</span>
+    <code>/api/hf-auth-logout</code>
+  </div>
+  <div class="body">
+    <h4>Response</h4>
+<pre><code>{ "logged_out": true }</code></pre>
+    <h4>Frontend usage</h4>
+    <p>Settings → HuggingFace → <em>Log out</em> button. Idempotent — succeeds even if no
+    token was held. Note this does not revoke the token on HF's side; the user can do that
+    at huggingface.co/settings/tokens if they want full revocation.</p>
+  </div>
+</div>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="eligibility">6. Loopback eligibility gate</h2>
+
+<h3>6.1 The rule</h3>
+<pre><code># app/model_downloader/hf_auth/eligibility.py
+
+def is_hf_auth_eligible() -> bool:
+    return _is_loopback(args.listen) and not args.multi_user</code></pre>
+
+<p>HF auth surfaces — both the login flow and the settings panel — appear iff this returns True.</p>
+
+<h3>6.2 Why it exists</h3>
+
+<p>
+  Core ComfyUI has no authentication. Any HF token the server holds is implicitly shared
+  by anyone who can reach the server. In a single-user local install that's fine — the OS
+  user is the boundary, the loopback bind keeps remote actors out. In any other deployment
+  it would be a credential-leak by misconfiguration:
+</p>
+
+<ul>
+  <li><strong>Non-loopback:</strong> anyone on the network who can reach the port could trigger
+  downloads using the operator's HF account.</li>
+  <li><strong><code>--multi-user</code> mode:</strong> multiple declared users (via the
+  unauthenticated <code>comfy-user</code> header) would all share one HF token implicitly —
+  Alice's prompts would silently fetch gated content as Bob.</li>
+</ul>
+
+<p>
+  Both cases are <em>real</em> credential leakage that the operator probably didn't realize
+  they were enabling. The gate disables the feature instead of shipping a footgun.
+</p>
+
+<h3>6.3 What's gated</h3>
+
+<table>
+  <tr><th>Surface</th><th>How the gate is applied</th></tr>
+  <tr>
+    <td>Server feature flag <code>hf_auth_eligible</code></td>
+    <td>Computed once at startup, returned by <code>/api/features</code>. Frontend reads it
+    on init to decide whether to render any HF UI at all.</td>
+  </tr>
+  <tr>
+    <td>Login start endpoint</td>
+    <td>Returns 403 <code>HF_AUTH_NOT_ELIGIBLE</code> if called when ineligible. Defence in
+    depth — even if the frontend bug rendered the button, the endpoint refuses.</td>
+  </tr>
+  <tr>
+    <td>Settings panel (<code>HfAuthSettingsPanel.vue</code>)</td>
+    <td>Registered in <code>useSettingUI.ts</code> only when
+    <code>api.serverFeatureFlags['hf_auth_eligible']</code> is true.</td>
+  </tr>
+  <tr>
+    <td>Card login banner</td>
+    <td>Conditional render: only shown when eligible <em>and</em> there's at least one
+    gated row <em>and</em> no token yet.</td>
+  </tr>
+  <tr>
+    <td>Per-row gated UI text</td>
+    <td>Three variants based on (eligible, logged-in) state — see §8.</td>
+  </tr>
+</table>
+
+<h3>6.4 Implementation note</h3>
+
+<p>
+  We had to inline a copy of <code>is_loopback</code> in <code>eligibility.py</code>
+  (rather than importing from <code>server.py</code>) because
+  <code>comfy_api/feature_flags.py</code> evaluates its registry at module-import time —
+  earlier than <code>server.py</code> defines the helper. The inlined version is
+  ~20 lines, mirrors <code>server.is_loopback</code> exactly, and is the kind of thing
+  worth flagging if anyone ever does a "shared util" cleanup pass.
+</p>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="caching">7. Probe caching strategy</h2>
+
+<p>The polling endpoint runs <code>probe_url(url)</code> for every model on every tick. To
+keep that cheap (HuggingFace round-trip per probe is &gt;100ms), the probe layer caches what's
+safe to cache and recomputes what isn't:</p>
+
+<table>
+  <tr><th>Field</th><th>Cached?</th><th>Why</th></tr>
+  <tr>
+    <td><code>is_gated</code> (intrinsic — "is this repo gated on HF")</td>
+    <td>✅ Forever, per URL</td>
+    <td>Property of the model, doesn't depend on the user. Determined by a single
+    <code>auth_check(repo_id, token=None)</code> on first probe.</td>
+  </tr>
+  <tr>
+    <td><code>file_size</code></td>
+    <td>✅ Forever, per URL (but only after a successful probe)</td>
+    <td>File size doesn't change. We only attempt the HEAD when <code>is_hf_downloadable</code>
+    is True — avoids caching <code>None</code> from a 401-because-gated, which would otherwise
+    survive a later successful login.</td>
+  </tr>
+  <tr>
+    <td><code>is_hf_downloadable</code></td>
+    <td>❌ Recomputed every call</td>
+    <td>Depends on the current token state. Has to update within one poll cycle after login /
+    logout / license acceptance. Recomputed via <code>auth_check(repo_id, token=current_token)</code>
+    — but skipped entirely for URLs known to be non-gated (those are trivially True).</td>
+  </tr>
+  <tr>
+    <td>On-disk file existence (state)</td>
+    <td>❌ Per call</td>
+    <td><code>os.path.isfile</code> is a microsecond syscall; not worth caching, and we need
+    it fresh so the row flips to "available" the instant a download completes.</td>
+  </tr>
+</table>
+
+<p>
+  Single-flight protection: a per-URL <code>asyncio.Lock</code> dedupes concurrent probes
+  for the same URL — when many polls land in the same tick, exactly one of them runs the HF
+  call and the others await the same result. Failures aren't cached (they're transient by
+  nature; retry next call).
+</p>
+
+<div class="callout">
+  <div class="label">Why this is enough</div>
+  License acceptance happens out-of-band on huggingface.co. The user clicks our
+  "repository page" link, accepts the license, returns. The next 1 Hz poll's
+  <code>auth_check</code> with their token now succeeds → <code>is_hf_downloadable</code>
+  flips to true → the size HEAD fires on that same call → the row transitions from
+  gated UI to a Download button with the correct size, all within a second of returning.
+  No frontend cache invalidation, no focus hooks, no manual refresh.
+</div>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="fe-be-separation">8. Frontend ↔ backend separation</h2>
+
+<table>
+  <tr><th></th><th>Backend</th><th>Frontend</th></tr>
+  <tr>
+    <td>Repo</td>
+    <td><code>comfyanonymous/ComfyUI</code> (this repo)</td>
+    <td><code>Comfy-Org/ComfyUI_frontend</code> (separate repo)</td>
+  </tr>
+  <tr>
+    <td>Language / stack</td>
+    <td>Python 3.13, aiohttp, pydantic, pytest</td>
+    <td>Vue 3, TypeScript, Pinia, Vite, PrimeVue, Tailwind</td>
+  </tr>
+  <tr>
+    <td>Release artefact</td>
+    <td>Source-distributed; users pip-install the package</td>
+    <td>Built bundle published as the <code>comfyui-frontend-package</code> pip package; ComfyUI
+    imports the static files.</td>
+  </tr>
+  <tr>
+    <td>This feature's files</td>
+    <td><code>app/model_downloader/**</code>, two-line edit to <code>server.py</code>, one-line
+    edit to <code>comfy_api/feature_flags.py</code>, additions to <code>openapi.yaml</code>,
+    two test files under <code>tests-unit/app_test/</code></td>
+    <td><code>src/platform/missingModel/serverDownloads/**</code> (new directory), a few-line edit
+    to <code>MissingModelCard.vue</code> for the feature-flag switch, and a registration edit
+    in <code>src/platform/settings/composables/useSettingUI.ts</code></td>
+  </tr>
+</table>
+
+<h3>8.1 Local dev workflow</h3>
+
+<pre><code># Backend  (one terminal)
+cd ComfyUI
+python main.py --listen 127.0.0.1 --port 8189 --cpu
+
+# Frontend (another terminal)
+cd ComfyUI_frontend
+DEV_SERVER_COMFYUI_URL=http://127.0.0.1:8189 pnpm dev
+# Vite serves at http://localhost:5173 and proxies /api/* to the backend</code></pre>
+
+<p>Open <code>http://localhost:5173</code> in a browser — you get the Vite dev server with HMR,
+talking to your local backend.</p>
+
+<h3>8.2 Frontend integration points</h3>
+
+<ul>
+  <li>
+    <strong>Feature-flag gate.</strong> <code>MissingModelCard.vue</code> renders the new
+    <code>MissingModelCardServerSide.vue</code> when <code>isServerSideDownloadsAvailable()</code>
+    returns true (the <code>server_side_model_downloads</code> server feature flag). Old servers
+    silently fall through to the legacy in-browser download path.
+  </li>
+  <li>
+    <strong>Eligibility-flag gate.</strong> The HF settings panel and login banner only render
+    when <code>hf_auth_eligible</code> is true. Read once at startup.
+  </li>
+  <li>
+    <strong>Single store of truth.</strong> <code>useServerSideDownloadsStore</code> (Pinia)
+    holds the entire view of the polling response. Components read; only the store mutates.
+  </li>
+  <li>
+    <strong>Three gated-row variants.</strong> The per-row gated message changes based on
+    (eligible, logged-in):
+    <ul>
+      <li><em>Not eligible:</em> "open the repository page to accept the license, then place
+      the file in <code>models/&lt;dir&gt;/</code> manually."</li>
+      <li><em>Eligible, not logged in:</em> "log in with HuggingFace above to enable the download."</li>
+      <li><em>Eligible, logged in:</em> "visit the repository page to accept the license, then
+      come back to download" (license acceptance does the rest via the 1 Hz poll).</li>
+    </ul>
+  </li>
+</ul>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="tests">9. Tests &amp; OpenAPI spec</h2>
+
+<h3>9.1 Test coverage</h3>
+<p>~70 unit tests in two files under <code>tests-unit/app_test/</code>:</p>
+<ul>
+  <li><code>model_downloader_test.py</code> — allowlist, path validation, registry
+  lifecycle (including epoch race semantics), orphan <code>.tmp</code> cleanup,
+  precondition gating on all four model routes, atomic batch behavior.</li>
+  <li><code>hf_auth_test.py</code> — token store (save / load / chmod / corruption /
+  refresh), eligibility under <code>(listen, multi_user)</code> matrix, URL parsing,
+  probe caching (intrinsic + size + skip-when-not-downloadable), all three HF auth
+  routes, PKCE primitives + authorize URL shape.</li>
+</ul>
+<pre><code>$ pytest tests-unit/app_test/model_downloader_test.py tests-unit/app_test/hf_auth_test.py -q
+71 passed in 0.23s</code></pre>
+
+<h3>9.2 OpenAPI spec</h3>
+<p>
+  All six routes are documented in <code>openapi.yaml</code> with request/response schemas.
+  The spec is hand-maintained — there's no codegen between handler signatures and the YAML.
+  <a href="#followups">§10</a> flags this as a long-term tech-debt item.
+</p>
+<p>
+  Lint is enforced in CI via Spectral
+  (<code>.github/workflows/openapi-lint.yml</code>); local run:
+</p>
+<pre><code>npx -y @stoplight/spectral-cli@6 lint openapi.yaml --ruleset .spectral.yaml --fail-severity=error</code></pre>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="followups">10. Open follow-ups &amp; gotchas</h2>
+
+<div class="callout warn">
+  <div class="label">Placeholder OAuth client_id</div>
+  <code>HF_CLIENT_ID</code> in <code>app/model_downloader/hf_auth/oauth.py</code> is a
+  placeholder string and must be replaced with a real registered HuggingFace OAuth app's
+  client_id before the login flow can succeed. Full instructions are at the top of this
+  document (the yellow "Action required" callout). Until that's done, calling
+  <code>POST /api/hf-auth-login-start</code> succeeds locally but the resulting
+  <code>authorize_url</code> will return an error from huggingface.co.
+</div>
+
+<div class="callout warn">
+  <div class="label">Org SSO requirement on HuggingFace</div>
+  Some HF orgs (e.g. Lightricks) require SSO authorization of personal access tokens before
+  byte-level access is granted. The token-based flow we build returns
+  <code>is_hf_downloadable: false</code> for those repos with a clear log line:
+  <code>[hf_auth] auth_check forbids …/… (HTTP 403) — treating as gated</code>.
+  The user has to authorize their token via the org's SSO setup at
+  <code>https://huggingface.co/organizations/&lt;org&gt;/sso</code>. Not a code bug — a
+  property of the org's policy.
+</div>
+
+<div class="callout">
+  <div class="label">No TLS in default ComfyUI</div>
+  ComfyUI supports TLS via <code>--tls-keyfile</code> / <code>--tls-certfile</code> but
+  doesn't enable it by default. Browsers treat <code>http://localhost</code> as a
+  secure context, so <code>Secure</code> cookies / HF auth still work without TLS on
+  loopback. Non-loopback deployments without TLS are correctly excluded by the eligibility
+  gate, so the lack of default TLS isn't a hole for this feature.
+</div>
+
+<h3>10.1 Things deliberately not done</h3>
+<ul>
+  <li><strong>Per-user HF tokens.</strong> Requires a real auth layer in core ComfyUI
+  (sessions, login, identity). Out of scope; the loopback gate is the substitute.</li>
+  <li><strong>Hash verification of downloaded files.</strong> Some
+  <code>properties.models[*].hash</code> entries carry a SHA. We don't verify; trust the
+  source. Easy to add if needed (one method on <code>stream_to_disk</code>).</li>
+  <li><strong>Resumable downloads.</strong> A failed download starts from zero next time.
+  Range requests + offset tracking would add it.</li>
+  <li><strong>Codegen for the OpenAPI spec.</strong> Spec is hand-maintained and lint-checked,
+  not derived from handler signatures. Long-term direction is probably pydantic-driven
+  schema export, but that's a project unto itself.</li>
+</ul>
+
+<h3>10.2 Convention summary</h3>
+<ul>
+  <li><strong>Route paths:</strong> kebab-case for all new routes
+  (<code>/api/models-availability-status</code>, etc.). Older endpoints use snake_case;
+  newer assets endpoints use kebab; we picked kebab to match the newer direction.</li>
+  <li><strong>Error envelope:</strong>
+  <code>{"error": {"code": "MACHINE_READABLE", "message": "human", "details": {...}}}</code>.
+  Matches the pattern in <code>app/assets/api/routes.py</code>.</li>
+  <li><strong>Pydantic at the boundary:</strong> request schemas in
+  <code>schemas_in.py</code>, response schemas in <code>schemas_out.py</code>,
+  validated via <code>Schema.model_validate(payload)</code> in handlers.</li>
+  <li><strong>Logging prefix:</strong> all logs use <code>[model_downloader]</code> or
+  <code>[hf_auth]</code> prefixes for grep-ability.</li>
+</ul>
+
+<h3>10.3 Useful greps</h3>
+<pre><code># Find every backend file touched by this feature
+ls app/model_downloader app/model_downloader/api app/model_downloader/hf_auth
+
+# Find every place is_loopback is consulted (3 callers)
+grep -rn "is_loopback" --include="*.py" app/ server.py
+
+# Confirm the HF OAuth callback port and redirect URI
+grep -n "CALLBACK_PORT\|REDIRECT_URI" app/model_downloader/hf_auth/oauth.py
+
+# Run the test suite for just this feature
+.venv/bin/python -m pytest tests-unit/app_test/model_downloader_test.py \
+                            tests-unit/app_test/hf_auth_test.py -q</code></pre>
+
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 class="section" id="hf-app-setup">11. HuggingFace OAuth app setup</h2>
+
+<p>
+  Step-by-step walkthrough for creating the OAuth app whose <code>client_id</code> goes into
+  <code>HF_CLIENT_ID</code>. Reflects what the HuggingFace settings UI looked like at the
+  time this feature was developed; HF occasionally moves things around but the fields
+  themselves are stable.
+</p>
+
+<h3>11.1 Navigation</h3>
+<ol>
+  <li>Sign in at <a href="https://huggingface.co" target="_blank" rel="noopener">huggingface.co</a>
+  with the Comfy-Org-controlled account that should own the app.</li>
+  <li>Open user settings (avatar menu → <em>Settings</em>).</li>
+  <li>In the left sidebar, click <strong>Connected Apps</strong>. (Not <em>Access Tokens</em>
+  — that's for personal access tokens, a different concept.)</li>
+  <li>Click <strong>Create app</strong> (or similar — the button label has varied).</li>
+</ol>
+
+<h3>11.2 Fields to fill in</h3>
+
+<table>
+  <tr><th>Field</th><th>Value</th><th>Notes</th></tr>
+  <tr>
+    <td><strong>Application Name</strong></td>
+    <td>e.g. <code>ComfyUI</code></td>
+    <td>Shown on the user's consent screen and in their Connected Apps list. Keep it
+    recognisable.</td>
+  </tr>
+  <tr>
+    <td><strong>Homepage URL</strong></td>
+    <td>Optional. Leave blank or use <code>https://www.comfy.org</code>.</td>
+    <td>Cosmetic.</td>
+  </tr>
+  <tr>
+    <td><strong>Logo</strong></td>
+    <td>Optional.</td>
+    <td>Cosmetic.</td>
+  </tr>
+  <tr>
+    <td><strong>Token Expiration</strong></td>
+    <td>Default (8 hours) is fine.</td>
+    <td>Our code transparently refreshes via the OAuth refresh-token flow; a shorter expiry
+    just means refresh happens more often. Don't pick an extremely short one — you'd put
+    needless load on HF's token endpoint.</td>
+  </tr>
+  <tr>
+    <td><strong>Default Scopes</strong></td>
+    <td>See §11.3 below.</td>
+    <td>Critical — this controls what consent the user sees and what the token can do.</td>
+  </tr>
+  <tr>
+    <td><strong>Redirect URLs</strong></td>
+    <td><code>http://127.0.0.1:41954/api/auth/huggingface/callback</code></td>
+    <td>
+      Must match exactly. If you change <code>CALLBACK_PORT</code> in
+      <code>oauth.py</code>, change this in lockstep. Multiple redirect URLs can be
+      registered (one per line) if you need both dev and prod variants later.
+    </td>
+  </tr>
+</table>
+
+<h3>11.3 Scopes — exactly which boxes to tick</h3>
+
+<p>
+  HF groups scopes into sections. The bare minimum for this feature is <strong>three</strong>
+  checkboxes total. Leave everything else off.
+</p>
+
+<table>
+  <tr><th>Section</th><th>Scope to check</th><th>Why</th></tr>
+  <tr>
+    <td><strong>User Info</strong></td>
+    <td><code>openid</code></td>
+    <td>Required by HF when the app uses OpenID Connect at all (which our PKCE
+    flow does — it's part of the OAuth2 + OIDC handshake).</td>
+  </tr>
+  <tr>
+    <td><strong>User Info</strong></td>
+    <td><code>profile</code></td>
+    <td>Lets <code>HfApi.whoami(token=...)</code> return a username. The Settings panel
+    shows that username next to the "Logged in" indicator. Strictly cosmetic but
+    expected by the UI.</td>
+  </tr>
+  <tr>
+    <td><strong>Repository Access</strong></td>
+    <td><code>gated-repos</code><br/><span class="footnote">"Read public gated repos only"</span></td>
+    <td>The key scope. Grants the token enough to (a) call <code>auth_check</code> against
+    gated repos the user has accepted the license for, and (b) download files from those
+    repos. Public-only — no private-repo access included, no write permissions.</td>
+  </tr>
+</table>
+
+<div class="callout warn">
+  <div class="label">Do not pick a wider scope</div>
+  <code>read-repos</code> would <em>also</em> work for the feature (it includes
+  <code>gated-repos</code> plus private-repo read access), but picking it makes the
+  user's consent screen on huggingface.co look scarier ("this app wants to read your
+  private repositories"). Users may bail. Stick to <code>gated-repos</code>.
+</div>
+
+<h3>11.4 Public app + PKCE</h3>
+
+<p>
+  After creation, HF will label the app a <strong>Public app</strong> and explicitly note:
+  <em>"No client secret. Use PKCE or device code flow for authentication."</em> This is
+  expected and correct — we use PKCE (see <a href="#oauth">§4</a>). Do <strong>not</strong>
+  click <em>Add client secret</em>; we don't need it and having one without using it would
+  be a future footgun.
+</p>
+
+<h3>11.5 Wire the client_id into the code</h3>
+
+<p>The Credentials section of the new app shows a <em>Client ID</em> in the form of a UUID
+(e.g. <code>a8189e14-9246-4f19-bd6a-a307bdcb9276</code>). Copy that value and paste it
+verbatim into:</p>
+
+<pre><code># app/model_downloader/hf_auth/oauth.py  (around line 49)
+HF_CLIENT_ID = "<em>paste-the-uuid-here</em>"</code></pre>
+
+<p>That's the only code change required. Restart ComfyUI; <code>POST /api/hf-auth-login-start</code>
+should now produce an <code>authorize_url</code> that huggingface.co accepts.</p>
+
+<h3>11.6 Test the round-trip</h3>
+
+<ol>
+  <li>Start ComfyUI on loopback: <code>python main.py --listen 127.0.0.1 --port 8189</code></li>
+  <li>
+    Confirm eligibility:
+<pre><code>curl -s http://127.0.0.1:8189/api/features | grep hf_auth_eligible
+# expect: "hf_auth_eligible": true</code></pre>
+  </li>
+  <li>
+    Trigger the login flow:
+<pre><code>curl -s -X POST http://127.0.0.1:8189/api/hf-auth-login-start | python3 -m json.tool
+# expect: {"authorize_url": "https://huggingface.co/oauth/authorize?client_id=&lt;your-uuid&gt;&amp;..."}</code></pre>
+  </li>
+  <li>Open <code>authorize_url</code> in a browser. The consent screen should display the
+  Application Name you chose and list the three scopes (<code>openid</code>, <code>profile</code>,
+  <code>gated-repos</code>). Click <em>Authorize</em>.</li>
+  <li>HF redirects to <code>http://127.0.0.1:41954/api/auth/huggingface/callback?code=...&amp;state=...</code>.
+  Our local callback server completes the token exchange and renders a "Login complete" page.</li>
+  <li>
+    Confirm token is held:
+<pre><code>curl -s http://127.0.0.1:8189/api/hf-auth-token-status | python3 -m json.tool
+# expect: {"token_available": true, "username": "<em>your-hf-username</em>"}</code></pre>
+  </li>
+</ol>
+
+<p>
+  Once that round-trip works, the missing-models card will use the token automatically for
+  every subsequent gated probe and download.
+</p>
+
+<h3>11.7 If you need to change the callback port</h3>
+
+<p>The port <code>41954</code> is arbitrary — chosen to be high and unlikely to collide.
+If you ever need to change it, three things must move together:</p>
+
+<ul>
+  <li><code>CALLBACK_PORT</code> in <code>app/model_downloader/hf_auth/oauth.py</code>.</li>
+  <li>The Redirect URL registered on the HuggingFace app (must match exactly, including
+  port).</li>
+  <li>The redirect-URI constant in any test fixtures (search for the port number in
+  <code>tests-unit/app_test/hf_auth_test.py</code>).</li>
+</ul>
+
+<p>If they drift out of sync, HF will reject the redirect with a
+<code>redirect_uri_mismatch</code> error and the callback never lands.</p>
+
+
+<hr />
+<p class="footnote">
+  Generated as a feature handover. Living document — keep it updated as the feature evolves,
+  or replace with a proper docs site entry once one exists.
+</p>
+
+</body>
+</html>
