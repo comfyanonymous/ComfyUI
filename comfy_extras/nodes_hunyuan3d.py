@@ -12,7 +12,7 @@ class EmptyLatentHunyuan3Dv2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="EmptyLatentHunyuan3Dv2",
-            category="model/latent/3d",
+            category="model/latent/hunyuan 3d",
             inputs=[
                 IO.Int.Input("resolution", default=3072, min=1, max=8192),
                 IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
@@ -35,7 +35,7 @@ class Hunyuan3Dv2Conditioning(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Hunyuan3Dv2Conditioning",
-            category="model/conditioning/3d_models",
+            category="model/conditioning/hunyuan 3d",
             inputs=[
                 IO.ClipVisionOutput.Input("clip_vision_output"),
             ],
@@ -60,7 +60,7 @@ class Hunyuan3Dv2ConditioningMultiView(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Hunyuan3Dv2ConditioningMultiView",
-            category="model/conditioning/3d_models",
+            category="model/conditioning/hunyuan 3d",
             inputs=[
                 IO.ClipVisionOutput.Input("front", optional=True),
                 IO.ClipVisionOutput.Input("left", optional=True),
@@ -97,7 +97,7 @@ class VAEDecodeHunyuan3D(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VAEDecodeHunyuan3D",
-            category="model/latent/3d",
+            category="model/latent/hunyuan 3d",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),

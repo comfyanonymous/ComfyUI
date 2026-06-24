@@ -106,11 +106,11 @@ class Ideogram4EmbedScalar(nn.Module):
         self.mlp_in = operations.Linear(dim, dim, bias=True, dtype=dtype, device=device)
         self.mlp_out = operations.Linear(dim, dim, bias=True, dtype=dtype, device=device)
 
-    def forward(self, x):
+    def forward(self, x, dtype):
         x = x.to(torch.float32)
         scaled = 1e4 * (x - self.range_min) / (self.range_max - self.range_min)
         emb = _sinusoidal_embedding(scaled, self.dim)
-        emb = emb.to(self.mlp_in.weight.dtype)
+        emb = emb.to(dtype)
         emb = F.silu(self.mlp_in(emb))
         return self.mlp_out(emb)
 
@@ -161,7 +161,7 @@ class Ideogram4Transformer(nn.Module):
         x = x * output_image_mask
         h = self.input_proj(x) * output_image_mask
 
-        t_cond = self.t_embedding(t)
+        t_cond = self.t_embedding(t, dtype=x.dtype)
         if t.dim() == 1:
             t_cond = t_cond.unsqueeze(1)
         adaln_input = F.silu(self.adaln_proj(t_cond))
@@ -174,7 +174,7 @@ class Ideogram4Transformer(nn.Module):
             llm = self.llm_cond_proj(llm) * text_mask
             h[:, :L_text] = h[:, :L_text] + llm
 
-        h = h + self.embed_image_indicator((indicator == OUTPUT_IMAGE_INDICATOR).to(torch.long))
+        h = h + self.embed_image_indicator((indicator == OUTPUT_IMAGE_INDICATOR).to(torch.long), out_dtype=h.dtype)
 
         # Qwen3-VL interleaved MRoPE; position_ids (B, L, 3) -> (3, L) (same across batch).
         freqs_cis = precompute_freqs_cis(
@@ -235,7 +235,7 @@ class Ideogram4Transformer2DModel(Ideogram4Transformer):
     def _run_conditional(self, x_chunk, context_chunk, attn_mask_chunk, t_chunk, gh, gw, transformer_options):
         B = x_chunk.shape[0]
         device = x_chunk.device
-        img_tokens = self._img_to_tokens(x_chunk).to(self.dtype)
+        img_tokens = self._img_to_tokens(x_chunk)
         L_img = img_tokens.shape[1]
         L_text = context_chunk.shape[1]
         L = L_text + L_img
@@ -268,7 +268,7 @@ class Ideogram4Transformer2DModel(Ideogram4Transformer):
     def _run_image_only(self, x_chunk, t_chunk, gh, gw, transformer_options):
         B = x_chunk.shape[0]
         device = x_chunk.device
-        img_tokens = self._img_to_tokens(x_chunk).to(self.dtype)
+        img_tokens = self._img_to_tokens(x_chunk)
         L_img = img_tokens.shape[1]
 
         position_ids = self._image_position_ids(gh, gw, device).unsqueeze(0).expand(B, L_img, 3)

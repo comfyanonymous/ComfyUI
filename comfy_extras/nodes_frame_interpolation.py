@@ -77,7 +77,7 @@ class FrameInterpolate(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FrameInterpolate",
-            display_name="Frame Interpolate",
+            display_name="Run Frame Interpolation Model",
             category="video",
             search_aliases=["rife", "film", "frame interpolation", "slow motion", "interpolate frames", "vfi"],
             inputs=[

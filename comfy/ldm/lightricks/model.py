@@ -1085,7 +1085,7 @@ class LTXVModel(LTXBaseModel):
         )
 
         grid_mask = None
-        if keyframe_idxs is not None:
+        if keyframe_idxs is not None and keyframe_idxs.shape[2] > 0:
             additional_args.update({ "orig_patchified_shape": list(x.shape)})
             denoise_mask = self.patchifier.patchify(denoise_mask)[0]
             grid_mask = ~torch.any(denoise_mask < 0, dim=-1)[0]
@@ -1330,7 +1330,7 @@ class LTXVModel(LTXBaseModel):
         x = x * (1 + scale) + shift
         x = self.proj_out(x)
 
-        if keyframe_idxs is not None:
+        if keyframe_idxs is not None and keyframe_idxs.shape[2] > 0:
             grid_mask = kwargs["grid_mask"]
             orig_patchified_shape = kwargs["orig_patchified_shape"]
             full_x = torch.zeros(orig_patchified_shape, dtype=x.dtype, device=x.device)

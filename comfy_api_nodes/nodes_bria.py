@@ -12,6 +12,8 @@ from comfy_api_nodes.apis.bria import (
     BriaRemoveVideoBackgroundRequest,
     BriaRemoveVideoBackgroundResponse,
     BriaStatusResponse,
+    BriaVideoGreenScreenRequest,
+    BriaVideoReplaceBackgroundRequest,
     InputModerationSettings,
 )
 from comfy_api_nodes.util import (
@@ -287,7 +289,7 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -305,6 +307,161 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
             data=BriaRemoveVideoBackgroundRequest(
                 video=await upload_video_to_comfyapi(cls, video),
                 background_color=background_color,
+                output_container_and_codec="mp4_h264",
+                seed=seed,
+            ),
+            response_model=BriaStatusResponse,
+        )
+        response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
+            status_extractor=lambda r: r.status,
+            response_model=BriaRemoveVideoBackgroundResponse,
+        )
+        return IO.NodeOutput(await download_url_to_video_output(response.result.video_url))
+
+
+class BriaVideoGreenScreen(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="BriaVideoGreenScreen",
+            display_name="Bria Video Green Screen",
+            category="partner/video/Bria",
+            description="Replace a video's background with a solid chroma-key screen using Bria.",
+            inputs=[
+                IO.Video.Input("video"),
+                IO.Combo.Input(
+                    "green_shade",
+                    options=["broadcast_green", "chroma_green", "blue_screen"],
+                    tooltip="Solid chroma-key shade applied behind the foreground: "
+                    "broadcast_green (#00B140), chroma_green (#00FF00), or blue_screen (#0000FF).",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        green_shade: str,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_video_duration(video, max_duration=60.0)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/bria/v2/video/edit/green_screen", method="POST"),
+            data=BriaVideoGreenScreenRequest(
+                video=await upload_video_to_comfyapi(cls, video),
+                green_shade=green_shade,
+                output_container_and_codec="mp4_h264",
+                seed=seed,
+            ),
+            response_model=BriaStatusResponse,
+        )
+        response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/bria/v2/status/{response.request_id}"),
+            status_extractor=lambda r: r.status,
+            response_model=BriaRemoveVideoBackgroundResponse,
+        )
+        return IO.NodeOutput(await download_url_to_video_output(response.result.video_url))
+
+
+class BriaVideoReplaceBackground(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="BriaVideoReplaceBackground",
+            display_name="Bria Video Replace Background",
+            category="partner/video/Bria",
+            description="Replace a video's background with a supplied image or video using Bria. "
+            "The output keeps the foreground's resolution and frame rate; a background with a "
+            "different aspect ratio is stretched to fit, so match it for undistorted results.",
+            inputs=[
+                IO.Video.Input("video", tooltip="Foreground video whose background is replaced."),
+                IO.Image.Input(
+                    "background_image",
+                    optional=True,
+                    tooltip="Background image to composite behind the foreground. "
+                    "Provide either a background image or a background video, not both.",
+                ),
+                IO.Video.Input(
+                    "background_video",
+                    optional=True,
+                    tooltip="Background video to composite behind the foreground. "
+                    "Provide either a background image or a background video, not both.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        seed: int,
+        background_image: Input.Image | None = None,
+        background_video: Input.Video | None = None,
+    ) -> IO.NodeOutput:
+        if (background_image is None) == (background_video is None):
+            raise ValueError("Provide either a background image or a background video, not both.")
+        validate_video_duration(video, max_duration=60.0)
+        if background_video is not None:
+            validate_video_duration(background_video, max_duration=60.0)
+            background_url = await upload_video_to_comfyapi(cls, background_video, wait_label="Uploading background")
+        else:
+            # Bria's replace_background 500s on RGBA, so drop the alpha channel before upload.
+            background_url = await upload_image_to_comfyapi(
+                cls, background_image[:, :, :, :3], wait_label="Uploading background"
+            )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/bria/v2/video/edit/replace_background", method="POST"),
+            data=BriaVideoReplaceBackgroundRequest(
+                video=await upload_video_to_comfyapi(cls, video),
+                background_url=background_url,
                 output_container_and_codec="mp4_h264",
                 seed=seed,
             ),
@@ -376,7 +533,7 @@ class BriaTransparentVideoBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.14,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.0042,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -416,6 +573,8 @@ class BriaExtension(ComfyExtension):
             BriaImageEditNode,
             BriaRemoveImageBackground,
             BriaRemoveVideoBackground,
+            BriaVideoGreenScreen,
+            BriaVideoReplaceBackground,
             BriaTransparentVideoBackground,
         ]
 

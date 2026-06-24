@@ -3,11 +3,6 @@ components:
         Asset:
             description: Represents a user-owned asset (image, video, or other generated output).
             properties:
-                asset_hash:
-                    deprecated: true
-                    description: 'Deprecated: use hash instead. Blake3 hash of the asset content.'
-                    pattern: ^blake3:[a-f0-9]{64}$
-                    type: string
                 created_at:
                     description: Timestamp when the asset was created
                     format: date-time
@@ -16,8 +11,12 @@ components:
                     description: Display name of the asset. Mirrors name for backwards compatibility.
                     nullable: true
                     type: string
+                file_path:
+                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
+                    nullable: true
+                    type: string
                 hash:
-                    description: Blake3 hash of the asset content. Preferred over asset_hash.
+                    description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
                     type: string
                 id:
@@ -56,6 +55,12 @@ components:
                     description: URL for asset preview/thumbnail
                     format: uri
                     type: string
+                short_url:
+                    description: Durable, owner-gated short link to this asset's content (relative `/api/s/{id}` path). Stable across the underlying signed URL's expiry — resolving it re-mints a fresh signed URL on every request — so it is safe to persist or share into chat, unlike `preview_url`. Only the minting user can resolve it. Omitted when the short-link surface is disabled or the asset has no resolvable content hash.
+                    nullable: true
+                    type: string
+                    x-runtime:
+                        - cloud
                 size:
                     description: Size of the asset in bytes
                     format: int64
@@ -139,17 +144,16 @@ components:
         AssetUpdated:
             description: Response returned when an existing asset is successfully updated.
             properties:
-                asset_hash:
-                    deprecated: true
-                    description: 'Deprecated: use hash instead. Blake3 hash of the asset content.'
-                    pattern: ^blake3:[a-f0-9]{64}$
-                    type: string
                 display_name:
                     description: Display name of the asset. Mirrors name for backwards compatibility.
                     nullable: true
                     type: string
+                file_path:
+                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
+                    nullable: true
+                    type: string
                 hash:
-                    description: Blake3 hash of the asset content. Preferred over asset_hash.
+                    description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
                     type: string
                 id:
@@ -675,6 +679,35 @@ components:
                 - created_at
                 - updated_at
             type: object
+        JobsCancelRequest:
+            additionalProperties: false
+            description: Request to cancel multiple jobs by ID.
+            properties:
+                job_ids:
+                    description: Job identifiers (UUIDs) to cancel.
+                    items:
+                        format: uuid
+                        type: string
+                    maxItems: 100
+                    minItems: 1
+                    type: array
+            required:
+                - job_ids
+            type: object
+        JobsCancelResponse:
+            description: Response for POST /api/jobs/cancel.
+            properties:
+                cancelled:
+                    description: |
+                        Job IDs for which a cancel event was successfully dispatched by this
+                        call. Jobs already in a terminal or cancelling state are idempotently
+                        skipped and will not appear here.
+                    items:
+                        type: string
+                    type: array
+            required:
+                - cancelled
+            type: object
         JobsListResponse:
             description: Paginated list of jobs for the authenticated user.
             properties:
@@ -828,7 +861,11 @@ components:
                     type: string
             type: object
         PaginationInfo:
-            description: Offset/limit-based pagination metadata included in list responses.
+            description: |
+                Pagination metadata included in list responses. Supports both legacy
+                offset/limit pagination and cursor-based pagination. When cursor-based
+                pagination is used, `next_cursor` is the primary pagination token and
+                `offset`/`total` may be zero.
             properties:
                 has_more:
                     description: Whether more items are available beyond this page
@@ -837,12 +874,19 @@ components:
                     description: Items per page
                     minimum: 1
                     type: integer
+                next_cursor:
+                    description: |
+                        Opaque cursor for the next page. Pass this value as the `after`
+                        query parameter on the next request. Empty or absent when there
+                        are no more results.
+                    type: string
                 offset:
-                    description: Current offset (0-based)
+                    deprecated: true
+                    description: 'Current offset (0-based). Deprecated: use cursor-based pagination.'
                     minimum: 0
                     type: integer
                 total:
-                    description: Total number of items matching filters
+                    description: Total number of items matching filters (may be 0 when using cursor pagination)
                     minimum: 0
                     type: integer
             required:
@@ -997,7 +1041,7 @@ components:
                     description: If true, clear all pending jobs from the queue
                     type: boolean
                 delete:
-                    description: Array of PENDING job IDs to cancel
+                    description: Array of job IDs to cancel; pending and running jobs transition to cancelled
                     items:
                         type: string
                     type: array
@@ -1052,6 +1096,9 @@ components:
                             type: string
                         comfyui_version:
                             description: ComfyUI version
+                            type: string
+                        deploy_environment:
+                            description: How this ComfyUI instance is deployed (e.g. cloud, local-git, local-portable, local-desktop)
                             type: string
                         embedded_python:
                             description: Whether using embedded Python
@@ -1518,15 +1565,9 @@ paths:
                   schema:
                     default: true
                     type: boolean
-                - description: Filter assets by exact content hash. Preferred over asset_hash.
+                - description: Filter assets by exact content hash.
                   in: query
                   name: hash
-                  schema:
-                    type: string
-                - deprecated: true
-                  description: 'Deprecated: use hash instead. Filter assets by exact content hash.'
-                  in: query
-                  name: asset_hash
                   schema:
                     type: string
                 - description: |
@@ -1571,48 +1612,22 @@ paths:
                 - file
         post:
             description: |
-                Uploads a new asset to the system with associated metadata.
-                Supports two upload methods:
-                1. Direct file upload (multipart/form-data)
-                2. URL-based upload (application/json with source: "url")
+                Creates a new asset from a direct file upload (multipart/form-data) with associated metadata.
 
                 If an asset with the same hash already exists, returns the existing asset.
-            operationId: uploadAsset
+            operationId: createAsset
             requestBody:
                 content:
-                    application/json:
-                        schema:
-                            properties:
-                                name:
-                                    description: Display name for the asset (used to determine file extension)
-                                    type: string
-                                preview_id:
-                                    description: Optional preview asset ID
-                                    format: uuid
-                                    type: string
-                                tags:
-                                    description: Freeform tags for the asset. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
-                                    items:
-                                        type: string
-                                    type: array
-                                url:
-                                    description: HTTP/HTTPS URL to download the asset from
-                                    format: uri
-                                    type: string
-                                user_metadata:
-                                    additionalProperties: true
-                                    description: Custom metadata to store with the asset
-                                    type: object
-                            required:
-                                - url
-                                - name
-                            type: object
                     multipart/form-data:
                         schema:
                             properties:
                                 file:
                                     description: The asset file to upload
                                     format: binary
+                                    type: string
+                                hash:
+                                    description: Content hash of the file.
+                                    pattern: ^(blake3|sha256):[a-f0-9]{64}$
                                     type: string
                                 id:
                                     description: Optional asset ID for idempotent creation. If provided and asset exists, returns existing asset.
@@ -1629,10 +1644,8 @@ paths:
                                     format: uuid
                                     type: string
                                 tags:
-                                    description: Freeform tags for the asset. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
-                                    items:
-                                        type: string
-                                    type: array
+                                    description: JSON-encoded array of freeform tag strings, e.g. '["models","checkpoint"]'. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
+                                    type: string
                                 user_metadata:
                                     description: Custom JSON metadata as a string
                                     type: string
@@ -1641,36 +1654,32 @@ paths:
                             type: object
                 required: true
             responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AssetCreated'
+                    description: |
+                        Asset already existed for this user (deduplicated by content hash); the
+                        existing asset is returned with created_new=false.
                 "201":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/AssetCreated'
-                    description: Asset created successfully
+                    description: Asset created successfully (created_new=true)
                 "400":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Invalid request (bad file, invalid URL, invalid content type, etc.)
+                    description: Invalid request (bad file, invalid content type, etc.)
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
-                "403":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Source URL requires authentication or access denied
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Source URL not found
                 "413":
                     content:
                         application/json:
@@ -1683,19 +1692,13 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unsupported media type
-                "422":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Download failed due to network error or timeout
                 "500":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error
-            summary: Upload a new asset
+            summary: Create a new asset
             tags:
                 - file
     /api/assets/{id}:
@@ -1730,7 +1733,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Asset cannot be deleted because it is referenced by another resource (e.g., workflow version)
+                    description: 'Asset cannot be deleted because it is referenced by another resource, e.g. a workflow version (error code: ASSET_IN_USE)'
                 "500":
                     content:
                         application/json:
@@ -1783,7 +1786,7 @@ paths:
             description: |
                 Updates an asset's metadata. At least one field must be provided.
                 Only name, mime_type, preview_id, and user_metadata can be updated.
-                For tag management, use the dedicated PUT /api/assets/{id}/tags endpoint.
+                For tag management, use POST (add) and DELETE (remove) /api/assets/{id}/tags.
             operationId: updateAsset
             parameters:
                 - description: Asset ID
@@ -1827,13 +1830,91 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
-                    description: Invalid request (no fields provided)
+                    description: |
+                        Invalid request — no fields provided, or `preview_id` is the zero UUID
+                        (`INVALID_PREVIEW_ID`).
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: |
+                        Asset not found — returned both when the asset being updated does
+                        not exist and when `preview_id` does not reference an asset
+                        accessible to the caller.
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Internal server error
+            summary: Update asset metadata
+            tags:
+                - file
+    /api/assets/{id}/content:
+        get:
+            description: |
+                Returns the binary content of an asset by ID.
+
+                The contract is the same across runtimes — "GET this path and you
+                receive the asset's bytes" — but the mechanism differs:
+                - **Local ComfyUI** streams the bytes directly (`200`,
+                  `application/octet-stream`).
+                - **Cloud** does not proxy large files; it responds `302` with a
+                  `Location` redirect to a short-lived signed storage URL. Clients that
+                  follow redirects (browsers, `fetch`/XHR, `<img>`/`<video>`) receive
+                  the bytes transparently.
+
+                Prefer this over the filename-addressed `/api/view` when you have an
+                asset ID.
+            operationId: getAssetContent
+            parameters:
+                - description: Asset ID
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - description: |
+                    Content-Disposition for the response: `attachment` (download) or
+                    `inline` (render in browser). Defaults to `attachment`.
+                  in: query
+                  name: disposition
+                  schema:
+                    default: attachment
+                    enum:
+                        - inline
+                        - attachment
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/octet-stream:
+                            schema:
+                                format: binary
+                                type: string
+                    description: Asset content stream (local runtime streams the bytes directly)
+                "302":
+                    description: Redirect to a signed storage URL (cloud runtime)
+                    headers:
+                        Cache-Control:
+                            description: Private caching directive scoped to the signed URL lifetime
+                            schema:
+                                type: string
+                        Location:
+                            description: Short-lived signed URL to the asset content in storage
+                            schema:
+                                type: string
+                        Vary:
+                            description: Partitions any cached redirect by auth credentials so a private redirect is not reused across users
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -1846,7 +1927,11 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error
-            summary: Update asset metadata
+            security:
+                - ApiKeyAuth: []
+                - BearerAuth: []
+                - CookieAuth: []
+            summary: Get asset content
             tags:
                 - file
     /api/assets/{id}/tags:
@@ -1982,76 +2067,6 @@ paths:
             summary: Add tags to asset
             tags:
                 - file
-        put:
-            description: Adds and removes tags from an asset in a single operation
-            operationId: updateAssetTags
-            parameters:
-                - description: Asset ID
-                  in: path
-                  name: id
-                  required: true
-                  schema:
-                    format: uuid
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            description: At least one of add or remove must contain items. Empty arrays are allowed when the other array has items.
-                            minProperties: 1
-                            properties:
-                                add:
-                                    description: Tags to add to the asset. Can be empty if remove has items.
-                                    items:
-                                        type: string
-                                    type: array
-                                remove:
-                                    description: Tags to remove from the asset. Can be empty if add has items.
-                                    items:
-                                        type: string
-                                    type: array
-                            type: object
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/TagsModificationResponse'
-                    description: Tags updated successfully
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Invalid request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Asset not found
-                "422":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Reserved tag validation error
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: Internal server error
-            summary: Update asset tags
-            tags:
-                - file
     /api/assets/from-hash:
         post:
             description: |
@@ -2065,8 +2080,8 @@ paths:
                         schema:
                             properties:
                                 hash:
-                                    description: Hash of the existing asset. Supports Blake3 (blake3:) or SHA256 (sha256:) formats
-                                    pattern: ^(blake3|sha256):[a-f0-9]{64}$
+                                    description: 'Blake3 content hash of the existing asset (blake3: prefix)'
+                                    pattern: ^blake3:[a-f0-9]{64}$
                                     type: string
                                 mime_type:
                                     description: MIME type of the asset (e.g., "image/png", "video/mp4")
@@ -2090,12 +2105,20 @@ paths:
                             type: object
                 required: true
             responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AssetCreated'
+                    description: |
+                        Asset reference already existed for this user (deduplicated by content
+                        hash); the existing asset is returned with created_new=false.
                 "201":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/AssetCreated'
-                    description: Asset reference created successfully
+                    description: Asset reference created successfully (created_new=true)
                 "400":
                     content:
                         application/json:
@@ -2334,6 +2357,10 @@ paths:
             description: |
                 Returns a list of model folders available in the system.
                 This is an experimental endpoint that replaces the legacy /models endpoint.
+                Each folder's name is the identifier to pass to /api/experiment/models/{folder}.
+                Once the model_type migration is active the names are model_type folder_names
+                (e.g. `ultralytics_bbox`); a folder with no folder_name mapping is returned by
+                its directory path.
             operationId: getModelFolders
             responses:
                 "200":
@@ -2764,14 +2791,20 @@ paths:
             summary: Get internationalisation translation strings
     /api/interrupt:
         post:
+            deprecated: true
             description: |
-                Cancel all currently RUNNING jobs for the authenticated user.
-                This will interrupt any job that is currently in 'in_progress' status.
-                Note: This endpoint only affects running jobs. To cancel pending jobs, use /api/queue.
+                Deprecated. Prefer the jobs-namespace cancel endpoints:
+                POST /api/jobs/{job_id}/cancel for a single job, or
+                POST /api/jobs/cancel to cancel jobs by ID.
+
+                Cancels the first active job for the authenticated user (the currently
+                running job if there is one, otherwise the next pending job). Takes no
+                body and cannot target a specific job — use the jobs-namespace endpoints
+                for that.
             operationId: interruptJob
             responses:
                 "200":
-                    description: Success - Job interrupted or no running job found
+                    description: Success - first active job cancelled, or no active job found
                 "401":
                     content:
                         application/json:
@@ -2784,7 +2817,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error
-            summary: Interrupt currently running jobs
+            summary: Interrupt the first active job
             tags:
                 - queue
     /api/job/{job_id}/status:
@@ -2887,7 +2920,21 @@ paths:
                         - asc
                         - desc
                     type: string
-                - description: Pagination offset (0-based)
+                - description: |
+                    Opaque cursor for keyset pagination. Pass the `next_cursor` value
+                    from a previous response to fetch the next page.
+                    Cursor pagination is supported only when `sort_by=create_time`
+                    (default). If `sort_by=execution_time`, `after` is ignored and
+                    offset/limit pagination is used.
+                    Cursors are opaque base64url payloads — clients should treat them
+                    as strings and not parse the contents.
+                  example: eyJzIjoiY3JlYXRlX3RpbWUiLCJ2IjoiMTcxNjIwMDAwMDAwMDAwMCIsImlkIjoiYTFiMmMzZDQtZTVmNi03YTg5LWIwYzEtZDJlM2Y0YTViNmM3In0
+                  in: query
+                  name: after
+                  schema:
+                    type: string
+                - deprecated: true
+                  description: 'Pagination offset (0-based). Deprecated: prefer cursor-based pagination via `after`.'
                   in: query
                   name: offset
                   schema:
@@ -2909,6 +2956,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/JobsListResponse'
                     description: Success - Jobs retrieved
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Bad request (e.g. malformed pagination cursor).
                 "401":
                     content:
                         application/json:
@@ -2938,6 +2991,17 @@ paths:
                   schema:
                     format: uuid
                     type: string
+                - description: |
+                    When present, each output item in the response receives a `short_url` field containing an owner-gated durable link for that asset. Omit this parameter (the default) to receive a response identical to the no-param baseline. The value selects the link's lifetime: use `ephemeral_tool_chain` for short-lived machine-to-machine handoffs (~15 minutes); use `default` for durable human-revisitable links (30 days). Links are minted only for the authenticated request owner and are not resolvable by other users.
+                  in: query
+                  name: short_link
+                  schema:
+                    enum:
+                        - ephemeral_tool_chain
+                        - default
+                    type: string
+                  x-runtime:
+                    - cloud
             responses:
                 "200":
                     content:
@@ -3021,6 +3085,64 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Internal server error - cancellation failed
             summary: Cancel a job
+            tags:
+                - workflow
+    /api/jobs/cancel:
+        post:
+            description: |
+                Cancel one or more jobs for the authenticated user in a single request.
+
+                State-agnostic: cancels both pending and running jobs (both transition to
+                the cancelled state via the same mechanism as the single-job endpoint).
+
+                Idempotent per job: a job already in a terminal or cancelling state is a
+                no-op and simply will not appear in the returned `cancelled` list.
+
+                Fail-fast on unknown IDs: if any provided job ID does not exist for this
+                user, the request returns 404 and no jobs are cancelled. This surfaces
+                bad IDs to the caller rather than silently dropping them.
+
+                This is the canonical batch-cancel endpoint. The delete operation on
+                POST /api/queue is deprecated in favour of this.
+            operationId: cancelJobs
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/JobsCancelRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/JobsCancelResponse'
+                    description: Success - cancel requests dispatched (or jobs were already terminal)
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Bad Request - job_ids is missing, empty, exceeds the maximum count, or contains an invalid UUID
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Unauthorized - Authentication required
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: One or more job IDs not found for this user (no jobs cancelled)
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Internal server error - cancellation failed
+            summary: Cancel multiple jobs
             tags:
                 - workflow
     /api/node_replacements:
@@ -3119,6 +3241,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/PromptErrorResponse'
                     description: Payment required - Insufficient credits
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PromptErrorResponse'
+                    description: Workflow JSON too large
                 "429":
                     content:
                         application/json:
@@ -3167,9 +3295,18 @@ paths:
             tags:
                 - queue
         post:
+            deprecated: true
             description: |
-                Cancel specific PENDING jobs by ID or clear all pending jobs in the queue.
-                Note: This endpoint only affects pending jobs. To cancel running jobs, use /api/interrupt.
+                Deprecated. Prefer the jobs-namespace cancel endpoints:
+                POST /api/jobs/cancel for cancelling jobs by ID, and
+                POST /api/jobs/{job_id}/cancel for a single job.
+
+                Cancel specific jobs by ID (the `delete` field) or clear all pending
+                jobs in the queue (the `clear` field). Despite the `delete` naming, this
+                does not delete anything — listed jobs transition to the cancelled state,
+                and `delete` cancels both pending and running jobs (not pending-only as
+                previously documented). Job-by-ID cancellation is superseded by
+                POST /api/jobs/cancel; `clear` has no jobs-namespace replacement yet.
             operationId: manageQueue
             requestBody:
                 content:
