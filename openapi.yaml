@@ -2357,6 +2357,10 @@ paths:
             description: |
                 Returns a list of model folders available in the system.
                 This is an experimental endpoint that replaces the legacy /models endpoint.
+                Each folder's name is the identifier to pass to /api/experiment/models/{folder}.
+                Once the model_type migration is active the names are model_type folder_names
+                (e.g. `ultralytics_bbox`); a folder with no folder_name mapping is returned by
+                its directory path.
             operationId: getModelFolders
             responses:
                 "200":
