@@ -379,10 +379,11 @@ class ModelPatcher:
     def get_clone_model_override(self):
         return self.model, (self.backup, self.backup_buffers, self.object_patches_backup, self.pinned)
 
-    def clone(self, disable_dynamic=False, model_override=None):
+    def clone(self, disable_dynamic=False, model_override=None, force_deepcopy=False):
         class_ = self.__class__
-        if self.is_dynamic() and disable_dynamic:
-            class_ = ModelPatcher
+        if self.is_dynamic() and disable_dynamic or force_deepcopy:
+            if self.is_dynamic() and disable_dynamic:
+                class_ = ModelPatcher
             if model_override is None:
                 if self.cached_patcher_init is None:
                     raise RuntimeError("Cannot create non-dynamic delegate: cached_patcher_init is not initialized.")

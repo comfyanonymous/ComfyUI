@@ -5,7 +5,6 @@ See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/infer
 
 import base64
 import os
-from enum import Enum
 from fnmatch import fnmatch
 from io import BytesIO
 from typing import Any, Literal
@@ -76,15 +75,6 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
     )
     """,
 )
-
-
-class GeminiImageModel(str, Enum):
-    """
-    Gemini Image Model Names allowed by comfy-api
-    """
-
-    gemini_2_5_flash_image_preview = "gemini-2.5-flash-image-preview"
-    gemini_2_5_flash_image = "gemini-2.5-flash-image"
 
 
 async def create_image_parts(
@@ -243,21 +233,15 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
     if not response.modelVersion:
         return None
     # Define prices (Cost per 1,000,000 tokens), see https://cloud.google.com/vertex-ai/generative-ai/pricing
-    if response.modelVersion in ("gemini-2.5-pro-preview-05-06", "gemini-2.5-pro"):
+    if response.modelVersion == "gemini-2.5-pro":
         input_tokens_price = 1.25
         output_text_tokens_price = 10.0
         output_image_tokens_price = 0.0
-    elif response.modelVersion in (
-        "gemini-2.5-flash-preview-04-17",
-        "gemini-2.5-flash",
-    ):
+    elif response.modelVersion == "gemini-2.5-flash":
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 0.0
-    elif response.modelVersion in (
-        "gemini-2.5-flash-image-preview",
-        "gemini-2.5-flash-image",
-    ):
+    elif response.modelVersion == "gemini-2.5-flash-image":
         input_tokens_price = 0.30
         output_text_tokens_price = 2.50
         output_image_tokens_price = 30.0
@@ -455,8 +439,6 @@ class GeminiNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model",
                     options=[
-                        "gemini-2.5-pro-preview-05-06",
-                        "gemini-2.5-flash-preview-04-17",
                         "gemini-2.5-pro",
                         "gemini-2.5-flash",
                         "gemini-3-pro-preview",
@@ -904,8 +886,7 @@ class GeminiImage(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=GeminiImageModel,
-                    default=GeminiImageModel.gemini_2_5_flash_image,
+                    options=["gemini-2.5-flash-image"],
                     tooltip="The Gemini model to use for generating responses.",
                 ),
                 IO.Int.Input(

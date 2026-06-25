@@ -33,6 +33,7 @@ from app.assets.services.file_utils import (
     verify_file_unchanged,
 )
 from app.assets.services.hashing import HashCheckpoint, compute_blake3_hash
+from app.assets.services.image_dimensions import extract_image_dimensions
 from app.assets.services.metadata_extract import extract_file_metadata
 from app.assets.services.path_utils import (
     compute_relative_filename,
@@ -354,7 +355,7 @@ def insert_asset_specs(specs: list[SeedAssetSpec], tag_pool: set[str]) -> int:
         return 0
     with create_session() as sess:
         if tag_pool:
-            ensure_tags_exist(sess, tag_pool, tag_type="user")
+            ensure_tags_exist(sess, tag_pool)
         result = batch_insert_seed_assets(sess, specs=specs, owner_id="")
         sess.commit()
         return result.inserted_refs
@@ -506,6 +507,10 @@ def enrich_asset(
 
     if extract_metadata and metadata:
         system_metadata = metadata.to_user_metadata()
+        if mime_type and mime_type.startswith("image/"):
+            dims = extract_image_dimensions(file_path, mime_type=mime_type)
+            if dims:
+                system_metadata.update(dims)
         set_reference_system_metadata(session, reference_id, system_metadata)
 
     if full_hash:

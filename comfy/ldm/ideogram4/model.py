@@ -106,11 +106,11 @@ class Ideogram4EmbedScalar(nn.Module):
         self.mlp_in = operations.Linear(dim, dim, bias=True, dtype=dtype, device=device)
         self.mlp_out = operations.Linear(dim, dim, bias=True, dtype=dtype, device=device)
 
-    def forward(self, x):
+    def forward(self, x, dtype):
         x = x.to(torch.float32)
         scaled = 1e4 * (x - self.range_min) / (self.range_max - self.range_min)
         emb = _sinusoidal_embedding(scaled, self.dim)
-        emb = emb.to(self.mlp_in.weight.dtype)
+        emb = emb.to(dtype)
         emb = F.silu(self.mlp_in(emb))
         return self.mlp_out(emb)
 
@@ -161,7 +161,7 @@ class Ideogram4Transformer(nn.Module):
         x = x * output_image_mask
         h = self.input_proj(x) * output_image_mask
 
-        t_cond = self.t_embedding(t)
+        t_cond = self.t_embedding(t, dtype=x.dtype)
         if t.dim() == 1:
             t_cond = t_cond.unsqueeze(1)
         adaln_input = F.silu(self.adaln_proj(t_cond))

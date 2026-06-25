@@ -38,7 +38,7 @@ class Ideogram4Scheduler(io.ComfyNode):
         return io.Schema(
             node_id="Ideogram4Scheduler",
             display_name="Ideogram 4 Scheduler",
-            category="sampling/custom_sampling/schedulers",
+            category="model/sampling/schedulers",
             inputs=[
                 io.Int.Input("steps", default=20, min=1, max=200),
                 io.Int.Input("width", default=1024, min=256, max=8192, step=16),
