@@ -30,7 +30,7 @@ from comfy_api_nodes.util import (
 
 
 _GROK_VIDEO_MODEL_API_IDS = {
-    "grok-imagine-video-1.5": "grok-imagine-video-1.5-preview",
+    "grok-imagine-video-1.5": "grok-imagine-video-1.5",
 }
 
 
@@ -521,8 +521,8 @@ class GrokVideoNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "resolution",
-                    options=["480p", "720p"],
-                    tooltip="The resolution of the output video.",
+                    options=["480p", "720p", "1080p"],
+                    tooltip="The resolution of the output video. 1080p is only available for grok-imagine-video-1.5.",
                 ),
                 IO.Combo.Input(
                     "aspect_ratio",
@@ -570,11 +570,12 @@ class GrokVideoNode(IO.ComfyNode):
                 (
                   $is15 := $contains(widgets.model, "1.5");
                   $rate := $is15
-                    ? (widgets.resolution = "720p" ? 0.2002 : 0.1144)
+                    ? (widgets.resolution = "1080p" ? 0.25 : (widgets.resolution = "720p" ? 0.14 : 0.08))
                     : (widgets.resolution = "720p" ? 0.07 : 0.05);
-                  $imgCost := $is15 ? 0.0143 : 0.002;
+                  $imgCost := $is15 ? 0.01 : 0.002;
                   $base := $rate * widgets.duration;
-                  {"type":"usd","usd": inputs.image.connected ? $base + $imgCost : $base}
+                  $total := inputs.image.connected ? $base + $imgCost : $base;
+                  {"type":"usd","usd": $is15 ? $total * 1.43 : $total}
                 )
                 """,
             ),
@@ -593,6 +594,8 @@ class GrokVideoNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if image is None and model == "grok-imagine-video-1.5":
             raise ValueError(f"The '{model}' model requires an input image; connect one to the 'image' input.")
+        if resolution == "1080p" and model != "grok-imagine-video-1.5":
+            raise ValueError(f"1080p resolution is only available for grok-imagine-video-1.5, not '{model}'.")
         image_url = None
         if image is not None:
             if get_number_of_images(image) != 1:
