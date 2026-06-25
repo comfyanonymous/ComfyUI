@@ -1071,9 +1071,20 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
         if module.quant_format is None:
             raise ValueError(f"Unknown quantization format for layer {layer_name}")
 
+        if module.quant_format not in QUANT_ALGOS:
+            raise ValueError(
+                f"Quantization format '{module.quant_format}' for layer {layer_name} "
+                f"is not available in this build (supported: {sorted(QUANT_ALGOS.keys())}). "
+                "Update comfy_kitchen to enable it."
+            )
+
         qconfig = QUANT_ALGOS[module.quant_format]
         module.layout_type = qconfig["comfy_tensor_layout"]
         layout_cls = get_layout_class(module.layout_type)
+        module._layout_cls = layout_cls
+        # W4A16-style layouts keep the activation in compute dtype; the forward
+        # path reads this to decide whether to quantize the input.
+        module._layout_quantizes_input = getattr(layout_cls, "QUANTIZES_INPUT", True)
 
         # Per-format scales; fp8 dtype views handle both legacy uint8-on-disk and native fp8.
         if module.quant_format in ("float8_e4m3fn", "float8_e5m2"):
@@ -1089,6 +1100,35 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
             if ts is None or bs is None:
                 raise ValueError(f"Missing NVFP4 scales for layer {layer_name}")
             scales = {"scale": ts, "block_scale": bs}
+        elif module.quant_format == "svdquant_w4a4":
+            # SVDQuant W4A4: per-group weight scales + low-rank correction
+            # (proj_down, proj_up) + activation smoothing (smooth_factor).
+            wscales = pop_scale("weight_scale")
+            proj_down = pop_scale("proj_down")
+            proj_up = pop_scale("proj_up")
+            smooth_factor = pop_scale("smooth_factor")
+            if any(t is None for t in (wscales, proj_down, proj_up, smooth_factor)):
+                raise ValueError(f"Missing SVDQuant W4A4 parameters for layer {layer_name}")
+            scales = {
+                "scale": wscales,
+                "proj_down": proj_down,
+                "proj_up": proj_up,
+                "smooth_factor": smooth_factor,
+                "act_unsigned": bool(layer_conf.get("act_unsigned", False)),
+            }
+        elif module.quant_format == "awq_w4a16":
+            # AWQ W4A16: int4 weight, fp16/bf16 activation. Used by
+            # Qwen-Image-Edit modulation linears so they stay packed instead of
+            # being dequantized to bf16 at load time.
+            wscales = pop_scale("weight_scale")
+            wzeros = pop_scale("weight_zero")
+            if wscales is None or wzeros is None:
+                raise ValueError(f"Missing AWQ W4A16 parameters for layer {layer_name}")
+            scales = {
+                "scale": wscales,
+                "zeros": wzeros,
+                "group_size": int(layer_conf.get("group_size", qconfig.get("group_size", 64))),
+            }
         else:
             raise ValueError(f"Unsupported quantization format: {module.quant_format}")
 
@@ -1178,7 +1218,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):
                 sd = destination if destination is not None else {}
-                return _quantized_weight_state_dict(self, sd, prefix, extra_quant_params=("input_scale",))
+                # Preserve the SVDQuant W4A4 act_unsigned flag on round-trip save.
+                _params = getattr(getattr(self, 'weight', None), '_params', None)
+                extra_quant_conf = {"act_unsigned": True} if getattr(_params, 'act_unsigned', False) else None
+                return _quantized_weight_state_dict(self, sd, prefix, extra_quant_conf=extra_quant_conf, extra_quant_params=("input_scale",))
 
             def _forward(self, input, weight, bias):
                 return torch.nn.functional.linear(input, weight, bias)
@@ -1228,18 +1271,18 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                 # Inference path (unchanged)
                 if _use_quantized:
+                    if getattr(self, "_layout_quantizes_input", True):
+                        # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
+                        input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
 
-                    # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
-                    input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
-
-                    # Fall back to non-quantized for non-2D tensors
-                    if input_reshaped.ndim == 2:
-                        reshaped_3d = input.ndim == 3
-                        # dtype is now implicit in the layout class
-                        scale = getattr(self, 'input_scale', None)
-                        if scale is not None:
-                            scale = comfy.model_management.cast_to_device(scale, input.device, None)
-                        input = QuantizedTensor.from_float(input_reshaped, self.layout_type, scale=scale)
+                        # Fall back to non-quantized for non-2D tensors
+                        if input_reshaped.ndim == 2:
+                            reshaped_3d = input.ndim == 3
+                            # dtype is now implicit in the layout class
+                            scale = getattr(self, 'input_scale', None)
+                            if scale is not None:
+                                scale = comfy.model_management.cast_to_device(scale, input.device, None)
+                            input = QuantizedTensor.from_float(input_reshaped, self.layout_type, scale=scale)
 
                 output = self.forward_comfy_cast_weights(input, compute_dtype, want_requant=isinstance(input, QuantizedTensor))
 
