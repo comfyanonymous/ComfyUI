@@ -19,7 +19,7 @@ import comfy.model_patcher
 from comfy.image_encoders.dino2 import Dinov2Model
 
 from .geometry import depth_map_to_point_map, intrinsics_from_focal_center, recover_focal_shift
-from .modules import ConvStack, DINOv2Encoder, HeadV1, MLP, _view_plane_uv_grid
+from .modules import ConvStack, DINOv2Encoder, HeadV1, MLP, _interpolate_antialias_safe, _view_plane_uv_grid
 
 
 def _remap_points(points: torch.Tensor) -> torch.Tensor:
@@ -68,9 +68,9 @@ class MoGeModelV1(nn.Module):
         H, W = image.shape[-2:]
         resize = ((num_tokens * 14 ** 2) / (H * W)) ** 0.5
         rh, rw = int(H * resize), int(W * resize)
-        x = F.interpolate(image, (rh, rw), mode="bicubic", align_corners=False, antialias=True)
+        x = _interpolate_antialias_safe(image, (rh, rw), mode="bicubic", align_corners=False, antialias=True)
         x = (x - self.image_mean) / self.image_std
-        x14 = F.interpolate(x, (rh // 14 * 14, rw // 14 * 14), mode="bilinear", align_corners=False, antialias=True)
+        x14 = _interpolate_antialias_safe(x, (rh // 14 * 14, rw // 14 * 14), mode="bilinear", align_corners=False, antialias=True)
 
         n_layers = len(self.backbone.encoder.layer)
         indices = list(range(n_layers - self.intermediate_layers, n_layers))
