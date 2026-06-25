@@ -89,6 +89,7 @@ BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT = "/proxy/byteplus-seedance2/api/v3/cont
 SEEDANCE_MODELS = {
     "Seedance 2.0": "dreamina-seedance-2-0-260128",
     "Seedance 2.0 Fast": "dreamina-seedance-2-0-fast-260128",
+    "Seedance 2.0 Mini": "dreamina-seedance-2-0-mini",
 }
 
 DEPRECATED_MODELS = {"seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-i2v-250428"}
@@ -1623,8 +1624,10 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
                     options=[
                         IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p", "4k"])),
                         IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
+                        IO.DynamicCombo.Option("Seedance 2.0 Mini", _seedance2_text_inputs(["480p", "720p"])),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
+                    tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization; "
+                    "Seedance 2.0 Mini for the lowest cost.",
                 ),
                 IO.Int.Input(
                     "seed",
@@ -1664,7 +1667,8 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
                   $m := widgets.model;
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $pricePer1K := $res = "4k"    ? 0.00572 :
+                  $pricePer1K := $contains($m, "Mini") ? 0.005005 :
+                                 $res = "4k"    ? 0.00572 :
                                  $res = "1080p" ? 0.011011 :
                                  $contains($m, "fast") ? 0.008008 : 0.01001;
                   $rate := $res = "4k"    ? $rate4k :
@@ -1734,8 +1738,13 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                             "Seedance 2.0 Fast",
                             _seedance2_text_inputs(["480p", "720p"], default_ratio="adaptive"),
                         ),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0 Mini",
+                            _seedance2_text_inputs(["480p", "720p"], default_ratio="adaptive"),
+                        ),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
+                    tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization; "
+                    "Seedance 2.0 Mini for the lowest cost.",
                 ),
                 IO.Image.Input(
                     "first_frame",
@@ -1799,7 +1808,8 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                   $m := widgets.model;
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $pricePer1K := $res = "4k"    ? 0.00572 :
+                  $pricePer1K := $contains($m, "Mini") ? 0.005005 :
+                                 $res = "4k"    ? 0.00572 :
                                  $res = "1080p" ? 0.011011 :
                                  $contains($m, "fast") ? 0.008008 : 0.01001;
                   $rate := $res = "4k"    ? $rate4k :
@@ -2024,8 +2034,13 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                             "Seedance 2.0 Fast",
                             _seedance2_reference_inputs(["480p", "720p"], default_ratio="adaptive"),
                         ),
+                        IO.DynamicCombo.Option(
+                            "Seedance 2.0 Mini",
+                            _seedance2_reference_inputs(["480p", "720p"], default_ratio="adaptive"),
+                        ),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization.",
+                    tooltip="Seedance 2.0 for maximum quality; Seedance 2.0 Fast for speed optimization; "
+                    "Seedance 2.0 Mini for the lowest cost.",
                 ),
                 IO.Int.Input(
                     "seed",
@@ -2069,10 +2084,12 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                   $hasVideo := $lookup(inputGroups, "model.reference_videos") > 0;
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $noVideoPricePer1K := $res = "4k"    ? 0.00572 :
+                  $noVideoPricePer1K := $contains($m, "Mini") ? 0.005005 :
+                                        $res = "4k"    ? 0.00572 :
                                         $res = "1080p" ? 0.011011 :
                                         $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $videoPricePer1K := $res = "4k"    ? 0.003432 :
+                  $videoPricePer1K := $contains($m, "Mini") ? 0.002717 :
+                                      $res = "4k"    ? 0.003432 :
                                       $res = "1080p" ? 0.006721 :
                                       $contains($m, "fast") ? 0.004719 : 0.006149;
                   $rate := $res = "4k"    ? $rate4k :
@@ -2080,7 +2097,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                            $res = "720p"  ? $rate720 :
                                             $rate480;
                   $noVideoCost := $dur * $rate * $noVideoPricePer1K / 1000;
-                  $minVideoFactor := $ceil($dur * 5 / 3);
+                  $minVideoFactor := $contains($m, "Mini") ? (3 + $dur) : $ceil($dur * 5 / 3);
                   $minVideoCost := $minVideoFactor * $rate * $videoPricePer1K / 1000;
                   $maxVideoCost := (15 + $dur) * $rate * $videoPricePer1K / 1000;
                   $hasVideo
