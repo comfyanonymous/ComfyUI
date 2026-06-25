@@ -385,5 +385,3 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeQwenImage": ModelMergeQwenImage,
     "ModelMergeKrea2": ModelMergeKrea2,
 }
-
-
