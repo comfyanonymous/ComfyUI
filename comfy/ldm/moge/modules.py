@@ -30,6 +30,7 @@ def _concat_view_plane_uv(x: torch.Tensor, aspect_ratio: float) -> torch.Tensor:
 
 
 def _interpolate_antialias_safe(input: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+    """Run antialiased interpolation in fp32 when half precision is unsupported."""
     if kwargs.get("antialias") and input.dtype in (torch.float16, torch.bfloat16):
         return F.interpolate(input.float(), *args, **kwargs).to(dtype=input.dtype)
     return F.interpolate(input, *args, **kwargs)
