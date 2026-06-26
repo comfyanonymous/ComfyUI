@@ -10,7 +10,7 @@ from server import PromptServer
 from comfy_extras.mesh3d.postprocess.qem_decimate import (
     simplify as qem_decimate_simplify, QEMConfig, cluster_decimate as qem_cluster_decimate,
 )
-from comfy_extras.mesh3d.postprocess.remesh import remesh_narrow_band_dc
+from comfy_extras.mesh3d.postprocess.remesh import remesh_narrow_band_dc, _point_tri_closest
 from comfy_extras.mesh3d.uv_unwrap import mesh as _uv_mesh
 from comfy_extras.mesh3d.uv_unwrap import segment as _uv_seg
 from comfy_extras.mesh3d.uv_unwrap import parameterize as _uv_param
@@ -530,45 +530,6 @@ def _sample_voxel_attrs_per_texel(position_map, mask, voxel_coords, voxel_colors
     return out
 
 
-def _closest_point_on_triangles(p, a, b, c):
-    """Vectorized exact closest point on triangles (Ericson §5.1.5). p/a/b/c [...,3] →
-    [...,3]; all vertex/edge/face Voronoi regions, highest-priority-last via where."""
-    ab = b - a
-    ac = c - a
-    ap = p - a
-    d1 = (ab * ap).sum(-1)
-    d2 = (ac * ap).sum(-1)
-    bp = p - b
-    d3 = (ab * bp).sum(-1)
-    d4 = (ac * bp).sum(-1)
-    cp = p - c
-    d5 = (ab * cp).sum(-1)
-    d6 = (ac * cp).sum(-1)
-    va = d3 * d6 - d5 * d4
-    vb = d5 * d2 - d1 * d6
-    vc = d1 * d4 - d3 * d2
-
-    def u(x):  # broadcast a scalar-per-element weight to [...,1]
-        return x.unsqueeze(-1)
-
-    # face region (default)
-    denom = 1.0 / (va + vb + vc).clamp_min(1e-20)
-    v = vb * denom
-    w = vc * denom
-    res = a + ab * u(v) + ac * u(w)
-    den_bc = (d4 - d3) + (d5 - d6)
-    w_bc = (d4 - d3) / den_bc.clamp_min(1e-20)
-    res = torch.where(u((va <= 0) & ((d4 - d3) >= 0) & ((d5 - d6) >= 0)),  b + (c - b) * u(w_bc), res) # edge BC
-    w_ac = d2 / (d2 - d6).clamp_min(1e-20)
-    res = torch.where(u((vb <= 0) & (d2 >= 0) & (d6 <= 0)), a + ac * u(w_ac), res) # edge AC
-    res = torch.where(u((d6 >= 0) & (d5 <= d6)), c, res) # vertex C
-    v_ab = d1 / (d1 - d3).clamp_min(1e-20)
-    res = torch.where(u((vc <= 0) & (d1 >= 0) & (d3 <= 0)), a + ab * u(v_ab), res) # edge AB
-    res = torch.where(u((d3 >= 0) & (d4 <= d3)), b, res) # vertex B
-    res = torch.where(u((d1 <= 0) & (d2 <= 0)), a, res) # vertex A
-    return res
-
-
 def _msb_int64(x):
     """floor(log2(x)) elementwise for int64 x >= 1 (bit-search, no float)."""
     r = torch.zeros_like(x)
@@ -722,8 +683,7 @@ def _closest_points_on_mesh_bvh(Q, tri, bvh, max_stack=64):
         if bool(lv.any()):
             ga = a[lv]
             tt = tri[order[node[lv] - LEAF]]
-            cp = _closest_point_on_triangles(qa[lv], tt[:, 0], tt[:, 1], tt[:, 2])
-            d2 = ((cp - qa[lv]) ** 2).sum(-1)
+            cp, d2 = _point_tri_closest(qa[lv], tt)
             upd = d2 < best[ga]
             gu = ga[upd]
             best[gu] = d2[upd]
