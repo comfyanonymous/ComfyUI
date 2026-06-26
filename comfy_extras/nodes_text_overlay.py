@@ -26,7 +26,7 @@ class TextOverlay(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, text, font_size_percent=5.0, text_color="white", outline=True, background=True, background_color="auto", margin_percent=1.0) -> IO.NodeOutput:
+    def execute(cls, image, text, font_size_percent=5.0, text_color="white", outline=True, background=False, background_color="auto", margin_percent=1.0) -> IO.NodeOutput:
         if text.strip() == "":
             return IO.NodeOutput(image)
 
