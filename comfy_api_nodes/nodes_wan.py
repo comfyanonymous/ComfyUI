@@ -48,9 +48,12 @@ from comfy_api_nodes.util import (
     upload_image_to_comfyapi,
     upload_video_to_comfyapi,
     validate_audio_duration,
+    validate_image_aspect_ratio,
+    validate_image_dimensions,
     validate_string,
     validate_video_duration,
 )
+
 
 RES_IN_PARENS = re.compile(r"\((\d+)\s*[x×]\s*(\d+)\)")
 
@@ -1658,6 +1661,44 @@ class HappyHorseTextToVideoApi(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
+                            "happyhorse-1.1-t2v",
+                            [
+                                IO.String.Input(
+                                    "prompt",
+                                    multiline=True,
+                                    default="",
+                                    tooltip="Prompt describing the elements and visual features. "
+                                    "Supports English and Chinese.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720P", "1080P"],
+                                ),
+                                IO.Combo.Input(
+                                    "ratio",
+                                    options=[
+                                        "16:9",
+                                        "9:16",
+                                        "1:1",
+                                        "4:3",
+                                        "3:4",
+                                        "21:9",
+                                        "9:21",
+                                        "5:4",
+                                        "4:5",
+                                    ],
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=3,
+                                    max=15,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.number,
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
                             "happyhorse-1.0-t2v",
                             [
                                 IO.String.Input(
@@ -1719,7 +1760,9 @@ class HappyHorseTextToVideoApi(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $ppsTable := { "720p": 0.14, "1080p": 0.24 };
+                  $ppsTable := $contains(widgets.model, "1.1")
+                    ? { "720p": 0.2002, "1080p": 0.2574 }
+                    : { "720p": 0.14, "1080p": 0.24 };
                   $pps := $lookup($ppsTable, $res);
                   { "type": "usd", "usd": $pps * $dur }
                 )
@@ -1782,6 +1825,30 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
+                            "happyhorse-1.1-i2v",
+                            [
+                                IO.String.Input(
+                                    "prompt",
+                                    multiline=True,
+                                    default="",
+                                    tooltip="Prompt describing the elements and visual features. "
+                                    "Supports English and Chinese.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720P", "1080P"],
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=3,
+                                    max=15,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.number,
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
                             "happyhorse-1.0-i2v",
                             [
                                 IO.String.Input(
@@ -1843,7 +1910,9 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $ppsTable := { "720p": 0.14, "1080p": 0.24 };
+                  $ppsTable := $contains(widgets.model, "1.1")
+                    ? { "720p": 0.2002, "1080p": 0.2574 }
+                    : { "720p": 0.14, "1080p": 0.24 };
                   $pps := $lookup($ppsTable, $res);
                   { "type": "usd", "usd": $pps * $dur }
                 )
@@ -1859,6 +1928,8 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
         seed: int,
         watermark: bool,
     ):
+        validate_image_dimensions(first_frame, min_width=300, min_height=300)
+        validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1), strict=False)
         media = [
             Wan27MediaItem(
                 type="first_frame",
@@ -2054,6 +2125,62 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
+                            "happyhorse-1.1-r2v",
+                            [
+                                IO.String.Input(
+                                    "prompt",
+                                    multiline=True,
+                                    default="",
+                                    tooltip="Prompt describing the video. Use identifiers such as 'character1' and "
+                                    "'character2' to refer to the reference characters.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720P", "1080P"],
+                                ),
+                                IO.Combo.Input(
+                                    "ratio",
+                                    options=[
+                                        "16:9",
+                                        "9:16",
+                                        "1:1",
+                                        "4:3",
+                                        "3:4",
+                                        "21:9",
+                                        "9:21",
+                                        "5:4",
+                                        "4:5",
+                                    ],
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=3,
+                                    max=15,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.number,
+                                ),
+                                IO.Autogrow.Input(
+                                    "reference_images",
+                                    template=IO.Autogrow.TemplateNames(
+                                        IO.Image.Input("reference_image"),
+                                        names=[
+                                            "image1",
+                                            "image2",
+                                            "image3",
+                                            "image4",
+                                            "image5",
+                                            "image6",
+                                            "image7",
+                                            "image8",
+                                            "image9",
+                                        ],
+                                        min=1,
+                                    ),
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
                             "happyhorse-1.0-r2v",
                             [
                                 IO.String.Input(
@@ -2133,7 +2260,9 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $ppsTable := { "720p": 0.14, "1080p": 0.24 };
+                  $ppsTable := $contains(widgets.model, "1.1")
+                    ? { "720p": 0.2002, "1080p": 0.2574 }
+                    : { "720p": 0.14, "1080p": 0.24 };
                   $pps := $lookup($ppsTable, $res);
                   { "type": "usd", "usd": $pps * $dur }
                 )
@@ -2149,8 +2278,11 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
         watermark: bool,
     ):
         validate_string(model["prompt"], strip_whitespace=False, min_length=1)
-        media = []
         reference_images = model.get("reference_images", {})
+        for key in reference_images:
+            validate_image_dimensions(reference_images[key], min_width=400, min_height=400)
+            validate_image_aspect_ratio(reference_images[key], (1, 2.5), (2.5, 1), strict=False)
+        media = []
         for key in reference_images:
             media.append(
                 Wan27MediaItem(
@@ -2159,7 +2291,7 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
                 )
             )
         if not media:
-            raise ValueError("At least one reference reference image must be provided.")
+            raise ValueError("At least one reference image must be provided.")
 
         initial_response = await sync_op(
             cls,

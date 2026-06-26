@@ -127,6 +127,10 @@ def apply_custom_paths():
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
 
+    # --base-directory
+    if args.base_directory:
+        logging.info(f"Setting base directory to: {folder_paths.base_path}")
+
     # --output-directory, --input-directory, --user-directory
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
@@ -553,8 +557,13 @@ if __name__ == "__main__":
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
 
     if args.disable_dynamic_vram:
-        logging.warning("Dynamic vram disabled with argument. If you have any issues with dynamic vram enabled please give us a detailed reports as this argument will be removed soon.")
-
+        logging.warning(
+            "Dynamic vram disabled with argument. If you have any issues with "
+            "dynamic vram enabled please give us a detailed reports as this "
+            "argument will be removed soon. If you use gguf we recommend keeping "
+            "dynamic vram enabled and using native ComfyUI model formats instead. "
+            "ComfyUI native formats like fp8 will be faster even if they are larger than your memory."
+        )
     event_loop, _, start_all_func = start_comfyui()
     try:
         x = start_all_func()

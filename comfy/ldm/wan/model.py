@@ -1665,7 +1665,7 @@ class SCAILWanModel(WanModel):
 
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
-        if ref_mask_latents is not None:  # SCAIL-2 additive mask stream
+        if ref_mask_latents is not None:  # SCAIL-2 additive mask stream (one identity mask frame per reference, then video)
             x = x + self.patch_embedding_mask(ref_mask_latents.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
         transformer_options["grid_sizes"] = grid_sizes
@@ -1728,22 +1728,25 @@ class SCAILWanModel(WanModel):
 
     # ref_mask_flag is a scalar bool (CONDConstant, SCAIL-2 only). False => replacement mode,
     # which places ref/pose via H/W rope shifts instead of the animation-mode temporal offset.
+    # reference_latent may stack several frames: the last is the primary reference adjacent to the video, the earlier frames are additional references.
     def rope_encode(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, pose_latents=None, reference_latent=None, ref_mask_flag=None, transformer_options={}):
+        ref_t_patches = 0
+        if reference_latent is not None:
+            ref_t_patches = (reference_latent.shape[2] + (self.patch_size[0] // 2)) // self.patch_size[0]
+
         if ref_mask_flag is not None and not bool(ref_mask_flag):
             REF_ROPE_H = 120.0
             POSE_ROPE_W = 120.0
 
-            ref_t_patches = 0
-            if reference_latent is not None:
-                ref_t_patches = (reference_latent.shape[2] + (self.patch_size[0] // 2)) // self.patch_size[0]
             main_t_patches = t - ref_t_patches
+            video_t_start = max(ref_t_patches - 1, 0)
 
             parts = []
             if ref_t_patches > 0:
                 ref_tf = {"rope_options": {"shift_y": REF_ROPE_H, "shift_x": 0.0, "scale_y": 1.0, "scale_x": 1.0}}
                 parts.append(super().rope_encode(ref_t_patches, h, w, t_start=0, device=device, dtype=dtype, transformer_options=ref_tf))
             if main_t_patches > 0:
-                parts.append(super().rope_encode(main_t_patches, h, w, t_start=0, device=device, dtype=dtype, transformer_options=transformer_options))
+                parts.append(super().rope_encode(main_t_patches, h, w, t_start=video_t_start, device=device, dtype=dtype, transformer_options=transformer_options))
 
             if pose_latents is not None:
                 F_pose, H_pose, W_pose = pose_latents.shape[-3], pose_latents.shape[-2], pose_latents.shape[-1]
@@ -1752,7 +1755,7 @@ class SCAILWanModel(WanModel):
                 h_shift = (h_scale - 1) / 2
                 w_shift = (w_scale - 1) / 2
                 pose_tf = {"rope_options": {"shift_y": h_shift, "shift_x": POSE_ROPE_W + w_shift, "scale_y": h_scale, "scale_x": w_scale}}
-                parts.append(super().rope_encode(F_pose, H_pose, W_pose, t_start=0, device=device, dtype=dtype, transformer_options=pose_tf))
+                parts.append(super().rope_encode(F_pose, H_pose, W_pose, t_start=video_t_start, device=device, dtype=dtype, transformer_options=pose_tf))
 
             return torch.cat(parts, dim=1)
 
@@ -1760,10 +1763,6 @@ class SCAILWanModel(WanModel):
 
         if pose_latents is None:
             return main_freqs
-
-        ref_t_patches = 0
-        if reference_latent is not None:
-            ref_t_patches = (reference_latent.shape[2] + (self.patch_size[0] // 2)) // self.patch_size[0]
 
         F_pose, H_pose, W_pose = pose_latents.shape[-3], pose_latents.shape[-2], pose_latents.shape[-1]
 

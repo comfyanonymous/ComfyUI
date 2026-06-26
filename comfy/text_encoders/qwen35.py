@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass, field
 import os
-import math
 
 import comfy.model_management
 from comfy.ldm.modules.attention import optimized_attention_for_device
@@ -563,6 +562,8 @@ class Qwen35VisionModel(nn.Module):
             for _ in range(config["depth"])
         ])
         self.merger = Qwen35VisionPatchMerger(self.hidden_size, self.spatial_merge_size, config["out_hidden_size"], device=device, dtype=dtype, ops=ops)
+        self.deepstack_visual_indexes = [] # DeepStack, per-layer visual features (Qwen3-VL)
+        self.deepstack_merger_list = None
 
     def rot_pos_emb(self, grid_thw):
         merge_size = self.spatial_merge_size
@@ -664,9 +665,14 @@ class Qwen35VisionModel(nn.Module):
         ).cumsum(dim=0, dtype=torch.int32)
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
         optimized_attention = optimized_attention_for_device(x.device, mask=False, small_input=True)
-        for blk in self.blocks:
+        deepstack_features = []
+        for layer_num, blk in enumerate(self.blocks):
             x = blk(x, cu_seqlens=cu_seqlens, position_embeddings=position_embeddings, optimized_attention=optimized_attention)
+            if self.deepstack_merger_list is not None and layer_num in self.deepstack_visual_indexes:
+                deepstack_features.append(self.deepstack_merger_list[self.deepstack_visual_indexes.index(layer_num)](x))
         merged = self.merger(x)
+        if self.deepstack_merger_list is not None:
+            return merged, deepstack_features
         return merged
 
 # Model Wrapper
@@ -690,30 +696,7 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
         return None, None
 
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, embeds_info=[], past_key_values=None):
-        grid = None
-        position_ids = None
-        offset = 0
-        for e in embeds_info:
-            if e.get("type") == "image":
-                grid = e.get("extra", None)
-                start = e.get("index")
-                if position_ids is None:
-                    position_ids = torch.zeros((3, embeds.shape[1]), device=embeds.device)
-                    position_ids[:, :start] = torch.arange(0, start, device=embeds.device)
-                end = e.get("size") + start
-                len_max = int(grid.max()) // 2
-                start_next = len_max + start
-                position_ids[:, end:] = torch.arange(start_next + offset, start_next + (embeds.shape[1] - end) + offset, device=embeds.device)
-                position_ids[0, start:end] = start + offset
-                max_d = int(grid[0][1]) // 2
-                position_ids[1, start:end] = torch.arange(start + offset, start + max_d + offset, device=embeds.device).unsqueeze(1).repeat(1, math.ceil((end - start) / max_d)).flatten(0)[:end - start]
-                max_d = int(grid[0][2]) // 2
-                position_ids[2, start:end] = torch.arange(start + offset, start + max_d + offset, device=embeds.device).unsqueeze(0).repeat(math.ceil((end - start) / max_d), 1).flatten(0)[:end - start]
-                offset += len_max - (end - start)
-
-        if grid is None:
-            position_ids = None
-
+        position_ids = comfy.text_encoders.qwen_vl.qwen2vl_mrope_position_ids(embeds_info, embeds.shape[1], embeds.device)
         return super().forward(x, attention_mask=attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=final_layer_norm_intermediate, dtype=dtype, position_ids=position_ids, past_key_values=past_key_values)
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
