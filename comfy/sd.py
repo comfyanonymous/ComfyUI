@@ -1114,6 +1114,15 @@ class VAE:
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
 
+    def prepare_decode(self, sample_shape, memory_required=None):
+        """For VAEs whose real decode entry point bypasses decode()"""
+        if memory_required is None:
+            memory_required = self.memory_used_decode(sample_shape, self.vae_dtype)
+        memory_required = max(1, int(memory_required))
+        model_management.load_models_gpu([self.patcher], memory_required=memory_required, force_full_load=self.disable_offload)
+        free_memory = self.patcher.get_free_memory(self.device)
+        return max(1, int(free_memory / memory_required))
+
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
         self.throw_exception_if_invalid()
         memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
