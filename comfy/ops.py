@@ -256,7 +256,7 @@ def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, w
             if (want_requant and len(fns) == 0 or update_weight):
                 seed = comfy.utils.string_to_seed(s.seed_key)
                 if isinstance(orig, QuantizedTensor):
-                    y = QuantizedTensor.from_float(x, s.layout_type, scale="recalculate", stochastic_rounding=seed)
+                    y = orig.requantize_from_float(x, scale="recalculate", stochastic_rounding=seed)
                 else:
                     y = comfy.float.stochastic_rounding(x, orig.dtype, seed=seed)
             if want_requant and len(fns) == 0:
@@ -1306,8 +1306,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 if getattr(self, 'layout_type', None) is not None:
-                    # dtype is now implicit in the layout class
-                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True).to(self.weight.dtype)
+                    weight = self.weight.requantize_from_float(weight, scale="recalculate", stochastic_rounding=seed, inplace_ops=True).to(self.weight.dtype)
                 else:
                     weight = weight.to(self.weight.dtype)
                 if return_weight:
