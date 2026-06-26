@@ -3,12 +3,9 @@ import torch.nn.functional as F
 import torch.nn as nn
 from comfy.ldm.trellis2.vae import SparseTensor, SparseLinear, sparse_cat, VarLenTensor
 from typing import Optional, Tuple, Literal, Union, List
-from comfy.ldm.trellis2.attention import (
-    sparse_windowed_self_attention, sparse_attention, dense_attention
-)
+from comfy.ldm.trellis2.attention import sparse_attention, dense_attention
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
 from comfy.ldm.flux.math import apply_rope, apply_rope1
-from comfy.ldm.trellis2 import sampling_preview
 
 class SparseGELU(nn.GELU):
     def forward(self, input: VarLenTensor) -> VarLenTensor:
@@ -26,13 +23,6 @@ class SparseFeedForwardNet(nn.Module):
     def forward(self, x: VarLenTensor) -> VarLenTensor:
         return self.mlp(x)
 
-class LayerNorm32(nn.LayerNorm):
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_dtype = x.dtype
-        x = x.to(dtype=torch.float32)
-        o = super().forward(x)
-        return o.to(dtype=x_dtype)
-    
 class SparseMultiHeadRMSNorm(nn.Module):
     def __init__(self, dim: int, heads: int, device, dtype):
         super().__init__()
@@ -44,13 +34,7 @@ class SparseMultiHeadRMSNorm(nn.Module):
         return F.rms_norm(x, (x.shape[-1],)) * self.gamma
 
 class SparseRotaryPositionEmbedder(nn.Module):
-    def __init__(
-        self,
-        head_dim: int,
-        dim: int = 3,
-        rope_freq: Tuple[float, float] = (1.0, 10000.0),
-        device=None
-    ):
+    def __init__(self, head_dim: int, dim: int = 3, rope_freq: Tuple[float, float] = (1.0, 10000.0), device=None):
         super().__init__()
         self.head_dim = head_dim
         self.dim = dim
@@ -111,12 +95,7 @@ class SparseMultiHeadAttention(nn.Module):
         num_heads: int,
         ctx_channels: Optional[int] = None,
         type: Literal["self", "cross"] = "self",
-        attn_mode: Literal["full", "windowed", "double_windowed"] = "full",
-        window_size: Optional[int] = None,
-        shift_window: Optional[Tuple[int, int, int]] = None,
         qkv_bias: bool = True,
-        use_rope: bool = False,
-        rope_freq: Tuple[int, int] = (1.0, 10000.0),
         qk_rms_norm: bool = False,
         device=None, dtype=None, operations=None
     ):
@@ -127,10 +106,6 @@ class SparseMultiHeadAttention(nn.Module):
         self.ctx_channels = ctx_channels if ctx_channels is not None else channels
         self.num_heads = num_heads
         self._type = type
-        self.attn_mode = attn_mode
-        self.window_size = window_size
-        self.shift_window = shift_window
-        self.use_rope = use_rope
         self.qk_rms_norm = qk_rms_norm
 
         if self._type == "self":
@@ -145,8 +120,8 @@ class SparseMultiHeadAttention(nn.Module):
 
         self.to_out = operations.Linear(channels, channels, device=device, dtype=dtype)
 
-        if use_rope:
-            self.rope = SparseRotaryPositionEmbedder(self.head_dim, rope_freq=rope_freq, device=device)
+        if self._type == "self":
+            self.rope = SparseRotaryPositionEmbedder(self.head_dim, device=device)
 
     @staticmethod
     def _linear(module: nn.Linear, x: Union[VarLenTensor, torch.Tensor]) -> Union[VarLenTensor, torch.Tensor]:
@@ -170,43 +145,16 @@ class SparseMultiHeadAttention(nn.Module):
         x_feats = x_feats.reshape(*x_feats.shape[:2], num_fused, self.num_heads, -1)
         return x.replace(x_feats.squeeze(0)) if isinstance(x, VarLenTensor) else x_feats
 
-    def forward(self, x: SparseTensor, context: Optional[Union[VarLenTensor, torch.Tensor]] = None,
-                transformer_options=None) -> SparseTensor:
+    def forward(self, x: SparseTensor, context: Optional[Union[VarLenTensor, torch.Tensor]] = None, transformer_options=None) -> SparseTensor:
         if self._type == "self":
             qkv = self._linear(self.to_qkv, x)
             qkv = self._fused_pre(qkv, num_fused=3)
-            if self.attn_mode == "full":
-                q, k, v = qkv.unbind(dim=-3)
-                if self.qk_rms_norm:
-                    q = self.q_rms_norm(q)
-                    k = self.k_rms_norm(k)
-                if self.use_rope:
-                    q, k = self.rope(q, k)
-                h = sparse_attention(q, k, v, transformer_options=transformer_options)
-            else:
-                # Windowed paths take packed qkv; preserve any per-head norm/rope.
-                if self.qk_rms_norm or self.use_rope:
-                    q, k, v = qkv.unbind(dim=-3)
-                    if self.qk_rms_norm:
-                        q = self.q_rms_norm(q)
-                        k = self.k_rms_norm(k)
-                    if self.use_rope:
-                        q, k = self.rope(q, k)
-                    qkv = qkv.replace(torch.stack([q.feats, k.feats, v.feats], dim=1))
-                if self.attn_mode == "windowed":
-                    h = sparse_windowed_self_attention(
-                        qkv, self.window_size, shift_window=self.shift_window
-                    )
-                elif self.attn_mode == "double_windowed":
-                    qkv0 = qkv.replace(qkv.feats[:, :, self.num_heads//2:])
-                    qkv1 = qkv.replace(qkv.feats[:, :, :self.num_heads//2])
-                    h0 = sparse_windowed_self_attention(
-                        qkv0, self.window_size, shift_window=(0, 0, 0)
-                    )
-                    h1 = sparse_windowed_self_attention(
-                        qkv1, self.window_size, shift_window=tuple([self.window_size//2] * 3)
-                    )
-                    h = qkv.replace(torch.cat([h0.feats, h1.feats], dim=1))
+            q, k, v = qkv.unbind(dim=-3)
+            if self.qk_rms_norm:
+                q = self.q_rms_norm(q)
+                k = self.k_rms_norm(k)
+            q, k = self.rope(q, k)
+            h = sparse_attention(q, k, v, transformer_options=transformer_options)
         else:
             q = self._linear(self.to_q, x)
             q = self._reshape_chs(q, (self.num_heads, -1))
@@ -276,37 +224,25 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
         ctx_channels: int,
         num_heads: int,
         mlp_ratio: float = 4.0,
-        attn_mode: Literal["full", "swin"] = "full",
-        window_size: Optional[int] = None,
-        shift_window: Optional[Tuple[int, int, int]] = None,
-        use_checkpoint: bool = False,
-        use_rope: bool = False,
-        rope_freq: Tuple[float, float] = (1.0, 10000.0),
         qk_rms_norm: bool = False,
         qk_rms_norm_cross: bool = False,
         qkv_bias: bool = True,
         share_mod: bool = False,
-        image_attn_mode: Literal["global", "proj", "gated_proj"] = "global",
+        image_attn_mode: Literal["global", "proj"] = "global",
         proj_in_channels: Optional[int] = None,
         device=None, dtype=None, operations=None
     ):
         super().__init__()
-        self.use_checkpoint = use_checkpoint
         self.share_mod = share_mod
         self.image_attn_mode = image_attn_mode
-        self.norm1 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
-        self.norm2 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6, device=device)
-        self.norm3 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
+        self.norm1 = operations.LayerNorm(channels, elementwise_affine=False, eps=1e-6, device=device, dtype=dtype)
+        self.norm2 = operations.LayerNorm(channels, elementwise_affine=True, eps=1e-6, device=device, dtype=dtype)
+        self.norm3 = operations.LayerNorm(channels, elementwise_affine=False, eps=1e-6, device=device, dtype=dtype)
         self.self_attn = SparseMultiHeadAttention(
             channels,
             num_heads=num_heads,
             type="self",
-            attn_mode=attn_mode,
-            window_size=window_size,
-            shift_window=shift_window,
             qkv_bias=qkv_bias,
-            use_rope=use_rope,
-            rope_freq=rope_freq,
             qk_rms_norm=qk_rms_norm,
             device=device, dtype=dtype, operations=operations
         )
@@ -315,7 +251,6 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
             ctx_channels=ctx_channels,
             num_heads=num_heads,
             type="cross",
-            attn_mode="full",
             qkv_bias=qkv_bias,
             qk_rms_norm=qk_rms_norm_cross,
             device=device, dtype=dtype, operations=operations
@@ -347,8 +282,7 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
             shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.modulation + mod).type(mod.dtype).chunk(6, dim=1)
         else:
             shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(mod).chunk(6, dim=1)
-        # Fuse the (mul + add) and (mul + residual) pairs into addcmul so the
-        # mod/shift broadcasts hit one kernel each instead of two.
+        # Fuse the (mul + add) and (mul + residual) pairs into addcmul
         b_map = x.batch_boardcast_map
 
         h_feats = self.norm1(x.feats)
@@ -386,18 +320,12 @@ class SLatFlowModel(nn.Module):
         num_heads: Optional[int] = None,
         num_head_channels: Optional[int] = 64,
         mlp_ratio: float = 4,
-        pe_mode: Literal["ape", "rope"] = "rope",
-        rope_freq: Tuple[float, float] = (1.0, 10000.0),
-        use_checkpoint: bool = False,
         share_mod: bool = False,
-        initialization: str = 'vanilla',
         qk_rms_norm: bool = False,
         qk_rms_norm_cross: bool = False,
-        image_attn_mode: Literal["global", "proj", "gated_proj"] = "global",
+        image_attn_mode: Literal["global", "proj"] = "global",
         proj_in_channels: Optional[int] = None,
-        dtype = None,
-        device = None,
-        operations = None,
+        dtype = None, device = None, operations = None,
     ):
         super().__init__()
         self.resolution = resolution
@@ -408,10 +336,7 @@ class SLatFlowModel(nn.Module):
         self.num_blocks = num_blocks
         self.num_heads = num_heads or model_channels // num_head_channels
         self.mlp_ratio = mlp_ratio
-        self.pe_mode = pe_mode
-        self.use_checkpoint = use_checkpoint
         self.share_mod = share_mod
-        self.initialization = initialization
         self.qk_rms_norm = qk_rms_norm
         self.qk_rms_norm_cross = qk_rms_norm_cross
         self.image_attn_mode = image_attn_mode
@@ -433,10 +358,6 @@ class SLatFlowModel(nn.Module):
                 cond_channels,
                 num_heads=self.num_heads,
                 mlp_ratio=self.mlp_ratio,
-                attn_mode='full',
-                use_checkpoint=self.use_checkpoint,
-                use_rope=(pe_mode == "rope"),
-                rope_freq=rope_freq,
                 share_mod=self.share_mod,
                 qk_rms_norm=self.qk_rms_norm,
                 qk_rms_norm_cross=self.qk_rms_norm_cross,
@@ -491,14 +412,22 @@ class FeedForwardNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.mlp(x)
 
+# class MultiHeadRMSNorm(nn.Module):
+#     def __init__(self, dim: int, heads: int, device=None, dtype=None):
+#         super().__init__()
+#         self.scale = dim ** 0.5
+#         self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         return (F.normalize(x.float(), dim = -1) * self.gamma * self.scale).to(x.dtype)
+
 class MultiHeadRMSNorm(nn.Module):
     def __init__(self, dim: int, heads: int, device=None, dtype=None):
         super().__init__()
-        self.scale = dim ** 0.5
         self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return (F.normalize(x.float(), dim = -1) * self.gamma * self.scale).to(x.dtype)
+        return (F.rms_norm(x.float(), (x.shape[-1],)) * self.gamma).to(x.dtype)
 
 
 class MultiHeadAttention(nn.Module):
@@ -508,12 +437,7 @@ class MultiHeadAttention(nn.Module):
         num_heads: int,
         ctx_channels: Optional[int]=None,
         type: Literal["self", "cross"] = "self",
-        attn_mode: Literal["full", "windowed"] = "full",
-        window_size: Optional[int] = None,
-        shift_window: Optional[Tuple[int, int, int]] = None,
         qkv_bias: bool = True,
-        use_rope: bool = False,
-        rope_freq: Tuple[float, float] = (1.0, 10000.0),
         qk_rms_norm: bool = False,
         device=None, dtype=None, operations=None
     ):
@@ -524,10 +448,6 @@ class MultiHeadAttention(nn.Module):
         self.ctx_channels = ctx_channels if ctx_channels is not None else channels
         self.num_heads = num_heads
         self._type = type
-        self.attn_mode = attn_mode
-        self.window_size = window_size
-        self.shift_window = shift_window
-        self.use_rope = use_rope
         self.qk_rms_norm = qk_rms_norm
 
         if self._type == "self":
@@ -552,12 +472,11 @@ class MultiHeadAttention(nn.Module):
             if self.qk_rms_norm:
                 q = self.q_rms_norm(q)
                 k = self.k_rms_norm(k)
-            if self.use_rope:
-                assert phases is not None, "Phases must be provided for RoPE"
-                # phases is [L, head_dim/2, 2, 2]; broadcast to [1, L, 1, ...]
-                # to align with q/k of shape [B, L, H, head_dim].
-                f_cis = phases.unsqueeze(0).unsqueeze(2)
-                q, k = apply_rope(q, k, f_cis)
+            assert phases is not None, "Phases must be provided for RoPE"
+            # phases is [L, head_dim/2, 2, 2]; broadcast to [1, L, 1, ...]
+            # to align with q/k of shape [B, L, H, head_dim].
+            f_cis = phases.unsqueeze(0).unsqueeze(2)
+            q, k = apply_rope(q, k, f_cis)
             h = dense_attention(q, k, v, transformer_options=transformer_options)
         else:
             Lkv = context.shape[1]
@@ -581,37 +500,25 @@ class ModulatedTransformerCrossBlock(nn.Module):
         ctx_channels: int,
         num_heads: int,
         mlp_ratio: float = 4.0,
-        attn_mode: Literal["full", "windowed"] = "full",
-        window_size: Optional[int] = None,
-        shift_window: Optional[Tuple[int, int, int]] = None,
-        use_checkpoint: bool = False,
-        use_rope: bool = False,
-        rope_freq: Tuple[int, int] = (1.0, 10000.0),
         qk_rms_norm: bool = False,
         qk_rms_norm_cross: bool = False,
         qkv_bias: bool = True,
         share_mod: bool = False,
-        image_attn_mode: Literal["global", "proj", "gated_proj"] = "global",
+        image_attn_mode: Literal["global", "proj"] = "global",
         proj_in_channels: Optional[int] = None,
         device=None, dtype=None, operations=None
     ):
         super().__init__()
-        self.use_checkpoint = use_checkpoint
         self.share_mod = share_mod
         self.image_attn_mode = image_attn_mode
-        self.norm1 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
-        self.norm2 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6, device=device)
-        self.norm3 = LayerNorm32(channels, elementwise_affine=False, eps=1e-6, device=device)
+        self.norm1 = operations.LayerNorm(channels, elementwise_affine=False, eps=1e-6, device=device, dtype=dtype)
+        self.norm2 = operations.LayerNorm(channels, elementwise_affine=True, eps=1e-6, device=device, dtype=dtype)
+        self.norm3 = operations.LayerNorm(channels, elementwise_affine=False, eps=1e-6, device=device, dtype=dtype)
         self.self_attn = MultiHeadAttention(
             channels,
             num_heads=num_heads,
             type="self",
-            attn_mode=attn_mode,
-            window_size=window_size,
-            shift_window=shift_window,
             qkv_bias=qkv_bias,
-            use_rope=use_rope,
-            rope_freq=rope_freq,
             qk_rms_norm=qk_rms_norm,
             device=device, dtype=dtype, operations=operations
         )
@@ -620,7 +527,6 @@ class ModulatedTransformerCrossBlock(nn.Module):
             ctx_channels=ctx_channels,
             num_heads=num_heads,
             type="cross",
-            attn_mode="full",
             qkv_bias=qkv_bias,
             qk_rms_norm=qk_rms_norm_cross,
             device=device, dtype=dtype, operations=operations
@@ -640,25 +546,17 @@ class ModulatedTransformerCrossBlock(nn.Module):
             device=device, dtype=dtype, operations=operations
         )
         if not share_mod:
-            self.adaLN_modulation = nn.Sequential(
-                nn.SiLU(),
-                operations.Linear(channels, 6 * channels, bias=True, dtype=dtype, device=device)
-            )
+            self.adaLN_modulation = nn.Sequential(nn.SiLU(), operations.Linear(channels, 6 * channels, bias=True, dtype=dtype, device=device))
         else:
             self.modulation = nn.Parameter(torch.randn(6 * channels, device=device, dtype=dtype) / channels ** 0.5)
 
     def _forward(self, x: torch.Tensor, mod: torch.Tensor, context,
                  phases: Optional[torch.Tensor] = None, transformer_options=None) -> torch.Tensor:
         if self.share_mod:
-            shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.modulation + mod).type(mod.dtype).chunk(6, dim=1)
+            mod = (self.modulation + mod).type(mod.dtype)
         else:
-            shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(mod).chunk(6, dim=1)
-        shift_msa = shift_msa.unsqueeze(1)
-        scale_msa = scale_msa.unsqueeze(1)
-        gate_msa = gate_msa.unsqueeze(1)
-        shift_mlp = shift_mlp.unsqueeze(1)
-        scale_mlp = scale_mlp.unsqueeze(1)
-        gate_mlp = gate_mlp.unsqueeze(1)
+            mod = self.adaLN_modulation(mod)
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = mod.unsqueeze(1).chunk(6, dim=-1)
 
         h = torch.addcmul(shift_msa, self.norm1(x), 1 + scale_msa)
         h = self.self_attn(h, phases=phases, transformer_options=transformer_options)
@@ -694,14 +592,10 @@ class SparseStructureFlowModel(nn.Module):
         num_heads: Optional[int] = None,
         num_head_channels: Optional[int] = 64,
         mlp_ratio: float = 4,
-        pe_mode: Literal["ape", "rope"] = "rope",
-        rope_freq: Tuple[float, float] = (1.0, 10000.0),
-        use_checkpoint: bool = False,
         share_mod: bool = False,
-        initialization: str = 'vanilla',
         qk_rms_norm: bool = False,
         qk_rms_norm_cross: bool = False,
-        image_attn_mode: Literal["global", "proj", "gated_proj"] = "global",
+        image_attn_mode: Literal["global", "proj"] = "global",
         proj_in_channels: Optional[int] = None,
         operations=None,
         device = None,
@@ -718,10 +612,7 @@ class SparseStructureFlowModel(nn.Module):
         self.num_blocks = num_blocks
         self.num_heads = num_heads or model_channels // num_head_channels
         self.mlp_ratio = mlp_ratio
-        self.pe_mode = pe_mode
-        self.use_checkpoint = use_checkpoint
         self.share_mod = share_mod
-        self.initialization = initialization
         self.qk_rms_norm = qk_rms_norm
         self.qk_rms_norm_cross = qk_rms_norm_cross
         self.image_attn_mode = image_attn_mode
@@ -742,9 +633,6 @@ class SparseStructureFlowModel(nn.Module):
         rope_phases = pos_embedder(coords)
         self.register_buffer("rope_phases", rope_phases, persistent=False)
 
-        if pe_mode != "rope":
-            self.rope_phases = None
-
         self.input_layer = operations.Linear(in_channels, model_channels, device=device, dtype=dtype)
 
         self.blocks = nn.ModuleList([
@@ -753,10 +641,6 @@ class SparseStructureFlowModel(nn.Module):
                 cond_channels,
                 num_heads=self.num_heads,
                 mlp_ratio=self.mlp_ratio,
-                attn_mode='full',
-                use_checkpoint=self.use_checkpoint,
-                use_rope=(pe_mode == "rope"),
-                rope_freq=rope_freq,
                 share_mod=share_mod,
                 qk_rms_norm=self.qk_rms_norm,
                 qk_rms_norm_cross=self.qk_rms_norm_cross,
@@ -788,18 +672,10 @@ class SparseStructureFlowModel(nn.Module):
 
         return h
 
-def timestep_reshift(t_shifted, old_shift=3.0, new_shift=5.0):
-    t_shifted = t_shifted / 1000.0
-    t_linear = t_shifted / (old_shift - t_shifted * (old_shift - 1))
-    t_new = (new_shift * t_linear) / (1 + (new_shift - 1) * t_linear)
-    t_new *= 1000.0
-    return t_new
 
-
-# Pixal3D ProjGrid math — port of upstream's ProjGrid + project_points_to_image_batch.
-# World frame uses world Y as depth, camera looks along -Z local;
-# transform_matrix is camera-to-world (inverted internally). Intrinsics: fx = 16 / tan(fov/2)
-# with sensor_width = 32mm.
+# Pixal3D ProjGrid math
+# World frame uses world Y as depth, camera looks along -Z local
+# transform_matrix is camera-to-world (inverted internally). Intrinsics: fx = 16 / tan(fov/2) with sensor_width = 32mm.
 
 _PROJ_GRID_ROTATION = torch.tensor(
     [[1.0, 0.0, 0.0],
@@ -815,7 +691,7 @@ _PROJ_FRONT_VIEW_TRANSFORM = torch.tensor(
 )
 
 
-def _build_proj_transform_matrix(distance: torch.Tensor, batch_size: int,
+def build_proj_transform_matrix(distance: torch.Tensor, batch_size: int,
                                  device, dtype=torch.float32) -> torch.Tensor:
     T = _PROJ_FRONT_VIEW_TRANSFORM.to(device=device, dtype=dtype)
     T = T.unsqueeze(0).expand(batch_size, -1, -1).clone()
@@ -849,8 +725,7 @@ def _project_points_to_image(points_world: torch.Tensor, transform_matrix: torch
 def _sample_features(feature_map: torch.Tensor, uv_ndc: torch.Tensor) -> torch.Tensor:
     B, C, _, _ = feature_map.shape
     grid = uv_ndc.view(B, -1, 1, 2).to(feature_map.dtype)
-    feat = F.grid_sample(feature_map, grid, mode="bilinear",
-                         padding_mode="border", align_corners=False)
+    feat = F.grid_sample(feature_map, grid, mode="bilinear", padding_mode="border", align_corners=False)
     return feat.squeeze(-1)
 
 
@@ -920,8 +795,6 @@ def _back_project_to_tokens(
         sampled = _sample_features(feature_map, uv_ndc)
         out = sampled.transpose(1, 2)
         return out
-
-
 
 
 def _select_stage_entry(proj_pack: dict, stage: Optional[str]):
@@ -1025,7 +898,7 @@ def _shape_proj_cond(global_cond: torch.Tensor, image_attn_mode: str,
         else:
             proj_feats = proj_feats.repeat((repeats, 1))
 
-    # Mirror upstream's neg_cond by zeroing proj for any uncond batch slot.
+    # zero proj for any uncond batch slot
     if cond_or_uncond is not None and eval_batch is not None:
         uncond_slots = [i for i, v in enumerate(cond_or_uncond) if v == 1]
         if uncond_slots:
@@ -1099,9 +972,6 @@ class Trellis2(nn.Module):
         proj_feat_pack = kwargs.get("proj_feat_pack")
         # Pre-computed per-stage back-projected features
         proj_feats = kwargs.get("trellis2_proj_feats")
-
-        sampling_preview.set_context(mode=mode, coords=coords, coord_counts=coord_counts,
-                                     model_frame=kwargs.get("trellis2_model_frame"))
 
         is_first_shape_pass = False
         if mode == "shape_generation_512":
