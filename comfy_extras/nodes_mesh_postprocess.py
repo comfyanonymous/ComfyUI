@@ -413,9 +413,14 @@ def _trilinear_sample_sparse_gpu(positions, voxel_coords_np, color_np, resolutio
     return vals.cpu().numpy(), ok.cpu().numpy()
 
 
+# Above this many grid-scan stragglers, the O(N·M) GPU brute force (and its chunk loop)
+# is slower than a one-off cKDTree build, so the nearest fallback defers them to cKDTree.
+_BRUTE_NEAREST_MAX = 8192
+
+
 def _nearest_voxel_sample_gpu(positions, voxel_coords_np, color_np, resolution):
     """GPU nearest-occupied-voxel lookup via sorted-key grid scan. Returns (vals [K,C]
-    float32, found [K] bool)."""
+    float32, found [K] bool); `found` is False for stragglers left to the caller's cKDTree."""
     dev = comfy.model_management.get_torch_device()
     R = int(resolution)
     P = torch.from_numpy(np.ascontiguousarray(positions)).to(dev).float()
@@ -481,9 +486,11 @@ def _nearest_voxel_sample_gpu(positions, voxel_coords_np, color_np, resolution):
         bi2, fnd2 = _search(miss, 4)
         best_i[miss] = bi2
         found[miss] = fnd2
-    # Brute force always resolves, so `found` is all-True on return.
+    # Pass 3: stragglers >4 cells from any voxel. A handful → GPU brute force; many
+    # (coarse mesh, texels far from the voxel shell) → leave unfound for the caller's
+    # cKDTree, since brute force is O(N·M) and its chunk loop blows up at large N.
     miss2 = torch.nonzero(~found, as_tuple=True)[0]
-    if miss2.numel() > 0:
+    if 0 < miss2.numel() <= _BRUTE_NEAREST_MAX:
         best_i[miss2] = _brute_nearest(miss2)
         found[miss2] = True
     vals = col[best_i]
@@ -510,10 +517,10 @@ def _sample_voxel_attrs_per_texel(position_map, mask, voxel_coords, voxel_colors
     valid_positions = position_map[mask]
 
     def _nearest(query):
-        # On-GPU nearest-voxel (grid scan + brute tail); always resolves, no cKDTree.
+        # GPU grid scan + small-N brute tail. Large straggler counts (coarse mesh) and
+        # non-CUDA come back unfound → resolve with one cKDTree (build amortizes over N).
         vals, found = _nearest_voxel_sample_gpu(query, coords_np, color_np, resolution)
         if not found.all():
-            # Only reachable on non-CUDA: fall back to a one-off cKDTree.
             tree = cKDTree(voxel_pos)
             _, nearest_idx = tree.query(query[~found], k=1, workers=-1)
             vals[~found] = color_np[nearest_idx]
