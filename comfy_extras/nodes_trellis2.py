@@ -1,107 +1,21 @@
 from typing_extensions import override
-from comfy_api.latest import ComfyExtension, IO, Types, io
+from comfy_api.latest import ComfyExtension, IO, Types, UI, io
 from comfy.ldm.trellis2.vae import SparseTensor
-from comfy.ldm.trellis2.model import (
-    _build_proj_transform_matrix, _project_points_to_image, compute_stage_proj_feats,
-)
+from comfy.ldm.trellis2.model import build_proj_transform_matrix, _project_points_to_image, compute_stage_proj_feats
 from comfy.ldm.trellis2.naf.model import build_naf_from_state_dict
+
 from comfy_extras.nodes_mesh_postprocess import pack_variable_mesh_batch
 import comfy.model_management
 import comfy.utils
 import folder_paths
-from comfy.ldm.trellis2 import sampling_preview
 from PIL import Image
 import logging
-import os
 import numpy as np
 import math
 import torch
 
 ShapeSubdivides = io.Custom("SHAPE_SUBDIVIDES")
 NAFModel = io.Custom("NAF_MODEL")
-
-
-# Texture latent -> base-color calibration for the per-step preview
-def _tex_rgb_factors_path():
-    return os.path.join(folder_paths.get_folder_paths("vae_approx")[0], "trellis2_tex_rgb_factors.pt")
-
-
-def _pool_albedo_to_input(in_coords, out_coords, out_colors):
-    in_sp = in_coords[:, 1:4].long()
-    out_sp = out_coords[:, 1:4].long()
-    in_b = in_coords[:, 0].long()
-    out_b = out_coords[:, 0].long()
-    in_res = int(in_sp.max().item()) + 1
-    out_res = int(out_sp.max().item()) + 1
-    parent = torch.floor(out_sp.float() * in_res / out_res).long().clamp(0, in_res - 1)
-    R = in_res
-    in_flat = ((in_b * R + in_sp[:, 0]) * R + in_sp[:, 1]) * R + in_sp[:, 2]
-    par_flat = ((out_b * R + parent[:, 0]) * R + parent[:, 1]) * R + parent[:, 2]
-    order = torch.argsort(in_flat)
-    in_sorted = in_flat[order]
-    pos = torch.searchsorted(in_sorted, par_flat).clamp(max=in_sorted.numel() - 1)
-    matched = in_sorted[pos] == par_flat
-    in_idx = order[pos][matched]
-    cols = out_colors[matched].float()
-    N = in_coords.shape[0]
-    csum = cols.new_zeros((N, 3))
-    ccount = cols.new_zeros((N, 1))
-    csum.index_add_(0, in_idx, cols)
-    ccount.index_add_(0, in_idx, torch.ones((in_idx.shape[0], 1), device=cols.device, dtype=cols.dtype))
-    valid = ccount[:, 0] > 0
-    albedo = torch.zeros_like(csum)
-    albedo[valid] = csum[valid] / ccount[valid]
-    return albedo, valid
-
-
-def _calibrate_tex_rgb(in_latent, in_coords, out_colors, out_coords):
-    """Accumulate one decode's (latent -> albedo) evidence, re-solve, persist, publish."""
-    try:
-        dev = out_colors.device
-        in_latent = in_latent.to(dev)
-        in_coords = in_coords.to(dev)
-        out_coords = out_coords.to(dev)
-        albedo, valid = _pool_albedo_to_input(in_coords, out_coords, out_colors)
-        X = in_latent[valid].float().cpu()
-        Y = albedo[valid].float().cpu()
-        if X.shape[0] < 64:
-            return
-        Xaug = torch.cat([X, torch.ones(X.shape[0], 1)], dim=1)  # [K, C+1]
-        A_run = Xaug.transpose(0, 1) @ Xaug                       # [C+1, C+1]
-        B_run = Xaug.transpose(0, 1) @ Y                          # [C+1, 3]
-
-        path = _tex_rgb_factors_path()
-        if os.path.exists(path):
-            try:
-                prev = torch.load(path, map_location="cpu")
-                A_run = A_run + prev["A"]
-                B_run = B_run + prev["B"]
-            except Exception:
-                pass
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        torch.save({"A": A_run, "B": B_run}, path)
-
-        eye = torch.eye(A_run.shape[0])
-        WB = torch.linalg.solve(A_run + 1e-3 * eye, B_run)        # [C+1, 3]
-        W, b = WB[:-1].contiguous(), WB[-1].contiguous()
-        sampling_preview.set_tex_rgb(W, b)
-    except Exception as e:
-        logging.debug(f"Trellis2 tex-rgb calibration skipped: {e}")
-
-
-def _load_tex_rgb_factors():
-    try:
-        path = _tex_rgb_factors_path()
-        if os.path.exists(path):
-            d = torch.load(path, map_location="cpu")
-            eye = torch.eye(d["A"].shape[0])
-            WB = torch.linalg.solve(d["A"] + 1e-3 * eye, d["B"])
-            sampling_preview.set_tex_rgb(WB[:-1].contiguous(), WB[-1].contiguous())
-    except Exception as e:
-        logging.debug(f"Trellis2 tex-rgb factor load skipped: {e}")
-
-
-_load_tex_rgb_factors()
 
 
 def prepare_trellis_vae_for_decode(vae, sample_shape):
@@ -271,7 +185,7 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
         if coord_counts is None:
             samples, coords = flatten_batched_sparse_latent(samples, coords, coord_counts)
             samples = shape_norm(samples.to(device), coords.to(device))
-            mesh, subs = trellis_vae.decode_shape_slat(samples, resolution)
+            mesh, subs = trellis_vae.decode_shape_slat(samples.to(vae.vae_dtype), resolution)
         else:
             split_items = split_batched_sparse_latent(samples, coords, coord_counts)
             mesh = []
@@ -280,7 +194,7 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
                 coords_i = coords_i.to(device).clone()
                 coords_i[:, 0] = 0
                 sample_i = shape_norm(feats_i.to(device), coords_i)
-                mesh_i, subs_i = trellis_vae.decode_shape_slat(sample_i, resolution)
+                mesh_i, subs_i = trellis_vae.decode_shape_slat(sample_i.to(vae.vae_dtype), resolution)
                 mesh.append(mesh_i[0])
                 subs_per_sample.append(subs_i)
 
@@ -338,26 +252,18 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         samples = samples["samples"]
         samples, coords = flatten_batched_sparse_latent(samples, coords, coord_counts)
         samples = samples.to(device)
-        cal_in_latent = samples            # [N, C] pre-denorm latent, for tex-rgb preview calibration
-        cal_in_coords = coords
         std = tex_slat_normalization["std"].to(samples)
         mean = tex_slat_normalization["mean"].to(samples)
         samples = SparseTensor(feats = samples, coords=coords.to(device))
         samples = samples * std + mean
 
-        voxel = trellis_vae.decode_tex_slat(samples, shape_subdivides)
+        voxel = trellis_vae.decode_tex_slat(samples.to(vae.vae_dtype), shape_subdivides)
         # Keep all decoded channels. The texture VAE emits 6: base_color (0:3),
         # metallic (3), roughness (4), alpha (5) — all in [0, 1]. Vertex-color
         # consumers (PaintMesh) slice [:3]; BakeTextureFromVoxel uses the full
         # PBR set. Older 3-channel checkpoints pass through unchanged.
         color_feats = voxel.feats
         voxel_coords = voxel.coords
-
-        # Calibrate the latent->base_color map for the per-step texture preview.
-        # Done here while input coords and voxel_coords share the model frame
-        # (before the z_up remap below) and on the real decoded albedo.
-        if color_feats.shape[0] > 0 and color_feats.shape[-1] >= 3:
-            _calibrate_tex_rgb(cal_in_latent, cal_in_coords, color_feats[:, :3], voxel_coords)
 
         if coord_resolution is not None:
             tex_resolution = int(coord_resolution) * 16
@@ -416,7 +322,7 @@ class VaeDecodeStructureTrellis2(IO.ComfyNode):
         decoded_batches = []
         for start in range(0, sample_tensor.shape[0], batch_number):
             sample_chunk = sample_tensor[start:start + batch_number].to(load_device)
-            decoded_batches.append(shape_vae.decode_structure(sample_chunk) > 0)
+            decoded_batches.append(shape_vae.decode_structure(sample_chunk.to(vae.vae_dtype)) > 0)
         decoded = torch.cat(decoded_batches, dim=0)
         current_res = decoded.shape[2]
 
@@ -491,7 +397,7 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                 shape_latent["samples"], shape_latent["coords"], coord_counts,
             )
             slat = shape_norm(feats.to(device), coords_512.to(device))
-            sample_hr_coords = [shape_vae.upsample_shape(slat, upsample_times=4)]
+            sample_hr_coords = [shape_vae.upsample_shape(slat.to(vae.vae_dtype), upsample_times=4)]
         else:
             items = split_batched_sparse_latent(
                 shape_latent["samples"], shape_latent["coords"], coord_counts,
@@ -501,7 +407,7 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                 coords_i = coords_i.to(device).clone()
                 coords_i[:, 0] = 0
                 slat_i = shape_norm(feats_i.to(device), coords_i)
-                sample_hr_coords.append(shape_vae.upsample_shape(slat_i, upsample_times=4))
+                sample_hr_coords.append(shape_vae.upsample_shape(slat_i.to(vae.vae_dtype), upsample_times=4))
 
         # Resolution search — cache the final iteration's quantized unique tensors
         # so we don't recompute .unique() per sample after picking hr_resolution.
@@ -977,8 +883,10 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024):
     if pad_l or pad_t or pad_r or pad_b:
         img  = torch.nn.functional.pad(img,  (pad_l, pad_r, pad_t, pad_b), value=0.0)
         mask = torch.nn.functional.pad(mask, (pad_l, pad_r, pad_t, pad_b), value=0.0)
-        crop_x1 += pad_l; crop_x2 += pad_l
-        crop_y1 += pad_t; crop_y2 += pad_t
+        crop_x1 += pad_l
+        crop_x2 += pad_l
+        crop_y1 += pad_t
+        crop_y2 += pad_t
     cropped_img  = img [..., crop_y1:crop_y2, crop_x1:crop_x2]
     cropped_mask = mask[..., crop_y1:crop_y2, crop_x1:crop_x2]
 
@@ -1100,7 +1008,7 @@ class Pixal3DConditioning(IO.ComfyNode):
         cam_angle_t = torch.tensor([camera_angle_x] * batch_size, device=device, dtype=torch.float32)
         dist_t = torch.tensor([distance] * batch_size, device=device, dtype=torch.float32)
         scale_t = torch.tensor([float(mesh_scale)] * batch_size, device=device, dtype=torch.float32)
-        T = _build_proj_transform_matrix(dist_t, batch_size, device=device, dtype=torch.float32)
+        T = build_proj_transform_matrix(dist_t, batch_size, device=device, dtype=torch.float32)
 
         proj_pack = {
             "stages": {
@@ -1119,15 +1027,6 @@ class Pixal3DConditioning(IO.ComfyNode):
         }
 
         # global_512 → SS/shape_512 cross-attn; global_1024 → shape_1024/tex_1024.
-        # proj_feat_pack rides in the conditioning dict (same place embeds, ControlNet
-        # hints etc. live); the sampler auto-promotes it to a model.forward kwarg via
-        # Trellis2.extra_conds. The same pack object is shared between pos/neg —
-        # CONDConstant.can_concat sees them equal and concats to a single dict, then
-        # Trellis2.forward zeros proj for the uncond slots via cond_or_uncond.
-        # Pre-compute the SS-stage proj features (dense 16³ grid) once here — the
-        # shape/texture stages do their own computes in their respective stage nodes.
-        # proj_pack lives on intermediate (CPU); force the compute onto cuda so
-        # the bilinear-sampling step doesn't run on CPU.
         ss_proj_feats = compute_stage_proj_feats(
             proj_pack, "ss", dense_grid_resolution=16, batch_size=batch_size,
             device=torch_device,
@@ -1278,12 +1177,6 @@ class Pixal3DAlignObject(IO.ComfyNode):
             q_mean = Q.mean(dim=0, keepdim=True)
             P_c = P - p_mean
             Q_c = Q - q_mean
-            # Rotation-invariant scale: ratio of RMS spreads. MoGe geometry is
-            # noisy and Pixal3D's mesh frame can be yawed relative to MoGe (paper
-            # acknowledges this), so the L2-optimal scalar (P_c · Q_c)/(P_c · P_c)
-            # gets multiplied by cos(yaw) and shrinks the object. Using
-            # sqrt(||Q_c||² / ||P_c||²) recovers the right size regardless of
-            # rotation; translation still positions the mesh at MoGe's centroid.
             p_var = (P_c * P_c).sum().clamp(min=1e-8)
             q_var = (Q_c * Q_c).sum()
             scale = float(torch.sqrt(q_var / p_var).item())
@@ -1326,74 +1219,69 @@ class LoadNAFModel(IO.ComfyNode):
         return IO.NodeOutput(model)
 
 
-class CFGGuidanceInterval(IO.ComfyNode):
-    """Generic model patch: apply CFG only during [start_percent, end_percent] of
-    the sampling schedule. Outside that window, skip the uncond computation and
-    collapse to effective cfg=1 — same idea as upstream Trellis2 / Pixal3D's
-    guidance_interval_mixin, but lives at the sampler level (via
-    sampler_calc_cond_batch_function) so it works for any model.
+class GetMeshInfo(IO.ComfyNode):
+    """Report vertex / face counts and attributes for a MESH, displayed on the
+    node (and as a string output). Counts are comma-formatted since meshes can
+    run into the millions of faces. Passes the mesh through unchanged."""
 
-    Percents use ComfyUI's standard convention: 0.0 = start of sampling
-    (max-noise step), 1.0 = end of sampling (clean step). Conversion to sigma
-    is done via model_sampling.percent_to_sigma so the window is portable
-    across schedules (flow / EDM / discrete) and shift settings.
-
-    Defaults are full-range (no bypass). Upstream Trellis2 / Pixal3D
-    pipeline.json sets guidance_interval=[0.6, 1.0] (upstream t-space) on the
-    SS and shape samplers — CFG active only in the first 40% of sampling.
-    Wire (start_percent=0.0, end_percent=0.4) on the SS / shape KSamplers to
-    match. Texture defaults to cfg=1 so the node is moot there."""
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="CFGGuidanceInterval",
-            category="model_patches/sampling",
-            inputs=[
-                IO.Model.Input("model"),
-                IO.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001,
-                               tooltip="Fraction of sampling at which CFG turns ON (0 = beginning)."),
-                IO.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001,
-                               tooltip="Fraction of sampling at which CFG turns OFF (1 = end)."),
+            node_id="GetMeshInfo",
+            display_name="Get Mesh Info",
+            category="latent/3d",
+            inputs=[IO.Mesh.Input("mesh")],
+            outputs=[
+                IO.Mesh.Output(display_name="mesh"),
+                IO.String.Output(display_name="info"),
             ],
-            outputs=[IO.Model.Output()],
         )
 
+    @staticmethod
+    def _fmt(n: int) -> str:
+        # e.g. 1234567 -> "1,234,567 (1.23M)"; small numbers stay plain.
+        s = f"{n:,}"
+        if n >= 1_000_000:
+            s += f" ({n / 1_000_000:.2f}M)"
+        elif n >= 10_000:
+            s += f" ({n / 1_000:.1f}K)"
+        return s
+
     @classmethod
-    def execute(cls, model, start_percent, end_percent):
-        import comfy.samplers
+    def execute(cls, mesh):
+        B = mesh.vertices.shape[0]
+        # Honour per-item counts when the batch is zero-padded; else use the row sizes.
+        if mesh.vertex_counts is not None:
+            v_counts = [int(x) for x in mesh.vertex_counts.tolist()]
+            f_counts = [int(x) for x in mesh.face_counts.tolist()]
+        else:
+            v_counts = [int(mesh.vertices.shape[1])] * B
+            f_counts = [int(mesh.faces.shape[1])] * B
 
-        model_sampling = model.get_model_object("model_sampling")
-        # percent_to_sigma is monotonically decreasing: percent=0 -> sigma_max,
-        # percent=1 -> sigma_min. So start_percent < end_percent in user space
-        # means sigma_start > sigma_end. "Inside the window" is sigma in
-        # [sigma_end, sigma_start].
-        sigma_start = float(model_sampling.percent_to_sigma(start_percent))
-        sigma_end = float(model_sampling.percent_to_sigma(end_percent))
+        attrs = []
+        for name in ("uvs", "vertex_colors", "normals", "texture", "metallic_roughness"):
+            t = getattr(mesh, name, None)
+            if t is not None:
+                if name in ("texture", "metallic_roughness"):
+                    attrs.append(f"{name} {int(t.shape[-3])}×{int(t.shape[-2])}")  # H×W
+                else:
+                    attrs.append(name)
 
-        def calc_cond_batch_with_interval(args):
-            sigma_val = args["sigma"][0].item()
-            conds = args["conds"]
-            input_x = args["input"]
-            timestep = args["sigma"]
-            model_ref = args["model"]
-            model_opts = args["model_options"]
+        lines = []
+        if B > 1:
+            lines.append(f"Batch:      {B} meshes")
+            lines.append(f"Vertices:   {cls._fmt(sum(v_counts))} total")
+            lines.append(f"Faces:      {cls._fmt(sum(f_counts))} total")
+            for i in range(B):
+                lines.append(f"  [{i}]  {v_counts[i]:>10,} verts  ·  {f_counts[i]:>10,} faces")
+        else:
+            lines.append(f"Vertices:   {cls._fmt(v_counts[0])}")
+            lines.append(f"Faces:      {cls._fmt(f_counts[0])}")
+        lines.append(f"Attributes: {', '.join(attrs) if attrs else 'none'}")
 
-            # conds is typically [cond, uncond]; uncond may be None when ComfyUI's
-            # global cfg=1 optimization has already pruned it.
-            cond = conds[0]
-            uncond = conds[1] if len(conds) > 1 else None
-            inside = sigma_end <= sigma_val <= sigma_start
-
-            if uncond is None or inside:
-                return comfy.samplers.calc_cond_batch(model_ref, conds, input_x, timestep, model_opts)
-            # Outside the window: compute cond only, mirror it into the uncond slot
-            # so the downstream cfg_function collapses to `cond` (effective cfg=1).
-            out = comfy.samplers.calc_cond_batch(model_ref, [cond], input_x, timestep, model_opts)
-            return [out[0], out[0]]
-
-        m = model.clone()
-        m.model_options["sampler_calc_cond_batch_function"] = calc_cond_batch_with_interval
-        return IO.NodeOutput(m)
+        info = "\n".join(lines)
+        logging.info("[GetMeshInfo]\n%s", info)
+        return IO.NodeOutput(mesh, info, ui=UI.PreviewText(info))
 
 
 class Trellis2Extension(ComfyExtension):
@@ -1411,7 +1299,7 @@ class Trellis2Extension(ComfyExtension):
             VaeDecodeShapeTrellis,
             VaeDecodeStructureTrellis2,
             Trellis2UpsampleStage,
-            CFGGuidanceInterval,
+            GetMeshInfo,
         ]
 
 
