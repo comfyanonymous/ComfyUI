@@ -177,6 +177,10 @@ SEEDANCE2_PRICE_PER_1K_TOKENS = {
     ("dreamina-seedance-2-0-fast-260128", True, "480p"): 0.0033,
     ("dreamina-seedance-2-0-fast-260128", False, "720p"): 0.0056,
     ("dreamina-seedance-2-0-fast-260128", True, "720p"): 0.0033,
+    ("dreamina-seedance-2-0-mini", False, "480p"): 0.0035,
+    ("dreamina-seedance-2-0-mini", True, "480p"): 0.0021,
+    ("dreamina-seedance-2-0-mini", False, "720p"): 0.0035,
+    ("dreamina-seedance-2-0-mini", True, "720p"): 0.0021,
 }
 
 
@@ -275,6 +279,10 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
         "1080p": {"min": 409_600, "max": 2_073_600},
     },
     "dreamina-seedance-2-0-fast-260128": {
+        "480p": {"min": 409_600, "max": 927_408},
+        "720p": {"min": 409_600, "max": 927_408},
+    },
+    "dreamina-seedance-2-0-mini": {
         "480p": {"min": 409_600, "max": 927_408},
         "720p": {"min": 409_600, "max": 927_408},
     },
