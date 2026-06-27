@@ -480,11 +480,13 @@ class SaveLatent:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ),
-                              "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
-    RETURN_TYPES = ()
+        return { "required": {
+            "samples": ("LATENT",),
+            "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("samples",)
     FUNCTION = "save"
 
     OUTPUT_NODE = True
@@ -522,7 +524,7 @@ class SaveLatent:
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
-        return { "ui": { "latents": results } }
+        return { "ui": { "latents": results }, "result": (samples,) }
 
 
 class LoadLatent:
@@ -967,7 +969,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu", "krea2"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1627,14 +1629,18 @@ class SaveImage:
         return {
             "required": {
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
-                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+                "filename_prefix": ("STRING", {
+                    "default": "ComfyUI",
+                    "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."
+                })
             },
             "hidden": {
                 "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
             },
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
     FUNCTION = "save_images"
 
     OUTPUT_NODE = True
@@ -1670,7 +1676,7 @@ class SaveImage:
             })
             counter += 1
 
-        return { "ui": { "images": results } }
+        return { "ui": { "images": results }, "result" : (images,) }
 
 class PreviewImage(SaveImage):
     def __init__(self):
@@ -2368,6 +2374,8 @@ async def init_builtin_extra_nodes():
         "nodes_images.py",
         "nodes_video_model.py",
         "nodes_ideogram4.py",
+        "nodes_bounding_boxes.py",
+        "nodes_json_prompt.py",
         "nodes_train.py",
         "nodes_dataset.py",
         "nodes_sag.py",
@@ -2467,6 +2475,7 @@ async def init_builtin_extra_nodes():
         "nodes_gaussian_splat.py",
         "nodes_triposplat.py",
         "nodes_depth_anything_3.py",
+        "nodes_seed.py",
     ]
 
     import_failed = []

@@ -1692,6 +1692,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unsupported media type
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Validation error (e.g., disallowed model_type tag)
                 "500":
                     content:
                         application/json:
@@ -2137,6 +2143,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Source asset with given hash not found
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Validation error (e.g., disallowed model_type tag)
                 "500":
                     content:
                         application/json:
@@ -2357,6 +2369,10 @@ paths:
             description: |
                 Returns a list of model folders available in the system.
                 This is an experimental endpoint that replaces the legacy /models endpoint.
+                Each folder's name is the identifier to pass to /api/experiment/models/{folder}.
+                Once the model_type migration is active the names are model_type folder_names
+                (e.g. `ultralytics_bbox`); a folder with no folder_name mapping is returned by
+                its directory path.
             operationId: getModelFolders
             responses:
                 "200":
@@ -2988,7 +3004,7 @@ paths:
                     format: uuid
                     type: string
                 - description: |
-                    When present, each output item in the response receives a `short_url` field containing an owner-gated durable link for that asset. Omit this parameter (the default) to receive a response identical to the no-param baseline. The value selects the link's lifetime: use `ephemeral_tool_chain` for short-lived machine-to-machine handoffs (~15 minutes); use `default` for durable human-revisitable links (30 days). Links are minted only for the authenticated request owner and are not resolvable by other users.
+                    When present, each output item in the response receives a `short_url` field containing a short link for that asset. Omit this parameter (the default) to receive a response identical to the no-param baseline. The value selects the link's lifetime and auth model: use `ephemeral_tool_chain` for short-lived (≤5 minute) machine-to-machine handoffs — these are public bearer links where the link ID itself is the credential, so anyone holding the link can resolve it (intended for pasting into an agent/MCP tool chain); use `default` for durable (30 day) human-revisitable links, which are owner-gated and resolvable only by the authenticated owner. Links are always minted under the authenticated request owner's identity; the auth model is selected by the server and is never settable by the caller.
                   in: query
                   name: short_link
                   schema:

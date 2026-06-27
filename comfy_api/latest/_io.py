@@ -891,6 +891,14 @@ class Tracks(ComfyTypeIO):
         track_visibility: torch.Tensor
     Type = TrackDict
 
+@comfytype(io_type="DICT")
+class Dict(ComfyTypeIO):
+    Type = dict
+
+@comfytype(io_type="ARRAY")
+class Array(ComfyTypeIO):
+    Type = list
+
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
     Type = Any
@@ -1279,6 +1287,19 @@ class Color(ComfyTypeIO):
       def as_dict(self):
           return super().as_dict()
 
+
+@comfytype(io_type="COLORS")
+class Colors(ComfyTypeIO):
+    Type = list[Color.Type]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[str]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = []
+
+
 @comfytype(io_type="BOUNDING_BOX")
 class BoundingBox(ComfyTypeIO):
     class BoundingBoxDict(TypedDict):
@@ -1324,6 +1345,20 @@ class Curve(ComfyTypeIO):
             if self.default is not None:
                 d["default"] = {"points": [list(p) for p in self.default], "interpolation": "monotone_cubic"}
             return d
+
+
+@comfytype(io_type="BOUNDING_BOXES")
+class BoundingBoxes(ComfyTypeIO):
+    class BoundingBoxWithMetadata(BoundingBox.BoundingBoxDict):
+        metadata: dict
+    Type = list[BoundingBoxWithMetadata]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[dict]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = []
 
 
 @comfytype(io_type="HISTOGRAM")
@@ -2376,6 +2411,8 @@ __all__ = [
     "AnyType",
     "MultiType",
     "Tracks",
+    "Dict",
+    "Array",
     "Color",
     # Dynamic Types
     "MatchType",
@@ -2394,6 +2431,8 @@ __all__ = [
     "PriceBadgeDepends",
     "PriceBadge",
     "BoundingBox",
+    "BoundingBoxes",
+    "Colors",
     "Curve",
     "Histogram",
     "Range",
