@@ -1612,7 +1612,7 @@ def qem_simplify(
     )
 
 
-def simplify(
+def qem_decimate_simplify(
     vertices: torch.Tensor,
     faces: torch.Tensor,
     target: int,
@@ -1640,7 +1640,7 @@ def simplify(
     return qem_simplify(vertices, faces, target, colors, normals, max_edge_length, config)
 
 
-def cluster_decimate(
+def qem_cluster_decimate(
     vertices: torch.Tensor, faces: torch.Tensor,
     target_verts: int = 1_000_000,
     colors: Optional[torch.Tensor] = None,
