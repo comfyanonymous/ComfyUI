@@ -30,6 +30,8 @@ class TextOverlay(IO.ComfyNode):
         if text.strip() == "":
             return IO.NodeOutput(image)
 
+        text = text.replace("\\n", "\n").replace("\\t", "\t")
+
         try:
             fill_color = ImageColor.getrgb(text_color)[:3]
         except ValueError:
