@@ -2372,6 +2372,7 @@ async def init_builtin_extra_nodes():
         "nodes_model_advanced.py",
         "nodes_model_downscale.py",
         "nodes_images.py",
+        "nodes_micro.py",
         "nodes_video_model.py",
         "nodes_ideogram4.py",
         "nodes_bounding_boxes.py",

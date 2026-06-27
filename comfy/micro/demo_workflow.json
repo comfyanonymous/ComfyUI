@@ -1,0 +1,49 @@
+{
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "micro_demo_input.png"
+    }
+  },
+  "2": {
+    "class_type": "ToMicro_IMAGE",
+    "inputs": {
+      "image": [
+        "1",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "Micro_ScaleImage",
+    "inputs": {
+      "image": [
+        "2",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": 48,
+      "height": 32,
+      "crop": "disabled"
+    }
+  },
+  "4": {
+    "class_type": "FromMicro_IMAGE",
+    "inputs": {
+      "value": [
+        "3",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "4",
+        0
+      ],
+      "filename_prefix": "micro_demo"
+    }
+  }
+}
