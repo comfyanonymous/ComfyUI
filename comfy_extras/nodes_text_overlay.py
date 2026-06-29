@@ -29,40 +29,50 @@ class TextOverlay(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, text, position="top", align="left", font_size_percent=5.0, text_color="white", outline_color="auto", margin_percent=1.0,
-                line_spacing=1.2, background_opacity=0.0, min_font_percent=2.0, outline_thickness_factor=0.04) -> IO.NodeOutput:
+    def execute(cls, image, text, position="top", align="left", font_size_percent=5.0, text_color="white", outline_color="auto",
+                line_spacing=1.2, background_opacity=0.0) -> IO.NodeOutput:
         if text.strip() == "":
             return IO.NodeOutput(image)
 
         text = text.replace("\\n", "\n").replace("\\t", "\t")
 
         try:
-            text_color = ImageColor.getrgb(text_color)[:3]
+            text_rgb = ImageColor.getrgb(text_color)[:3]
         except ValueError:
-            text_color = (255, 255, 255)
+            text_rgb = (255, 255, 255)
 
-        luminance = 0.299 * text_color[0] + 0.587 * text_color[1] + 0.114 * text_color[2]
-        contrast_color = (0, 0, 0) if luminance > 40 else (255, 255, 255)
-        choice = outline_color.lower()
-        if choice == "none":
-            outline_color = None
-        elif choice == "auto":
-            outline_color = contrast_color
+        # "auto" outline color: set the outline color based on text color to maintain contrast
+        luminance = 0.299 * text_rgb[0] + 0.587 * text_rgb[1] + 0.114 * text_rgb[2]
+        contrast_rgb = (0, 0, 0) if luminance > 40 else (255, 255, 255)
+        outline_choice = outline_color.lower()
+
+        if outline_choice == "none":
+            outline_rgb = None
+        elif outline_choice == "auto":
+            outline_rgb = contrast_rgb
         else:
-            outline_color = ImageColor.getrgb(outline_color)[:3]
-        background_color = contrast_color if outline_color is None else outline_color
+            outline_rgb = ImageColor.getrgb(outline_color)[:3]
 
-        frames = [cls.render_text_on_frame(frame, text, position, align, font_size_percent, margin_percent, text_color, outline_color, background_color,
-                                           line_spacing, background_opacity, min_font_percent, outline_thickness_factor)
-                  for frame in image]
-        return IO.NodeOutput(torch.stack(frames, dim=0))
+        background_rgb = contrast_rgb if outline_rgb is None else outline_rgb
+
+        # Render the overlay once and composite it across all frames in the batch
+        height = int(image.shape[1])
+        width = int(image.shape[2])
+        overlay_rgb, overlay_alpha = cls.render_overlay_text(width, height, text, position, align, font_size_percent,
+                                                             text_rgb, outline_rgb, background_rgb, line_spacing, background_opacity)
+        overlay_rgb = overlay_rgb.to(device=image.device, dtype=image.dtype)
+        overlay_alpha = overlay_alpha.to(device=image.device, dtype=image.dtype)
+
+        result = image * (1.0 - overlay_alpha) + overlay_rgb * overlay_alpha
+        return IO.NodeOutput(result)
 
     @classmethod
-    def render_text_on_frame(cls, frame, text, position="top", align="left", font_size_percent=5.0, margin_percent=1.0, text_color="white", outline_color="auto",
-                             background_color=None, line_spacing=1.2, background_opacity=0.0, min_font_percent=2.0, outline_thickness_factor=0.04, min_font_px=10):
-        pil_image = PILImage.fromarray((frame.clamp(0.0, 1.0).cpu().numpy() * 255.0).astype(np.uint8), mode="RGB")
-        width, height = pil_image.width, pil_image.height
-        draw = ImageDraw.Draw(pil_image)
+    def render_overlay_text(cls, width, height, text, position="top", align="left", font_size_percent=5.0,
+                            text_rgb=(255, 255, 255), outline_rgb=None, background_rgb=None, line_spacing=1.2, background_opacity=0.0,
+                            margin_percent=1.0, min_font_percent=2.0, min_font_pixels=10, outline_thickness_factor=0.04):
+        # Draw onto a transparent layer so the result can be alpha-composited over any frame.
+        layer = PILImage.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
 
         margin = int(round(margin_percent / 100.0 * min(width, height)))
         max_width = max(1, width - 2 * margin)
@@ -70,11 +80,11 @@ class TextOverlay(IO.ComfyNode):
 
         # Font scales with resolution, then shrinks to fit the height.
         size = max(1, int(round(font_size_percent / 100.0 * height)))
-        floor = min(size, max(min_font_px, int(round(min_font_percent / 100.0 * height))))
+        floor = min(size, max(min_font_pixels, int(round(min_font_percent / 100.0 * height))))
 
         while True:
             font = ImageFont.load_default(size=size)
-            stroke = max(1, int(round(size * outline_thickness_factor))) if outline_color is not None else 0
+            stroke = max(1, int(round(size * outline_thickness_factor))) if outline_rgb is not None else 0
             block = "\n".join(cls.wrap_text(text, font, max_width))
             # convert line spacing to pixel spacing
             single = draw.textbbox((0, 0), "Ay", font=font, stroke_width=stroke)
@@ -92,10 +102,7 @@ class TextOverlay(IO.ComfyNode):
         if background_opacity > 0:
             band = block_height + 2 * margin
             rect = [0, height - band, width, height] if position == "bottom" else [0, 0, width, band]
-            overlay = PILImage.new("RGBA", pil_image.size, (0, 0, 0, 0))
-            ImageDraw.Draw(overlay).rectangle(rect, fill=(*background_color, int(round(background_opacity * 255))))
-            pil_image = PILImage.alpha_composite(pil_image.convert("RGBA"), overlay).convert("RGB")
-            draw = ImageDraw.Draw(pil_image)
+            draw.rectangle(rect, fill=(*background_rgb, int(round(background_opacity * 255))))
 
         anchor_h, x = {"left": ("l", margin), "center": ("m", width / 2), "right": ("r", width - margin)}[align]
 
@@ -104,10 +111,13 @@ class TextOverlay(IO.ComfyNode):
         else:
             anchor_v, y = "a", margin
 
-        draw.multiline_text((x, y), block, font=font, fill=text_color, anchor=anchor_h + anchor_v,
-                            align=align, spacing=pixel_spacing, stroke_width=stroke, stroke_fill=outline_color)
+        draw.multiline_text((x, y), block, font=font, fill=text_rgb, anchor=anchor_h + anchor_v,
+                            align=align, spacing=pixel_spacing, stroke_width=stroke, stroke_fill=outline_rgb)
 
-        return torch.from_numpy(np.array(pil_image).astype(np.float32) / 255.0)
+        overlay = np.array(layer).astype(np.float32) / 255.0
+        overlay_rgb = torch.from_numpy(overlay[:, :, :3])
+        overlay_alpha = torch.from_numpy(overlay[:, :, 3:4])
+        return overlay_rgb, overlay_alpha
 
     @staticmethod
     def wrap_text(text, font, max_width):
