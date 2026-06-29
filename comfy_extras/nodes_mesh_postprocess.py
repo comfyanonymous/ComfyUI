@@ -358,7 +358,7 @@ def _nearest_voxel_sample_gpu(positions, voxel_coords_np, color_np, resolution):
     P = torch.from_numpy(np.ascontiguousarray(positions)).to(dev).float()
     VC = torch.from_numpy(np.ascontiguousarray(voxel_coords_np)).to(dev).long()
     col = torch.from_numpy(np.ascontiguousarray(color_np)).to(dev).float()
-    M, K, C = VC.shape[0], P.shape[0], col.shape[1]
+    M, K = VC.shape[0], P.shape[0]
     key = (VC[:, 0] * R + VC[:, 1]) * R + VC[:, 2]
     skey, order = key.sort()
 
@@ -2222,14 +2222,12 @@ class RemeshMesh(IO.ComfyNode):
         # sub-widgets show per sign_mode (DynamicCombo).
         sign_mode_options = [
             IO.DynamicCombo.Option(key="udf", inputs=[
-                IO.Boolean.Input("qef", default=False,
-                                 tooltip="Experimental: QEF dual-vertex placement for sharper edges; may "
-                                         "misbehave near the UDF double shell."),
-                IO.Boolean.Input("drop_inverted_components", default=True,
+                IO.Boolean.Input("qef", default=False, advanced=True,
+                                 tooltip="QEF dual-vertex placement for sharper edges."),
+                IO.Boolean.Input("drop_inverted_components", default=False, advanced=True,
                                  tooltip="Drop inward-normal (negative-volume) closed components — the UDF inner shell."),
-                IO.Boolean.Input("drop_enclosed_components", default=True,
-                                 tooltip="Drop components inside the largest's bbox that fail a point-in-mesh "
-                                         "raycast. Disable for legitimate nested parts."),
+                IO.Boolean.Input("drop_enclosed_components", default=False, advanced=True,
+                                 tooltip="Drop components inside the largest's bbox that fail a point-in-mesh raycast. Disable for legitimate nested parts."),
             ]),
             IO.DynamicCombo.Option(key="sdf", inputs=[
                 IO.Boolean.Input("qef", default=True,
@@ -2250,34 +2248,31 @@ class RemeshMesh(IO.ComfyNode):
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
-                IO.Int.Input("target_faces", default=0, min=0, max=50_000_000,
-                             tooltip="0 = use 'resolution'. >0 = auto-pick resolution to roughly hit this "
-                                     "count (±30-50%); overshoot then DecimateMesh to exact."),
-                IO.Int.Input("resolution", default=256, min=32, max=1024,
-                             tooltip="Voxel grid resolution (when target_faces=0). 256 ~ 100k faces, 512 ~ 1M."),
+                IO.Int.Input("resolution", default=512, min=32, max=1024,
+                             tooltip="Voxel grid resolution (output density). 256 ~ 100k faces, 512 ~ 1M. "
+                                     "For an exact face count, follow with DecimateMesh."),
                 IO.DynamicCombo.Input("sign_mode", options=sign_mode_options, display_name="sign_mode",
                                       tooltip="udf: robust to messy/non-manifold input. sdf: clean single "
                                               "surface with QEF sharp-feature recovery, but needs consistent winding."),
-                IO.Float.Input("band", default=1.0, min=0.5, max=4.0, step=0.1,
+                IO.Float.Input("band", default=1.0, min=0.5, max=4.0, step=0.1, advanced=True,
                                tooltip="Narrow-band width in voxel units. In UDF mode also offsets the surface."),
-                IO.Float.Input("project_back", default=0.0, min=0.0, max=1.0, step=0.05,
+                IO.Float.Input("project_back", default=0.0, min=0.0, max=1.0, step=0.05, advanced=True,
                                tooltip="Lerp verts toward the original surface (0 = pure DC, 1 = snapped)."),
-                IO.Boolean.Input("fix_poles", default=False,
+                IO.Boolean.Input("fix_poles", default=False, advanced=True,
                                  tooltip="Collapse valence-3 vertex pairs (DC T-junction artifact)."),
                 IO.Int.Input("smooth_iters", default=0, min=0, max=20,
                              tooltip="Taubin smoothing iters (0 = off). 2-3 cleans DC stairstepping; higher rounds off QEF edges."),
-                IO.Float.Input("drop_small_components", default=0.01, min=0.0, max=0.5, step=0.005,
+                IO.Float.Input("drop_small_components", default=0.01, min=0.0, max=0.5, step=0.005, advanced=True,
                                tooltip="Drop components below this fraction of the largest's face count. 0 disables."),
-                IO.Int.Input("precluster_max_verts", default=0, min=0, max=50_000_000,
-                             tooltip="If input exceeds this (>0), cluster-decimate first so field queries don't "
-                                     "OOM. 0 = off; 1-2M for very large meshes."),
+                IO.Int.Input("precluster_max_verts", default=8_000_000, min=0, max=50_000_000, advanced=True,
+                             tooltip="Cap input vertex count before the field queries, inputs above this are cluster-decimated to it first. Prevents OOM on huge meshes."),
             ],
             outputs=[IO.Mesh.Output("mesh")],
             hidden=[IO.Hidden.unique_id],
         )
 
     @classmethod
-    def execute(cls, mesh, target_faces, resolution, sign_mode, band,
+    def execute(cls, mesh, resolution, sign_mode, band,
                 project_back, fix_poles, smooth_iters,
                 drop_small_components, precluster_max_verts):
         mode = sign_mode.get("sign_mode", "udf")
@@ -2310,7 +2305,7 @@ class RemeshMesh(IO.ComfyNode):
 
                 rv, rf, rc = remesh_narrow_band_dc(
                     vv, ff,
-                    resolution=int(resolution), target_faces=int(target_faces),
+                    resolution=int(resolution),
                     band=float(band), project_back=float(project_back),
                     qef=qef, sign_mode=mode,
                     manifold=manifold, fix_poles=bool(fix_poles),
