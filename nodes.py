@@ -2387,6 +2387,8 @@ async def init_builtin_extra_nodes():
         "nodes_images.py",
         "nodes_video_model.py",
         "nodes_ideogram4.py",
+        "nodes_bounding_boxes.py",
+        "nodes_json_prompt.py",
         "nodes_train.py",
         "nodes_dataset.py",
         "nodes_sag.py",
@@ -2486,6 +2488,7 @@ async def init_builtin_extra_nodes():
         "nodes_gaussian_splat.py",
         "nodes_triposplat.py",
         "nodes_depth_anything_3.py",
+        "nodes_seed.py",
     ]
 
     import_failed = []
