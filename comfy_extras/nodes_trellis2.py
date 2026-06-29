@@ -5,6 +5,7 @@ from comfy.ldm.trellis2.model import build_proj_transform_matrix, _project_point
 from comfy.ldm.trellis2.naf.model import build_naf_from_state_dict
 
 from comfy_extras.nodes_mesh_postprocess import pack_variable_mesh_batch
+from server import PromptServer
 import comfy.latent_formats
 import comfy.model_management
 import comfy.utils
@@ -414,38 +415,44 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                                                        "y_up" if proj_pack is not None else "z_up")}
         return IO.NodeOutput(positive_out, negative_out, out_latent)
 
-dino_mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-dino_std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+def _dinov3_encode(model, image_bchw, image_size, want_patches=False):
+    """Run DINOv3 once at the requested resolution.
 
-def run_conditioning(model, cropped_img_tensor, include_1024=True):
+    image_bchw: [B, 3, H, W] float in [0, 1] (any source resolution; resized here).
+    Returns the full sequence tensor (Trellis2 path) or a dict with the global
+    tokens split out + a 2D patch grid (Pixal3D path) when `want_patches=True`.
+    """
     model_internal = model.model
+    device = comfy.model_management.get_torch_device()
+    img_t = comfy.utils.common_upscale(image_bchw, image_size, image_size, "lanczos", "disabled").to(device)
+    mean = torch.tensor(model.image_mean or [0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
+    std = torch.tensor(model.image_std or [0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
+    img_t = (img_t - mean) / std
+    model_internal.image_size = image_size
+    tokens = model_internal(img_t, skip_norm_elementwise=True)[0]
+    if not want_patches:
+        return tokens
+    h_p = w_p = image_size // 16
+    n_reg = tokens.shape[1] - 1 - h_p * w_p
+    return {"tokens": tokens[:, :1 + n_reg], "patches_2d": _dinov3_patches_to_2d(tokens, image_size)}
+
+
+def run_conditioning(model, cropped_pil_img, include_1024=True):
     device = comfy.model_management.intermediate_device()
-    torch_device = comfy.model_management.get_torch_device()
 
-    def prepare_tensor(pil_img, size):
-        resized_pil = pil_img.resize((size, size), Image.Resampling.LANCZOS)
-        img_np = np.array(resized_pil).astype(np.float32) / 255.0
-        img_t = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).to(torch_device)
-        return (img_t - dino_mean.to(torch_device)) / dino_std.to(torch_device)
+    img_np = np.array(cropped_pil_img).astype(np.float32) / 255.0
+    image_bchw = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).contiguous()
 
-    model_internal.image_size = 512
-    input_512 = prepare_tensor(cropped_img_tensor, 512)
-    cond_512 = model_internal(input_512, skip_norm_elementwise=True)[0]
-
-    cond_1024 = None
-    if include_1024:
-        model_internal.image_size = 1024
-        input_1024 = prepare_tensor(cropped_img_tensor, 1024)
-        cond_1024 = model_internal(input_1024, skip_norm_elementwise=True)[0]
-
+    cond_512 = _dinov3_encode(model, image_bchw, 512)
     conditioning = {
-        'cond_512': cond_512.to(device),
-        'neg_cond': torch.zeros_like(cond_512).to(device),
+        "cond_512": cond_512.to(device),
+        "neg_cond": torch.zeros_like(cond_512).to(device),
     }
-    if cond_1024 is not None:
-        conditioning['cond_1024'] = cond_1024.to(device)
-
+    if include_1024:
+        cond_1024 = _dinov3_encode(model, image_bchw, 1024)
+        conditioning["cond_1024"] = cond_1024.to(device)
     return conditioning
+
 class Trellis2Conditioning(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -780,27 +787,18 @@ def _dinov3_patches_to_2d(tokens, image_size, patch_size=16):
     return patches.transpose(1, 2).reshape(tokens.shape[0], -1, h_p, w_p).contiguous()
 
 
-def _run_dinov3_with_patches(model, composite, image_size):
-    model_internal = model.model
-    torch_device = comfy.model_management.get_torch_device()
-    img_t = comfy.utils.common_upscale(composite, image_size, image_size, "lanczos", "disabled")
-    img_t = img_t.to(torch_device)
-    img_t = (img_t - dino_mean.to(torch_device)) / dino_std.to(torch_device)
-    model_internal.image_size = image_size
-    tokens = model_internal(img_t, skip_norm_elementwise=True)[0]
-    patches = _dinov3_patches_to_2d(tokens, image_size)
-    h_p = w_p = image_size // 16
-    n_reg = tokens.shape[1] - 1 - h_p * w_p
-    global_tokens = tokens[:, :1 + n_reg]
-    return {"tokens": global_tokens, "patches_2d": patches}
-
-
 def _crop_image_with_mask(item_image, item_mask, max_image_size=1024):
     img = item_image.permute(2, 0, 1).unsqueeze(0).cpu().float()
     mask = item_mask.unsqueeze(0).unsqueeze(0).cpu().float()
     # Upstream went float→PIL uint8 implicitly; match that to keep composite bit-exact.
     img = (img.clamp(0, 1) * 255.0).to(torch.uint8).float() / 255.0
     mask = (mask.clamp(0, 1) * 255.0).to(torch.uint8).float() / 255.0
+
+    # Detect & correct an inverted mask
+    m2d = mask[0, 0]
+    border = torch.cat([m2d[0, :], m2d[-1, :], m2d[:, 0], m2d[:, -1]])
+    if float(border.mean()) > 0.5:
+        mask = 1.0 - mask
 
     H, W = img.shape[-2:]
     if max(H, W) > max_image_size:
@@ -923,8 +921,8 @@ class Pixal3DConditioning(IO.ComfyNode):
             scene_size_list.append(scene_size)
             composite_list.append(composite)
 
-            cond_512 = _run_dinov3_with_patches(clip_vision_model, composite, 512)
-            cond_1024 = _run_dinov3_with_patches(clip_vision_model, composite, 1024)
+            cond_512 = _dinov3_encode(clip_vision_model, composite, 512, want_patches=True)
+            cond_1024 = _dinov3_encode(clip_vision_model, composite, 1024, want_patches=True)
             cond_512_list.append(cond_512["tokens"].to(device))
             cond_1024_list.append(cond_1024["tokens"].to(device))
             patches_512_list.append(cond_512["patches_2d"].to(device))
@@ -1104,8 +1102,7 @@ class Pixal3DAlignObject(IO.ComfyNode):
         moge_per_vertex = moge_points[batch_index, sy, sx]
         # MoGe's perspective output is (X right, Y down, Z forward). Convert to glTF
         # Y-up (X right, Y up, Z back) so the scale/translate fit runs in the same
-        # frame as vertices_one (Pixal3D model frame = glTF Y-up). Mirrors the
-        # `verts * [1, -1, -1]` step in MoGePointMapToMesh.
+        # frame as vertices_one (Pixal3D model frame = glTF Y-up).
         moge_per_vertex = moge_per_vertex * torch.tensor(
             [1.0, -1.0, -1.0], dtype=moge_per_vertex.dtype, device=moge_per_vertex.device
         )
@@ -1188,6 +1185,7 @@ class GetMeshInfo(IO.ComfyNode):
                 IO.Mesh.Output(display_name="mesh"),
                 IO.String.Output(display_name="info"),
             ],
+            hidden=[IO.Hidden.unique_id],
         )
 
     @staticmethod
@@ -1212,10 +1210,10 @@ class GetMeshInfo(IO.ComfyNode):
             f_counts = [int(mesh.faces.shape[1])] * B
 
         attrs = []
-        for name in ("uvs", "vertex_colors", "normals", "texture", "metallic_roughness"):
+        for name in ("uvs", "vertex_colors", "normals", "tangents", "texture", "metallic_roughness", "normal_map"):
             t = getattr(mesh, name, None)
             if t is not None:
-                if name in ("texture", "metallic_roughness"):
+                if name in ("texture", "metallic_roughness", "normal_map"):
                     attrs.append(f"{name} {int(t.shape[-3])}×{int(t.shape[-2])}")  # H×W
                 else:
                     attrs.append(name)
@@ -1234,6 +1232,9 @@ class GetMeshInfo(IO.ComfyNode):
 
         info = "\n".join(lines)
         logging.info("[GetMeshInfo]\n%s", info)
+
+        if cls.hidden.unique_id:
+            PromptServer.instance.send_progress_text(info, cls.hidden.unique_id)
         return IO.NodeOutput(mesh, info, ui=UI.PreviewText(info))
 
 

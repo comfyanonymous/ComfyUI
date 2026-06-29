@@ -20,11 +20,11 @@ from comfy_api.latest import ComfyExtension, IO, Types
 
 
 def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None, unlit=False,
-                             normals=None, metallic_roughness=None):
-    # Pack lists of (Nᵢ, *) vertex/face/color/uv tensors into padded batched tensors,
-    # stashing per-item lengths as runtime attrs so consumers can recover the real slice.
-    # colors and uvs are 1:1 with vertices, so they're padded to max_vertices and read with vertex_counts.
-    # texture is (B, H, W, 3) — passed through unchanged
+                             normals=None, metallic_roughness=None, tangents=None, normal_map=None,
+                             occlusion_in_mr=False, material=None, emissive=None):
+    # Pack per-item tensors into padded batches, stashing per-item lengths as runtime attrs.
+    # colors/uvs/normals/tangents are 1:1 with vertices (padded to max_vertices); texture/
+    # metallic_roughness/normal_map are (B,H,W,*) image stacks passed through unchanged.
     batch_size = len(vertices)
     max_vertices = max(v.shape[0] for v in vertices)
     max_faces = max(f.shape[0] for f in faces)
@@ -65,11 +65,31 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=Non
             )
             packed_normals[i, :nrm.shape[0]] = nrm
 
-    return Types.MESH(packed_vertices, packed_faces,
-                      uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
-                      metallic_roughness=metallic_roughness,
-                      vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit,
-                      normals=packed_normals)
+    packed_tangents = None
+    if tangents is not None:
+        packed_tangents = tangents[0].new_zeros((batch_size, max_vertices, tangents[0].shape[1]))
+        for i, tn in enumerate(tangents):
+            assert tn.shape[0] == vertices[i].shape[0], (
+                f"tangents[{i}] has {tn.shape[0]} entries, expected {vertices[i].shape[0]} (1:1 with vertices)"
+            )
+            packed_tangents[i, :tn.shape[0]] = tn
+
+    out = Types.MESH(packed_vertices, packed_faces,
+                     uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
+                     metallic_roughness=metallic_roughness,
+                     vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit,
+                     normals=packed_normals)
+    if packed_tangents is not None:
+        out.tangents = packed_tangents
+    if normal_map is not None:
+        out.normal_map = normal_map
+    if occlusion_in_mr:
+        out.occlusion_in_mr = True
+    if material is not None:
+        out.material = material
+    if emissive is not None:
+        out.emissive = emissive
+    return out
 
 
 def get_mesh_batch_item(mesh, index):
@@ -180,7 +200,8 @@ def _compute_vertex_normals(vertices_np, faces_np, crease_angle=None):
 def save_glb(vertices, faces, filepath, metadata=None,
              uvs=None, vertex_colors=None, texture_image=None,
              metallic_roughness_image=None, unlit=False,
-             normals=None):
+             normals=None, normal_map_image=None, tangents=None, occlusion_in_mr=False,
+             material=None, emissive_image=None):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -197,6 +218,16 @@ def save_glb(vertices, faces, filepath, metadata=None,
     normals: torch.Tensor of shape (N, 3) - Optional per-vertex normals, written as the
         glTF NORMAL attribute. When omitted, NO normals are written and viewers fall back
         to flat (per-face) shading — use the MeshSmoothNormals node to generate them.
+    normal_map_image: PIL.Image - Optional tangent-space normal map (glTF/OpenGL +Y),
+        written as the material normalTexture. Needs TEXCOORD_0.
+    tangents: torch.Tensor of shape (N, 4) - Optional per-vertex tangents (xyz + handedness w),
+        written as the glTF TANGENT attribute. Without it viewers derive tangents in-shader.
+    occlusion_in_mr: bool - When True, R of metallic_roughness_image holds AO (ORM packing) and
+        occlusionTexture is pointed at that same image.
+    material: dict - Optional scalar overrides from SetMeshMaterial (base_color_factor,
+        metallic/roughness_factor with <0 = auto, emissive_factor/strength, normal_scale,
+        occlusion_strength, double_sided).
+    emissive_image: PIL.Image - Optional emissive (glow) texture, written as emissiveTexture.
     """
 
     # Convert tensors to numpy arrays
@@ -231,6 +262,11 @@ def save_glb(vertices, faces, filepath, metadata=None,
         raise ValueError(
             f"save_glb: normals has {normals_np.shape[0]} entries but vertex count is {n_verts}"
         )
+    tangents_np = tangents.cpu().numpy().astype(np.float32) if tangents is not None else None
+    if tangents_np is not None and tangents_np.shape != (n_verts, 4):
+        raise ValueError(
+            f"save_glb: tangents must be (N, 4) with N={n_verts}, got {tuple(tangents_np.shape)}"
+        )
     faces_np = faces_signed.astype(np.uint32)
     texture_png_bytes = None
     if texture_image is not None:
@@ -242,46 +278,60 @@ def save_glb(vertices, faces, filepath, metadata=None,
         buf = BytesIO()
         metallic_roughness_image.save(buf, format="PNG")
         mr_png_bytes = buf.getvalue()
+    nm_png_bytes = None
+    if normal_map_image is not None:
+        buf = BytesIO()
+        normal_map_image.save(buf, format="PNG")
+        nm_png_bytes = buf.getvalue()
+    em_png_bytes = None
+    if emissive_image is not None:
+        buf = BytesIO()
+        emissive_image.save(buf, format="PNG")
+        em_png_bytes = buf.getvalue()
 
     vertices_buffer = vertices_np.tobytes()
     indices_buffer = faces_np.tobytes()
     uvs_buffer = uvs_np.tobytes() if uvs_np is not None else b""
     colors_buffer = colors_np.tobytes() if colors_np is not None else b""
     normals_buffer = normals_np.tobytes() if normals_np is not None else b""
+    tangents_buffer = tangents_np.tobytes() if tangents_np is not None else b""
     texture_buffer = texture_png_bytes if texture_png_bytes is not None else b""
     mr_buffer = mr_png_bytes if mr_png_bytes is not None else b""
+    nm_buffer = nm_png_bytes if nm_png_bytes is not None else b""
+    em_buffer = em_png_bytes if em_png_bytes is not None else b""
 
     def pad_to_4_bytes(buffer):
         padding_length = (4 - (len(buffer) % 4)) % 4
         return buffer + b'\x00' * padding_length
 
-    vertices_buffer_padded = pad_to_4_bytes(vertices_buffer)
-    indices_buffer_padded = pad_to_4_bytes(indices_buffer)
-    uvs_buffer_padded = pad_to_4_bytes(uvs_buffer)
-    colors_buffer_padded = pad_to_4_bytes(colors_buffer)
-    normals_buffer_padded = pad_to_4_bytes(normals_buffer)
-    texture_buffer_padded = pad_to_4_bytes(texture_buffer)
-    mr_buffer_padded = pad_to_4_bytes(mr_buffer)
-
-    buffer_data = b"".join([
-        vertices_buffer_padded,
-        indices_buffer_padded,
-        uvs_buffer_padded,
-        colors_buffer_padded,
-        normals_buffer_padded,
-        texture_buffer_padded,
-        mr_buffer_padded,
-    ])
+    # Blob order in one place; offsets accumulated in a pass so adding a buffer is one entry.
+    _blobs = [
+        ("vertices", vertices_buffer), ("indices", indices_buffer), ("uvs", uvs_buffer),
+        ("colors", colors_buffer), ("normals", normals_buffer), ("tangents", tangents_buffer),
+        ("texture", texture_buffer), ("mr", mr_buffer), ("nm", nm_buffer), ("em", em_buffer),
+    ]
+    byte_offset = {}
+    acc = 0
+    parts = []
+    for name, b in _blobs:
+        padded = pad_to_4_bytes(b)
+        byte_offset[name] = acc
+        acc += len(padded)
+        parts.append(padded)
+    buffer_data = b"".join(parts)
 
     vertices_byte_length = len(vertices_buffer)
-    vertices_byte_offset = 0
     indices_byte_length = len(indices_buffer)
-    indices_byte_offset = len(vertices_buffer_padded)
-    uvs_byte_offset = indices_byte_offset + len(indices_buffer_padded)
-    colors_byte_offset = uvs_byte_offset + len(uvs_buffer_padded)
-    normals_byte_offset = colors_byte_offset + len(colors_buffer_padded)
-    texture_byte_offset = normals_byte_offset + len(normals_buffer_padded)
-    mr_byte_offset = texture_byte_offset + len(texture_buffer_padded)
+    vertices_byte_offset = byte_offset["vertices"]
+    indices_byte_offset = byte_offset["indices"]
+    uvs_byte_offset = byte_offset["uvs"]
+    colors_byte_offset = byte_offset["colors"]
+    normals_byte_offset = byte_offset["normals"]
+    tangents_byte_offset = byte_offset["tangents"]
+    texture_byte_offset = byte_offset["texture"]
+    mr_byte_offset = byte_offset["mr"]
+    nm_byte_offset = byte_offset["nm"]
+    em_byte_offset = byte_offset["em"]
 
     buffer_views = [
         {
@@ -368,6 +418,23 @@ def save_glb(vertices, faces, filepath, metadata=None,
         })
         primitive_attributes["NORMAL"] = accessor_idx
 
+    if tangents_np is not None and len(tangents_np) > 0:
+        buffer_views.append({
+            "buffer": 0,
+            "byteOffset": tangents_byte_offset,
+            "byteLength": len(tangents_buffer),
+            "target": 34962
+        })
+        accessor_idx = len(accessors)
+        accessors.append({
+            "bufferView": len(buffer_views) - 1,
+            "byteOffset": 0,
+            "componentType": 5126,  # FLOAT
+            "count": len(tangents_np),
+            "type": "VEC4",  # xyz tangent + w handedness (glTF TANGENT)
+        })
+        primitive_attributes["TANGENT"] = accessor_idx
+
     primitive = {
         "attributes": primitive_attributes,
         "indices": 1,
@@ -379,9 +446,24 @@ def save_glb(vertices, faces, filepath, metadata=None,
     samplers = []
     materials = []
     extensions_used = []
+
+    def add_image_texture(png_byte_offset, png_byte_length):
+        """Append an embedded PNG image + a texture referencing it; return the texture index."""
+        buffer_views.append({"buffer": 0, "byteOffset": png_byte_offset, "byteLength": png_byte_length})
+        images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
+        if not samplers:
+            samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
+        textures.append({"source": len(images) - 1, "sampler": 0})
+        return len(textures) - 1
+
+    has_uv = "TEXCOORD_0" in primitive_attributes
     if unlit and texture_png_bytes is None:
         # Flat, light-independent shading (KHR_materials_unlit): COLOR_0 is shown as-is, matching how a
         # gaussian splat renders (emissive). Without this the viewer lights the mesh and washes the colours.
+        if nm_png_bytes is not None or em_png_bytes is not None or occlusion_in_mr or material is not None:
+            logging.warning(
+                "save_glb: unlit material ignores normal/occlusion/emissive maps and SetMeshMaterial "
+                "overrides — those are PBR-lit features. Disable unlit to export them.")
         materials.append({
             "pbrMetallicRoughness": {"baseColorFactor": [1.0, 1.0, 1.0, 1.0], "metallicFactor": 0.0, "roughnessFactor": 1.0},
             "extensions": {"KHR_materials_unlit": {}},
@@ -395,37 +477,57 @@ def save_glb(vertices, faces, filepath, metadata=None,
             "roughnessFactor": 0.5,
             "baseColorFactor": [0.22, 0.22, 0.22, 1.0],
         }
-        if texture_png_bytes is not None and "TEXCOORD_0" in primitive_attributes:
-            buffer_views.append({
-                "buffer": 0,
-                "byteOffset": texture_byte_offset,
-                "byteLength": len(texture_buffer),
-            })
-            images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
-            samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
-            textures.append({"source": len(images) - 1, "sampler": 0})
-            pbr["baseColorTexture"] = {"index": len(textures) - 1, "texCoord": 0}
+        if texture_png_bytes is not None and has_uv:
+            pbr["baseColorTexture"] = {"index": add_image_texture(texture_byte_offset, len(texture_buffer)), "texCoord": 0}
 
-        if mr_png_bytes is not None and "TEXCOORD_0" in primitive_attributes:
-            buffer_views.append({
-                "buffer": 0,
-                "byteOffset": mr_byte_offset,
-                "byteLength": len(mr_buffer),
-            })
-            images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
-            if not samplers:
-                samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
-            textures.append({"source": len(images) - 1, "sampler": 0})
-            pbr["metallicRoughnessTexture"] = {"index": len(textures) - 1, "texCoord": 0}
+        if mr_png_bytes is not None and has_uv:
+            mr_texture_index = add_image_texture(mr_byte_offset, len(mr_buffer))
+            pbr["metallicRoughnessTexture"] = {"index": mr_texture_index, "texCoord": 0}
             # When a metallicRoughness texture is present, the factors scale it; use 1.0
             # so the texture values pass through unchanged (glTF convention).
             pbr["metallicFactor"] = 1.0
             pbr["roughnessFactor"] = 1.0
 
-        materials.append({
+        mat = material if isinstance(material, dict) else {}
+        # Scalar overrides from SetMeshMaterial (factor < 0 means "leave auto").
+        if mat.get("base_color_factor") is not None:
+            pbr["baseColorFactor"] = [float(x) for x in mat["base_color_factor"]]
+        if mat.get("metallic_factor", -1.0) >= 0.0:
+            pbr["metallicFactor"] = float(mat["metallic_factor"])
+        if mat.get("roughness_factor", -1.0) >= 0.0:
+            pbr["roughnessFactor"] = float(mat["roughness_factor"])
+
+        material = {
             "pbrMetallicRoughness": pbr,
-            "doubleSided": True,
-        })
+            "doubleSided": bool(mat.get("double_sided", True)),
+        }
+        if occlusion_in_mr and mr_png_bytes is not None and has_uv:
+            # ORM packing: occlusionTexture reuses the MR image (glTF reads its R channel).
+            material["occlusionTexture"] = {"index": mr_texture_index, "texCoord": 0,
+                                            "strength": float(mat.get("occlusion_strength", 1.0))}
+        if nm_png_bytes is not None and has_uv:
+            material["normalTexture"] = {"index": add_image_texture(nm_byte_offset, len(nm_buffer)),
+                                         "texCoord": 0, "scale": float(mat.get("normal_scale", 1.0))}
+
+        emissive_factor = [float(x) for x in mat.get("emissive_factor", [0.0, 0.0, 0.0])]
+        emissive_strength = float(mat.get("emissive_strength", 1.0))
+        has_em_tex = em_png_bytes is not None and has_uv
+        if any(c > 0.0 for c in emissive_factor) or has_em_tex:
+            # glTF multiplies emissiveFactor × texture, so a texture with no color would go black;
+            # default the factor to white in that case.
+            if has_em_tex and not any(c > 0.0 for c in emissive_factor):
+                emissive_factor = [1.0, 1.0, 1.0]
+            material["emissiveFactor"] = [min(1.0, c) for c in emissive_factor]
+            if has_em_tex:
+                material["emissiveTexture"] = {"index": add_image_texture(em_byte_offset, len(em_buffer)),
+                                               "texCoord": 0}
+            if emissive_strength != 1.0:
+                material.setdefault("extensions", {})["KHR_materials_emissive_strength"] = {
+                    "emissiveStrength": emissive_strength}
+                if "KHR_materials_emissive_strength" not in extensions_used:
+                    extensions_used.append("KHR_materials_emissive_strength")
+
+        materials.append(material)
         primitive["material"] = 0
 
     gltf = {
@@ -556,6 +658,22 @@ class SaveGLB(IO.ComfyNode):
                 assert mr_np.ndim == 4 and mr_np.shape[-1] == 3, (
                     f"metallic_roughness must be (B, H, W, 3), got shape {tuple(mr_np.shape)}"
                 )
+            nm_b = getattr(mesh, "normal_map", None)
+            nm_np = None
+            if nm_b is not None:
+                nm_np = (nm_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                assert nm_np.ndim == 4 and nm_np.shape[-1] == 3, (
+                    f"normal_map must be (B, H, W, 3), got shape {tuple(nm_np.shape)}"
+                )
+            em_b = getattr(mesh, "emissive", None)
+            em_np = None
+            if em_b is not None:
+                em_np = (em_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                assert em_np.ndim == 4 and em_np.shape[-1] == 3, (
+                    f"emissive must be (B, H, W, 3), got shape {tuple(em_np.shape)}"
+                )
+            tangents_b = getattr(mesh, "tangents", None)
+            material = getattr(mesh, "material", None)
             for i in range(mesh.vertices.shape[0]):
                 vertices_i, faces_i, v_colors, uvs_i, normals_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
@@ -563,6 +681,9 @@ class SaveGLB(IO.ComfyNode):
                     continue
                 tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
                 mr_img = Image.fromarray(mr_np[i], mode="RGB") if mr_np is not None else None
+                nm_img = Image.fromarray(nm_np[i], mode="RGB") if nm_np is not None else None
+                em_img = Image.fromarray(em_np[i], mode="RGB") if em_np is not None else None
+                tangents_i = tangents_b[i, :vertices_i.shape[0]] if tangents_b is not None else None
                 f = f"{filename}_{counter:05}_.glb"
                 save_glb(
                     vertices_i, faces_i,
@@ -574,6 +695,11 @@ class SaveGLB(IO.ComfyNode):
                     metallic_roughness_image=mr_img,
                     unlit=getattr(mesh, "unlit", False),
                     normals=normals_i,
+                    normal_map_image=nm_img,
+                    tangents=tangents_i,
+                    occlusion_in_mr=getattr(mesh, "occlusion_in_mr", False),
+                    material=material,
+                    emissive_image=em_img,
                 )
                 results.append({
                     "filename": f,
@@ -723,9 +849,11 @@ class MeshSmoothNormals(IO.ComfyNode):
             return IO.NodeOutput(out)
 
         # Crease split changes per-item vertex counts -> rebuild as a variable-size batch.
+        tangents_b = getattr(mesh, "tangents", None)
         v_list, f_list, n_list = [], [], []
         c_list = [] if mesh.vertex_colors is not None else None
         u_list = [] if mesh.uvs is not None else None
+        t_list = [] if tangents_b is not None else None
         for i in range(batch_size):
             v_i, f_i, c_i, u_i, _ = get_mesh_batch_item(mesh, i)
             if v_i.shape[0] == 0 or f_i.shape[0] == 0:
@@ -742,12 +870,19 @@ class MeshSmoothNormals(IO.ComfyNode):
                 c_list.append(c_i[remap_t.to(c_i.device)])
             if u_list is not None:
                 u_list.append(u_i[remap_t.to(u_i.device)])
+            if t_list is not None:
+                # Remap (not recompute) so TANGENT keeps the baked basis; split verts copy theirs.
+                t_i = tangents_b[i, :v_i.shape[0]]
+                t_list.append(t_i[remap_t.to(t_i.device)])
         if not v_list:
             return IO.NodeOutput(mesh)
         out = pack_variable_mesh_batch(
             v_list, f_list, colors=c_list, uvs=u_list,
             texture=mesh.texture, unlit=getattr(mesh, "unlit", False),
-            normals=n_list, metallic_roughness=getattr(mesh, "metallic_roughness", None))
+            normals=n_list, metallic_roughness=getattr(mesh, "metallic_roughness", None),
+            tangents=t_list, normal_map=getattr(mesh, "normal_map", None),
+            occlusion_in_mr=getattr(mesh, "occlusion_in_mr", False),
+            material=getattr(mesh, "material", None), emissive=getattr(mesh, "emissive", None))
         return IO.NodeOutput(out)
 
 
