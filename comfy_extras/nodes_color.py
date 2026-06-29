@@ -1,5 +1,6 @@
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+from comfy_extras.color_util import hex_to_rgb
 
 
 class ColorToRGBInt(io.ComfyNode):
@@ -24,9 +25,11 @@ class ColorToRGBInt(io.ComfyNode):
         # expect format #RRGGBB
         if len(color) != 7 or color[0] != "#":
             raise ValueError("Color must be in format #RRGGBB")
-        r = int(color[1:3], 16)
-        g = int(color[3:5], 16)
-        b = int(color[5:7], 16)
+        try:
+            int(color[1:], 16)
+        except ValueError:
+            raise ValueError("Color must be in format #RRGGBB") from None
+        r, g, b = hex_to_rgb(color)
 
         rgb_int = r * 256 * 256 + g * 256 + b
         return io.NodeOutput(rgb_int, color)
