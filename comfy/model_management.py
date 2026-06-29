@@ -808,10 +808,6 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
     can_unload = []
     unloaded_models = []
 
-    # Iterate a snapshot: free_memory can re-enter itself on this thread when a
-    # weakref finalizer (cleanup_models) fires during GC mid-loop and pops from
-    # current_loaded_models. Carry the LoadedModel object (not a stale absolute
-    # index) and remove unloaded entries by identity so a concurrent pop is tolerated.
     for shift_model in list(current_loaded_models):
         if device is None or shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():
