@@ -1236,19 +1236,19 @@ class VAE:
     def spacial_compression_decode(self):
         try:
             return self.upscale_ratio[-1]
-        except:
+        except (IndexError, TypeError):
             return self.upscale_ratio
 
     def spacial_compression_encode(self):
         try:
             return self.downscale_ratio[-1]
-        except:
+        except (IndexError, TypeError):
             return self.downscale_ratio
 
     def temporal_compression_decode(self):
         try:
             return round(self.upscale_ratio[0](8192) / 8192)
-        except:
+        except (IndexError, TypeError, AttributeError):
             return None
 
 

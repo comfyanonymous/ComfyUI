@@ -358,7 +358,7 @@ def token_weights(string, current_weight):
                 try:
                     weight = float(x[xx+1:])
                     x = x[:xx]
-                except:
+                except ValueError:
                     pass
             out += token_weights(x, weight)
         else:
@@ -425,7 +425,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
         try:
             if os.path.commonpath((embed_dir, embed_path)) != embed_dir:
                 continue
-        except:
+        except (ValueError, TypeError):
             continue
         if not os.path.isfile(embed_path):
             extensions = ['.safetensors', '.pt', '.bin']

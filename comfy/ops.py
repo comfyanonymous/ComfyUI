@@ -71,7 +71,7 @@ try:
             #TODO: change upper bound version once it's fixed'
             NVIDIA_MEMORY_CONV_BUG_WORKAROUND = True
             logging.info("working around nvidia conv3d memory bug.")
-except:
+except (RuntimeError, AttributeError, TypeError):
     pass
 
 cast_to = comfy.model_management.cast_to #TODO: remove once no more references

@@ -71,7 +71,8 @@ class ModelFileManager:
                     img.save(img_bytes, format="WEBP")
                     img_bytes.seek(0)
                     return web.Response(body=img_bytes.getvalue(), content_type="image/webp")
-            except:
+            except (IOError, OSError, ValueError, Image.DecompressionBombError) as e:
+                logging.warning(f"Failed to load preview image {default_preview}: {e}")
                 return web.Response(status=404)
 
     def get_model_file_list(self, folder_name: str):

@@ -569,7 +569,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""})
 
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
@@ -589,7 +589,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""})
 
                     elif channel == 'a':
                         with Image.open(file) as img:
@@ -606,7 +606,7 @@ class PromptServer():
                             alpha_buffer.seek(0)
 
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""})
                     else:
                         # Use the content type from asset resolution if available,
                         # otherwise guess from the filename.
@@ -623,7 +623,7 @@ class PromptServer():
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Disposition": f"attachment; filename=\"{filename}\"",
                                 "Content-Type": content_type
                             }
                         )
