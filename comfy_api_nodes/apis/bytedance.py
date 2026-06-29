@@ -132,6 +132,10 @@ class GetAssetResponse(BaseModel):
     error: TaskStatusError | None = Field(None)
 
 
+class SeedanceCreateVisualValidateSessionRequest(BaseModel):
+    name: str | None = Field(None, max_length=64)
+
+
 class SeedanceCreateVisualValidateSessionResponse(BaseModel):
     session_id: str = Field(...)
     h5_link: str = Field(...)
@@ -141,6 +145,7 @@ class SeedanceGetVisualValidateSessionResponse(BaseModel):
     session_id: str = Field(...)
     status: str = Field(...)
     group_id: str | None = Field(None)
+    name: str | None = Field(None)
     error_code: str | None = Field(None)
     error_message: str | None = Field(None)
 

@@ -233,6 +233,44 @@ class ElevenLabsVoiceSelector(IO.ComfyNode):
         return IO.NodeOutput(voice_id)
 
 
+class ElevenLabsRichVoiceSelector(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ElevenLabsRichVoiceSelector",
+            display_name="ElevenLabs Voice Selector (Rich)",
+            category="api node/audio/ElevenLabs",
+            description="Select an ElevenLabs voice with audio preview and rich metadata.",
+            inputs=[
+                IO.Combo.Input(
+                    "voice",
+                    remote_combo=IO.RemoteComboOptions(
+                        route="/proxy/elevenlabs/v2/voices?page_size=100",
+                        response_key="items",
+                        refresh_button=True,
+                        refresh=43200000,
+                        item_schema=IO.RemoteItemSchema(
+                            value_field="voice_id",
+                            label_field="name",
+                            preview_url_field="preview_url",
+                            preview_type="audio",
+                            search_fields=["name", "labels.gender", "labels.accent", "labels.use_case"],
+                        ),
+                    ),
+                    tooltip="Choose a voice with audio preview.",
+                ),
+            ],
+            outputs=[
+                IO.Custom(ELEVENLABS_VOICE).Output(display_name="voice"),
+            ],
+            is_api_node=False,
+        )
+
+    @classmethod
+    def execute(cls, voice: str) -> IO.NodeOutput:
+        return IO.NodeOutput(voice)  # voice is already the voice_id from item_schema.value_field
+
+
 class ElevenLabsTextToSpeech(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -911,6 +949,7 @@ class ElevenLabsExtension(ComfyExtension):
         return [
             ElevenLabsSpeechToText,
             ElevenLabsVoiceSelector,
+            ElevenLabsRichVoiceSelector,
             ElevenLabsTextToSpeech,
             ElevenLabsAudioIsolation,
             ElevenLabsTextToSoundEffects,

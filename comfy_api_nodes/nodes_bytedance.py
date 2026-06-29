@@ -23,6 +23,7 @@ from comfy_api_nodes.apis.bytedance import (
     Seedance2TaskCreationRequest,
     SeedanceCreateAssetRequest,
     SeedanceCreateAssetResponse,
+    SeedanceCreateVisualValidateSessionRequest,
     SeedanceCreateVisualValidateSessionResponse,
     SeedanceGetVisualValidateSessionResponse,
     SeedanceVirtualLibraryCreateAssetRequest,
@@ -257,11 +258,16 @@ def _rewrite_asset_refs(prompt: str, labels: dict[int, str]) -> str:
     return _ASSET_REF_RE.sub(_sub, prompt)
 
 
-async def _obtain_group_id_via_h5_auth(cls: type[IO.ComfyNode]) -> str:
+async def _obtain_group_id_via_h5_auth(
+    cls: type[IO.ComfyNode],
+    group_name: str | None = None,
+) -> str:
+    payload = SeedanceCreateVisualValidateSessionRequest(name=group_name)
     session = await sync_op(
         cls,
         ApiEndpoint(path="/proxy/seedance/visual-validate/sessions", method="POST"),
         response_model=SeedanceCreateVisualValidateSessionResponse,
+        data=payload,
     )
     logger.warning("Seedance authentication required. Open link: %s", session.h5_link)
 
@@ -290,10 +296,15 @@ async def _obtain_group_id_via_h5_auth(cls: type[IO.ComfyNode]) -> str:
     return result.group_id
 
 
-async def _resolve_group_id(cls: type[IO.ComfyNode], group_id: str) -> str:
+async def _resolve_group_id(
+    cls: type[IO.ComfyNode],
+    group_id: str,
+    group_name: str | None = None,
+) -> str:
     if group_id and group_id.strip():
         return group_id.strip()
-    return await _obtain_group_id_via_h5_auth(cls)
+    label = (group_name or "").strip() or None
+    return await _obtain_group_id_via_h5_auth(cls, group_name=label)
 
 
 async def _create_seedance_asset(
@@ -2324,6 +2335,55 @@ async def process_video_task(
     return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
+def _seedance_group_picker_input() -> IO.Combo.Input:
+    """Combo populated from /proxy/seedance/visual-validate/groups. Empty selection triggers H5 enrollment."""
+    return IO.Combo.Input(
+        "group_id",
+        default="",
+        tooltip=(
+            "Pick an existing verified group, or leave empty to run real-person H5 "
+            "authentication and create a new group."
+        ),
+        remote_combo=IO.RemoteComboOptions(
+            route="/proxy/seedance/visual-validate/groups",
+            response_key="groups",
+            item_schema=IO.RemoteItemSchema(
+                value_field="group_id",
+                label_field="name",
+                description_field="created_at",
+                search_fields=["name", "group_id"],
+            ),
+            refresh=60_000,
+        ),
+        optional=True,
+    )
+
+
+def _seedance_group_name_input() -> IO.String.Input:
+    return IO.String.Input(
+        "group_name",
+        default="",
+        tooltip=(
+            "Optional label for a new group. Used only when group_id is empty; the label is "
+            "shown later in the group picker so you can identify this group at a glance. "
+            "Up to 64 characters."
+        ),
+        optional=True,
+    )
+
+
+def _seedance_asset_name_input() -> IO.String.Input:
+    return IO.String.Input(
+        "asset_name",
+        default="",
+        tooltip=(
+            "Optional label for the asset, shown in the asset selector dropdown. "
+            "Up to 64 characters. Leave empty to identify the asset by its id."
+        ),
+        optional=True,
+    )
+
+
 class ByteDanceCreateImageAsset(IO.ComfyNode):
 
     @classmethod
@@ -2334,22 +2394,15 @@ class ByteDanceCreateImageAsset(IO.ComfyNode):
             category="partner/image/ByteDance",
             description=(
                 "Create a Seedance 2.0 personal image asset. Uploads the input image and "
-                "registers it in the given asset group. If group_id is empty, runs a real-person "
-                "H5 authentication flow to create a new group before adding the asset."
+                "registers it in the selected asset group. Leave group_id empty to run a "
+                "real-person H5 authentication flow and create a new group; provide group_name "
+                "to label the new group."
             ),
             inputs=[
                 IO.Image.Input("image", tooltip="Image to register as a personal asset."),
-                IO.String.Input(
-                    "group_id",
-                    default="",
-                    tooltip="Reuse an existing Seedance asset group ID to skip repeated human verification for the "
-                    "same person. Leave empty to run real-person authentication in the browser and create a new group.",
-                ),
-                # IO.String.Input(
-                #     "name",
-                #     default="",
-                #     tooltip="Asset name (up to 64 characters).",
-                # ),
+                _seedance_group_picker_input(),
+                _seedance_group_name_input(),
+                _seedance_asset_name_input(),
             ],
             outputs=[
                 IO.String.Output(display_name="asset_id"),
@@ -2368,18 +2421,17 @@ class ByteDanceCreateImageAsset(IO.ComfyNode):
         cls,
         image: Input.Image,
         group_id: str = "",
-        # name: str = "",
+        group_name: str = "",
+        asset_name: str = "",
     ) -> IO.NodeOutput:
-        # if len(name) > 64:
-        #     raise ValueError("Name of asset can not be greater then 64 symbols")
         validate_image_dimensions(image, min_width=300, max_width=6000, min_height=300, max_height=6000)
         validate_image_aspect_ratio(image, min_ratio=(0.4, 1), max_ratio=(2.5, 1))
-        resolved_group = await _resolve_group_id(cls, group_id)
+        resolved_group = await _resolve_group_id(cls, group_id, group_name=group_name)
         asset_id = await _create_seedance_asset(
             cls,
             group_id=resolved_group,
             url=await upload_image_to_comfyapi(cls, image),
-            name="",
+            name=asset_name.strip()[:64],
             asset_type="Image",
         )
         await _wait_for_asset_active(cls, asset_id, resolved_group)
@@ -2401,22 +2453,15 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
             category="partner/video/ByteDance",
             description=(
                 "Create a Seedance 2.0 personal video asset. Uploads the input video and "
-                "registers it in the given asset group. If group_id is empty, runs a real-person "
-                "H5 authentication flow to create a new group before adding the asset."
+                "registers it in the selected asset group. Leave group_id empty to run a "
+                "real-person H5 authentication flow and create a new group; provide group_name "
+                "to label the new group."
             ),
             inputs=[
                 IO.Video.Input("video", tooltip="Video to register as a personal asset."),
-                IO.String.Input(
-                    "group_id",
-                    default="",
-                    tooltip="Reuse an existing Seedance asset group ID to skip repeated human verification for the "
-                    "same person. Leave empty to run real-person authentication in the browser and create a new group.",
-                ),
-                # IO.String.Input(
-                #     "name",
-                #     default="",
-                #     tooltip="Asset name (up to 64 characters).",
-                # ),
+                _seedance_group_picker_input(),
+                _seedance_group_name_input(),
+                _seedance_asset_name_input(),
             ],
             outputs=[
                 IO.String.Output(display_name="asset_id"),
@@ -2435,10 +2480,9 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
         cls,
         video: Input.Video,
         group_id: str = "",
-        # name: str = "",
+        group_name: str = "",
+        asset_name: str = "",
     ) -> IO.NodeOutput:
-        # if len(name) > 64:
-        #     raise ValueError("Name of asset can not be greater then 64 symbols")
         validate_video_duration(video, min_duration=2, max_duration=15)
         validate_video_dimensions(video, min_width=300, max_width=6000, min_height=300, max_height=6000)
 
@@ -2457,12 +2501,12 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
         if not (24 <= fps <= 60):
             raise ValueError(f"Asset video FPS must be in [24, 60], got {fps:.2f}.")
 
-        resolved_group = await _resolve_group_id(cls, group_id)
+        resolved_group = await _resolve_group_id(cls, group_id, group_name=group_name)
         asset_id = await _create_seedance_asset(
             cls,
             group_id=resolved_group,
             url=await upload_video_to_comfyapi(cls, video),
-            name="",
+            name=asset_name.strip()[:64],
             asset_type="Video",
         )
         await _wait_for_asset_active(cls, asset_id, resolved_group)
@@ -2472,6 +2516,92 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
             cls.hidden.unique_id,
         )
         return IO.NodeOutput(asset_id, resolved_group)
+
+
+def _seedance_asset_picker_input(asset_type: str, preview_type: str) -> IO.Combo.Input:
+    """Combo populated from /proxy/seedance/assets, scoped to one asset_type."""
+    return IO.Combo.Input(
+        "asset_id",
+        tooltip=(
+            f"Pick a previously-created Seedance {asset_type.lower()} asset. The dropdown shows "
+            "your assets across all your verified groups; type a group name to filter."
+        ),
+        remote_combo=IO.RemoteComboOptions(
+            route=f"/proxy/seedance/assets?asset_type={asset_type}",
+            response_key="assets",
+            item_schema=IO.RemoteItemSchema(
+                value_field="asset_id",
+                label_field="name",
+                description_field="group_name",
+                preview_url_field="url",
+                preview_type=preview_type,
+                search_fields=["name", "asset_id", "group_name", "group_id"],
+            ),
+            refresh=60_000,
+        ),
+    )
+
+
+class ByteDanceSelectImageAsset(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ByteDanceSelectImageAsset",
+            display_name="ByteDance Select Image Asset",
+            category="api node/image/ByteDance",
+            description=(
+                "Pick a previously-created Seedance image asset. Outputs the selected asset_id "
+                "for use with downstream Seedance 2.0 reference/first-last-frame nodes."
+            ),
+            inputs=[
+                _seedance_asset_picker_input("Image", "image"),
+            ],
+            outputs=[IO.String.Output(display_name="asset_id")],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            # is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(cls, asset_id: str) -> IO.NodeOutput:
+        if not asset_id or not asset_id.strip():
+            raise ValueError("asset_id is required. Pick an asset from the dropdown.")
+        return IO.NodeOutput(asset_id.strip())
+
+
+class ByteDanceSelectVideoAsset(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ByteDanceSelectVideoAsset",
+            display_name="ByteDance Select Video Asset",
+            category="api node/video/ByteDance",
+            description=(
+                "Pick a previously-created Seedance video asset. Outputs the selected asset_id "
+                "for use with downstream Seedance 2.0 reference/first-last-frame nodes."
+            ),
+            inputs=[
+                _seedance_asset_picker_input("Video", "video"),
+            ],
+            outputs=[IO.String.Output(display_name="asset_id")],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            # is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(cls, asset_id: str) -> IO.NodeOutput:
+        if not asset_id or not asset_id.strip():
+            raise ValueError("asset_id is required. Pick an asset from the dropdown.")
+        return IO.NodeOutput(asset_id.strip())
 
 
 class ByteDanceExtension(ComfyExtension):
@@ -2490,6 +2620,8 @@ class ByteDanceExtension(ComfyExtension):
             ByteDance2ReferenceNode,
             ByteDanceCreateImageAsset,
             ByteDanceCreateVideoAsset,
+            ByteDanceSelectImageAsset,
+            ByteDanceSelectVideoAsset,
         ]
 
 

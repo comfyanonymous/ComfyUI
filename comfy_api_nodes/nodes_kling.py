@@ -3390,6 +3390,53 @@ class KlingAvatarNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
+KLING_ELEMENT_ID = "KLING_ELEMENT_ID"
+
+
+class KlingElementSelector(IO.ComfyNode):
+    """Select a Kling preset element (character, scene, effect, etc.) for use in video generation."""
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingElementSelector",
+            display_name="Kling Element Selector",
+            category="api node/video/Kling",
+            description="Browse and select a Kling preset element with image preview. Elements provide consistent characters, scenes, costumes, and effects for video generation.",
+            inputs=[
+                IO.Combo.Input(
+                    "element",
+                    remote_combo=IO.RemoteComboOptions(
+                        route="/proxy/kling/v1/general/advanced-presets-elements",
+                        refresh_button=True,
+                        refresh=43200000,
+                        response_key="data",
+                        item_schema=IO.RemoteItemSchema(
+                            value_field="task_result.elements.0.element_id",
+                            label_field="task_result.elements.0.element_name",
+                            preview_url_field="task_result.elements.0.element_image_list.frontal_image",
+                            preview_type="image",
+                            description_field="task_result.elements.0.element_description",
+                            search_fields=["task_result.elements.0.element_name", "task_result.elements.0.element_description"],
+                        ),
+                    ),
+                    tooltip="Select a preset element to use in video generation.",
+                ),
+            ],
+            outputs=[IO.Custom(KLING_ELEMENT_ID).Output(display_name="element_id")],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=False,
+        )
+
+    @classmethod
+    async def execute(cls, element: str) -> IO.NodeOutput:
+        return IO.NodeOutput(element)
+
+
 class KlingExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -3419,6 +3466,7 @@ class KlingExtension(ComfyExtension):
             KlingVideoNode,
             KlingFirstLastFrameNode,
             KlingAvatarNode,
+            KlingElementSelector,
         ]
 
 
