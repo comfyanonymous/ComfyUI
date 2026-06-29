@@ -253,12 +253,17 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
     Returns (outputs_count, preview_output).
 
     Preview priority (matching frontend):
-    1. type="output" with previewable media
-    2. Any previewable media
+    1. type="output" media (saved images/video/audio/3d)
+    2. any other previewable media (e.g. temp/preview images)
+    3. text (only when the job produced no media output)
+
+    Text is kept in its own slot so node/execution order can't let a text
+    output mask a visual one (e.g. a text node that runs before an image).
     """
     count = 0
     preview_output = None
     fallback_preview = None
+    text_fallback = None
 
     for node_id, node_outputs in outputs.items():
         if not isinstance(node_outputs, dict):
@@ -287,8 +292,8 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                                     'nodeId': node_id,
                                     'mediaType': media_type
                                 }
-                                if fallback_preview is None:
-                                    fallback_preview = enriched
+                                if text_fallback is None:
+                                    text_fallback = enriched
                         continue
                     # normalize_output_item returned a dict (e.g. 3D file)
                     item = normalized
@@ -310,7 +315,7 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                     elif fallback_preview is None:
                         fallback_preview = enriched
 
-    return count, preview_output or fallback_preview
+    return count, preview_output or fallback_preview or text_fallback
 
 
 def apply_sorting(jobs: list[dict], sort_by: str, sort_order: str) -> list[dict]:

@@ -280,6 +280,28 @@ class TestGetOutputsSummary:
         assert preview['filename'] == 'model.glb'
         assert preview['mediaType'] == '3d'
 
+    def test_media_preview_preferred_over_text(self):
+        """A visual output wins the preview even when a text node is iterated
+        first (regression: text could mask a later temp/preview image)."""
+        outputs = {
+            'text_node': {'text': ['a caption']},
+            'image_node': {'images': [{'filename': 'preview.png', 'type': 'temp'}]},
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 2
+        assert preview['filename'] == 'preview.png'
+        assert preview['mediaType'] == 'images'
+
+    def test_text_used_as_preview_when_no_media(self):
+        """Text is the preview only when the job produced no media output."""
+        outputs = {
+            'text_node': {'text': ['hello world']},
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 1
+        assert preview['mediaType'] == 'text'
+        assert preview['content'] == 'hello world'
+
 
 class TestHas3DExtension:
     """Unit tests for has_3d_extension()"""
