@@ -1638,6 +1638,15 @@ class GeminiVideoOmni(IO.ComfyNode):
                     ],
                     tooltip="The Gemini video model used to generate the video.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1655,7 +1664,7 @@ class GeminiVideoOmni(IO.ComfyNode):
         )
 
     @classmethod
-    async def execute(cls, model: dict) -> IO.NodeOutput:
+    async def execute(cls, model: dict, seed: int) -> IO.NodeOutput:
         prompt = model.get("prompt") or ""
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_id = OMNI_MODELS[model["model"]]
