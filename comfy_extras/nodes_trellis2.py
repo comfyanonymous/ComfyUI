@@ -845,11 +845,6 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024):
     composite = (composite * 255.0).round().clamp(0, 255).to(torch.uint8).float() / 255.0
     return composite, crop_bbox, scene_size
 
-def _fov_from_moge_intrinsics(moge_intrinsics: torch.Tensor) -> float:
-    fx = moge_intrinsics[..., 0, 0].float()
-    fov = 2.0 * torch.atan(0.5 / fx.clamp(min=1e-4))
-    return float(fov.mean().item())
-
 class Pixal3DConditioning(IO.ComfyNode):
 
     @classmethod
@@ -862,18 +857,11 @@ class Pixal3DConditioning(IO.ComfyNode):
                 IO.Image.Input("image"),
                 IO.Mask.Input("mask"),
                 IO.Float.Input(
-                    "camera_angle_x", default=0.2, min=0.0175, max=2.9671, step=0.001,
-                    tooltip="Horizontal FOV in radians (upstream demo default 0.2). "
-                            "Overridden by moge_geometry if connected.",
-                ),
-                IO.Float.Input(
-                    "mesh_scale", default=1.0, min=0.1, max=4.0, step=0.01,
-                    tooltip="Mesh scale; 1.0 means unit cube.",
-                ),
-                io.Custom("MOGE_GEOMETRY").Input(
-                    "moge_geometry",
-                    optional=True,
-                    tooltip="If connected, camera_angle_x is recovered from MoGe.",
+                    "camera_angle_x", display_name="fov",
+                    default=11.46, min=1.0, max=170.0, step=0.01, advanced=True,
+                    tooltip="Horizontal FOV in degrees (original default ~11.46° = 0.2 rad). "
+                            "Wire a MoGeGeometryToFOV (axis='horizontal', unit='degrees') "
+                            "output here for a MoGe-derived FOV.",
                 ),
                 NAFModel.Input(
                     "naf_model",
@@ -889,8 +877,7 @@ class Pixal3DConditioning(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip_vision_model, image, mask, camera_angle_x, mesh_scale,
-                moge_geometry=None, naf_model=None) -> IO.NodeOutput:
+    def execute(cls, clip_vision_model, image, mask, camera_angle_x, naf_model=None) -> IO.NodeOutput:
         if image.ndim == 3:
             image = image.unsqueeze(0)
         if mask.ndim == 2:
@@ -900,9 +887,6 @@ class Pixal3DConditioning(IO.ComfyNode):
             mask = mask.expand(batch_size, -1, -1)
         elif mask.shape[0] != batch_size:
             raise ValueError(f"Pixal3DConditioning mask batch {mask.shape[0]} != image batch {batch_size}")
-
-        if moge_geometry is not None and "intrinsics" in moge_geometry:
-            camera_angle_x = _fov_from_moge_intrinsics(moge_geometry["intrinsics"])
 
         device = comfy.model_management.intermediate_device()
 
@@ -954,11 +938,12 @@ class Pixal3DConditioning(IO.ComfyNode):
         hr_tex_1024   = _naf_hr(fm_1024_dino, composite_list, 1024, (1024, 1024))
 
         # distance_from_fov: grid_point (-1, 0, 0) projects to pixel (0, image_resolution-1).
-        camera_angle_x = float(camera_angle_x)
-        distance = 0.5 / math.tan(camera_angle_x / 2.0) / float(mesh_scale)
+        # FOV widget is in degrees for UX; trig + downstream projection expect radians.
+        camera_angle_x = math.radians(float(camera_angle_x))
+        distance = 0.5 / math.tan(camera_angle_x / 2.0)
         cam_angle_t = torch.tensor([camera_angle_x] * batch_size, device=device, dtype=torch.float32)
         dist_t = torch.tensor([distance] * batch_size, device=device, dtype=torch.float32)
-        scale_t = torch.tensor([float(mesh_scale)] * batch_size, device=device, dtype=torch.float32)
+        scale_t = torch.ones(batch_size, device=device, dtype=torch.float32)
         T = build_proj_transform_matrix(dist_t, batch_size, device=device, dtype=torch.float32)
 
         proj_pack = {
