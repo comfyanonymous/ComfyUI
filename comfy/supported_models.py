@@ -1436,7 +1436,8 @@ class Trellis2(supported_models_base.BASE):
     unet_config = {
         "image_model": "trellis2"
     }
-    unet_extra_config = {}
+
+    unet_extra_config = {"num_heads": 12}
 
     sampling_settings = {
         "shift": 3.0,
