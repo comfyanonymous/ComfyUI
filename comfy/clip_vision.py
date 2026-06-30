@@ -10,6 +10,7 @@ import comfy.utils
 import comfy.clip_model
 import comfy.image_encoders.dino2
 import comfy.image_encoders.dino3
+from comfy.image_encoders.naf import NAF
 
 class Output:
     def __getitem__(self, key):
@@ -53,6 +54,7 @@ class ClipVisionModel():
         self.model.eval()
 
         self.patcher = comfy.model_patcher.CoreModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
+        self.naf = None
 
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False, assign=self.patcher.is_dynamic())
@@ -155,6 +157,13 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     for k in keys:
         if k not in u:
             sd.pop(k)
+    # NAF feature upsampler ships bundled into the DINOv3 file under the `naf.` prefix.
+    naf_keys = [k for k in sd if k.startswith("naf.")]
+    if naf_keys:
+        naf_sd = {k[len("naf."):]: sd.pop(k) for k in naf_keys}
+        naf = NAF().eval()
+        naf.load_state_dict(naf_sd, strict=False)
+        clip.naf = comfy.model_patcher.CoreModelPatcher(naf, load_device=clip.load_device, offload_device=comfy.model_management.text_encoder_offload_device())
     return clip
 
 def load(ckpt_path):
