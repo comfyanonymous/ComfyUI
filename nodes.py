@@ -159,6 +159,29 @@ class ConditioningConcat:
 
         return (out, )
 
+class ConditioningMultiply:
+    SEARCH_ALIASES = ["scale conditioning", "scale prompt", "multiply conditioning", "multiply prompt"]
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                            "multiplier": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01})
+                            }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION     = "multiply"
+    CATEGORY     = "model/conditioning/transform"
+
+    def multiply(self, conditioning, multiplier):
+        c = []
+        for t in conditioning:
+            values = {}
+            pooled_output = t[1].get("pooled_output", None)
+            if pooled_output is not None:
+                values["pooled_output"] = pooled_output * multiplier
+            scaled = node_helpers.conditioning_set_values([[t[0] * multiplier, t[1]]], values)[0]
+            c.append(scaled)
+        return (c,)
+
 class ConditioningSetArea:
     SEARCH_ALIASES = ["regional prompt", "area prompt", "spatial conditioning", "localized prompt"]
 
@@ -2050,6 +2073,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningAverage": ConditioningAverage,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningConcat": ConditioningConcat,
+    "ConditioningMultiply": ConditioningMultiply,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetAreaPercentage": ConditioningSetAreaPercentage,
     "ConditioningSetAreaStrength": ConditioningSetAreaStrength,
@@ -2121,6 +2145,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningAverage": "Conditioning (Average)",
     "ConditioningConcat": "Conditioning (Concat)",
+    "ConditioningMultiply": "Conditioning (Multiply)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
     "ConditioningSetAreaStrength": "Conditioning (Set Area Strength)",
