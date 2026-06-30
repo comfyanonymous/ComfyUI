@@ -69,7 +69,13 @@ class SAM3DBody_Loader(io.ComfyNode):
             device=load_device, model_params=-1, weight_dtype=weight_dtype,
         )
         manual_cast_dtype = comfy.model_management.unet_manual_cast(torch_dtype, load_device)
-        operations = comfy.ops.pick_operations(torch_dtype, manual_cast_dtype, load_device=load_device, disable_fast_fp8=True)
+
+        quant_config = comfy.utils.detect_layer_quantization(sd, "")
+        if quant_config is not None:
+            operations = comfy.ops.mixed_precision_ops(quant_config, torch_dtype)
+            logging.info("SAM3D-Body: detected mixed precision quantization, using MixedPrecisionOps")
+        else:
+            operations = comfy.ops.pick_operations(torch_dtype, manual_cast_dtype, load_device=load_device, disable_fast_fp8=True)
 
         model = SAM3DBody(dtype=torch_dtype, operations=operations)
         model.load_state_dict(sd, strict=False)
