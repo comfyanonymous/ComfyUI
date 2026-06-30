@@ -2,12 +2,13 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, Types, UI, io
 from comfy.ldm.trellis2.vae import SparseTensor
 from comfy.ldm.trellis2.model import build_proj_transform_matrix, _project_points_to_image, compute_stage_proj_feats
-from comfy.ldm.trellis2.naf.model import build_naf_from_state_dict
+from comfy.ldm.trellis2.naf.model import NAF
 
 from comfy_extras.nodes_mesh_postprocess import pack_variable_mesh_batch
 from server import PromptServer
 import comfy.latent_formats
 import comfy.model_management
+import comfy.model_patcher
 import comfy.utils
 import folder_paths
 from PIL import Image
@@ -923,15 +924,19 @@ class Pixal3DConditioning(IO.ComfyNode):
         def _naf_hr(lr_feat, composites, image_size, naf_target):
             if naf_model is None or naf_target is None:
                 return None
-            target_dtype = lr_feat.dtype
-            if next(naf_model.parameters()).dtype != target_dtype:
-                naf_model.to(dtype=target_dtype)
-            imgs = torch.cat([
-                comfy.utils.common_upscale(c, image_size, image_size, "lanczos", "disabled")
-                for c in composites
-            ], dim=0).to(torch_device).to(target_dtype)
-            hr = naf_model(imgs, lr_feat.to(torch_device).to(target_dtype), naf_target)
-            return hr.to(device)
+            comfy.model_management.load_model_gpu(naf_model)
+            inner = naf_model.model
+            target_dtype = comfy.model_management.text_encoder_dtype(torch_device)
+            if next(inner.parameters()).dtype != target_dtype:
+                inner.to(dtype=target_dtype)
+            hrs = []
+            for i, c in enumerate(composites):
+                img_i = comfy.utils.common_upscale(c, image_size, image_size, "lanczos", "disabled")\
+                    .to(torch_device).to(target_dtype)
+                lr_i = lr_feat[i:i + 1].to(torch_device).to(target_dtype)
+                hr_i = inner(img_i, lr_i, naf_target, output_device=device)
+                hrs.append(hr_i)
+            return torch.cat(hrs, dim=0)
 
         hr_shape_512  = _naf_hr(fm_512_dino,  composite_list, 512,  (512, 512))
         hr_shape_1024 = _naf_hr(fm_1024_dino, composite_list, 1024, (512, 512))
@@ -1148,10 +1153,16 @@ class LoadNAFModel(IO.ComfyNode):
     def execute(cls, naf_name) -> IO.NodeOutput:
         path = folder_paths.get_full_path_or_raise("upscale_models", naf_name)
         sd = comfy.utils.load_torch_file(path, safe_load=True)
-        model = build_naf_from_state_dict(sd)
-        device = comfy.model_management.get_torch_device()
-        model = model.to(device).eval()
-        return IO.NodeOutput(model)
+        model = NAF().eval()
+        _, unexpected = model.load_state_dict(sd, strict=False)
+        if unexpected:
+            raise ValueError(f"Unexpected keys in NAF state_dict: {sorted(unexpected)[:8]}...")
+        patcher = comfy.model_patcher.CoreModelPatcher(
+            model,
+            load_device=comfy.model_management.get_torch_device(),
+            offload_device=comfy.model_management.unet_offload_device(),
+        )
+        return IO.NodeOutput(patcher)
 
 
 class GetMeshInfo(IO.ComfyNode):
