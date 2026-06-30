@@ -197,7 +197,7 @@ def _compute_vertex_normals(vertices_np, faces_np, crease_angle=None):
     return (vertices_np[remap], out_faces.astype(np.uint32), normals.astype(np.float32), remap)
 
 
-def save_glb(vertices, faces, filepath, metadata=None,
+def save_glb(vertices, faces, filepath=None, metadata=None,
              uvs=None, vertex_colors=None, texture_image=None,
              metallic_roughness_image=None, unlit=False,
              normals=None, normal_map_image=None, tangents=None, occlusion_in_mr=False,
@@ -208,7 +208,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     Parameters:
     vertices: torch.Tensor of shape (N, 3) - The vertex coordinates
     faces: torch.Tensor of shape (M, 3) - The face indices (triangle faces)
-    filepath: str - Output filepath (should end with .glb)
+    filepath: str - Output filepath (should end with .glb). None returns the GLB bytes instead of writing.
     metadata: dict - Optional asset.extras metadata
     uvs: torch.Tensor of shape (N, 2) - Optional per-vertex texture coordinates
     vertex_colors: torch.Tensor of shape (N, 3) or (N, 4) - Optional per-vertex colors in [0, 1]
@@ -572,15 +572,46 @@ def save_glb(vertices, faces, filepath, metadata=None,
     # Create BIN chunk header (chunk type 1)
     bin_chunk_header = struct.pack('<II', len(buffer_data), 0x004E4942)  # "BIN\0" in little endian
 
-    # Write the GLB file
+    glb = b"".join([glb_header, json_chunk_header, gltf_json_padded, bin_chunk_header, buffer_data])
+    if filepath is None:
+        return glb                       # in-memory GLB bytes (e.g. for a File3D object)
     with open(filepath, 'wb') as f:
-        f.write(glb_header)
-        f.write(json_chunk_header)
-        f.write(gltf_json_padded)
-        f.write(bin_chunk_header)
-        f.write(buffer_data)
-
+        f.write(glb)
     return filepath
+
+
+def mesh_item_to_glb_bytes(mesh, index, metadata=None):
+    """Serialize one batch item of a MESH to in-memory GLB bytes, carrying every PBR attribute
+    (uvs, colors, normals, texture, ORM/occlusion, normal map + tangents, emissive, material).
+    Returns None for an empty item. Shared by SaveGLB (per item) and MeshToFile3D."""
+    vertices_i, faces_i, v_colors, uvs_i, normals_i = get_mesh_batch_item(mesh, index)
+    if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
+        return None
+
+    def _img(attr):
+        t = getattr(mesh, attr, None)
+        if t is None:
+            return None
+        a = (t[index].clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+        assert a.ndim == 3 and a.shape[-1] == 3, f"{attr} must be (B, H, W, 3), got {tuple(t.shape)}"
+        return Image.fromarray(a, mode="RGB")
+
+    tangents_b = getattr(mesh, "tangents", None)
+    tangents_i = tangents_b[index, :vertices_i.shape[0]] if tangents_b is not None else None
+    return save_glb(
+        vertices_i, faces_i, None, metadata,
+        uvs=uvs_i,
+        vertex_colors=v_colors,
+        texture_image=_img("texture"),
+        metallic_roughness_image=_img("metallic_roughness"),
+        unlit=getattr(mesh, "unlit", False),
+        normals=normals_i,
+        normal_map_image=_img("normal_map"),
+        tangents=tangents_i,
+        occlusion_in_mr=getattr(mesh, "occlusion_in_mr", False),
+        material=getattr(mesh, "material", None),
+        emissive_image=_img("emissive"),
+    )
 
 
 class SaveGLB(IO.ComfyNode):
@@ -644,63 +675,14 @@ class SaveGLB(IO.ComfyNode):
             counter += 1
         else:
             # Handle Mesh input - save vertices and faces as GLB; carry optional UVs / colors / texture.
-            texture_b = getattr(mesh, "texture", None)
-            texture_np = None
-            if texture_b is not None:
-                texture_np = (texture_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
-                assert texture_np.ndim == 4 and texture_np.shape[-1] == 3, (
-                    f"texture must be (B, H, W, 3) RGB, got shape {tuple(texture_np.shape)}"
-                )
-            mr_b = getattr(mesh, "metallic_roughness", None)
-            mr_np = None
-            if mr_b is not None:
-                mr_np = (mr_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
-                assert mr_np.ndim == 4 and mr_np.shape[-1] == 3, (
-                    f"metallic_roughness must be (B, H, W, 3), got shape {tuple(mr_np.shape)}"
-                )
-            nm_b = getattr(mesh, "normal_map", None)
-            nm_np = None
-            if nm_b is not None:
-                nm_np = (nm_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
-                assert nm_np.ndim == 4 and nm_np.shape[-1] == 3, (
-                    f"normal_map must be (B, H, W, 3), got shape {tuple(nm_np.shape)}"
-                )
-            em_b = getattr(mesh, "emissive", None)
-            em_np = None
-            if em_b is not None:
-                em_np = (em_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
-                assert em_np.ndim == 4 and em_np.shape[-1] == 3, (
-                    f"emissive must be (B, H, W, 3), got shape {tuple(em_np.shape)}"
-                )
-            tangents_b = getattr(mesh, "tangents", None)
-            material = getattr(mesh, "material", None)
             for i in range(mesh.vertices.shape[0]):
-                vertices_i, faces_i, v_colors, uvs_i, normals_i = get_mesh_batch_item(mesh, i)
-                if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
+                glb = mesh_item_to_glb_bytes(mesh, i, metadata)
+                if glb is None:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
-                tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
-                mr_img = Image.fromarray(mr_np[i], mode="RGB") if mr_np is not None else None
-                nm_img = Image.fromarray(nm_np[i], mode="RGB") if nm_np is not None else None
-                em_img = Image.fromarray(em_np[i], mode="RGB") if em_np is not None else None
-                tangents_i = tangents_b[i, :vertices_i.shape[0]] if tangents_b is not None else None
                 f = f"{filename}_{counter:05}_.glb"
-                save_glb(
-                    vertices_i, faces_i,
-                    os.path.join(full_output_folder, f),
-                    metadata,
-                    uvs=uvs_i,
-                    vertex_colors=v_colors,
-                    texture_image=tex_img,
-                    metallic_roughness_image=mr_img,
-                    unlit=getattr(mesh, "unlit", False),
-                    normals=normals_i,
-                    normal_map_image=nm_img,
-                    tangents=tangents_i,
-                    occlusion_in_mr=getattr(mesh, "occlusion_in_mr", False),
-                    material=material,
-                    emissive_image=em_img,
-                )
+                with open(os.path.join(full_output_folder, f), "wb") as fh:
+                    fh.write(glb)
                 results.append({
                     "filename": f,
                     "subfolder": subfolder,
@@ -708,6 +690,32 @@ class SaveGLB(IO.ComfyNode):
                 })
                 counter += 1
         return IO.NodeOutput(ui={"3d": results})
+
+
+class MeshToFile3D(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="MeshToFile3D",
+            display_name="Create 3D File (from Mesh)",
+            search_aliases=["mesh to glb", "mesh to file", "export mesh"],
+            category="3d",
+            description="Serialize a mesh to a GLB File3D object for Save / Preview 3D nodes, "
+                        "carrying its UVs, colors, normals, texture, normal/occlusion/emissive "
+                        "maps and material. Supports one item per batch only.",
+            inputs=[IO.Mesh.Input("mesh")],
+            outputs=[IO.File3DGLB.Output(display_name="model_3d")],
+        )
+
+    @classmethod
+    def execute(cls, mesh) -> IO.NodeOutput:
+        if mesh.vertices.shape[0] > 1:
+            logging.warning("MeshToFile3D supports one item per batch only. Got %d; using first.",
+                            mesh.vertices.shape[0])
+        glb = mesh_item_to_glb_bytes(mesh, 0)
+        if glb is None:
+            raise ValueError("MeshToFile3D: mesh is empty (no vertices/faces).")
+        return IO.NodeOutput(Types.File3D(BytesIO(glb), file_format="glb"))
 
 
 class RotateMesh(IO.ComfyNode):
@@ -889,7 +897,7 @@ class MeshSmoothNormals(IO.ComfyNode):
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB, RotateMesh, MeshSmoothNormals]
+        return [SaveGLB, MeshToFile3D, RotateMesh, MeshSmoothNormals]
 
 
 async def comfy_entrypoint() -> Save3DExtension:
