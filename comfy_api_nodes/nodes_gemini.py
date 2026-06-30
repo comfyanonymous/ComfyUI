@@ -249,18 +249,22 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
         input_tokens_price = 2
         output_text_tokens_price = 12.0
         output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-3.1-flash-lite-preview":
+    elif response.modelVersion in ("gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"):
         input_tokens_price = 0.25
         output_text_tokens_price = 1.50
         output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-3-pro-image-preview":
+    elif response.modelVersion in ("gemini-3-pro-image-preview", "gemini-3-pro-image"):
         input_tokens_price = 2
         output_text_tokens_price = 12.0
         output_image_tokens_price = 120.0
-    elif response.modelVersion == "gemini-3.1-flash-image-preview":
+    elif response.modelVersion in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-image"):
         input_tokens_price = 0.5
         output_text_tokens_price = 3.0
         output_image_tokens_price = 60.0
+    elif response.modelVersion == "gemini-3.1-flash-lite-image":
+        input_tokens_price = 0.25
+        output_text_tokens_price = 1.50
+        output_image_tokens_price = 30.0
     else:
         return None
     final_price = response.usageMetadata.promptTokenCount * input_tokens_price
@@ -1302,7 +1306,7 @@ class GeminiNanoBanana2(IO.ComfyNode):
         )
 
 
-def _nano_banana_2_v2_model_inputs():
+def _nano_banana_2_v2_model_inputs(resolutions: list[str]):
     return [
         IO.Combo.Input(
             "aspect_ratio",
@@ -1329,8 +1333,8 @@ def _nano_banana_2_v2_model_inputs():
         ),
         IO.Combo.Input(
             "resolution",
-            options=["1K", "2K", "4K"],
-            tooltip="Target output resolution. For 2K/4K the native Gemini upscaler is used.",
+            options=resolutions,
+            tooltip="Target output resolution.",
         ),
         IO.Combo.Input(
             "thinking_level",
@@ -1376,7 +1380,11 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                     options=[
                         IO.DynamicCombo.Option(
                             "Nano Banana 2 (Gemini 3.1 Flash Image)",
-                            _nano_banana_2_v2_model_inputs(),
+                            _nano_banana_2_v2_model_inputs(resolutions=["1K", "2K", "4K"]),
+                        ),
+                        IO.DynamicCombo.Option(
+                            "Nano Banana 2 Lite",
+                            _nano_banana_2_v2_model_inputs(resolutions=["1K"]),
                         ),
                     ],
                 ),
@@ -1445,9 +1453,13 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution"]),
                 expr="""
                 (
-                  $r := $lookup(widgets, "model.resolution");
-                  $prices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
-                  {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
+                  $contains(widgets.model, "lite")
+                    ? {"type":"usd","usd": 0.034, "format":{"suffix":"/Image","approximate":true}}
+                    : (
+                        $r := $lookup(widgets, "model.resolution");
+                        $prices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
+                        {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
+                      )
                 )
                 """,
             ),
@@ -1468,6 +1480,8 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
         model_choice = model["model"]
         if model_choice == "Nano Banana 2 (Gemini 3.1 Flash Image)":
             model_id = "gemini-3.1-flash-image-preview"
+        elif model_choice == "Nano Banana 2 Lite":
+            model_id = "gemini-3.1-flash-lite-image"
         else:
             model_id = model_choice
 
