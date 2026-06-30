@@ -475,10 +475,13 @@ def save_glb(vertices, faces, filepath=None, metadata=None,
         pbr = {
             "metallicFactor": 0.0,
             "roughnessFactor": 0.5,
-            "baseColorFactor": [0.22, 0.22, 0.22, 1.0],
+            "baseColorFactor": [0.22, 0.22, 0.22, 1.0],   # neutral-gray fallback for bare geometry only
         }
         if texture_png_bytes is not None and has_uv:
             pbr["baseColorTexture"] = {"index": add_image_texture(texture_byte_offset, len(texture_buffer)), "texCoord": 0}
+
+        if (texture_png_bytes is not None and has_uv) or "COLOR_0" in primitive_attributes:
+            pbr["baseColorFactor"] = [1.0, 1.0, 1.0, 1.0]
 
         if mr_png_bytes is not None and has_uv:
             mr_texture_index = add_image_texture(mr_byte_offset, len(mr_buffer))
