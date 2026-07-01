@@ -36,6 +36,19 @@
 - Keep comments sparse and useful. Short TODOs are fine when they name the
   concrete missing follow-up.
 
+## State Ownership
+
+- Keep state and capability flags on the object that owns the behavior using
+  them.
+- Avoid probing child objects with `getattr(child, "...", default)` to decide
+  parent-level control flow. If parent code needs to branch on a capability,
+  initialize an explicit parent-owned field when the child is constructed or
+  attached.
+- Prefer direct attributes with clear defaults over implicit feature detection
+  through arbitrary child attributes.
+- Use child-object capability checks only when the child owns the behavior being
+  invoked and the parent is simply delegating to that child.
+
 ## Model, Device, and Memory Behavior
 
 - Treat dtype, device placement, VRAM usage, and offloading behavior as core
