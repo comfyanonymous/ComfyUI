@@ -33,13 +33,17 @@ def _face_curvature_jit(face_normal: np.ndarray, face_face: np.ndarray) -> np.nd
     F = face_normal.shape[0]
     raw = np.zeros(F, dtype=np.float32)
     for f in range(F):
-        nx = face_normal[f, 0]; ny = face_normal[f, 1]; nz = face_normal[f, 2]
+        nx = face_normal[f, 0]
+        ny = face_normal[f, 1]
+        nz = face_normal[f, 2]
         s = np.float32(0.0)
         for e in range(3):
             nb = face_face[f, e]
             if nb < 0:
                 continue
-            mx = face_normal[nb, 0]; my = face_normal[nb, 1]; mz = face_normal[nb, 2]
+            mx = face_normal[nb, 0]
+            my = face_normal[nb, 1]
+            mz = face_normal[nb, 2]
             d = nx*mx + ny*my + nz*mz
             s += np.float32(1.0) - d
         raw[f] = s
@@ -70,7 +74,9 @@ def _farthest_point_seeds_jit(
             continue
         seeds[n_seeds] = s
         n_seeds += 1
-        sx = face_centroid[s, 0]; sy = face_centroid[s, 1]; sz = face_centroid[s, 2]
+        sx = face_centroid[s, 0]
+        sy = face_centroid[s, 1]
+        sz = face_centroid[s, 2]
         for f in range(F):
             dx = face_centroid[f, 0] - sx
             dy = face_centroid[f, 1] - sy
@@ -145,7 +151,9 @@ def _cost_grow_iter_jit(
     for f in range(F):
         if face_chart[f] != -1:
             continue
-        nx = face_normal[f, 0]; ny = face_normal[f, 1]; nz = face_normal[f, 2]
+        nx = face_normal[f, 0]
+        ny = face_normal[f, 1]
+        nz = face_normal[f, 2]
         af = face_area[f]
         for e0 in range(3):
             nb0 = face_face[f, e0]

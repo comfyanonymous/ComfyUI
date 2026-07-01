@@ -952,13 +952,13 @@ def flexible_dual_grid_to_mesh(
     values = torch.arange(N, dtype=torch.int32, device=device)
     torch_hashmap = TorchHashMap(flat_keys, values)
 
-    # Find connected voxels — direct gather instead of materializing the full [N, 3, 4, 3] 
+    # Find connected voxels — direct gather instead of materializing the full [N, 3, 4, 3]
     n_idx, axis_idx = intersected_flag.nonzero(as_tuple=True)                          # (M,), (M,)
     offsets_per_axis = flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset[0]        # (3, 4, 3)
     connected_voxel = coords[n_idx].unsqueeze(1) + offsets_per_axis[axis_idx]          # (M, 4, 3)
     M = connected_voxel.shape[0]
     # flatten connected voxel coords and lookup. In-place to avoid extra memory allocation.
-    W, H, D = int(grid_size[0].item()), int(grid_size[1].item()), int(grid_size[2].item())
+    H, D = int(grid_size[1].item()), int(grid_size[2].item())
     cv = connected_voxel.reshape(-1, 3)
     conn_flat = cv[:, 0].long() * (H * D)
     conn_flat.add_(cv[:, 1].long() * D)

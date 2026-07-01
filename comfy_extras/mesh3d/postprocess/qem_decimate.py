@@ -40,19 +40,19 @@ class QEMConfig:
 
     flip_reject_hard: bool = True  # hard-reject (err=+inf) top-K collapses that flip any 1-ring normal
 
-    # Per-iteration batch sizing 
+    # Per-iteration batch sizing
     sampling_cap: int = 10_000_000  # max edges processed per outer iter
     max_collapses_fraction: float = 0.25  # of remaining faces-to-remove
     max_collapses_floor: int = 10_000
     max_collapses_ceiling: int = 1_000_000
     max_collapses_relative_cap: float = 0.10  # cap per-iter collapses as fraction of current faces; 0 disables
 
-    # Loop control 
+    # Loop control
     max_iterations: int = 5_000
     compaction_period: int = 5
     compaction_threshold: float = 0.85  # compact when alive_frac < this
 
-    # Quality knobs 
+    # Quality knobs
     boundary_quadrics: bool = True
     boundary_weight: float = 1000.0
     recompute_normals_post: bool = True
@@ -63,7 +63,7 @@ class QEMConfig:
     feature_edge_quadric_weight: float = 0.0
     feature_edge_min_dihedral_deg: float = 30.0
 
-    # Flip check (FA-QEM §3.3) 
+    # Flip check (FA-QEM §3.3)
     quality_topk_multiplier: int = 4  # quality-check band size = this * max_collapses_per_iter
     flip_cos_threshold: float = 0.0  # 0 = count any sign reversal (dihedral > 90°)
     flip_check_max_degree: int = 16  # cap on vertex degree for the flip-check table
@@ -71,13 +71,13 @@ class QEMConfig:
     # Triangle shape penalty
     skinny_weight: float = 1e-3  # penalise top-K collapses producing needle/sliver tris; 0 disables
 
-    #  Topology preservation 
+    #  Topology preservation
     enforce_link_condition: bool = True  # reject collapses that violate the link condition
 
-    # Quadric area weighting 
+    # Quadric area weighting
     area_weighted_quadrics: bool = False  # True: Garland-Heckbert area-weighted; False: un-weighted
 
-    # edge-length cost regularizer 
+    # edge-length cost regularizer
     lambda_edge_length: float = 1e-2  # add λ*len² to bias toward short edges; 0 disables
     lambda_edge_length_absolute: bool = True  # apply λ absolutely vs relative-to-QEM-median
 
@@ -87,16 +87,16 @@ class QEMConfig:
     memoryless_qem: bool = True  # rebuild quadrics each round vs accumulate
     repair_nonmanifold: bool = True  # final repair_non_manifold_edges pass
 
-    # Pre-clean (input mesh) 
+    # Pre-clean (input mesh)
     preclean: bool = True  # weld coincident verts, drop degenerate/duplicate/unused
 
-    # Post-clean (output mesh) 
+    # Post-clean (output mesh)
     postclean: bool = True  # remove slivers, tiny components, unused verts left by collapse
     postclean_min_angle_deg: float = 0.5
     postclean_max_aspect_ratio: float = 100.0
     postclean_min_component_faces: int = 8  # drop components with fewer faces than this
 
-    # Preclean tuning 
+    # Preclean tuning
     preclean_weld_epsilon_rel: float = 1e-5  # weld tolerance as fraction of bbox diagonal
     preclean_min_component_faces: int = 0  # 0 = keep all components
 
@@ -1631,8 +1631,10 @@ def qem_decimate_simplify(
             out_v.append(v)
             out_f.append(f)
             out_s.append(s)
-            if c is not None: out_c.append(c)
-            if n is not None: out_n.append(n)
+            if c is not None:
+                out_c.append(c)
+            if n is not None:
+                out_n.append(n)
         return (out_v, out_f,
                 out_c if out_c else None,
                 out_n if out_n else None,

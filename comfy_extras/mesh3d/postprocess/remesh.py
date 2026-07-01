@@ -159,7 +159,7 @@ def _build_tri_spatial_hash(centroids: torch.Tensor, tri_radii: torch.Tensor,
     local = torch.arange(total, device=device) - cum[rep]
     sx = spans[rep, 0]
     sy = spans[rep, 1]
-    sz = spans[rep, 2]
+
     lx = local % sx
     ly = (local // sx) % sy
     lz = local // (sx * sy)
@@ -696,7 +696,6 @@ def _filter_components(verts: torch.Tensor, faces: torch.Tensor,
     """Drop tiny / inverted-volume / bbox-enclosed connected components; returns filtered faces."""
     device = faces.device
     V = verts.shape[0]
-    F = faces.shape[0]
 
     # Connected components via min-label propagation across faces (200-iter max)
     label = torch.arange(V, dtype=torch.long, device=device)
@@ -1090,7 +1089,9 @@ def remesh_narrow_band_dc(
             safe_tri = closest_tri.clamp(min=0)
             tri_v_idx = faces[safe_tri].long()                 # (N, 3)
             tri_v = vertices[tri_v_idx]                        # (N, 3, 3)
-            v0 = tri_v[:, 0]; v1 = tri_v[:, 1]; v2 = tri_v[:, 2]
+            v0 = tri_v[:, 0]
+            v1 = tri_v[:, 1]
+            v2 = tri_v[:, 2]
             e0 = v1 - v0
             e1 = v2 - v0
             e2 = closest_pts - v0
