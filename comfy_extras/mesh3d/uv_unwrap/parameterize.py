@@ -116,9 +116,12 @@ def _stretch_metrics(verts_3d: np.ndarray, uvs: np.ndarray, faces: np.ndarray) -
     keep = (geom_area > 1e-12) & (np.abs(parametric_area) > 1e-12)
     if not keep.any():
         return float("inf"), float("inf"), n_flipped, n_zero
-    t1 = t[:, 0, 0]; s1 = t[:, 0, 1]
-    t2 = t[:, 1, 0]; s2 = t[:, 1, 1]
-    t3 = t[:, 2, 0]; s3 = t[:, 2, 1]
+    t1 = t[:, 0, 0]
+    s1 = t[:, 0, 1]
+    t2 = t[:, 1, 0]
+    s2 = t[:, 1, 1]
+    t3 = t[:, 2, 0]
+    s3 = t[:, 2, 1]
     inv_2pa = 1.0 / (2.0 * pa)
     Ss = (
         p[:, 0] * (t2 - t3)[:, None]
@@ -212,7 +215,6 @@ def _abf_face_coefficients(
     verts_3d: np.ndarray, faces: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Per-face ABF constraint (largest-sine vertex at local index 2); returns (faces_reordered, cosine, sine, valid_mask) with valid_mask False for degenerate tris."""
-    Fc = faces.shape[0]
     p0 = verts_3d[faces[:, 0]]
     p1 = verts_3d[faces[:, 1]]
     p2 = verts_3d[faces[:, 2]]

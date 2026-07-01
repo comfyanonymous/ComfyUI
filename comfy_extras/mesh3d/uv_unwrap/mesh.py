@@ -15,14 +15,18 @@ from torch import Tensor
 
 def face_normals(vertices: Tensor, faces: Tensor) -> Tensor:
     """[F,3] unit face normals (degenerate faces -> zero)."""
-    v0 = vertices[faces[:, 0]]; v1 = vertices[faces[:, 1]]; v2 = vertices[faces[:, 2]]
+    v0 = vertices[faces[:, 0]]
+    v1 = vertices[faces[:, 1]]
+    v2 = vertices[faces[:, 2]]
     n = torch.linalg.cross(v1 - v0, v2 - v0)
     return n / n.norm(dim=1, keepdim=True).clamp_min(1e-20)
 
 
 def face_areas(vertices: Tensor, faces: Tensor) -> Tensor:
     """[F] triangle areas."""
-    v0 = vertices[faces[:, 0]]; v1 = vertices[faces[:, 1]]; v2 = vertices[faces[:, 2]]
+    v0 = vertices[faces[:, 0]]
+    v1 = vertices[faces[:, 1]]
+    v2 = vertices[faces[:, 2]]
     return 0.5 * torch.linalg.cross(v1 - v0, v2 - v0).norm(dim=1)
 
 

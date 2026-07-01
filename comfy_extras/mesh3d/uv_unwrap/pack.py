@@ -50,10 +50,14 @@ def _best_rotation_jit(uvs_np: np.ndarray, n_angles: int) -> float:
             uy = uvs_np[i, 1]
             xr = ux * c - uy * s
             yr = ux * s + uy * c
-            if xr < xmin: xmin = xr
-            if xr > xmax: xmax = xr
-            if yr < ymin: ymin = yr
-            if yr > ymax: ymax = yr
+            if xr < xmin:
+                xmin = xr
+            if xr > xmax:
+                xmax = xr
+            if yr < ymin:
+                ymin = yr
+            if yr > ymax:
+                ymax = yr
         area = (xmax - xmin) * (ymax - ymin)
         if area < best_area:
             best_area = area
@@ -92,25 +96,37 @@ def _rasterize_chart_jit(
         x2 = uvs_tex[i2, 0]
         y2 = uvs_tex[i2, 1]
         xmin_f = x0
-        if x1 < xmin_f: xmin_f = x1
-        if x2 < xmin_f: xmin_f = x2
+        if x1 < xmin_f:
+            xmin_f = x1
+        if x2 < xmin_f:
+            xmin_f = x2
         xmax_f = x0
-        if x1 > xmax_f: xmax_f = x1
-        if x2 > xmax_f: xmax_f = x2
+        if x1 > xmax_f:
+            xmax_f = x1
+        if x2 > xmax_f:
+            xmax_f = x2
         ymin_f = y0
-        if y1 < ymin_f: ymin_f = y1
-        if y2 < ymin_f: ymin_f = y2
+        if y1 < ymin_f:
+            ymin_f = y1
+        if y2 < ymin_f:
+            ymin_f = y2
         ymax_f = y0
-        if y1 > ymax_f: ymax_f = y1
-        if y2 > ymax_f: ymax_f = y2
+        if y1 > ymax_f:
+            ymax_f = y1
+        if y2 > ymax_f:
+            ymax_f = y2
         xmin = int(math.floor(xmin_f))
-        if xmin < 0: xmin = 0
+        if xmin < 0:
+            xmin = 0
         xmax = int(math.ceil(xmax_f))
-        if xmax > w - 1: xmax = w - 1
+        if xmax > w - 1:
+            xmax = w - 1
         ymin = int(math.floor(ymin_f))
-        if ymin < 0: ymin = 0
+        if ymin < 0:
+            ymin = 0
         ymax = int(math.ceil(ymax_f))
-        if ymax > h - 1: ymax = h - 1
+        if ymax > h - 1:
+            ymax = h - 1
         if xmax < xmin or ymax < ymin:
             continue
         denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
