@@ -30,7 +30,6 @@ from comfy.ldm.modules.diffusionmodules.model import vae_attention
 
 import math
 from enum import Enum
-from comfy.ops import NVIDIA_MEMORY_CONV_BUG_WORKAROUND
 
 import logging
 import comfy.model_management
@@ -597,23 +596,6 @@ class InflatedCausalConv3d(ops.Conv3d):
         self.memory_limit = value
 
     def _conv_forward(self, input, weight, bias, *args, **kwargs):
-        if (NVIDIA_MEMORY_CONV_BUG_WORKAROUND and
-            weight.dtype in (torch.float16, torch.bfloat16) and
-            hasattr(torch.backends.cudnn, 'is_available') and
-            torch.backends.cudnn.is_available() and
-            getattr(torch.backends.cudnn, 'enabled', True)):
-            try:
-                out = torch.cudnn_convolution(
-                    input, weight, self.padding, self.stride, self.dilation, self.groups,
-                    benchmark=False, deterministic=False, allow_tf32=True
-                )
-                if bias is not None:
-                    out += bias.reshape((1, -1) + (1,) * (out.ndim - 2))
-                return out
-            except RuntimeError:
-                pass
-            except NotImplementedError:
-                pass
         try:
             return super()._conv_forward(input, weight, bias, *args, **kwargs)
         except NotImplementedError:
