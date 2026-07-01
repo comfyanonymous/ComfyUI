@@ -13,9 +13,10 @@ import torch.nn.functional as F
 from comfy import sd1_clip
 from comfy.text_encoders.qwen3vl import Qwen3VL, Qwen3VLTokenizer
 
-# Prompt templates for the text-only and image-conditioned modes. The
-# image-conditioned template wraps the user text with a single
-# `<|vision_start|><|image_pad|><|vision_end|>` block; one user turn per call.
+# Prompt templates for the text-only and image-conditioned modes. The image-conditioned template
+# wraps the user text with one `<|vision_start|><|image_pad|><|vision_end|>` block per reference
+# image (no separator between blocks); `{vision}` is filled with the N concatenated blocks and
+# `{prompt}` with the user text.
 JOYIMAGE_TEMPLATE_TEXT = (
     "<|im_start|>system\n \\nDescribe the image by detailing the color, shape, size, texture, "
     "quantity, text, spatial relationships of the objects and background:<|im_end|>\n"
@@ -25,8 +26,11 @@ JOYIMAGE_TEMPLATE_TEXT = (
 JOYIMAGE_TEMPLATE_IMAGE = (
     "<|im_start|>system\n \\nDescribe the image by detailing the color, shape, size, texture, "
     "quantity, text, spatial relationships of the objects and background:<|im_end|>\n"
-    "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{}<|im_end|>\n<|im_start|>assistant\n"
+    "<|im_start|>user\n{vision}{prompt}<|im_end|>\n<|im_start|>assistant\n"
 )
+
+# A single vision block; N copies are concatenated to condition on N reference images.
+JOYIMAGE_VISION_BLOCK = "<|vision_start|><|image_pad|><|vision_end|>"
 
 # Number of leading template tokens (system prompt + the user block's opening
 # `<|im_start|>`) stripped from the encoded output by
@@ -165,12 +169,14 @@ class JoyImageTokenizer(Qwen3VLTokenizer):
     """JoyImageEdit tokenizer.
 
     ``tokenize_with_weights(text, images=[...])`` selects the image-conditioned
-    template when one or more image tensors are passed, otherwise the text-only
-    template. Each ``<|image_pad|>`` token in the formatted prompt is replaced
-    with an embedding marker so `SDClipModel.process_tokens` routes the image
-    through `Qwen3VL8B_JoyImage.preprocess_embed`; ``drop_idx=34`` leading
-    template tokens are stripped downstream by
-    `JoyImageTEModel.encode_token_weights`. No ``<think>`` block is appended.
+    template when one or more image tensors are passed, emitting one
+    ``<|vision_start|><|image_pad|><|vision_end|>`` block per image (N blocks
+    for N reference images), otherwise the text-only template. Each
+    ``<|image_pad|>`` token in the formatted prompt is replaced with an
+    embedding marker so `SDClipModel.process_tokens` routes each image through
+    `Qwen3VL8B_JoyImage.preprocess_embed`; ``drop_idx=34`` leading template
+    tokens are stripped downstream by `JoyImageTEModel.encode_token_weights`.
+    No ``<think>`` block is appended.
     """
 
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -188,7 +194,9 @@ class JoyImageTokenizer(Qwen3VLTokenizer):
         elif llama_template is not None:
             llama_text = llama_template.format(text)
         elif len(images) > 0:
-            llama_text = self.llama_template_images.format(text)
+            # One vision block per reference image.
+            vision = JOYIMAGE_VISION_BLOCK * len(images)
+            llama_text = self.llama_template_images.format(vision=vision, prompt=text)
         else:
             llama_text = self.llama_template.format(text)
 

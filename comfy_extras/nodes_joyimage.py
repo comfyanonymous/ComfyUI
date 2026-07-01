@@ -76,11 +76,80 @@ class TextEncodeJoyImageEdit(io.ComfyNode):
         return io.NodeOutput(conditioning, resized_image)
 
 
+class TextEncodeJoyImageEditPlus(io.ComfyNode):
+    """JoyImageEdit multi-image (Plus) text-encode node.
+
+    Accepts 1-6 optional reference images. Each supplied image is
+    bucket-resized independently (same buckets/resize as the single-image
+    node), VAE-encoded, and appended in order to
+    ``conditioning["reference_latents"]`` (image1 → ref0, image2 → ref1, ...).
+    All resized images are passed to the VL tower in one call; the tokenizer
+    emits one ``<|vision_start|><|image_pad|><|vision_end|>`` block per image.
+    """
+
+    MAX_IMAGES = 6
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TextEncodeJoyImageEditPlus",
+            category="advanced/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.Vae.Input("vae"),
+                io.Image.Input("image1", optional=True),
+                io.Image.Input("image2", optional=True),
+                io.Image.Input("image3", optional=True),
+                io.Image.Input("image4", optional=True),
+                io.Image.Input("image5", optional=True),
+                io.Image.Input("image6", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+                io.Image.Output(display_name="image"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, clip, prompt, vae, image1=None, image2=None, image3=None,
+                image4=None, image5=None, image6=None) -> io.NodeOutput:
+        images = [image1, image2, image3, image4, image5, image6]
+        supplied = [img for img in images if img is not None]
+        if len(supplied) == 0:
+            raise ValueError(
+                "TextEncodeJoyImageEditPlus requires at least one reference image."
+            )
+
+        resized_images = []
+        ref_latents = []
+        for image in supplied:
+            samples = image.movedim(-1, 1)
+            src_h, src_w = samples.shape[2], samples.shape[3]
+            bucket_h, bucket_w = _find_best_bucket(src_h, src_w)
+
+            resized = comfy.utils.common_upscale(samples, bucket_w, bucket_h, "bilinear", "center")
+            resized_image = resized.movedim(1, -1)[:, :, :, :3]
+            resized_images.append(resized_image)
+            ref_latents.append(vae.encode(resized_image))
+
+        tokens = clip.tokenize(prompt, images=resized_images)
+        conditioning = clip.encode_from_tokens_scheduled(tokens)
+        conditioning = node_helpers.conditioning_set_values(
+            conditioning, {"reference_latents": ref_latents}, append=True,
+        )
+
+        # The last reference sets the target resolution; return it for VAEEncode and the
+        # matching negative encode.
+        return io.NodeOutput(conditioning, resized_images[-1])
+
+
 class JoyImageExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             TextEncodeJoyImageEdit,
+            TextEncodeJoyImageEditPlus,
         ]
 
 

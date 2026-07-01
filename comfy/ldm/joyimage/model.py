@@ -292,8 +292,6 @@ class _PixArtAlphaTextProjection(nn.Module):
 
 
 class JoyImageTransformer3DModel(nn.Module):
-    # 6D->5D rotation and reshape happen in JoyImage.apply_model; this module is 5D-in, 5D-out.
-
     def __init__(
         self,
         patch_size: list = [1, 2, 2],
@@ -373,54 +371,54 @@ class JoyImageTransformer3DModel(nn.Module):
             device=device,
         )
 
-    def get_rotary_pos_embed(
+    def _get_rotary_pos_embed_for_range(
         self,
-        vis_rope_size,
-        txt_rope_size: Optional[int] = None,
+        start: Tuple[int, int, int],
+        stop: Tuple[int, int, int],
         device=None,
-    ):
-        target_ndim = 3
-        vis_rope_size = list(vis_rope_size)
-        if len(vis_rope_size) != target_ndim:
-            vis_rope_size = [1] * (target_ndim - len(vis_rope_size)) + vis_rope_size
-
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # 3D RoPE for the patch grid range [start, stop) over (t, h, w). Token order after
+        # reshape(-1) is (t, h, w), matching the img_in Conv3d flatten.
         head_dim = self.hidden_size // self.num_attention_heads
         rope_dim_list = self.rope_dim_list
         if rope_dim_list is None:
-            rope_dim_list = [head_dim // target_ndim for _ in range(target_ndim)]
+            rope_dim_list = [head_dim // 3 for _ in range(3)]
         if sum(rope_dim_list) != head_dim:
             raise ValueError("sum(rope_dim_list) should equal head_dim")
 
-        grid = torch.stack(
-            torch.meshgrid(
-                *[torch.linspace(0, s, s + 1, dtype=torch.float32, device=device)[:s] for s in vis_rope_size],
-                indexing="ij",
-            ),
-            dim=0,
-        )
+        grids = [torch.arange(start[i], stop[i], dtype=torch.float32, device=device) for i in range(3)]
+        mesh = torch.stack(torch.meshgrid(*grids, indexing="ij"), dim=0)
 
-        vis_cos, vis_sin = [], []
+        cos_parts, sin_parts = [], []
         for i, dim in enumerate(rope_dim_list):
-            pos = grid[i].reshape(-1)
+            pos = mesh[i].reshape(-1)
             freqs = 1.0 / (self.theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device)[: (dim // 2)] / dim))
-            freqs = torch.outer(pos.float(), freqs)
-            vis_cos.append(freqs.cos().repeat_interleave(2, dim=1))
-            vis_sin.append(freqs.sin().repeat_interleave(2, dim=1))
-        vis_freqs = (torch.cat(vis_cos, dim=1), torch.cat(vis_sin, dim=1))
+            angles = torch.outer(pos, freqs)
+            cos_parts.append(angles.cos().repeat_interleave(2, dim=1))
+            sin_parts.append(angles.sin().repeat_interleave(2, dim=1))
 
-        if txt_rope_size is None:
-            return vis_freqs, None
+        return torch.cat(cos_parts, dim=1), torch.cat(sin_parts, dim=1)
 
-        grid_txt = torch.arange(txt_rope_size, device=device) + grid.view(-1).max().item() + 1
-        txt_cos, txt_sin = [], []
-        for i, dim in enumerate(rope_dim_list):
-            freqs = 1.0 / (self.theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device)[: (dim // 2)] / dim))
-            freqs = torch.outer(grid_txt.float(), freqs)
-            txt_cos.append(freqs.cos().repeat_interleave(2, dim=1))
-            txt_sin.append(freqs.sin().repeat_interleave(2, dim=1))
-        txt_freqs = (torch.cat(txt_cos, dim=1), torch.cat(txt_sin, dim=1))
-
-        return vis_freqs, txt_freqs
+    def get_rotary_pos_embed_for_components(
+        self,
+        component_sizes,
+        device=None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Per-component 3D RoPE. component_sizes is a list of (t, h, w) patch grid sizes in
+        # sequence order [target, ref0, ref1, ...]; h/w restart at 0 for each component while t
+        # continues from the running offset, giving every image its own temporal position band.
+        cos_parts, sin_parts = [], []
+        t_offset = 0
+        for (t, h, w) in component_sizes:
+            cos_emb, sin_emb = self._get_rotary_pos_embed_for_range(
+                start=(t_offset, 0, 0),
+                stop=(t_offset + t, h, w),
+                device=device,
+            )
+            cos_parts.append(cos_emb)
+            sin_parts.append(sin_emb)
+            t_offset += t
+        return torch.cat(cos_parts, dim=0), torch.cat(sin_parts, dim=0)
 
     def unpatchify(self, x: torch.Tensor, t: int, h: int, w: int) -> torch.Tensor:
         c = self.out_channels
@@ -436,25 +434,57 @@ class JoyImageTransformer3DModel(nn.Module):
         hidden_states: torch.Tensor,
         timestep: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
+        ref_latents=None,
     ) -> torch.Tensor:
-        _, _, ot, oh, ow = hidden_states.shape
-        tt = ot // self.patch_size[0]
-        th = oh // self.patch_size[1]
-        tw = ow // self.patch_size[2]
+        # The target noise latent and each reference latent are independently patchified by img_in
+        # (Conv3d) and concatenated along the sequence dim, in the order [target, ref0, ref1, ...].
+        # RoPE is built per component so references may differ in resolution. Only the leading
+        # target segment (tt*th*tw tokens) is projected back out; reference tokens are dropped.
+        # A single reference is simply the len(ref_latents) == 1 case.
+        if hidden_states.ndim != 5:
+            raise ValueError(f"JoyImage transformer expects 5D (B,C,T,H,W) hidden_states; got shape {tuple(hidden_states.shape)}")
 
-        img = self.img_in(hidden_states).flatten(2).transpose(1, 2)
+        _, _, ot, oh, ow = hidden_states.shape
+        pt, ph, pw = self.patch_size
+        if ot % pt != 0 or oh % ph != 0 or ow % pw != 0:
+            raise ValueError(
+                f"JoyImage: target latent spatial/temporal shape {(ot, oh, ow)} must be divisible by patch_size {tuple(self.patch_size)}"
+            )
+        tt = ot // pt
+        th = oh // ph
+        tw = ow // pw
+
+        components = [hidden_states]
+        if ref_latents is not None:
+            for r in ref_latents:
+                if r.ndim != 5:
+                    raise ValueError(f"JoyImage: each reference latent must be 5D (B,C,T,H,W); got shape {tuple(r.shape)}")
+                components.append(r)
+
+        component_sizes = []
+        img_tokens = []
+        for comp in components:
+            _, _, ct, ch, cw = comp.shape
+            if ct % pt != 0 or ch % ph != 0 or cw % pw != 0:
+                raise ValueError(
+                    f"JoyImage: component shape {(ct, ch, cw)} must be divisible by patch_size {tuple(self.patch_size)}"
+                )
+            component_sizes.append((ct // pt, ch // ph, cw // pw))
+            tokens = self.img_in(comp).flatten(2).transpose(1, 2)  # (B, n_i, D)
+            img_tokens.append(tokens)
+
+        img = torch.cat(img_tokens, dim=1)
 
         _, vec, txt = self.condition_embedder(timestep, encoder_hidden_states)
         if vec.shape[-1] > self.hidden_size:
             vec = vec.unflatten(1, (6, -1))
 
-        txt_seq_len = txt.shape[1]
-
-        vis_freqs, txt_freqs = self.get_rotary_pos_embed(
-            vis_rope_size=[tt, th, tw],
-            txt_rope_size=txt_seq_len if self.rope_type == "mrope" else None,
+        vis_cos, vis_sin = self.get_rotary_pos_embed_for_components(
+            component_sizes,
             device=hidden_states.device,
         )
+        vis_freqs = (vis_cos, vis_sin)
+        txt_freqs = None
 
         for block in self.double_blocks:
             img, txt = block(
@@ -465,5 +495,7 @@ class JoyImageTransformer3DModel(nn.Module):
             )
 
         img = self.proj_out(self.norm_out(img))
+        target_tokens = tt * th * tw
+        img = img[:, :target_tokens, :]
         img = self.unpatchify(img, tt, th, tw)
         return img

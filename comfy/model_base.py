@@ -2131,8 +2131,9 @@ class QwenImage(BaseModel):
         return out
 
 class JoyImage(BaseModel):
-    # JoyImageEdit: 6D stacking + [last, first, ...] rotation, plus hard-wired guidance rescale,
-    # are deliberately handled HERE (not in the transformer) so the transformer stays 5D-in / 5D-out.
+    # The noise latent and every reference latent are concatenated as a token sequence inside the
+    # transformer. A single-reference edit is just the len(ref_latents) == 1 case. The built-in CFG
+    # guidance rescale is installed from here.
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.joyimage.model.JoyImageTransformer3DModel)
         self.memory_usage_factor_conds = ("ref_latents",)
@@ -2177,8 +2178,9 @@ class JoyImage(BaseModel):
         if ref_latents is None or len(ref_latents) == 0:
             raise ValueError(
                 "JoyImageEdit is an edit model: every conditioning (positive AND negative) must carry "
-                "reference_latents. Connect the same image+vae into both TextEncodeJoyImageEdit nodes. "
-                "Empty negative prompts still need image+vae wired."
+                "reference_latents. Wire the same reference image(s) and vae into both the positive and "
+                "negative TextEncodeJoyImageEdit / TextEncodeJoyImageEditPlus nodes. Empty negative "
+                "prompts still need the image(s) and vae."
             )
         latents = []
         for lat in ref_latents:
@@ -2194,8 +2196,8 @@ class JoyImage(BaseModel):
         return out
 
     def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
-        # 6D stacking + [last, first, ...] rotation: bring noise (5D x) and the ref_latents (CONDList -> list)
-        # into a single 5D tensor (B, C, n*T, H, W) where slot 0 along T is the noise after rotation.
+        # Pass the noise latent and the reference latents to the transformer, which patchifies each
+        # component and concatenates them along the sequence dim. References may be any resolution.
         if c_concat is not None:
             raise ValueError("JoyImage does not support c_concat / noise_concat conditioning")
         self._ensure_guidance_rescale_installed()
@@ -2225,38 +2227,26 @@ class JoyImage(BaseModel):
         if ref_latents is None or len(ref_latents) == 0:
             raise ValueError("JoyImageEdit forward requires ref_latents; got none.")
 
-        # Build 6D (B, n, C, T, H, W) with refs first then noise, then rotate
-        # [last, first, ...] so the noise moves to the front, and reshape to 5D (B, C, n*T, H, W).
-        b, c, t_noise, h, w = xc.shape
-        ref_5d = []
+        if xc.ndim != 5:
+            raise ValueError("JoyImageEdit: noise latent must be 5D (B,C,T,H,W); got shape {}.".format(tuple(xc.shape)))
+
+        refs = []
         for r in ref_latents:
-            if r.shape[-3:] != xc.shape[-3:]:
+            if r.ndim != 5:
                 raise ValueError(
-                    "JoyImageEdit: reference latent spatial/temporal shape {} must match noise {}.".format(
-                        tuple(r.shape), tuple(xc.shape)
-                    )
+                    "JoyImageEdit: each reference latent must be 5D (B,C,T,H,W); got shape {}.".format(tuple(r.shape))
                 )
-            ref_5d.append(r.to(device=device, dtype=dtype))
-        stacked = torch.stack([*ref_5d, xc], dim=1)  # (B, n, C, T, H, W)
-        n = stacked.shape[1]
-        rotated = torch.cat([stacked[:, -1:], stacked[:, :-1]], dim=1)  # noise -> front
-        flat = rotated.permute(0, 2, 1, 3, 4, 5).reshape(b, c, n * t_noise, h, w)
+            refs.append(r.to(device=device, dtype=dtype))
 
         if control is not None:
             raise ValueError("JoyImageEdit: control (ControlNet) is not supported by the transformer.")
 
-        # The transformer's forward signature is (hidden_states, timestep, encoder_hidden_states); it does
-        # not accept control/_options/extra_conds. Pass context positionally; the text-encoder
-        # output IS what's threaded into encoder_hidden_states.
+        # The transformer's forward signature is (hidden_states, timestep, encoder_hidden_states,
+        # ref_latents); it does not accept control/_options/other extra_conds.
         if extra_conds:
             raise ValueError("JoyImageEdit: unexpected extra_conds keys {} reached the transformer.".format(list(extra_conds.keys())))
 
-        model_output = self.diffusion_model(flat, t_in, context)
-
-        # After the rotation noise sat at slot 0; pluck it back out from the n*T axis.
-        c_out = model_output.shape[1]
-        out_6d = model_output.reshape(b, c_out, n, t_noise, h, w)
-        noise_pred = out_6d[:, :, 0]  # (B, C, T, H, W)
+        noise_pred = self.diffusion_model(xc, t_in, context, ref_latents=refs)
 
         return self.model_sampling.calculate_denoised(sigma, noise_pred.float(), x)
 
