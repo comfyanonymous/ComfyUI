@@ -140,7 +140,7 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
    - Commits outside of the stable release tags may be very unstable and break many custom nodes.
    - Serves as the foundation for the desktop release
 
-2. **[ComfyUI Desktop](https://github.com/Comfy-Org/Comfy-Desktop)**
+2. **[Comfy Desktop](https://github.com/Comfy-Org/Comfy-Desktop)**
    - Builds a new release using the latest stable core version
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**

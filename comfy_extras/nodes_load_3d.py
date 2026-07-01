@@ -317,11 +317,74 @@ class PreviewPointCloud(IO.ComfyNode):
         )
 
 
+MESH_EXTENSIONS = {'.gltf', '.glb', '.obj', '.fbx', '.stl'}
+
+
+class Load3DAdvanced(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        input_dir = os.path.join(folder_paths.get_input_directory(), "3d")
+        os.makedirs(input_dir, exist_ok=True)
+
+        input_path = Path(input_dir)
+        base_path = Path(folder_paths.get_input_directory())
+
+        files = [
+            normalize_path(str(file_path.relative_to(base_path)))
+            for file_path in input_path.rglob("*")
+            if file_path.suffix.lower() in MESH_EXTENSIONS
+        ]
+        return IO.Schema(
+            node_id="Load3DAdvanced",
+            display_name="Load 3D (Advanced)",
+            category="3d",
+            search_aliases=[
+                "load mesh",
+                "load gltf",
+                "load glb",
+                "load obj",
+                "load fbx",
+                "load stl",
+            ],
+            is_experimental=True,
+            inputs=[
+                IO.Combo.Input("model_file", options=["none"] + sorted(files), upload=IO.UploadType.model),
+                IO.Load3D.Input("viewport_state"),
+                IO.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                IO.Int.Input("height", default=1024, min=1, max=4096, step=1),
+            ],
+            outputs=[
+                IO.File3DAny.Output(display_name="model_3d"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
+                IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Int.Output(display_name="width"),
+                IO.Int.Output(display_name="height"),
+            ],
+        )
+
+    @classmethod
+    def validate_inputs(cls, model_file, **kwargs) -> bool | str:
+        if not model_file or model_file == "none":
+            return True
+        if not folder_paths.exists_annotated_filepath(model_file):
+            return f"Invalid 3D model file: {model_file}"
+        return True
+
+    @classmethod
+    def execute(cls, model_file, viewport_state, width: int, height: int, **kwargs) -> IO.NodeOutput:
+        file_3d = None
+        if model_file and model_file != "none":
+            file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
+        model_3d_info = viewport_state.get('model_3d_info', [])
+        return IO.NodeOutput(file_3d, model_3d_info, viewport_state['camera_info'], width, height)
+
+
 class Load3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             Load3D,
+            Load3DAdvanced,
             Preview3D,
             Preview3DAdvanced,
             PreviewGaussianSplat,

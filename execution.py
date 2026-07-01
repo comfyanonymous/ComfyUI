@@ -1308,6 +1308,25 @@ class PromptQueue:
             queued = copy.copy(self.queue)
             return (running, queued)
 
+    def interrupt_if_running(self, prompt_id):
+        """Interrupt the running prompt with this id, atomically.
+
+        Checks the live running set and signals the interrupt under the queue
+        mutex, so the worker cannot move the job to done (and start the next
+        prompt) in between. Returns True if a matching job was running and an
+        interrupt was signalled, False otherwise. The atomicity is what keeps a
+        cancel from landing on an unrelated prompt that started after a separate
+        is-running check: the global interrupt flag is reset at the start of
+        every prompt (execute_async), so a job that finishes before consuming
+        the flag cannot leak the interrupt onto its successor.
+        """
+        with self.mutex:
+            for item in self.currently_running.values():
+                if item[1] == prompt_id:
+                    nodes.interrupt_processing()
+                    return True
+        return False
+
     def get_tasks_remaining(self):
         with self.mutex:
             return len(self.queue) + len(self.currently_running)
