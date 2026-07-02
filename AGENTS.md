@@ -181,6 +181,11 @@
   tensors just to use tensor methods for scalar or structural calculations.
 - Avoid unnecessary casts and transfers. Preserve the intended compute dtype,
   storage dtype, bias dtype, and original tensor shape metadata.
+- Keep model-native latent layout handling inside the model or latent-format
+  owner, not in helper nodes. Do not collapse, expand, pack, or unpack latent
+  dimensions in nodes or other caller-side adapters just to satisfy a model
+  forward; the model path should consume and return the native latent shape for
+  that model family.
 - Assume inputs to the main model forward are already in the compute dtype by
   default, except integer inputs such as some model timestep tensors. Do not add
   defensive or convenience casts in model code; it is better for invalid dtype
@@ -244,6 +249,10 @@
 - Model implementations should add the minimal number of ComfyUI nodes required
   to run the model. Reuse existing nodes as much as possible; adapting the model
   to work with existing nodes is strongly preferred over creating new nodes.
+- Nodes should output only values they own. Do not add pass-through outputs for
+  workflow convenience unless the node is explicitly an output node. Existing
+  models, latents, conditioning, or other inputs should flow directly to the
+  next consumer instead of being re-emitted unchanged.
 - Node-level code must not patch model code directly. Any node behavior that
   modifies, wraps, hooks, or changes model behavior must go through the model
   patcher class instead of reaching into model internals.
