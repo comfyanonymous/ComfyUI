@@ -11,7 +11,6 @@ import importlib
 import sys
 from unittest.mock import MagicMock
 
-import pytest
 import torch
 import torch.nn as nn
 
@@ -53,7 +52,7 @@ def _import_nodes_seedvr_isolated():
     mock_mm.WINDOWS = False
     sys.modules["comfy.model_management"] = mock_mm
     if sys.modules.get("comfy") is None:
-        import comfy as _comfy_pkg  # noqa: F401
+        importlib.import_module("comfy")
     comfy_pkg = sys.modules.get("comfy")
     if comfy_pkg is not None:
         setattr(comfy_pkg, "model_management", mock_mm)
@@ -95,11 +94,10 @@ class _Block(nn.Module):
 
 class _DiffusionModel(nn.Module):
     """Stub diffusion model with N blocks and pos/neg conditioning buffers."""
-    def __init__(self, n_blocks=3, zero_conditioning=False, conditioning_dtype=torch.float32):
+    def __init__(self, n_blocks=3, conditioning_dtype=torch.float32):
         super().__init__()
         self.blocks = nn.ModuleList([_Block() for _ in range(n_blocks)])
-        pos = torch.zeros if zero_conditioning else torch.ones
-        self.register_buffer("positive_conditioning", pos((2, 4), dtype=conditioning_dtype))
+        self.register_buffer("positive_conditioning", torch.ones((2, 4), dtype=conditioning_dtype))
         self.register_buffer("negative_conditioning", torch.zeros((3, 4), dtype=conditioning_dtype))
 
 
@@ -183,31 +181,5 @@ def test_seedvr2_conditioning_returns_packed_input_latent_deterministically():
             second_negative[0][1]["condition"],
             expected_condition,
         )
-    finally:
-        restore()
-
-
-def test_seedvr2_conditioning_fails_loud_on_zero_buffers():
-    nodes_seedvr, restore = _import_nodes_seedvr_isolated()
-    try:
-        diffusion_model = _DiffusionModel(zero_conditioning=True)
-        patcher = _ModelPatcher(diffusion_model)
-        vae_conditioning = {"samples": torch.zeros((1, 2, 1, 1, 1))}
-
-        with pytest.raises(RuntimeError) as excinfo:
-            nodes_seedvr.SeedVR2Conditioning.execute(
-                patcher, vae_conditioning,
-            )
-
-        message = str(excinfo.value)
-        assert message.startswith(
-            nodes_seedvr._SEEDVR2_INVALID_MODEL_MSG_PREFIX
-        ), (
-            "Fail-loud message must use the standard "
-            "_SEEDVR2_INVALID_MODEL_MSG_PREFIX so callers/log scrapers "
-            f"can match it. Got: {message!r}"
-        )
-        assert "positive_conditioning" in message
-        assert "negative_conditioning" in message
     finally:
         restore()

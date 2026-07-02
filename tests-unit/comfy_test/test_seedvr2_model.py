@@ -26,6 +26,7 @@ import comfy.ldm.seedvr.model  # noqa: E402
 import comfy.ldm.seedvr.model as seedvr_model  # noqa: E402
 import comfy.ldm.seedvr.vae as seedvr_vae_mod  # noqa: E402
 import comfy.model_management  # noqa: E402
+import comfy.ops as comfy_ops  # noqa: E402
 import comfy.sample  # noqa: E402
 import comfy.sd as sd_mod  # noqa: E402
 import nodes as nodes_mod  # noqa: E402
@@ -81,6 +82,7 @@ def _capture_last_layer_flags(monkeypatch, vid_dim: int, txt_in_dim: int) -> lis
         txt_in_dim=txt_in_dim,
         heads=24,
         mm_layers=3,
+        operations=comfy_ops.disable_weight_init,
     )
 
     return flags
@@ -140,6 +142,46 @@ class _DecodeWrapper(seedvr_vae_mod.VideoAutoencoderKLWrapper):
         return torch.zeros(b, 3, t, h * 8, w * 8, dtype=z.dtype, device=z.device)
 
 
+def test_seedvr2_wrapper_public_encode_returns_tensor(monkeypatch):
+    raw_latent = torch.full((1, 16, 1, 4, 5), 2.0)
+    seen_shapes = []
+
+    def base_encode(self, x):
+        seen_shapes.append(tuple(x.shape))
+        return raw_latent.to(device=x.device, dtype=x.dtype)
+
+    monkeypatch.setattr(seedvr_vae_mod.VideoAutoencoderKL, "encode", base_encode)
+
+    vae = seedvr_vae_mod.VideoAutoencoderKLWrapper.__new__(seedvr_vae_mod.VideoAutoencoderKLWrapper)
+    nn.Module.__init__(vae)
+    vae._dummy = nn.Parameter(torch.zeros((), dtype=torch.float32))
+
+    latent = vae.encode(torch.zeros(1, 3, 32, 40))
+
+    assert type(latent) is torch.Tensor
+    assert tuple(latent.shape) == (1, 16, 4, 5)
+    assert seen_shapes == [(1, 3, 1, 32, 40)]
+
+
+def test_seedvr2_wrapper_private_encode_helper_keeps_raw_latent(monkeypatch):
+    raw_latent = torch.full((1, 16, 1, 4, 5), 3.0)
+
+    def base_encode(self, x):
+        return raw_latent.to(device=x.device, dtype=x.dtype)
+
+    monkeypatch.setattr(seedvr_vae_mod.VideoAutoencoderKL, "encode", base_encode)
+
+    vae = seedvr_vae_mod.VideoAutoencoderKLWrapper.__new__(seedvr_vae_mod.VideoAutoencoderKLWrapper)
+    nn.Module.__init__(vae)
+    vae._dummy = nn.Parameter(torch.zeros((), dtype=torch.float32))
+
+    latent, raw = vae._encode_with_raw_latent(torch.zeros(1, 3, 32, 40))
+
+    assert tuple(latent.shape) == (1, 16, 4, 5)
+    assert tuple(raw.shape) == (1, 16, 1, 4, 5)
+    assert torch.equal(raw, raw_latent)
+
+
 def _make_vae(wrapper):
     vae = sd_mod.VAE.__new__(sd_mod.VAE)
     vae.first_stage_model = wrapper
@@ -155,6 +197,8 @@ def _make_vae(wrapper):
     vae.extra_1d_channel = None
     vae.crop_input = False
     vae.not_video = False
+    vae.handles_tiling = isinstance(wrapper, seedvr_vae_mod.VideoAutoencoderKLWrapper)
+    vae.format_encoded = wrapper.comfy_format_encoded
     vae.patcher = _Patcher()
     vae.process_input = lambda image: image
     vae.process_output = lambda image: image.add(1.0).div(2.0).clamp(0.0, 1.0)

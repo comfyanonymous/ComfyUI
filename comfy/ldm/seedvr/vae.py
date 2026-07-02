@@ -1,15 +1,11 @@
-from contextlib import nullcontext
 from typing import Literal, Optional, Tuple
-import gc
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
 from torch import Tensor
 from contextlib import contextmanager
 from comfy.utils import ProgressBar
 
-from comfy.ldm.seedvr.model import safe_pad_operation
 from comfy.ldm.seedvr.constants import (
     BYTEDANCE_BLOCK_OUT_CHANNELS,
     BYTEDANCE_GN_CHUNKS_FP16,
@@ -58,13 +54,6 @@ def _seedvr2_clamped_spatial_overlap(overlap, tile_size):
     return min(overlap, tile_size - 1)
 
 
-def _seedvr2_clear_temporal_memory(model):
-    for module in model.modules():
-        if hasattr(module, "memory"):
-            module.memory = None
-
-
-@torch.inference_mode()
 def tiled_vae(
     x,
     vae_model,
@@ -75,10 +64,6 @@ def tiled_vae(
     encode=True,
     **kwargs,
 ):
-    gc.collect()
-    comfy.model_management.soft_empty_cache()
-
-    x = x.to(next(vae_model.parameters()).dtype)
     if x.ndim != 5:
         x = x.unsqueeze(2)
 
@@ -121,7 +106,6 @@ def tiled_vae(
     count = None
     def run_temporal_chunks(spatial_tile, model=vae_model, device=storage_device):
         device = torch.device(device)
-        _seedvr2_clear_temporal_memory(model)
         t_chunk = spatial_tile.to(device=device, dtype=next(model.parameters()).dtype, non_blocking=True).contiguous()
         old_device = getattr(model, "device", None)
         model.device = device
@@ -133,7 +117,7 @@ def tiled_vae(
                 setattr(model, slicing_attr, slicing_min_size)
         try:
             if encode:
-                out = model.encode(t_chunk)[0]
+                out = model.encode(t_chunk)
             else:
                 out = model.decode_(t_chunk)
         finally:
@@ -141,8 +125,6 @@ def tiled_vae(
                 setattr(model, slicing_attr, old_slicing_min_size)
             if old_device is not None:
                 model.device = old_device
-        if isinstance(out, (tuple, list)):
-            out = out[0]
         if out.ndim == 4:
             out = out.unsqueeze(2)
         return out.to(storage_device)
@@ -169,8 +151,6 @@ def tiled_vae(
     bar = ProgressBar(total_tiles)
     single_spatial_tile = h <= ti_h and w <= ti_w
 
-    _seedvr2_clear_temporal_memory(vae_model)
-
     def run_tile(tile_index, tile_range):
         y_idx, y_end, x_idx, x_end = tile_range
         tile_x = x[:, :, :, y_idx:y_end, x_idx:x_end]
@@ -186,7 +166,6 @@ def tiled_vae(
 
         if single_spatial_tile:
             result = tile_out[:, :, :target_d, :target_h, :target_w]
-            _seedvr2_clear_temporal_memory(vae_model)
             if result.device != x.device:
                 result = result.to(x.device).to(x.dtype)
             if x.shape[2] == 1 and sf_t == 1:
@@ -241,7 +220,6 @@ def tiled_vae(
         bar.update(1)
 
     result.div_(count.clamp(min=1e-6))
-    _seedvr2_clear_temporal_memory(vae_model)
 
     if result.device != x.device:
         result = result.to(x.device).to(x.dtype)
@@ -336,7 +314,6 @@ class Attention(nn.Module):
         eps: float = 1e-5,
         rescale_output_factor: float = 1.0,
         residual_connection: bool = False,
-        _from_deprecated_attn_block: bool = False,
         out_dim: int = None,
         pre_only=False,
     ):
@@ -355,10 +332,6 @@ class Attention(nn.Module):
         self.fused_projections = False
         self.out_dim = out_dim if out_dim is not None else query_dim
         self.pre_only = pre_only
-
-        # we make use of this private variable to know whether this class is loaded
-        # with an deprecated state dict so that we can convert it on the fly
-        self._from_deprecated_attn_block = _from_deprecated_attn_block
 
         self.scale_qk = scale_qk
         self.scale = dim_head**-0.5 if self.scale_qk else 1.0
@@ -480,21 +453,21 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
     input_dtype = x.dtype
     if isinstance(norm_layer, (ops.LayerNorm, ops.RMSNorm)):
         if x.ndim == 4:
-            x = rearrange(x, "b c h w -> b h w c")
+            x = x.permute(0, 2, 3, 1)
             x = norm_layer(x)
-            x = rearrange(x, "b h w c -> b c h w")
+            x = x.permute(0, 3, 1, 2)
             return x.to(input_dtype)
         if x.ndim == 5:
-            x = rearrange(x, "b c t h w -> b t h w c")
+            x = x.permute(0, 2, 3, 4, 1)
             x = norm_layer(x)
-            x = rearrange(x, "b t h w c -> b c t h w")
+            x = x.permute(0, 4, 1, 2, 3)
             return x.to(input_dtype)
     if isinstance(norm_layer, (ops.GroupNorm, nn.BatchNorm2d, nn.SyncBatchNorm)):
         if x.ndim <= 4:
             return norm_layer(x).to(input_dtype)
         if x.ndim == 5:
-            t = x.size(2)
-            x = rearrange(x, "b c t h w -> (b t) c h w")
+            b, c, t, h, w = x.shape
+            x = x.transpose(1, 2).reshape(b * t, c, h, w)
             memory_occupy = x.numel() * x.element_size() / 1024**3
             if isinstance(norm_layer, ops.GroupNorm) and memory_occupy > get_norm_limit():
                 num_chunks = min(BYTEDANCE_GN_CHUNKS_FP16 if x.element_size() == 2 else BYTEDANCE_GN_CHUNKS_FP32, norm_layer.num_groups)
@@ -504,53 +477,15 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
                 x = list(x.chunk(num_chunks, dim=1))
                 weights = norm_layer.weight.chunk(num_chunks, dim=0)
                 biases = norm_layer.bias.chunk(num_chunks, dim=0)
-                for i, (w, b) in enumerate(zip(weights, biases)):
-                    x[i] = F.group_norm(x[i], num_groups_per_chunk, w, b, norm_layer.eps)
+                for i, (w, bias) in enumerate(zip(weights, biases)):
+                    x[i] = F.group_norm(x[i], num_groups_per_chunk, w, bias, norm_layer.eps)
                     x[i] = x[i].to(input_dtype)
                 x = torch.cat(x, dim=1)
             else:
                 x = norm_layer(x)
-            x = rearrange(x, "(b t) c h w -> b c t h w", t=t)
+            x = x.reshape((b, t, x.size(1), x.size(2), x.size(3))).transpose(1, 2)
             return x.to(input_dtype)
     raise NotImplementedError
-
-def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', align_corners=None, recompute_scale_factor=None):
-    problematic_modes = ['bilinear', 'bicubic', 'trilinear']
-
-    if mode in problematic_modes:
-        try:
-            return F.interpolate(
-                x,
-                size=size,
-                scale_factor=scale_factor,
-                mode=mode,
-                align_corners=align_corners,
-                recompute_scale_factor=recompute_scale_factor
-            )
-        except RuntimeError as e:
-            if ("not implemented for 'Half'" in str(e) or
-                "compute_indices_weights" in str(e)):
-                original_dtype = x.dtype
-                return F.interpolate(
-                    x.float(),
-                    size=size,
-                    scale_factor=scale_factor,
-                    mode=mode,
-                    align_corners=align_corners,
-                    recompute_scale_factor=recompute_scale_factor
-                ).to(original_dtype)
-            else:
-                raise e
-    else:
-        # Pour 'nearest' et autres modes compatibles, pas de fix nécessaire
-        return F.interpolate(
-            x,
-            size=size,
-            scale_factor=scale_factor,
-            mode=mode,
-            align_corners=align_corners,
-            recompute_scale_factor=recompute_scale_factor
-        )
 
 _receptive_field_t = Literal["half", "full"]
 
@@ -585,7 +520,6 @@ class InflatedCausalConv3d(ops.Conv3d):
         **kwargs,
     ):
         self.inflation_mode = inflation_mode
-        self.memory = None
         super().__init__(*args, **kwargs)
         self.temporal_padding = self.padding[0]
         self.padding = (0, *self.padding[1:])
@@ -620,18 +554,19 @@ class InflatedCausalConv3d(ops.Conv3d):
             return super().forward(x)
 
         # Compute tensor shape after concat & padding.
-        shape = torch.tensor(x.size())
+        shape = list(x.size())
         if prev_cache is not None:
             shape[split_dim - 1] += prev_cache.size(split_dim - 1)
-        shape[-3:] += torch.tensor(padding).view(3, 2).sum(-1).flip(0)
-        memory_occupy = shape.prod() * x.element_size() / 1024**3  # GiB
+        for i, pad_sum in enumerate((padding[4] + padding[5], padding[2] + padding[3], padding[0] + padding[1])):
+            shape[-3 + i] += pad_sum
+        memory_occupy = math.prod(shape) * x.element_size() / 1024**3  # GiB
         if memory_occupy < self.memory_limit or split_dim == x.ndim:
             x_concat = x
             if prev_cache is not None:
                 x_concat = torch.cat([prev_cache, x], dim=split_dim - 1)
 
             def pad_and_forward():
-                padded = safe_pad_operation(x_concat, padding, mode='constant', value=0.0)
+                padded = F.pad(x_concat, padding, mode='constant', value=0.0)
                 if not padded.is_contiguous():
                     padded = padded.contiguous()
                 with ignore_padding(self):
@@ -689,46 +624,57 @@ class InflatedCausalConv3d(ops.Conv3d):
     def forward(
         self,
         input,
-        memory_state: MemoryState = MemoryState.UNSET
+        memory_state: MemoryState = MemoryState.UNSET,
+        memory_cache = None,
     ) -> Tensor:
         assert memory_state != MemoryState.UNSET
+        if memory_cache is None:
+            memory_cache = {}
         if memory_state != MemoryState.ACTIVE:
-            self.memory = None
+            memory_cache.pop(self, None)
         if (
             math.isinf(self.memory_limit)
             and torch.is_tensor(input)
         ):
-            return self.basic_forward(input, memory_state)
-        return self.slicing_forward(input, memory_state)
+            return self.basic_forward(input, memory_state, memory_cache)
+        return self.slicing_forward(input, memory_state, memory_cache)
 
-    def basic_forward(self, input: Tensor, memory_state: MemoryState = MemoryState.UNSET):
+    def basic_forward(self, input: Tensor, memory_state: MemoryState = MemoryState.UNSET, memory_cache = None):
         mem_size = self.stride[0] - self.kernel_size[0]
-        if (self.memory is not None) and (memory_state == MemoryState.ACTIVE):
-            input = extend_head(input, memory=self.memory, times=-1)
+        memory = memory_cache.get(self) if memory_cache is not None else None
+        if (memory is not None) and (memory_state == MemoryState.ACTIVE):
+            input = extend_head(input, memory=memory, times=-1)
         else:
             input = extend_head(input, times=self.temporal_padding * 2)
-        memory = (
+        next_memory = (
             input[:, :, mem_size:].detach()
             if (mem_size != 0 and memory_state != MemoryState.DISABLED)
             else None
         )
-        if memory_state != MemoryState.DISABLED:
-            self.memory = memory
+        if memory_cache is not None and memory_state != MemoryState.DISABLED:
+            if next_memory is None:
+                memory_cache.pop(self, None)
+            else:
+                memory_cache[self] = next_memory
         return super().forward(input)
 
     def slicing_forward(
         self,
         input,
         memory_state: MemoryState = MemoryState.UNSET,
+        memory_cache = None,
     ) -> Tensor:
+        if memory_cache is None:
+            memory_cache = {}
         squeeze_out = False
         if torch.is_tensor(input):
             input = [input]
             squeeze_out = True
 
         cache_size = self.kernel_size[0] - self.stride[0]
+        memory = memory_cache.get(self) if memory_cache is not None else None
         cache = cache_send_recv(
-            input, cache_size=cache_size, memory=self.memory, times=self.temporal_padding * 2
+            input, cache_size=cache_size, memory=memory, times=self.temporal_padding * 2
         )
 
         # Single GPU inference - simplified memory management
@@ -740,7 +686,7 @@ class InflatedCausalConv3d(ops.Conv3d):
                 input[0] = torch.cat([cache, input[0]], dim=2)
                 cache = None
             if cache_size <= input[-1].size(2):
-                self.memory = input[-1][:, :, -cache_size:].detach().contiguous()
+                memory_cache[self] = input[-1][:, :, -cache_size:].detach().contiguous()
 
         padding = tuple(x for x in reversed(self.padding) for _ in range(2))
         for i in range(len(input)):
@@ -802,17 +748,10 @@ class Upsample3D(nn.Module):
         self.temporal_ratio = 2 if temporal_up else 1
         self.spatial_ratio = 2 if spatial_up else 1
 
-        # [Override] MAGViT v2 learnable upsample
         upscale_ratio = (self.spatial_ratio**2) * self.temporal_ratio
         self.upscale_conv = ops.Conv3d(
             self.channels, self.channels * upscale_ratio, kernel_size=1, padding=0
         )
-        identity = (
-            torch.eye(self.channels)
-            .repeat(upscale_ratio, 1)
-            .reshape_as(self.upscale_conv.weight)
-        )
-        self.upscale_conv.weight.data.copy_(identity)
 
         self.conv = conv
 
@@ -820,23 +759,27 @@ class Upsample3D(nn.Module):
         self,
         hidden_states: torch.FloatTensor,
         memory_state=None,
+        memory_cache=None,
         **kwargs,
     ) -> torch.FloatTensor:
         assert hidden_states.shape[1] == self.channels
 
         hidden_states = self.upscale_conv(hidden_states)
-        hidden_states = rearrange(
-            hidden_states,
-            "b (x y z c) f h w -> b c (f z) (h x) (w y)",
-            x=self.spatial_ratio,
-            y=self.spatial_ratio,
-            z=self.temporal_ratio,
+        b, channels, f, h, w = hidden_states.shape
+        c = channels // (self.spatial_ratio * self.spatial_ratio * self.temporal_ratio)
+        hidden_states = hidden_states.view(b, self.spatial_ratio, self.spatial_ratio, self.temporal_ratio, c, f, h, w)
+        hidden_states = hidden_states.permute(0, 4, 5, 3, 6, 1, 7, 2).reshape(
+            b,
+            c,
+            f * self.temporal_ratio,
+            h * self.spatial_ratio,
+            w * self.spatial_ratio,
         )
 
         if self.temporal_up and memory_state != MemoryState.ACTIVE:
             hidden_states = remove_head(hidden_states)
 
-        hidden_states = self.conv(hidden_states, memory_state=memory_state)
+        hidden_states = self.conv(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         return hidden_states
 
@@ -879,6 +822,7 @@ class Downsample3D(nn.Module):
         self,
         hidden_states: torch.FloatTensor,
         memory_state = None,
+        memory_cache = None,
         **kwargs,
     ) -> torch.FloatTensor:
 
@@ -890,11 +834,11 @@ class Downsample3D(nn.Module):
 
         if self.spatial_down:
             pad = (0, 1, 0, 1)
-            hidden_states = safe_pad_operation(hidden_states, pad, mode="constant", value=0)
+            hidden_states = F.pad(hidden_states, pad, mode="constant", value=0)
 
         assert hidden_states.shape[1] == self.channels
 
-        hidden_states = self.conv(hidden_states, memory_state=memory_state)
+        hidden_states = self.conv(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         return hidden_states
 
@@ -962,7 +906,7 @@ class ResnetBlock3D(nn.Module):
             )
 
     def forward(
-        self, input_tensor, temb, memory_state = None, **kwargs
+        self, input_tensor, temb, memory_state = None, memory_cache = None, **kwargs
     ):
         hidden_states = input_tensor
 
@@ -970,7 +914,7 @@ class ResnetBlock3D(nn.Module):
 
         hidden_states = self.nonlinearity(hidden_states)
 
-        hidden_states = self.conv1(hidden_states, memory_state=memory_state)
+        hidden_states = self.conv1(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         if self.time_emb_proj is not None:
             if not self.skip_time_act:
@@ -985,10 +929,10 @@ class ResnetBlock3D(nn.Module):
         hidden_states = self.nonlinearity(hidden_states)
 
         hidden_states = self.dropout(hidden_states)
-        hidden_states = self.conv2(hidden_states, memory_state=memory_state)
+        hidden_states = self.conv2(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         if self.conv_shortcut is not None:
-            input_tensor = self.conv_shortcut(input_tensor, memory_state=memory_state)
+            input_tensor = self.conv_shortcut(input_tensor, memory_state=memory_state, memory_cache=memory_cache)
 
         output_tensor = (input_tensor + hidden_states) / self.output_scale_factor
 
@@ -1055,15 +999,16 @@ class DownEncoderBlock3D(nn.Module):
         self,
         hidden_states: torch.FloatTensor,
         memory_state = None,
+        memory_cache = None,
         **kwargs,
     ) -> torch.FloatTensor:
         for resnet, temporal in zip(self.resnets, self.temporal_modules):
-            hidden_states = resnet(hidden_states, temb=None, memory_state=memory_state)
+            hidden_states = resnet(hidden_states, temb=None, memory_state=memory_state, memory_cache=memory_cache)
             hidden_states = temporal(hidden_states)
 
         if self.downsamplers is not None:
             for downsampler in self.downsamplers:
-                hidden_states = downsampler(hidden_states, memory_state=memory_state)
+                hidden_states = downsampler(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         return hidden_states
 
@@ -1132,15 +1077,16 @@ class UpDecoderBlock3D(nn.Module):
         self,
         hidden_states: torch.FloatTensor,
         temb: Optional[torch.FloatTensor] = None,
-        memory_state=None
+        memory_state=None,
+        memory_cache=None,
     ) -> torch.FloatTensor:
         for resnet, temporal in zip(self.resnets, self.temporal_modules):
-            hidden_states = resnet(hidden_states, temb=None, memory_state=memory_state)
+            hidden_states = resnet(hidden_states, temb=None, memory_state=memory_state, memory_cache=memory_cache)
             hidden_states = temporal(hidden_states)
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:
-                hidden_states = upsampler(hidden_states, memory_state=memory_state)
+                hidden_states = upsampler(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         return hidden_states
 
@@ -1203,7 +1149,6 @@ class UNetMidBlock3D(nn.Module):
                         residual_connection=True,
                         bias=True,
                         upcast_softmax=True,
-                        _from_deprecated_attn_block=True,
                     )
                 )
             else:
@@ -1226,17 +1171,16 @@ class UNetMidBlock3D(nn.Module):
         self.attentions = nn.ModuleList(attentions)
         self.resnets = nn.ModuleList(resnets)
 
-    def forward(self, hidden_states, temb=None, memory_state=None):
+    def forward(self, hidden_states, temb=None, memory_state=None, memory_cache=None):
         video_length, frame_height, frame_width = hidden_states.size()[-3:]
-        hidden_states = self.resnets[0](hidden_states, temb, memory_state=memory_state)
+        hidden_states = self.resnets[0](hidden_states, temb, memory_state=memory_state, memory_cache=memory_cache)
         for attn, resnet in zip(self.attentions, self.resnets[1:]):
             if attn is not None:
-                hidden_states = rearrange(hidden_states, "b c f h w -> (b f) c h w")
+                b, c, f, h, w = hidden_states.shape
+                hidden_states = hidden_states.transpose(1, 2).reshape(b * f, c, h, w)
                 hidden_states = attn(hidden_states, temb=temb)
-                hidden_states = rearrange(
-                    hidden_states, "(b f) c h w -> b c f h w", f=video_length
-                )
-            hidden_states = resnet(hidden_states, temb, memory_state=memory_state)
+                hidden_states = hidden_states.reshape(b, video_length, c, h, w).transpose(1, 2)
+            hidden_states = resnet(hidden_states, temb, memory_state=memory_state, memory_cache=memory_cache)
 
         return hidden_states
 
@@ -1327,22 +1271,23 @@ class Encoder3D(nn.Module):
     def forward(
         self,
         sample: torch.FloatTensor,
-        memory_state = None
+        memory_state = None,
+        memory_cache = None,
     ) -> torch.FloatTensor:
         r"""The forward method of the `Encoder` class."""
         sample = sample.to(next(self.parameters()).device)
-        sample = self.conv_in(sample, memory_state = memory_state)
+        sample = self.conv_in(sample, memory_state=memory_state, memory_cache=memory_cache)
         # down
         for down_block in self.down_blocks:
-            sample = down_block(sample, memory_state=memory_state)
+            sample = down_block(sample, memory_state=memory_state, memory_cache=memory_cache)
 
         # middle
-        sample = self.mid_block(sample, memory_state=memory_state)
+        sample = self.mid_block(sample, memory_state=memory_state, memory_cache=memory_cache)
 
         # post-process
         sample = causal_norm_wrapper(self.conv_norm_out, sample)
         sample = self.conv_act(sample)
-        sample = self.conv_out(sample, memory_state = memory_state)
+        sample = self.conv_out(sample, memory_state=memory_state, memory_cache=memory_cache)
 
         return sample
 
@@ -1436,24 +1381,25 @@ class Decoder3D(nn.Module):
         sample: torch.FloatTensor,
         latent_embeds: Optional[torch.FloatTensor] = None,
         memory_state = None,
+        memory_cache = None,
     ) -> torch.FloatTensor:
 
         sample = sample.to(next(self.parameters()).device)
-        sample = self.conv_in(sample, memory_state=memory_state)
+        sample = self.conv_in(sample, memory_state=memory_state, memory_cache=memory_cache)
 
         upscale_dtype = next(iter(self.up_blocks.parameters())).dtype
         # middle
-        sample = self.mid_block(sample, latent_embeds, memory_state=memory_state)
+        sample = self.mid_block(sample, latent_embeds, memory_state=memory_state, memory_cache=memory_cache)
         sample = sample.to(upscale_dtype)
 
         # up
         for up_block in self.up_blocks:
-            sample = up_block(sample, latent_embeds, memory_state=memory_state)
+            sample = up_block(sample, latent_embeds, memory_state=memory_state, memory_cache=memory_cache)
 
         # post-process
         sample = causal_norm_wrapper(self.conv_norm_out, sample)
         sample = self.conv_act(sample)
-        sample = self.conv_out(sample, memory_state=memory_state)
+        sample = self.conv_out(sample, memory_state=memory_state, memory_cache=memory_cache)
 
         return sample
 
@@ -1529,22 +1475,23 @@ class VideoAutoencoderKL(nn.Module):
         return decoded
 
     def _encode(
-        self, x, memory_state = MemoryState.DISABLED
+        self, x, memory_state = MemoryState.DISABLED, memory_cache = None
     ) -> torch.Tensor:
         _x = x.to(self.device)
-        h = self.encoder(_x, memory_state=memory_state)
+        h = self.encoder(_x, memory_state=memory_state, memory_cache=memory_cache)
         return h.to(x.device)
 
     def _decode(
-        self, z, memory_state = MemoryState.DISABLED
+        self, z, memory_state = MemoryState.DISABLED, memory_cache = None
     ) -> torch.Tensor:
         _z = z.to(self.device)
-        output = self.decoder(_z, memory_state=memory_state)
+        output = self.decoder(_z, memory_state=memory_state, memory_cache=memory_cache)
         return output.to(z.device)
 
     def slicing_encode(self, x: torch.Tensor) -> torch.Tensor:
         sp_size =1
         if self.use_slicing and (x.shape[2] - 1) > self.slicing_sample_min_size * sp_size:
+            memory_cache = {}
             split_size = max(
                 self.slicing_sample_min_size * sp_size,
                 getattr(self, "temporal_downsample_factor", 1),
@@ -1558,17 +1505,14 @@ class VideoAutoencoderKL(nn.Module):
                 self._encode(
                     torch.cat((x[:, :, :1], x_slices[0]), dim=2),
                     memory_state=MemoryState.INITIALIZING,
+                    memory_cache=memory_cache,
                 )
             ]
             for x_idx in range(1, len(x_slices)):
                 encoded_slices.append(
-                    self._encode(x_slices[x_idx], memory_state=MemoryState.ACTIVE)
+                    self._encode(x_slices[x_idx], memory_state=MemoryState.ACTIVE, memory_cache=memory_cache)
                 )
             out = torch.cat(encoded_slices, dim=2)
-            modules_with_memory = [m for m in self.modules()
-                                if isinstance(m, InflatedCausalConv3d) and m.memory is not None]
-            for m in modules_with_memory:
-                m.memory = None
             return out
         else:
             return self._encode(x)
@@ -1576,22 +1520,20 @@ class VideoAutoencoderKL(nn.Module):
     def slicing_decode(self, z: torch.Tensor) -> torch.Tensor:
         sp_size = 1
         if self.use_slicing and (z.shape[2] - 1) > self.slicing_latent_min_size * sp_size:
+            memory_cache = {}
             z_slices = z[:, :, 1:].split(split_size=self.slicing_latent_min_size * sp_size, dim=2)
             decoded_slices = [
                 self._decode(
                     torch.cat((z[:, :, :1], z_slices[0]), dim=2),
-                    memory_state=MemoryState.INITIALIZING
+                    memory_state=MemoryState.INITIALIZING,
+                    memory_cache=memory_cache,
                 )
             ]
             for z_idx in range(1, len(z_slices)):
                 decoded_slices.append(
-                    self._decode(z_slices[z_idx], memory_state=MemoryState.ACTIVE)
+                    self._decode(z_slices[z_idx], memory_state=MemoryState.ACTIVE, memory_cache=memory_cache)
                 )
             out = torch.cat(decoded_slices, dim=2)
-            modules_with_memory = [m for m in self.modules()
-                                if isinstance(m, InflatedCausalConv3d) and m.memory is not None]
-            for m in modules_with_memory:
-                m.memory = None
             return out
         else:
             return self._decode(z)
@@ -1612,32 +1554,25 @@ class VideoAutoencoderKL(nn.Module):
             return _unwrap(self.decode_(latent))
 
 class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
-    # Signals to comfy.sd.VAE that this model performs its own VAE tiling, so the
-    # generic tiled-decode/encode dispatch defers to decode_tiled/encode_tiled below.
-    comfy_handles_tiling = True
-
     def __init__(
         self,
         *args,
         spatial_downsample_factor = 8,
         temporal_downsample_factor = 4,
-        freeze_encoder = True,
         **kwargs,
     ):
         self.spatial_downsample_factor = spatial_downsample_factor
         self.temporal_downsample_factor = temporal_downsample_factor
-        self.freeze_encoder = freeze_encoder
         self.enable_tiling = False
         super().__init__(*args, **kwargs)
         self.set_memory_limit(BYTEDANCE_VAE_CONV_MEM_GIB, BYTEDANCE_VAE_NORM_MEM_GIB)
 
     def forward(self, x: torch.FloatTensor):
-        with torch.no_grad() if self.freeze_encoder else nullcontext():
-            z, p = self.encode(x)
+        z, p = self._encode_with_raw_latent(x)
         x = self.decode(z)
         return x, z, p
 
-    def encode(self, x, orig_dims=None):
+    def _encode_with_raw_latent(self, x):
         if x.ndim == 4:
             x = x.unsqueeze(2)
         x = x.to(dtype=next(self.parameters()).dtype)
@@ -1645,6 +1580,10 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         p = super().encode(x)
         z = p.squeeze(2)
         return z, p
+
+    def encode(self, x, orig_dims=None):
+        z, _ = self._encode_with_raw_latent(x)
+        return z
 
     def decode(self, z, seedvr2_tiling=None):
         seedvr2_tiling = {} if seedvr2_tiling is None else seedvr2_tiling

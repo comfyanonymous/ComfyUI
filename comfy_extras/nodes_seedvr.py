@@ -3,7 +3,6 @@ from comfy_api.latest import ComfyExtension, io
 import torch
 import math
 import logging
-from einops import rearrange
 
 import comfy.model_management
 import comfy.sample
@@ -101,14 +100,6 @@ def _resolve_seedvr2_diffusion_model(model):
     return diffusion_model
 
 
-def _apply_rope_freqs_float32_cast(diffusion_model):
-    """Cast every module's ``rope.freqs`` to float32; the per-tensor dtype check (not a sentinel attr) self-corrects across Comfy's unload/reload, which would otherwise restore the archived fp16/bf16 dtype."""
-    for module in diffusion_model.modules():
-        if hasattr(module, 'rope') and hasattr(module.rope, 'freqs'):
-            if module.rope.freqs.data.dtype != torch.float32:
-                module.rope.freqs.data = module.rope.freqs.data.to(torch.float32)
-
-
 def get_conditions(latent, latent_blur):
     t, h, w, c = latent.shape
     cond = torch.ones([t, h, w, c + 1], device=latent.device, dtype=latent.dtype)
@@ -193,7 +184,7 @@ def _seedvr2_pad(images, upscaled_shorter_edge, node_name):
 
     images = images.reshape(b, t, c, new_h, new_w)
     images = cut_videos(images)
-    images_bthwc = rearrange(images, "b t c h w -> b t h w c")
+    images_bthwc = images.permute(0, 1, 3, 4, 2).contiguous()
 
     return io.NodeOutput(images_bthwc)
 
@@ -265,12 +256,12 @@ class SeedVR2PostProcessing(io.ComfyNode):
             output_device = decoded_5d.device
             decoded_raw = cls._to_seedvr2_raw(decoded_5d)
             reference_raw = cls._to_seedvr2_raw(reference_5d)
-            decoded_flat = rearrange(decoded_raw, "b t h w c -> (b t) c h w")
-            reference_flat = rearrange(reference_raw, "b t h w c -> (b t) c h w")
+            decoded_flat = decoded_raw.permute(0, 1, 4, 2, 3).reshape(b * t, decoded_raw.shape[4], target_h, target_w)
+            reference_flat = reference_raw.permute(0, 1, 4, 2, 3).reshape(b * t, reference_raw.shape[4], target_h, target_w)
             output = cls._color_transfer_chunked(
                 decoded_flat, reference_flat, output_device, color_correction_method,
             )
-            output = rearrange(output, "(b t) c h w -> b t h w c", b=b, t=t)
+            output = output.reshape(b, t, output.shape[1], output.shape[2], output.shape[3]).permute(0, 1, 3, 4, 2)
             output = output.add(1.0).div(2.0).clamp(0.0, 1.0)
         elif color_correction_method == "none":
             output = decoded_5d
@@ -359,7 +350,6 @@ class SeedVR2PostProcessing(io.ComfyNode):
                     ) from e
                 next_chunk_size = max(1, chunk_size // SEEDVR2_OOM_BACKOFF_DIVISOR)
 
-            comfy.model_management.soft_empty_cache()
             chunk_size = next_chunk_size
 
     @classmethod
@@ -419,14 +409,14 @@ class SeedVR2PostProcessing(io.ComfyNode):
         if reference.shape[2] == height and reference.shape[3] == width:
             return reference
         b, t = reference.shape[:2]
-        reference_flat = rearrange(reference, "b t h w c -> (b t) c h w")
+        reference_flat = reference.permute(0, 1, 4, 2, 3).reshape(b * t, reference.shape[4], reference.shape[2], reference.shape[3])
         resized = TVF.resize(
             reference_flat,
             size=(height, width),
             interpolation=InterpolationMode.BICUBIC,
             antialias=not (isinstance(reference_flat, torch.Tensor) and reference_flat.device.type == "mps"),
         )
-        return rearrange(resized, "(b t) c h w -> b t h w c", b=b, t=t)
+        return resized.reshape(b, t, resized.shape[1], height, width).permute(0, 1, 3, 4, 2)
 
 
 class SeedVR2Conditioning(io.ComfyNode):
@@ -471,39 +461,12 @@ class SeedVR2Conditioning(io.ComfyNode):
         pos_cond = model.positive_conditioning
         neg_cond = model.negative_conditioning
 
-        # Fail-loud guard against silently-wrong output when a
-        # DiT-only ``.safetensors`` (no ``positive_conditioning`` /
-        # ``negative_conditioning`` keys) is loaded via ``UNETLoader``.
-        # ``NaDiT.__init__`` zero-fills the buffers via ``torch.zeros`` (see
-        # ``comfy/ldm/seedvr/model.py``); ``load_state_dict(strict=False)``
-        # leaves them at zero when the keys are absent. Detect that state
-        # here rather than at ``BaseModel.extra_conds`` (per sampling step,
-        # wasteful) or at the resolver helper (mixes structural shape with
-        # semantic content). Both buffers must be checked together — partial
-        # bake regressions could populate one but not the other.
-        if (
-            pos_cond.float().abs().sum().item() == 0
-            and neg_cond.float().abs().sum().item() == 0
-        ):
-            raise RuntimeError(
-                f"{_SEEDVR2_INVALID_MODEL_MSG_PREFIX}: positive_conditioning "
-                f"and negative_conditioning buffers are zero-valued — model "
-                f"file appears to be a DiT-only export missing "
-                f"the SeedVR2 conditioning tensors. "
-                f"Re-bake the file with ``positive_conditioning`` (58, 5120) "
-                f"and ``negative_conditioning`` (64, 5120) keys at top level, "
-                f"or load via CheckpointLoaderSimple from a bundled "
-                f"checkpoint."
-            )
-
-        _apply_rope_freqs_float32_cast(model)
-
         condition = torch.stack([get_conditions(c, c) for c in vae_conditioning])
         condition = condition.movedim(-1, 1)
         latent = vae_conditioning.movedim(-1, 1)
 
-        latent = rearrange(latent, "b c t h w -> b (c t) h w")
-        condition = rearrange(condition, "b c t h w -> b (c t) h w")
+        latent = latent.reshape(latent.shape[0], latent.shape[1] * latent.shape[2], latent.shape[3], latent.shape[4])
+        condition = condition.reshape(condition.shape[0], condition.shape[1] * condition.shape[2], condition.shape[3], condition.shape[4])
 
         negative = [[neg_cond.unsqueeze(0), {"condition": condition}]]
         positive = [[pos_cond.unsqueeze(0), {"condition": condition}]]
@@ -723,7 +686,7 @@ class SeedVR2ProgressiveSampler(io.ComfyNode):
     Drop-in replacement for ``KSampler`` in SeedVR2 native workflows that
     OOM on long sequences. The latent enters the sampler in SeedVR2's
     collapsed form ``(B, 16*T, H, W)`` (collapsed by ``SeedVR2Conditioning``
-    at ``rearrange(b c t h w -> b (c t) h w)``); this node slices that
+    at ``reshape(b, c * t, h, w)``); this node slices that
     tensor along the temporal axis, runs the configured inner sampler
     sequentially per chunk against the standard ``comfy.sample.sample``
     entry point, and concatenates per-chunk outputs back into a single
@@ -882,7 +845,6 @@ class SeedVR2ProgressiveSampler(io.ComfyNode):
                         "frames_per_chunk=%s.",
                         attempt_frames_per_chunk, attempts[i + 1],
                     )
-                    comfy.model_management.soft_empty_cache()
 
         # Short-circuit: total fits in one chunk -> standard path with no
         # chunking overhead. Output of this branch is byte-identical to the

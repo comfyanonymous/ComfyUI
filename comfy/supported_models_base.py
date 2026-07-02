@@ -54,13 +54,13 @@ class BASE:
     optimizations = {"fp8": False}
 
     @classmethod
-    def matches(s, unet_config, state_dict=None):
+    def matches(s, unet_config, state_dict=None, unet_key_prefix=""):
         for k in s.unet_config:
             if k not in unet_config or s.unet_config[k] != unet_config[k]:
                 return False
         if state_dict is not None:
             for k in s.required_keys:
-                if k not in state_dict:
+                if k.format(unet_key_prefix) not in state_dict:
                     return False
         return True
 

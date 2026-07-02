@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import pytest
 import torch
 
 from comfy.cli_args import args as cli_args
@@ -32,26 +33,19 @@ def test_seedvr2_post_processing_oom_error_uses_color_correction_method(monkeypa
 
     monkeypatch.setattr(nodes_seedvr.comfy.model_management, "vae_device", lambda: torch.device("cpu"))
     monkeypatch.setattr(nodes_seedvr.comfy.model_management, "get_free_memory", lambda device: 1_000_000)
-    monkeypatch.setattr(nodes_seedvr.comfy.model_management, "soft_empty_cache", lambda: None)
 
     with patch.object(nodes_seedvr, "lab_color_transfer", _lab):
-        try:
+        with pytest.raises(RuntimeError) as excinfo:
             nodes_seedvr.SeedVR2PostProcessing._color_transfer_chunked(
                 decoded, reference, torch.device("cpu"), "lab",
             )
-        except RuntimeError as exc:
-            assert "color_correction_method=lab" in str(exc)
-            assert " method=lab" not in str(exc)
-        else:
-            raise AssertionError("expected RuntimeError for one-frame LAB OOM")
+    assert "color_correction_method=lab" in str(excinfo.value)
+    assert " method=lab" not in str(excinfo.value)
 
 
 def test_seedvr2_post_processing_unknown_color_correction_method_raises():
     decoded = torch.zeros(1, 2, 4, 4, 3)
     original = torch.zeros(1, 2, 4, 4, 3)
-    try:
+    with pytest.raises(ValueError) as excinfo:
         nodes_seedvr.SeedVR2PostProcessing.execute(decoded, original, "bogus")
-    except ValueError as exc:
-        assert "color_correction_method" in str(exc)
-    else:
-        raise AssertionError("expected ValueError for unknown color_correction_method")
+    assert "color_correction_method" in str(excinfo.value)

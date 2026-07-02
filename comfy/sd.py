@@ -1,4 +1,3 @@
-import inspect
 import json
 import torch
 from enum import Enum
@@ -500,6 +499,8 @@ class VAE:
         self.upscale_index_formula = None
         self.extra_1d_channel = None
         self.crop_input = True
+        self.handles_tiling = False
+        self.format_encoded = None
 
         self.audio_sample_rate = 44100
 
@@ -554,6 +555,8 @@ class VAE:
                 self.memory_used_decode = lambda shape, dtype: self.first_stage_model.comfy_memory_used_decode(shape)
                 self.memory_used_encode = lambda shape, dtype: (max(shape[2], 5) * shape[3] * shape[4] * 64) * model_management.dtype_size(dtype)
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                self.handles_tiling = True
+                self.format_encoded = self.first_stage_model.comfy_format_encoded
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
                 self.downscale_index_formula = (4, 8, 8)
                 self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
@@ -1118,7 +1121,7 @@ class VAE:
                 if dims == 1 or self.extra_1d_channel is not None:
                     pixel_samples = self.decode_tiled_1d(samples_in)
                 elif dims == 2:
-                    if getattr(self.first_stage_model, "comfy_handles_tiling", False):
+                    if self.handles_tiling:
                         tile = 256 // self.spacial_compression_decode()
                         overlap = tile // 4
                         pixel_samples = self._decode_tiled_owned(samples_in, tile_x=tile, tile_y=tile, overlap=overlap)
@@ -1127,7 +1130,7 @@ class VAE:
                 elif dims == 3:
                     tile = 256 // self.spacial_compression_decode()
                     overlap = tile // 4
-                    if getattr(self.first_stage_model, "comfy_handles_tiling", False):
+                    if self.handles_tiling:
                         pixel_samples = self._decode_tiled_owned(samples_in, tile_x=tile, tile_y=tile, overlap=overlap)
                     else:
                         pixel_samples = self.decode_tiled_3d(samples_in, tile_x=tile, tile_y=tile, overlap=(1, overlap, overlap))
@@ -1149,7 +1152,7 @@ class VAE:
             args["overlap"] = overlap
 
         with model_management.cuda_device_context(self.device):
-            if getattr(self.first_stage_model, "comfy_handles_tiling", False) and dims in (2, 3):
+            if self.handles_tiling and dims in (2, 3):
                 tiled_args = {}
                 if tile_x is not None:
                     tiled_args["tile_x"] = tile_x
@@ -1204,8 +1207,6 @@ class VAE:
                     else:
                         pixels_in = pixels_in.to(self.device)
                         out = self.first_stage_model.encode(pixels_in)
-                    if isinstance(out, tuple):
-                        out = out[0]
                     out = out.to(self.output_device).to(dtype=self.vae_output_dtype())
                     if samples is None:
                         samples = torch.empty((pixel_samples.shape[0],) + tuple(out.shape[1:]), device=self.output_device, dtype=self.vae_output_dtype())
@@ -1225,7 +1226,7 @@ class VAE:
                 if self.latent_dim == 3:
                     tile = 256
                     overlap = tile // 4
-                    if getattr(self.first_stage_model, "comfy_handles_tiling", False):
+                    if self.handles_tiling:
                         samples = self._encode_tiled_owned(pixel_samples, tile_x=tile, tile_y=tile, overlap=overlap)
                     else:
                         samples = self.encode_tiled_3d(pixel_samples, tile_x=tile, tile_y=tile, overlap=(1, overlap, overlap))
@@ -1234,9 +1235,8 @@ class VAE:
                 else:
                     samples = self.encode_tiled_(pixel_samples)
 
-        formatter = getattr(self.first_stage_model, "comfy_format_encoded", None)
-        if formatter is not None:
-            samples = formatter(samples)
+        if self.format_encoded is not None:
+            samples = self.format_encoded(samples)
         return samples
 
     def encode_tiled(self, pixel_samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
@@ -1268,7 +1268,7 @@ class VAE:
             elif dims == 2:
                 samples = self.encode_tiled_(pixel_samples, **args)
             elif dims == 3:
-                if getattr(self.first_stage_model, "comfy_handles_tiling", False):
+                if self.handles_tiling:
                     tiled_args = {}
                     if tile_x is not None:
                         tiled_args["tile_x"] = tile_x
@@ -1298,9 +1298,8 @@ class VAE:
 
                     samples = self.encode_tiled_3d(pixel_samples[:,:,:maximum], **args)
 
-        formatter = getattr(self.first_stage_model, "comfy_format_encoded", None)
-        if formatter is not None:
-            samples = formatter(samples)
+        if self.format_encoded is not None:
+            samples = self.format_encoded(samples)
         return samples
 
     def get_sd(self):
@@ -1852,16 +1851,6 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     return (model, clip, vae)
 
 
-def _set_model_config_inference_dtype(model_config, dtype, manual_cast_dtype, device):
-    set_dtype = model_config.set_inference_dtype
-    parameters = inspect.signature(set_dtype).parameters
-    supports_device = "device" in parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values())
-    if supports_device:
-        set_dtype(dtype, manual_cast_dtype, device=device)
-    else:
-        set_dtype(dtype, manual_cast_dtype)
-
-
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, disable_dynamic=False):
     sd, metadata = comfy.utils.load_torch_file(ckpt_path, return_metadata=True)
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, metadata=metadata, disable_dynamic=disable_dynamic)
@@ -1969,7 +1958,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
     else:
         manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
-    _set_model_config_inference_dtype(model_config, unet_dtype, manual_cast_dtype, load_device)
+    model_config.set_inference_dtype(unet_dtype, manual_cast_dtype, device=load_device)
 
     if model_config.clip_vision_prefix is not None:
         if output_clipvision:
@@ -2110,7 +2099,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
         manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
     else:
         manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
-    _set_model_config_inference_dtype(model_config, unet_dtype, manual_cast_dtype, load_device)
+    model_config.set_inference_dtype(unet_dtype, manual_cast_dtype, device=load_device)
 
     if custom_operations is not None:
         model_config.custom_operations = custom_operations

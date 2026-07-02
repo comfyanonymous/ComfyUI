@@ -103,7 +103,7 @@ def test_seedvr2_7b_swin_attention_forward_uses_optimized_var_attention(monkeypa
         heads=heads,
         head_dim=head_dim,
         qk_bias=False,
-        qk_norm=seedvr_model.CustomRMSNorm,
+        qk_norm=comfy_ops.disable_weight_init.RMSNorm,
         qk_norm_eps=1e-6,
         rope_type=None,
         rope_dim=head_dim,

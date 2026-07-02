@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union, List, Dict, Any, Callable
-import einops
-from einops import rearrange
 import torch.nn.functional as F
 from math import ceil, pi
 import torch
@@ -23,52 +21,6 @@ from comfy.ldm.seedvr.constants import (
     SEEDVR2_ROPE_PARTIAL_CHUNK_TOKENS,
 )
 import comfy.model_management
-import numbers
-
-def _torch_float8_types():
-    return tuple(
-        getattr(torch, name)
-        for name in (
-            "float8_e4m3fn",
-            "float8_e4m3fnuz",
-            "float8_e5m2",
-            "float8_e5m2fnuz",
-            "float8_e8m0fnu",
-        )
-        if hasattr(torch, name)
-    )
-
-class CustomRMSNorm(nn.Module):
-
-    def __init__(self, normalized_shape, eps=1e-5, elementwise_affine=True, device=None, dtype=None):
-        super(CustomRMSNorm, self).__init__()
-
-        if isinstance(normalized_shape, numbers.Integral):
-            normalized_shape = (normalized_shape,)
-        self.normalized_shape = torch.Size(normalized_shape)
-        self.eps = eps
-        self.elementwise_affine = elementwise_affine
-
-        if self.elementwise_affine:
-            self.weight = nn.Parameter(torch.ones(*normalized_shape, device=device, dtype=dtype))
-        else:
-            self.register_parameter('weight', None)
-
-    def forward(self, input):
-
-        dims = tuple(range(-len(self.normalized_shape), 0))
-
-        # Norm statistics in fp32 (fp16 variance underflows); activations return
-        # in the input dtype so downstream linears run at the model compute dtype.
-        normalized = input.float()
-        variance = normalized.pow(2).mean(dim=dims, keepdim=True)
-        rms = torch.sqrt(variance + self.eps)
-
-        normalized = normalized / rms
-
-        if self.elementwise_affine:
-            return (normalized * self.weight.to(torch.float32)).to(input.dtype)
-        return normalized.to(input.dtype)
 
 class Cache:
     def __init__(self, disable=False, prefix="", cache=None):
@@ -81,12 +33,10 @@ class Cache:
             return fn()
 
         key = self.prefix + key
-        try:
-            result = self.cache[key]
-        except KeyError:
+        if key not in self.cache:
             result = fn()
             self.cache[key] = result
-        return result
+        return self.cache[key]
 
     def namespace(self, namespace: str):
         return Cache(
@@ -143,15 +93,6 @@ def repeat_concat_idx(
 class MMArg:
     vid: Any
     txt: Any
-
-def safe_pad_operation(x, padding, mode='constant', value=0.0):
-    try:
-        return F.pad(x, padding, mode=mode, value=value)
-    except RuntimeError as e:
-        if "not implemented for" in str(e) and x.dtype in (torch.float16, torch.bfloat16):
-            return F.pad(x.float(), padding, mode=mode, value=value).to(x.dtype)
-        raise
-
 
 def get_args(key: str, args: List[Any]) -> List[Any]:
     return [getattr(v, key) if isinstance(v, MMArg) else v for v in args]
@@ -235,8 +176,6 @@ class RotaryEmbedding(nn.Module):
         theta = 10000,
         max_freq = 10,
         learned_freq = False,
-        cache_if_possible = True,
-        cache_max_seq_len = 8192
     ):
         super().__init__()
 
@@ -246,12 +185,6 @@ class RotaryEmbedding(nn.Module):
             freqs = 1. / (theta ** (torch.arange(0, dim, 2)[:(dim // 2)].float() / dim))
         elif freqs_for == 'pixel':
             freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
-
-        self.cache_if_possible = cache_if_possible
-        self.cache_max_seq_len = cache_max_seq_len
-
-        self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, dim), persistent = False)
-        self.cached_freqs_seq_len = 0
 
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
@@ -310,29 +243,10 @@ class RotaryEmbedding(nn.Module):
         seq_len: int | None = None,
         offset = 0
     ):
-        should_cache = (
-            self.cache_if_possible and
-            not self.learned_freq and
-            exists(seq_len) and
-            self.freqs_for != 'pixel' and
-            (offset + seq_len) <= self.cache_max_seq_len
-        )
-
-        if (
-            should_cache and \
-            exists(self.cached_freqs) and \
-            (offset + seq_len) <= self.cached_freqs_seq_len
-        ):
-            return self.cached_freqs[offset:(offset + seq_len)].detach()
-
         freqs = self.freqs
 
         freqs = torch.einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
-        freqs = einops.repeat(freqs, '... n -> ... (n r)', r = 2)
-
-        if should_cache and offset == 0:
-            self.cached_freqs[:seq_len] = freqs.detach()
-            self.cached_freqs_seq_len = seq_len
+        freqs = freqs.unsqueeze(-1).expand(*freqs.shape, 2).flatten(-2)
 
         return freqs
 
@@ -346,7 +260,7 @@ class RotaryEmbeddingBase(nn.Module):
         )
         freqs = self.rope.freqs
         del self.rope.freqs
-        self.rope.register_buffer("freqs", freqs.data)
+        self.rope.register_buffer("freqs", freqs.detach())
 
     def get_axial_freqs(self, *dims):
         return self.rope.get_axial_freqs(*dims)
@@ -371,12 +285,12 @@ class NaRotaryEmbedding3d(RotaryEmbedding3d):
     ]:
         freqs = cache("rope_freqs_3d", lambda: self.get_freqs(shape))
         freqs = freqs.to(device=q.device)
-        q = rearrange(q, "L h d -> h L d")
-        k = rearrange(k, "L h d -> h L d")
+        q = q.transpose(0, 1)
+        k = k.transpose(0, 1)
         q = _apply_seedvr2_rotary_emb(freqs, q.float()).to(q.dtype)
         k = _apply_seedvr2_rotary_emb(freqs, k.float()).to(k.dtype)
-        q = rearrange(q, "h L d -> L h d")
-        k = rearrange(k, "h L d -> L h d")
+        q = q.transpose(0, 1)
+        k = k.transpose(0, 1)
         return q, k
 
     @torch._dynamo.disable
@@ -407,11 +321,10 @@ class MMRotaryEmbeddingBase(RotaryEmbeddingBase):
             dim=dim // rope_dim,
             freqs_for="lang",
             theta=ROPE_THETA,
-            cache_if_possible=False,
         )
         freqs = self.rope.freqs
         del self.rope.freqs
-        self.rope.register_buffer("freqs", freqs.data)
+        self.rope.register_buffer("freqs", freqs.detach())
         self.mm = True
 
 def slice_at_dim(t, dim_slice: slice, *, dim):
@@ -423,10 +336,10 @@ def slice_at_dim(t, dim_slice: slice, *, dim):
 # rotary embedding helper functions
 
 def rotate_half(x):
-    x = rearrange(x, '... (d r) -> ... d r', r = 2)
+    x = x.reshape(*x.shape[:-1], x.shape[-1] // 2, 2)
     x1, x2 = x.unbind(dim = -1)
     x = torch.stack((-x2, x1), dim = -1)
-    return rearrange(x, '... d r -> ... (d r)')
+    return x.flatten(-2)
 def exists(val):
     return val is not None
 
@@ -465,7 +378,7 @@ def _to_flux_freqs_cis(freqs_interleaved: torch.Tensor) -> torch.Tensor:
     cos = torch.cos(angles)
     sin = torch.sin(angles)
     out = torch.stack([cos, -sin, sin, cos], dim=-1)
-    return rearrange(out, "... d (i j) -> ... d i j", i=2, j=2)
+    return out.reshape(*out.shape[:-1], 2, 2)
 
 
 def _apply_rope1_partial(t: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
@@ -516,19 +429,19 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
             vid_freqs = vid_freqs.to(target_device)
         if txt_freqs.device != target_device:
             txt_freqs = txt_freqs.to(target_device)
-        vid_q = rearrange(vid_q, "L h d -> h L d")
-        vid_k = rearrange(vid_k, "L h d -> h L d")
+        vid_q = vid_q.transpose(0, 1)
+        vid_k = vid_k.transpose(0, 1)
         vid_q = _apply_rope1_partial(vid_q, vid_freqs)
         vid_k = _apply_rope1_partial(vid_k, vid_freqs)
-        vid_q = rearrange(vid_q, "h L d -> L h d")
-        vid_k = rearrange(vid_k, "h L d -> L h d")
+        vid_q = vid_q.transpose(0, 1)
+        vid_k = vid_k.transpose(0, 1)
 
-        txt_q = rearrange(txt_q, "L h d -> h L d")
-        txt_k = rearrange(txt_k, "L h d -> h L d")
+        txt_q = txt_q.transpose(0, 1)
+        txt_k = txt_k.transpose(0, 1)
         txt_q = _apply_rope1_partial(txt_q, txt_freqs)
         txt_k = _apply_rope1_partial(txt_k, txt_freqs)
-        txt_q = rearrange(txt_q, "h L d -> L h d")
-        txt_k = rearrange(txt_k, "h L d -> L h d")
+        txt_q = txt_q.transpose(0, 1)
+        txt_k = txt_k.transpose(0, 1)
         return vid_q, vid_k, txt_q, txt_k
 
     @torch._dynamo.disable  # Disable compilation: .tolist() is data-dependent and causes graph breaks
@@ -684,7 +597,7 @@ def window(
 ):
     hid = unflatten(hid, hid_shape)
     hid = list(map(window_fn, hid))
-    hid_windows = torch.tensor(list(map(len, hid)), device=hid_shape.device)
+    hid_windows = torch.as_tensor([len(x) for x in hid], device=hid_shape.device)
     hid, hid_shape = flatten(list(chain(*hid)))
     return hid, hid_shape, hid_windows
 
@@ -747,8 +660,8 @@ class NaSwinAttention(NaMMAttention):
         )
         vid_qkv_win = window_partition(vid_qkv)
 
-        vid_qkv_win = rearrange(vid_qkv_win, "l (o h d) -> l o h d", o=3, d=self.head_dim)
-        txt_qkv = rearrange(txt_qkv, "l (o h d) -> l o h d", o=3, d=self.head_dim)
+        vid_qkv_win = vid_qkv_win.reshape(vid_qkv_win.shape[0], 3, self.heads, self.head_dim)
+        txt_qkv = txt_qkv.reshape(txt_qkv.shape[0], 3, self.heads, self.head_dim)
 
         vid_q, vid_k, vid_v = vid_qkv_win.unbind(1)
         txt_q, txt_k, txt_v = txt_qkv.unbind(1)
@@ -768,19 +681,19 @@ class NaSwinAttention(NaMMAttention):
             elif self.rope.mm:
                 # repeat text q and k for window mmrope
                 _, num_h, _ = txt_q.shape
-                txt_q_repeat = rearrange(txt_q, "l h d -> l (h d)")
+                txt_q_repeat = txt_q.flatten(1, 2)
                 txt_q_repeat = unflatten(txt_q_repeat, txt_shape)
                 txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count)]
                 txt_q_repeat = list(chain(*txt_q_repeat))
                 txt_q_repeat, txt_shape_repeat = flatten(txt_q_repeat)
-                txt_q_repeat = rearrange(txt_q_repeat, "l (h d) -> l h d", h=num_h)
+                txt_q_repeat = txt_q_repeat.reshape(txt_q_repeat.shape[0], num_h, self.head_dim)
 
-                txt_k_repeat = rearrange(txt_k, "l h d -> l (h d)")
+                txt_k_repeat = txt_k.flatten(1, 2)
                 txt_k_repeat = unflatten(txt_k_repeat, txt_shape)
                 txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count)]
                 txt_k_repeat = list(chain(*txt_k_repeat))
                 txt_k_repeat, _ = flatten(txt_k_repeat)
-                txt_k_repeat = rearrange(txt_k_repeat, "l (h d) -> l h d", h=num_h)
+                txt_k_repeat = txt_k_repeat.reshape(txt_k_repeat.shape[0], num_h, self.head_dim)
 
                 vid_q, vid_k, txt_q, txt_k = self.rope(
                     vid_q, vid_k, window_shape, txt_q_repeat, txt_k_repeat, txt_shape_repeat, cache_win
@@ -799,16 +712,16 @@ class NaSwinAttention(NaMMAttention):
             v=concat_win(vid_v, txt_v),
             heads=self.heads, skip_reshape=True, skip_output_reshape=True,
             cu_seqlens_q=cache_win(
-                "vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
+                "vid_seqlens_q", lambda: F.pad(all_len_win.cumsum(0), (1, 0)).int()
             ),
             cu_seqlens_k=cache_win(
-                "vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
+                "vid_seqlens_k", lambda: F.pad(all_len_win.cumsum(0), (1, 0)).int()
             ),
         )
         vid_out, txt_out = unconcat_win(out)
 
-        vid_out = rearrange(vid_out, "l h d -> l (h d)")
-        txt_out = rearrange(txt_out, "l h d -> l (h d)")
+        vid_out = vid_out.flatten(1, 2)
+        txt_out = txt_out.flatten(1, 2)
         vid_out = window_reverse(vid_out)
 
         vid_out, txt_out = self.proj_out(vid_out, txt_out)
@@ -1005,7 +918,9 @@ class PatchOut(nn.Module):
     ) -> torch.Tensor:
         t, h, w = self.patch_size
         vid = self.proj(vid)
-        vid = rearrange(vid, "b T H W (t h w c) -> b c (T t) (H h) (W w)", t=t, h=h, w=w)
+        b, T, H, W, channels = vid.shape
+        c = channels // (t * h * w)
+        vid = vid.view(b, T, H, W, t, h, w, c).permute(0, 7, 1, 4, 2, 5, 3, 6).reshape(b, c, T * t, H * h, W * w)
         if t > 1:
             vid = vid[:, :, (t - 1) :]
         return vid
@@ -1015,7 +930,7 @@ class NaPatchOut(PatchOut):
         self,
         vid: torch.FloatTensor,  # l c
         vid_shape: torch.LongTensor,
-        cache: Cache = Cache(disable=True),  # for test
+        cache: Cache = Cache(disable=True),
         vid_shape_before_patchify = None
     ) -> Tuple[
         torch.FloatTensor,
@@ -1028,7 +943,9 @@ class NaPatchOut(PatchOut):
         if not (t == h == w == 1):
             vid = unflatten(vid, vid_shape)
             for i in range(len(vid)):
-                vid[i] = rearrange(vid[i], "T H W (t h w c) -> (T t) (H h) (W w) c", t=t, h=h, w=w)
+                T, H, W, channels = vid[i].shape
+                c = channels // (t * h * w)
+                vid[i] = vid[i].view(T, H, W, t, h, w, c).permute(0, 3, 1, 4, 2, 5, 6).reshape(T * t, H * h, W * w, c)
                 if t > 1 and vid_shape_before_patchify[i, 0] % t != 0:
                     vid[i] = vid[i][(t - vid_shape_before_patchify[i, 0] % t) :]
             vid, vid_shape = flatten(vid)
@@ -1056,7 +973,8 @@ class PatchIn(nn.Module):
         if t > 1:
             assert vid.size(2) % t == 1
             vid = torch.cat([vid[:, :, :1]] * (t - 1) + [vid], dim=2)
-        vid = rearrange(vid, "b c (T t) (H h) (W w) -> b T H W (t h w c)", t=t, h=h, w=w)
+        b, c, Tt, Hh, Ww = vid.shape
+        vid = vid.view(b, c, Tt // t, t, Hh // h, h, Ww // w, w).permute(0, 2, 4, 6, 3, 5, 7, 1).reshape(b, Tt // t, Hh // h, Ww // w, t * h * w * c)
         vid = self.proj(vid)
         return vid
 
@@ -1065,7 +983,7 @@ class NaPatchIn(PatchIn):
         self,
         vid: torch.Tensor,  # l c
         vid_shape: torch.LongTensor,
-        cache: Cache = Cache(disable=True),  # for test
+        cache: Cache = Cache(disable=True),
     ) -> torch.Tensor:
         cache = cache.namespace("patch")
         vid_shape_before_patchify = cache("vid_shape_before_patchify", lambda: vid_shape)
@@ -1075,7 +993,8 @@ class NaPatchIn(PatchIn):
             for i in range(len(vid)):
                 if t > 1 and vid_shape_before_patchify[i, 0] % t != 0:
                     vid[i] = torch.cat([vid[i][:1]] * (t - vid[i].size(0) % t) + [vid[i]], dim=0)
-                vid[i] = rearrange(vid[i], "(T t) (H h) (W w) c -> T H W (t h w c)", t=t, h=h, w=w)
+                Tt, Hh, Ww, c = vid[i].shape
+                vid[i] = vid[i].view(Tt // t, t, Hh // h, h, Ww // w, w, c).permute(0, 2, 4, 1, 3, 5, 6).reshape(Tt // t, Hh // h, Ww // w, t * h * w * c)
             vid, vid_shape = flatten(vid)
 
         vid = self.proj(vid)
@@ -1102,17 +1021,14 @@ class AdaSingle(nn.Module):
         self.emb_dim = emb_dim
         self.layers = layers
 
-        param_kwargs = {"device": device}
-        fp8_types = _torch_float8_types()
-        if dtype is not None and dtype not in fp8_types:
-            param_kwargs["dtype"] = dtype
+        param_kwargs = {"device": device, "dtype": dtype}
 
         for l in layers:
             if "in" in modes:
-                self.register_parameter(f"{l}_shift", nn.Parameter(torch.zeros(dim, **param_kwargs)))
-                self.register_parameter(f"{l}_scale", nn.Parameter(torch.ones(dim, **param_kwargs)))
+                self.register_parameter(f"{l}_shift", nn.Parameter(torch.empty(dim, **param_kwargs)))
+                self.register_parameter(f"{l}_scale", nn.Parameter(torch.empty(dim, **param_kwargs)))
             if "out" in modes:
-                self.register_parameter(f"{l}_gate", nn.Parameter(torch.zeros(dim, **param_kwargs)))
+                self.register_parameter(f"{l}_gate", nn.Parameter(torch.empty(dim, **param_kwargs)))
 
     def forward(
         self,
@@ -1125,7 +1041,7 @@ class AdaSingle(nn.Module):
         hid_len: Optional[torch.LongTensor] = None,  # b
     ) -> torch.FloatTensor:
         idx = self.layers.index(layer)
-        emb = rearrange(emb, "b (d l g) -> b d l g", l=len(self.layers), g=3)[..., idx, :]
+        emb = emb.reshape(emb.shape[0], -1, len(self.layers), 3)[:, :, idx, :]
         emb = expand_dims(emb, 1, hid.ndim + 1)
 
         if hid_len is not None:
@@ -1144,17 +1060,6 @@ class AdaSingle(nn.Module):
             getattr(self, f"{layer}_scale", None),
             getattr(self, f"{layer}_gate", None),
         )
-
-        fp8_types = _torch_float8_types()
-        if fp8_types:
-            target_dtype = hid.dtype
-
-            if shiftB is not None and shiftB.dtype in fp8_types:
-                shiftB = shiftB.to(target_dtype)
-            if scaleB is not None and scaleB.dtype in fp8_types:
-                scaleB = scaleB.to(target_dtype)
-            if gateB is not None and gateB.dtype in fp8_types:
-                gateB = gateB.to(target_dtype)
 
         if mode == "in":
             return hid.mul_(scaleA + scaleB).add_(shiftA + shiftB)
@@ -1213,7 +1118,7 @@ def flatten(
     torch.LongTensor,  # (b n)
 ]:
     assert len(hid) > 0
-    shape = torch.stack([torch.tensor(x.shape[:-1], device=hid[0].device) for x in hid])
+    shape = torch.as_tensor([x.shape[:-1] for x in hid], device=hid[0].device)
     hid = torch.cat([x.flatten(0, -2) for x in hid])
     return hid, shape
 
@@ -1226,19 +1131,6 @@ def unflatten(
     hid = hid.split(hid_len.tolist())
     hid = [x.unflatten(0, s.tolist()) for x, s in zip(hid, hid_shape)]
     return hid
-
-def repeat(
-    hid: torch.FloatTensor,  # (L c)
-    hid_shape: torch.LongTensor,  # (b n)
-    pattern: str,
-    **kwargs: Dict[str, torch.LongTensor],  # (b)
-) -> Tuple[
-    torch.FloatTensor,
-    torch.LongTensor,
-]:
-    hid = unflatten(hid, hid_shape)
-    kwargs = [{k: v[i].item() for k, v in kwargs.items()} for i in range(len(hid))]
-    return flatten([einops.repeat(h, pattern, **a) for h, a in zip(hid, kwargs)])
 
 class NaDiT(nn.Module):
 
@@ -1275,23 +1167,11 @@ class NaDiT(nn.Module):
         emb_dim = vid_dim * 6
         window = num_layers * [(4,3,3)]
         ada = AdaSingle
-        norm = CustomRMSNorm
-        qk_norm = CustomRMSNorm
+        norm = operations.RMSNorm
+        qk_norm = operations.RMSNorm
         super().__init__()
-        # ``torch.empty`` returns uninitialized memory, not zeros. The
-        # SeedVR2Conditioning fail-loud guard at
-        # ``comfy_extras/nodes_seedvr.py`` distinguishes "buffer was loaded"
-        # from "buffer was never populated by the file" by checking
-        # ``positive_conditioning.abs().sum() == 0``. That sentinel is only
-        # reliable if the post-construction buffer state is deterministically
-        # zero, so explicitly zero-fill here rather than relying on the
-        # allocator's zero-on-alloc behavior (allocator-dependent and not
-        # contractual). When ``load_state_dict`` populates these buffers
-        # from a properly-baked SeedVR2 .safetensors, the in-place copy
-        # overwrites the zeros with the universal SeedVR2 conditioning
-        # tensors (shape (58, 5120) and (64, 5120) bf16).
-        self.register_buffer("positive_conditioning", torch.zeros((58, 5120), device=device, dtype=dtype))
-        self.register_buffer("negative_conditioning", torch.zeros((64, 5120), device=device, dtype=dtype))
+        self.register_buffer("positive_conditioning", torch.empty((58, 5120), device=device, dtype=dtype))
+        self.register_buffer("negative_conditioning", torch.empty((64, 5120), device=device, dtype=dtype))
         self.vid_in = NaPatchIn(
             in_channels=vid_in_channels,
             patch_size=patch_size,
@@ -1354,7 +1234,7 @@ class NaDiT(nn.Module):
 
         self.vid_out_norm = None
         if vid_out_norm is not None:
-            self.vid_out_norm = CustomRMSNorm(
+            self.vid_out_norm = operations.RMSNorm(
                 normalized_shape=vid_dim,
                 eps=norm_eps,
                 elementwise_affine=True,
@@ -1369,7 +1249,7 @@ class NaDiT(nn.Module):
             )
 
     def _resolve_text_conditioning(self, context, cond_or_uncond=None):
-        if context is None or getattr(context, "numel", lambda: None)() == 0:
+        if context is None or context.numel() == 0:
             context = self.positive_conditioning
             return flatten([context])
         if NaDiT._seedvr2_is_single_conditioning_branch(cond_or_uncond):
@@ -1407,7 +1287,7 @@ class NaDiT(nn.Module):
         x,
         timestep,
         context,  # l c
-        disable_cache: bool = False,  # for test # TODO ? // gives an error when set to True
+        disable_cache: bool = False,
         **kwargs
     ):
         transformer_options = kwargs.get("transformer_options", {})
@@ -1483,5 +1363,5 @@ class NaDiT(nn.Module):
         vid = unflatten(vid, vid_shape)
         out =  torch.stack(vid)
         out = out.movedim(-1, 1)
-        out = rearrange(out, "b c t h w -> b (c t) h w")
+        out = out.reshape(out.shape[0], out.shape[1] * out.shape[2], out.shape[3], out.shape[4])
         return self._swap_pos_neg_halves(out, transformer_options.get("cond_or_uncond"))

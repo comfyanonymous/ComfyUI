@@ -2,8 +2,6 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from comfy.ldm.seedvr.model import safe_pad_operation
-from comfy.ldm.seedvr.vae import safe_interpolate_operation
 from comfy.ldm.seedvr.constants import (
     CIELAB_DELTA,
     CIELAB_KAPPA,
@@ -28,7 +26,7 @@ def wavelet_blur(image: Tensor, radius):
     kernel = torch.tensor(kernel_vals, dtype=image.dtype, device=image.device)
     kernel = kernel[None, None].repeat(num_channels, 1, 1, 1)
 
-    image = safe_pad_operation(image, (radius, radius, radius, radius), mode='replicate')
+    image = F.pad(image, (radius, radius, radius, radius), mode='replicate')
     output = F.conv2d(image, kernel, groups=num_channels, dilation=radius)
 
     return output
@@ -49,8 +47,7 @@ def wavelet_reconstruction(content_feat: Tensor, style_feat: Tensor) -> Tensor:
     if content_feat.shape != style_feat.shape:
         # Resize style to match content spatial dimensions
         if len(content_feat.shape) >= 3:
-            # safe_interpolate_operation handles FP16 conversion automatically
-            style_feat = safe_interpolate_operation(
+            style_feat = F.interpolate(
                 style_feat,
                 size=content_feat.shape[-2:],
                 mode='bilinear',
@@ -65,7 +62,7 @@ def wavelet_reconstruction(content_feat: Tensor, style_feat: Tensor) -> Tensor:
     del style_high_freq  # Free memory immediately
 
     if content_high_freq.shape != style_low_freq.shape:
-        style_low_freq = safe_interpolate_operation(
+        style_low_freq = F.interpolate(
             style_low_freq,
             size=content_high_freq.shape[-2:],
             mode='bilinear',
@@ -227,7 +224,7 @@ def lab_color_transfer(
     content_feat = wavelet_reconstruction(content_feat, style_feat)
 
     if content_feat.shape != style_feat.shape:
-        style_feat = safe_interpolate_operation(
+        style_feat = F.interpolate(
             style_feat,
             size=content_feat.shape[-2:],
             mode='bilinear',
@@ -308,7 +305,7 @@ def wavelet_color_transfer(content_feat: Tensor, style_feat: Tensor) -> Tensor:
 
 def adain_color_transfer(content_feat: Tensor, style_feat: Tensor, eps: float = 1e-5) -> Tensor:
     if content_feat.shape != style_feat.shape:
-        style_feat = safe_interpolate_operation(
+        style_feat = F.interpolate(
             style_feat,
             size=content_feat.shape[-2:],
             mode='bilinear',

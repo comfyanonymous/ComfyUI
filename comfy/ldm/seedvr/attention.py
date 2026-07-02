@@ -60,14 +60,7 @@ def var_attention_optimized_split(q, k, v, heads, cu_seqlens_q, cu_seqlens_k, *a
         q_i = q_i.permute(1, 0, 2).unsqueeze(0)
         k_i = k_i.permute(1, 0, 2).unsqueeze(0)
         v_i = v_i.permute(1, 0, 2).unsqueeze(0)
-        out_dtype = q_i.dtype
-        if _attention.optimized_attention is _attention.attention_sage and q_i.dtype not in (torch.float16, torch.bfloat16):
-            q_i = q_i.to(torch.bfloat16)
-            k_i = k_i.to(torch.bfloat16)
-            v_i = v_i.to(torch.bfloat16)
         out_i = _attention.optimized_attention(q_i, k_i, v_i, heads, skip_reshape=True, skip_output_reshape=True)
-        if out_i.dtype != out_dtype:
-            out_i = out_i.to(out_dtype)
         out.append(out_i.squeeze(0).permute(1, 0, 2))
 
     out = torch.cat(out, dim=0)

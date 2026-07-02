@@ -1151,9 +1151,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
     return unet_config
 
-def model_config_from_unet_config(unet_config, state_dict=None):
+def model_config_from_unet_config(unet_config, state_dict=None, unet_key_prefix=""):
     for model_config in comfy.supported_models.models:
-        if model_config.matches(unet_config, state_dict):
+        if model_config.matches(unet_config, state_dict, unet_key_prefix=unet_key_prefix):
             return model_config(unet_config)
 
     logging.error("no match {}".format(unet_config))
@@ -1163,7 +1163,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     unet_config = detect_unet_config(state_dict, unet_key_prefix, metadata=metadata)
     if unet_config is None:
         return None
-    model_config = model_config_from_unet_config(unet_config, state_dict)
+    model_config = model_config_from_unet_config(unet_config, state_dict, unet_key_prefix)
     if model_config is None and use_base_if_no_match:
         model_config = comfy.supported_models_base.BASE(unet_config)
 
