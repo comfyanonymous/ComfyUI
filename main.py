@@ -403,7 +403,7 @@ def prompt_worker(q, server_instance):
                 hook_breaker_ac10a0.restore_functions()
 
                 if not asset_seeder.is_disabled():
-                    asset_seeder.enqueue_enrich(roots=("output",), compute_hashes=True)
+                    asset_seeder.enqueue_enrich(roots=("output",), compute_hashes=args.enable_asset_hashing)
                 asset_seeder.resume()
 
 
@@ -458,7 +458,7 @@ def setup_database():
         if dependencies_available():
             init_db()
             if args.enable_assets:
-                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=True):
+                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=args.enable_asset_hashing):
                     logging.info("Background asset scan initiated for models, input, output")
     except Exception as e:
         if "database is locked" in str(e):
