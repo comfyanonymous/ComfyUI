@@ -434,21 +434,19 @@ def _dinov3_encode(model, image_bchw, image_size, want_patches=False):
     return {"tokens": tokens[:, :1 + n_reg], "patches_2d": _dinov3_patches_to_2d(tokens, image_size)}
 
 
-def run_conditioning(model, cropped_pil_img, include_1024=True):
+def run_conditioning(model, cropped_pil_img):
     device = comfy.model_management.intermediate_device()
 
     img_np = np.array(cropped_pil_img).astype(np.float32) / 255.0
     image_bchw = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).contiguous()
 
     cond_512 = _dinov3_encode(model, image_bchw, 512)
-    conditioning = {
+    cond_1024 = _dinov3_encode(model, image_bchw, 1024)
+    return {
         "cond_512": cond_512.to(device),
         "neg_cond": torch.zeros_like(cond_512).to(device),
+        "cond_1024": cond_1024.to(device),
     }
-    if include_1024:
-        cond_1024 = _dinov3_encode(model, image_bchw, 1024)
-        conditioning["cond_1024"] = cond_1024.to(device)
-    return conditioning
 
 class Trellis2Conditioning(IO.ComfyNode):
     @classmethod
@@ -581,7 +579,7 @@ class Trellis2Conditioning(IO.ComfyNode):
             cropped_pil = Image.fromarray(rgba_composite, mode="RGBA")
 
             # Convert to RGB to ensure the CLIP/DINO model receives a 3-channel image
-            item_conditioning = run_conditioning(clip_vision_model, cropped_pil.convert("RGB"), include_1024=True)
+            item_conditioning = run_conditioning(clip_vision_model, cropped_pil.convert("RGB"))
             cond_512_list.append(item_conditioning["cond_512"])
             cond_1024_list.append(item_conditioning["cond_1024"])
 
@@ -868,7 +866,7 @@ class Pixal3DConditioning(IO.ComfyNode):
 
     @classmethod
     def execute(cls, clip_vision_model, image, mask, camera_angle_x) -> IO.NodeOutput:
-        naf_model = getattr(clip_vision_model, "naf", None)
+        naf_model = clip_vision_model.naf
         if image.ndim == 3:
             image = image.unsqueeze(0)
         if mask.ndim == 2:

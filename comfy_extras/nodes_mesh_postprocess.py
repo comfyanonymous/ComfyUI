@@ -2278,8 +2278,8 @@ class RemeshMesh(IO.ComfyNode):
         # mode-specific sub-widgets (absent → defaults)
         qef = bool(sign_mode.get("qef", True))
         manifold = bool(sign_mode.get("manifold", False))
-        drop_inverted_components = bool(sign_mode.get("drop_inverted_components", True))
-        drop_enclosed_components = bool(sign_mode.get("drop_enclosed_components", True))
+        drop_inverted_components = bool(sign_mode.get("drop_inverted_components", False))
+        drop_enclosed_components = bool(sign_mode.get("drop_enclosed_components", False))
 
         # ComfyUI passes meshes on CPU (remesh far faster on GPU); compute on device, return on original.
         compute_device = comfy.model_management.get_torch_device()
