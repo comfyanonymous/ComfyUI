@@ -51,17 +51,17 @@ class MHRHead(nn.Module):
         self.joint_rotation = _p(127, 3, 3)
         self.scale_mean = _p(68)
         self.scale_comps = _p(28, 68)
-        self.faces = _p(36874, 3, dtype=torch.int64)
+        self.register_buffer("faces", torch.empty(36874, 3, dtype=torch.int64))
         self.hand_pose_mean = _p(54)
         self.hand_pose_comps = nn.Parameter(torch.eye(54), requires_grad=False)
-        self.hand_joint_idxs_left = _p(27, dtype=torch.int64)
-        self.hand_joint_idxs_right = _p(27, dtype=torch.int64)
+        self.register_buffer("hand_joint_idxs_left", torch.empty(27, dtype=torch.int64))
+        self.register_buffer("hand_joint_idxs_right", torch.empty(27, dtype=torch.int64))
         self.keypoint_mapping = _p(308, 18439 + 127)
         # Some special buffers for the hand-version
         self.right_wrist_coords = _p(3)
         self.root_coords = _p(3)
         self.local_to_world_wrist = _p(3, 3)
-        self.nonhand_param_idxs = _p(145, dtype=torch.int64)
+        self.register_buffer("nonhand_param_idxs", torch.empty(145, dtype=torch.int64))
         # Hand-painted per-vertex face region RGB (rainbow_face_semantic shader).
         self.register_buffer("face_region_rgb", torch.zeros(18439, 3, dtype=torch.float32))
 

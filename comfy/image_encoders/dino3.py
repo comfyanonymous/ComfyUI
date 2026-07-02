@@ -156,10 +156,12 @@ class DINOv3ViTRopePositionEmbedding(nn.Module):
 
 
 class DINOv3ViTEmbeddings(nn.Module):
-    def __init__(self, hidden_size, num_register_tokens, num_channels, patch_size, dtype, device, operations):
+    def __init__(self, hidden_size, num_register_tokens, num_channels, patch_size, dtype, device, operations, use_mask_token=True):
         super().__init__()
         self.cls_token = nn.Parameter(torch.empty(1, 1, hidden_size, device=device, dtype=dtype))
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, hidden_size, device=device, dtype=dtype))
+        # mask_token is a pre-training param, omit it when the checkpoint does not ship it so strict loading stays clean
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, hidden_size, device=device, dtype=dtype)) if use_mask_token else None
+
         self.register_tokens = nn.Parameter(torch.empty(1, num_register_tokens, hidden_size, device=device, dtype=dtype))
         self.patch_embeddings = operations.Conv2d(
             num_channels, hidden_size, kernel_size=patch_size, stride=patch_size, device=device, dtype=dtype
@@ -212,7 +214,7 @@ class DINOv3ViTLayer(nn.Module):
 
 
 class DINOv3ViTModel(nn.Module):
-    def __init__(self, config, dtype, device, operations):
+    def __init__(self, config, dtype, device, operations, use_mask_token=True):
         super().__init__()
         num_hidden_layers = config["num_hidden_layers"]
         hidden_size = config["hidden_size"]
@@ -228,7 +230,7 @@ class DINOv3ViTModel(nn.Module):
 
         self.embeddings = DINOv3ViTEmbeddings(
             hidden_size, num_register_tokens, num_channels=num_channels, patch_size=patch_size,
-            dtype=dtype, device=device, operations=operations
+            dtype=dtype, device=device, operations=operations, use_mask_token=use_mask_token
         )
         self.rope_embeddings = DINOv3ViTRopePositionEmbedding(
             rope_theta, hidden_size, num_attention_heads, patch_size=patch_size, dtype=dtype, device=device

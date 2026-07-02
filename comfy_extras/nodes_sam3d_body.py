@@ -78,14 +78,16 @@ class SAM3DBody_Loader(io.ComfyNode):
             operations = comfy.ops.pick_operations(torch_dtype, manual_cast_dtype, load_device=load_device, disable_fast_fp8=True)
 
         model = SAM3DBody(dtype=torch_dtype, operations=operations)
-        model.load_state_dict(sd, strict=False)
+        sd.pop("hand_cls_embed.weight", None)
+        sd.pop("hand_cls_embed.bias", None)
+        missing, unexpected = model.load_state_dict(sd, strict=False)
+        missing = set(missing) - {"head_pose_hand.face_region_rgb"}
+        if missing or unexpected:
+            raise RuntimeError(f"SAM3D-Body checkpoint key mismatch: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
 
-        model.eval()
         model.backbone_dtype = torch_dtype
-        model._sam3d_image_size = model.image_size
-
-        model._sam3d_canonical_colors = compute_canonical_colors(model)
-        model._sam3d_hand_vert_mask = compute_hand_vert_mask(model)
+        model.canonical_colors = compute_canonical_colors(model)
+        model.hand_vert_mask = compute_hand_vert_mask(model)
 
         patcher = comfy.model_patcher.CoreModelPatcher(
             model,
@@ -153,7 +155,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                     ), advanced=True
                 ),
                 io.Int.Input(
-                    "batch_size", #TODO: automate?
+                    "batch_size",
                     default=64, min=1, max=512, step=1, advanced=True,
                     tooltip=(
                         "Max frames to process as a batch. Larger values utilize more VRAM for faster inference."
@@ -169,7 +171,7 @@ class SAM3DBody_Predict(io.ComfyNode):
         inner: SAM3DBody = sam3d_body_model.model
 
         B, H, W, _ = image.shape
-        image_size = getattr(inner, "_sam3d_image_size", (512, 512))
+        image_size = inner.image_size
 
         # Precedence: SAM3 track (masks + boxes) > detector boxes > full-frame fallback.
         per_frame_bboxes, per_frame_masks = (None, None)
@@ -234,8 +236,8 @@ class SAM3DBody_Predict(io.ComfyNode):
             "frames": frames_out,
             "faces": inner.head_pose.faces.cpu().numpy(),
             "image_size": (int(H), int(W)),
-            "canonical_colors": getattr(inner, "_sam3d_canonical_colors", None),
-            "hand_vert_mask": getattr(inner, "_sam3d_hand_vert_mask", None),
+            "canonical_colors": inner.canonical_colors,
+            "hand_vert_mask": inner.hand_vert_mask,
         }
         return io.NodeOutput(mhr_pose_data)
 
@@ -253,7 +255,7 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
         return io.Schema(
             node_id="SAM3DBody_FaceExpression",
             description="Drive MHR face blendshapes from the core MediaPipe Face Landmarker.",
-            display_name="Face Expression to SAM3D Body", #TODO: better name?
+            display_name="Face Expression to SAM3D Body",
             category="image/detection",
             inputs=[
                 SAM3DBodyModel.Input("sam3d_body_model"),

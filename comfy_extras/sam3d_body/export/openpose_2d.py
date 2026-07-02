@@ -168,7 +168,7 @@ def render_pose_data_openpose(
                     )
                     if use_rig_only:
                         face_vert_ids = face_vert_ids[_EYES_MOUTH_IDX]
-                except Exception as e:
+                except (ValueError, IndexError) as e:
                     logging.warning(f"[SAM3DBody] face landmarks disabled - {e}")
                     face_vert_ids = None
 

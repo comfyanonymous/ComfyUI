@@ -44,8 +44,10 @@ class SAM3DBody(nn.Module):
         self.register_buffer("image_std", torch.tensor(IMAGE_STD).view(-1, 1, 1), False)
 
         self.image_size = IMAGE_SIZE
-
-        self.backbone = DINOv3ViTModel(DINOV3_VITH_CONFIG, dtype=dtype, device=device, operations=operations)
+        # Populated by the loader once weights are in place.
+        self.canonical_colors = None
+        self.hand_vert_mask = None
+        self.backbone = DINOv3ViTModel(DINOV3_VITH_CONFIG, dtype=dtype, device=device, operations=operations, use_mask_token=False)
         embed_dims = self.backbone.embed_dims
 
         # MHR rig shared between body + hand pose heads via a non-registered
@@ -61,8 +63,8 @@ class SAM3DBody(nn.Module):
             device=device, dtype=dtype, operations=operations,
         )
         self.head_pose = MHRHead(**head_kwargs)
-        self.head_pose.hand_pose_comps_ori = nn.Parameter(
-            self.head_pose.hand_pose_comps.clone(), requires_grad=False
+        self.head_pose.register_buffer(
+            "hand_pose_comps_ori", self.head_pose.hand_pose_comps.clone(), persistent=False
         )
         self.head_pose.hand_pose_comps.data = (
             torch.eye(54).to(self.head_pose.hand_pose_comps.data).float()
@@ -70,8 +72,8 @@ class SAM3DBody(nn.Module):
         self.init_pose = operations.Embedding(1, self.head_pose.npose, device=device, dtype=dtype)
 
         self.head_pose_hand = MHRHead(enable_hand_model=True, **head_kwargs)
-        self.head_pose_hand.hand_pose_comps_ori = nn.Parameter(
-            self.head_pose_hand.hand_pose_comps.clone(), requires_grad=False
+        self.head_pose_hand.register_buffer(
+            "hand_pose_comps_ori", self.head_pose_hand.hand_pose_comps.clone(), persistent=False
         )
         self.head_pose_hand.hand_pose_comps.data = (
             torch.eye(54).to(self.head_pose_hand.hand_pose_comps.data).float()
