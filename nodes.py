@@ -349,7 +349,7 @@ class VAEDecodeTiled:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     def decode(self, vae, samples, tile_size, overlap=64, temporal_size=64, temporal_overlap=8):
         if tile_size < overlap * 4:
@@ -396,7 +396,7 @@ class VAEEncodeTiled:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     def encode(self, vae, pixels, tile_size, overlap, temporal_size=64, temporal_overlap=8):
         t = vae.encode_tiled(pixels, tile_x=tile_size, tile_y=tile_size, overlap=overlap, tile_t=temporal_size, overlap_t=temporal_overlap)
@@ -514,7 +514,7 @@ class SaveLatent:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     def save(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -559,7 +559,7 @@ class LoadLatent:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
         return {"required": {"latent": [sorted(files), ]}, }
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     RETURN_TYPES = ("LATENT", )
     FUNCTION = "load"
@@ -2155,6 +2155,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GLIGENTextBoxApply": "Apply GLIGEN Text Box",
     "ConditioningZeroOut": "Conditioning Zero Out",
     # Latent
+    "LoadLatent": "Load Latent",
+    "SaveLatent": "Save Latent",
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
     "VAEDecode": "VAE Decode",
@@ -2189,7 +2191,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageSharpen": "Sharpen Image",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     "GetImageSize": "Get Image Size",
-    # experimental
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }

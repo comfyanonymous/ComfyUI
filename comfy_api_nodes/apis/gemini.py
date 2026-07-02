@@ -121,6 +121,7 @@ class GeminiGenerationConfig(BaseModel):
     topK: int | None = Field(None, ge=1)
     topP: float | None = Field(None, ge=0.0, le=1.0)
     thinkingConfig: GeminiThinkingConfig | None = Field(None)
+    responseModalities: list[str] | None = Field(None)
 
 
 class GeminiImageOutputOptions(BaseModel):
