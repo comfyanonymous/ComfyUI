@@ -29,112 +29,6 @@ NORMAL_DEVIATION_HARD_CUTOFF = 0.707  # ~75°
 
 
 @njit(cache=True, fastmath=False)
-def _face_curvature_jit(face_normal: np.ndarray, face_face: np.ndarray) -> np.ndarray:
-    F = face_normal.shape[0]
-    raw = np.zeros(F, dtype=np.float32)
-    for f in range(F):
-        nx = face_normal[f, 0]
-        ny = face_normal[f, 1]
-        nz = face_normal[f, 2]
-        s = np.float32(0.0)
-        for e in range(3):
-            nb = face_face[f, e]
-            if nb < 0:
-                continue
-            mx = face_normal[nb, 0]
-            my = face_normal[nb, 1]
-            mz = face_normal[nb, 2]
-            d = nx*mx + ny*my + nz*mz
-            s += np.float32(1.0) - d
-        raw[f] = s
-    return raw
-
-
-def _face_curvature_numpy(face_normal: np.ndarray, face_face: np.ndarray) -> np.ndarray:
-    nb_safe = np.maximum(face_face, 0)
-    nb_normal = face_normal[nb_safe]
-    d = (face_normal[:, None, :] * nb_normal).sum(axis=-1)
-    contrib = np.where(face_face >= 0, np.float32(1.0) - d, np.float32(0.0))
-    return contrib.sum(axis=1).astype(np.float32)
-
-
-@njit(cache=True, fastmath=False)
-def _farthest_point_seeds_jit(
-    face_centroid: np.ndarray, face_area: np.ndarray, face_weight: np.ndarray,
-    initial_seeds: np.ndarray, k_target: int,
-):
-    F = face_centroid.shape[0]
-    INF = np.float32(1e30)
-    min_dist = np.full(F, INF, dtype=np.float32)
-    seeds = np.empty(k_target, dtype=np.int64)
-    n_seeds = 0
-    for i in range(initial_seeds.shape[0]):
-        s = initial_seeds[i]
-        if s < 0 or n_seeds >= k_target:
-            continue
-        seeds[n_seeds] = s
-        n_seeds += 1
-        sx = face_centroid[s, 0]
-        sy = face_centroid[s, 1]
-        sz = face_centroid[s, 2]
-        for f in range(F):
-            dx = face_centroid[f, 0] - sx
-            dy = face_centroid[f, 1] - sy
-            dz = face_centroid[f, 2] - sz
-            d2 = dx*dx + dy*dy + dz*dz
-            if d2 < min_dist[f]:
-                min_dist[f] = d2
-    while n_seeds < k_target:
-        best_f = -1
-        best_score = np.float32(-1.0)
-        for f in range(F):
-            d = min_dist[f]
-            if d >= INF * np.float32(0.5):
-                continue
-            score = d * face_weight[f]
-            if score > best_score:
-                best_score = score
-                best_f = f
-        if best_f < 0:
-            break
-        seeds[n_seeds] = best_f
-        n_seeds += 1
-        sx = face_centroid[best_f, 0]
-        sy = face_centroid[best_f, 1]
-        sz = face_centroid[best_f, 2]
-        for f in range(F):
-            dx = face_centroid[f, 0] - sx
-            dy = face_centroid[f, 1] - sy
-            dz = face_centroid[f, 2] - sz
-            d2 = dx*dx + dy*dy + dz*dz
-            if d2 < min_dist[f]:
-                min_dist[f] = d2
-    return seeds[:n_seeds]
-
-
-def _farthest_point_seeds_numpy(
-    face_centroid: np.ndarray, initial_seeds: np.ndarray, k_target: int,
-):
-    F = face_centroid.shape[0]
-    min_dist = np.full(F, np.inf, dtype=np.float32)
-    seeds: List[int] = []
-    for s in initial_seeds:
-        if s < 0 or len(seeds) >= k_target:
-            continue
-        seeds.append(int(s))
-        d = ((face_centroid - face_centroid[s])**2).sum(axis=-1)
-        min_dist = np.minimum(min_dist, d)
-    while len(seeds) < k_target:
-        best = int(np.argmax(min_dist))
-        if not np.isfinite(min_dist[best]) or min_dist[best] <= 0:
-            break
-        seeds.append(best)
-        d = ((face_centroid - face_centroid[best])**2).sum(axis=-1)
-        min_dist = np.minimum(min_dist, d)
-    return np.asarray(seeds, dtype=np.int64)
-
-
-@njit(cache=True, fastmath=False)
 def _cost_grow_iter_jit(
     face_chart: np.ndarray, face_face: np.ndarray, face_normal: np.ndarray,
     face_area: np.ndarray, face_edge_len: np.ndarray,
@@ -259,15 +153,14 @@ def _renumber(face_chart: np.ndarray, device) -> Tensor:
     return torch.from_numpy(out).to(device)
 
 
-def _segment_charts_fast(
+def segment_charts(
     mesh: MeshData,
-    max_cost: float,
-    w_normal_deviation: float,
+    max_cost: float = DEFAULT_MAX_COST,
+    w_normal_deviation: float = DEFAULT_W_NORMAL_DEVIATION,
     w_roundness: float = DEFAULT_W_ROUNDNESS,
     w_straightness: float = DEFAULT_W_STRAIGHTNESS,
-    target_chart_count: int = 0,
 ) -> Tensor:
-    """Parallel batch cost-grow; target_chart_count 0 = adaptive seeding, >0 = K curvature-weighted FPS seeds."""
+    """Segment mesh into charts (parallel batch cost-grow). Returns face -> chart_id."""
     F = mesh.faces.shape[0]
     device = mesh.faces.device
     if F == 0:
@@ -291,37 +184,9 @@ def _segment_charts_fast(
     else:
         initial_seeds = np.empty(0, dtype=np.int64)
 
-    adaptive_seeding = target_chart_count <= 0
-    if adaptive_seeding:
-        seed_faces: List[int] = [int(s) for s in initial_seeds.tolist()]
-        if not seed_faces:
-            seed_faces = [0]
-    else:
-        if _HAVE_NUMBA:
-            curvature_raw = _face_curvature_jit(face_normal, face_face)
-        else:
-            curvature_raw = _face_curvature_numpy(face_normal, face_face)
-        cmax = float(curvature_raw.max()) if curvature_raw.size else 0.0
-        if cmax > 1e-6:
-            face_weight = (np.float32(1.0) + np.float32(50.0) *
-                           (curvature_raw / np.float32(cmax))).astype(np.float32)
-        else:
-            face_weight = np.ones(F, dtype=np.float32)
-        n_comp = int(initial_seeds.size)
-        if n_comp < int(target_chart_count):
-            target_seeds = int(target_chart_count)
-        else:
-            target_seeds = n_comp + max(int(target_chart_count) // 4, 8)
-        target_seeds = min(target_seeds, F)
-        if _HAVE_NUMBA:
-            seeds_arr = _farthest_point_seeds_jit(
-                face_centroid, face_area, face_weight, initial_seeds, target_seeds,
-            )
-        else:
-            seeds_arr = _farthest_point_seeds_numpy(
-                face_centroid, initial_seeds, target_seeds,
-            )
-        seed_faces = [int(s) for s in seeds_arr.tolist()]
+    seed_faces: List[int] = [int(s) for s in initial_seeds.tolist()]
+    if not seed_faces:
+        seed_faces = [0]
 
     K = len(seed_faces)
     chart_basis = np.zeros((K, 3), dtype=np.float32)
@@ -345,10 +210,9 @@ def _segment_charts_fast(
         return _renumber(face_chart, device)
 
     min_dist_to_seed = np.full(F, np.inf, dtype=np.float32)
-    if adaptive_seeding:
-        for sf in seed_faces:
-            d = ((face_centroid - face_centroid[sf]) ** 2).sum(axis=-1)
-            min_dist_to_seed = np.minimum(min_dist_to_seed, d)
+    for sf in seed_faces:
+        d = ((face_centroid - face_centroid[sf]) ** 2).sum(axis=-1)
+        min_dist_to_seed = np.minimum(min_dist_to_seed, d)
 
     if _HAVE_NUMBA:
         # Multi-pass threshold schedule (low-cost first); tau cap 0.5 keeps cones ~30deg.
@@ -374,8 +238,6 @@ def _segment_charts_fast(
                     if n_added == 0:
                         break
             if (face_chart == -1).sum() == 0:
-                break
-            if not adaptive_seeding:
                 break
             if chart_basis.shape[0] >= max_total_charts:
                 break
@@ -462,24 +324,6 @@ def _segment_charts_fast(
     return _renumber(face_chart, device)
 
 
-def segment_charts(
-    mesh: MeshData,
-    max_cost: float = DEFAULT_MAX_COST,
-    w_normal_deviation: float = DEFAULT_W_NORMAL_DEVIATION,
-    w_roundness: float = DEFAULT_W_ROUNDNESS,
-    w_straightness: float = DEFAULT_W_STRAIGHTNESS,
-    target_chart_count: int = 0,
-) -> Tensor:
-    """Segment mesh into charts. Returns face -> chart_id."""
-    return _segment_charts_fast(
-        mesh, max_cost=max_cost,
-        w_normal_deviation=w_normal_deviation,
-        w_roundness=w_roundness,
-        w_straightness=w_straightness,
-        target_chart_count=target_chart_count,
-    )
-
-
 # ---- Parallel edge-collapse (PEC) chart clustering (CUDA) ----
 def _combine_normal_cones(
     axis_a: Tensor, half_a: Tensor,
@@ -558,10 +402,7 @@ def _build_chart_edges(
 
 def cluster_charts_pec(
     mesh: MeshData,
-    target_chart_count: int = 0,
     max_cost: float = 0.7,
-    area_penalty_weight: float = 0.0,
-    roundness_weight: float = 0.0,
     max_iters: int = 1024,
 ) -> Tensor:
     """Parallel edge-collapse clustering; returns face_chart [F]. max_cost is the per-merge cutoff (~0.7 rad ~ 40deg)."""
@@ -570,7 +411,6 @@ def cluster_charts_pec(
     faces = mesh.faces.to(torch.long)
     vertices = mesh.vertices.to(torch.float32)
     face_normal = mesh.face_normal.to(torch.float32)
-    face_area = mesh.face_area.to(torch.float32)
     face_face = mesh.face_face.to(torch.long)
 
     face_edge_len = face_edge_lengths(vertices, faces)
@@ -578,11 +418,9 @@ def cluster_charts_pec(
     chart_id = torch.arange(F, dtype=torch.long, device=device)
     chart_axis = face_normal.clone()
     chart_half = torch.zeros(F, dtype=torch.float32, device=device)
-    chart_area = face_area.clone()
-    chart_perim = face_edge_len.sum(dim=1).clone()
 
     for it in range(max_iters):
-        edges, edge_len = _build_chart_edges(face_face, chart_id, face_edge_len)
+        edges, _ = _build_chart_edges(face_face, chart_id, face_edge_len)
         if edges.shape[0] == 0:
             break
 
@@ -594,13 +432,6 @@ def cluster_charts_pec(
         half_b = chart_half[b]
         _, new_half, _ = _combine_normal_cones(axis_a, half_a, axis_b, half_b)
         cost = new_half.clone()
-        if area_penalty_weight > 0.0:
-            new_area = chart_area[a] + chart_area[b]
-            cost = cost + area_penalty_weight * new_area
-        if roundness_weight > 0.0:
-            new_area_r = chart_area[a] + chart_area[b]
-            new_perim_r = chart_perim[a] + chart_perim[b] - 2.0 * edge_len
-            cost = cost + roundness_weight * (new_perim_r * new_perim_r) / new_area_r.clamp_min(1e-12)
 
         # Pack (cost, edge_id) so scatter_reduce amin picks the right edge.
         E = edges.shape[0]
@@ -612,11 +443,12 @@ def cluster_charts_pec(
         chart_min.scatter_reduce_(0, a, key, reduce="amin", include_self=True)
         chart_min.scatter_reduce_(0, b, key, reduce="amin", include_self=True)
 
-        # Mutual-min collapse: each chart in at most one merge per iter.
+        # Mutual-min collapse: each chart in at most one merge per iter (winners are disjoint pairs).
         is_a_min = chart_min[a] == key
         is_b_min = chart_min[b] == key
+        mutual = is_a_min & is_b_min
         within = cost <= max_cost
-        winners = is_a_min & is_b_min & within
+        winners = mutual & within
 
         n_merge = int(winners.sum().item())
         if n_merge == 0:
@@ -624,7 +456,6 @@ def cluster_charts_pec(
 
         win_a = a[winners]
         win_b = b[winners]
-        win_el = edge_len[winners]
 
         axis_a_w = chart_axis[win_a]
         half_a_w = chart_half[win_a]
@@ -635,8 +466,6 @@ def cluster_charts_pec(
         )
         chart_axis[win_a] = new_axis
         chart_half[win_a] = new_half_w
-        chart_area[win_a] = chart_area[win_a] + chart_area[win_b]
-        chart_perim[win_a] = chart_perim[win_a] + chart_perim[win_b] - 2.0 * win_el
 
         remap = torch.arange(N, dtype=torch.long, device=device)
         remap[win_b] = win_a

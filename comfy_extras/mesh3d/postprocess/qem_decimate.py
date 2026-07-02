@@ -818,17 +818,32 @@ def _quality_checks_fused(
     return flip_out, skinny_out, link_out
 
 
-def _compute_vertex_normals(verts: torch.Tensor, faces: torch.Tensor) -> torch.Tensor:
+def _compute_vertex_normals(verts: torch.Tensor, faces: torch.Tensor, weld: bool = True) -> torch.Tensor:
+    """Area-weighted smooth vertex normals. `weld` averages face normals across vertices that
+    share a position (UV-seam duplicates from unwrapping) so both sides of a seam get one
+    identical normal — otherwise a visible shading seam appears in the exported GLB."""
     if faces.numel() == 0:
         return torch.zeros_like(verts)
     faces_long = faces.to(torch.int64)
     i0, i1, i2 = faces_long[:, 0], faces_long[:, 1], faces_long[:, 2]
     v0, v1, v2 = verts[i0], verts[i1], verts[i2]
     fn = torch.cross(v1 - v0, v2 - v0, dim=-1)
-    vn = torch.zeros_like(verts)
-    vn.scatter_add_(0, i0.unsqueeze(-1).expand_as(fn), fn)
-    vn.scatter_add_(0, i1.unsqueeze(-1).expand_as(fn), fn)
-    vn.scatter_add_(0, i2.unsqueeze(-1).expand_as(fn), fn)
+    if weld and verts.shape[0]:
+        # Group coincident positions (quantized to ~1e-5 of the bbox) into one shared normal.
+        lo = verts.min(0).values
+        inv_tol = 1.0 / (float((verts.max(0).values - lo).max().clamp_min(1e-9)) * 1e-5)
+        q = ((verts - lo) * inv_tol).round().to(torch.int64)
+        _, group = torch.unique(q, dim=0, return_inverse=True)
+        acc = torch.zeros((int(group.max()) + 1, 3), dtype=verts.dtype, device=verts.device)
+        acc.scatter_add_(0, group[i0].unsqueeze(-1).expand_as(fn), fn)
+        acc.scatter_add_(0, group[i1].unsqueeze(-1).expand_as(fn), fn)
+        acc.scatter_add_(0, group[i2].unsqueeze(-1).expand_as(fn), fn)
+        vn = acc[group]
+    else:
+        vn = torch.zeros_like(verts)
+        vn.scatter_add_(0, i0.unsqueeze(-1).expand_as(fn), fn)
+        vn.scatter_add_(0, i1.unsqueeze(-1).expand_as(fn), fn)
+        vn.scatter_add_(0, i2.unsqueeze(-1).expand_as(fn), fn)
     return torch.nn.functional.normalize(vn, p=2, dim=-1, eps=1e-6)
 
 

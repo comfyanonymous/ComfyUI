@@ -105,16 +105,31 @@ def get_mesh_batch_item(mesh, index):
     return mesh.vertices[index], mesh.faces[index], colors, uvs, normals
 
 
-def _smooth_vertex_normals(vertices_np, faces_np):
+def _smooth_vertex_normals(vertices_np, faces_np, weld=True):
     """Area-weighted per-vertex normals (unit length), fully smooth — no vertex splitting.
 
     Un-normalized face normals (the raw cross product) have magnitude 2*area, so
-    accumulating them onto their vertices yields an area-weighted average."""
+    accumulating them onto their vertices yields an area-weighted average. `weld` averages
+    across vertices that share a position — UV-seam duplicates created by unwrapping — so
+    both sides of a seam get one identical normal. Without it each side averages only its
+    own faces and a visible shading seam appears; welding matches the official, which
+    computes normals on the pre-split mesh and gathers them through the UV vmap."""
     tris = vertices_np[faces_np]                                  # (M, 3, 3)
     face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
-    normals = np.zeros((vertices_np.shape[0], 3), dtype=np.float64)
-    for k in range(3):
-        np.add.at(normals, faces_np[:, k], face_n)
+    if weld and vertices_np.shape[0]:
+        # Group coincident positions (quantized to ~1e-5 of the bbox) into one shared normal.
+        lo = vertices_np.min(0)
+        inv_tol = 1.0 / (max(float((vertices_np.max(0) - lo).max()), 1e-9) * 1e-5)
+        q = np.round((vertices_np - lo) * inv_tol).astype(np.int64)
+        _, group = np.unique(q, axis=0, return_inverse=True)
+        acc = np.zeros((int(group.max()) + 1, 3), dtype=np.float64)
+        for k in range(3):
+            np.add.at(acc, group[faces_np[:, k]], face_n)
+        normals = acc[group]                                      # welded normal back to each vertex
+    else:
+        normals = np.zeros((vertices_np.shape[0], 3), dtype=np.float64)
+        for k in range(3):
+            np.add.at(normals, faces_np[:, k], face_n)
     lens = np.linalg.norm(normals, axis=1, keepdims=True)
     normals /= np.where(lens > 1e-12, lens, 1.0)
     return normals.astype(np.float32)
