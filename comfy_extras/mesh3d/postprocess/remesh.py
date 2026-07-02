@@ -402,7 +402,7 @@ def _dual_contour(voxel_coords: torch.Tensor, corner_udf: torch.Tensor,
             b.add_(centroid_verts, alpha=reg)
             try:
                 qef_solution = torch.linalg.solve(A, b.unsqueeze(-1)).squeeze(-1)
-            except Exception:
+            except torch.linalg.LinAlgError:
                 qef_solution = centroid_verts
 
             # Clamp QEF output to the voxel bbox

@@ -2046,7 +2046,6 @@ class Kandinsky5Image(Kandinsky5):
         return supported_models_base.ClipTarget(comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage, comfy.text_encoders.kandinsky5.te(**hunyuan_detect))
 
 
-
 class ACEStep15(supported_models_base.BASE):
     unet_config = {
         "audio_model": "ace1.5",
@@ -2085,6 +2084,7 @@ class ACEStep15(supported_models_base.BASE):
             detect["lm_model"] = "qwen3_4b"
 
         return supported_models_base.ClipTarget(comfy.text_encoders.ace15.ACE15Tokenizer, comfy.text_encoders.ace15.te(**detect))
+
 
 class LongCatImage(supported_models_base.BASE):
     unet_config = {
@@ -2178,7 +2178,6 @@ class ErnieImage(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}ministral3_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.ernie.ErnieTokenizer, comfy.text_encoders.ernie.te(**hunyuan_detect))
-
 
 
 class SAM3(supported_models_base.BASE):
@@ -2299,6 +2298,7 @@ class CogVideoX_Inpaint(CogVideoX_T2V):
             self.unet_config.setdefault("sample_frames", 81)
         out = model_base.CogVideoX(self, image_to_video=True, device=device)
         return out
+
 
 models = [
     LotusD,

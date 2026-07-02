@@ -1920,6 +1920,7 @@ class WAN21_SCAIL(WAN21):
         pose_latents = kwargs.get("pose_video_latent", None)
         if pose_latents is not None:
             out['pose_latents'] = [pose_latents.shape[0], 20, *pose_latents.shape[2:]]
+
         return out
 
 class WAN21_SCAIL2(WAN21_SCAIL):

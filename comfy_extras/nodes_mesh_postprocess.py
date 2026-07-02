@@ -13,7 +13,6 @@ from comfy_extras.mesh3d.uv_unwrap import mesh as _uv_mesh
 from comfy_extras.mesh3d.uv_unwrap import segment as _uv_seg
 from comfy_extras.mesh3d.uv_unwrap import parameterize as _uv_param
 from comfy_extras.mesh3d.uv_unwrap import pack as _uv_pack
-import warnings
 import logging
 from tqdm import tqdm
 from scipy.sparse import csr_matrix
@@ -93,7 +92,7 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     if v_colors.shape[-1] > 3:
         v_colors = v_colors[:, :3]
 
-    srgb_colors = v_colors.clamp(0, 1)#(v_colors * 0.5 + 0.5).clamp(0, 1)
+    srgb_colors = v_colors.clamp(0, 1)
 
     # to Linear RGB (required for GLTF)
     linear_colors = torch.pow(srgb_colors, 2.2)
@@ -2404,8 +2403,8 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     mesh = _uv_mesh.build_mesh(v_in, f_in)
     ff = mesh.face_face
     if ff.numel() and float((ff >= 0).float().mean().item()) < 0.25:
-        warnings.warn("[uv_unwrap] mesh face-adjacency < 25% — vertices appear un-welded "
-                      "(triangle soup); UV charts will be per-face. Raise weld_distance.")
+        logging.warning("[uv_unwrap] mesh face-adjacency < 25% — vertices appear un-welded "
+                        "(triangle soup); UV charts will be per-face. Raise weld_distance.")
 
     if segmenter == "pec":
         if mesh.faces.device.type != "cuda":

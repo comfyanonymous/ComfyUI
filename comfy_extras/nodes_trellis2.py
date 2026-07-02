@@ -468,7 +468,6 @@ class Trellis2Conditioning(IO.ComfyNode):
         )
 
     @classmethod
-    @classmethod
     def execute(cls, clip_vision_model, image, mask) -> IO.NodeOutput:
         # Normalize to batched form so per-image conditioning loop below is uniform.
         if image.ndim == 3:
