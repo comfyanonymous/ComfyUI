@@ -27,8 +27,12 @@ def get_log_directory():
 def _sanitize_filename_component(name: str) -> str:
     if not name:
         return "log"
-    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "_", name)  # Replace disallowed characters with underscore
-    sanitized = sanitized.strip(" ._")  # Windows: trailing dots or spaces are not allowed
+    sanitized = re.sub(
+        r"[^A-Za-z0-9._-]+", "_", name
+    )  # Replace disallowed characters with underscore
+    sanitized = sanitized.strip(
+        " ._"
+    )  # Windows: trailing dots or spaces are not allowed
     if not sanitized:
         sanitized = "log"
     return sanitized
@@ -41,8 +45,12 @@ def _short_hash(*parts: str, length: int = 10) -> str:
 def _build_log_filepath(log_dir: str, operation_id: str, request_url: str) -> str:
     """Build log filepath. We keep it well under common path length limits aiming for <= 240 characters total."""
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    slug = _sanitize_filename_component(operation_id)  # Best-effort human-readable slug from operation_id
-    h = _short_hash(operation_id or "", request_url or "")  # Short hash ties log to the full operation and URL
+    slug = _sanitize_filename_component(
+        operation_id
+    )  # Best-effort human-readable slug from operation_id
+    h = _short_hash(
+        operation_id or "", request_url or ""
+    )  # Short hash ties log to the full operation and URL
 
     # Compute how much room we have for the slug given the directory length
     # Keep total path length reasonably below ~260 on Windows.
@@ -73,6 +81,32 @@ def _format_data_for_logging(data: Any) -> str:
     return str(data)
 
 
+# Header keys whose values must never be written to logs in plaintext.
+_SENSITIVE_HEADERS = frozenset(
+    {"authorization", "proxy-authorization", "x-api-key", "cookie", "set-cookie"}
+)
+
+
+def _mask_sensitive_headers(headers: dict | None) -> dict | None:
+    """Return a copy of headers with sensitive values masked.
+
+    The API request logger writes to persistent plaintext files in the temp
+    directory. Without masking, the ``Authorization: Bearer <token>`` header
+    (which carries the user's Comfy API credential for paid nodes like Grok,
+    Bria, Runway, Gemini, and Rodin) is written verbatim to every log file.
+    These files are never cleaned up, so tokens accumulate on disk
+    indefinitely and are exposed if the temp directory is shared, backed up,
+    or read by another process.
+    """
+    if not headers:
+        return headers
+    masked = dict(headers)
+    for key in masked:
+        if key.lower() in _SENSITIVE_HEADERS:
+            masked[key] = "***"
+    return masked
+
+
 def log_request_response(
     operation_id: str,
     request_method: str,
@@ -101,7 +135,9 @@ def log_request_response(
         log_content.append(f"Method: {request_method}")
         log_content.append(f"URL: {request_url}")
         if request_headers:
-            log_content.append(f"Headers:\n{_format_data_for_logging(request_headers)}")
+            log_content.append(
+                f"Headers:\n{_format_data_for_logging(_mask_sensitive_headers(request_headers))}"
+            )
         if request_params:
             log_content.append(f"Params:\n{_format_data_for_logging(request_params)}")
         if request_data is not None:
@@ -111,9 +147,13 @@ def log_request_response(
         if response_status_code is not None:
             log_content.append(f"Status Code: {response_status_code}")
         if response_headers:
-            log_content.append(f"Headers:\n{_format_data_for_logging(response_headers)}")
+            log_content.append(
+                f"Headers:\n{_format_data_for_logging(_mask_sensitive_headers(response_headers))}"
+            )
         if response_content is not None:
-            log_content.append(f"Content:\n{_format_data_for_logging(response_content)}")
+            log_content.append(
+                f"Content:\n{_format_data_for_logging(response_content)}"
+            )
         if error_message:
             log_content.append(f"Error:\n{error_message}")
 
@@ -127,17 +167,19 @@ def log_request_response(
         logging.debug("[DEBUG] log_request_response failed: %s", _log_e)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Example usage (for testing the logger directly)
     logger.setLevel(logging.DEBUG)
     # Mock folder_paths for direct execution if not running within ComfyUI full context
-    if not hasattr(folder_paths, 'get_temp_directory'):
+    if not hasattr(folder_paths, "get_temp_directory"):
+
         class MockFolderPaths:
             def get_temp_directory(self):
                 # Create a local temp dir for testing if needed
-                p = os.path.join(os.path.dirname(__file__), 'temp_test_logs')
+                p = os.path.join(os.path.dirname(__file__), "temp_test_logs")
                 os.makedirs(p, exist_ok=True)
                 return p
+
         folder_paths = MockFolderPaths()
 
     log_request_response(
@@ -147,19 +189,19 @@ if __name__ == '__main__':
         request_headers={"Authorization": "Bearer testtoken"},
         request_params={"param1": "value1"},
         response_status_code=200,
-        response_content={"message": "Success!"}
+        response_content={"message": "Success!"},
     )
     log_request_response(
         operation_id="test_operation_post_error",
         request_method="POST",
         request_url="https://api.example.com/submit",
         request_data={"key": "value", "nested": {"num": 123}},
-        error_message="Connection timed out"
+        error_message="Connection timed out",
     )
     log_request_response(
         operation_id="test_binary_response",
         request_method="GET",
         request_url="https://api.example.com/image.png",
         response_status_code=200,
-        response_content=b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...' # Sample binary data
+        response_content=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...",  # Sample binary data
     )
