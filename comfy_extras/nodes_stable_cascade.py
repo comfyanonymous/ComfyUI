@@ -119,7 +119,7 @@ class StableCascade_SuperResolutionControlnet(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StableCascade_SuperResolutionControlnet",
-            category="experimental/stable_cascade",
+            category="experimental/stable cascade",
             is_experimental=True,
             inputs=[
                 io.Image.Input("image"),

@@ -1,6 +1,6 @@
-comfyui-frontend-package==1.45.19
-comfyui-workflow-templates==0.10.7
-comfyui-embedded-docs==0.5.5
+comfyui-frontend-package==1.45.20
+comfyui-workflow-templates==0.11.1
+comfyui-embedded-docs==0.5.6
 torch
 torchsde
 torchvision
@@ -22,7 +22,7 @@ alembic
 SQLAlchemy>=2.0.0
 filelock
 av>=16.0.0
-comfy-kitchen==0.2.12
+comfy-kitchen==0.2.16
 comfy-aimdo==0.4.10
 requests
 simpleeval>=1.0.0
@@ -33,5 +33,5 @@ kornia>=0.7.1
 spandrel
 pydantic~=2.0
 pydantic-settings~=2.0
-PyOpenGL
-glfw
+PyOpenGL>=3.1.8
+comfy-angle
