@@ -157,7 +157,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     for k in keys:
         if k not in u:
             sd.pop(k)
-    # NAF feature upsampler ships bundled into the DINOv3 file under the `naf.` prefix.
+    # NAF feature upsampler bundled into the DINOv3 file under the `naf.` prefix.
     naf_keys = [k for k in sd if k.startswith("naf.")]
     if naf_keys:
         naf_sd = {k[len("naf."):]: sd.pop(k) for k in naf_keys}
