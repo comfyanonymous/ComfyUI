@@ -253,6 +253,10 @@
   workflow convenience unless the node is explicitly an output node. Existing
   models, latents, conditioning, or other inputs should flow directly to the
   next consumer instead of being re-emitted unchanged.
+- Nodes should expose only inputs they actually read to produce current
+  behavior. Do not add placeholder, pass-through, compatibility, or
+  workflow-shaping inputs that are ignored or could flow directly to another
+  node.
 - Node-level code must not patch model code directly. Any node behavior that
   modifies, wraps, hooks, or changes model behavior must go through the model
   patcher class instead of reaching into model internals.
