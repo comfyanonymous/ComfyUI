@@ -918,17 +918,14 @@ def flexible_dual_grid_to_mesh(
 ):
 
     device = coords.device
-    if not hasattr(flexible_dual_grid_to_mesh, "edge_neighbor_voxel_offset") \
-        or flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset.device != device:
-        flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset = torch.tensor([
-            [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]],     # x-axis
-            [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]],     # y-axis
-            [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]],     # z-axis
-        ], dtype=torch.int, device=device).unsqueeze(0)
-    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_1") or flexible_dual_grid_to_mesh.quad_split_1.device != device:
-        flexible_dual_grid_to_mesh.quad_split_1 = torch.tensor([0, 1, 2, 0, 2, 3], dtype=torch.long, device=device, requires_grad=False)
-    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_2") or flexible_dual_grid_to_mesh.quad_split_2.device != device:
-        flexible_dual_grid_to_mesh.quad_split_2 = torch.tensor([0, 1, 3, 3, 1, 2], dtype=torch.long, device=device, requires_grad=False)
+    # Small constant index tables — built per call (stateless), not cached on the function.
+    edge_neighbor_voxel_offset = torch.tensor([
+        [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]],     # x-axis
+        [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]],     # y-axis
+        [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]],     # z-axis
+    ], dtype=torch.int, device=device).unsqueeze(0)
+    quad_split_1 = torch.tensor([0, 1, 2, 0, 2, 3], dtype=torch.long, device=device)
+    quad_split_2 = torch.tensor([0, 1, 3, 3, 1, 2], dtype=torch.long, device=device)
 
     aabb = torch.tensor(aabb, dtype=torch.float32, device=device)
 
@@ -954,7 +951,7 @@ def flexible_dual_grid_to_mesh(
 
     # Find connected voxels — direct gather instead of materializing the full [N, 3, 4, 3]
     n_idx, axis_idx = intersected_flag.nonzero(as_tuple=True)                          # (M,), (M,)
-    offsets_per_axis = flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset[0]        # (3, 4, 3)
+    offsets_per_axis = edge_neighbor_voxel_offset[0]        # (3, 4, 3)
     connected_voxel = coords[n_idx].unsqueeze(1) + offsets_per_axis[axis_idx]          # (M, 4, 3)
     M = connected_voxel.shape[0]
     # flatten connected voxel coords and lookup. In-place to avoid extra memory allocation.
@@ -973,12 +970,12 @@ def flexible_dual_grid_to_mesh(
     mesh_vertices.add_(dual_vertices).mul_(voxel_size).add_(aabb[0].reshape(1, 3))
     if split_weight is None:
         # if split 1
-        atempt_triangles_0 = quad_indices[:, flexible_dual_grid_to_mesh.quad_split_1]
+        atempt_triangles_0 = quad_indices[:, quad_split_1]
         normals0 = torch.cross(mesh_vertices[atempt_triangles_0[:, 1]] - mesh_vertices[atempt_triangles_0[:, 0]], mesh_vertices[atempt_triangles_0[:, 2]] - mesh_vertices[atempt_triangles_0[:, 0]])
         normals1 = torch.cross(mesh_vertices[atempt_triangles_0[:, 2]] - mesh_vertices[atempt_triangles_0[:, 1]], mesh_vertices[atempt_triangles_0[:, 3]] - mesh_vertices[atempt_triangles_0[:, 1]])
         align0 = (normals0 * normals1).sum(dim=1, keepdim=True).abs()
         # if split 2
-        atempt_triangles_1 = quad_indices[:, flexible_dual_grid_to_mesh.quad_split_2]
+        atempt_triangles_1 = quad_indices[:, quad_split_2]
         normals0 = torch.cross(mesh_vertices[atempt_triangles_1[:, 1]] - mesh_vertices[atempt_triangles_1[:, 0]], mesh_vertices[atempt_triangles_1[:, 2]] - mesh_vertices[atempt_triangles_1[:, 0]])
         normals1 = torch.cross(mesh_vertices[atempt_triangles_1[:, 2]] - mesh_vertices[atempt_triangles_1[:, 1]], mesh_vertices[atempt_triangles_1[:, 3]] - mesh_vertices[atempt_triangles_1[:, 1]])
         align1 = (normals0 * normals1).sum(dim=1, keepdim=True).abs()
@@ -990,8 +987,8 @@ def flexible_dual_grid_to_mesh(
         split_weight_ws_13 = split_weight_ws[:, 1] * split_weight_ws[:, 3]
         mesh_triangles = torch.where(
             split_weight_ws_02 > split_weight_ws_13,
-            quad_indices[:, flexible_dual_grid_to_mesh.quad_split_1],
-            quad_indices[:, flexible_dual_grid_to_mesh.quad_split_2]
+            quad_indices[:, quad_split_1],
+            quad_indices[:, quad_split_2]
         ).reshape(-1, 3)
 
     return mesh_vertices, mesh_triangles

@@ -1282,25 +1282,17 @@ def qem_simplify(
     iteration = 0
     total_collapses = 0
 
-    # progress bars (tqdm + optional comfy ProgressBar), best-effort
+    # progress bars (tqdm + comfy ProgressBar)
     _start_faces = num_faces
     _prog_total = max(1, _start_faces - int(target_faces))
-    try:
-        _qtq = _tqdm(total=100, desc="QEM simplify", leave=False)
-    except Exception:
-        _qtq = None
-    try:
-        _qpbar = _comfy_utils.ProgressBar(100)
-    except Exception:
-        _qpbar = None
+    _qtq = _tqdm(total=100, desc="QEM simplify", leave=False)
+    _qpbar = _comfy_utils.ProgressBar(100)
 
     def _qreport():
         pct = min(100, max(0, int(100 * (_start_faces - py_n_faces) / _prog_total)))
-        if _qtq is not None:
-            _qtq.n = pct
-            _qtq.refresh()
-        if _qpbar is not None:
-            _qpbar.update_absolute(pct, 100)
+        _qtq.n = pct
+        _qtq.refresh()
+        _qpbar.update_absolute(pct, 100)
 
     while True:
         if py_n_faces <= target_faces:
@@ -1523,8 +1515,7 @@ def qem_simplify(
             break
 
     _qreport()
-    if _qtq is not None:
-        _qtq.close()
+    _qtq.close()
 
     # finalize: compact verts and faces
     final_v = verts[v_alive]

@@ -366,8 +366,8 @@ def lscm_chart(
             x_free = solve_least_squares(A_free, b)
         if not np.all(np.isfinite(x_free)):
             fallback_to_ortho = True
-    except Exception:
-        fallback_to_ortho = True
+    except (sp.linalg.MatrixRankWarning, RuntimeError):
+        fallback_to_ortho = True  # singular / under-constrained system
 
     if fallback_to_ortho:
         if pin_positions is not None and pin_positions.shape == (Vc, 2):

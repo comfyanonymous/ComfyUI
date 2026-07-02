@@ -55,10 +55,12 @@ class SparseFeedForwardNet(nn.Module):
     def forward(self, x: VarLenTensor) -> VarLenTensor:
         return self.mlp(x)
 
-class SparseMultiHeadRMSNorm(nn.Module):
-    def __init__(self, dim: int, heads: int, device, dtype):
+class MultiHeadRMSNorm(nn.Module):
+    # Per-head qk-norm for both sparse (VarLenTensor) and dense inputs. gamma is [heads, dim]
+    # (per-head), so it's a broadcast multiply rather than F.rms_norm's 1-D weight
+    def __init__(self, dim: int, heads: int, device=None, dtype=None):
         super().__init__()
-        self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
+        self.gamma = nn.Parameter(torch.empty(heads, dim, device=device, dtype=dtype))
 
     def forward(self, x: Union[VarLenTensor, torch.Tensor]) -> Union[VarLenTensor, torch.Tensor]:
         if isinstance(x, VarLenTensor):
@@ -147,8 +149,8 @@ class SparseMultiHeadAttention(nn.Module):
             self.to_kv = operations.Linear(self.ctx_channels, channels * 2, bias=qkv_bias, device=device, dtype=dtype)
 
         if self.qk_rms_norm:
-            self.q_rms_norm = SparseMultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
-            self.k_rms_norm = SparseMultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
+            self.q_rms_norm = MultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
+            self.k_rms_norm = MultiHeadRMSNorm(self.head_dim, num_heads, device=device, dtype=dtype)
 
         self.to_out = operations.Linear(channels, channels, device=device, dtype=dtype)
 
@@ -307,7 +309,7 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
                 operations.Linear(channels, 6 * channels, bias=True, device=device, dtype=dtype)
             )
         else:
-            self.modulation = nn.Parameter(torch.randn(6 * channels, device=device, dtype=dtype) / channels ** 0.5)
+            self.modulation = nn.Parameter(torch.empty(6 * channels, device=device, dtype=dtype))
 
     def _forward(self, x: SparseTensor, mod: torch.Tensor, context, transformer_options=None) -> SparseTensor:
         if self.share_mod:
@@ -444,24 +446,6 @@ class FeedForwardNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.mlp(x)
 
-# class MultiHeadRMSNorm(nn.Module):
-#     def __init__(self, dim: int, heads: int, device=None, dtype=None):
-#         super().__init__()
-#         self.scale = dim ** 0.5
-#         self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         return (F.normalize(x.float(), dim = -1) * self.gamma * self.scale).to(x.dtype)
-
-class MultiHeadRMSNorm(nn.Module):
-    def __init__(self, dim: int, heads: int, device=None, dtype=None):
-        super().__init__()
-        self.gamma = nn.Parameter(torch.ones(heads, dim, device=device, dtype=dtype))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return (F.rms_norm(x.float(), (x.shape[-1],)) * self.gamma).to(x.dtype)
-
-
 class MultiHeadAttention(nn.Module):
     def __init__(
         self,
@@ -580,7 +564,7 @@ class ModulatedTransformerCrossBlock(nn.Module):
         if not share_mod:
             self.adaLN_modulation = nn.Sequential(nn.SiLU(), operations.Linear(channels, 6 * channels, bias=True, dtype=dtype, device=device))
         else:
-            self.modulation = nn.Parameter(torch.randn(6 * channels, device=device, dtype=dtype) / channels ** 0.5)
+            self.modulation = nn.Parameter(torch.empty(6 * channels, device=device, dtype=dtype))
 
     def _forward(self, x: torch.Tensor, mod: torch.Tensor, context,
                  phases: Optional[torch.Tensor] = None, transformer_options=None) -> torch.Tensor:
@@ -631,7 +615,7 @@ class SparseStructureFlowModel(nn.Module):
         proj_in_channels: Optional[int] = None,
         operations=None,
         device = None,
-        dtype = torch.float32,
+        dtype = None,
         **kwargs
     ):
         super().__init__()

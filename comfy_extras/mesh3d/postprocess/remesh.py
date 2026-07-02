@@ -522,7 +522,6 @@ def _build_mdc_lut() -> Tuple[torch.Tensor, torch.Tensor]:
     return K, group
 
 
-@functools.lru_cache(maxsize=None)
 def _mdc_lut(device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
     K, g = _build_mdc_lut()
     return K.to(device), g.to(device)
@@ -967,15 +966,11 @@ def remesh_narrow_band_dc(
         n_levels += 1
     _total_ticks = n_levels + 3 + int(smooth_iters)
     _pbar = comfy.utils.ProgressBar(_total_ticks)
-    try:
-        _tq = _tqdm(total=_total_ticks, desc="Remesh DC", leave=False)
-    except Exception:
-        _tq = None
+    _tq = _tqdm(total=_total_ticks, desc="Remesh DC", leave=False)
 
     def tick():
         _pbar.update(1)
-        if _tq is not None:
-            _tq.update(1)
+        _tq.update(1)
 
     # Step 1: sparse narrow-band voxel grid (coarse-to-fine)
     voxel_coords, _band_tree = _build_narrow_band_voxels(

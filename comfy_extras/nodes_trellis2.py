@@ -8,9 +8,7 @@ from server import PromptServer
 import comfy.latent_formats
 import comfy.model_management
 import comfy.utils
-from PIL import Image
 import logging
-import numpy as np
 import math
 import torch
 
@@ -425,7 +423,6 @@ def _dinov3_encode(model, image_bchw, image_size, want_patches=False):
     mean = torch.tensor(model.image_mean or [0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
     std = torch.tensor(model.image_std or [0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
     img_t = (img_t - mean) / std
-    model_internal.image_size = image_size
     tokens = model_internal(img_t, skip_norm_elementwise=True)[0]
     if not want_patches:
         return tokens
@@ -433,20 +430,6 @@ def _dinov3_encode(model, image_bchw, image_size, want_patches=False):
     n_reg = tokens.shape[1] - 1 - h_p * w_p
     return {"tokens": tokens[:, :1 + n_reg], "patches_2d": _dinov3_patches_to_2d(tokens, image_size)}
 
-
-def run_conditioning(model, cropped_pil_img):
-    device = comfy.model_management.intermediate_device()
-
-    img_np = np.array(cropped_pil_img).astype(np.float32) / 255.0
-    image_bchw = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).contiguous()
-
-    cond_512 = _dinov3_encode(model, image_bchw, 512)
-    cond_1024 = _dinov3_encode(model, image_bchw, 1024)
-    return {
-        "cond_512": cond_512.to(device),
-        "neg_cond": torch.zeros_like(cond_512).to(device),
-        "cond_1024": cond_1024.to(device),
-    }
 
 class Trellis2Conditioning(IO.ComfyNode):
     @classmethod
@@ -467,124 +450,10 @@ class Trellis2Conditioning(IO.ComfyNode):
 
     @classmethod
     def execute(cls, clip_vision_model, image, mask) -> IO.NodeOutput:
-        # Normalize to batched form so per-image conditioning loop below is uniform.
-        if image.ndim == 3:
-            image = image.unsqueeze(0)
-        elif image.ndim == 4:
-            if image.shape[1] in [1, 3, 4] and image.shape[-1] not in [1, 3, 4]:
-                image = image.permute(0, 2, 3, 1)
-
-        # normalize mask to standard [B, H, W] (handling 2D, 3D, and 4D variants)
-        if mask.ndim == 4:
-            if mask.shape[1] == 1:
-                mask = mask.squeeze(1)
-            elif mask.shape[-1] == 1:
-                mask = mask.squeeze(-1)
-            else:
-                mask = mask[:, :, :, 0] # take first channel as fallback
-
-        if mask.ndim == 3:
-            if mask.shape[-1] == 1:
-                mask = mask.squeeze(-1).unsqueeze(0)
-        elif mask.ndim == 2:
-            mask = mask.unsqueeze(0)
-
-        batch_size = image.shape[0]
-        if mask.shape[0] == 1 and batch_size > 1:
-            mask = mask.expand(batch_size, -1, -1)
-        elif mask.shape[0] != batch_size:
-            raise ValueError(f"Trellis2Conditioning mask batch {mask.shape[0]} does not match image batch {batch_size}")
-
-        cond_512_list = []
-        cond_1024_list = []
-
-        for b in range(batch_size):
-            item_image = image[b]
-            item_mask = mask[b] if mask.size(0) > 1 else mask[0]
-
-            img_np = (item_image.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-            mask_np = (item_mask.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-
-            # Ensure img_np is either 2D (grayscale) or 3D (RGB/RGBA)
-            if img_np.ndim == 3 and img_np.shape[-1] == 1:
-                img_np = img_np.squeeze(-1)
-
-            mask_np = mask_np.squeeze()
-
-            # detect inverted mask
-            border_pixels = np.concatenate([
-                mask_np[0, :], mask_np[-1, :], mask_np[:, 0], mask_np[:, -1]
-            ])
-            if np.mean(border_pixels) > 127:
-                mask_np = 255 - mask_np
-
-            mask_np[mask_np < 35] = 0
-
-            border_shave = 4
-            mask_np[:border_shave, :] = 0
-            mask_np[-border_shave:, :] = 0
-            mask_np[:, :border_shave] = 0
-            mask_np[:, -border_shave:] = 0
-
-            pil_img = Image.fromarray(img_np)
-            pil_mask = Image.fromarray(mask_np)
-
-            max_size = max(pil_img.size)
-            scale = min(1.0, 1024 / max_size)
-            if scale < 1.0:
-                new_w, new_h = int(pil_img.width * scale), int(pil_img.height * scale)
-                pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                pil_mask = pil_mask.resize((new_w, new_h), Image.Resampling.NEAREST)
-
-            rgba_np = np.zeros((pil_img.height, pil_img.width, 4), dtype=np.uint8)
-            rgba_np[:, :, :3] = np.array(pil_img.convert("RGB"))
-            rgba_np[:, :, 3] = np.array(pil_mask)
-
-            alpha = rgba_np[:, :, 3]
-            bbox_coords = np.argwhere(alpha > 0.8 * 255)
-
-            if len(bbox_coords) > 0:
-                y_min, x_min = np.min(bbox_coords[:, 0]), np.min(bbox_coords[:, 1])
-                y_max, x_max = np.max(bbox_coords[:, 0]), np.max(bbox_coords[:, 1])
-
-                center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
-                size = max(y_max - y_min, x_max - x_min)
-
-                crop_x1 = int(center_x - size // 2)
-                crop_y1 = int(center_y - size // 2)
-                crop_x2 = int(center_x + size // 2)
-                crop_y2 = int(center_y + size // 2)
-
-                rgba_pil = Image.fromarray(rgba_np)
-                cropped_rgba = rgba_pil.crop((crop_x1, crop_y1, crop_x2, crop_y2))
-                cropped_np = np.array(cropped_rgba).astype(np.float32) / 255.0
-            else:
-                logging.warning("Mask for the image is empty. Trellis2 requires an image with a mask for the best mesh quality.")
-                cropped_np = rgba_np.astype(np.float32) / 255.0
-
-            bg_rgb = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-
-            fg = cropped_np[:, :, :3]
-            alpha_float = cropped_np[:, :, 3:4]
-            composite_np = fg * alpha_float + bg_rgb * (1.0 - alpha_float)
-
-            # Keep the image as 4-channel RGBA to force TRELLIS to bypass its internal background remover
-            rgb_uint8 = (composite_np * 255.0).round().clip(0, 255).astype(np.uint8)
-            alpha_uint8 = (alpha_float.squeeze(-1) * 255.0).round().clip(0, 255).astype(np.uint8)
-
-            rgba_composite = np.zeros((cropped_np.shape[0], cropped_np.shape[1], 4), dtype=np.uint8)
-            rgba_composite[:, :, :3] = rgb_uint8
-            rgba_composite[:, :, 3] = alpha_uint8
-
-            cropped_pil = Image.fromarray(rgba_composite, mode="RGBA")
-
-            # Convert to RGB to ensure the CLIP/DINO model receives a 3-channel image
-            item_conditioning = run_conditioning(clip_vision_model, cropped_pil.convert("RGB"))
-            cond_512_list.append(item_conditioning["cond_512"])
-            cond_1024_list.append(item_conditioning["cond_1024"])
-
-        cond_512_batched = torch.cat(cond_512_list, dim=0)
-        cond_1024_batched = torch.cat(cond_1024_list, dim=0)
+        out_device = comfy.model_management.intermediate_device()
+        cond = _dino_condition_batch(clip_vision_model, image, mask, out_device,
+                                     pad_factor=1.0, mask_threshold=35.0 / 255.0, border_shave=4)
+        cond_512_batched, cond_1024_batched = cond["global_512"], cond["global_1024"]
         neg_cond_batched = torch.zeros_like(cond_512_batched)
         neg_embeds_batched = torch.zeros_like(cond_1024_batched)
 
@@ -781,18 +650,26 @@ def _dinov3_patches_to_2d(tokens, image_size, patch_size=16):
     return patches.transpose(1, 2).reshape(tokens.shape[0], -1, h_p, w_p).contiguous()
 
 
-def _crop_image_with_mask(item_image, item_mask, max_image_size=1024):
-    img = item_image.permute(2, 0, 1).unsqueeze(0).cpu().float()
-    mask = item_mask.unsqueeze(0).unsqueeze(0).cpu().float()
-    # Upstream went float→PIL uint8 implicitly; match that to keep composite bit-exact.
-    img = (img.clamp(0, 1) * 255.0).to(torch.uint8).float() / 255.0
-    mask = (mask.clamp(0, 1) * 255.0).to(torch.uint8).float() / 255.0
+def _crop_image_with_mask(item_image, item_mask, max_image_size=1024, pad_factor=1.1,
+                          mask_threshold=0.0, border_shave=0):
+    img = item_image[..., :3] if item_image.shape[-1] >= 3 else item_image[..., :1].repeat(1, 1, 3)
+    img = img.permute(2, 0, 1).unsqueeze(0).cpu().float().clamp(0, 1)
+    mask = item_mask.unsqueeze(0).unsqueeze(0).cpu().float().clamp(0, 1)
 
     # Detect & correct an inverted mask
     m2d = mask[0, 0]
     border = torch.cat([m2d[0, :], m2d[-1, :], m2d[:, 0], m2d[:, -1]])
     if float(border.mean()) > 0.5:
         mask = 1.0 - mask
+
+    if mask_threshold > 0.0:
+        mask = torch.where(mask < mask_threshold, torch.zeros_like(mask), mask)
+    if border_shave > 0:
+        bs = border_shave
+        mask[..., :bs, :] = 0
+        mask[..., -bs:, :] = 0
+        mask[..., :, :bs] = 0
+        mask[..., :, -bs:] = 0
 
     H, W = img.shape[-2:]
     if max(H, W) > max_image_size:
@@ -809,14 +686,14 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024):
         y_min, x_min = fg_pixels.min(dim=0).values.tolist()
         y_max, x_max = fg_pixels.max(dim=0).values.tolist()
         center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
-        size = int(max(y_max - y_min, x_max - x_min) * 1.1)
+        size = int(max(y_max - y_min, x_max - x_min) * pad_factor)
         half = size // 2
         crop_x1 = int(center_x - half)
         crop_y1 = int(center_y - half)
         crop_x2 = crop_x1 + 2 * half
         crop_y2 = crop_y1 + 2 * half
     else:
-        logging.warning("Mask for the image is empty. Pixal3D requires a clean foreground mask.")
+        logging.warning("Mask for the image is empty; a clean foreground mask is required for best quality.")
         crop_x1, crop_y1, crop_x2, crop_y2 = 0, 0, W, H
     crop_bbox = (crop_x1, crop_y1, crop_x2, crop_y2)
 
@@ -836,8 +713,76 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024):
     cropped_mask = mask[..., crop_y1:crop_y2, crop_x1:crop_x2]
 
     composite = (cropped_img * cropped_mask).clamp(0, 1)
-    composite = (composite * 255.0).round().clamp(0, 255).to(torch.uint8).float() / 255.0
     return composite, crop_bbox, scene_size
+
+
+def _dino_condition_batch(clip_vision_model, image, mask, out_device, *,
+                          pad_factor, mask_threshold=0.0, border_shave=0, want_patches=False):
+    """Normalize image/mask to a batch, then per item: masked square crop + DINOv3 encode at
+    512 and 1024. Returns batched global tokens; with want_patches also the 2D patch grids and
+    the per-item composites / crop bboxes / scene sizes that the Pixal3D NAF+projection path needs."""
+    # Normalize to batched form so the per-image loop is uniform.
+    if image.ndim == 3:
+        image = image.unsqueeze(0)
+    elif image.ndim == 4:
+        if image.shape[1] in [1, 3, 4] and image.shape[-1] not in [1, 3, 4]:
+            image = image.permute(0, 2, 3, 1)
+
+    if mask.ndim == 4:
+        if mask.shape[1] == 1:
+            mask = mask.squeeze(1)
+        elif mask.shape[-1] == 1:
+            mask = mask.squeeze(-1)
+        else:
+            mask = mask[:, :, :, 0]  # take first channel as fallback
+    if mask.ndim == 3:
+        if mask.shape[-1] == 1:
+            mask = mask.squeeze(-1).unsqueeze(0)
+    elif mask.ndim == 2:
+        mask = mask.unsqueeze(0)
+
+    batch_size = image.shape[0]
+    if mask.shape[0] == 1 and batch_size > 1:
+        mask = mask.expand(batch_size, -1, -1)
+    elif mask.shape[0] != batch_size:
+        raise ValueError(f"Conditioning mask batch {mask.shape[0]} does not match image batch {batch_size}")
+
+    cond_512_list, cond_1024_list = [], []
+    patches_512_list, patches_1024_list = [], []
+    composite_list, crop_bbox_list, scene_size_list = [], [], []
+    for b in range(batch_size):
+        item_image = image[b]
+        item_mask = mask[b] if mask.size(0) > 1 else mask[0]
+        composite, crop_bbox, scene_size = _crop_image_with_mask(
+            item_image, item_mask, max_image_size=1024, pad_factor=pad_factor,
+            mask_threshold=mask_threshold, border_shave=border_shave)
+        c512 = _dinov3_encode(clip_vision_model, composite, 512, want_patches=want_patches)
+        c1024 = _dinov3_encode(clip_vision_model, composite, 1024, want_patches=want_patches)
+        if want_patches:
+            cond_512_list.append(c512["tokens"].to(out_device))
+            cond_1024_list.append(c1024["tokens"].to(out_device))
+            patches_512_list.append(c512["patches_2d"].to(out_device))
+            patches_1024_list.append(c1024["patches_2d"].to(out_device))
+            composite_list.append(composite)
+            crop_bbox_list.append(crop_bbox)
+            scene_size_list.append(scene_size)
+        else:
+            cond_512_list.append(c512.to(out_device))
+            cond_1024_list.append(c1024.to(out_device))
+
+    out = {
+        "batch_size": batch_size,
+        "global_512": torch.cat(cond_512_list, dim=0),
+        "global_1024": torch.cat(cond_1024_list, dim=0),
+    }
+    if want_patches:
+        out["patches_512"] = torch.cat(patches_512_list, dim=0)
+        out["patches_1024"] = torch.cat(patches_1024_list, dim=0)
+        out["composites"] = composite_list
+        out["crop_bboxes"] = crop_bbox_list
+        out["scene_sizes"] = scene_size_list
+    return out
+
 
 class Pixal3DConditioning(IO.ComfyNode):
 
@@ -867,45 +812,15 @@ class Pixal3DConditioning(IO.ComfyNode):
     @classmethod
     def execute(cls, clip_vision_model, image, mask, camera_angle_x) -> IO.NodeOutput:
         naf_model = clip_vision_model.naf
-        if image.ndim == 3:
-            image = image.unsqueeze(0)
-        if mask.ndim == 2:
-            mask = mask.unsqueeze(0)
-        batch_size = image.shape[0]
-        if mask.shape[0] == 1 and batch_size > 1:
-            mask = mask.expand(batch_size, -1, -1)
-        elif mask.shape[0] != batch_size:
-            raise ValueError(f"Pixal3DConditioning mask batch {mask.shape[0]} != image batch {batch_size}")
+        out_device = comfy.model_management.intermediate_device()
+        compute_device = comfy.model_management.get_torch_device()
 
-        device = comfy.model_management.intermediate_device()
-
-        cond_512_list, cond_1024_list = [], []
-        patches_512_list, patches_1024_list = [], []
-        composite_list = []
-        crop_bbox_list, scene_size_list = [], []
-
-        torch_device = comfy.model_management.get_torch_device()
-        for b in range(batch_size):
-            item_image = image[b]
-            item_mask = mask[b] if mask.size(0) > 1 else mask[0]
-            composite, crop_bbox, scene_size = _crop_image_with_mask(
-                item_image, item_mask, max_image_size=1024)
-            crop_bbox_list.append(crop_bbox)
-            scene_size_list.append(scene_size)
-            composite_list.append(composite)
-
-            cond_512 = _dinov3_encode(clip_vision_model, composite, 512, want_patches=True)
-            cond_1024 = _dinov3_encode(clip_vision_model, composite, 1024, want_patches=True)
-            cond_512_list.append(cond_512["tokens"].to(device))
-            cond_1024_list.append(cond_1024["tokens"].to(device))
-            patches_512_list.append(cond_512["patches_2d"].to(device))
-            patches_1024_list.append(cond_1024["patches_2d"].to(device))
-
-        global_512 = torch.cat(cond_512_list, dim=0)
-        global_1024 = torch.cat(cond_1024_list, dim=0)
-
-        fm_512_dino = torch.cat(patches_512_list, dim=0)
-        fm_1024_dino = torch.cat(patches_1024_list, dim=0)
+        cond = _dino_condition_batch(clip_vision_model, image, mask, out_device, pad_factor=1.1, want_patches=True)
+        batch_size = cond["batch_size"]
+        global_512, global_1024 = cond["global_512"], cond["global_1024"]
+        fm_512_dino, fm_1024_dino = cond["patches_512"], cond["patches_1024"]
+        composite_list = cond["composites"]
+        crop_bbox_list, scene_size_list = cond["crop_bboxes"], cond["scene_sizes"]
 
         # The LR DINO grid AND the NAF HR grid are sampled separately
         # NAF targets per stage: shape_512=512, shape_1024=512, tex_1024=1024.
@@ -914,15 +829,13 @@ class Pixal3DConditioning(IO.ComfyNode):
                 return None
             comfy.model_management.load_model_gpu(naf_model)
             inner = naf_model.model
-            target_dtype = comfy.model_management.text_encoder_dtype(torch_device)
-            if next(inner.parameters()).dtype != target_dtype:
-                inner.to(dtype=target_dtype)
+            model_dtype = next(inner.parameters()).dtype  # set at load time (see clip_vision NAF)
             hrs = []
             for i, c in enumerate(composites):
                 img_i = comfy.utils.common_upscale(c, image_size, image_size, "lanczos", "disabled")\
-                    .to(torch_device).to(target_dtype)
-                lr_i = lr_feat[i:i + 1].to(torch_device).to(target_dtype)
-                hr_i = inner(img_i, lr_i, naf_target, output_device=device)
+                    .to(compute_device).to(model_dtype)
+                lr_i = lr_feat[i:i + 1].to(compute_device).to(model_dtype)
+                hr_i = inner(img_i, lr_i, naf_target, output_device=out_device)
                 hrs.append(hr_i)
             return torch.cat(hrs, dim=0)
 
@@ -934,10 +847,10 @@ class Pixal3DConditioning(IO.ComfyNode):
         # FOV widget is in degrees for UX; trig + downstream projection expect radians.
         camera_angle_x = math.radians(float(camera_angle_x))
         distance = 0.5 / math.tan(camera_angle_x / 2.0)
-        cam_angle_t = torch.tensor([camera_angle_x] * batch_size, device=device, dtype=torch.float32)
-        dist_t = torch.tensor([distance] * batch_size, device=device, dtype=torch.float32)
-        scale_t = torch.ones(batch_size, device=device, dtype=torch.float32)
-        T = build_proj_transform_matrix(dist_t, batch_size, device=device, dtype=torch.float32)
+        cam_angle_t = torch.tensor([camera_angle_x] * batch_size, device=out_device, dtype=torch.float32)
+        dist_t = torch.tensor([distance] * batch_size, device=out_device, dtype=torch.float32)
+        scale_t = torch.ones(batch_size, device=out_device, dtype=torch.float32)
+        T = build_proj_transform_matrix(dist_t, batch_size, device=out_device, dtype=torch.float32)
 
         proj_pack = {
             "stages": {
@@ -958,7 +871,7 @@ class Pixal3DConditioning(IO.ComfyNode):
         # global_512 → SS/shape_512 cross-attn; global_1024 → shape_1024/tex_1024.
         ss_proj_feats = compute_stage_proj_feats(
             proj_pack, "ss", dense_grid_resolution=16, batch_size=batch_size,
-            device=torch_device,
+            device=compute_device,
         )
         neg_global = torch.zeros_like(global_512)
         neg_embeds = torch.zeros_like(global_1024)

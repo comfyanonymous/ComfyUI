@@ -74,31 +74,22 @@ def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=Non
             )
             packed_tangents[i, :tn.shape[0]] = tn
 
-    out = Types.MESH(packed_vertices, packed_faces,
-                     uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
-                     metallic_roughness=metallic_roughness,
-                     vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit,
-                     normals=packed_normals)
-    if packed_tangents is not None:
-        out.tangents = packed_tangents
-    if normal_map is not None:
-        out.normal_map = normal_map
-    if occlusion_in_mr:
-        out.occlusion_in_mr = True
-    if material is not None:
-        out.material = material
-    if emissive is not None:
-        out.emissive = emissive
-    return out
+    return Types.MESH(packed_vertices, packed_faces,
+                      uvs=packed_uvs, vertex_colors=packed_colors, texture=texture,
+                      metallic_roughness=metallic_roughness,
+                      vertex_counts=vertex_counts, face_counts=face_counts, unlit=unlit,
+                      normals=packed_normals, tangents=packed_tangents,
+                      normal_map=normal_map, occlusion_in_mr=occlusion_in_mr,
+                      material=material, emissive=emissive)
 
 
 def get_mesh_batch_item(mesh, index):
     # Returns (vertices, faces, colors, uvs) for batch index, slicing to real lengths
     # if the mesh carries per-item counts (variable-size batch).
-    v_colors = getattr(mesh, "vertex_colors", None)
-    v_uvs = getattr(mesh, "uvs", None)
-    v_normals = getattr(mesh, "normals", None)
-    if getattr(mesh, "vertex_counts", None) is not None:
+    v_colors = mesh.vertex_colors
+    v_uvs = mesh.uvs
+    v_normals = mesh.normals
+    if mesh.vertex_counts is not None:
         vertex_count = int(mesh.vertex_counts[index].item())
         face_count = int(mesh.face_counts[index].item())
         vertices = mesh.vertices[index, :vertex_count]
@@ -482,6 +473,7 @@ def save_glb(vertices, faces, filepath=None, metadata=None,
 
         if (texture_png_bytes is not None and has_uv) or "COLOR_0" in primitive_attributes:
             pbr["baseColorFactor"] = [1.0, 1.0, 1.0, 1.0]
+            pbr["roughnessFactor"] = 1.0
 
         if mr_png_bytes is not None and has_uv:
             mr_texture_index = add_image_texture(mr_byte_offset, len(mr_buffer))
@@ -599,7 +591,7 @@ def mesh_item_to_glb_bytes(mesh, index, metadata=None):
         assert a.ndim == 3 and a.shape[-1] == 3, f"{attr} must be (B, H, W, 3), got {tuple(t.shape)}"
         return Image.fromarray(a, mode="RGB")
 
-    tangents_b = getattr(mesh, "tangents", None)
+    tangents_b = mesh.tangents
     tangents_i = tangents_b[index, :vertices_i.shape[0]] if tangents_b is not None else None
     return save_glb(
         vertices_i, faces_i, None, metadata,
@@ -607,12 +599,12 @@ def mesh_item_to_glb_bytes(mesh, index, metadata=None):
         vertex_colors=v_colors,
         texture_image=_img("texture"),
         metallic_roughness_image=_img("metallic_roughness"),
-        unlit=getattr(mesh, "unlit", False),
+        unlit=mesh.unlit,
         normals=normals_i,
         normal_map_image=_img("normal_map"),
         tangents=tangents_i,
-        occlusion_in_mr=getattr(mesh, "occlusion_in_mr", False),
-        material=getattr(mesh, "material", None),
+        occlusion_in_mr=mesh.occlusion_in_mr,
+        material=mesh.material,
         emissive_image=_img("emissive"),
     )
 
@@ -810,7 +802,7 @@ class RotateMesh(IO.ComfyNode):
         else:
             out.vertices = rotate(mesh.vertices)
         # Normals are directions; rotate them too (R is orthogonal) so they stay valid.
-        nrm = getattr(mesh, "normals", None)
+        nrm = mesh.normals
         if nrm is not None:
             out.normals = [rotate(n) for n in nrm] if isinstance(nrm, list) else rotate(nrm)
         return IO.NodeOutput(out)
@@ -860,7 +852,7 @@ class MeshSmoothNormals(IO.ComfyNode):
             return IO.NodeOutput(out)
 
         # Crease split changes per-item vertex counts -> rebuild as a variable-size batch.
-        tangents_b = getattr(mesh, "tangents", None)
+        tangents_b = mesh.tangents
         v_list, f_list, n_list = [], [], []
         c_list = [] if mesh.vertex_colors is not None else None
         u_list = [] if mesh.uvs is not None else None
@@ -889,11 +881,11 @@ class MeshSmoothNormals(IO.ComfyNode):
             return IO.NodeOutput(mesh)
         out = pack_variable_mesh_batch(
             v_list, f_list, colors=c_list, uvs=u_list,
-            texture=mesh.texture, unlit=getattr(mesh, "unlit", False),
-            normals=n_list, metallic_roughness=getattr(mesh, "metallic_roughness", None),
-            tangents=t_list, normal_map=getattr(mesh, "normal_map", None),
-            occlusion_in_mr=getattr(mesh, "occlusion_in_mr", False),
-            material=getattr(mesh, "material", None), emissive=getattr(mesh, "emissive", None))
+            texture=mesh.texture, unlit=mesh.unlit,
+            normals=n_list, metallic_roughness=mesh.metallic_roughness,
+            tangents=t_list, normal_map=mesh.normal_map,
+            occlusion_in_mr=mesh.occlusion_in_mr,
+            material=mesh.material, emissive=mesh.emissive)
         return IO.NodeOutput(out)
 
 
