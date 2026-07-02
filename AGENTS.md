@@ -177,11 +177,14 @@
 - Do not use tensors as general-purpose Python data structures. Keep metadata,
   bookkeeping, counters, flags, shape math, padding math, index planning, memory
   estimates, and control-flow decisions in plain Python values unless the data
-  must participate directly in tensor computation. Split points, slice
-  boundaries, sequence offsets, and similar structural indices should be Python
-  ints/lists after validation, not CPU tensors kept only to drive Python-side
-  control flow. Avoid creating temporary tensors just to use tensor methods for
-  scalar or structural calculations.
+  must participate directly in tensor computation. Do not create tensors for
+  structural metadata that is only used for Python-side control flow. Sequence
+  lengths, cumulative offsets, split indices, window counts, slice boundaries,
+  and repeat counts should be kept as Python ints/lists from the point they are
+  computed. Do not build them as CPU/GPU tensors and then cast, move, validate,
+  or convert them back to Python for `split`, `tensor_split`, indexing plans,
+  loops, or cache keys. Avoid creating temporary tensors just to use tensor
+  methods for scalar or structural calculations.
 - Avoid unnecessary casts and transfers. Preserve the intended compute dtype,
   storage dtype, bias dtype, and original tensor shape metadata.
 - Keep model-native latent layout handling inside the model or latent-format
