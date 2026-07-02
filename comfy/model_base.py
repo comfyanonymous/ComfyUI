@@ -2377,11 +2377,11 @@ class JoyImage(BaseModel):
             raise ValueError("JoyImageEdit: control (ControlNet) is not supported by the transformer.")
 
         # The transformer's forward signature is (hidden_states, timestep, encoder_hidden_states,
-        # ref_latents); it does not accept control/_options/other extra_conds.
+        # ref_latents, transformer_options); it does not accept control/other extra_conds.
         if extra_conds:
             raise ValueError("JoyImageEdit: unexpected extra_conds keys {} reached the transformer.".format(list(extra_conds.keys())))
 
-        noise_pred = self.diffusion_model(xc, t_in, context, ref_latents=refs)
+        noise_pred = self.diffusion_model(xc, t_in, context, ref_latents=refs, transformer_options=transformer_options)
 
         return self.model_sampling.calculate_denoised(sigma, noise_pred.float(), x)
 
