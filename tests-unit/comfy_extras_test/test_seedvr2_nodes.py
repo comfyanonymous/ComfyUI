@@ -31,7 +31,7 @@ def test_seedvr_node_signature_matches_schema():
         sys.modules.pop("comfy_extras.nodes_seedvr", None)
         try:
             nodes_seedvr = importlib.import_module("comfy_extras.nodes_seedvr")
-            for node_cls in (nodes_seedvr.SeedVR2Preprocess, nodes_seedvr.SeedVR2PostProcessing, nodes_seedvr.SeedVR2Conditioning, nodes_seedvr.SeedVR2ProgressiveSampler):
+            for node_cls in (nodes_seedvr.SeedVR2Preprocess, nodes_seedvr.SeedVR2PostProcessing, nodes_seedvr.SeedVR2Conditioning):
                 schema_ids = [i.id for i in node_cls.define_schema().inputs]
                 exec_params = [
                     p for p in inspect.signature(node_cls.execute).parameters.keys()

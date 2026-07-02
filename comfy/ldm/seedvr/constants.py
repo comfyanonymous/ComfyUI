@@ -8,26 +8,13 @@ Provenance prefixes:
                     ISO / CIE values; cite the standard.
 """
 
-# --------------------------------------------------------------------------------------
-# A. Progressive-sampler chunk-size law  (SEEDVR2 - this integration's VRAM experiment)
-#    n_max(frames/chunk) = SEEDVR2_CHUNK_FRAMES_PER_GB * (free_GB - SEEDVR2_CHUNK_GB_MARGIN)
-#    rounded to the 4n+1 grid. Fit on 22 blocked-5090 cells, validated on a real RTX 4070
-#    (3b and 7b). Resolution-independent (the VAE tiling sets the wall, not the DiT).
-# --------------------------------------------------------------------------------------
-SEEDVR2_CHUNK_GB_MARGIN = 3        # fixed VRAM overhead before chunks scale (GiB)
-SEEDVR2_CHUNK_FRAMES_PER_GB = 4    # empirical slope: pixel frames admitted per free GiB
-
-# --------------------------------------------------------------------------------------
-# B. Fork heuristics  (SEEDVR2 - this integration)
-# --------------------------------------------------------------------------------------
 SEEDVR2_7B_VID_DIM = 3072          # runtime 3b-vs-7b sentinel; tested against vid_dim.
                                    # (3072 is ByteDance's 7b vid_dim; the sentinel use is ours.)
-SEEDVR2_OOM_BACKOFF_DIVISOR = 2    # auto-chunk OOM retry: halve the chunk and retry.
+SEEDVR2_OOM_BACKOFF_DIVISOR = 2    # OOM retry backoff: halve the chunk and retry.
 SEEDVR2_DTYPE_BYTES_FLOOR = 4      # per-element byte floor for memory math (fp32 worst case).
 SEEDVR2_7B_MLP_CHUNK = 8192        # 7b MLP token-chunk to bound peak VRAM.
 SEEDVR2_ROPE_PARTIAL_CHUNK_TOKENS = 4096  # partial-RoPE application token-chunk.
 SEEDVR2_LATENT_CHANNELS = 16       # SeedVR2 latent channel count (== BYTEDANCE latent_channels).
-SEEDVR2_COND_CHANNELS = 17         # conditioning channels = vid_in_channels(33) - latent(16).
 
 # Color-correction memory model (fork tuning; per-frame VRAM estimate for chunk sizing)
 SEEDVR2_COLOR_MEM_HEADROOM = 0.75  # fraction of free VRAM usable per color-correction chunk.
@@ -36,7 +23,7 @@ SEEDVR2_WAVELET_SCALE_MULTIPLIER = 10  # per-frame byte multiplier, wavelet path
 SEEDVR2_ADAIN_SCALE_MULTIPLIER = 6     # per-frame byte multiplier, AdaIN path.
 
 # --------------------------------------------------------------------------------------
-# C. ByteDance config / source  (BYTEDANCE - cite ByteDance-Seed/SeedVR)
+# ByteDance config / source  (BYTEDANCE - cite ByteDance-Seed/SeedVR)
 # --------------------------------------------------------------------------------------
 BYTEDANCE_VAE_SCALING_FACTOR = 0.9152   # configs_3b/main.yaml:57 (scaling_factor); latent denorm.
 BYTEDANCE_VAE_SHIFTING_FACTOR = 0.0     # infer.py (shifting_factor default); latent denorm shift.
@@ -56,7 +43,7 @@ BYTEDANCE_ROPE_MAX_FREQ = 256           # dit_v2/rope.py:31 (pixel-RoPE max freq
 BYTEDANCE_SINUSOIDAL_DIM = 256          # dit_3b/nadit.py:120 (timestep sinusoidal embed dim).
 
 # --------------------------------------------------------------------------------------
-# D. Published standards (cite the literature)
+# Published standards (cite the literature)
 # --------------------------------------------------------------------------------------
 ROPE_THETA = 10000   # RoPE base; Su et al., "RoFormer", arXiv:2104.09864.
 
