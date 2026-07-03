@@ -177,10 +177,21 @@
 - Do not use tensors as general-purpose Python data structures. Keep metadata,
   bookkeeping, counters, flags, shape math, padding math, index planning, memory
   estimates, and control-flow decisions in plain Python values unless the data
-  must participate directly in tensor computation. Avoid creating temporary
-  tensors just to use tensor methods for scalar or structural calculations.
+  must participate directly in tensor computation. Do not create tensors for
+  structural metadata that is only used for Python-side control flow. Sequence
+  lengths, cumulative offsets, split indices, window counts, slice boundaries,
+  and repeat counts should be kept as Python ints/lists from the point they are
+  computed. Do not build them as CPU/GPU tensors and then cast, move, validate,
+  or convert them back to Python for `split`, `tensor_split`, indexing plans,
+  loops, or cache keys. Avoid creating temporary tensors just to use tensor
+  methods for scalar or structural calculations.
 - Avoid unnecessary casts and transfers. Preserve the intended compute dtype,
   storage dtype, bias dtype, and original tensor shape metadata.
+- Keep model-native latent layout handling inside the model or latent-format
+  owner, not in helper nodes. Do not collapse, expand, pack, or unpack latent
+  dimensions in nodes or other caller-side adapters just to satisfy a model
+  forward; the model path should consume and return the native latent shape for
+  that model family.
 - Assume inputs to the main model forward are already in the compute dtype by
   default, except integer inputs such as some model timestep tensors. Do not add
   defensive or convenience casts in model code; it is better for invalid dtype
@@ -244,6 +255,14 @@
 - Model implementations should add the minimal number of ComfyUI nodes required
   to run the model. Reuse existing nodes as much as possible; adapting the model
   to work with existing nodes is strongly preferred over creating new nodes.
+- Nodes should output only values they own. Do not add pass-through outputs for
+  workflow convenience unless the node is explicitly an output node. Existing
+  models, latents, conditioning, or other inputs should flow directly to the
+  next consumer instead of being re-emitted unchanged.
+- Nodes should expose only inputs they actually read to produce current
+  behavior. Do not add placeholder, pass-through, compatibility, or
+  workflow-shaping inputs that are ignored or could flow directly to another
+  node.
 - Node-level code must not patch model code directly. Any node behavior that
   modifies, wraps, hooks, or changes model behavior must go through the model
   patcher class instead of reaching into model internals.
