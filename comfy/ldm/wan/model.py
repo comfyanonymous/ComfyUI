@@ -903,10 +903,12 @@ class CameraWanModel(WanModel):
         **kwargs,
     ):
         # embeddings
+        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         if self.control_adapter is not None and camera_conditions is not None:
             x = x + self.control_adapter(camera_conditions).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
@@ -925,6 +927,7 @@ class CameraWanModel(WanModel):
             context_img_len = clip_fea.shape[-2]
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
@@ -939,6 +942,11 @@ class CameraWanModel(WanModel):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": 0, "transformer_options": transformer_options})
+                    x = out["img"]
 
         # head
         x = self.head(x, e)
@@ -1351,6 +1359,7 @@ class WanModel_S2V(WanModel):
 
         # embeddings
         bs, _, time, height, width = x.shape
+        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         if control_video is not None:
             x = x + self.cond_encoder(control_video)
@@ -1359,6 +1368,7 @@ class WanModel_S2V(WanModel):
             t = t.unsqueeze(1).repeat(1, x.shape[2])
 
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
         seq_len = x.size(1)
 
@@ -1395,6 +1405,7 @@ class WanModel_S2V(WanModel):
         context = self.text_embedding(context)
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
@@ -1409,6 +1420,12 @@ class WanModel_S2V(WanModel):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, transformer_options=transformer_options)
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": 0, "transformer_options": transformer_options})
+                    x = out["img"]
+
             if audio_emb is not None:
                 x = self.audio_injector(x, i, audio_emb, audio_emb_global, seq_len)
         # head
@@ -1615,8 +1632,10 @@ class HumoWanModel(WanModel):
         bs, _, time, height, width = x.shape
 
         # embeddings
+        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
@@ -1646,6 +1665,7 @@ class HumoWanModel(WanModel):
             audio = None
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
@@ -1660,6 +1680,11 @@ class HumoWanModel(WanModel):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, audio=audio, transformer_options=transformer_options)
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": 0, "transformer_options": transformer_options})
+                    x = out["img"]
 
         # head
         x = self.head(x, e)
@@ -1680,6 +1705,7 @@ class SCAILWanModel(WanModel):
             x = torch.cat((reference_latent, x), dim=2)
 
         # embeddings
+        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         if ref_mask_latents is not None:  # SCAIL-2 additive mask stream (one identity mask frame per reference, then video)
             x = x + self.patch_embedding_mask(ref_mask_latents.float()).to(x.dtype)
@@ -1713,6 +1739,7 @@ class SCAILWanModel(WanModel):
             context_img_len = clip_fea.shape[-2]
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
@@ -1727,6 +1754,11 @@ class SCAILWanModel(WanModel):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": 0, "transformer_options": transformer_options})
+                    x = out["img"]
 
         # head
         x = self.head(x, e)
