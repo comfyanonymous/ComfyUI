@@ -871,7 +871,7 @@ class GetMeshInfo(IO.ComfyNode):
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB, MeshToFile3D, RotateMesh, MergeMeshes]
+        return [SaveGLB, MeshToFile3D, RotateMesh, MergeMeshes, GetMeshInfo]
 
 
 async def comfy_entrypoint() -> Save3DExtension:
