@@ -647,7 +647,7 @@ class RotateMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="RotateMesh",
             display_name="Rotate Mesh",
-            category="3d",
+            category="3d/mesh",
             description=(
                 "Rotate a mesh. Euler XYZ applies X then Y then Z about the world axes (degrees). "
                 "Quaternion is (w, x, y, z), auto-normalized."

@@ -2897,7 +2897,7 @@ class MeshSmoothNormals(IO.ComfyNode):
         return IO.Schema(
             node_id="MeshSmoothNormals",
             display_name="Smooth Mesh Normals",
-            category="3d",
+            category="3d/mesh",
             description=(
                 "Compute smooth per-vertex normals and attach them to the mesh. Meshes "
                 "without normals are shaded flat (per-face) by glTF viewers; this makes "
