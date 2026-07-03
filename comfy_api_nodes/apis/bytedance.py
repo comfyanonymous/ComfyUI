@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -316,3 +316,36 @@ VIDEO_TASKS_EXECUTION_TIME = {
         "1080p": 150,
     },
 }
+
+
+class SeedAudioConfig(BaseModel):
+    format: str = Field(default="mp3")
+    sample_rate: int = Field(default=24000)
+    speech_rate: int = Field(default=0)
+    loudness_rate: int = Field(default=0)
+    pitch_rate: int = Field(default=0)
+
+
+class SeedAudioReference(BaseModel):
+    speaker: str | None = Field(default=None)
+    audio_data: str | None = Field(default=None)
+    audio_url: str | None = Field(default=None)
+    image_data: str | None = Field(default=None)
+    image_url: str | None = Field(default=None)
+
+
+class SeedAudioRequest(BaseModel):
+    model: str = Field(default="seed-audio-1.0")
+    text_prompt: str = Field(...)
+    references: list[SeedAudioReference] | None = Field(default=None)
+    audio_config: SeedAudioConfig = Field(default_factory=SeedAudioConfig)
+    watermark: dict[str, Any] = Field(default_factory=dict)
+
+
+class SeedAudioResponse(BaseModel):
+    audio: str | None = Field(default=None)
+    url: str | None = Field(default=None)
+    duration: float | None = Field(default=None)
+    original_duration: float | None = Field(default=None)
+    code: int | None = Field(default=None)
+    message: str | None = Field(default=None)
