@@ -1101,10 +1101,27 @@ def _encode_image(
     For PNG, colorspace selection does not modify pixels — PNG is delivered
     sRGB-encoded and there is no PNG path for wide-gamut HDR in this node.
     """
+
+    if img_tensor.ndim == 2: # 2 channel grayscales
+        img_tensor = img_tensor.unsqueeze(-1)
+
     height, width, num_channels = img_tensor.shape
     has_alpha = num_channels == 4
 
     spec = _FORMAT_SPECS[(file_format, bit_depth, has_alpha)]
+
+    frame_fmt = spec["frame_fmt"]
+    stream_fmt = spec["stream_fmt"]
+
+    if num_channels == 1:
+        if spec["dtype"] == np.float32:
+            frame_fmt = stream_fmt = "grayf32le"
+        elif spec["dtype"] == np.uint16:
+            frame_fmt = "gray16le"
+            # Ensure big-endian for PNG
+            stream_fmt = "gray16be" if "be" in stream_fmt else "gray16le"
+        else:
+            frame_fmt = stream_fmt = "gray"
 
     if spec["dtype"] == np.float32:
         # EXR path: preserve full range, no clamp.
@@ -1124,12 +1141,12 @@ def _encode_image(
     codec = av.CodecContext.create(file_format, "w")
     codec.width = width
     codec.height = height
-    codec.pix_fmt = spec["stream_fmt"]
+    codec.pix_fmt = stream_fmt
     codec.time_base = Fraction(1, 1)
 
-    frame = av.VideoFrame.from_ndarray(img_np, format=spec["frame_fmt"])
-    if spec["frame_fmt"] != spec["stream_fmt"]:
-        frame = frame.reformat(format=spec["stream_fmt"])
+    frame = av.VideoFrame.from_ndarray(img_np, format=frame_fmt)
+    if frame_fmt != stream_fmt:
+        frame = frame.reformat(format=stream_fmt)
     frame.pts = 0
     frame.time_base = codec.time_base
 
