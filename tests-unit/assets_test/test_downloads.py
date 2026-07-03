@@ -1,3 +1,5 @@
+import contextlib
+import json
 import time
 import uuid
 from datetime import datetime
@@ -7,6 +9,40 @@ from typing import Optional
 import pytest
 import requests
 from helpers import get_asset_filename, trigger_sync_seed_assets
+
+
+def test_download_svg_forced_to_attachment(http: requests.Session, api_base: str):
+    """GHSA-779p-m5rp-r4h4 CISA-5 (sibling route): an uploaded SVG must never be
+    served inline from GET /api/assets/{id}/content, or an inline <script> runs
+    in the app origin (stored XSS). Even with disposition=inline requested, a
+    dangerous content type must be forced to application/octet-stream +
+    Content-Disposition: attachment + nosniff. Regression guard for the stale
+    inline blocklist that previously omitted image/svg+xml and ignored the
+    centralized folder_paths.is_dangerous_content_type check.
+    """
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    files = {"file": ("evil.svg", svg, "image/svg+xml")}
+    form_data = {
+        "tags": json.dumps(["models", "checkpoints", "unit-tests", "svgxss"]),
+        "name": "evil.svg",
+    }
+    up = http.post(api_base + "/api/assets", files=files, data=form_data, timeout=120)
+    body = up.json()
+    assert up.status_code in (200, 201), body
+    aid = body["id"]
+    try:
+        r = http.get(f"{api_base}/api/assets/{aid}/content?disposition=inline", timeout=120)
+        r.content
+        assert r.status_code == 200
+        ct = r.headers.get("Content-Type", "").lower()
+        cd = r.headers.get("Content-Disposition", "").lower()
+        assert "svg" not in ct, f"SVG served with a renderable content type: {ct!r}"
+        assert ct.startswith("application/octet-stream"), f"expected octet-stream, got {ct!r}"
+        assert "attachment" in cd, f"inline disposition not overridden to attachment: {cd!r}"
+        assert r.headers.get("X-Content-Type-Options", "").lower() == "nosniff"
+    finally:
+        with contextlib.suppress(Exception):
+            http.delete(f"{api_base}/api/assets/{aid}", timeout=30)
 
 
 def test_download_attachment_and_inline(http: requests.Session, api_base: str, seeded_asset: dict):

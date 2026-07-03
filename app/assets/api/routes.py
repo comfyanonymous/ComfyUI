@@ -306,12 +306,15 @@ async def download_asset_content(request: web.Request) -> web.Response:
             404, "FILE_NOT_FOUND", "Underlying file not found on disk."
         )
 
-    _DANGEROUS_MIME_TYPES = {
-        "text/html", "text/html-sandboxed", "application/xhtml+xml",
-        "text/javascript", "text/css",
-    }
-    if content_type in _DANGEROUS_MIME_TYPES:
+    # User-controlled asset content must never render inline in the app origin
+    # (stored XSS via SVG/HTML/XML). Force dangerous types to download and
+    # override any requested inline disposition. Centralised through
+    # folder_paths.is_dangerous_content_type so this can't drift from /view and
+    # /userdata (the previous inline set here omitted image/svg+xml and missed
+    # the charset/casing/+xml-dialect bypasses).
+    if folder_paths.is_dangerous_content_type(content_type):
         content_type = "application/octet-stream"
+        disposition = "attachment"
 
     safe_name = (filename or "").replace("\r", "").replace("\n", "")
     encoded = urllib.parse.quote(safe_name)

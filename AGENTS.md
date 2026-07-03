@@ -8,6 +8,8 @@
   directly required.
 - Prefer practical fixes over broad architecture work. Add abstractions only
   when they remove real repeated logic or match an existing ComfyUI pattern.
+- Prefer fewer dependencies. Do not add new dependencies to ComfyUI unless they
+  are absolutely necessary.
 - Delete obsolete code aggressively when newer infrastructure makes it useless.
   Remove dead fallbacks, migration paths, unused options, debug prints, and
   compatibility branches that are no longer needed. Do not leave dead branches,
@@ -111,6 +113,11 @@
 - Do not add freeze, unfreeze, or trainability toggles to model classes. ComfyUI
   models are always treated as frozen for inference, so explicit freeze
   functionality is redundant and should not be added.
+- Remove training-only behavior such as dropout from inference model code, but
+  preserve checkpoint and state-dict compatibility when doing so. If deleting a
+  module would change state-dict keys, module ordering, or checkpoint loading
+  behavior, replace it with a no-op such as `nn.Identity` instead of removing the
+  slot outright.
 
 ## Python Style
 
@@ -170,10 +177,21 @@
 - Do not use tensors as general-purpose Python data structures. Keep metadata,
   bookkeeping, counters, flags, shape math, padding math, index planning, memory
   estimates, and control-flow decisions in plain Python values unless the data
-  must participate directly in tensor computation. Avoid creating temporary
-  tensors just to use tensor methods for scalar or structural calculations.
+  must participate directly in tensor computation. Do not create tensors for
+  structural metadata that is only used for Python-side control flow. Sequence
+  lengths, cumulative offsets, split indices, window counts, slice boundaries,
+  and repeat counts should be kept as Python ints/lists from the point they are
+  computed. Do not build them as CPU/GPU tensors and then cast, move, validate,
+  or convert them back to Python for `split`, `tensor_split`, indexing plans,
+  loops, or cache keys. Avoid creating temporary tensors just to use tensor
+  methods for scalar or structural calculations.
 - Avoid unnecessary casts and transfers. Preserve the intended compute dtype,
   storage dtype, bias dtype, and original tensor shape metadata.
+- Keep model-native latent layout handling inside the model or latent-format
+  owner, not in helper nodes. Do not collapse, expand, pack, or unpack latent
+  dimensions in nodes or other caller-side adapters just to satisfy a model
+  forward; the model path should consume and return the native latent shape for
+  that model family.
 - Assume inputs to the main model forward are already in the compute dtype by
   default, except integer inputs such as some model timestep tensors. Do not add
   defensive or convenience casts in model code; it is better for invalid dtype
@@ -234,6 +252,17 @@
   `CATEGORY`, and registration through the local mapping used by that file.
 - Keep node changes backward compatible by default. Add inputs with sensible
   defaults and avoid changing output types unless the request requires it.
+- Model implementations should add the minimal number of ComfyUI nodes required
+  to run the model. Reuse existing nodes as much as possible; adapting the model
+  to work with existing nodes is strongly preferred over creating new nodes.
+- Nodes should output only values they own. Do not add pass-through outputs for
+  workflow convenience unless the node is explicitly an output node. Existing
+  models, latents, conditioning, or other inputs should flow directly to the
+  next consumer instead of being re-emitted unchanged.
+- Nodes should expose only inputs they actually read to produce current
+  behavior. Do not add placeholder, pass-through, compatibility, or
+  workflow-shaping inputs that are ignored or could flow directly to another
+  node.
 - Node-level code must not patch model code directly. Any node behavior that
   modifies, wraps, hooks, or changes model behavior must go through the model
   patcher class instead of reaching into model internals.
