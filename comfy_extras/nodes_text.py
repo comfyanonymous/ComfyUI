@@ -22,6 +22,7 @@ class SaveTextNode(io.ComfyNode):
                 io.String.Input("filename_prefix", default="ComfyUI"),
                 io.Combo.Input("format", options=["txt", "md", "json"], default="txt"),
             ],
+            outputs=[io.String.Output(display_name="text")],
             is_output_node=True,
         )
 
@@ -52,6 +53,7 @@ class SaveTextNode(io.ComfyNode):
                 f.write(text)
 
         return io.NodeOutput(
+            text,
             ui={
                 "text": (text,),
                 "files": [
