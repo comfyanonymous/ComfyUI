@@ -1144,6 +1144,9 @@ def _encode_image(
     codec.pix_fmt = stream_fmt
     codec.time_base = Fraction(1, 1)
 
+    if num_channels == 1:
+        img_np = img_np.squeeze(-1)
+
     frame = av.VideoFrame.from_ndarray(img_np, format=frame_fmt)
     if frame_fmt != stream_fmt:
         frame = frame.reformat(format=stream_fmt)
