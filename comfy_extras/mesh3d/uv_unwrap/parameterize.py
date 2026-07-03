@@ -12,6 +12,8 @@ from torch import Tensor
 
 from . import mesh as _mesh
 
+LSCM_BATCH_MAX_VERTS = 256      # charts above this solve per-chart sparse (lscm_chart)
+
 
 def solve_least_squares(A: sp.csr_matrix, b: np.ndarray) -> np.ndarray:
     """Solve ||Ax - b||^2 by factorizing AtA."""
@@ -99,54 +101,258 @@ def _ortho_project(verts_3d: np.ndarray) -> np.ndarray:
     return np.stack([verts_3d @ t, verts_3d @ b], axis=1)
 
 
-def _stretch_metrics(verts_3d: np.ndarray, uvs: np.ndarray, faces: np.ndarray) -> Tuple[float, float, int, int]:
-    """Sander's stretch metric. Returns (rms, max, n_flipped, n_zero_area)."""
-    p = verts_3d[faces]
+def ortho_project_concat(verts: np.ndarray, chart_of_vert: np.ndarray, n_charts: int) -> np.ndarray:
+    """_ortho_project for every chart at once over concatenated per-chart vertices."""
+    cnt = np.bincount(chart_of_vert, minlength=n_charts).clip(min=1).astype(np.float64)
+    cen = np.stack([np.bincount(chart_of_vert, weights=verts[:, i], minlength=n_charts)
+                    for i in range(3)], axis=1) / cnt[:, None]
+    d = verts - cen[chart_of_vert]
+    cov = np.zeros((n_charts, 3, 3), dtype=np.float64)
+    for i in range(3):
+        for j in range(i, 3):
+            s = np.bincount(chart_of_vert, weights=d[:, i] * d[:, j], minlength=n_charts)
+            cov[:, i, j] = s
+            cov[:, j, i] = s
+    _w, ev = np.linalg.eigh(cov)
+    normal = ev[:, :, 0]
+    t = np.eye(3, dtype=np.float64)[np.argmin(np.abs(normal), axis=1)]
+    t = t - normal * (normal * t).sum(axis=1, keepdims=True)
+    t /= np.linalg.norm(t, axis=1, keepdims=True).clip(min=1e-20)
+    b = np.cross(normal, t)
+    tt, bb = t[chart_of_vert], b[chart_of_vert]
+    return np.stack([(verts * tt).sum(1), (verts * bb).sum(1)], axis=1)
+
+
+def stretch_metrics_concat(
+    verts: np.ndarray, uvs: np.ndarray, faces: np.ndarray,
+    chart_of_face: np.ndarray, n_charts: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per-chart Sander stretch metrics (rms, max, n_flipped, n_zero_area); rms/max inf where undefined."""
+    p = verts[faces]
     t = uvs[faces]
-    parametric_area = 0.5 * (
+    pa_signed = 0.5 * (
         (t[:, 1, 1] - t[:, 0, 1]) * (t[:, 2, 0] - t[:, 0, 0])
-        - (t[:, 2, 1] - t[:, 0, 1]) * (t[:, 1, 0] - t[:, 0, 0])
-    )
-    n_flipped = int((parametric_area < -1e-12).sum())
-    n_zero = int((np.abs(parametric_area) < 1e-12).sum())
-    pa = np.abs(parametric_area).clip(min=1e-20)
-    geom_area = 0.5 * np.linalg.norm(
-        np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1
-    )
-    keep = (geom_area > 1e-12) & (np.abs(parametric_area) > 1e-12)
-    if not keep.any():
-        return float("inf"), float("inf"), n_flipped, n_zero
-    t1 = t[:, 0, 0]
-    s1 = t[:, 0, 1]
-    t2 = t[:, 1, 0]
-    s2 = t[:, 1, 1]
-    t3 = t[:, 2, 0]
-    s3 = t[:, 2, 1]
+        - (t[:, 2, 1] - t[:, 0, 1]) * (t[:, 1, 0] - t[:, 0, 0]))
+    n_flip = np.bincount(chart_of_face[pa_signed < -1e-12], minlength=n_charts)
+    n_zero = np.bincount(chart_of_face[np.abs(pa_signed) < 1e-12], minlength=n_charts)
+    pa = np.abs(pa_signed).clip(min=1e-20)
+    ga = 0.5 * np.linalg.norm(np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1)
+    keep = (ga > 1e-12) & (np.abs(pa_signed) > 1e-12)
+    t1, s1 = t[:, 0, 0], t[:, 0, 1]
+    t2, s2 = t[:, 1, 0], t[:, 1, 1]
+    t3, s3 = t[:, 2, 0], t[:, 2, 1]
     inv_2pa = 1.0 / (2.0 * pa)
-    Ss = (
-        p[:, 0] * (t2 - t3)[:, None]
-        + p[:, 1] * (t3 - t1)[:, None]
-        + p[:, 2] * (t1 - t2)[:, None]
-    ) * inv_2pa[:, None]
-    St = (
-        p[:, 0] * (s3 - s2)[:, None]
-        + p[:, 1] * (s1 - s3)[:, None]
-        + p[:, 2] * (s2 - s1)[:, None]
-    ) * inv_2pa[:, None]
+    Ss = (p[:, 0] * (t2 - t3)[:, None] + p[:, 1] * (t3 - t1)[:, None]
+          + p[:, 2] * (t1 - t2)[:, None]) * inv_2pa[:, None]
+    St = (p[:, 0] * (s3 - s2)[:, None] + p[:, 1] * (s1 - s3)[:, None]
+          + p[:, 2] * (s2 - s1)[:, None]) * inv_2pa[:, None]
     a = (Ss * Ss).sum(axis=1)
     bb = (Ss * St).sum(axis=1)
     c = (St * St).sum(axis=1)
     sigma2_sq = 0.5 * (a + c + np.sqrt(np.maximum(0.0, (a - c) ** 2 + 4 * bb ** 2)))
     rms_sq = (a + c) * 0.5
-    rms_stretch_sq_sum = float((rms_sq[keep] * geom_area[keep]).sum())
-    total_geom = float(geom_area[keep].sum())
-    total_param = float(pa[keep].sum())
-    if total_geom <= 0.0:
-        return float("inf"), float("inf"), n_flipped, n_zero
-    norm_factor = np.sqrt(total_param / total_geom)
-    rms_stretch = float(np.sqrt(rms_stretch_sq_sum / total_geom)) * norm_factor
-    max_stretch = float(np.sqrt(sigma2_sq[keep].max())) * norm_factor
-    return rms_stretch, max_stretch, n_flipped, n_zero
+    cf = chart_of_face[keep]
+    tg = np.bincount(cf, weights=ga[keep], minlength=n_charts)
+    tp = np.bincount(cf, weights=pa[keep], minlength=n_charts)
+    rs = np.bincount(cf, weights=(rms_sq * ga)[keep], minlength=n_charts)
+    smax = np.zeros(n_charts, dtype=np.float64)
+    np.maximum.at(smax, cf, sigma2_sq[keep])
+    ok = tg > 0.0
+    tg_safe = np.where(ok, tg, 1.0)
+    norm = np.sqrt(tp / tg_safe)
+    rms = np.where(ok, np.sqrt(rs / tg_safe) * norm, np.inf)
+    mx = np.where(ok, np.sqrt(smax) * norm, np.inf)
+    return rms, mx, n_flip, n_zero
+
+
+def _segment_argmax(vals: np.ndarray, seg: np.ndarray, n: int) -> np.ndarray:
+    """Index of the (first) max element per segment; -1 for empty segments."""
+    amax = np.full(n, -np.inf)
+    np.maximum.at(amax, seg, vals)
+    hit = vals == amax[seg]
+    out = np.full(n, np.iinfo(np.int64).max, dtype=np.int64)
+    np.minimum.at(out, seg[hit], np.nonzero(hit)[0])
+    return np.where(out == np.iinfo(np.int64).max, -1, out)
+
+
+def lscm_charts_batch(
+    verts: np.ndarray,            # (sumV, 3) float64, per-chart concatenated
+    uv_pins: np.ndarray,          # (sumV, 2) float64, ortho UVs (pin values + fallback)
+    faces_gl: np.ndarray,         # (sumF, 3) global-local ids into verts
+    face_pos: np.ndarray,         # (sumF,) row index of each face within its chart
+    chart_of_face: np.ndarray,    # (sumF,)
+    chart_of_vert: np.ndarray,    # (sumV,)
+    vert_offsets: np.ndarray,     # (n_charts+1,)
+    chart_ids: np.ndarray,        # charts to solve (each with >=3 verts, >=1 face)
+    n_charts: int,
+    max_bucket_verts: int = LSCM_BATCH_MAX_VERTS,
+    device: "torch.device | None" = None,
+) -> dict:
+    """Batched dense ABF/LSCM; returns {chart_id: (Vc, 2) float32}. Charts larger than
+    max_bucket_verts are left out (the caller solves those sparse)."""
+    out: dict = {}
+    if chart_ids.size == 0:
+        return out
+    sel = np.zeros(n_charts, dtype=bool)
+    sel[chart_ids] = True
+    vcounts = np.diff(vert_offsets)
+
+    # ABF coefficients for all selected faces in one shot
+    fmask = sel[chart_of_face]
+    f_ids = np.nonzero(fmask)[0]
+    abf_ids, abf_cos, abf_sin, abf_valid = _abf_face_coefficients(verts, faces_gl[f_ids])
+
+    # farthest-point pin pair per chart (two passes)
+    vmask = sel[chart_of_vert]
+    v_ids = np.nonzero(vmask)[0]
+    cv = chart_of_vert[v_ids]
+    first = vert_offsets[:-1]
+    d0 = ((verts[v_ids] - verts[first[cv]]) ** 2).sum(1)
+    pin_a = _segment_argmax(d0, cv, n_charts)          # global vert index (into v_ids space)
+    pin_a = np.where(pin_a >= 0, v_ids[pin_a.clip(min=0)], -1)
+    d1 = ((verts[v_ids] - verts[pin_a.clip(min=0)[cv]]) ** 2).sum(1)
+    pin_b = _segment_argmax(d1, cv, n_charts)
+    pin_b = np.where(pin_b >= 0, v_ids[pin_b.clip(min=0)], -1)
+    # degenerate (all verts coincide): any distinct vert within the chart (Vc >= 3 guaranteed)
+    alt = np.where(pin_a == first, first + 1, first)
+    pin_b = np.where(pin_a == pin_b, alt, pin_b)
+
+    fcounts = np.bincount(chart_of_face[f_ids], minlength=n_charts)
+    # size-sorted chunks padded to their own max, bounded by an element budget so one
+    # face-heavy chart can't inflate a whole chunk
+    small = chart_ids[vcounts[chart_ids] <= max_bucket_verts]
+    sorted_ids = small[np.argsort(vcounts[small], kind="stable")]
+    budget = (96 << 20) // 8                            # float64 elements in a chunk's A
+    chunks = []
+    cs = 0
+    fmax_r = vmax_r = 0
+    for idx in range(sorted_ids.size):
+        c2 = sorted_ids[idx]
+        fm2 = max(fmax_r, int(fcounts[c2]))
+        vm2 = max(vmax_r, int(vcounts[c2]))
+        nb = idx - cs + 1
+        if nb > 1 and (nb > 128 or nb * 4 * fm2 * vm2 > budget):
+            chunks.append((cs, idx))
+            cs = idx
+            fmax_r, vmax_r = int(fcounts[c2]), int(vcounts[c2])
+        else:
+            fmax_r, vmax_r = fm2, vm2
+    if sorted_ids.size:
+        chunks.append((cs, sorted_ids.size))
+    for s, e in chunks:
+        cids = sorted_ids[s:e]
+        B = cids.size
+        Vmax = int(vcounts[cids].max())
+        Fmax = int(fcounts[cids].max())
+        N = 2 * Vmax
+        R = 2 * Fmax
+        compact = np.full(n_charts, -1, dtype=np.int64)
+        compact[cids] = np.arange(B)
+        fm = compact[chart_of_face[f_ids]] >= 0
+        fi = f_ids[fm]                               # face rows for this chunk
+        bi = compact[chart_of_face[fi]]              # chart slot per face
+        frow = face_pos[fi]
+        v0 = vert_offsets[chart_of_face[fi]]         # local id = global-local - v0
+        am = fm.nonzero()[0]                         # index into abf_* arrays
+
+        pieces_i: list = []
+        pieces_v: list = []
+
+        def scatter(rows, cols, vals, bsel):
+            pieces_i.append((bsel * R + rows) * N + cols)
+            pieces_v.append(vals)
+
+        val = abf_valid[am]
+        ii = am[val]
+        ids = abf_ids[ii] - v0[val, None]            # local vert ids, reordered
+        cosf, sinf = abf_cos[ii], abf_sin[ii]
+        rr, bsel = frow[val] * 2, bi[val]
+        ones = np.ones(ii.size)
+        for cc2, vv in ((ids[:, 0], cosf - 1.0), (ids[:, 0] + Vmax, -sinf),
+                        (ids[:, 1], -cosf), (ids[:, 1] + Vmax, sinf), (ids[:, 2], ones)):
+            scatter(rr, cc2, vv, bsel)
+        for cc2, vv in ((ids[:, 0], sinf), (ids[:, 0] + Vmax, cosf - 1.0),
+                        (ids[:, 1], -sinf), (ids[:, 1] + Vmax, -cosf), (ids[:, 2] + Vmax, ones)):
+            scatter(rr + 1, cc2, vv, bsel)
+
+        inv = ~val
+        if inv.any():
+            jj = fi[inv]
+            tri2d = _triangle_local_2d(verts, faces_gl[jj])
+            twice = tri2d[:, 1, 0] * tri2d[:, 2, 1] - tri2d[:, 1, 1] * tri2d[:, 2, 0]
+            w = 1.0 / np.sqrt(2.0 * np.abs(twice).clip(min=1e-20))
+            rr2, bs2 = frow[inv] * 2, bi[inv]
+            lids = faces_gl[jj] - v0[inv, None]
+            for j in range(3):
+                jp1, jp2 = (j + 1) % 3, (j + 2) % 3
+                aj = (tri2d[:, jp1, 0] - tri2d[:, jp2, 0]) * w
+                bj = (tri2d[:, jp1, 1] - tri2d[:, jp2, 1]) * w
+                vc2 = lids[:, j]
+                scatter(rr2, vc2, aj, bs2)
+                scatter(rr2, vc2 + Vmax, -bj, bs2)
+                scatter(rr2 + 1, vc2, bj, bs2)
+                scatter(rr2 + 1, vc2 + Vmax, aj, bs2)
+
+        flat = np.concatenate(pieces_i)
+        A = np.bincount(flat, weights=np.concatenate(pieces_v),
+                        minlength=B * R * N).reshape(B, R, N)
+
+        # pins: move their columns to the RHS, then constrain via identity rows
+        voff = vert_offsets[cids]
+        pa_l = pin_a[cids] - voff
+        pb_l = pin_b[cids] - voff
+        pin_cols = np.stack([pa_l, pb_l, pa_l + Vmax, pb_l + Vmax], 1)       # (B,4)
+        pin_vals = np.stack([uv_pins[pin_a[cids], 0], uv_pins[pin_b[cids], 0],
+                             uv_pins[pin_a[cids], 1], uv_pins[pin_b[cids], 1]], 1)
+        rhs = np.zeros((B, R), dtype=np.float64)
+        barange = np.arange(B)
+        for k in range(4):
+            rhs -= A[barange, :, pin_cols[:, k]] * pin_vals[:, k, None]
+            A[barange, :, pin_cols[:, k]] = 0.0
+
+        # constrained columns: the 4 pins + padding beyond each chart's vert count
+        vcs = vcounts[cids]
+        padm = np.arange(Vmax)[None, :] >= vcs[:, None]
+        con = np.concatenate([padm, padm], axis=1)                            # (B,N)
+        np.put_along_axis(con, pin_cols, True, axis=1)
+        cval = np.zeros((B, N), dtype=np.float64)
+        np.put_along_axis(cval, pin_cols, pin_vals, axis=1)
+
+        # normal equations + batched solve; the fp64 dense algebra goes to the GPU when available
+        use_gpu = device is not None and device.type == "cuda"
+        if use_gpu:
+            A_t = torch.from_numpy(A).to(device)
+            At = A_t.transpose(1, 2)
+            AtA = At @ A_t
+            Atb = (At @ torch.from_numpy(rhs).to(device).unsqueeze(2)).squeeze(2)
+            con_t = torch.from_numpy(con).to(device)
+            free2 = (~con_t[:, :, None]) & (~con_t[:, None, :])
+            AtA = AtA * free2
+            diag = torch.diagonal(AtA, dim1=1, dim2=2)
+            # median (not max) positive diagonal: a degenerate face's ~1e19 squared row
+            # weight would blow a max-scaled eps past the unit ABF rows
+            dpos = torch.where(diag > 0, diag, torch.full_like(diag, float("nan")))
+            dsc = 1e-12 * torch.nan_to_num(dpos.nanmedian(dim=1).values, nan=1e-8).clamp_min(1e-20)
+            diag += torch.where(con_t, torch.ones_like(diag), dsc[:, None].expand_as(diag))
+            Atb = torch.where(con_t, torch.from_numpy(cval).to(device), Atb)
+            x = torch.linalg.solve(AtA, Atb).cpu().numpy()
+        else:
+            At = A.transpose(0, 2, 1)
+            AtA = At @ A                             # batched BLAS dgemm
+            Atb = (At @ rhs[:, :, None])[:, :, 0]
+            AtA *= (~con[:, :, None]) & (~con[:, None, :])
+            dg = AtA.reshape(B, -1)[:, ::N + 1]
+            # median positive diagonal (see GPU branch): robust to degenerate-face weights
+            dpos = np.where(dg > 0, dg, np.nan)
+            with np.errstate(all="ignore"):
+                dsc = 1e-12 * np.nan_to_num(np.nanmedian(dpos, axis=1), nan=1e-8).clip(min=1e-20)
+            dg += np.where(con, 1.0, dsc[:, None])
+            Atb2 = np.where(con, cval, Atb)
+            x = np.linalg.solve(AtA, Atb2)
+        for i2, c2 in enumerate(cids):
+            vc3 = int(vcs[i2])
+            out[int(c2)] = np.stack([x[i2, :vc3], x[i2, Vmax:Vmax + vc3]], 1).astype(np.float32)
+    return out
 
 
 def _uv_boundary_self_intersects(
@@ -179,36 +385,6 @@ def _uv_boundary_self_intersects(
         if bool(cross.any()):
             return True
     return False
-
-
-def parametrize_chart(
-    local_verts: Tensor, local_faces: Tensor, local_face_face: Tensor
-) -> Tensor:
-    """Parameterize one chart: ortho first, ABF/LSCM fallback; charts <=5 faces stay ortho."""
-    verts_np = local_verts.detach().cpu().numpy().astype(np.float64)
-    faces_np = local_faces.detach().cpu().numpy().astype(np.int64)
-    if verts_np.shape[0] < 3 or faces_np.shape[0] == 0:
-        return torch.zeros((verts_np.shape[0], 2), dtype=torch.float32, device=local_verts.device)
-
-    ortho = _ortho_project(verts_np)
-    n_faces = faces_np.shape[0]
-    if n_faces <= 5:
-        return torch.from_numpy(ortho.astype(np.float32)).to(local_verts.device)
-    rms, mx, n_flip, n_zero = _stretch_metrics(verts_np, ortho, faces_np)
-    flip_ok = n_flip == 0 or n_flip == n_faces
-    if flip_ok and n_zero == 0 and rms <= 1.5 and mx <= 2.0:
-        ff_np = local_face_face.detach().cpu().numpy().astype(np.int64)
-        if not _uv_boundary_self_intersects(ortho, faces_np, ff_np):
-            return torch.from_numpy(ortho.astype(np.float32)).to(local_verts.device)
-    uvs_t = lscm_chart(local_verts, local_faces, local_face_face, pin_positions=ortho)
-    # Collapsed UV island (aspect > 100:1) blows up packing scale; fall back to ortho.
-    uvs_np = uvs_t.detach().cpu().numpy()
-    bbox = uvs_np.max(axis=0) - uvs_np.min(axis=0)
-    bbox_max = float(max(bbox[0], bbox[1], 1e-12))
-    bbox_min = float(max(min(bbox[0], bbox[1]), 1e-12))
-    if bbox_max / bbox_min > 100.0:
-        return torch.from_numpy(ortho.astype(np.float32)).to(local_verts.device)
-    return uvs_t
 
 
 def _abf_face_coefficients(

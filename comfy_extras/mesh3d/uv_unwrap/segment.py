@@ -1,22 +1,11 @@
-"""Adaptive cost-grow chart segmentation (CPU); numba optional, numpy path is nd-only."""
+"""Adaptive cost-grow chart segmentation (vectorized torch, CPU or GPU)."""
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import Tuple
 
-import numpy as np
 import torch
 from torch import Tensor
-
-try:
-    from numba import njit
-    _HAVE_NUMBA = True
-except ImportError:
-    _HAVE_NUMBA = False
-    def njit(*args, **kwargs):  # noqa: ARG001
-        def deco(fn):
-            return fn
-        return deco if not args else args[0]
-
+from tqdm import tqdm
 
 from .mesh import MeshData, face_edge_lengths
 
@@ -28,129 +17,63 @@ DEFAULT_MAX_COST = 2.0
 NORMAL_DEVIATION_HARD_CUTOFF = 0.707  # ~75°
 
 
-@njit(cache=True, fastmath=False)
-def _cost_grow_iter_jit(
-    face_chart: np.ndarray, face_face: np.ndarray, face_normal: np.ndarray,
-    face_area: np.ndarray, face_edge_len: np.ndarray,
-    chart_basis: np.ndarray, chart_normal_sum: np.ndarray,
-    chart_area: np.ndarray, chart_perim: np.ndarray,
-    nd_cutoff: float, max_cost: float,
-    w_nd: float, w_round: float, w_straight: float,
-):
-    """One grow iter: each unassigned face joins its lowest-cost adjacent chart if cost<max_cost."""
-    F = face_chart.shape[0]
-    best_chart_per_face = np.full(F, -1, dtype=np.int64)
-    best_cost_per_face = np.full(F, np.inf, dtype=np.float32)
+def _grow_iter(face_chart, frontier, ff, fn, fa, fel, basis, nsum, area, perim, K,
+               nd_cutoff, tau, w_nd, w_round, w_straight):
+    """One grow pass: each frontier face joins its lowest-cost adjacent chart if cost <= tau;
+    returns the number of faces assigned."""
+    u = frontier.nonzero(as_tuple=True)[0]
+    if u.numel() == 0:
+        return 0
+    nb = ff[u]                                       # (U,3) neighbor face ids
+    nbc = torch.where(nb >= 0, face_chart[nb.clamp_min(0)], nb.new_full((), -1))
+    valid = nbc >= 0
+    d = (fn[u][:, None, :] * basis[nbc.clamp_min(0)]).sum(-1)
+    nd = (1.0 - d).clamp(0.0, 1.0)
+    valid &= nd < nd_cutoff
+    el = fel[u]                                      # (U,3)
+    # l_in per candidate chart j: edge k counts if its (assigned) neighbor is in chart j
+    inm = (nbc[:, :, None] == nbc[:, None, :]) & valid[:, None, :]
+    l_in = (el[:, None, :] * inm).sum(-1)            # (U,3)
+    tot = el.sum(-1, keepdim=True)
+    l_out = tot - l_in
+    ca = area[nbc.clamp_min(0)]
+    cp = perim[nbc.clamp_min(0)]
+    new_perim = cp - l_in + l_out
+    new_r = new_perim * new_perim / (ca + fa[u][:, None]).clamp_min(1e-20)
+    round_cost = torch.where((cp <= 1e-20) | (ca <= 1e-20) | (new_r <= 1e-20),
+                             torch.zeros_like(new_r),
+                             1.0 - (cp * cp / ca.clamp_min(1e-20)) / new_r.clamp_min(1e-20))
+    straight_cost = ((l_out - l_in) / tot.clamp_min(1e-20)).clamp(max=0.0)
+    cost = w_nd * nd + w_round * round_cost + w_straight * straight_cost
+    cost = torch.where(valid, cost, cost.new_full((), float("inf")))
+    best_cost, best_j = cost.min(1)
+    acc = best_cost <= tau
+    n_acc = int(acc.sum())
+    if n_acc == 0:
+        return 0
 
-    for f in range(F):
-        if face_chart[f] != -1:
-            continue
-        nx = face_normal[f, 0]
-        ny = face_normal[f, 1]
-        nz = face_normal[f, 2]
-        af = face_area[f]
-        for e0 in range(3):
-            nb0 = face_face[f, e0]
-            if nb0 < 0:
-                continue
-            c = face_chart[nb0]
-            if c < 0:
-                continue
-            d = (nx * chart_basis[c, 0] + ny * chart_basis[c, 1] + nz * chart_basis[c, 2])
-            nd = np.float32(1.0) - d
-            if nd > np.float32(1.0):
-                nd = np.float32(1.0)
-            if nd < np.float32(0.0):
-                nd = np.float32(0.0)
-            if nd >= nd_cutoff:
-                continue
-            l_in = np.float32(0.0)
-            l_out = np.float32(0.0)
-            for e1 in range(3):
-                nb1 = face_face[f, e1]
-                el = face_edge_len[f, e1]
-                if nb1 < 0:
-                    l_out += el
-                elif face_chart[nb1] == c:
-                    l_in += el
-                else:
-                    l_out += el
-            ca = chart_area[c]
-            cp = chart_perim[c]
-            new_perim = cp - l_in + l_out
-            new_area = ca + af
-            if cp <= np.float32(1e-20) or ca <= np.float32(1e-20):
-                round_cost = np.float32(0.0)
-            else:
-                old_r = (cp * cp) / ca
-                new_r = (new_perim * new_perim) / new_area
-                if new_r <= np.float32(1e-20):
-                    round_cost = np.float32(0.0)
-                else:
-                    round_cost = np.float32(1.0) - old_r / new_r
-            denom = l_out + l_in
-            if denom <= np.float32(1e-20):
-                straight_cost = np.float32(0.0)
-            else:
-                ratio = (l_out - l_in) / denom
-                if ratio < np.float32(0.0):
-                    straight_cost = ratio
-                else:
-                    straight_cost = np.float32(0.0)
-            cost = (w_nd * nd + w_round * round_cost + w_straight * straight_cost)
-            if cost < best_cost_per_face[f]:
-                best_cost_per_face[f] = cost
-                best_chart_per_face[f] = c
-
-    n_assigned = 0
-    for f in range(F):
-        if face_chart[f] != -1:
-            continue
-        if best_chart_per_face[f] < 0:
-            continue
-        if best_cost_per_face[f] > max_cost:
-            continue
-        c = best_chart_per_face[f]
-        l_in = np.float32(0.0)
-        l_out = np.float32(0.0)
-        for e1 in range(3):
-            nb1 = face_face[f, e1]
-            el = face_edge_len[f, e1]
-            if nb1 < 0:
-                l_out += el
-            elif face_chart[nb1] == c:
-                l_in += el
-            else:
-                l_out += el
-        af = face_area[f]
-        face_chart[f] = c
-        chart_normal_sum[c, 0] += face_normal[f, 0] * af
-        chart_normal_sum[c, 1] += face_normal[f, 1] * af
-        chart_normal_sum[c, 2] += face_normal[f, 2] * af
-        chart_area[c] += af
-        chart_perim[c] = chart_perim[c] - l_in + l_out
-        nx = chart_normal_sum[c, 0]
-        ny = chart_normal_sum[c, 1]
-        nz = chart_normal_sum[c, 2]
-        nlen = np.sqrt(nx * nx + ny * ny + nz * nz)
-        if nlen > np.float32(1e-20):
-            chart_basis[c, 0] = nx / nlen
-            chart_basis[c, 1] = ny / nlen
-            chart_basis[c, 2] = nz / nlen
-        n_assigned += 1
-    return n_assigned
-
-
-def _renumber(face_chart: np.ndarray, device) -> Tensor:
-    unique = np.unique(face_chart[face_chart >= 0])
-    if unique.size == 0:
-        return torch.from_numpy(face_chart).to(device)
-    remap = np.full(int(unique.max()) + 1, -1, dtype=np.int64)
-    remap[unique] = np.arange(unique.size)
-    out = face_chart.copy()
-    mask = out >= 0
-    out[mask] = remap[out[mask]]
-    return torch.from_numpy(out).to(device)
+    f_acc = u[acc]
+    c_acc = nbc.gather(1, best_j[:, None]).squeeze(1)[acc]
+    nbc_old = nbc[acc]                               # neighbor charts before this commit
+    face_chart[f_acc] = c_acc
+    nb_acc = nb[acc]
+    nbs_acc = nb_acc.clamp_min(0)
+    nbc_post = torch.where(nb_acc >= 0, face_chart[nbs_acc], nb_acc.new_full((), -1))
+    # frontier update: committed faces leave; their still-unassigned neighbors enter
+    frontier[f_acc] = False
+    grow_nb = nbs_acc[(nb_acc >= 0) & (nbc_post < 0)]
+    frontier[grow_nb] = True
+    el_acc = el[acc]
+    cx = c_acc[:, None]
+    dper = torch.where(nbc_old == cx, -el_acc,       # was member: edge turns interior
+                       torch.where(nbc_post == cx, torch.zeros_like(el_acc),  # co-committer
+                                   el_acc)).sum(1)   # boundary / other chart
+    perim.scatter_add_(0, c_acc, dper)
+    area.scatter_add_(0, c_acc, fa[f_acc])
+    nsum.index_add_(0, c_acc, fn[f_acc] * fa[f_acc, None])
+    nl = nsum[:K].norm(dim=1, keepdim=True)
+    basis[:K] = torch.where(nl > 1e-20, nsum[:K] / nl.clamp_min(1e-20), basis[:K])
+    return n_acc
 
 
 def segment_charts(
@@ -166,162 +89,108 @@ def segment_charts(
     if F == 0:
         return torch.zeros(0, dtype=torch.long, device=device)
 
-    face_normal = mesh.face_normal.detach().cpu().numpy().astype(np.float32)
-    face_area = mesh.face_area.detach().cpu().numpy().astype(np.float32)
-    face_centroid = mesh.face_centroid.detach().cpu().numpy().astype(np.float32)
-    face_face = mesh.face_face.detach().cpu().numpy()
+    fn = mesh.face_normal.detach().to(torch.float32)
+    fa = mesh.face_area.detach().to(torch.float32)
+    fc = mesh.face_centroid.detach().to(torch.float32)
+    ff = mesh.face_face.detach().long()
+    fel = face_edge_lengths(mesh.vertices, mesh.faces).detach().to(torch.float32)
+    nd_cutoff = NORMAL_DEVIATION_HARD_CUTOFF
 
-    face_chart = np.full(F, -1, dtype=np.int64)
-    nd_cutoff = np.float32(NORMAL_DEVIATION_HARD_CUTOFF)
-    nd_threshold = np.float32(min(max_cost / max(w_normal_deviation, 1e-6),
-                                  NORMAL_DEVIATION_HARD_CUTOFF * 0.99))
-
-    component = (mesh.component.detach().cpu().numpy()
-                 if hasattr(mesh.component, "detach") else np.asarray(mesh.component))
-    if component.size:
-        _, first_idx = np.unique(component, return_index=True)
-        initial_seeds = first_idx.astype(np.int64)
+    # one seed per connected component (first face of each)
+    comp = mesh.component.detach().long().to(device)
+    ncomp = int(comp.max()) + 1 if comp.numel() else 0
+    if ncomp:
+        seeds = torch.full((ncomp,), F, dtype=torch.long, device=device)
+        seeds.scatter_reduce_(0, comp, torch.arange(F, device=device), reduce="amin")
     else:
-        initial_seeds = np.empty(0, dtype=np.int64)
+        seeds = torch.zeros(1, dtype=torch.long, device=device)
+    K = seeds.shape[0]
 
-    seed_faces: List[int] = [int(s) for s in initial_seeds.tolist()]
-    if not seed_faces:
-        seed_faces = [0]
+    max_total_charts = max(F, 8000)
+    cap = K + F + 1                                  # every re-seed assigns a face, so K < K0 + F
+    face_chart = torch.full((F,), -1, dtype=torch.long, device=device)
+    basis = torch.zeros(cap, 3, dtype=torch.float32, device=device)
+    nsum = torch.zeros(cap, 3, dtype=torch.float32, device=device)
+    area = torch.zeros(cap, dtype=torch.float32, device=device)
+    perim = torch.zeros(cap, dtype=torch.float32, device=device)
+    face_chart[seeds] = torch.arange(K, device=device)
+    basis[:K] = fn[seeds]
+    nsum[:K] = fn[seeds] * fa[seeds, None]
+    area[:K] = fa[seeds]
+    perim[:K] = fel[seeds].sum(1)
+    frontier = torch.zeros(F, dtype=torch.bool, device=device)
+    seed_nb = ff[seeds]
+    seed_nb = seed_nb[seed_nb >= 0]
+    frontier[seed_nb] = True
+    frontier &= face_chart < 0
 
-    K = len(seed_faces)
-    chart_basis = np.zeros((K, 3), dtype=np.float32)
-    chart_normal_sum = np.zeros((K, 3), dtype=np.float32)
-    chart_area = np.zeros(K, dtype=np.float32)
-    chart_perim = np.zeros(K, dtype=np.float32)
-    face_edge_len = (
-        face_edge_lengths(mesh.vertices, mesh.faces)
-        .detach().cpu().numpy()
-    )
-    for cid, sf in enumerate(seed_faces):
-        face_chart[sf] = cid
-        n = face_normal[sf]
-        a = face_area[sf]
-        chart_basis[cid] = n.astype(np.float32)
-        chart_normal_sum[cid] = (n * a).astype(np.float32)
-        chart_area[cid] = float(a)
-        chart_perim[cid] = float(face_edge_len[sf].sum())
+    min_d2 = torch.full((F,), float("inf"), dtype=torch.float32, device=device)
+    for i in range(0, K, 32):                        # chunked: (F, <=32, 3) stays small
+        d2 = ((fc[:, None, :] - fc[seeds[i:i + 32]][None, :, :]) ** 2).sum(-1)
+        min_d2 = torch.minimum(min_d2, d2.amin(1))
 
-    if K == 0:
-        return _renumber(face_chart, device)
+    # Multi-pass threshold schedule (low-cost first); tau cap 0.5 keeps cones ~30deg.
+    tau_final = min(max_cost * 0.25, 0.5)
+    thresholds = [t for t in (0.05, 0.1, 0.25) if t < tau_final] + [tau_final]
+    max_inner = max(64, int(F ** 0.5) * 2)
+    outer_iter = 0
+    tq = tqdm(total=F, desc="unwrap: segment (adaptive)", unit="face", leave=False)
+    while True:
+        outer_iter += 1
+        if outer_iter > F + 16:
+            break
+        for tau in thresholds:
+            for _ in range(max_inner):
+                n_added = _grow_iter(face_chart, frontier, ff, fn, fa, fel, basis, nsum,
+                                     area, perim, K, nd_cutoff, tau, w_normal_deviation,
+                                     w_roundness, w_straightness)
+                if n_added == 0:
+                    break
+                tq.update(n_added)
+        unassigned = face_chart < 0
+        if int(unassigned.sum()) == 0:
+            break
+        if K >= max_total_charts:
+            break
+        # re-seed at the unassigned face farthest from every existing seed
+        new_seed = int(torch.where(unassigned, min_d2,
+                                   min_d2.new_full((), float("-inf"))).argmax())
+        face_chart[new_seed] = K
+        basis[K] = fn[new_seed]
+        nsum[K] = fn[new_seed] * fa[new_seed]
+        area[K] = fa[new_seed]
+        perim[K] = fel[new_seed].sum()
+        K += 1
+        min_d2 = torch.minimum(min_d2, ((fc - fc[new_seed]) ** 2).sum(-1))
+        tq.update(1)
+        frontier[new_seed] = False
+        ns_nb = ff[new_seed]
+        ns_nb = ns_nb[ns_nb >= 0]
+        frontier[ns_nb[face_chart[ns_nb] < 0]] = True
 
-    min_dist_to_seed = np.full(F, np.inf, dtype=np.float32)
-    for sf in seed_faces:
-        d = ((face_centroid - face_centroid[sf]) ** 2).sum(axis=-1)
-        min_dist_to_seed = np.minimum(min_dist_to_seed, d)
-
-    if _HAVE_NUMBA:
-        # Multi-pass threshold schedule (low-cost first); tau cap 0.5 keeps cones ~30deg.
-        tau_final = min(max_cost * 0.25, 0.5)
-        thresholds = [t for t in (0.05, 0.1, 0.25) if t < tau_final] + [tau_final]
-        max_inner = max(64, int(np.sqrt(F)) * 2)
-        max_total_charts = max(F, 8000)
-        outer_iter = 0
-        while True:
-            outer_iter += 1
-            if outer_iter > F + 16:
-                break
-            for tau in thresholds:
-                for _ in range(max_inner):
-                    n_added = _cost_grow_iter_jit(
-                        face_chart, face_face, face_normal, face_area, face_edge_len,
-                        chart_basis, chart_normal_sum, chart_area, chart_perim,
-                        nd_cutoff, np.float32(tau),
-                        np.float32(w_normal_deviation),
-                        np.float32(w_roundness),
-                        np.float32(w_straightness),
-                    )
-                    if n_added == 0:
-                        break
-            if (face_chart == -1).sum() == 0:
-                break
-            if chart_basis.shape[0] >= max_total_charts:
-                break
-            unassigned_mask = face_chart == -1
-            cand = np.where(unassigned_mask, min_dist_to_seed, np.float32(-np.inf))
-            new_seed = int(np.argmax(cand))
-            n = face_normal[new_seed]
-            a = face_area[new_seed]
-            chart_basis = np.vstack([chart_basis, n[None, :].astype(np.float32)])
-            chart_normal_sum = np.vstack(
-                [chart_normal_sum, (n * a)[None, :].astype(np.float32)]
-            )
-            chart_area = np.concatenate([chart_area, np.array([a], dtype=np.float32)])
-            chart_perim = np.concatenate(
-                [chart_perim, np.array([face_edge_len[new_seed].sum()], dtype=np.float32)]
-            )
-            face_chart[new_seed] = chart_basis.shape[0] - 1
-            new_d = ((face_centroid - face_centroid[new_seed]) ** 2).sum(axis=-1)
-            min_dist_to_seed = np.minimum(min_dist_to_seed, new_d)
-    else:
-        # Numpy fallback: nd-only adaptive grow.
-        for _ in range(max(64, int(np.sqrt(F)) + 32)):
-            unassigned = face_chart == -1
-            if not unassigned.any():
-                break
-            u_idx = np.nonzero(unassigned)[0]
-            nbs = face_face[u_idx]
-            nbs_safe = np.where(nbs >= 0, nbs, 0)
-            nb_charts = np.where(nbs >= 0, face_chart[nbs_safe], -1)
-            valid = (nb_charts >= 0)
-            if not valid.any():
-                break
-            nb_charts_safe = np.where(valid, nb_charts, 0)
-            nb_basis = chart_basis[nb_charts_safe]
-            d = (face_normal[u_idx][:, None, :] * nb_basis).sum(axis=-1)
-            nd = np.where(valid, np.float32(1.0) - d, np.inf).clip(max=1.0)
-            nd = np.where(nd >= nd_cutoff, np.inf, nd)
-            best_e = np.argmin(nd, axis=1)
-            best_cost = nd[np.arange(u_idx.size), best_e]
-            best_c = nb_charts_safe[np.arange(u_idx.size), best_e]
-            accept = (best_cost <= nd_threshold) & np.isfinite(best_cost)
-            if not accept.any():
-                break
-            pick_u = u_idx[accept]
-            pick_c = best_c[accept]
-            face_chart[pick_u] = pick_c
-            for f, c in zip(pick_u, pick_c):
-                chart_normal_sum[c] += face_normal[f] * face_area[f]
-                chart_area[c] += face_area[f]
+    tq.close()
 
     # Orphan cleanup: leftover faces join their best-matching neighbor's chart.
-    if (face_chart == -1).any() and chart_basis.shape[0] > 0:
-        while True:
-            orphans = np.nonzero(face_chart == -1)[0]
-            if orphans.size == 0:
-                break
-            nbs = face_face[orphans]
-            nbs_safe = np.where(nbs >= 0, nbs, 0)
-            nb_charts = np.where(nbs >= 0, face_chart[nbs_safe], -1)
-            valid = (nb_charts >= 0)
-            if not valid.any():
-                break
-            nb_charts_safe = np.where(valid, nb_charts, 0)
-            nb_basis = chart_basis[nb_charts_safe]
-            d = (face_normal[orphans][:, None, :] * nb_basis).sum(axis=-1)
-            nd = np.where(valid, np.float32(1.0) - d, np.inf)
-            best_e = np.argmin(nd, axis=1)
-            best_c = nb_charts_safe[np.arange(orphans.size), best_e]
-            assignable = valid.any(axis=1)
-            if not assignable.any():
-                break
-            assign_idx = orphans[assignable]
-            assign_c = best_c[assignable]
-            face_chart[assign_idx] = assign_c
-    if (face_chart == -1).any():
-        new_singletons = np.nonzero(face_chart == -1)[0]
-        for f in new_singletons:
-            face_chart[int(f)] = chart_basis.shape[0]
-            chart_basis = np.concatenate(
-                [chart_basis, face_normal[int(f)].astype(np.float32)[None, :]],
-                axis=0,
-            )
+    while True:
+        orphans = (face_chart < 0).nonzero(as_tuple=True)[0]
+        if orphans.numel() == 0:
+            break
+        nb = ff[orphans]
+        nbc = torch.where(nb >= 0, face_chart[nb.clamp_min(0)], nb.new_full((), -1))
+        valid = nbc >= 0
+        assignable = valid.any(1)
+        if not bool(assignable.any()):
+            break
+        d = (fn[orphans][:, None, :] * basis[nbc.clamp_min(0)]).sum(-1)
+        ndv = torch.where(valid, 1.0 - d, d.new_full((), float("inf")))
+        best_c = nbc.gather(1, ndv.argmin(1, keepdim=True)).squeeze(1)
+        face_chart[orphans[assignable]] = best_c[assignable]
+    leftover = (face_chart < 0).nonzero(as_tuple=True)[0]
+    if leftover.numel():                             # isolated faces become singleton charts
+        face_chart[leftover] = K + torch.arange(leftover.numel(), device=device)
 
-    return _renumber(face_chart, device)
+    _, inverse = torch.unique(face_chart, sorted=True, return_inverse=True)
+    return inverse
 
 
 # Parallel edge-collapse (PEC) chart clustering (GPU)
@@ -400,12 +269,71 @@ def _build_chart_edges(
     return chart_pairs, reduced_el
 
 
+def _merge_small_charts(
+    chart_id: Tensor, face_normal: Tensor, face_area: Tensor,
+    face_face: Tensor, face_edge_len: Tensor,
+    min_faces: int, cost_cap: float,
+) -> Tensor:
+    """Absorb charts under min_faces faces into their lowest-cone-cost neighbor (capped at cost_cap)."""
+    if chart_id.numel() == 0:
+        return chart_id
+    device = chart_id.device
+    for _ in range(16):
+        N = int(chart_id.max().item()) + 1
+        sizes = torch.bincount(chart_id, minlength=N)
+        # recompute cones from scratch: area-weighted mean axis, max deviation as half-angle
+        axis = torch.zeros(N, 3, dtype=torch.float32, device=device)
+        axis.index_add_(0, chart_id, face_normal * face_area[:, None])
+        axis = axis / axis.norm(dim=1, keepdim=True).clamp_min(1e-12)
+        dev = torch.acos((face_normal * axis[chart_id]).sum(1).clamp(-1.0, 1.0))
+        half = torch.zeros(N, dtype=torch.float32, device=device)
+        half.scatter_reduce_(0, chart_id, dev, reduce="amax")
+
+        edges, _ = _build_chart_edges(face_face, chart_id, face_edge_len)
+        if edges.shape[0] == 0:
+            break
+        a, b = edges[:, 0], edges[:, 1]
+        _, new_half, _ = _combine_normal_cones(axis[a], half[a], axis[b], half[b])
+        ok = new_half <= cost_cap
+        E = edges.shape[0]
+        key = (torch.clamp(new_half * 1e6, max=2e9).to(torch.int64) << 32) \
+            | torch.arange(E, dtype=torch.long, device=device)
+        best = torch.full((N,), 1 << 62, dtype=torch.long, device=device)
+        va = (sizes[a] < min_faces) & ok
+        vb = (sizes[b] < min_faces) & ok
+        best.scatter_reduce_(0, a[va], key[va], reduce="amin")
+        best.scatter_reduce_(0, b[vb], key[vb], reduce="amin")
+        src = (best < (1 << 62)).nonzero(as_tuple=True)[0]
+        if src.numel() == 0:
+            break
+        eid = best[src] & 0xFFFFFFFF
+        ea, eb = a[eid], b[eid]
+        tgt = torch.where(ea == src, eb, ea)
+        # cycle break: keep src->tgt only if tgt merges nowhere itself or src > tgt;
+        # the kept graph is then a DAG, so the pointer-doubling below terminates
+        prop = torch.arange(N, dtype=torch.long, device=device)
+        prop[src] = tgt
+        keepm = (prop[tgt] == tgt) | (src > tgt)
+        remap = torch.arange(N, dtype=torch.long, device=device)
+        remap[src[keepm]] = tgt[keepm]
+        for _ in range(32):
+            nr = remap[remap]
+            if torch.equal(nr, remap):
+                break
+            remap = nr
+        chart_id = remap[chart_id]
+        _, chart_id = torch.unique(chart_id, return_inverse=True)
+    return chart_id
+
+
 def cluster_charts_pec(
     mesh: MeshData,
     max_cost: float = 0.7,
     max_iters: int = 1024,
+    min_faces: int = 8,
 ) -> Tensor:
-    """Parallel edge-collapse clustering; returns face_chart [F]. max_cost is the per-merge cutoff (~0.7 rad ~ 40deg)."""
+    """Parallel edge-collapse clustering; returns face_chart [F]. max_cost is the per-merge
+    cutoff (~0.7 rad ~ 40deg); charts under min_faces are then absorbed at a relaxed 2x cutoff."""
     device = mesh.faces.device
     F = mesh.faces.shape[0]
     faces = mesh.faces.to(torch.long)
@@ -471,5 +399,8 @@ def cluster_charts_pec(
         remap[win_b] = win_a
         chart_id = remap[chart_id]
 
+    if min_faces > 1:
+        chart_id = _merge_small_charts(chart_id, face_normal, mesh.face_area.to(torch.float32),
+                                       face_face, face_edge_len, min_faces, 2.0 * max_cost)
     _, inverse = torch.unique(chart_id, sorted=True, return_inverse=True)
     return inverse

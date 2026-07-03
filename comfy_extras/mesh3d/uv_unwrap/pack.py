@@ -3,22 +3,30 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch
 from torch import Tensor
+from torch.nn.functional import max_pool1d
 
 import comfy.model_management
 
+# Numba is optional, but ~5x faster than torch on these operations, potential TODO: comfy-kitchen cuda/triton kernels as even faster alternative
 try:
-    from numba import njit as _njit
+    from numba import njit as _njit, prange as _prange, get_num_threads as _nb_threads
     _HAVE_NUMBA_PACK = True
 except ImportError:
     _HAVE_NUMBA_PACK = False
+    _prange = range
+    def _nb_threads(): return 1
     def _njit(*args, **kwargs):
         def deco(fn): return fn
         return deco if not args else args[0]
+
+
+# Cap on deterministic sweep density: tiny charts on a large atlas would otherwise enumerate every texel column.
+_SWEEP_CAP = 1024
 
 
 @dataclass
@@ -31,27 +39,50 @@ class ChartPlacement:
     chart_h: float = 0.0              # unswapped bitmap height in texels (rotation pivot)
 
 
-@_njit(cache=True, boundscheck=False)
-def _best_rotation_jit(uvs_np: np.ndarray, n_angles: int) -> float:
-    V = uvs_np.shape[0]
-    best_area = 1e30
-    best_theta = 0.0
-    if V == 0:
-        return 0.0
+@_njit(cache=True, boundscheck=False, parallel=True)
+def _prepare_dims_jit(uvs, uv_off, a3, auv, tpu, padding, theta, scale, bw, bh, rot_uv):
+    """Pass 1: per-chart best rotation, texel scale, rotated/scaled UVs, padded bitmap dims."""
+    n = uv_off.shape[0] - 1
     half_pi = math.pi * 0.5
-    for k in range(n_angles):
-        theta = half_pi * k / n_angles
-        c = math.cos(theta)
-        s = math.sin(theta)
+    for c in _prange(n):
+        v0, v1 = uv_off[c], uv_off[c + 1]
+        best_area = 1e30
+        best_t = 0.0
+        for k in range(36):
+            th = half_pi * k / 36.0
+            co = math.cos(th)
+            si = math.sin(th)
+            xmin = 1e30
+            xmax = -1e30
+            ymin = 1e30
+            ymax = -1e30
+            for i in range(v0, v1):
+                xr = uvs[i, 0] * co - uvs[i, 1] * si
+                yr = uvs[i, 0] * si + uvs[i, 1] * co
+                if xr < xmin:
+                    xmin = xr
+                if xr > xmax:
+                    xmax = xr
+                if yr < ymin:
+                    ymin = yr
+                if yr > ymax:
+                    ymax = yr
+            area = (xmax - xmin) * (ymax - ymin)
+            if area < best_area:
+                best_area = area
+                best_t = th
+        theta[c] = best_t
+        co = math.cos(best_t)
+        si = math.sin(best_t)
         xmin = 1e30
         xmax = -1e30
         ymin = 1e30
         ymax = -1e30
-        for i in range(V):
-            ux = uvs_np[i, 0]
-            uy = uvs_np[i, 1]
-            xr = ux * c - uy * s
-            yr = ux * s + uy * c
+        for i in range(v0, v1):
+            xr = uvs[i, 0] * co - uvs[i, 1] * si
+            yr = uvs[i, 0] * si + uvs[i, 1] * co
+            rot_uv[i, 0] = xr
+            rot_uv[i, 1] = yr
             if xr < xmin:
                 xmin = xr
             if xr > xmax:
@@ -60,315 +91,334 @@ def _best_rotation_jit(uvs_np: np.ndarray, n_angles: int) -> float:
                 ymin = yr
             if yr > ymax:
                 ymax = yr
-        area = (xmax - xmin) * (ymax - ymin)
-        if area < best_area:
-            best_area = area
-            best_theta = theta
-    return best_theta
+        if v1 == v0:
+            xmin = 0.0
+            xmax = 0.0
+            ymin = 0.0
+            ymax = 0.0
+        s = math.sqrt(max(a3[c], 1e-12) / max(auv[c], 1e-12)) * tpu
+        nominal = math.sqrt(max(a3[c], 1e-12)) * tpu
+        max_bbox = max(8.0, 4.0 * nominal)
+        bbox_max = max(max(xmax - xmin, ymax - ymin), 1e-12)
+        if s * bbox_max > max_bbox:
+            s = max_bbox / bbox_max
+        scale[c] = s
+        wmax = 0.0
+        hmax = 0.0
+        for i in range(v0, v1):
+            rot_uv[i, 0] = (rot_uv[i, 0] - xmin) * s
+            rot_uv[i, 1] = (rot_uv[i, 1] - ymin) * s
+            if rot_uv[i, 0] > wmax:
+                wmax = rot_uv[i, 0]
+            if rot_uv[i, 1] > hmax:
+                hmax = rot_uv[i, 1]
+        bw[c] = int(math.ceil(wmax)) + padding + 1
+        bh[c] = int(math.ceil(hmax)) + padding + 1
 
 
-def _best_rotation(uvs_np: np.ndarray, n_angles: int = 36) -> float:
-    return float(_best_rotation_jit(uvs_np.astype(np.float64), n_angles))
-
-
-def _rotate_xy(uv: np.ndarray, theta: float) -> np.ndarray:
-    if theta == 0.0:
-        return uv
-    c = math.cos(theta)
-    s = math.sin(theta)
-    return np.stack([uv[:, 0] * c - uv[:, 1] * s, uv[:, 0] * s + uv[:, 1] * c], axis=1)
-
-
-@_njit(cache=True, boundscheck=False)
-def _rasterize_chart_jit(
-    uvs_tex: np.ndarray, faces: np.ndarray, w: int, h: int
-) -> np.ndarray:
-    """JIT-rasterize triangles into an (h, w) bool bitmap via barycentric test."""
-    bm = np.zeros((h, w), dtype=np.bool_)
-    F = faces.shape[0]
+@_njit(cache=True, boundscheck=False, parallel=True)
+def _raster_all_jit(rot_uv, uv_off, faces, f_off, bw, bh, boff, buf, padding,
+                    tw, th_out, perim):
+    """Pass 2: rasterize + dilate each chart into the flat buffer; records trimmed dims
+    (origin kept) and the perimeter used for placement ordering."""
+    n = uv_off.shape[0] - 1
     eps = 1e-7
-    for fi in range(F):
-        i0 = faces[fi, 0]
-        i1 = faces[fi, 1]
-        i2 = faces[fi, 2]
-        x0 = uvs_tex[i0, 0]
-        y0 = uvs_tex[i0, 1]
-        x1 = uvs_tex[i1, 0]
-        y1 = uvs_tex[i1, 1]
-        x2 = uvs_tex[i2, 0]
-        y2 = uvs_tex[i2, 1]
-        xmin_f = x0
-        if x1 < xmin_f:
-            xmin_f = x1
-        if x2 < xmin_f:
-            xmin_f = x2
-        xmax_f = x0
-        if x1 > xmax_f:
-            xmax_f = x1
-        if x2 > xmax_f:
-            xmax_f = x2
-        ymin_f = y0
-        if y1 < ymin_f:
-            ymin_f = y1
-        if y2 < ymin_f:
-            ymin_f = y2
-        ymax_f = y0
-        if y1 > ymax_f:
-            ymax_f = y1
-        if y2 > ymax_f:
-            ymax_f = y2
-        xmin = int(math.floor(xmin_f))
-        if xmin < 0:
-            xmin = 0
-        xmax = int(math.ceil(xmax_f))
-        if xmax > w - 1:
-            xmax = w - 1
-        ymin = int(math.floor(ymin_f))
-        if ymin < 0:
-            ymin = 0
-        ymax = int(math.ceil(ymax_f))
-        if ymax > h - 1:
-            ymax = h - 1
-        if xmax < xmin or ymax < ymin:
-            continue
-        denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
-        if abs(denom) < 1e-20:
-            continue
-        inv_denom = 1.0 / denom
-        for py in range(ymin, ymax + 1):
-            yc = py + 0.5
-            for px in range(xmin, xmax + 1):
-                xc = px + 0.5
-                a = ((y1 - y2) * (xc - x2) + (x2 - x1) * (yc - y2)) * inv_denom
-                b = ((y2 - y0) * (xc - x2) + (x0 - x2) * (yc - y2)) * inv_denom
-                c = 1.0 - a - b
-                if a >= -eps and b >= -eps and c >= -eps:
-                    bm[py, px] = True
-    return bm
-
-
-def _rasterize_chart(
-    uvs_tex: np.ndarray, faces: np.ndarray, w: int, h: int, padding: int
-) -> np.ndarray:
-    """Rasterize chart triangles into (h, w) bool bitmap, dilated by padding texels."""
-    if faces.size == 0:
-        return np.zeros((h, w), dtype=bool)
-    bm = _rasterize_chart_jit(
-        uvs_tex.astype(np.float64), faces.astype(np.int64), int(w), int(h)
-    )
-    if padding > 0:
-        bm = _dilate_bitmap(bm, padding)
-    return bm
-
-
-def _dilate_bitmap(bm: np.ndarray, k: int) -> np.ndarray:
-    """k-step Manhattan max-filter dilation."""
-    out = bm.copy()
-    for _ in range(k):
-        next_out = out.copy()
-        next_out[1:, :] |= out[:-1, :]
-        next_out[:-1, :] |= out[1:, :]
-        next_out[:, 1:] |= out[:, :-1]
-        next_out[:, :-1] |= out[:, 1:]
-        out = next_out
-    return out
-
-
-@_njit(cache=True, boundscheck=False)
-def _build_candidates_jit(
-    skyline: np.ndarray,
-    cur_w: int, cur_h: int,
-    bw0: int, bh0: int, bw1: int, bh1: int,
-    step: int,
-) -> np.ndarray:
-    """Build per-chart (x, y, swap_flag) candidate positions (skyline-flush + edge-sweep, both orientations)."""
-    nx_skyline = (max(cur_w, 1) // step) + 2
-    nx_edge = (max(cur_w, 1) // step) + 2
-    ny_edge = (max(cur_h, 1) // step) + 2
-    per_orient = nx_skyline + 2 * nx_edge + 2 * ny_edge
-    out = np.empty((per_orient * 2, 3), dtype=np.int64)
-    k = 0
-    for swap_flag in range(2):
-        cw = bw0 if swap_flag == 0 else bw1
-        x = 0
-        while x <= cur_w:
-            y = 0
-            x_end = x + cw
-            if x_end > skyline.shape[0]:
-                x_end = skyline.shape[0]
-            for xs in range(x, x_end):
-                if skyline[xs] > y:
-                    y = int(skyline[xs])
-            out[k, 0] = x
-            out[k, 1] = y
-            out[k, 2] = swap_flag
-            k += 1
-            x += step
-        for y_fixed in (0, cur_h):
-            x = 0
-            while x <= cur_w:
-                out[k, 0] = x
-                out[k, 1] = y_fixed
-                out[k, 2] = swap_flag
-                k += 1
-                x += step
-        for x_fixed in (0, cur_w):
-            y = 0
-            while y <= cur_h:
-                out[k, 0] = x_fixed
-                out[k, 1] = y
-                out[k, 2] = swap_flag
-                k += 1
-                y += step
-    return out[:k]
-
-
-@_njit(cache=True, boundscheck=False)
-def _update_skyline_jit(skyline: np.ndarray, chart: np.ndarray,
-                        x: int, y: int) -> None:
-    """Lift skyline[x+i] to y + topmost_True_row + 1 per chart column."""
-    ch = chart.shape[0]
-    cw = chart.shape[1]
-    sw = skyline.shape[0]
-    for i in range(cw):
-        col_x = x + i
-        if col_x >= sw or col_x < 0:
-            continue
-        col_top = -1
-        for j in range(ch - 1, -1, -1):
-            if chart[j, i]:
-                col_top = j
-                break
-        if col_top < 0:
-            continue
-        new_h = y + col_top + 1
-        if new_h > skyline[col_x]:
-            skyline[col_x] = new_h
-
-
-@_njit(cache=True, boundscheck=False)
-def _best_placement_jit(
-    atlas: np.ndarray,
-    bitmap: np.ndarray,
-    bitmap_rot: np.ndarray,
-    candidates: np.ndarray,
-    cur_w: int,
-    cur_h: int,
-):
-    """Pick lowest-score non-colliding candidate (score = max(new_w,new_h)^2 + new_w*new_h); out-of-atlas treated as free."""
-    n = candidates.shape[0]
-    best_x = -1
-    best_y = -1
-    best_score = -1
-    best_swap = 0
-    bh0 = bitmap.shape[0]
-    bw0 = bitmap.shape[1]
-    bh1 = bitmap_rot.shape[0]
-    bw1 = bitmap_rot.shape[1]
-    ah = atlas.shape[0]
-    aw = atlas.shape[1]
-    for k in range(n):
-        x = candidates[k, 0]
-        y = candidates[k, 1]
-        swap = candidates[k, 2]
-        if swap == 0:
-            ch = bh0
-            cw = bw0
-        else:
-            ch = bh1
-            cw = bw1
-        if x < 0 or y < 0:
-            continue
-        nw = cur_w if cur_w > x + cw else x + cw
-        nh = cur_h if cur_h > y + ch else y + ch
-        ext = nw if nw > nh else nh
-        score = ext * ext + nw * nh
-        if best_score >= 0 and score >= best_score:
-            continue
-        ok = True
-        for j in range(ch):
-            yy = y + j
-            if yy >= ah:
+    for c in _prange(n):
+        f0, f1 = f_off[c], f_off[c + 1]
+        v0 = uv_off[c]
+        V = uv_off[c + 1] - v0
+        w = bw[c]
+        h = bh[c]
+        o = boff[c]
+        for fi in range(f0, f1):
+            i0 = faces[fi, 0] + v0
+            i1 = faces[fi, 1] + v0
+            i2 = faces[fi, 2] + v0
+            x0 = rot_uv[i0, 0]
+            y0 = rot_uv[i0, 1]
+            x1 = rot_uv[i1, 0]
+            y1 = rot_uv[i1, 1]
+            x2 = rot_uv[i2, 0]
+            y2 = rot_uv[i2, 1]
+            xmin_f = min(x0, min(x1, x2))
+            xmax_f = max(x0, max(x1, x2))
+            ymin_f = min(y0, min(y1, y2))
+            ymax_f = max(y0, max(y1, y2))
+            xmin = max(int(math.floor(xmin_f)), 0)
+            xmax = min(int(math.ceil(xmax_f)), w - 1)
+            ymin = max(int(math.floor(ymin_f)), 0)
+            ymax = min(int(math.ceil(ymax_f)), h - 1)
+            if xmax < xmin or ymax < ymin:
                 continue
-            for i in range(cw):
-                bit = bitmap[j, i] if swap == 0 else bitmap_rot[j, i]
-                if not bit:
+            denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            if abs(denom) < 1e-20:
+                continue
+            inv_denom = 1.0 / denom
+            for py in range(ymin, ymax + 1):
+                yc = py + 0.5
+                for px in range(xmin, xmax + 1):
+                    xc = px + 0.5
+                    aa = ((y1 - y2) * (xc - x2) + (x2 - x1) * (yc - y2)) * inv_denom
+                    bb = ((y2 - y0) * (xc - x2) + (x0 - x2) * (yc - y2)) * inv_denom
+                    cc = 1.0 - aa - bb
+                    if aa >= -eps and bb >= -eps and cc >= -eps:
+                        buf[o + py * w + px] = True
+        # Manhattan dilation by `padding` steps (ping-pong on a scratch copy)
+        if padding > 0 and f1 > f0:
+            tmp = np.empty(h * w, dtype=np.bool_)
+            for _ in range(padding):
+                for j in range(h * w):
+                    tmp[j] = buf[o + j]
+                for py in range(h):
+                    for px in range(w):
+                        if tmp[py * w + px]:
+                            continue
+                        hit = False
+                        if py > 0 and tmp[(py - 1) * w + px]:
+                            hit = True
+                        elif py < h - 1 and tmp[(py + 1) * w + px]:
+                            hit = True
+                        elif px > 0 and tmp[py * w + px - 1]:
+                            hit = True
+                        elif px < w - 1 and tmp[py * w + px + 1]:
+                            hit = True
+                        if hit:
+                            buf[o + py * w + px] = True
+        # trimmed dims (keep origin; 1x1 empty bitmap when nothing was rasterized)
+        rmax = -1
+        cmax = -1
+        for py in range(h):
+            for px in range(w):
+                if buf[o + py * w + px]:
+                    if py > rmax:
+                        rmax = py
+                    if px > cmax:
+                        cmax = px
+        if rmax < 0:
+            for j in range(h * w):
+                buf[o + j] = False
+            tw[c] = 1
+            th_out[c] = 1
+        else:
+            tw[c] = cmax + 1
+            th_out[c] = rmax + 1
+        # unique-edge perimeter via sorted int64 keys
+        Fc = f1 - f0
+        if Fc > 0 and V > 0:
+            keys = np.empty(Fc * 3, dtype=np.int64)
+            for fi in range(f0, f1):
+                for j in range(3):
+                    a = faces[fi, j]
+                    b = faces[fi, (j + 1) % 3]
+                    if a < b:
+                        keys[(fi - f0) * 3 + j] = a * V + b
+                    else:
+                        keys[(fi - f0) * 3 + j] = b * V + a
+            keys = np.sort(keys)
+            p = 0.0
+            for i in range(keys.shape[0]):
+                if i > 0 and keys[i] == keys[i - 1]:
                     continue
-                xx = x + i
-                if xx >= aw:
-                    continue
-                if atlas[yy, xx]:
-                    ok = False
+                a = keys[i] // V + v0
+                b = keys[i] % V + v0
+                dx = rot_uv[a, 0] - rot_uv[b, 0]
+                dy = rot_uv[a, 1] - rot_uv[b, 1]
+                p += math.sqrt(dx * dx + dy * dy)
+            perim[c] = p
+
+
+@_njit(cache=True, boundscheck=False, parallel=True)
+def _place_all_jit(buf, boff, stride_w, tw, th, order, start, stop,
+                   atlas, skyline, pool, attempts, sweep_cap, margin,
+                   n_threads, cur_wh, out_x, out_y, out_sw):
+    """Place charts order[start:stop]; returns the first index NOT processed (== stop when
+    done, earlier when the atlas must grow — the caller resizes and resumes). The candidate
+    scan is striped with a (score, index) min-reduction: deterministic for any thread count,
+    and no thread intrinsics (dynamic globals would defeat cache=True)."""
+    aw = atlas.shape[1]
+    ah = atlas.shape[0]
+    cur_w = cur_wh[0]
+    cur_h = cur_wh[1]
+    n_pool = pool.shape[0]
+    big = np.int64(1) << 62
+    nt = n_threads
+    t_score = np.empty(nt, dtype=np.int64)
+    t_k = np.empty(nt, dtype=np.int64)
+    t_x = np.empty(nt, dtype=np.int64)
+    t_y = np.empty(nt, dtype=np.int64)
+    t_sw = np.empty(nt, dtype=np.int64)
+    for oi in range(start, stop):
+        ci = order[oi]
+        if cur_h + margin > ah or cur_w + margin > aw:
+            cur_wh[0] = cur_w
+            cur_wh[1] = cur_h
+            return oi
+        w0 = tw[ci]                                   # unswapped trimmed dims
+        h0 = th[ci]
+        W = stride_w[ci]                              # row stride of the untrimmed block
+        o = boff[ci]
+        step = min(w0, h0) // 8
+        if step < 1:
+            step = 1
+        cap_step = max(cur_w, cur_h) // sweep_cap
+        if cap_step > step:
+            step = cap_step
+
+        poff = (oi * attempts) % (n_pool - attempts + 1)
+        x_range = cur_w + 1 if cur_w > 0 else 1
+        y_range = cur_h + 1 if cur_h > 0 else 1
+        # candidate groups per orientation: skyline-flush sweep, y=0 / y=cur_h sweeps,
+        # x=0 / x=cur_w sweeps; then the shared random pool
+        nx = max(cur_w, 1) // step + 2
+        ny = max(cur_h, 1) // step + 2
+        n_det = nx * 3 + ny * 2
+        total = n_det * 2 + attempts
+        for t in range(nt):
+            t_score[t] = big
+            t_k[t] = big
+        for t2 in _prange(nt):
+            for k in range(t2, total, nt):
+                x = 0                                      # int inits and no body-level continue:
+                y = 0                                      # parfor lowering types undef-path
+                swap = 0                                   # variables as f64
+                valid = True
+                if k < 2 * n_det:
+                    if k >= n_det:
+                        swap = 1
+                    kk = k - n_det if swap == 1 else k
+                    cw = w0 if swap == 0 else h0
+                    if kk < nx:                            # skyline-flush sweep
+                        x = kk * step
+                        if x > cur_w:
+                            valid = False
+                        else:
+                            x_end = x + cw
+                            if x_end > skyline.shape[0]:
+                                x_end = skyline.shape[0]
+                            for xs in range(x, x_end):
+                                if skyline[xs] > y:
+                                    y = int(skyline[xs])
+                    elif kk < 3 * nx:                      # y=0 and y=cur_h sweeps
+                        kk2 = kk - nx
+                        x = (kk2 % nx) * step
+                        if x > cur_w:
+                            valid = False
+                        elif kk2 >= nx:
+                            y = cur_h
+                    else:                                  # x=0 and x=cur_w sweeps
+                        kk2 = kk - 3 * nx
+                        if kk2 >= 2 * ny:
+                            valid = False
+                        else:
+                            y = (kk2 % ny) * step
+                            if y > cur_h:
+                                valid = False
+                            elif kk2 >= ny:
+                                x = cur_w
+                else:
+                    r = k - 2 * n_det
+                    x = int(pool[poff + r, 0] % x_range)
+                    y = int(pool[poff + r, 1] % y_range)
+                    swap = int(r & 1)
+
+                if valid:
+                    ch = h0 if swap == 0 else w0
+                    cw = w0 if swap == 0 else h0
+                    nw = cur_w if cur_w > x + cw else x + cw
+                    nh = cur_h if cur_h > y + ch else y + ch
+                    ext = nw if nw > nh else nh
+                    score = ext * ext + nw * nh
+                    if score < t_score[t2] or (score == t_score[t2] and k < t_k[t2]):
+                        ok = True
+                        for j in range(ch):
+                            yy = int(y + j)
+                            if yy >= ah:
+                                continue
+                            for i in range(cw):
+                                if swap == 0:
+                                    bit = buf[o + j * W + i]
+                                else:
+                                    # 90deg rotation: bm_rot[j, i] = bm[h0-1-i, j]
+                                    bit = buf[o + (h0 - 1 - i) * W + j]
+                                if not bit:
+                                    continue
+                                xx = int(x + i)
+                                if xx >= aw:
+                                    continue
+                                if atlas[yy, xx]:
+                                    ok = False
+                                    break
+                            if not ok:
+                                break
+                        if ok:
+                            t_score[t2] = score
+                            t_k[t2] = k
+                            t_x[t2] = x
+                            t_y[t2] = y
+                            t_sw[t2] = swap
+
+        best_x = -1
+        best_y = -1
+        best_swap = 0
+        bs = big
+        bk = big
+        for t in range(nt):
+            if t_score[t] < bs or (t_score[t] == bs and t_k[t] < bk):
+                bs = t_score[t]
+                bk = t_k[t]
+                best_x = t_x[t]
+                best_y = t_y[t]
+                best_swap = t_sw[t]
+
+        if best_x < 0:                                 # fallback: extension corner
+            best_x = cur_w
+            best_y = 0
+            best_swap = 0
+        bh_ = h0 if best_swap == 0 else w0
+        bw_ = w0 if best_swap == 0 else h0
+        # blit + extents + skyline lift
+        for j in range(bh_):
+            for i in range(bw_):
+                if best_swap == 0:
+                    bit = buf[o + j * W + i]
+                else:
+                    bit = buf[o + (h0 - 1 - i) * W + j]
+                if bit:
+                    atlas[best_y + j, best_x + i] = True
+        if best_x + bw_ > cur_w:
+            cur_w = best_x + bw_
+        if best_y + bh_ > cur_h:
+            cur_h = best_y + bh_
+        for i in range(bw_):
+            col_x = best_x + i
+            if col_x >= skyline.shape[0]:
+                continue
+            col_top = -1
+            for j in range(bh_ - 1, -1, -1):
+                if best_swap == 0:
+                    bit = buf[o + j * W + i]
+                else:
+                    bit = buf[o + (h0 - 1 - i) * W + j]
+                if bit:
+                    col_top = j
                     break
-            if not ok:
-                break
-        if not ok:
-            continue
-        best_x = x
-        best_y = y
-        best_score = score
-        best_swap = swap
-        if x + cw <= cur_w and y + ch <= cur_h:
-            break
-    return best_x, best_y, best_score, best_swap
-
-
-def _blit(atlas: np.ndarray, chart: np.ndarray, x: int, y: int) -> None:
-    ah, aw = atlas.shape
-    ch, cw = chart.shape
-    atlas[y: y + ch, x: x + cw] |= chart
-
-
-@dataclass
-class _PreparedChart:
-    chart_id: int
-    uvs_tex: np.ndarray              # [V, 2] in texel coords (rotated, scaled, origin 0)
-    bitmap: np.ndarray               # [h, w] bool, padded
-    bitmap_rot: np.ndarray           # 90° rotated bitmap (for swap_xy placement)
-    bbox_w: int
-    bbox_h: int
-    rotation: float                  # radians, applied to UVs
-    s_tex: float                     # texels per UV unit
-    perimeter: float                 # for chart ordering
-
-
-@_njit(cache=True, boundscheck=False)
-def _chart_perimeter_jit(uvs: np.ndarray, faces: np.ndarray, V: int) -> float:
-    """Sum unique-edge lengths via sorted int64 edge keys."""
-    F = faces.shape[0]
-    keys = np.empty(F * 3, dtype=np.int64)
-    for fi in range(F):
-        for j in range(3):
-            a = faces[fi, j]
-            b = faces[fi, (j + 1) % 3]
-            if a < b:
-                keys[fi * 3 + j] = a * V + b
-            else:
-                keys[fi * 3 + j] = b * V + a
-    keys = np.sort(keys)
-    p = 0.0
-    for i in range(keys.shape[0]):
-        if i > 0 and keys[i] == keys[i - 1]:
-            continue
-        a = keys[i] // V
-        b = keys[i] % V
-        dx = uvs[a, 0] - uvs[b, 0]
-        dy = uvs[a, 1] - uvs[b, 1]
-        p += math.sqrt(dx * dx + dy * dy)
-    return p
-
-
-def _chart_perimeter(uvs: np.ndarray, faces: np.ndarray) -> float:
-    V = int(faces.max()) + 1 if faces.size else 0
-    return float(_chart_perimeter_jit(uvs.astype(np.float64), faces.astype(np.int64), V))
+            if col_top >= 0:
+                nh2 = best_y + col_top + 1
+                if nh2 > skyline[col_x]:
+                    skyline[col_x] = nh2
+        out_x[ci] = best_x
+        out_y[ci] = best_y
+        out_sw[ci] = best_swap
+    cur_wh[0] = cur_w
+    cur_wh[1] = cur_h
+    return stop
 
 
 # Torch fallback (used when numba is unavailable; runs on GPU if present)
 
 def _dilate_local(x: Tensor, p: int) -> Tensor:
-    """4-connectivity dilation by p, applied per-image over a batch of (cnt,g,g) bitmaps.
-    Matches the old per-chart _dilate_torch; dilation distributes over union so per-triangle
-    dilation OR-scattered equals dilating the assembled chart bitmap."""
+    """4-connectivity dilation by p over a batch of (cnt,g,g) bitmaps. Dilation distributes
+    over union, so dilating per-triangle then OR-scattering equals dilating the chart."""
     for _ in range(p):
         y = x.clone()
         y[:, 1:, :] |= x[:, :-1, :]
@@ -380,10 +430,8 @@ def _dilate_local(x: Tensor, p: int) -> Tensor:
 
 
 def _raster_all_torch(uvs_tex_pad, faces_pad, fmask, bw_t, bh_t, padding, device):
-    """Batched rasterize EVERY chart at once into one flat bool buffer, replacing the per-chart
-    loop. Returns (buf, cbase) where buf[cbase[i]:cbase[i+1]].view(bh,bw) is chart i's [y,x] bitmap.
-    Triangles are bucketed by next-pow2 bbox size so each batch's local grid stays tiny (bounded
-    memory) while collapsing ~N chart rasters into a handful of kernels."""
+    """Rasterize every chart into one flat bool buffer; buf[cbase[i]:cbase[i+1]].view(bh,bw)
+    is chart i's bitmap. Triangles are bucketed by next-pow2 bbox size to bound memory."""
     n = uvs_tex_pad.shape[0]
     fmax = faces_pad.shape[1]
     bwL, bhL = bw_t.long(), bh_t.long()
@@ -450,66 +498,99 @@ def _raster_all_torch(uvs_tex_pad, faces_pad, fmask, bw_t, bh_t, padding, device
     return buf, cbase
 
 
-def _build_candidates_gpu(sky_t, cur_w, cur_h, bw0, bw1, step, rand_n, gen, device):
-    """Skyline-flush + edge-sweep + random candidate (x,y) positions per orientation, built on the
-    GPU. Returns (cand0, cand1). Random samples find tight pockets the deterministic grid misses."""
-    xs = torch.arange(0, max(cur_w, 1) + 1, step, device=device)
-    ys = torch.arange(0, max(cur_h, 1) + 1, step, device=device)
-    # edge-sweep candidates are orientation-independent: build once, shared by both orientations
-    common = [torch.stack([xs, torch.full_like(xs, yf)], 1) for yf in (0, cur_h)]
-    common += [torch.stack([torch.full_like(ys, xf), ys], 1) for xf in (0, cur_w)]
-    common = torch.cat(common, 0)
-    out = []
-    for cw in (bw0, bw1):                                               # skyline-flush + random differ
-        if cw > 0 and sky_t.shape[0] >= cw:
-            wmax = sky_t.unfold(0, cw, 1).amax(1)[xs.clamp(max=max(sky_t.shape[0] - cw, 0))]
-        else:
-            wmax = torch.zeros_like(xs)
-        parts = [torch.stack([xs, wmax], 1), common]
-        if rand_n > 0:                                                  # distinct draws keep density
-            rx = torch.randint(0, max(cur_w, 1) + 1, (rand_n,), generator=gen, device=device)
-            ry = torch.randint(0, max(cur_h, 1) + 1, (rand_n,), generator=gen, device=device)
-            parts.append(torch.stack([rx, ry], 1))
-        out.append(torch.cat(parts, 0))
-    return out[0], out[1]
+def _build_candidates_gpu(sky_t, ar, cur_w, cur_h, bw0, bw1, step, rand01, device):
+    """Candidate (x, y) positions as a (2, M, 2) tensor (dim 0 = orientation). The first
+    n_sky rows per orientation are skyline-flush and collision-free by construction.
+    rand01 is (2, rand_n, 2) pre-drawn uniforms; ar a preallocated arange."""
+    hi_x = max(cur_w, 1) + 1
+    hi_y = max(cur_h, 1) + 1
+    xs = ar[0:hi_x:step]
+    ys = ar[0:hi_y:step]
+    n_sky = (hi_x + step - 1) // step
+    zx = torch.zeros_like(xs)
+    zy = torch.zeros_like(ys)
+    common = torch.cat([
+        torch.stack([xs, zx], 1), torch.stack([xs, zx + cur_h], 1),
+        torch.stack([zy, ys], 1), torch.stack([zy + cur_w, ys], 1)])
+    wm = []
+    for cw in (bw0, bw1):
+        span = (n_sky - 1) * step + cw
+        wm.append(max_pool1d(sky_t[:span].view(1, 1, -1).float(), kernel_size=cw,
+                             stride=step).view(-1))
+    sky = torch.stack([torch.stack([xs, wm[0].long()], 1),
+                       torch.stack([xs, wm[1].long()], 1)])
+    lim = torch.tensor([hi_x, hi_y], dtype=rand01.dtype, device=device)
+    rnd = (rand01 * lim).long()
+    return torch.cat([sky, common.expand(2, -1, -1), rnd], 1), n_sky
 
 
-def _col_top(b: Tensor) -> Tensor:
-    """Topmost True row index per column of a bool bitmap (h,w); -1 for empty columns."""
-    h = b.shape[0]
-    rows = torch.arange(h, device=b.device)[:, None]
-    return torch.where(b, rows, torch.full_like(rows.expand_as(b), -1)).amax(0)
+def _best_placement_torch(atlas, pix0, dim0, dim1, cands, n_sky, cur_w, cur_h, device):
+    """Lowest-score non-colliding placement as a (3,) int tensor [x, y, swap]. The best
+    skyline candidate bounds the score; only strictly better candidates are pixel-tested."""
+    m = cands.shape[1]
+    chw = torch.tensor([[dim0[0], dim0[1]], [dim1[0], dim1[1]]], device=device)
+    nw = torch.clamp(cands[..., 0] + chw[:, 1:], min=cur_w)             # (2,M)
+    nh = torch.clamp(cands[..., 1] + chw[:, :1], min=cur_h)
+    ext = torch.maximum(nw, nh)
+    sc = ext * ext + nw * nh
+    js = sc[:, :n_sky].reshape(-1).argmin()                             # best skyline candidate
+    sky_o = js // n_sky
+    s_star = sc[:, :n_sky].reshape(-1)[js]
+    sky = torch.cat([cands[sky_o, js % n_sky], sky_o.reshape(1)])
+    cflat = cands.reshape(-1, 2)
+    surv = (sc.reshape(-1) < s_star).nonzero(as_tuple=True)[0]          # compact once
+    total = surv.shape[0]
+    if total == 0:
+        return sky
 
+    k = pix0.shape[0]
+    if k == 0:                                                          # empty chart: anywhere free
+        j = surv[sc.reshape(-1)[surv].argmin()]
+        return torch.cat([cflat[j], (j // m).reshape(1)])
+    ordr = surv[torch.argsort(sc.reshape(-1)[surv], stable=True)]
 
-def _best_placement_torch(atlas, pix0, dim0, pix1, dim1, cand0, cand1, cur_w, cur_h, device):
-    """Lowest-score non-colliding candidate as a (3,) int tensor [x, y, swap] (x=-1 if none).
-    Collision tests only each bitmap's True-pixel offsets (pix), not the full window. Fully on-GPU;
-    the caller does the single sync (.tolist())."""
-    INF = 1 << 60
+    # flattened-index collision test: one int32 gather index instead of two int64 rows/cols
+    aw = atlas.shape[1]
+    idt = torch.int32 if atlas.numel() < (1 << 31) else torch.long
+    lin0 = (pix0[:, 0] * aw + pix0[:, 1]).to(idt)                       # (y, x)
+    lin1 = (pix0[:, 1] * aw + (dim0[0] - 1 - pix0[:, 0])).to(idt)       # rotated: (x, h-1-y)
+    linp = torch.stack([lin0, lin1])
+    aflat = atlas.view(-1)
+    og = (ordr >= m).long()
+    base = (cflat[ordr, 1] * aw + cflat[ordr, 0]).to(idt)
 
-    def best(cand, pix, dim):                                          # -> (score, x, y) 0-d tensors
-        ch, cw = dim
-        cx, cy = cand[:, 0], cand[:, 1]
-        coll = atlas[cy[:, None] + pix[:, 0][None, :],                 # (M,k) True-pixel gather
-                     cx[:, None] + pix[:, 1][None, :]].any(dim=1)
-        nw = torch.clamp(cx + cw, min=cur_w)
-        nh = torch.clamp(cy + ch, min=cur_h)
-        ext = torch.maximum(nw, nh)
-        score = torch.where(coll, torch.full_like(nw, INF), ext * ext + nw * nh)
-        j = score.argmin()
-        return score[j], cx[j], cy[j]
+    # prescreen survivors on ~128 strided pixels: a sampled hit proves collision, so only
+    # subsample-clean candidates need the exact test
+    stride = (k + 127) // 128
+    linp_sub = linp[:, ::stride].contiguous()
+    maybe = ~aflat[base[:, None] + linp_sub[og]].any(1)
+    passers = maybe.nonzero(as_tuple=True)[0]                           # ascending = score-sorted
+    npass = passers.shape[0]
+    if npass == 0:
+        return sky
+    if stride == 1:                                                     # prescreen was already exact
+        j = ordr[passers[0]]
+        return torch.cat([cflat[j], (j // m).reshape(1)])
 
-    s0, x0, y0 = best(cand0, pix0, dim0)
-    s1, x1, y1 = best(cand1, pix1, dim1)
-    take0 = s0 <= s1
-    bsc = torch.where(take0, s0, s1)
-    pick = torch.stack([torch.where(take0, x0, x1), torch.where(take0, y0, y1),
-                        torch.where(take0, x0.new_zeros(()), x0.new_ones(()))])
-    return torch.where(bsc < INF, pick, torch.tensor([-1, -1, 0], device=device))
+    budget = 1 << 22                                                    # pixel-tests per chunk
+    start = 0
+    while start < npass:
+        take = max(1, budget // k)
+        pi = passers[start:start + take]
+        free = ~aflat[base[pi][:, None] + linp[og[pi]]].any(1)          # (t,k) True-pixel gather
+        # single host read per chunk: whether a free hit exists and where
+        has, first = torch.stack([free.any().long(), free.long().argmax()]).tolist()
+        if has:
+            j = ordr[pi[first]]                                         # lowest score: sorted order
+            return torch.cat([cflat[j], (j // m).reshape(1)])
+        start += take
+        budget = min(budget * 4, 1 << 25)
+    return sky
 
 
 def _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces,
-                       texels_per_unit, padding_texels):
+                       texels_per_unit, padding_texels, attempts=4096, rng_seed=0,
+                       progress_callback=None):
     """Torch rasterize-and-place packer (numba-free fallback). Returns (placements, atlas_w, atlas_h)."""
     n = len(chart_uvs)
     if n == 0:
@@ -563,47 +644,46 @@ def _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces,
     # one sync: pull all per-chart scalars
     thetas = ang[ti].cpu().tolist()
     scales = scale.cpu().tolist()
-    bws = bw_t.cpu().tolist()
-    bhs = bh_t.cpu().tolist()
 
-    # ---- Prepare pass 2: rasterize ALL charts at once, then trim each bitmap to its bounds ----
+    # ---- Prepare pass 2: rasterize ALL charts at once, then derive per-chart sparse data ----
     buf, cbase = _raster_all_torch(uvs_tex_pad, faces_pad, fmask, bw_t, bh_t, padding_texels, device)
-    cb = cbase.cpu().tolist()
-    raw, bnd = [], []
-    for i in range(n):
-        bm = buf[cb[i]:cb[i + 1]].view(bhs[i], bws[i])
-        raw.append(bm)
-        rr = torch.arange(bm.shape[0], device=device)
-        cc = torch.arange(bm.shape[1], device=device)
-        rmax = torch.where(bm.any(1), rr, rr.new_full((), -1)).amax()    # last occupied row / col (-1 if empty)
-        cmax = torch.where(bm.any(0), cc, cc.new_full((), -1)).amax()
-        bnd.append(torch.stack([rmax, cmax]))
-    bnd_cpu = torch.stack(bnd).cpu().tolist()                            # one sync for all trim bounds
 
-    # per-chart True-pixel offsets (sparse collision/blit), dims, col-tops (all kept on GPU)
-    pix_l, pixr_l, dim_l, dimr_l, bm_h = [], [], [], [], []
-    col_tops, col_tops_rot = [], []
-    for i in range(n):
-        rm, cm = bnd_cpu[i]
-        bm = (raw[i][:rm + 1, :cm + 1].contiguous() if rm >= 0 and cm >= 0
-              else torch.zeros((1, 1), dtype=torch.bool, device=device))
-        bm_rot = torch.flip(bm.t(), dims=[1]).contiguous()
-        pix_l.append(bm.nonzero())
-        pixr_l.append(bm_rot.nonzero())
-        dim_l.append((int(bm.shape[0]), int(bm.shape[1])))
-        dimr_l.append((int(bm_rot.shape[0]), int(bm_rot.shape[1])))
-        col_tops.append(_col_top(bm))
-        col_tops_rot.append(_col_top(bm_rot))
-        bm_h.append(int(bm.shape[0]))
-    wmax = max(d[1] for d in dim_l + dimr_l)
-    ct_pad = torch.full((n, wmax), -1, dtype=torch.long, device=device)
-    ctr_pad = torch.full((n, wmax), -1, dtype=torch.long, device=device)
-    for i in range(n):
-        ct_pad[i, :col_tops[i].shape[0]] = col_tops[i]
-        ctr_pad[i, :col_tops_rot[i].shape[0]] = col_tops_rot[i]
-    del raw
+    # nonzero over the flat buffer is ascending, so pixels come out grouped by chart
+    nz = buf.nonzero(as_tuple=True)[0]
+    del buf
+    cid = torch.searchsorted(cbase, nz, right=True) - 1
+    bwl = bw_t.long()
+    local = nz - cbase[cid]
+    py = local // bwl[cid]
+    px = local - py * bwl[cid]
+    del nz, local
+    counts = torch.bincount(cid, minlength=n)
+    rmax = torch.full((n,), -1, dtype=torch.long, device=device)
+    cmax = torch.full((n,), -1, dtype=torch.long, device=device)
+    rmax.scatter_reduce_(0, cid, py, reduce="amax")
+    cmax.scatter_reduce_(0, cid, px, reduce="amax")
+    ht = (rmax + 1).clamp_min(1)                    # trimmed bitmap dims (1x1 when empty)
+    wt = (cmax + 1).clamp_min(1)
+    pix_all = torch.stack([py, px], 1)              # True-pixel (row, col) offsets, sparse
+    pixr_all = torch.stack([px, rmax[cid] - py], 1)  # 90deg rotation: (y, x) -> (x, h-1-y)
+    meta = torch.stack([ht, wt, counts.cumsum(0)], 1).cpu().tolist()     # one sync for all charts
+    dim_l = [(m[0], m[1]) for m in meta]
+    dimr_l = [(w, h) for (h, w) in dim_l]
+    offs = [0] + [m[2] for m in meta]
+    pix_l = [pix_all[offs[i]:offs[i + 1]] for i in range(n)]
+    pixr_l = [pixr_all[offs[i]:offs[i + 1]] for i in range(n)]
 
-    # ---- Placement: skyline bin-pack on GPU (1 sync/chart for the chosen position) ----
+    # column tops (skyline lift), batched via flat scatter-amax over (chart, column) keys
+    wmax = max(max(h, w) for (h, w) in dim_l)
+    ct_pad = torch.full((n * wmax,), -1, dtype=torch.long, device=device)
+    ctr_pad = torch.full((n * wmax,), -1, dtype=torch.long, device=device)
+    ct_pad.scatter_reduce_(0, cid * wmax + px, py, reduce="amax")
+    ctr_pad.scatter_reduce_(0, cid * wmax + (rmax[cid] - py), px, reduce="amax")
+    ct_pad = ct_pad.view(n, wmax)
+    ctr_pad = ctr_pad.view(n, wmax)
+    del cid, py, px, rmax, cmax
+
+    # ---- Placement: skyline bin-pack on GPU ----
     order = sorted(range(n), key=lambda i: -(dim_l[i][0] * dim_l[i][1]))   # biggest bitmap first
     max_b = max(max(d) for d in dim_l)
     margin = max_b + 8
@@ -611,12 +691,17 @@ def _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces,
     cap = side_guess + margin
     atlas = torch.zeros((cap, cap), dtype=torch.bool, device=device)
     sky_t = torch.zeros(cap, dtype=torch.long, device=device)
+    ar = torch.arange(cap + 1, device=device)
     cur_w = cur_h = 0
     placements = [None] * n
-    gen = torch.Generator(device=device).manual_seed(0)
-    rand_n = 512                                                        # random samples per orientation
+    gen = torch.Generator(device=device).manual_seed(rng_seed)
+    rand_n = min(512, attempts)                     # random samples per orientation
+    # no _SWEEP_CAP here: the skyline-bound pruning depends on the dense sweep
+    rand01 = torch.rand(n, 2, rand_n, 2, generator=gen, device=device)   # all draws upfront
 
-    for ci in order:
+    for t_i, ci in enumerate(order):
+        if progress_callback is not None and (t_i & 255) == 0:
+            progress_callback(n + t_i, 2 * n)
         if cur_h + margin > atlas.shape[0] or cur_w + margin > atlas.shape[1]:
             ns = max(atlas.shape[0], cur_h + margin, cur_w + margin)
             na = torch.zeros((ns, ns), dtype=torch.bool, device=device)
@@ -625,11 +710,14 @@ def _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces,
             nsk = torch.zeros(ns, dtype=torch.long, device=device)
             nsk[:sky_t.shape[0]] = sky_t
             sky_t = nsk
+            ar = torch.arange(ns + 1, device=device)
         dim, dimr = dim_l[ci], dimr_l[ci]
         step = max(1, min(dim[0], dim[1]) // 8)
-        cand0, cand1 = _build_candidates_gpu(sky_t, cur_w, cur_h, dim[1], dimr[1], step, rand_n, gen, device)
-        res = _best_placement_torch(atlas, pix_l[ci], dim, pixr_l[ci], dimr, cand0, cand1, cur_w, cur_h, device)
-        bx, by, swap = (int(v) for v in res.tolist())                   # the one sync/chart
+        cands, n_sky = _build_candidates_gpu(
+            sky_t, ar, cur_w, cur_h, dim[1], dimr[1], step, rand01[t_i], device)
+        res = _best_placement_torch(atlas, pix_l[ci], dim, dimr,
+                                    cands, n_sky, cur_w, cur_h, device)
+        bx, by, swap = (int(v) for v in res.tolist())
         if bx < 0:
             bx, by, swap = cur_w, 0, 0
         pix = pixr_l[ci] if swap else pix_l[ci]
@@ -638,189 +726,136 @@ def _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces,
         cur_w = max(cur_w, bx + bw_)
         cur_h = max(cur_h, by + bh_)
         ct = (ctr_pad if swap else ct_pad)[ci, :bw_]                    # GPU skyline lift
-        ix = torch.arange(bx, bx + bw_, device=device)
+        ix = ar[bx:bx + bw_]
         sky_t[ix] = torch.where(ct >= 0, torch.maximum(sky_t[ix], by + ct + 1), sky_t[ix])
         placements[ci] = ChartPlacement(chart_id=ci, offset=(float(bx), float(by)),
                                         scale=scales[ci], rotation=thetas[ci], swap_xy=bool(swap),
-                                        chart_h=float(bm_h[ci]))
+                                        chart_h=float(dim_l[ci][0]))
     return placements, cur_w, cur_h
 
 
-def pack_bitmap(
-    chart_uvs: List[Tensor],
-    chart_3d_areas: List[float],
-    chart_uv_areas: List[float],
-    chart_faces: List[Tensor],
+def pack_bitmap_concat(
+    uvs_cat: np.ndarray,          # (sumV, 2) per-chart concatenated UVs
+    uv_offsets: np.ndarray,       # (n+1,)
+    faces_cat: np.ndarray,        # (sumF, 3) local vert ids per chart
+    face_offsets: np.ndarray,     # (n+1,)
+    chart_3d_areas: np.ndarray,
+    chart_uv_areas: np.ndarray,
     texels_per_unit: float = 256.0,
     padding_texels: int = 2,
     attempts: int = 4096,
     rng_seed: int = 0,
-) -> Tuple[List[ChartPlacement], int, int]:
-    """Rasterize-and-place packer. Returns (placements, atlas_w, atlas_h)."""
-    n = len(chart_uvs)
+    progress_callback=None,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int]:
+    """Rasterize-and-place packer over concatenated chart arrays (no per-chart python).
+    Returns (x, y, swap, rotation, scale, chart_h, atlas_w, atlas_h) with one entry per chart.
+    progress_callback(done, total) is invoked periodically; total is 2*n_charts."""
+    n = int(uv_offsets.shape[0]) - 1
+    empty = np.zeros(n, dtype=np.int64)
     if n == 0:
-        return [], 1, 1
+        return empty, empty, empty, empty.astype(np.float64), empty.astype(np.float64), empty, 1, 1
     if not _HAVE_NUMBA_PACK:
-        return _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas,
-                                  chart_faces, texels_per_unit, padding_texels)
+        chart_uvs = [torch.from_numpy(np.ascontiguousarray(uvs_cat[uv_offsets[c]:uv_offsets[c + 1]]))
+                     for c in range(n)]
+        chart_faces = [torch.from_numpy(np.ascontiguousarray(faces_cat[face_offsets[c]:face_offsets[c + 1]]))
+                       for c in range(n)]
+        placements, w, h = _pack_bitmap_torch(
+            chart_uvs, [float(a) for a in chart_3d_areas], [float(a) for a in chart_uv_areas],
+            chart_faces, texels_per_unit, padding_texels, attempts=attempts,
+            rng_seed=rng_seed, progress_callback=progress_callback)
+        px = np.array([p.offset[0] for p in placements], dtype=np.int64)
+        py = np.array([p.offset[1] for p in placements], dtype=np.int64)
+        sw = np.array([1 if p.swap_xy else 0 for p in placements], dtype=np.int64)
+        th = np.array([p.rotation for p in placements], dtype=np.float64)
+        sc = np.array([p.scale for p in placements], dtype=np.float64)
+        chh = np.array([p.chart_h for p in placements], dtype=np.int64)
+        return px, py, sw, th, sc, chh, w, h
 
+    uvs64 = np.ascontiguousarray(uvs_cat, dtype=np.float64)
+    faces64 = np.ascontiguousarray(faces_cat, dtype=np.int64)
+    uv_off = np.ascontiguousarray(uv_offsets, dtype=np.int64)
+    f_off = np.ascontiguousarray(face_offsets, dtype=np.int64)
+    a3 = np.ascontiguousarray(chart_3d_areas, dtype=np.float64)
+    auv = np.ascontiguousarray(chart_uv_areas, dtype=np.float64)
+
+    theta = np.zeros(n, dtype=np.float64)
+    scale = np.zeros(n, dtype=np.float64)
+    bw = np.zeros(n, dtype=np.int64)
+    bh = np.zeros(n, dtype=np.int64)
+    rot_uv = np.empty_like(uvs64)
+    _prepare_dims_jit(uvs64, uv_off, a3, auv, float(texels_per_unit), int(padding_texels),
+                      theta, scale, bw, bh, rot_uv)
+    boff = np.zeros(n + 1, dtype=np.int64)
+    np.cumsum(bw * bh, out=boff[1:])
+    buf = np.zeros(int(boff[-1]), dtype=np.bool_)
+    tw = np.zeros(n, dtype=np.int64)
+    th_arr = np.zeros(n, dtype=np.int64)
+    perim = np.zeros(n, dtype=np.float64)
+    _raster_all_jit(rot_uv, uv_off, faces64, f_off, bw, bh, boff, buf,
+                    int(padding_texels), tw, th_arr, perim)
+    if progress_callback is not None:
+        progress_callback(n, 2 * n)
+
+    order = np.argsort(-perim, kind="stable")
+    max_b = int(max(int(tw.max()), int(th_arr.max())))
+    margin = max_b + 8
+    side_guess = int(math.sqrt(float((tw * th_arr).sum()))) * 2 + 16
+    cap = side_guess + margin
+    atlas = np.zeros((cap, cap), dtype=np.bool_)
+    skyline = np.zeros(cap, dtype=np.int64)
     rng = np.random.default_rng(rng_seed)
-    prepared: List[_PreparedChart] = []
-    skyline_cap = 4096
-    skyline = np.zeros(skyline_cap, dtype=np.int64)
-
-    for i, (uvs_t, area_3d, area_uv, faces_t) in enumerate(
-        zip(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces)
-    ):
-        uvs = uvs_t.detach().cpu().numpy().astype(np.float64)
-        faces = faces_t.detach().cpu().numpy()
-
-        theta = _best_rotation(uvs)
-        rotated = _rotate_xy(uvs, theta)
-        scale = math.sqrt(max(area_3d, 1e-12) / max(area_uv, 1e-12)) * texels_per_unit
-        # Cap per-chart bbox to 4x nominal so a degenerate chart can't span the atlas.
-        nominal_side = math.sqrt(max(area_3d, 1e-12)) * float(texels_per_unit)
-        max_bbox_texels = max(8.0, 4.0 * nominal_side)
-        bbox_uv = (rotated.max(axis=0) - rotated.min(axis=0))
-        bbox_uv_max = float(max(bbox_uv[0], bbox_uv[1], 1e-12))
-        if scale * bbox_uv_max > max_bbox_texels:
-            scale = max_bbox_texels / bbox_uv_max
-        uvs_tex = rotated * scale
-        uvs_tex = uvs_tex - uvs_tex.min(axis=0)
-        bbox_w = int(math.ceil(uvs_tex[:, 0].max())) + padding_texels + 1
-        bbox_h = int(math.ceil(uvs_tex[:, 1].max())) + padding_texels + 1
-
-        bm = _rasterize_chart(uvs_tex, faces, bbox_w, bbox_h, padding_texels)
-        nz_rows = np.where(bm.any(axis=1))[0]
-        nz_cols = np.where(bm.any(axis=0))[0]
-        if nz_rows.size == 0 or nz_cols.size == 0:
-            bm = np.zeros((1, 1), dtype=bool)
-            bbox_h, bbox_w = 1, 1
-        else:
-            bm = bm[: nz_rows[-1] + 1, : nz_cols[-1] + 1]
-            bbox_h, bbox_w = bm.shape
-        # True 90 deg rotation; plain transpose would mirror and flip winding.
-        bm_rot = bm.T[:, ::-1].copy()
-
-        perim = _chart_perimeter(uvs_tex, faces)
-        prepared.append(
-            _PreparedChart(
-                chart_id=i,
-                uvs_tex=uvs_tex,
-                bitmap=bm,
-                bitmap_rot=bm_rot,
-                bbox_w=bbox_w,
-                bbox_h=bbox_h,
-                rotation=theta,
-                s_tex=scale,
-                perimeter=perim,
-            )
-        )
-
-    order = sorted(range(n), key=lambda i: -prepared[i].perimeter)
-
-    total_area = sum(p.bbox_w * p.bbox_h for p in prepared)
-    side_guess = int(math.sqrt(total_area) * 2) + 16
-    atlas = np.zeros((side_guess, side_guess), dtype=bool)
-    cur_w = 0
-    cur_h = 0
-
-    placements: List[ChartPlacement] = [None] * n  # type: ignore
-
-    for ci in order:
-        p = prepared[ci]
-
-        step = max(1, min(p.bbox_w, p.bbox_h) // 8)
-        det_arr = _build_candidates_jit(
-            skyline, cur_w, cur_h,
-            p.bitmap.shape[1], p.bitmap.shape[0],
-            p.bitmap_rot.shape[1], p.bitmap_rot.shape[0],
-            step,
-        )
-
-        x_range = max(cur_w + 1, 1)
-        y_range = max(cur_h + 1, 1)
-        rand_x = rng.integers(0, x_range, size=attempts).astype(np.int64)
-        rand_y = rng.integers(0, y_range, size=attempts).astype(np.int64)
-        rand_swap = (np.arange(attempts) & 1).astype(np.int64)
-        rand_arr = np.stack([rand_x, rand_y, rand_swap], axis=1)
-        candidates = np.concatenate([det_arr, rand_arr], axis=0) if det_arr.size else rand_arr
-
-        best_x, best_y, best_score_int, best_swap_int = _best_placement_jit(
-            atlas, p.bitmap, p.bitmap_rot, candidates, cur_w, cur_h,
-        )
-        best_swap = bool(best_swap_int)
-
-        if best_x >= 0:
-            bm_b = p.bitmap_rot if best_swap else p.bitmap
-            need_h = max(cur_h, best_y + bm_b.shape[0])
-            need_w = max(cur_w, best_x + bm_b.shape[1])
-            if atlas.shape[0] < need_h or atlas.shape[1] < need_w:
-                target_h = max(atlas.shape[0], need_h, side_guess)
-                target_w = max(atlas.shape[1], need_w, side_guess)
-                new_atlas = np.zeros((target_h, target_w), dtype=bool)
-                new_atlas[: atlas.shape[0], : atlas.shape[1]] = atlas
-                atlas = new_atlas
-
-        if best_x < 0:
-            # Fallback: place at extension corner.
-            best_x, best_y = cur_w, 0
-            best_swap = False
-            bm = p.bitmap
-            need_h = max(cur_h, best_y + bm.shape[0])
-            need_w = max(cur_w, best_x + bm.shape[1])
-            if atlas.shape[0] < need_h or atlas.shape[1] < need_w:
-                target_h = max(atlas.shape[0], need_h)
-                target_w = max(atlas.shape[1], need_w)
-                new_atlas = np.zeros((target_h, target_w), dtype=bool)
-                new_atlas[: atlas.shape[0], : atlas.shape[1]] = atlas
-                atlas = new_atlas
-
-        bm = p.bitmap_rot if best_swap else p.bitmap
-        _blit(atlas, bm, best_x, best_y)
-        cur_w = max(cur_w, best_x + bm.shape[1])
-        cur_h = max(cur_h, best_y + bm.shape[0])
-        if cur_w + 1 > skyline.shape[0]:
-            new_sky = np.zeros(max(skyline.shape[0] * 2, cur_w + 1), dtype=np.int64)
-            new_sky[: skyline.shape[0]] = skyline
-            skyline = new_sky
-        _update_skyline_jit(skyline, bm, best_x, best_y)
-
-        placements[ci] = ChartPlacement(
-            chart_id=ci,
-            offset=(float(best_x), float(best_y)),
-            scale=p.s_tex,
-            rotation=p.rotation,
-            swap_xy=best_swap,
-            chart_h=float(p.bitmap.shape[0]),
-        )
-
-    return placements, cur_w, cur_h
+    # shared random pool, sliced at a rotating offset per chart
+    pool = rng.integers(0, 1 << 31, size=(attempts * 8, 2)).astype(np.int64)
+    out_x = np.full(n, -1, dtype=np.int64)
+    out_y = np.full(n, -1, dtype=np.int64)
+    out_sw = np.zeros(n, dtype=np.int64)
+    cur_wh = np.zeros(2, dtype=np.int64)
+    start = 0
+    while start < n:
+        stop = min(n, start + 1024)
+        nxt = _place_all_jit(buf, boff, bw, tw, th_arr, order, start, stop,
+                             atlas, skyline, pool, int(attempts), int(_SWEEP_CAP),
+                             int(margin), int(_nb_threads()), cur_wh, out_x, out_y, out_sw)
+        if nxt < stop:                               # atlas must grow before this chart fits
+            ns = max(atlas.shape[0], int(cur_wh[1]) + margin, int(cur_wh[0]) + margin)
+            na = np.zeros((ns, ns), dtype=np.bool_)
+            na[:atlas.shape[0], :atlas.shape[1]] = atlas
+            atlas = na
+            nsk = np.zeros(ns, dtype=np.int64)
+            nsk[:skyline.shape[0]] = skyline
+            skyline = nsk
+        start = nxt
+        if progress_callback is not None:
+            progress_callback(n + start, 2 * n)
+    return out_x, out_y, out_sw, theta, scale, th_arr, int(cur_wh[0]), int(cur_wh[1])
 
 
-def apply_placements(
-    chart_uvs: List[Tensor], placements: List[ChartPlacement], atlas_w: int, atlas_h: int
-) -> List[Tensor]:
-    """Apply per-chart (rotation, scale, swap_xy, offset) and normalize by the larger atlas side (shared scale keeps texel density uniform)."""
-    out: List[Tensor] = []
+def apply_placements_concat(
+    uvs_cat: np.ndarray, uv_offsets: np.ndarray,
+    px: np.ndarray, py: np.ndarray, sw: np.ndarray,
+    theta: np.ndarray, scale: np.ndarray, chart_h: np.ndarray,
+    atlas_w: int, atlas_h: int,
+) -> np.ndarray:
+    """apply_placements over concatenated charts, fully vectorized. Returns (sumV, 2) float32."""
+    n = int(uv_offsets.shape[0]) - 1
     side = float(max(atlas_w, atlas_h, 1))
-    for uvs, p in zip(chart_uvs, placements):
-        device = uvs.device
-        dtype = uvs.dtype
-        uvs_np = uvs.detach().cpu().numpy().astype(np.float64)
-        if p.rotation != 0.0:
-            uvs_np = _rotate_xy(uvs_np, p.rotation)
-        uvs_np = uvs_np - uvs_np.min(axis=0)
-        uvs_np = uvs_np * p.scale
-        if p.swap_xy:
-            # 90 deg rotation matching bm.T[:, ::-1]: (u, v) -> (chart_h - v, u).
-            u_old = uvs_np[:, 0].copy()
-            uvs_np[:, 0] = p.chart_h - uvs_np[:, 1]
-            uvs_np[:, 1] = u_old
-        uvs_np[:, 0] += p.offset[0]
-        uvs_np[:, 1] += p.offset[1]
-        uvs_np /= side
-        # Clamp into [0,1]; slivers can stick sub-texel past the tracked extent.
-        np.clip(uvs_np, 0.0, 1.0, out=uvs_np)
-        out.append(torch.from_numpy(uvs_np).to(device=device, dtype=dtype))
-    return out
+    cov = np.repeat(np.arange(n), np.diff(uv_offsets))
+    u_in = uvs_cat[:, 0].astype(np.float64)
+    v_in = uvs_cat[:, 1].astype(np.float64)
+    c = np.cos(theta)[cov]
+    s = np.sin(theta)[cov]
+    u = u_in * c - v_in * s
+    v = u_in * s + v_in * c
+    umin = np.full(n, np.inf)
+    vmin = np.full(n, np.inf)
+    np.minimum.at(umin, cov, u)
+    np.minimum.at(vmin, cov, v)
+    u = (u - umin[cov]) * scale[cov]
+    v = (v - vmin[cov]) * scale[cov]
+    swv = sw[cov].astype(bool)
+    # 90 deg rotation matching the rotated-bitmap access: (u, v) -> (chart_h - v, u)
+    u2 = np.where(swv, chart_h[cov] - v, u) + px[cov]
+    v2 = np.where(swv, u, v) + py[cov]
+    out = np.stack([u2, v2], axis=1) / side
+    np.clip(out, 0.0, 1.0, out=out)                  # slivers can stick sub-texel past extents
+    return out.astype(np.float32)

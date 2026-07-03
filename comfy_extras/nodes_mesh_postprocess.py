@@ -15,6 +15,7 @@ from comfy_extras.mesh3d.uv_unwrap import segment as _uv_seg
 from comfy_extras.mesh3d.uv_unwrap import parameterize as _uv_param
 from comfy_extras.mesh3d.uv_unwrap import pack as _uv_pack
 import logging
+import time
 from tqdm import tqdm
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
@@ -2454,6 +2455,7 @@ def _uv_weld_vertices(v, f, weld_distance):
 def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance):
     """UV-unwrap a single mesh; returns (vmapping, indices, uvs); vmapping maps each output
     vertex to an input vertex (seam verts duplicated)."""
+    t_start = time.perf_counter()
     v_in = positions.to(torch.float32)
     f_in = indices.to(torch.long).reshape(-1, 3)
     v_in, f_in, welded_to_orig = _uv_weld_vertices(v_in, f_in, weld_distance)
@@ -2479,72 +2481,138 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     n_charts = int(face_chart.max().item()) + 1 if face_chart.numel() else 0
     areas_cpu = _uv_mesh.chart_3d_areas(mesh.face_area, face_chart, n_charts).detach().cpu()
 
-    # per-chart loop on CPU/numpy to avoid per-chart GPU sync
+    if n_charts == 0:
+        return (np.empty(0, dtype=np.int64), np.zeros((0, 3), dtype=np.int64),
+                np.empty((0, 2), dtype=np.float32))
+
+    # vectorized chart extraction: one global sort/unique replaces per-chart unique/searchsorted
     face_chart_np = face_chart.cpu().numpy()
     faces_np = mesh.faces.cpu().numpy()
     vertices_np = mesh.vertices.cpu().numpy()
     face_face_np = mesh.face_face.cpu().numpy()
-    sorted_face_idx_np = np.argsort(face_chart_np, kind="stable")
+    order = np.argsort(face_chart_np, kind="stable")
     chart_counts_np = np.bincount(face_chart_np, minlength=n_charts)
-    chart_offsets_np = np.empty(n_charts + 1, dtype=np.int64)
-    chart_offsets_np[0] = 0
+    chart_offsets_np = np.zeros(n_charts + 1, dtype=np.int64)
     np.cumsum(chart_counts_np, out=chart_offsets_np[1:])
+    faces_sorted = faces_np[order]
+    chart_sorted = face_chart_np[order]
+    n_verts_in = max(vertices_np.shape[0], 1)
+    chart_of_slot = np.repeat(chart_sorted, 3)
+    uniq_keys, local_flat = np.unique(chart_of_slot * n_verts_in + faces_sorted.reshape(-1),
+                                      return_inverse=True)
+    used_verts_all = uniq_keys % n_verts_in          # per-chart sorted unique verts, concatenated
+    vert_counts = np.bincount(uniq_keys // n_verts_in, minlength=n_charts)
+    vert_offsets = np.zeros(n_charts + 1, dtype=np.int64)
+    np.cumsum(vert_counts, out=vert_offsets[1:])
+    local_faces_all = (local_flat - vert_offsets[chart_of_slot]).reshape(-1, 3)
+    pos_in_chart = np.empty(order.size, dtype=np.int64)
+    pos_in_chart[order] = np.arange(order.size) - chart_offsets_np[chart_sorted]
+    ff_sorted = face_face_np[order]
+    ff_safe = np.maximum(ff_sorted, 0)
+    keep = (ff_sorted >= 0) & (face_chart_np[ff_safe] == chart_sorted[:, None])
+    local_ff_all = np.where(keep, pos_in_chart[ff_safe], -1)
 
-    all_chart_uvs, all_chart_3d_areas, all_chart_uv_areas, all_chart_faces = [], [], [], []
-    chart_records = []
+    # progress: n_charts units for parameterize + 2*n_charts for pack (prepare + place)
+    pbar = comfy.utils.ProgressBar(3 * n_charts)
+
+    # parameterize (batched): ortho-project every chart at once, batched stretch metrics
+    # decide acceptance, rejected charts solve ABF/LSCM in dense per-size-bucket batches
+    chart_of_vert = (uniq_keys // n_verts_in).astype(np.int64)
+    verts_concat = vertices_np[used_verts_all].astype(np.float64)
+    gl_faces = local_faces_all + vert_offsets[chart_sorted][:, None]
+    face_pos = pos_in_chart[order]                       # row of each (sorted) face in its chart
+    uv0 = _uv_param.ortho_project_concat(verts_concat, chart_of_vert, n_charts)
+    rms, mx, n_flip, n_zero = _uv_param.stretch_metrics_concat(
+        verts_concat, uv0, gl_faces, chart_sorted, n_charts)
+    valid_chart = (vert_counts >= 3) & (chart_counts_np > 0)
+    auto = valid_chart & (chart_counts_np <= 5)          # tiny charts always keep ortho
+    flip_ok = (n_flip == 0) | (n_flip == chart_counts_np)
+    cand = valid_chart & ~auto & flip_ok & (n_zero == 0) & (rms <= 1.5) & (mx <= 2.0)
+    pbar.update(int(auto.sum()))
+
+    ortho_ok = auto.copy()
+    cand_ids = np.nonzero(cand)[0]
+    for c in tqdm(cand_ids, desc="unwrap: ortho checks", unit="chart", leave=False):
+        f0, f1 = chart_offsets_np[c], chart_offsets_np[c + 1]
+        v0, v1 = vert_offsets[c], vert_offsets[c + 1]
+        if not _uv_param._uv_boundary_self_intersects(
+                uv0[v0:v1], local_faces_all[f0:f1], local_ff_all[f0:f1]):
+            ortho_ok[c] = True
+        pbar.update(1)
+
+    lscm_mask = valid_chart & ~ortho_ok
+    batchable = vert_counts <= _uv_param.LSCM_BATCH_MAX_VERTS
+    lscm_ids = np.nonzero(lscm_mask & batchable)[0]
+    big_ids = np.nonzero(lscm_mask & ~batchable)[0]
+    lscm_uv = _uv_param.lscm_charts_batch(
+        verts_concat, uv0, gl_faces, face_pos, chart_sorted, chart_of_vert,
+        vert_offsets, lscm_ids, n_charts,
+        device=comfy.model_management.get_torch_device())
+    pbar.update(int(lscm_ids.size))
+
+    uvs_np_list: list = [None] * n_charts
+    uv0_f32 = uv0.astype(np.float32)
+    for c in tqdm(big_ids, desc="unwrap: LSCM (large charts)", unit="chart", leave=False):
+        f0, f1 = chart_offsets_np[c], chart_offsets_np[c + 1]
+        v0, v1 = vert_offsets[c], vert_offsets[c + 1]
+        uvs_t = _uv_param.lscm_chart(
+            torch.from_numpy(verts_concat[v0:v1]),
+            torch.from_numpy(local_faces_all[f0:f1]),
+            torch.from_numpy(local_ff_all[f0:f1]), pin_positions=uv0[v0:v1])
+        lscm_uv[int(c)] = uvs_t.detach().cpu().numpy().astype(np.float32)
+        pbar.update(1)
     for c in range(n_charts):
-        gfi_np = sorted_face_idx_np[chart_offsets_np[c]:chart_offsets_np[c + 1]]
-        chart_faces_global = faces_np[gfi_np]
-        used_verts_np = np.unique(chart_faces_global)
-        local_faces_np = np.searchsorted(used_verts_np, chart_faces_global)
-        local_verts_np = vertices_np[used_verts_np]
-        ff_global = face_face_np[gfi_np]
-        ff_safe = np.maximum(ff_global, 0)
-        nb_chart = np.where(ff_global >= 0, face_chart_np[ff_safe], -1)
-        keep = (ff_global >= 0) & (nb_chart == c)
-        local_neighbor = np.searchsorted(gfi_np, ff_safe)
-        local_ff_np = np.where(keep, local_neighbor, -1)
+        v0, v1 = vert_offsets[c], vert_offsets[c + 1]
+        if ortho_ok[c]:
+            uvs_np_list[c] = uv0_f32[v0:v1]
+            continue
+        u = lscm_uv.get(int(c))
+        if u is not None and np.all(np.isfinite(u)) and u.size:
+            # collapsed UV island (aspect > 100:1) blows up packing scale; keep ortho instead
+            bbox = u.max(axis=0) - u.min(axis=0)
+            if max(float(bbox.max()), 1e-12) / max(float(bbox.min()), 1e-12) <= 100.0:
+                uvs_np_list[c] = u
+                continue
+        uvs_np_list[c] = (uv0_f32[v0:v1] if valid_chart[c]
+                          else np.zeros((v1 - v0, 2), dtype=np.float32))
 
-        lf = torch.from_numpy(local_faces_np)
-        uvs = _uv_param.parametrize_chart(
-            torch.from_numpy(local_verts_np), lf, torch.from_numpy(local_ff_np))
-        ua, ub, uc = uvs[lf[:, 0]], uvs[lf[:, 1]], uvs[lf[:, 2]]
-        uv_area_sum = float(0.5 * (
-            (ub[:, 0] - ua[:, 0]) * (uc[:, 1] - ua[:, 1])
-            - (uc[:, 0] - ua[:, 0]) * (ub[:, 1] - ua[:, 1])).abs().sum().item())
-        chart_records.append({"local_faces": lf, "vmap": torch.from_numpy(used_verts_np),
-                              "global_face_idx": torch.from_numpy(gfi_np)})
-        all_chart_uvs.append(uvs)
-        all_chart_3d_areas.append(float(areas_cpu[c].item()))
-        all_chart_uv_areas.append(uv_area_sum)
-        all_chart_faces.append(lf)
+    # per-chart UV areas in one pass over all faces
+    uvs_all_np = np.concatenate(uvs_np_list)
+    ua, ub, uc = uvs_all_np[gl_faces[:, 0]], uvs_all_np[gl_faces[:, 1]], uvs_all_np[gl_faces[:, 2]]
+    tri_uv_area = 0.5 * np.abs(
+        (ub[:, 0] - ua[:, 0]) * (uc[:, 1] - ua[:, 1])
+        - (uc[:, 0] - ua[:, 0]) * (ub[:, 1] - ua[:, 1]))
+    uv_area_np = np.bincount(chart_sorted, weights=tri_uv_area.astype(np.float64),
+                             minlength=n_charts)
+
+    areas_3d_np = areas_cpu.numpy().astype(np.float64)
 
     # auto-tune texel density toward `resolution` (~0.62 pack fill)
-    total_3d_area = sum(all_chart_3d_areas) or 1.0
+    total_3d_area = float(areas_3d_np.sum()) or 1.0
     target_dim = float(resolution) if resolution > 0 else 1024.0
     tex_per_unit = math.sqrt((target_dim * target_dim) * 0.62 / total_3d_area)
 
-    placements, atlas_w, atlas_h = _uv_pack.pack_bitmap(
-        all_chart_uvs, all_chart_3d_areas, all_chart_uv_areas, all_chart_faces,
-        texels_per_unit=tex_per_unit, padding_texels=padding)
-    placed = _uv_pack.apply_placements(all_chart_uvs, placements, atlas_w, atlas_h)
+    with tqdm(total=2 * n_charts, desc="unwrap: pack", unit="chart", leave=False) as tq_pack:
+        def _pack_progress(done, total):
+            tq_pack.update(done - tq_pack.n)
+            pbar.update_absolute(n_charts + done, 3 * n_charts)
+        p_x, p_y, p_sw, p_th, p_sc, p_chh, atlas_w, atlas_h = _uv_pack.pack_bitmap_concat(
+            uvs_all_np, vert_offsets, local_faces_all, chart_offsets_np,
+            areas_3d_np, uv_area_np,
+            texels_per_unit=tex_per_unit, padding_texels=padding,
+            progress_callback=_pack_progress)
+    pbar.update_absolute(3 * n_charts, 3 * n_charts)
 
+    # assembly: output verts are the per-chart used-vert lists concatenated in chart order,
+    # so vert_offsets doubles as the output vertex cursor
     n_in_faces = mesh.faces.shape[0]
     out_indices = np.zeros((n_in_faces, 3), dtype=np.int64)
-    out_uvs_list, out_vmap_list, v_cursor = [], [], 0
-    for c, rec in enumerate(chart_records):
-        vmap_np = rec["vmap"].cpu().numpy()
-        local_faces_np = rec["local_faces"].cpu().numpy()
-        global_face_idx = rec["global_face_idx"].cpu().numpy()
-        out_uvs_list.append(placed[c].cpu().numpy())
-        if welded_to_orig is not None:
-            vmap_np = welded_to_orig[vmap_np]
-        out_vmap_list.append(vmap_np)
-        out_indices[global_face_idx] = local_faces_np + v_cursor
-        v_cursor += vmap_np.shape[0]
-
-    vmapping_out = np.concatenate(out_vmap_list) if out_vmap_list else np.empty(0, dtype=np.int64)
-    uvs_out = np.concatenate(out_uvs_list) if out_uvs_list else np.empty((0, 2), dtype=np.float32)
+    out_indices[order] = gl_faces
+    vmapping_out = used_verts_all if welded_to_orig is None else welded_to_orig[used_verts_all]
+    uvs_out = _uv_pack.apply_placements_concat(
+        uvs_all_np, vert_offsets, p_x, p_y, p_sw, p_th, p_sc, p_chh, atlas_w, atlas_h)
+    logging.info(f"[uv_unwrap] {mesh.faces.shape[0]} faces -> {n_charts} charts, "
+                 f"atlas {atlas_w}x{atlas_h}, {time.perf_counter() - t_start:.1f}s")
     return vmapping_out, out_indices, uvs_out
 
 
