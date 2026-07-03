@@ -16,7 +16,8 @@ from typing_extensions import override
 
 import folder_paths
 from comfy.cli_args import args
-from comfy_api.latest import ComfyExtension, IO, Types
+from comfy_api.latest import ComfyExtension, IO, Types, UI
+from server import PromptServer
 
 
 def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None, unlit=False,
@@ -796,6 +797,75 @@ class MergeMeshes(IO.ComfyNode):
             vertex_colors=merged_colors,
             texture=texture,
         ))
+
+
+class GetMeshInfo(IO.ComfyNode):
+    """Report vertex / face counts and attributes for a MESH, displayed on the
+    node (and as a string output). Counts are comma-formatted since meshes can
+    run into the millions of faces. Passes the mesh through unchanged."""
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GetMeshInfo",
+            display_name="Get Mesh Info",
+            category="3d/mesh",
+            inputs=[IO.Mesh.Input("mesh")],
+            outputs=[
+                IO.Mesh.Output(display_name="mesh"),
+                IO.String.Output(display_name="info"),
+            ],
+            hidden=[IO.Hidden.unique_id],
+        )
+
+    @staticmethod
+    def _fmt(n: int) -> str:
+        # e.g. 1234567 -> "1,234,567 (1.23M)"; small numbers stay plain.
+        s = f"{n:,}"
+        if n >= 1_000_000:
+            s += f" ({n / 1_000_000:.2f}M)"
+        elif n >= 10_000:
+            s += f" ({n / 1_000:.1f}K)"
+        return s
+
+    @classmethod
+    def execute(cls, mesh):
+        B = mesh.vertices.shape[0]
+        # Honour per-item counts when the batch is zero-padded; else use the row sizes.
+        if mesh.vertex_counts is not None:
+            v_counts = [int(x) for x in mesh.vertex_counts.tolist()]
+            f_counts = [int(x) for x in mesh.face_counts.tolist()]
+        else:
+            v_counts = [int(mesh.vertices.shape[1])] * B
+            f_counts = [int(mesh.faces.shape[1])] * B
+
+        attrs = []
+        for name in ("uvs", "vertex_colors", "normals", "tangents", "texture", "metallic_roughness", "normal_map"):
+            t = getattr(mesh, name, None)
+            if t is not None:
+                if name in ("texture", "metallic_roughness", "normal_map"):
+                    attrs.append(f"{name} {int(t.shape[-3])}×{int(t.shape[-2])}")  # H×W
+                else:
+                    attrs.append(name)
+
+        lines = []
+        if B > 1:
+            lines.append(f"Batch:      {B} meshes")
+            lines.append(f"Vertices:   {cls._fmt(sum(v_counts))} total")
+            lines.append(f"Faces:      {cls._fmt(sum(f_counts))} total")
+            for i in range(B):
+                lines.append(f"  [{i}]  {v_counts[i]:>10,} verts  ·  {f_counts[i]:>10,} faces")
+        else:
+            lines.append(f"Vertices:   {cls._fmt(v_counts[0])}")
+            lines.append(f"Faces:      {cls._fmt(f_counts[0])}")
+        lines.append(f"Attributes: {', '.join(attrs) if attrs else 'none'}")
+
+        info = "\n".join(lines)
+        logging.info("[GetMeshInfo]\n%s", info)
+
+        if cls.hidden.unique_id:
+            PromptServer.instance.send_progress_text(info, cls.hidden.unique_id)
+        return IO.NodeOutput(mesh, info, ui=UI.PreviewText(info))
 
 
 class Save3DExtension(ComfyExtension):

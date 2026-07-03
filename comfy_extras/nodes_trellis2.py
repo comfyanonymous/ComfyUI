@@ -1,10 +1,9 @@
 from typing_extensions import override
-from comfy_api.latest import ComfyExtension, IO, Types, UI, io
+from comfy_api.latest import ComfyExtension, IO, Types, io
 from comfy.ldm.trellis2.vae import SparseTensor
 from comfy.ldm.trellis2.model import build_proj_transform_matrix, compute_stage_proj_feats
 
 from comfy_extras.nodes_mesh_postprocess import pack_variable_mesh_batch
-from server import PromptServer
 import comfy.latent_formats
 import comfy.model_management
 import comfy.utils
@@ -292,7 +291,7 @@ class Trellis2UpsampleStage(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Trellis2UpsampleStage",
-            category="latent/3d",
+            category="model/conditioning/trellis2",
             display_name="Trellis2 Upsample Stage",
             inputs=[
                 IO.Conditioning.Input("positive"),
@@ -436,7 +435,7 @@ class Trellis2Conditioning(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Trellis2Conditioning",
-            category="conditioning/video_models",
+            category="model/conditioning/trellis2",
             inputs=[
                 IO.ClipVision.Input("clip_vision_model"),
                 IO.Image.Input("image"),
@@ -499,7 +498,7 @@ class Trellis2ShapeStage(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Trellis2ShapeStage",
-            category="latent/3d",
+            category="model/conditioning/trellis2",
             inputs=[
                 IO.Conditioning.Input("positive"),
                 IO.Conditioning.Input("negative"),
@@ -564,7 +563,7 @@ class Trellis2TextureStage(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Trellis2TextureStage",
-            category="latent/3d",
+            category="model/conditioning/trellis2",
             inputs=[
                 IO.Conditioning.Input("positive"),
                 IO.Conditioning.Input("negative"),
@@ -790,7 +789,7 @@ class Pixal3DConditioning(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Pixal3DConditioning",
-            category="conditioning/video_models",
+            category="model/conditioning/trellis2",
             inputs=[
                 IO.ClipVision.Input("clip_vision_model", tooltip="DINOv3 ViT-L/16 ClipVision."),
                 IO.Image.Input("image"),
@@ -888,75 +887,6 @@ class Pixal3DConditioning(IO.ComfyNode):
         return IO.NodeOutput(positive, negative)
 
 
-class GetMeshInfo(IO.ComfyNode):
-    """Report vertex / face counts and attributes for a MESH, displayed on the
-    node (and as a string output). Counts are comma-formatted since meshes can
-    run into the millions of faces. Passes the mesh through unchanged."""
-
-    @classmethod
-    def define_schema(cls):
-        return IO.Schema(
-            node_id="GetMeshInfo",
-            display_name="Get Mesh Info",
-            category="latent/3d",
-            inputs=[IO.Mesh.Input("mesh")],
-            outputs=[
-                IO.Mesh.Output(display_name="mesh"),
-                IO.String.Output(display_name="info"),
-            ],
-            hidden=[IO.Hidden.unique_id],
-        )
-
-    @staticmethod
-    def _fmt(n: int) -> str:
-        # e.g. 1234567 -> "1,234,567 (1.23M)"; small numbers stay plain.
-        s = f"{n:,}"
-        if n >= 1_000_000:
-            s += f" ({n / 1_000_000:.2f}M)"
-        elif n >= 10_000:
-            s += f" ({n / 1_000:.1f}K)"
-        return s
-
-    @classmethod
-    def execute(cls, mesh):
-        B = mesh.vertices.shape[0]
-        # Honour per-item counts when the batch is zero-padded; else use the row sizes.
-        if mesh.vertex_counts is not None:
-            v_counts = [int(x) for x in mesh.vertex_counts.tolist()]
-            f_counts = [int(x) for x in mesh.face_counts.tolist()]
-        else:
-            v_counts = [int(mesh.vertices.shape[1])] * B
-            f_counts = [int(mesh.faces.shape[1])] * B
-
-        attrs = []
-        for name in ("uvs", "vertex_colors", "normals", "tangents", "texture", "metallic_roughness", "normal_map"):
-            t = getattr(mesh, name, None)
-            if t is not None:
-                if name in ("texture", "metallic_roughness", "normal_map"):
-                    attrs.append(f"{name} {int(t.shape[-3])}×{int(t.shape[-2])}")  # H×W
-                else:
-                    attrs.append(name)
-
-        lines = []
-        if B > 1:
-            lines.append(f"Batch:      {B} meshes")
-            lines.append(f"Vertices:   {cls._fmt(sum(v_counts))} total")
-            lines.append(f"Faces:      {cls._fmt(sum(f_counts))} total")
-            for i in range(B):
-                lines.append(f"  [{i}]  {v_counts[i]:>10,} verts  ·  {f_counts[i]:>10,} faces")
-        else:
-            lines.append(f"Vertices:   {cls._fmt(v_counts[0])}")
-            lines.append(f"Faces:      {cls._fmt(f_counts[0])}")
-        lines.append(f"Attributes: {', '.join(attrs) if attrs else 'none'}")
-
-        info = "\n".join(lines)
-        logging.info("[GetMeshInfo]\n%s", info)
-
-        if cls.hidden.unique_id:
-            PromptServer.instance.send_progress_text(info, cls.hidden.unique_id)
-        return IO.NodeOutput(mesh, info, ui=UI.PreviewText(info))
-
-
 class Trellis2Extension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -970,7 +900,6 @@ class Trellis2Extension(ComfyExtension):
             VaeDecodeShapeTrellis,
             VaeDecodeStructureTrellis2,
             Trellis2UpsampleStage,
-            GetMeshInfo,
         ]
 
 
