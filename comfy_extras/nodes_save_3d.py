@@ -105,104 +105,6 @@ def get_mesh_batch_item(mesh, index):
     return mesh.vertices[index], mesh.faces[index], colors, uvs, normals
 
 
-def _smooth_vertex_normals(vertices_np, faces_np, weld=True):
-    """Area-weighted per-vertex normals (unit length), fully smooth — no vertex splitting.
-
-    Un-normalized face normals (the raw cross product) have magnitude 2*area, so
-    accumulating them onto their vertices yields an area-weighted average. `weld` averages
-    across vertices that share a position — UV-seam duplicates created by unwrapping — so
-    both sides of a seam get one identical normal. Without it each side averages only its
-    own faces and a visible shading seam appears; welding matches the official, which
-    computes normals on the pre-split mesh and gathers them through the UV vmap."""
-    tris = vertices_np[faces_np]                                  # (M, 3, 3)
-    face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
-    if weld and vertices_np.shape[0]:
-        # Group coincident positions (quantized to ~1e-5 of the bbox) into one shared normal.
-        lo = vertices_np.min(0)
-        inv_tol = 1.0 / (max(float((vertices_np.max(0) - lo).max()), 1e-9) * 1e-5)
-        q = np.round((vertices_np - lo) * inv_tol).astype(np.int64)
-        _, group = np.unique(q, axis=0, return_inverse=True)
-        acc = np.zeros((int(group.max()) + 1, 3), dtype=np.float64)
-        for k in range(3):
-            np.add.at(acc, group[faces_np[:, k]], face_n)
-        normals = acc[group]                                      # welded normal back to each vertex
-    else:
-        normals = np.zeros((vertices_np.shape[0], 3), dtype=np.float64)
-        for k in range(3):
-            np.add.at(normals, faces_np[:, k], face_n)
-    lens = np.linalg.norm(normals, axis=1, keepdims=True)
-    normals /= np.where(lens > 1e-12, lens, 1.0)
-    return normals.astype(np.float32)
-
-
-def _compute_vertex_normals(vertices_np, faces_np, crease_angle=None):
-    """Compute per-vertex normals, returning (vertices, faces_uint32, normals, remap).
-
-    crease_angle is None (or >= 180) -> fully smooth normals; vertices/faces are
-    returned unchanged and remap is None.
-
-    Otherwise vertices are split along edges whose dihedral angle exceeds
-    crease_angle (degrees) so hard creases stay sharp while smooth regions still
-    interpolate. remap maps each output vertex back to its source index, so the
-    caller can duplicate any per-vertex attributes (uvs / colors) to match."""
-    faces_i = faces_np.astype(np.int64)
-    if crease_angle is None or crease_angle >= 180.0:
-        return (vertices_np, faces_i.astype(np.uint32),
-                _smooth_vertex_normals(vertices_np, faces_i), None)
-
-    M = faces_i.shape[0]
-    tris = vertices_np[faces_i]
-    face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
-    areas = np.linalg.norm(face_n, axis=1, keepdims=True)
-    face_unit = face_n / np.where(areas > 1e-12, areas, 1.0)
-    cos_thresh = math.cos(math.radians(crease_angle))
-
-    # Union faces that share an edge whose dihedral angle is below the crease
-    # threshold; each connected component becomes one smoothing group.
-    parent = list(range(M))
-
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    edge_faces = {}
-    for fi in range(M):
-        a, b, c = int(faces_i[fi, 0]), int(faces_i[fi, 1]), int(faces_i[fi, 2])
-        for u, v in ((a, b), (b, c), (c, a)):
-            edge_faces.setdefault((u, v) if u < v else (v, u), []).append(fi)
-    for fl in edge_faces.values():
-        if len(fl) == 2 and float(np.dot(face_unit[fl[0]], face_unit[fl[1]])) >= cos_thresh:
-            ra, rb = find(fl[0]), find(fl[1])
-            if ra != rb:
-                parent[ra] = rb
-
-    # Emit one output vertex per (original vertex, smoothing group) pair.
-    new_index = {}
-    remap = []
-    out_faces = np.empty((M, 3), dtype=np.int64)
-    for fi in range(M):
-        g = find(fi)
-        for k in range(3):
-            ov = int(faces_i[fi, k])
-            key = (ov, g)
-            ni = new_index.get(key)
-            if ni is None:
-                ni = len(remap)
-                new_index[key] = ni
-                remap.append(ov)
-            out_faces[fi, k] = ni
-
-    remap = np.asarray(remap, dtype=np.int64)
-    normals = np.zeros((remap.shape[0], 3), dtype=np.float64)
-    for k in range(3):
-        np.add.at(normals, out_faces[:, k], face_n)
-    lens = np.linalg.norm(normals, axis=1, keepdims=True)
-    normals /= np.where(lens > 1e-12, lens, 1.0)
-    return (vertices_np[remap], out_faces.astype(np.uint32), normals.astype(np.float32), remap)
-
-
 def save_glb(vertices, faces, filepath=None, metadata=None,
              uvs=None, vertex_colors=None, texture_image=None,
              metallic_roughness_image=None, unlit=False,
@@ -823,91 +725,83 @@ class RotateMesh(IO.ComfyNode):
         return IO.NodeOutput(out)
 
 
-class MeshSmoothNormals(IO.ComfyNode):
+class MergeMeshes(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
+        autogrow_template = IO.Autogrow.TemplatePrefix(
+            IO.Mesh.Input("mesh"), prefix="mesh", min=2, max=50,
+        )
         return IO.Schema(
-            node_id="MeshSmoothNormals",
-            display_name="Smooth Mesh Normals",
-            category="3d",
+            node_id="MergeMeshes",
+            display_name="Merge Meshes",
+            category="3d/mesh",
             description=(
-                "Compute smooth per-vertex normals and attach them to the mesh. Meshes "
-                "without normals are shaded flat (per-face) by glTF viewers; this makes "
-                "them shade smoothly. With crease_angle below 180, edges sharper than the "
-                "threshold are kept hard by splitting vertices along them."
+                "Concatenate N meshes into one by offsetting face indices and stacking verts, "
+                "faces, uvs, and colors."
             ),
             inputs=[
-                IO.Mesh.Input("mesh"),
-                IO.Float.Input("crease_angle", default=180.0, min=0.0, max=180.0, step=1.0,
-                               tooltip="Edges whose dihedral angle exceeds this (degrees) stay "
-                                       "hard (vertices are split). 180 = fully smooth; lower "
-                                       "preserves sharp edges (e.g. ~30-60 for hard-surface)."),
+                IO.Autogrow.Input("meshes", template=autogrow_template),
             ],
             outputs=[IO.Mesh.Output("mesh")],
         )
 
     @classmethod
-    def execute(cls, mesh: Types.MESH, crease_angle: float) -> IO.NodeOutput:
-        crease = None if crease_angle >= 180.0 else float(crease_angle)
-        batch_size = mesh.vertices.shape[0]
+    def execute(cls, meshes: IO.Autogrow.Type) -> IO.NodeOutput:
+        # Concatenate the input meshes into one (B=1) mesh: cumulative face-index offset,
+        # missing uvs/colors padded (zeros/white), texture from the first input that has one
+        # (later dropped — a single-primitive glb can't carry multiple atlases).
+        meshes = list(meshes.values())
+        if not meshes:
+            raise ValueError("MergeMeshes: need at least one mesh")
 
-        if crease is None:
-            # Fully smooth: topology is unchanged, so just attach a normals tensor that
-            # matches the existing (possibly zero-padded) vertex layout and keep all fields.
-            normals_padded = torch.zeros_like(mesh.vertices)
-            for i in range(batch_size):
-                v_i, f_i, _, _, _ = get_mesh_batch_item(mesh, i)
-                if v_i.shape[0] == 0 or f_i.shape[0] == 0:
-                    continue
-                n_i = _smooth_vertex_normals(v_i.cpu().numpy().astype(np.float32),
-                                             f_i.cpu().numpy().astype(np.int64))
-                normals_padded[i, :n_i.shape[0]] = torch.from_numpy(n_i).to(mesh.vertices)
-            out = copy.copy(mesh)
-            out.normals = normals_padded
-            return IO.NodeOutput(out)
+        def _b0(t):
+            return t[0] if t.ndim == 3 else t
 
-        # Crease split changes per-item vertex counts -> rebuild as a variable-size batch.
-        tangents_b = mesh.tangents
-        v_list, f_list, n_list = [], [], []
-        c_list = [] if mesh.vertex_colors is not None else None
-        u_list = [] if mesh.uvs is not None else None
-        t_list = [] if tangents_b is not None else None
-        for i in range(batch_size):
-            v_i, f_i, c_i, u_i, _ = get_mesh_batch_item(mesh, i)
-            if v_i.shape[0] == 0 or f_i.shape[0] == 0:
-                continue
-            dev = v_i.device
-            vo, fo, no, remap = _compute_vertex_normals(
-                v_i.cpu().numpy().astype(np.float32),
-                f_i.cpu().numpy().astype(np.int64), crease)
-            remap_t = torch.from_numpy(remap)
-            v_list.append(torch.from_numpy(vo).to(dev, mesh.vertices.dtype))
-            f_list.append(torch.from_numpy(fo.astype(np.int64)).to(dev, mesh.faces.dtype))
-            n_list.append(torch.from_numpy(no).to(dev, mesh.vertices.dtype))
-            if c_list is not None:
-                c_list.append(c_i[remap_t.to(c_i.device)])
-            if u_list is not None:
-                u_list.append(u_i[remap_t.to(u_i.device)])
-            if t_list is not None:
-                # Remap (not recompute) so TANGENT keeps the baked basis; split verts copy theirs.
-                t_i = tangents_b[i, :v_i.shape[0]]
-                t_list.append(t_i[remap_t.to(t_i.device)])
-        if not v_list:
-            return IO.NodeOutput(mesh)
-        out = pack_variable_mesh_batch(
-            v_list, f_list, colors=c_list, uvs=u_list,
-            texture=mesh.texture, unlit=mesh.unlit,
-            normals=n_list, metallic_roughness=mesh.metallic_roughness,
-            tangents=t_list, normal_map=mesh.normal_map,
-            occlusion_in_mr=mesh.occlusion_in_mr,
-            material=mesh.material, emissive=mesh.emissive)
-        return IO.NodeOutput(out)
+        any_uvs = any(m.uvs is not None for m in meshes)
+        any_colors = any(m.vertex_colors is not None for m in meshes)
+
+        verts_list, faces_list, uvs_list, colors_list = [], [], [], []
+        texture = None
+        offset = 0
+        for m in meshes:
+            # Coerce to CPU so CUDA-side (MoGe) meshes merge cleanly with our outputs.
+            v = _b0(m.vertices).cpu()
+            f = _b0(m.faces).cpu()
+            verts_list.append(v)
+            faces_list.append(f + offset)
+            offset += v.shape[0]
+            if any_uvs:
+                mu = m.uvs
+                uvs_list.append(_b0(mu).cpu() if mu is not None else v.new_zeros((v.shape[0], 2)))
+            if any_colors:
+                mc = m.vertex_colors
+                c = _b0(mc).cpu() if mc is not None else v.new_ones((v.shape[0], 3))
+                colors_list.append(c)
+            mt = m.texture
+            if mt is not None:
+                if texture is None:
+                    texture = mt.cpu()
+                else:
+                    logging.warning("MergeMeshes: dropping extra texture from input; only one texture is kept.")
+
+        merged_verts = torch.cat(verts_list, dim=0).unsqueeze(0)
+        merged_faces = torch.cat(faces_list, dim=0).unsqueeze(0)
+        merged_uvs = torch.cat(uvs_list, dim=0).unsqueeze(0) if any_uvs else None
+        merged_colors = torch.cat(colors_list, dim=0).unsqueeze(0) if any_colors else None
+
+        return IO.NodeOutput(Types.MESH(
+            vertices=merged_verts,
+            faces=merged_faces,
+            uvs=merged_uvs,
+            vertex_colors=merged_colors,
+            texture=texture,
+        ))
 
 
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB, MeshToFile3D, RotateMesh, MeshSmoothNormals]
+        return [SaveGLB, MeshToFile3D, RotateMesh, MergeMeshes]
 
 
 async def comfy_entrypoint() -> Save3DExtension:

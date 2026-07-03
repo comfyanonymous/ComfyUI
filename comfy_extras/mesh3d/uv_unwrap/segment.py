@@ -324,7 +324,7 @@ def segment_charts(
     return _renumber(face_chart, device)
 
 
-# ---- Parallel edge-collapse (PEC) chart clustering (CUDA) ----
+# Parallel edge-collapse (PEC) chart clustering (GPU)
 def _combine_normal_cones(
     axis_a: Tensor, half_a: Tensor,
     axis_b: Tensor, half_b: Tensor,

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import math
-import time as _time
 
 import numpy as _np
 import torch
@@ -860,14 +859,13 @@ class CleanStats:
     duplicate_faces: int = 0       # same vertex-set removed
     unused_verts: int = 0          # verts not in any face removed
     components_dropped: int = 0    # disconnected components below threshold
-    seconds: float = 0.0
 
     def __str__(self):
         return (f"clean: in={self.in_verts}v/{self.in_faces}f -> "
                 f"out={self.out_verts}v/{self.out_faces}f "
                 f"(welded {self.welded_verts}v, degen {self.degenerate_faces}f, "
                 f"dup {self.duplicate_faces}f, unused {self.unused_verts}v, "
-                f"comps {self.components_dropped}) {self.seconds*1000:.1f}ms")
+                f"comps {self.components_dropped})")
 
 
 def _weld_vertices(
@@ -1150,7 +1148,6 @@ def clean_mesh(
 ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], CleanStats]:
     """Mesh hygiene pipeline; preserves per-vertex attributes through welding. Returns (v, f, colors, normals, stats)."""
     stats = CleanStats(in_verts=verts.shape[0], in_faces=faces.shape[0])
-    t0 = _time.perf_counter()
     v = verts
     f = faces.long() if faces.numel() > 0 else faces
     c = colors
@@ -1192,7 +1189,6 @@ def clean_mesh(
 
     stats.out_verts = v.shape[0]
     stats.out_faces = f.shape[0]
-    stats.seconds = _time.perf_counter() - t0
     # materialize tensor-scalar counts to plain ints once at exit
     for field in ("welded_verts", "degenerate_faces", "duplicate_faces",
                   "unused_verts", "components_dropped"):
@@ -1210,8 +1206,6 @@ class SimplifyStats:
     output_faces: int = 0
     iterations: int = 0
     total_collapses: int = 0
-    seconds: float = 0.0
-    peak_mem_mb: float = 0.0
 
 
 def qem_simplify(
@@ -1257,11 +1251,6 @@ def qem_simplify(
                (colors_w.to(in_c_dtype) if colors_w is not None else None), \
                (normals_w.to(in_n_dtype) if normals_w is not None else None), \
                stats
-
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
-        torch.cuda.reset_peak_memory_stats(device)
-    t0 = _time.perf_counter()
 
     v_alive = torch.ones(num_verts, dtype=torch.bool, device=device)
     f_alive = torch.ones(num_faces, dtype=torch.bool, device=device)
@@ -1600,10 +1589,6 @@ def qem_simplify(
         wrong = (fn * ref).sum(dim=-1) < 0
         final_f[wrong] = final_f[wrong][:, [0, 2, 1]]
 
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
-        stats.peak_mem_mb = torch.cuda.max_memory_allocated(device) / (1024 * 1024)
-    stats.seconds = _time.perf_counter() - t0
     stats.iterations = iteration
     stats.total_collapses = total_collapses
     stats.output_verts = final_v.shape[0]

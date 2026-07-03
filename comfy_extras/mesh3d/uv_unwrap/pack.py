@@ -9,6 +9,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
+import comfy.model_management
+
 try:
     from numba import njit as _njit
     _HAVE_NUMBA_PACK = True
@@ -361,7 +363,7 @@ def _chart_perimeter(uvs: np.ndarray, faces: np.ndarray) -> float:
     return float(_chart_perimeter_jit(uvs.astype(np.float64), faces.astype(np.int64), V))
 
 
-# ---- Torch fallback (used when numba is unavailable; runs on GPU if present) ----
+# Torch fallback (used when numba is unavailable; runs on GPU if present)
 
 def _dilate_local(x: Tensor, p: int) -> Tensor:
     """4-connectivity dilation by p, applied per-image over a batch of (cnt,g,g) bitmaps.
@@ -512,7 +514,7 @@ def _pack_bitmap_torch(chart_uvs, chart_3d_areas, chart_uv_areas, chart_faces,
     n = len(chart_uvs)
     if n == 0:
         return [], 1, 1
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = comfy.model_management.get_torch_device()
     ang = torch.linspace(0.0, math.pi / 2.0, 37, device=device)[:-1]
     cos_a, sin_a = ang.cos(), ang.sin()
 

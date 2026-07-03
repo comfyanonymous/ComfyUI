@@ -2,13 +2,14 @@ import torch
 import numpy as np
 import math
 from typing_extensions import override
-from comfy_api.latest import ComfyExtension, IO, Types, io
+from comfy_api.latest import ComfyExtension, IO, Types
 import copy
 import comfy.utils
 import comfy.model_management
 from server import PromptServer
 from comfy_extras.mesh3d.postprocess.qem_decimate import QEMConfig, qem_decimate_simplify, qem_cluster_decimate, _compute_vertex_normals
 from comfy_extras.mesh3d.postprocess.remesh import remesh_narrow_band_dc, _point_tri_closest
+from comfy_extras.nodes_save_3d import get_mesh_batch_item, pack_variable_mesh_batch
 from comfy_extras.mesh3d.uv_unwrap import mesh as _uv_mesh
 from comfy_extras.mesh3d.uv_unwrap import segment as _uv_seg
 from comfy_extras.mesh3d.uv_unwrap import parameterize as _uv_param
@@ -19,57 +20,6 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 import scipy.ndimage as ndi
-
-MeshCameras = io.Custom("MESH_CAMERAS")   # carries the camera set from RenderMeshViews → BakeViewsToTexture
-
-def get_mesh_batch_item(mesh, index):
-    if hasattr(mesh, "vertex_counts") and mesh.vertex_counts is not None:
-        vertex_count = int(mesh.vertex_counts[index].item())
-        face_count = int(mesh.face_counts[index].item())
-        vertices = mesh.vertices[index, :vertex_count]
-        faces = mesh.faces[index, :face_count]
-        colors = None
-        if hasattr(mesh, "colors") and mesh.colors is not None:
-            if hasattr(mesh, "color_counts") and mesh.color_counts is not None:
-                color_count = int(mesh.color_counts[index].item())
-                colors = mesh.colors[index, :color_count]
-            else:
-                colors = mesh.colors[index, :vertex_count]
-        return vertices, faces, colors
-
-    colors = None
-    if hasattr(mesh, "colors") and mesh.colors is not None:
-        colors = mesh.colors[index]
-    return mesh.vertices[index], mesh.faces[index], colors
-
-def pack_variable_mesh_batch(vertices, faces, colors=None):
-    batch_size = len(vertices)
-    max_vertices = max(v.shape[0] for v in vertices)
-    max_faces = max(f.shape[0] for f in faces)
-
-    packed_vertices = vertices[0].new_zeros((batch_size, max_vertices, vertices[0].shape[1]))
-    packed_faces = faces[0].new_zeros((batch_size, max_faces, faces[0].shape[1]))
-    vertex_counts = torch.tensor([v.shape[0] for v in vertices], device=vertices[0].device, dtype=torch.int64)
-    face_counts = torch.tensor([f.shape[0] for f in faces], device=faces[0].device, dtype=torch.int64)
-
-    for i, (v, f) in enumerate(zip(vertices, faces)):
-        packed_vertices[i, :v.shape[0]] = v
-        packed_faces[i, :f.shape[0]] = f
-
-    mesh = Types.MESH(packed_vertices, packed_faces)
-    mesh.vertex_counts = vertex_counts
-    mesh.face_counts = face_counts
-
-    if colors is not None:
-        max_colors = max(c.shape[0] for c in colors)
-        packed_colors = colors[0].new_zeros((batch_size, max_colors, colors[0].shape[1]))
-        color_counts = torch.tensor([c.shape[0] for c in colors], device=colors[0].device, dtype=torch.int64)
-        for i, c in enumerate(colors):
-            packed_colors[i, :c.shape[0]] = c
-        mesh.vertex_colors = packed_colors
-        mesh.color_counts = color_counts
-
-    return mesh
 
 
 def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
@@ -107,13 +57,21 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
 
     return out_mesh
 
+
+def paint_mesh_default_colors(mesh):
+    out_mesh = copy.copy(mesh)
+    vertex_count = mesh.vertices.shape[1]
+    out_mesh.vertex_colors = mesh.vertices.new_zeros((1, vertex_count, 3))
+    return out_mesh
+
+
 class PaintMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="PaintMesh",
             display_name="Paint Mesh",
-            category="latent/3d",
+            category="3d/mesh",
             description="Paints each mesh vertex with its nearest voxel color from the input voxel field.",
             inputs=[
                 IO.Mesh.Input("mesh"),
@@ -146,7 +104,7 @@ class PaintMesh(IO.ComfyNode):
                 sel = batch_idx == i
                 item_coords = voxel_coords[sel]
                 item_colors = colors[sel]
-                item_vertices, item_faces, _ = get_mesh_batch_item(mesh, i)
+                item_vertices, item_faces, *_ = get_mesh_batch_item(mesh, i)
                 item_mesh = Types.MESH(vertices=item_vertices.unsqueeze(0), faces=item_faces.unsqueeze(0))
 
                 if item_coords.shape[0] == 0:
@@ -445,14 +403,15 @@ def _sample_voxel_attrs_per_texel(position_map, mask, voxel_coords, voxel_colors
     origin = np.array([-0.5, -0.5, -0.5], dtype=np.float32)
     voxel_size = 1.0 / float(resolution)
     coords_np = voxel_coords.detach().cpu().numpy()
-    # Cell-CENTER convention (+0.5 voxel) — same world mapping as the GPU paths; this
-    # cKDTree only serves the rare non-CUDA nearest fallback.
+    # Cell-CENTER convention (+0.5 voxel) — same world mapping as the sampling paths; these
+    # voxel centres serve the rare cKDTree nearest fallback below.
     voxel_pos = (coords_np.astype(np.float32) + 0.5) * voxel_size + origin
     valid_positions = position_map[mask]
 
     def _nearest(query):
-        # GPU grid scan + small-N brute tail. Large straggler counts (coarse mesh) and
-        # non-CUDA come back unfound → resolve with one cKDTree (build amortizes over N).
+        # Grid scan + small-N brute tail (on the compute device). Only a large count of far
+        # stragglers (coarse mesh, or a surface off the voxel shell) is left unfound → resolve
+        # those with one cKDTree, since GPU brute force is O(N·M) and blows up at large N.
         vals, found = _nearest_voxel_sample_gpu(query, coords_np, color_np, resolution)
         if not found.all():
             tree = cKDTree(voxel_pos)
@@ -860,12 +819,9 @@ def _bake_ambient_occlusion(high_v, high_f, low_v_np, low_f_np, low_uv_np, low_n
     S = int(num_samples)
     if ray_chunk is None:
         # ~376 B/ray (int32 stack max_stack*4 + a few [N,3] ray buffers); spend a quarter of free
-        # VRAM. Speed saturates around 4M rays/chunk, so cap there (≈2 GB peak) rather than grow
-        # memory for no gain; floor keeps tiny GPUs from thrashing into too many chunks.
-        try:
-            free = torch.cuda.mem_get_info(dev)[0] if dev.type == "cuda" else (2 << 30)
-        except RuntimeError:
-            free = 2 << 30
+        # device memory. Speed saturates around 4M rays/chunk, so cap there (≈2 GB peak) rather than
+        # grow memory for no gain; floor keeps tiny GPUs from thrashing into too many chunks.
+        free = comfy.model_management.get_free_memory(dev)
         ray_chunk = int(min(1 << 22, max(1 << 20, (free * 0.25) / (num_samples * 4 + 200))))
     face_idx, bary_uv, mask = _rasterize_uv_barycentric(low_f_np, low_uv_np, resolution)
     if not mask.any():
@@ -922,6 +878,178 @@ def _bake_ambient_occlusion(high_v, high_f, low_v_np, low_f_np, low_uv_np, low_n
     out[m] = ao
     out3 = np.repeat(out.cpu().numpy()[..., None], 3, axis=2)
     return _jfa_fill_gpu(np.ascontiguousarray(out3, dtype=np.float32), mask.cpu().numpy())
+
+
+def _camera_basis(eye, center, up_hint):
+    """Forward/right/up for a camera at `eye` looking at `center` (each [3])."""
+    f = torch.nn.functional.normalize(center - eye, dim=-1, eps=1e-6)
+    # Fall back to +Z up when looking near-vertical (f ∥ +Y would give a degenerate right vector).
+    up = up_hint if float(torch.abs((f * up_hint).sum())) < 0.99 else torch.tensor([0.0, 0.0, 1.0], device=f.device)
+    r = torch.nn.functional.normalize(torch.cross(f, up, dim=-1), dim=-1, eps=1e-6)
+    return f, r, torch.cross(r, f, dim=-1)
+
+
+def _sample_image01(img_hwc, uv01):
+    """Bilinear-sample img [H,W,C] at uv01 [K,2] in [0,1] (u=x/col, v=y/row). Returns [K,C]."""
+    g = (uv01 * 2.0 - 1.0).view(1, 1, -1, 2)
+    s = torch.nn.functional.grid_sample(img_hwc.permute(2, 0, 1)[None].float(), g, mode="bilinear", align_corners=False, padding_mode="border")
+    return s[0, :, 0, :].t()
+
+
+def _render_view(tri, bvh, uv, faces, texture_hwc, eye, f, r, u, fov, H, W, ray_chunk=1 << 22,
+                 vertex_colors=None, vertex_normals=None, render_normal=False):
+    """Ray-cast render: per pixel, nearest-hit triangle → colour it. With `render_normal`, output the
+    view-space normal (OpenGL: x=right, y=up, z=toward camera; smooth `vertex_normals` if given, else
+    the face normal). Otherwise colour source in order: `texture_hwc` (sampled via interpolated UVs),
+    else `vertex_colors` (barycentric), else neutral clay shaded by facing angle. Returns
+    (img, hit_mask, depth)."""
+    dev = tri.device
+    ys = 1.0 - (torch.arange(H, device=dev, dtype=torch.float32) + 0.5) / H * 2.0   # row 0 = +up
+    xs = (torch.arange(W, device=dev, dtype=torch.float32) + 0.5) / W * 2.0 - 1.0
+    gy, gx = torch.meshgrid(ys, xs, indexing="ij")
+    tn = math.tan(0.5 * fov)
+    aspect = W / H
+    d = torch.nn.functional.normalize(
+        (r * (gx * tn * aspect)[..., None] + u * (gy * tn)[..., None] + f).reshape(-1, 3), dim=-1, eps=1e-6)
+    o = eye[None, :].expand(H * W, 3)
+    img = torch.zeros((H * W, 3), device=dev)
+    depth = torch.full((H * W,), float("inf"), device=dev)
+    hit_all = torch.zeros(H * W, dtype=torch.bool, device=dev)
+    for s in range(0, H * W, ray_chunk):
+        e = min(s + ray_chunk, H * W)
+        t_hit, face, hit = _closest_hit_rays_bvh(o[s:e], d[s:e], tri, bvh, tmin=1e-5, tmax=1e30)
+        if bool(hit.any()):
+            fh = face[hit].clamp_min(0)
+            P = o[s:e][hit] + t_hit[hit, None] * d[s:e][hit]
+            bary = _barycentric(P, tri[fh])
+            local = torch.zeros((e - s, 3), device=dev)
+            if render_normal:
+                if vertex_normals is not None:
+                    nrm = torch.nn.functional.normalize(
+                        (bary[:, :, None] * vertex_normals[faces[fh]]).sum(1), dim=-1, eps=1e-6)
+                else:                                              # face normal, oriented toward camera
+                    nrm = torch.nn.functional.normalize(
+                        torch.cross(tri[fh][:, 1] - tri[fh][:, 0], tri[fh][:, 2] - tri[fh][:, 0], dim=-1),
+                        dim=-1, eps=1e-6)
+                    nrm = torch.where((nrm * -d[s:e][hit]).sum(-1, keepdim=True) < 0, -nrm, nrm)
+                nv = torch.stack([(nrm * r).sum(-1), (nrm * u).sum(-1), (nrm * -f).sum(-1)], dim=-1)
+                local[hit] = (nv * 0.5 + 0.5).clamp(0.0, 1.0)      # view-space OpenGL normal encode
+            elif texture_hwc is not None and uv is not None:
+                uvh = (bary[:, :, None] * uv[faces[fh]]).sum(1)
+                local[hit] = _sample_image01(texture_hwc, uvh)
+            elif vertex_colors is not None:
+                local[hit] = (bary[:, :, None] * vertex_colors[faces[fh]]).sum(1)
+            else:
+                # Neutral clay, headlight-shaded (|n·view|) so silhouette-plus-form reads, not a flat blob.
+                fn = torch.nn.functional.normalize(
+                    torch.cross(tri[fh][:, 1] - tri[fh][:, 0], tri[fh][:, 2] - tri[fh][:, 0], dim=-1),
+                    dim=-1, eps=1e-6)
+                ndl = (fn * -d[s:e][hit]).sum(-1).abs().clamp(0.15, 1.0)
+                local[hit] = torch.tensor([0.72, 0.72, 0.72], device=dev) * ndl[:, None]
+            img[s:e] = local
+            dloc = torch.full((e - s,), float("inf"), device=dev)
+            dloc[hit] = t_hit[hit]
+            depth[s:e] = dloc
+            hit_all[s:e] = hit
+    img = img.reshape(H, W, 3)
+    depth = depth.reshape(H, W)
+    hit_all = hit_all.reshape(H, W)
+    # Dilate the object color into the background so bilinear sampling near the silhouette doesn't
+    # bleed black (a cross-view seam source) — and gives the upscaler a coherent, edge-free image.
+    if bool(hit_all.any()) and not bool(hit_all.all()):
+        img = torch.from_numpy(_jfa_fill_gpu(img.cpu().numpy(), hit_all.cpu().numpy())).to(dev)
+    return img, hit_all, depth
+
+
+def _smooth_vertex_normals(vertices_np, faces_np, weld=True):
+    """Area-weighted per-vertex normals (unit length), fully smooth, no vertex splitting."""
+    tris = vertices_np[faces_np]                                  # (M, 3, 3)
+    face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    if weld and vertices_np.shape[0]:
+        # Group coincident positions (quantized to ~1e-5 of the bbox) into one shared normal.
+        lo = vertices_np.min(0)
+        inv_tol = 1.0 / (max(float((vertices_np.max(0) - lo).max()), 1e-9) * 1e-5)
+        q = np.round((vertices_np - lo) * inv_tol).astype(np.int64)
+        _, group = np.unique(q, axis=0, return_inverse=True)
+        acc = np.zeros((int(group.max()) + 1, 3), dtype=np.float64)
+        for k in range(3):
+            np.add.at(acc, group[faces_np[:, k]], face_n)
+        normals = acc[group]  # welded normal back to each vertex
+    else:
+        normals = np.zeros((vertices_np.shape[0], 3), dtype=np.float64)
+        for k in range(3):
+            np.add.at(normals, faces_np[:, k], face_n)
+    lens = np.linalg.norm(normals, axis=1, keepdims=True)
+    normals /= np.where(lens > 1e-12, lens, 1.0)
+    return normals.astype(np.float32)
+
+
+def _compute_vertex_face_normals(vertices_np, faces_np, crease_angle=None):
+    """Compute per-vertex normals, returning (vertices, faces_uint32, normals, remap).
+
+    crease_angle is None (or >= 180) -> fully smooth normals; vertices/faces are
+    returned unchanged and remap is None.
+
+    Otherwise vertices are split along edges whose dihedral angle exceeds
+    crease_angle (degrees) so hard creases stay sharp while smooth regions still
+    interpolate. remap maps each output vertex back to its source index, so the
+    caller can duplicate any per-vertex attributes (uvs / colors) to match."""
+    faces_i = faces_np.astype(np.int64)
+    if crease_angle is None or crease_angle >= 180.0:
+        return (vertices_np, faces_i.astype(np.uint32),
+                _smooth_vertex_normals(vertices_np, faces_i), None)
+
+    M = faces_i.shape[0]
+    tris = vertices_np[faces_i]
+    face_n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    areas = np.linalg.norm(face_n, axis=1, keepdims=True)
+    face_unit = face_n / np.where(areas > 1e-12, areas, 1.0)
+    cos_thresh = math.cos(math.radians(crease_angle))
+
+    # Union faces that share an edge whose dihedral angle is below the crease
+    # threshold; each connected component becomes one smoothing group.
+    parent = list(range(M))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    edge_faces = {}
+    for fi in range(M):
+        a, b, c = int(faces_i[fi, 0]), int(faces_i[fi, 1]), int(faces_i[fi, 2])
+        for u, v in ((a, b), (b, c), (c, a)):
+            edge_faces.setdefault((u, v) if u < v else (v, u), []).append(fi)
+    for fl in edge_faces.values():
+        if len(fl) == 2 and float(np.dot(face_unit[fl[0]], face_unit[fl[1]])) >= cos_thresh:
+            ra, rb = find(fl[0]), find(fl[1])
+            if ra != rb:
+                parent[ra] = rb
+
+    # Emit one output vertex per (original vertex, smoothing group) pair.
+    new_index = {}
+    remap = []
+    out_faces = np.empty((M, 3), dtype=np.int64)
+    for fi in range(M):
+        g = find(fi)
+        for k in range(3):
+            ov = int(faces_i[fi, k])
+            key = (ov, g)
+            ni = new_index.get(key)
+            if ni is None:
+                ni = len(remap)
+                new_index[key] = ni
+                remap.append(ov)
+            out_faces[fi, k] = ni
+
+    remap = np.asarray(remap, dtype=np.int64)
+    normals = np.zeros((remap.shape[0], 3), dtype=np.float64)
+    for k in range(3):
+        np.add.at(normals, out_faces[:, k], face_n)
+    lens = np.linalg.norm(normals, axis=1, keepdims=True)
+    normals /= np.where(lens > 1e-12, lens, 1.0)
+    return (vertices_np[remap], out_faces.astype(np.uint32), normals.astype(np.float32), remap)
 
 
 def _compute_vertex_tangents(verts, faces, uvs, normals):
@@ -1200,7 +1328,7 @@ class BakeTextureFromVoxel(IO.ComfyNode):
         return IO.Schema(
             node_id="BakeTextureFromVoxel",
             display_name="Bake Texture From Voxel",
-            category="latent/3d",
+            category="3d/mesh/texturing",
             description=(
                 "Bakes PBR textures onto the mesh's existing UV layout (trilinear-sample the "
                 "sparse voxel volume). Does NOT unwrap — connect a UV unwrap node upstream. Outputs "
@@ -1249,7 +1377,7 @@ class BakeTextureFromVoxel(IO.ComfyNode):
                 sel = batch_idx == i
                 item_coords = voxel_xyz[sel]
                 item_colors = colors[sel]
-                v_i, f_i, _ = get_mesh_batch_item(mesh, i)
+                v_i, f_i, *_ = get_mesh_batch_item(mesh, i)
                 if item_coords.shape[0] == 0 or f_i.numel() == 0:
                     logging.warning(f"BakeTextureFromVoxel: skipping batch {i} (empty voxel/mesh)")
                     pbar.update(5)
@@ -1257,7 +1385,7 @@ class BakeTextureFromVoxel(IO.ComfyNode):
                 ev_i = mesh_uvs[i, :v_i.shape[0]]
                 ref_i = None
                 if reference_mesh is not None:
-                    rv_i, rf_i, _ = get_mesh_batch_item(reference_mesh, i)
+                    rv_i, rf_i, *_ = get_mesh_batch_item(reference_mesh, i)
                     ref_i = (rv_i, rf_i)
                 _bv, _bf, _bu, bt, bmr = bake_texture_from_voxel_fn(
                     v_i, f_i, item_coords, item_colors,
@@ -1303,7 +1431,7 @@ class MeshTextureToImage(IO.ComfyNode):
         return IO.Schema(
             node_id="MeshTextureToImage",
             display_name="Mesh Texture to Image",
-            category="latent/3d",
+            category="3d/mesh/texturing",
             description=(
                 "Extracts a mesh's baked textures as individual IMAGEs: base_color, metallic, "
                 "roughness, occlusion and normal_map. Channels with nothing baked come back "
@@ -1361,7 +1489,7 @@ class ApplyTextureToMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="ApplyTextureToMesh",
             display_name="Apply Texture to Mesh",
-            category="latent/3d",
+            category="3d/mesh/texturing",
             description=(
                 "Attaches baked texture IMAGEs to a mesh's UV layout for SaveGLB. Feed the SAME mesh you baked"
             ),
@@ -1388,7 +1516,7 @@ class ApplyTextureToMesh(IO.ComfyNode):
         if mesh_uvs.ndim == 3:
             new_uvs = mesh_uvs.clone()
             for i in range(mesh_uvs.shape[0]):
-                v_i, _f_i, _ = get_mesh_batch_item(mesh, i)
+                v_i, _f_i, *_ = get_mesh_batch_item(mesh, i)
                 n = v_i.shape[0]
                 norm = _normalize_uvs_to_unit(mesh_uvs[i, :n].detach().cpu().numpy())
                 new_uvs[i, :n] = torch.from_numpy(norm).to(new_uvs)
@@ -1410,7 +1538,7 @@ class ApplyTextureToMesh(IO.ComfyNode):
             tangents_padded = torch.zeros((B, Nmax, 4), dtype=torch.float32)
             normals_padded = torch.zeros((B, Nmax, 3), dtype=torch.float32)
             for i in range(B):
-                v_i, f_i, _ = get_mesh_batch_item(mesh, i)
+                v_i, f_i, *_ = get_mesh_batch_item(mesh, i)
                 n = int(v_i.shape[0])
                 if f_i.numel() == 0:
                     continue
@@ -1454,7 +1582,7 @@ class BakeNormalMapFromMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="BakeNormalMapFromMesh",
             display_name="Bake Normal Map from Mesh",
-            category="latent/3d",
+            category="3d/mesh/texturing",
             description=(
                 "Bakes a tangent-space normal map (glTF/OpenGL +Y) from a high-poly mesh into a "
                 "low-poly's UV layout, capturing detail lost to decimation. Feed the UV-unwrapped "
@@ -1495,7 +1623,7 @@ class BakeNormalMapFromMesh(IO.ComfyNode):
 
         imgs = []
         for i in range(B):
-            v_i, f_i, _ = get_mesh_batch_item(low_poly, i)
+            v_i, f_i, *_ = get_mesh_batch_item(low_poly, i)
             n = int(v_i.shape[0])
             if f_i.numel() == 0:
                 logging.warning(f"BakeNormalMapFromMesh: skipping batch {i} (empty mesh)")
@@ -1511,7 +1639,7 @@ class BakeNormalMapFromMesh(IO.ComfyNode):
             n_attr_i = low_n_attr[i, :n] if low_n_attr is not None else None
             low_n, tangents = _vertex_tangents_for_item(lv, lf, torch.from_numpy(uv_np).to(dev), n_attr_i, dev)
 
-            hv_i, hf_i, _ = get_mesh_batch_item(high_poly, i if h_batch > 1 else 0)
+            hv_i, hf_i, *_ = get_mesh_batch_item(high_poly, i if h_batch > 1 else 0)
             hv = hv_i.to(dev).float()
             hf = hf_i.to(dev).long()
             high_n = (high_n_attr[i, :hv.shape[0]].to(dev).float() if high_n_attr is not None
@@ -1535,7 +1663,7 @@ class BakeAmbientOcclusion(IO.ComfyNode):
         return IO.Schema(
             node_id="BakeAmbientOcclusion",
             display_name="Bake Ambient Occlusion",
-            category="latent/3d",
+            category="3d/mesh/texturing",
             description=(
                 "Bakes an ambient-occlusion map from a high-poly mesh into a low-poly's UV "
                 "layout (white = open, dark = crevices). Feed the UV-unwrapped low_poly and the "
@@ -1575,7 +1703,7 @@ class BakeAmbientOcclusion(IO.ComfyNode):
         pbar = comfy.utils.ProgressBar(max(1, B))   # one tick per batch item
         imgs = []
         for i in range(B):
-            v_i, f_i, _ = get_mesh_batch_item(low_poly, i)
+            v_i, f_i, *_ = get_mesh_batch_item(low_poly, i)
             n = int(v_i.shape[0])
             if f_i.numel() == 0:
                 logging.warning(f"BakeAmbientOcclusion: skipping batch {i} (empty mesh)")
@@ -1590,7 +1718,7 @@ class BakeAmbientOcclusion(IO.ComfyNode):
             low_n = (low_n_attr[i, :n].to(dev).float() if low_n_attr is not None
                      else _compute_vertex_normals(lv, lf))
 
-            hv_i, hf_i, _ = get_mesh_batch_item(high_poly, i if h_batch > 1 else 0)
+            hv_i, hf_i, *_ = get_mesh_batch_item(high_poly, i if h_batch > 1 else 0)
             img = _bake_ambient_occlusion(
                 hv_i.to(dev).float(), hf_i.to(dev).long(),
                 lv.detach().cpu().numpy(), lf.detach().cpu().numpy().astype(np.uint32), uv_np,
@@ -1604,186 +1732,108 @@ class BakeAmbientOcclusion(IO.ComfyNode):
         return IO.NodeOutput(ao_img)
 
 
-class SetMeshMaterial(IO.ComfyNode):
+class RenderMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="SetMeshMaterial",
-            display_name="Set Mesh Material",
-            category="latent/3d",
+            node_id="RenderMesh",
+            display_name="Render Mesh",
+            search_aliases=["mesh to image", "render mesh", "preview textured mesh"],
+            category="3d/mesh",
             description=(
-                "Sets glTF material properties SaveGLB can't derive from textures: emissive "
-                "(color + strength + optional texture), baseColor tint, metallic/roughness "
-                "factors, normal scale, occlusion strength, double-sided. Place before SaveGLB."
+                "Ray-casts a single view of a mesh. The camera comes from a camera_info (Load3D / Preview3D viewer, or a Create Camera Info node)"
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
-                IO.Float.Input("emissive_r", default=0.0, min=0.0, max=1.0, step=0.01),
-                IO.Float.Input("emissive_g", default=0.0, min=0.0, max=1.0, step=0.01),
-                IO.Float.Input("emissive_b", default=0.0, min=0.0, max=1.0, step=0.01),
-                IO.Float.Input("emissive_strength", default=1.0, min=0.0, max=100.0, step=0.1,
-                               tooltip=">1 for HDR glow (KHR_materials_emissive_strength)."),
-                IO.Image.Input("emissive_texture", optional=True),
-                IO.Float.Input("base_color_r", default=1.0, min=0.0, max=1.0, step=0.01),
-                IO.Float.Input("base_color_g", default=1.0, min=0.0, max=1.0, step=0.01),
-                IO.Float.Input("base_color_b", default=1.0, min=0.0, max=1.0, step=0.01),
-                IO.Float.Input("metallic_factor", default=-1.0, min=-1.0, max=1.0, step=0.01,
-                               tooltip="-1 = leave auto; 0..1 overrides."),
-                IO.Float.Input("roughness_factor", default=-1.0, min=-1.0, max=1.0, step=0.01,
-                               tooltip="-1 = leave auto; 0..1 overrides."),
-                IO.Float.Input("normal_scale", default=1.0, min=0.0, max=10.0, step=0.05),
-                IO.Float.Input("occlusion_strength", default=1.0, min=0.0, max=1.0, step=0.01),
-                IO.Boolean.Input("double_sided", default=True),
+                IO.Combo.Input("mode", options=["auto", "texture", "vertex colors", "solid", "normal", "depth"],
+                               tooltip="What to render. auto: texture if present, else vertex colours, else shaded clay."),
+                IO.Int.Input("width", default=1024, min=64, max=4096, step=8),
+                IO.Int.Input("height", default=1024, min=64, max=4096, step=8),
+                IO.Color.Input("background", default="#000000"),
+                IO.Load3DCamera.Input("camera_info", optional=True,
+                                      tooltip="Camera from a Load3D / Preview3D viewer or a Create Camera Info "
+                                              "node. If none is connected, a default front view is auto-framed."),
             ],
-            outputs=[IO.Mesh.Output("mesh")],
+            outputs=[IO.Image.Output(display_name="image"), IO.Mask.Output(display_name="mask")],
         )
 
     @classmethod
-    def execute(cls, mesh, emissive_r, emissive_g, emissive_b, emissive_strength,
-                base_color_r, base_color_g, base_color_b, metallic_factor, roughness_factor,
-                normal_scale, occlusion_strength, double_sided, emissive_texture=None):
-        out_mesh = copy.copy(mesh)
-        material = dict(mesh.material or {})   # merge over any prior material
-        material.update({
-            "emissive_factor": [float(emissive_r), float(emissive_g), float(emissive_b)],
-            "emissive_strength": float(emissive_strength),
-            "base_color_factor": [float(base_color_r), float(base_color_g), float(base_color_b), 1.0],
-            "metallic_factor": float(metallic_factor),         # <0 => leave auto
-            "roughness_factor": float(roughness_factor),
-            "normal_scale": float(normal_scale),
-            "occlusion_strength": float(occlusion_strength),
-            "double_sided": bool(double_sided),
-        })
-        out_mesh.material = material
-        if emissive_texture is not None:
-            out_mesh.emissive = emissive_texture.float().clamp(0.0, 1.0).cpu()
-        return IO.NodeOutput(out_mesh)
+    def execute(cls, mesh, mode, width, height, background, camera_info=None):
+        if int(mesh.vertices.shape[0]) > 1:
+            logging.warning("RenderMesh: one item per batch only; using the first of %d.", int(mesh.vertices.shape[0]))
+        dev = comfy.model_management.get_torch_device()
+        v_i, f_i, *_ = get_mesh_batch_item(mesh, 0)
+        n = int(v_i.shape[0])
+        lv = v_i.to(dev).float()
+        lf = f_i.to(dev).long()
 
+        def _item(attr):  # first-item, length-n view of a mesh attr
+            a = getattr(mesh, attr, None)
+            if a is None:
+                return None
+            return (a[0] if (isinstance(a, list) or a.ndim == 3) else a)[:n].to(dev).float()
 
-def paint_mesh_default_colors(mesh):
-    out_mesh = copy.copy(mesh)
-    vertex_count = mesh.vertices.shape[1]
-    out_mesh.vertex_colors = mesh.vertices.new_zeros((1, vertex_count, 3))
-    return out_mesh
+        tex, uvs = mesh.texture, mesh.uvs
+        have_tex = tex is not None and uvs is not None
+        have_vc = getattr(mesh, "vertex_colors", None) is not None
+        resolved = mode
+        if resolved == "auto":
+            resolved = "texture" if have_tex else ("vertex colors" if have_vc else "solid")
 
+        uv = texture_hwc = vcols = vnorms = None
+        render_normal = False
+        if resolved == "texture" and have_tex:
+            uv = (uvs[0, :n] if uvs.ndim == 3 else uvs[:n]).to(dev).float()
+            texture_hwc = tex[0].to(dev).float()
+        elif resolved == "vertex colors" and have_vc:
+            # glTF COLOR_0 is linear (PaintMesh stores pow(srgb, 2.2)); to sRGB so it isn't dark.
+            vcols = _item("vertex_colors")[:, :3].clamp(0.0, 1.0).pow(1.0 / 2.2)
+        elif resolved == "normal":
+            render_normal = True
+            vnorms = _item("normals")  # smooth if present, else face normals
 
-def fill_holes_fn(vertices, faces, max_perimeter=0.03):
-    is_batched = vertices.ndim == 3
-    if is_batched:
-        v_list, f_list = [], []
-        for i in range(vertices.shape[0]):
-            v_i, f_i = fill_holes_fn(vertices[i], faces[i], max_perimeter)
-            v_list.append(v_i)
-            f_list.append(f_i)
-        max_v = max(v.shape[0] for v in v_list)
-        for i in range(len(v_list)):
-            if v_list[i].shape[0] < max_v:
-                pad = torch.zeros(max_v - v_list[i].shape[0], 3, device=v_list[i].device, dtype=v_list[i].dtype)
-                v_list[i] = torch.cat([v_list[i], pad], dim=0)
-        return torch.stack(v_list), torch.stack(f_list)
+        tri = lv[lf]
+        bvh = _build_triangle_bvh(tri)
+        center = (lv.amax(0) + lv.amin(0)) * 0.5
+        up_hint = torch.tensor([0.0, 1.0, 0.0], device=dev)
 
-    device = vertices.device
-    v = vertices
-    f = faces
-
-    if f.numel() == 0:
-        return v, f
-
-    edges = torch.cat([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]], dim=0)
-    edges_sorted, _ = torch.sort(edges, dim=1)
-    max_v = v.shape[0]
-    packed_undirected = edges_sorted[:, 0].long() * max_v + edges_sorted[:, 1].long()
-    unique_packed, counts = torch.unique(packed_undirected, return_counts=True)
-    boundary_packed = unique_packed[counts == 1]
-
-    if boundary_packed.numel() == 0:
-        return v, f
-
-    boundary_mask = torch.isin(packed_undirected, boundary_packed)
-    b_edges = edges_sorted[boundary_mask]
-
-    adj = {}
-    for i in range(b_edges.shape[0]):
-        a = b_edges[i, 0].item()
-        b = b_edges[i, 1].item()
-        adj.setdefault(a, []).append(b)
-        adj.setdefault(b, []).append(a)
-
-    # Trace all boundary loops
-    loops = []
-    visited = set()
-    for start_node in adj.keys():
-        if start_node in visited:
-            continue
-        curr = start_node
-        prev = -1
-        loop = []
-        while curr not in visited:
-            visited.add(curr)
-            loop.append(curr)
-            neighbors = adj[curr]
-            candidates = [n for n in neighbors if n != prev]
-            if not candidates:
-                loop = []
-                break
-            next_node = candidates[0]
-            prev, curr = curr, next_node
-            if curr == start_node:
-                loops.append(loop)
-                break
-
-    if not loops:
-        return v, f
-
-    # Mesh normal for winding orientation only
-    face_normals = torch.linalg.cross(
-        v[f[:, 1]] - v[f[:, 0]],
-        v[f[:, 2]] - v[f[:, 0]],
-        dim=-1
-    )
-    mesh_normal = face_normals.mean(dim=0)
-    mesh_normal = mesh_normal / (torch.norm(mesh_normal) + 1e-8)
-
-    # Fill all boundary loops below the perimeter threshold.
-    new_verts = []
-    new_faces = []
-    v_idx = v.shape[0]
-
-    for loop in loops:
-        loop_t = torch.tensor(loop, device=device, dtype=torch.long)
-        loop_v = v[loop_t]
-
-        next_v = torch.roll(loop_v, -1, dims=0)
-        diffs = loop_v - next_v
-        perimeter = torch.norm(diffs, dim=1).sum().item()
-
-        if perimeter > max_perimeter:
-            continue
-
-        # Ensure CCW winding consistent with mesh
-        cross = torch.linalg.cross(loop_v, next_v, dim=-1)
-        loop_normal = cross.sum(dim=0)
-        loop_normal = loop_normal / (torch.norm(loop_normal) + 1e-8)
-        if torch.dot(loop_normal, mesh_normal) < 0:
-            loop = loop[::-1]
-            loop_t = torch.tensor(loop, device=device, dtype=torch.long)
-            loop_v = v[loop_t]
-
-        if len(loop) == 3:
-            new_faces.append([loop[0], loop[1], loop[2]])
+        if camera_info is not None:
+            # Explicit camera from a Load3D / Preview3D viewer (three.js Y-up, same frame as the mesh).
+            def _vec(d):
+                return torch.tensor([float(d.get("x", 0.0)), float(d.get("y", 0.0)), float(d.get("z", 0.0))],
+                                    device=dev)
+            eye = _vec(camera_info.get("position", {}))
+            tgt = camera_info.get("target")
+            target = _vec(tgt) if tgt else center
+            f, r, u = _camera_basis(eye, target, up_hint)  # look-at (roll-free)
+            cam_fov = float(camera_info.get("fov", 0) or 0) or 40.0
+            cam_zoom = float(camera_info.get("zoom", 1.0) or 1.0)  # three.js digital zoom scales focal length
+            fov_rad = 2.0 * math.atan(math.tan(math.radians(cam_fov) * 0.5) / max(cam_zoom, 1e-3))
         else:
-            centroid = loop_v.mean(dim=0)
-            new_verts.append(centroid)
-            for i in range(len(loop)):
-                new_faces.append([loop[i], loop[(i + 1) % len(loop)], v_idx])
-            v_idx += 1
+            # No camera connected, auto-framed default front view.
+            fov_rad = math.radians(40.0)
+            r_sphere = float((lv - center).norm(dim=-1).amax().clamp_min(1e-6))
+            radius = r_sphere / math.tan(fov_rad * 0.5) * 1.04
+            eye = center + torch.tensor([0.0, 0.0, 1.0], device=dev) * radius
+            f, r, u = _camera_basis(eye, center, up_hint)
 
-    if new_verts:
-        v = torch.cat([v, torch.stack(new_verts)], dim=0)
-    if new_faces:
-        f = torch.cat([f, torch.tensor(new_faces, device=device, dtype=torch.long)], dim=0)
+        H, W = int(height), int(width)
+        img, hit, depth = _render_view(tri, bvh, uv, lf, texture_hwc, eye, f, r, u, fov_rad, H, W,
+                                       vertex_colors=vcols, vertex_normals=vnorms, render_normal=render_normal)
 
-    return v, f
+        if resolved == "depth":
+            img = torch.zeros_like(img)
+            if bool(hit.any()):
+                dh = depth[hit]
+                rng = max(float(dh.max()) - float(dh.min()), 1e-6)
+                norm = ((float(dh.max()) - depth) / rng).clamp(0.0, 1.0)  # near (small depth) = white
+                img = torch.where(hit[..., None], norm[..., None].expand(-1, -1, 3), img)
+
+        bg = background.lstrip("#")
+        bg_rgb = torch.tensor([int(bg[i:i + 2], 16) / 255.0 for i in (0, 2, 4)], device=dev)
+        out = torch.where(hit[..., None], img.clamp(0.0, 1.0), bg_rgb)
+        idev, idtype = comfy.model_management.intermediate_device(), comfy.model_management.intermediate_dtype()
+        return IO.NodeOutput(out[None].to(idev, idtype), hit.float()[None].to(idev, idtype))
 
 
 def _fill_holes_v2_gpu(verts, faces, max_perimeter, colors=None, fill_chains=False, max_verts=16):
@@ -2008,8 +2058,7 @@ def weld_vertices_fn(vertices, faces, epsilon=None, epsilon_rel=1e-5, colors=Non
 
 
 def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsilon_rel=1e-5, fill_chains=False, max_verts=16):
-    """Batched v2 GPU hole-filler (v1 CPU walker fallback on non-CUDA). Pre-welds verts
-    first — boundary detection needs shared edges; `weld_epsilon_rel=0` skips it."""
+    """Batched v2 GPU hole-filler. Pre-welds verts first as boundary detection needs shared edges"""
     if vertices.ndim == 3:
         v_list, f_list, c_list = [], [], [] if colors is not None else None
         pbar = comfy.utils.ProgressBar(vertices.shape[0])
@@ -2063,12 +2112,11 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
                 f"duplicate verts at distances >{WELD_CAP}× bbox; fix upstream "
                 f"(decimate node settings) or run WeldVertices manually with a larger epsilon."
             )
-    if vertices.device.type == "cuda":
-        out_v, out_f, out_c, _ = _fill_holes_v2_gpu(vertices, faces, max_perimeter, colors, fill_chains, max_verts)
-        return out_v, out_f, out_c
-    # CPU fallback: v1 walker (no attribute prop, but topologically equivalent for manifold boundary).
-    out_v, out_f = fill_holes_fn(vertices, faces, max_perimeter=max_perimeter)
-    return out_v, out_f, colors
+    dev = comfy.model_management.get_torch_device()
+    out_v, out_f, out_c, _ = _fill_holes_v2_gpu(
+        vertices.to(dev), faces.to(dev), max_perimeter,
+        colors.to(dev) if colors is not None else None, fill_chains, max_verts)
+    return out_v, out_f, out_c
 
 
 def _process_mesh_batch(mesh, per_item_fn):
@@ -2161,7 +2209,7 @@ class DecimateMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="DecimateMesh",
             display_name="Decimate Mesh",
-            category="latent/3d",
+            category="3d/mesh",
             description=(
                 "Simplifies a mesh to a target face count using QEM, on the active compute "
                 "device. 'midpoint' is the cumesh-faithful preset (best quality, preserves thin "
@@ -2252,7 +2300,7 @@ class RemeshMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="RemeshMesh",
             display_name="Remesh Mesh (Narrow-Band DC)",
-            category="latent/3d",
+            category="3d/mesh",
             description=(
                 "Re-extracts a uniformly tessellated mesh via a narrow-band distance field + Dual "
                 "Contouring, on the active compute device. Normalizes messy / non-manifold / "
@@ -2422,8 +2470,6 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
                         "(triangle soup); UV charts will be per-face. Raise weld_distance.")
 
     if segmenter == "pec":
-        if mesh.faces.device.type != "cuda":
-            raise RuntimeError("segmenter='pec' requires a CUDA mesh; use 'adaptive' for CPU.")
         face_chart = _uv_seg.cluster_charts_pec(mesh, max_cost=1.0)
     elif segmenter == "adaptive":
         face_chart = _uv_seg.segment_charts(mesh, max_cost=2.0)
@@ -2508,7 +2554,7 @@ class UnwrapMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="UnwrapMesh",
             display_name="Unwrap Mesh UVs",
-            category="latent/3d",
+            category="3d/mesh/texturing",
             description=(
                 "Generates a UV atlas (pure-torch, no xatlas): segments the surface into charts, "
                 "parameterizes each, packs into a [0,1] atlas. Seam verts duplicated. Run after "
@@ -2517,8 +2563,7 @@ class UnwrapMesh(IO.ComfyNode):
             inputs=[
                 IO.Mesh.Input("mesh"),
                 IO.Combo.Input("segmenter", options=["pec", "adaptive"], default="pec",
-                               tooltip="pec: fast parallel-edge-collapse charting (CUDA; CPU falls back to "
-                                       "adaptive). adaptive: CPU, slower."),
+                               tooltip="pec: fast parallel-edge-collapse charting on GPU. adaptive: CPU, slower."),
                 IO.Int.Input("resolution", default=1024, min=0, max=8192, step=256,
                              tooltip="Target atlas resolution for texel-density auto-scale (0 = fit-to-content)."),
                 IO.Int.Input("padding", default=1, min=0, max=16,
@@ -2534,10 +2579,7 @@ class UnwrapMesh(IO.ComfyNode):
     @classmethod
     def execute(cls, mesh, segmenter, resolution, padding, weld_distance):
         compute_device = comfy.model_management.get_torch_device()
-        seg = segmenter
-        if seg == "pec" and compute_device.type != "cuda":
-            seg = "adaptive"
-        seg_device = compute_device if seg == "pec" else torch.device("cpu")
+        seg_device = compute_device if segmenter == "pec" else torch.device("cpu")
 
         is_list = isinstance(mesh.vertices, list)
         is_batched = not is_list and mesh.vertices.ndim == 3
@@ -2563,7 +2605,7 @@ class UnwrapMesh(IO.ComfyNode):
 
             vmapping, indices, uvs = _uv_unwrap(
                 vi.to(seg_device).float(), fi.to(seg_device).long(),
-                seg, int(resolution), int(padding), weld_abs)
+                segmenter, int(resolution), int(padding), weld_abs)
             uvs = uvs.copy()
             uvs[:, 1] = 1.0 - uvs[:, 1]                       # UV y flipped vs trimesh
 
@@ -2746,9 +2788,8 @@ class RenderUVAtlas(IO.ComfyNode):
         return IO.Schema(
             node_id="RenderUVAtlas",
             display_name="Render UV Atlas",
-            category="latent/3d",
-            description=("Renders a mesh's UV layout as an image (each chart a distinct color, "
-                         "outlined at borders). Run UnwrapMesh first."),
+            category="3d/mesh/texturing",
+            description=("Renders a mesh's UV layout as an image."),
             inputs=[
                 IO.Mesh.Input("mesh"),
                 IO.Int.Input("resolution", default=1024, min=64, max=4096, step=64),
@@ -2782,11 +2823,9 @@ class FillHoles(IO.ComfyNode):
         return IO.Schema(
             node_id="FillHoles",
             display_name="Fill Holes",
-            category="latent/3d",
+            category="3d/mesh",
             description=(
-                "Fills holes up to a max perimeter, preserving existing geometry/UVs (only patch "
-                "tris added). GPU-vectorised with auto-corrected winding and loop-averaged centroid "
-                "colors; CPU walker fallback on non-CUDA."
+                "Fills holes up to a max perimeter, preserving existing geometry/UVs. GPU-vectorised with auto-corrected winding and loop-averaged centroid colors"
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
@@ -2824,7 +2863,7 @@ class WeldVertices(IO.ComfyNode):
         return IO.Schema(
             node_id="WeldVertices",
             display_name="Weld Vertices",
-            category="latent/3d",
+            category="3d/mesh",
             description=(
                 "Merge coincident vertices via L_inf grid quantization. Use when a mesh comes in "
                 "unwelded (per-face verts, no shared edges) — pre-pass before FillHoles, "
@@ -2852,83 +2891,85 @@ class WeldVertices(IO.ComfyNode):
         return _process_mesh_batch(mesh, _fn)
 
 
-def merge_meshes(meshes):
-    """Concatenate Types.MESH list into one (B=1) mesh: cumulative face-index offset,
-    missing uvs/colors padded (zeros/white), texture from the first input that has one
-    (later dropped — single-primitive glb can't carry multiple atlases)."""
-    if not meshes:
-        raise ValueError("merge_meshes: need at least one mesh")
-
-    def _b0(t):
-        return t[0] if t.ndim == 3 else t
-
-    any_uvs = any(m.uvs is not None for m in meshes)
-    any_colors = any(m.vertex_colors is not None for m in meshes)
-
-    verts_list, faces_list, uvs_list, colors_list = [], [], [], []
-    texture = None
-    offset = 0
-    for m in meshes:
-        # Coerce to CPU so CUDA-side (MoGe) meshes merge cleanly with our outputs.
-        v = _b0(m.vertices).cpu()
-        f = _b0(m.faces).cpu()
-        verts_list.append(v)
-        faces_list.append(f + offset)
-        offset += v.shape[0]
-        if any_uvs:
-            mu = m.uvs
-            uvs_list.append(_b0(mu).cpu() if mu is not None else v.new_zeros((v.shape[0], 2)))
-        if any_colors:
-            mc = m.vertex_colors
-            if mc is not None:
-                c = _b0(mc).cpu()
-            else:
-                c = v.new_ones((v.shape[0], 3))
-            colors_list.append(c)
-        mt = m.texture
-        if mt is not None:
-            if texture is None:
-                texture = mt.cpu()
-            else:
-                logging.warning("MergeMeshes: dropping extra texture from input; only one texture is kept.")
-
-    merged_verts = torch.cat(verts_list, dim=0).unsqueeze(0)
-    merged_faces = torch.cat(faces_list, dim=0).unsqueeze(0)
-    merged_uvs = torch.cat(uvs_list, dim=0).unsqueeze(0) if any_uvs else None
-    merged_colors = torch.cat(colors_list, dim=0).unsqueeze(0) if any_colors else None
-
-    return Types.MESH(
-        vertices=merged_verts,
-        faces=merged_faces,
-        uvs=merged_uvs,
-        vertex_colors=merged_colors,
-        texture=texture,
-    )
-
-
-class MergeMeshes(IO.ComfyNode):
+class MeshSmoothNormals(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        autogrow_template = IO.Autogrow.TemplatePrefix(
-            IO.Mesh.Input("mesh"), prefix="mesh", min=2, max=50,
-        )
         return IO.Schema(
-            node_id="MergeMeshes",
-            display_name="Merge Meshes",
-            category="latent/3d",
+            node_id="MeshSmoothNormals",
+            display_name="Smooth Mesh Normals",
+            category="3d",
             description=(
-                "Concatenate N meshes into one by offsetting face indices and stacking verts, "
-                "faces, uvs, and colors."
+                "Compute smooth per-vertex normals and attach them to the mesh. Meshes "
+                "without normals are shaded flat (per-face) by glTF viewers; this makes "
+                "them shade smoothly. With crease_angle below 180, edges sharper than the "
+                "threshold are kept hard by splitting vertices along them."
             ),
             inputs=[
-                IO.Autogrow.Input("meshes", template=autogrow_template),
+                IO.Mesh.Input("mesh"),
+                IO.Float.Input("crease_angle", default=180.0, min=0.0, max=180.0, step=1.0,
+                               tooltip="Edges whose dihedral angle exceeds this (degrees) stay "
+                                       "hard (vertices are split). 180 = fully smooth; lower "
+                                       "preserves sharp edges (e.g. ~30-60 for hard-surface)."),
             ],
             outputs=[IO.Mesh.Output("mesh")],
         )
 
     @classmethod
-    def execute(cls, meshes: IO.Autogrow.Type) -> IO.NodeOutput:
-        return IO.NodeOutput(merge_meshes(list(meshes.values())))
+    def execute(cls, mesh: Types.MESH, crease_angle: float) -> IO.NodeOutput:
+        crease = None if crease_angle >= 180.0 else float(crease_angle)
+        batch_size = mesh.vertices.shape[0]
+
+        if crease is None:
+            # Fully smooth: topology is unchanged, so just attach a normals tensor that
+            # matches the existing (possibly zero-padded) vertex layout and keep all fields.
+            normals_padded = torch.zeros_like(mesh.vertices)
+            for i in range(batch_size):
+                v_i, f_i, _, _, _ = get_mesh_batch_item(mesh, i)
+                if v_i.shape[0] == 0 or f_i.shape[0] == 0:
+                    continue
+                n_i = _smooth_vertex_normals(v_i.cpu().numpy().astype(np.float32),
+                                             f_i.cpu().numpy().astype(np.int64))
+                normals_padded[i, :n_i.shape[0]] = torch.from_numpy(n_i).to(mesh.vertices)
+            out = copy.copy(mesh)
+            out.normals = normals_padded
+            return IO.NodeOutput(out)
+
+        # Crease split changes per-item vertex counts -> rebuild as a variable-size batch.
+        tangents_b = mesh.tangents
+        v_list, f_list, n_list = [], [], []
+        c_list = [] if mesh.vertex_colors is not None else None
+        u_list = [] if mesh.uvs is not None else None
+        t_list = [] if tangents_b is not None else None
+        for i in range(batch_size):
+            v_i, f_i, c_i, u_i, _ = get_mesh_batch_item(mesh, i)
+            if v_i.shape[0] == 0 or f_i.shape[0] == 0:
+                continue
+            dev = v_i.device
+            vo, fo, no, remap = _compute_vertex_face_normals(
+                v_i.cpu().numpy().astype(np.float32),
+                f_i.cpu().numpy().astype(np.int64), crease)
+            remap_t = torch.from_numpy(remap)
+            v_list.append(torch.from_numpy(vo).to(dev, mesh.vertices.dtype))
+            f_list.append(torch.from_numpy(fo.astype(np.int64)).to(dev, mesh.faces.dtype))
+            n_list.append(torch.from_numpy(no).to(dev, mesh.vertices.dtype))
+            if c_list is not None:
+                c_list.append(c_i[remap_t.to(c_i.device)])
+            if u_list is not None:
+                u_list.append(u_i[remap_t.to(u_i.device)])
+            if t_list is not None:
+                # Remap (not recompute) so TANGENT keeps the baked basis; split verts copy theirs.
+                t_i = tangents_b[i, :v_i.shape[0]]
+                t_list.append(t_i[remap_t.to(t_i.device)])
+        if not v_list:
+            return IO.NodeOutput(mesh)
+        out = pack_variable_mesh_batch(
+            v_list, f_list, colors=c_list, uvs=u_list,
+            texture=mesh.texture, unlit=mesh.unlit,
+            normals=n_list, metallic_roughness=mesh.metallic_roughness,
+            tangents=t_list, normal_map=mesh.normal_map,
+            occlusion_in_mr=mesh.occlusion_in_mr,
+            material=mesh.material, emissive=mesh.emissive)
+        return IO.NodeOutput(out)
 
 
 class PostProcessMeshExtension(ComfyExtension):
@@ -2947,8 +2988,8 @@ class PostProcessMeshExtension(ComfyExtension):
             ApplyTextureToMesh,
             BakeNormalMapFromMesh,
             BakeAmbientOcclusion,
-            SetMeshMaterial,
-            MergeMeshes,
+            RenderMesh,
+            MeshSmoothNormals,
         ]
 
 
