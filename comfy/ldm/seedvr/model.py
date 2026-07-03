@@ -22,6 +22,7 @@ from comfy.ldm.seedvr.constants import (
     SEEDVR2_ROPE_PARTIAL_CHUNK_TOKENS,
 )
 import comfy.model_management
+import comfy.ops
 
 class Cache:
     def __init__(self, disable=False, prefix="", cache=None):
@@ -1041,9 +1042,12 @@ class AdaSingle(nn.Module):
         )
 
         if mode == "in":
+            shiftB = comfy.ops.cast_to_input(shiftB, hid)
+            scaleB = comfy.ops.cast_to_input(scaleB, hid)
             return hid.mul_(scaleA + scaleB).add_(shiftA + shiftB)
         if mode == "out":
             if gateB is not None:
+                gateB = comfy.ops.cast_to_input(gateB, hid)
                 return hid.mul_(gateA + gateB)
             else:
                 return hid.mul_(gateA)
