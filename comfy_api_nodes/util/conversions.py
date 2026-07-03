@@ -448,6 +448,15 @@ def _compute_upscale_dims(src_w: int, src_h: int, total_pixels: int) -> tuple[in
     return new_w, new_h
 
 
+def upscale_image_tensor_to_min_pixels(image: torch.Tensor, total_pixels: int) -> torch.Tensor:
+    samples = image.movedim(-1, 1)
+    dims = _compute_upscale_dims(samples.shape[3], samples.shape[2], int(total_pixels))
+    if dims is None:
+        return image
+    new_w, new_h = dims
+    return common_upscale(samples, new_w, new_h, "lanczos", "disabled").movedim(1, -1)
+
+
 def upscale_video_to_min_pixels(video: Input.Video, min_pixels: int) -> Input.Video:
     """Upscale a video to meet at least ``min_pixels`` (w * h), preserving aspect ratio.
 
