@@ -22,33 +22,14 @@ def _var_attention_output(out, heads, head_dim, skip_output_reshape):
     return out.reshape(-1, heads * head_dim)
 
 
-def _validate_split_cu_seqlens(name, cu_seqlens, token_count):
-    if cu_seqlens.dtype not in (torch.int32, torch.int64):
-        raise ValueError(f"{name} must use an integer dtype")
-    if cu_seqlens.ndim != 1 or cu_seqlens.numel() < 2:
-        raise ValueError(f"{name} must be a 1D tensor with at least two offsets")
-    if cu_seqlens[0].item() != 0:
-        raise ValueError(f"{name} must start at 0")
-    if (cu_seqlens[1:] <= cu_seqlens[:-1]).any().item():
-        raise ValueError(f"{name} must be strictly increasing")
-    if cu_seqlens[-1].item() != token_count:
-        raise ValueError(f"{name} does not match token count")
-
-
-def _split_indices(cu_seqlens):
-    return cu_seqlens[1:-1].to(device="cpu", dtype=torch.long)
-
-
 def var_attention_optimized_split(q, k, v, heads, cu_seqlens_q, cu_seqlens_k, *args, skip_reshape=False, skip_output_reshape=False, **kwargs):
     q, k, v, head_dim = _var_attention_qkv(q, k, v, heads, skip_reshape)
 
-    _validate_split_cu_seqlens("cu_seqlens_q", cu_seqlens_q, q.shape[0])
-    _validate_split_cu_seqlens("cu_seqlens_k", cu_seqlens_k, k.shape[0])
-    if cu_seqlens_k[-1].item() != v.shape[0]:
+    q_split_indices = cu_seqlens_q[1:-1]
+    k_split_indices = cu_seqlens_k[1:-1]
+    if k.shape[0] != v.shape[0]:
         raise ValueError("cu_seqlens_k does not match v token count")
 
-    q_split_indices = _split_indices(cu_seqlens_q)
-    k_split_indices = _split_indices(cu_seqlens_k)
     q_splits = torch.tensor_split(q, q_split_indices, dim=0)
     k_splits = torch.tensor_split(k, k_split_indices, dim=0)
     v_splits = torch.tensor_split(v, k_split_indices, dim=0)

@@ -598,43 +598,34 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
-    if "{}blocks.35.mlp.vid.proj_in.weight".format(key_prefix) in state_dict_keys and state_dict["{}blocks.35.mlp.vid.proj_in.weight".format(key_prefix)].shape[1] == 3072: # seedvr2 7b
+    seedvr2_7b_separate_key = "{}blocks.35.mlp.vid.proj_in.weight".format(key_prefix)
+    if seedvr2_7b_separate_key in state_dict_keys and state_dict[seedvr2_7b_separate_key].shape[1] == 3072: # seedvr2 7b
         dit_config = {}
         dit_config["image_model"] = "seedvr2"
         dit_config["vid_dim"] = 3072
         dit_config["heads"] = 24
         dit_config["num_layers"] = 36
-        # 7B uses non-shared MMModule layout (separate ``vid.`` / ``txt.``
-        # submodules) at EVERY block — verified by inspecting the 7B
-        # state_dict at ``blocks.31.ada.txt.attn_gate`` (txt. prefix means
-        # ``MMModule.shared_weights=False``). Native NaDiT computes
-        # per-block ``shared_weights = not (i < mm_layers)``, so to keep
-        # every block non-shared we set ``mm_layers = num_layers``.
-        # Without this, blocks at index >= mm_layers (default 10) try to
-        # load ``blocks.N.*.all.*`` keys that don't exist in the file,
-        # silently miss-load → all-black output.
+        # This checkpoint uses separate vid/txt MMModule keys in every block.
         dit_config["mm_layers"] = 36
         dit_config["norm_eps"] = 1e-5
         dit_config["rope_type"] = "rope3d"
         dit_config["rope_dim"] = 64
         dit_config["mlp_type"] = "normal"
         return dit_config
-    elif "{}blocks.35.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 7b
+    if "{}blocks.35.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 7b
         dit_config = {}
         dit_config["image_model"] = "seedvr2"
         dit_config["vid_dim"] = 3072
         dit_config["heads"] = 24
         dit_config["num_layers"] = 36
-        # This checkpoint layout carries shared ``all.`` MMModule keys.
-        # Preserve the historical split: the initial blocks use separate
-        # vid/txt modules, later blocks use shared modules.
+        # This checkpoint uses shared all.* MMModule keys after the initial blocks.
         dit_config["mm_layers"] = 10
         dit_config["norm_eps"] = 1e-5
         dit_config["rope_type"] = "rope3d"
         dit_config["rope_dim"] = 64
         dit_config["mlp_type"] = "swiglu"
         return dit_config
-    elif "{}blocks.31.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 3b
+    if "{}blocks.31.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 3b
         dit_config = {}
         dit_config["image_model"] = "seedvr2"
         dit_config["vid_dim"] = 2560
@@ -1150,8 +1141,22 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         unet_config["heatmap_head"] = True
 
     return unet_config
+def normalize_seedvr2_unet_config(unet_config):
+    if unet_config.get("image_model") != "seedvr2" or "num_heads" not in unet_config:
+        return unet_config
+
+    unet_config = dict(unet_config)
+    num_heads = unet_config.pop("num_heads")
+    if "heads" in unet_config and unet_config["heads"] != num_heads:
+        raise ValueError(
+            f"SeedVR2 config has conflicting heads={unet_config['heads']} and num_heads={num_heads}."
+        )
+    unet_config["heads"] = num_heads
+    return unet_config
+
 
 def model_config_from_unet_config(unet_config, state_dict=None, unet_key_prefix=""):
+    unet_config = normalize_seedvr2_unet_config(unet_config)
     for model_config in comfy.supported_models.models:
         if model_config.matches(unet_config, state_dict, unet_key_prefix=unet_key_prefix):
             return model_config(unet_config)

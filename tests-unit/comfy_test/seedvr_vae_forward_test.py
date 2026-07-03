@@ -1,22 +1,6 @@
-"""Regression: ``comfy.ldm.seedvr.vae.VideoAutoencoderKL.forward`` must
-honor the actual tensor/tuple return contract of ``encode()`` and
-``decode_()`` and must NOT dereference diffusers-style ``.latent_dist``
-or ``.sample`` attributes on those returns.
+"""Regression tests for the SeedVR2 VAE forward return contract."""
 
-The pre-fix body raised ``AttributeError: 'Tensor' object has no
-attribute 'latent_dist'`` for ``mode in {"encode", "all"}`` and
-``AttributeError: 'VideoAutoencoderKL' object has no attribute 'decode'``
-for ``mode == "decode"`` (the class only defines ``decode_`` with a
-trailing underscore). The post-fix body unwraps the optional one-element
-tuple shape that ``return_dict=False`` produces and returns the tensor
-directly.
-
-Tests construct a stub subclass of ``VideoAutoencoderKL`` that bypasses
-the heavy ``__init__`` via ``torch.nn.Module.__init__(self)`` and
-overrides ``encode``/``decode_`` with known tensors so the contract can
-be probed without loading any real VAE weights.
-"""
-
+import pytest
 import torch
 import torch.nn as nn
 
@@ -25,13 +9,13 @@ from comfy.cli_args import args as cli_args
 if not torch.cuda.is_available():
     cli_args.cpu = True
 
-from comfy.ldm.seedvr.vae import VideoAutoencoderKL  # noqa: E402
+from comfy.ldm.seedvr.vae import SEEDVR2_LATENT_CHANNELS, VideoAutoencoderKL  # noqa: E402
 
 
-_LATENT_SHAPE = (1, 16, 2, 2, 2)
+_LATENT_SHAPE = (1, SEEDVR2_LATENT_CHANNELS, 2, 2, 2)
 _DECODED_SHAPE = (1, 3, 5, 16, 16)
 _INPUT_ENCODE_SHAPE = (1, 3, 5, 16, 16)
-_INPUT_DECODE_SHAPE = (1, 16, 2, 2, 2)
+_INPUT_DECODE_SHAPE = _LATENT_SHAPE
 
 
 class _StubVAE(VideoAutoencoderKL):
@@ -64,8 +48,6 @@ def test_forward_decode_returns_tensor():
 
 
 class _TupleReturningStubVAE(VideoAutoencoderKL):
-    """Stub whose ``encode``/``decode_`` return the ``(tensor,)`` tuple of ``return_dict=False``, exercising the unwrap branch of ``VideoAutoencoderKL.forward``."""
-
     def __init__(self):
         nn.Module.__init__(self)
         self._encode_tensor = torch.zeros(*_LATENT_SHAPE)
@@ -84,3 +66,9 @@ def test_forward_all_unwraps_one_tuple_at_each_step():
     result = vae.forward(x, mode="all")
     assert type(result) is torch.Tensor
     assert result.shape == torch.Size(_DECODED_SHAPE)
+
+
+def test_forward_rejects_unknown_mode():
+    vae = _StubVAE()
+    with pytest.raises(ValueError, match="Unknown SeedVR2 VAE forward mode"):
+        vae.forward(torch.zeros(*_INPUT_ENCODE_SHAPE), mode="bogus")

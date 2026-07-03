@@ -1,34 +1,21 @@
-"""Named constants for the SeedVR2 integration, grouped by provenance.
+"""SeedVR2 constants."""
 
-Provenance prefixes:
-- ``SEEDVR2_*``   - introduced by this integration (no external origin); rationale inline.
-- ``BYTEDANCE_*`` - ported from the official ByteDance-Seed/SeedVR release; each cites
-                    the upstream config/source path it was lifted from.
-- unprefixed standards (``ROPE_THETA``, ``CIELAB_*``, ``D65_*``) - published literature /
-                    ISO / CIE values; cite the standard.
-"""
-
-SEEDVR2_7B_VID_DIM = 3072          # runtime 3b-vs-7b sentinel; tested against vid_dim.
-                                   # (3072 is ByteDance's 7b vid_dim; the sentinel use is ours.)
-SEEDVR2_OOM_BACKOFF_DIVISOR = 2    # OOM retry backoff: halve the chunk and retry.
-SEEDVR2_DTYPE_BYTES_FLOOR = 4      # per-element byte floor for memory math (fp32 worst case).
-SEEDVR2_7B_MLP_CHUNK = 8192        # 7b MLP token-chunk to bound peak VRAM.
+SEEDVR2_7B_VID_DIM = 3072
+SEEDVR2_OOM_BACKOFF_DIVISOR = 2
+SEEDVR2_DTYPE_BYTES_FLOOR = 4
+SEEDVR2_7B_MLP_CHUNK = 8192
 SEEDVR2_ROPE_PARTIAL_CHUNK_TOKENS = 4096  # partial-RoPE application token-chunk.
-SEEDVR2_LATENT_CHANNELS = 16       # SeedVR2 latent channel count (== BYTEDANCE latent_channels).
+SEEDVR2_LATENT_CHANNELS = 16
 
-# Color-correction memory model (fork tuning; per-frame VRAM estimate for chunk sizing)
-SEEDVR2_COLOR_MEM_HEADROOM = 0.75  # fraction of free VRAM usable per color-correction chunk.
-SEEDVR2_LAB_SCALE_MULTIPLIER = 13  # per-frame byte multiplier, LAB path.
+SEEDVR2_COLOR_MEM_HEADROOM = 0.75
+SEEDVR2_LAB_SCALE_MULTIPLIER = 13
 SEEDVR2_WAVELET_SCALE_MULTIPLIER = 10  # per-frame byte multiplier, wavelet path.
-SEEDVR2_ADAIN_SCALE_MULTIPLIER = 6     # per-frame byte multiplier, AdaIN path.
+SEEDVR2_ADAIN_SCALE_MULTIPLIER = 6
 
-# --------------------------------------------------------------------------------------
-# ByteDance config / source  (BYTEDANCE - cite ByteDance-Seed/SeedVR)
-# --------------------------------------------------------------------------------------
-BYTEDANCE_VAE_SCALING_FACTOR = 0.9152   # configs_3b/main.yaml:57 (scaling_factor); latent denorm.
-BYTEDANCE_VAE_SHIFTING_FACTOR = 0.0     # infer.py (shifting_factor default); latent denorm shift.
-BYTEDANCE_VAE_CONV_MEM_GIB = 0.5        # configs_3b/main.yaml:54 (conv_max_mem).
-BYTEDANCE_VAE_NORM_MEM_GIB = 0.5        # configs_3b/main.yaml:55 (norm_max_mem).
+BYTEDANCE_VAE_SCALING_FACTOR = 0.9152   # configs_3b/main.yaml:57.
+BYTEDANCE_VAE_SHIFTING_FACTOR = 0.0
+BYTEDANCE_VAE_CONV_MEM_GIB = 0.5
+BYTEDANCE_VAE_NORM_MEM_GIB = 0.5
 BYTEDANCE_LOGVAR_CLAMP_MIN = -30.0      # video_vae_v3/modules/types.py:28.
 BYTEDANCE_LOGVAR_CLAMP_MAX = 20.0       # video_vae_v3/modules/types.py:28.
 BYTEDANCE_GN_CHUNKS_FP16 = 4            # causal_inflation_lib.py:351 (GroupNorm chunk count, fp16).
@@ -42,18 +29,10 @@ BYTEDANCE_MAX_TEMPORAL_WINDOW = 30      # dit_v2/window.py:35 (max temporal wind
 BYTEDANCE_ROPE_MAX_FREQ = 256           # dit_v2/rope.py:31 (pixel-RoPE max frequency).
 BYTEDANCE_SINUSOIDAL_DIM = 256          # dit_3b/nadit.py:120 (timestep sinusoidal embed dim).
 
-# --------------------------------------------------------------------------------------
-# Published standards (cite the literature)
-# --------------------------------------------------------------------------------------
 ROPE_THETA = 10000   # RoPE base; Su et al., "RoFormer", arXiv:2104.09864.
 
-# CIELAB f(t) piecewise constants and D65 white point (CIE 15 colorimetry; CIE D65).
 CIELAB_DELTA = 6.0 / 29.0          # CIE 15 (delta).
 CIELAB_KAPPA = (29.0 / 3.0) ** 3   # CIE 15 (kappa).
 D65_WHITE_X = 0.95047              # CIE D65 standard illuminant Xn (Yn = 1).
 D65_WHITE_Z = 1.08883              # CIE D65 standard illuminant Zn.
 WAVELET_DECOMP_LEVELS = 5          # wavelet color-fix decomposition depth (GIMP/Krita; StableSR).
-
-# NOTE: the sRGB<->XYZ D65 3x3 matrices (IEC 61966-2-1) remain inline in the color code and
-# are named (SRGB_TO_XYZ_D65 / XYZ_TO_SRGB_D65) during the color-module extraction, where the
-# exact existing coefficients move verbatim rather than being retyped here.

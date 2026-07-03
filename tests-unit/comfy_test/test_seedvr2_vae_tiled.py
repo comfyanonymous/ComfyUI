@@ -16,9 +16,7 @@ import comfy.sd as sd_mod  # noqa: E402
 from comfy.ldm.seedvr.vae import MemoryState, tiled_vae  # noqa: E402
 
 
-# ---------------------------------------------------------------------------
-# From test_seedvr_vae_tiled_decode_latent_min_size_override.py
-# ---------------------------------------------------------------------------
+_LATENT_CHANNELS = seedvr_vae_mod.SEEDVR2_LATENT_CHANNELS
 
 
 def test_runtime_decode_zero_temporal_size_disables_slicing_for_call():
@@ -44,7 +42,7 @@ def test_runtime_decode_zero_temporal_size_disables_slicing_for_call():
             return torch.zeros((b, 3, d, h * 8, w * 8), dtype=z.dtype)
 
     vae = StubVAEModel()
-    z = torch.zeros((1, 16, 5, 8, 8), dtype=torch.float32)
+    z = torch.zeros((1, _LATENT_CHANNELS, 5, 8, 8), dtype=torch.float32)
 
     tiled_vae(
         z,
@@ -59,11 +57,6 @@ def test_runtime_decode_zero_temporal_size_disables_slicing_for_call():
     assert vae.decode_min_sizes == [5]
     assert vae.memory_states == [MemoryState.DISABLED]
     assert vae.slicing_latent_min_size == 2
-
-
-# ---------------------------------------------------------------------------
-# From test_seedvr_vae_tiled_encode_runt_slice_override.py
-# ---------------------------------------------------------------------------
 
 
 def test_zero_temporal_size_preserves_min_size_when_encode_raises():
@@ -110,7 +103,7 @@ def test_tiled_vae_encode_uses_tensor_return_without_indexing():
         def encode(self, t_chunk):
             self.calls.append(tuple(t_chunk.shape))
             b, _, _, h, w = t_chunk.shape
-            return torch.ones((b, 16, 1, h // 8, w // 8), dtype=t_chunk.dtype)
+            return torch.ones((b, _LATENT_CHANNELS, 1, h // 8, w // 8), dtype=t_chunk.dtype)
 
     vae = TensorEncodeVAEModel()
     x = torch.zeros((2, 3, 1, 64, 64), dtype=torch.float32)
@@ -126,12 +119,34 @@ def test_tiled_vae_encode_uses_tensor_return_without_indexing():
     )
 
     assert vae.calls == [(2, 3, 1, 64, 64)]
-    assert tuple(out.shape) == (2, 16, 1, 8, 8)
+    assert tuple(out.shape) == (2, _LATENT_CHANNELS, 1, 8, 8)
 
 
-# ---------------------------------------------------------------------------
-# From test_seedvr_vae_tiled_temporal_slicing.py
-# ---------------------------------------------------------------------------
+def test_tiled_vae_preserves_input_dtype_on_single_tile():
+    class FloatOutputVAEModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.slicing_sample_min_size = 4
+            self.spatial_downsample_factor = 8
+            self.temporal_downsample_factor = 4
+            self.device = torch.device("cpu")
+            self._dummy = torch.nn.Parameter(torch.zeros(1, dtype=torch.float32))
+
+        def encode(self, t_chunk):
+            b, _, _, h, w = t_chunk.shape
+            return torch.ones((b, _LATENT_CHANNELS, 1, h // 8, w // 8), dtype=torch.float32)
+
+    out = tiled_vae(
+        torch.zeros((1, 3, 1, 64, 64), dtype=torch.float16),
+        FloatOutputVAEModel(),
+        tile_size=(64, 64),
+        tile_overlap=(0, 0),
+        temporal_size=0,
+        temporal_overlap=0,
+        encode=True,
+    )
+
+    assert out.dtype == torch.float16
 
 
 class _SlicingDecodeVAE(nn.Module):
@@ -164,7 +179,10 @@ class _SlicingDecodeVAE(nn.Module):
 
 def test_decode_tiled_vae_maps_temporal_args_to_latent_slicing_min_size():
     vae = _SlicingDecodeVAE(slicing_latent_min_size=2)
-    z = torch.arange(1 * 16 * 5 * 8 * 8, dtype=torch.float32).reshape(1, 16, 5, 8, 8)
+    z = torch.arange(
+        _LATENT_CHANNELS * 5 * 8 * 8,
+        dtype=torch.float32,
+    ).reshape(1, _LATENT_CHANNELS, 5, 8, 8)
 
     tiled_vae(
         z,
@@ -199,14 +217,9 @@ def test_decode_tiled_vae_maps_temporal_args_to_latent_slicing_min_size():
         return torch.zeros(1, 3, 1, 16, 16)
 
     with patch.object(vae_mod, "tiled_vae", side_effect=_fake_tiled_vae):
-        wrapper.decode(torch.zeros(1, 16, 2, 2), seedvr2_tiling=seedvr2_tiling)
+        wrapper.decode(torch.zeros(1, _LATENT_CHANNELS, 2, 2), seedvr2_tiling=seedvr2_tiling)
 
     assert captured["temporal_overlap"] == 7
-
-
-# ---------------------------------------------------------------------------
-# From test_vae_decode_tiled_dispatcher_seedvr2_4d.py
-# ---------------------------------------------------------------------------
 
 
 def _force_oom(*a, **k):
@@ -256,10 +269,10 @@ def _dispatch(vae, samples, seedvr2_call, generic_call, patch_wrapper_decode):
 def test_4d_seedvr2_latent_routes_to_owned_decode_tiled():
     wrapper = seedvr_vae_mod.VideoAutoencoderKLWrapper.__new__(
         seedvr_vae_mod.VideoAutoencoderKLWrapper)
-    vae = _make_vae(wrapper, latent_channels=16, latent_dim=3)
+    vae = _make_vae(wrapper, latent_channels=_LATENT_CHANNELS, latent_dim=3)
     seedvr2_call = MagicMock(return_value=torch.zeros(1, 3, 9, 64, 64))
     generic_call = MagicMock(return_value=torch.zeros(1, 3, 64, 64))
-    _dispatch(vae, torch.zeros(1, 16 * 3, 8, 8), seedvr2_call, generic_call, True)
+    _dispatch(vae, torch.zeros(1, _LATENT_CHANNELS * 3, 8, 8), seedvr2_call, generic_call, True)
     assert seedvr2_call.call_count == 1
     assert generic_call.call_count == 0
 
@@ -275,11 +288,6 @@ def test_4d_non_seedvr2_latent_still_routes_to_generic_decode_tiled():
     assert seedvr2_call.call_count == 0
 
 
-# ---------------------------------------------------------------------------
-# From test_vae_encode_tiled_fallback_dispatcher_seedvr2.py
-# ---------------------------------------------------------------------------
-
-
 def _populate_common_vae_attrs_fallback(vae):
     vae.patcher = MagicMock()
     vae.patcher.get_free_memory = MagicMock(return_value=8 * 1024 * 1024 * 1024)
@@ -291,7 +299,7 @@ def _populate_common_vae_attrs_fallback(vae):
     vae.upscale_ratio = 8
     vae.upscale_index_formula = None
     vae.output_channels = 3
-    vae.latent_channels = 16
+    vae.latent_channels = _LATENT_CHANNELS
     vae.latent_dim = 3
     vae.downscale_ratio = 8
     vae.downscale_index_formula = None
@@ -334,8 +342,8 @@ def test_seedvr2_3d_routes_to_owned_encode_tiled_on_oom():
     vae = _make_seedvr2_vae_fallback()
     pixel_samples = torch.zeros((1, 8, 64, 64, 3))
 
-    seedvr2_call = MagicMock(return_value=torch.zeros(1, 16, 2, 8, 8))
-    generic_call = MagicMock(return_value=torch.zeros(1, 16, 2, 8, 8))
+    seedvr2_call = MagicMock(return_value=torch.zeros(1, _LATENT_CHANNELS, 2, 8, 8))
+    generic_call = MagicMock(return_value=torch.zeros(1, _LATENT_CHANNELS, 2, 8, 8))
 
     with patch.object(sd_mod.model_management, "raise_non_oom",
                       lambda e: None), \
@@ -363,7 +371,7 @@ def test_non_seedvr2_encode_tiled_3d_default_overlap_is_concrete():
     vae = _make_non_seedvr2_vae_fallback()
     vae.downscale_ratio = (lambda a: max(1, a // 4), 8, 8)
     vae.upscale_ratio = (lambda a: a * 4, 8, 8)
-    generic_call = MagicMock(return_value=torch.zeros(1, 16, 2, 8, 8))
+    generic_call = MagicMock(return_value=torch.zeros(1, _LATENT_CHANNELS, 2, 8, 8))
     pixel_samples = torch.zeros((1, 8, 64, 64, 3))
 
     with patch.object(sd_mod.model_management, "load_models_gpu",

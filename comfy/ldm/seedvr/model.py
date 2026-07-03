@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Union, List, Dict, Any, Callable
 import torch.nn.functional as F
 from math import ceil, pi
 import torch
-from itertools import chain
+from itertools import accumulate, chain
 from comfy.ldm.modules.diffusionmodules.model import get_timestep_embedding
 from comfy.ldm.seedvr.attention import optimized_var_attention
 from torch.nn.modules.utils import _triple
@@ -18,6 +18,7 @@ from comfy.ldm.seedvr.constants import (
     ROPE_THETA,
     SEEDVR2_7B_MLP_CHUNK,
     SEEDVR2_7B_VID_DIM,
+    SEEDVR2_LATENT_CHANNELS,
     SEEDVR2_ROPE_PARTIAL_CHUNK_TOKENS,
 )
 import comfy.model_management
@@ -70,7 +71,7 @@ def repeat_concat_idx(
     vid_idx = torch.arange(vid_len.sum(), device=device)
     txt_idx = torch.arange(len(vid_idx), len(vid_idx) + txt_len.sum(), device=device)
     txt_repeat_list = txt_repeat.tolist()
-    tgt_idx = repeat_concat(vid_idx, txt_idx, vid_len, txt_len, txt_repeat)
+    tgt_idx = repeat_concat(vid_idx, txt_idx, vid_len, txt_len, txt_repeat_list)
     src_idx = torch.argsort(tgt_idx)
     txt_idx_len = len(tgt_idx) - len(vid_idx)
     repeat_txt_len = (txt_len * txt_repeat).tolist()
@@ -87,6 +88,9 @@ def repeat_concat_idx(
         lambda vid, txt: torch.cat([vid, txt])[tgt_idx],
         lambda all: unconcat_coalesce(all),
     )
+
+def cumulative_lengths(lengths):
+    return [0, *accumulate(lengths)]
 
 
 @dataclass
@@ -110,16 +114,14 @@ def get_window_op(name: str):
     raise ValueError(f"Unknown windowing method: {name}")
 
 
-# -------------------------------- Windowing -------------------------------- #
 def make_720Pwindows_bysize(size: Tuple[int, int, int], num_windows: Tuple[int, int, int]):
     t, h, w = size
     resized_nt, resized_nh, resized_nw = num_windows
-    #cal windows under 720p
     scale = math.sqrt(BYTEDANCE_720P_REF_AREA / (h * w))
     resized_h, resized_w = round(h * scale), round(w * scale)
-    wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)  # window size.
-    wt = ceil(min(t, BYTEDANCE_MAX_TEMPORAL_WINDOW) / resized_nt)  # window size.
-    nt, nh, nw = ceil(t / wt), ceil(h / wh), ceil(w / ww)  # window size.
+    wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)
+    wt = ceil(min(t, BYTEDANCE_MAX_TEMPORAL_WINDOW) / resized_nt)
+    nt, nh, nw = ceil(t / wt), ceil(h / wh), ceil(w / ww)
     return [
         (
             slice(it * wt, min((it + 1) * wt, t)),
@@ -137,19 +139,18 @@ def make_720Pwindows_bysize(size: Tuple[int, int, int], num_windows: Tuple[int, 
 def make_shifted_720Pwindows_bysize(size: Tuple[int, int, int], num_windows: Tuple[int, int, int]):
     t, h, w = size
     resized_nt, resized_nh, resized_nw = num_windows
-    #cal windows under 720p
     scale = math.sqrt(BYTEDANCE_720P_REF_AREA / (h * w))
     resized_h, resized_w = round(h * scale), round(w * scale)
-    wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)  # window size.
-    wt = ceil(min(t, BYTEDANCE_MAX_TEMPORAL_WINDOW) / resized_nt)  # window size.
+    wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)
+    wt = ceil(min(t, BYTEDANCE_MAX_TEMPORAL_WINDOW) / resized_nt)
 
-    st, sh, sw = (  # shift size.
+    st, sh, sw = (
         0.5 if wt < t else 0,
         0.5 if wh < h else 0,
         0.5 if ww < w else 0,
     )
-    nt, nh, nw = ceil((t - st) / wt), ceil((h - sh) / wh), ceil((w - sw) / ww)  # window size.
-    nt, nh, nw = (  # number of window.
+    nt, nh, nw = ceil((t - st) / wt), ceil((h - sh) / wh), ceil((w - sw) / ww)
+    nt, nh, nw = (
         nt + 1 if st > 0 else 1,
         nh + 1 if sh > 0 else 1,
         nw + 1 if sw > 0 else 1,
@@ -175,7 +176,6 @@ class RotaryEmbedding(nn.Module):
         freqs_for = 'lang',
         theta = 10000,
         max_freq = 10,
-        learned_freq = False,
     ):
         super().__init__()
 
@@ -185,18 +185,14 @@ class RotaryEmbedding(nn.Module):
             freqs = 1. / (theta ** (torch.arange(0, dim, 2)[:(dim // 2)].float() / dim))
         elif freqs_for == 'pixel':
             freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
+        else:
+            raise ValueError(f"Unknown rotary frequency type: {freqs_for}")
 
-        self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
-
-        self.learned_freq = learned_freq
-
-        # dummy for device
-
-        self.register_buffer('dummy', torch.tensor(0), persistent = False)
+        self.register_buffer("freqs", freqs)
 
     @property
     def device(self):
-        return self.dummy.device
+        return self.freqs.device
 
     def get_axial_freqs(
         self,
@@ -206,10 +202,9 @@ class RotaryEmbedding(nn.Module):
         Colon = slice(None)
         all_freqs = []
 
-        # handle offset
-
         if exists(offsets):
-            assert len(offsets) == len(dims)
+            if len(offsets) != len(dims):
+                raise ValueError(f"SeedVR2 rotary offsets length must match dims length, got {len(offsets)} and {len(dims)}.")
 
         for ind, dim in enumerate(dims):
 
@@ -224,7 +219,7 @@ class RotaryEmbedding(nn.Module):
 
             pos = pos + offset
 
-            freqs = self.forward(pos, seq_len = dim)
+            freqs = self.forward(pos)
 
             all_axis = [None] * len(dims)
             all_axis[ind] = Colon
@@ -232,16 +227,12 @@ class RotaryEmbedding(nn.Module):
             new_axis_slice = (Ellipsis, *all_axis, Colon)
             all_freqs.append(freqs[new_axis_slice])
 
-        # concat all freqs
-
         all_freqs = torch.broadcast_tensors(*all_freqs)
         return torch.cat(all_freqs, dim = -1)
 
     def forward(
         self,
         t,
-        seq_len: int | None = None,
-        offset = 0
     ):
         freqs = self.freqs
 
@@ -258,9 +249,6 @@ class RotaryEmbeddingBase(nn.Module):
             freqs_for="pixel",
             max_freq=BYTEDANCE_ROPE_MAX_FREQ,
         )
-        freqs = self.rope.freqs
-        del self.rope.freqs
-        self.rope.register_buffer("freqs", freqs.detach())
 
     def get_axial_freqs(self, *dims):
         return self.rope.get_axial_freqs(*dims)
@@ -306,7 +294,7 @@ class NaRotaryEmbedding3d(RotaryEmbedding3d):
             freqs_for="pixel",
             max_freq=BYTEDANCE_ROPE_MAX_FREQ,
         )
-        plain_rope = plain_rope.to(self.rope.dummy.device)
+        plain_rope = plain_rope.to(self.rope.device)
         freq_list = []
         for f, h, w in shape.tolist():
             freqs = plain_rope.get_axial_freqs(f, h, w)
@@ -322,9 +310,6 @@ class MMRotaryEmbeddingBase(RotaryEmbeddingBase):
             freqs_for="lang",
             theta=ROPE_THETA,
         )
-        freqs = self.rope.freqs
-        del self.rope.freqs
-        self.rope.register_buffer("freqs", freqs.detach())
         self.mm = True
 
 def slice_at_dim(t, dim_slice: slice, *, dim):
@@ -332,8 +317,6 @@ def slice_at_dim(t, dim_slice: slice, *, dim):
     colons = [slice(None)] * t.ndim
     colons[dim] = dim_slice
     return t[tuple(colons)]
-
-# rotary embedding helper functions
 
 def rotate_half(x):
     x = x.reshape(*x.shape[:-1], x.shape[-1] // 2, 2)
@@ -373,7 +356,6 @@ def _apply_seedvr2_rotary_emb(
     return torch.cat((t_left, t_middle, t_right), dim=-1).to(dtype)
 
 def _to_flux_freqs_cis(freqs_interleaved: torch.Tensor) -> torch.Tensor:
-    """Convert lucidrains-interleaved freqs to flux-canonical fp32 freqs_cis `[..., d/2, 2, 2]` (cos/-sin/sin/cos), per `comfy/ldm/flux/math.py:rope`."""
     angles = freqs_interleaved[..., ::2].float()
     cos = torch.cos(angles)
     sin = torch.sin(angles)
@@ -382,12 +364,6 @@ def _to_flux_freqs_cis(freqs_interleaved: torch.Tensor) -> torch.Tensor:
 
 
 def _apply_rope1_partial(t: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
-    """Rotate the leading ``rot_d = 2 * freqs_cis.shape[-3]`` dims of ``t`` and pass the rest
-    through; in-place for inference, cloned for training (autograd). Mirrors the legacy
-    ``apply_rotary_emb`` ``t_left``/``t_middle``/``t_right`` split: 3B ``rope_dim=128`` gives
-    ``42*3 = 126`` rotated of head_dim 128 (trailing 2 unrotated). Fast path skips the cat when
-    ``rot_d == t.shape[-1]``.
-    """
     out = t.clone() if t.requires_grad or comfy.model_management.in_training else t
     rot_d = 2 * freqs_cis.shape[-3]
     seq_len = out.shape[-2]
@@ -454,14 +430,13 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
         torch.Tensor,
     ]:
 
-        # Calculate actual max dimensions needed for this batch
         max_temporal = 0
         max_height = 0
         max_width = 0
         max_txt_len = 0
 
         for (f, h, w), l in zip(vid_shape.tolist(), txt_shape[:, 0].tolist()):
-            max_temporal = max(max_temporal, l + f)  # Need up to l+f for temporal
+            max_temporal = max(max_temporal, l + f)
             max_height = max(max_height, h)
             max_width = max(max_width, w)
             max_txt_len = max(max_txt_len, l)
@@ -475,7 +450,6 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
             ).float()
             txt_freqs = self.get_axial_freqs(max_txt_len + 16)
 
-        # Now slice as before
         vid_freq_list, txt_freq_list = [], []
         for (f, h, w), l in zip(vid_shape.tolist(), txt_shape[:, 0].tolist()):
             vid_freq = vid_freqs[l : l + f, :h, :w].reshape(-1, vid_freqs.size(-1))
@@ -485,13 +459,6 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
         vid_freqs_interleaved = torch.cat(vid_freq_list, dim=0)
         txt_freqs_interleaved = torch.cat(txt_freq_list, dim=0)
 
-        # Convert from lucidrains-interleaved layout `[θ0, θ0, θ1, θ1, ...]`
-        # (produced by `repeat(freqs, '... n -> ... (n r)', r=2)` in the
-        # upstream `RotaryEmbedding.forward`) to flux-canonical `freqs_cis`
-        # in shape `[..., d/2, 2, 2]` with `cos/-sin/sin/cos` baked in.
-        # Mirrors `comfy/ldm/flux/math.py:rope` (line 27) so the trailing
-        # 2x2 is the per-frequency rotation matrix that
-        # `comfy.ldm.flux.math.apply_rope1` expects.
         return _to_flux_freqs_cis(vid_freqs_interleaved), _to_flux_freqs_cis(txt_freqs_interleaved)
 
 class MMModule(nn.Module):
@@ -507,8 +474,10 @@ class MMModule(nn.Module):
         self.shared_weights = shared_weights
         self.vid_only = vid_only
         if self.shared_weights:
-            assert get_args("vid", args) == get_args("txt", args)
-            assert get_kwargs("vid", kwargs) == get_kwargs("txt", kwargs)
+            if get_args("vid", args) != get_args("txt", args):
+                raise ValueError("SeedVR2 shared MMModule requires matching vid/txt args.")
+            if get_kwargs("vid", kwargs) != get_kwargs("txt", kwargs):
+                raise ValueError("SeedVR2 shared MMModule requires matching vid/txt kwargs.")
             self.all = module(*get_args("vid", args), **get_kwargs("vid", kwargs))
         else:
             self.vid = module(*get_args("vid", args), **get_kwargs("vid", kwargs))
@@ -543,6 +512,7 @@ def get_na_rope(rope_type: Optional[str], dim: int):
         return NaRotaryEmbedding3d(dim=dim)
     if rope_type == "mmrope3d":
         return NaMMRotaryEmbedding3d(dim=dim)
+    raise ValueError(f"Unknown SeedVR2 rope type: {rope_type}")
 
 class NaMMAttention(nn.Module):
     def __init__(
@@ -558,7 +528,6 @@ class NaMMAttention(nn.Module):
         rope_dim: int,
         shared_weights: bool,
         device, dtype, operations,
-        **kwargs,
     ):
         super().__init__()
         dim = MMArg(vid_dim, txt_dim)
@@ -597,16 +566,19 @@ def window(
 ):
     hid = unflatten(hid, hid_shape)
     hid = list(map(window_fn, hid))
-    hid_windows = torch.as_tensor([len(x) for x in hid], device=hid_shape.device)
-    hid, hid_shape = flatten(list(chain(*hid)))
-    return hid, hid_shape, hid_windows
+    hid_windows_list = [len(x) for x in hid]
+    hid_windows = torch.as_tensor(hid_windows_list, device=hid_shape.device)
+    hid = list(chain(*hid))
+    hid_len_list = [math.prod(x.shape[:-1]) for x in hid]
+    hid, hid_shape = flatten(hid)
+    return hid, hid_shape, hid_windows, hid_len_list, hid_windows_list
 
 def window_idx(
     hid_shape: torch.LongTensor,  # (b n)
     window_fn: Callable[[torch.Tensor], List[torch.Tensor]],
 ):
     hid_idx = torch.arange(hid_shape.prod(-1).sum(), device=hid_shape.device).unsqueeze(-1)
-    tgt_idx, tgt_shape, tgt_windows = window(hid_idx, hid_shape, window_fn)
+    tgt_idx, tgt_shape, tgt_windows, tgt_len_list, tgt_windows_list = window(hid_idx, hid_shape, window_fn)
     tgt_idx = tgt_idx.squeeze(-1)
     src_idx = torch.argsort(tgt_idx)
     return (
@@ -614,6 +586,8 @@ def window_idx(
         lambda hid: torch.index_select(hid, 0, src_idx),
         tgt_shape,
         tgt_windows,
+        tgt_len_list,
+        tgt_windows_list,
     )
 
 class NaSwinAttention(NaMMAttention):
@@ -622,13 +596,15 @@ class NaSwinAttention(NaMMAttention):
         *args,
         window: Union[int, Tuple[int, int, int]],
         window_method: str,
+        version: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.version_7b = kwargs.get("version", False)
+        self.version_7b = version
         self.window = _triple(window)
         self.window_method = window_method
-        assert all(map(lambda v: isinstance(v, int) and v >= 0, self.window))
+        if not all(isinstance(v, int) and v >= 0 for v in self.window):
+            raise ValueError(f"SeedVR2 window must contain non-negative integers, got {self.window}.")
 
         self.window_op = get_window_op(window_method)
 
@@ -646,7 +622,6 @@ class NaSwinAttention(NaMMAttention):
 
         vid_qkv, txt_qkv = self.proj_qkv(vid, txt)
 
-        # re-org the input seq for window attn
         cache_win = cache.namespace(f"{self.window_method}_{self.window}_sd3")
 
         def make_window(x: torch.Tensor):
@@ -654,7 +629,7 @@ class NaSwinAttention(NaMMAttention):
             window_slices = self.window_op((t, h, w), self.window)
             return [x[st, sh, sw] for (st, sh, sw) in window_slices]
 
-        window_partition, window_reverse, window_shape, window_count = cache_win(
+        window_partition, window_reverse, window_shape, window_count, vid_len_win_list, window_count_list = cache_win(
             "win_transform",
             lambda: window_idx(vid_shape, make_window),
         )
@@ -674,23 +649,21 @@ class NaSwinAttention(NaMMAttention):
         vid_len_win = cache_win("vid_len", lambda: window_shape.prod(-1))
         txt_len = txt_len.to(window_count.device)
 
-        # window rope
         if self.rope:
             if self.version_7b:
                 vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
             elif self.rope.mm:
-                # repeat text q and k for window mmrope
                 _, num_h, _ = txt_q.shape
                 txt_q_repeat = txt_q.flatten(1, 2)
                 txt_q_repeat = unflatten(txt_q_repeat, txt_shape)
-                txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count)]
+                txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count_list)]
                 txt_q_repeat = list(chain(*txt_q_repeat))
                 txt_q_repeat, txt_shape_repeat = flatten(txt_q_repeat)
                 txt_q_repeat = txt_q_repeat.reshape(txt_q_repeat.shape[0], num_h, self.head_dim)
 
                 txt_k_repeat = txt_k.flatten(1, 2)
                 txt_k_repeat = unflatten(txt_k_repeat, txt_shape)
-                txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count)]
+                txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count_list)]
                 txt_k_repeat = list(chain(*txt_k_repeat))
                 txt_k_repeat, _ = flatten(txt_k_repeat)
                 txt_k_repeat = txt_k_repeat.reshape(txt_k_repeat.shape[0], num_h, self.head_dim)
@@ -702,7 +675,11 @@ class NaSwinAttention(NaMMAttention):
                 vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
 
         txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
-        all_len_win = cache_win("all_len", lambda: vid_len_win + txt_len_win)
+        txt_len_win_list = cache_win(
+            "txt_len_list",
+            lambda: [txt_len for txt_len, window_count in zip(txt_len.tolist(), window_count_list) for _ in range(window_count)],
+        )
+        all_len_win = cache_win("all_len", lambda: [vid_len + txt_len for vid_len, txt_len in zip(vid_len_win_list, txt_len_win_list)])
         concat_win, unconcat_win = cache_win(
             "mm_pnp", lambda: repeat_concat_idx(vid_len_win, txt_len, window_count)
         )
@@ -711,12 +688,8 @@ class NaSwinAttention(NaMMAttention):
             k=concat_win(vid_k, txt_k),
             v=concat_win(vid_v, txt_v),
             heads=self.heads, skip_reshape=True, skip_output_reshape=True,
-            cu_seqlens_q=cache_win(
-                "vid_seqlens_q", lambda: F.pad(all_len_win.cumsum(0), (1, 0)).int()
-            ),
-            cu_seqlens_k=cache_win(
-                "vid_seqlens_k", lambda: F.pad(all_len_win.cumsum(0), (1, 0)).int()
-            ),
+            cu_seqlens_q=cache_win("vid_seqlens_q", lambda: cumulative_lengths(all_len_win)),
+            cu_seqlens_k=cache_win("vid_seqlens_k", lambda: cumulative_lengths(all_len_win)),
         )
         vid_out, txt_out = unconcat_win(out)
 
@@ -766,11 +739,11 @@ class SwiGLUMLP(nn.Module):
         return self.proj_out(F.silu(self.proj_in_gate(x)) * self.proj_in(x))
 
 def get_mlp(mlp_type: Optional[str] = "normal"):
-    # 3b and 7b uses different mlp types
     if mlp_type == "normal":
         return MLP
-    elif mlp_type == "swiglu":
+    if mlp_type == "swiglu":
         return SwiGLUMLP
+    raise ValueError(f"Unknown SeedVR2 MLP type: {mlp_type}")
 
 class NaMMSRTransformerBlock(nn.Module):
     def __init__(
@@ -792,11 +765,12 @@ class NaMMSRTransformerBlock(nn.Module):
         rope_type: str,
         rope_dim: int,
         is_last_layer: bool,
+        window: Union[int, Tuple[int, int, int]],
+        window_method: str,
+        version: bool,
         device, dtype, operations,
-        **kwargs,
     ):
         super().__init__()
-        version = kwargs.get("version", False)
         dim = MMArg(vid_dim, txt_dim)
         self.attn_norm = MMModule(norm, normalized_shape=dim, eps=norm_eps, elementwise_affine=False, shared_weights=shared_weights, device=device, dtype=dtype)
 
@@ -811,8 +785,8 @@ class NaMMSRTransformerBlock(nn.Module):
             rope_type=rope_type,
             rope_dim=rope_dim,
             shared_weights=shared_weights,
-            window=kwargs.pop("window", None),
-            window_method=kwargs.pop("window_method", None),
+            window=window,
+            window_method=window_method,
             version=version,
             device=device, dtype=dtype, operations=operations
         )
@@ -930,12 +904,14 @@ class NaPatchOut(PatchOut):
         self,
         vid: torch.FloatTensor,  # l c
         vid_shape: torch.LongTensor,
-        cache: Cache = Cache(disable=True),
+        cache: Optional[Cache] = None,
         vid_shape_before_patchify = None
     ) -> Tuple[
         torch.FloatTensor,
         torch.LongTensor,
     ]:
+        if cache is None:
+            cache = Cache(disable=True)
 
         t, h, w = self.patch_size
         vid = self.proj(vid)
@@ -971,7 +947,10 @@ class PatchIn(nn.Module):
     ) -> torch.Tensor:
         t, h, w = self.patch_size
         if t > 1:
-            assert vid.size(2) % t == 1
+            if vid.size(2) % t != 1:
+                raise ValueError(
+                    f"SeedVR2 patch input temporal size must satisfy T % {t} == 1, got {vid.size(2)}."
+                )
             vid = torch.cat([vid[:, :, :1]] * (t - 1) + [vid], dim=2)
         b, c, Tt, Hh, Ww = vid.shape
         vid = vid.view(b, c, Tt // t, t, Hh // h, h, Ww // w, w).permute(0, 2, 4, 6, 3, 5, 7, 1).reshape(b, Tt // t, Hh // h, Ww // w, t * h * w * c)
@@ -983,8 +962,10 @@ class NaPatchIn(PatchIn):
         self,
         vid: torch.Tensor,  # l c
         vid_shape: torch.LongTensor,
-        cache: Cache = Cache(disable=True),
+        cache: Optional[Cache] = None,
     ) -> torch.Tensor:
+        if cache is None:
+            cache = Cache(disable=True)
         cache = cache.namespace("patch")
         vid_shape_before_patchify = cache("vid_shape_before_patchify", lambda: vid_shape)
         t, h, w = self.patch_size
@@ -1012,10 +993,11 @@ class AdaSingle(nn.Module):
         dim: int,
         emb_dim: int,
         layers: List[str],
-        modes: List[str] = ["in", "out"],
+        modes: Tuple[str, ...] = ("in", "out"),
         device = None, dtype = None,
     ):
-        assert emb_dim == 6 * dim, "AdaSingle requires emb_dim == 6 * dim"
+        if emb_dim != 6 * dim:
+            raise ValueError(f"SeedVR2 AdaSingle requires emb_dim == 6 * dim, got emb_dim={emb_dim}, dim={dim}.")
         super().__init__()
         self.dim = dim
         self.emb_dim = emb_dim
@@ -1036,22 +1018,20 @@ class AdaSingle(nn.Module):
         emb: torch.FloatTensor,  # b d
         layer: str,
         mode: str,
-        cache: Cache = Cache(disable=True),
+        cache: Optional[Cache] = None,
         branch_tag: str = "",
         hid_len: Optional[torch.LongTensor] = None,  # b
     ) -> torch.FloatTensor:
+        if cache is None:
+            cache = Cache(disable=True)
         idx = self.layers.index(layer)
         emb = emb.reshape(emb.shape[0], -1, len(self.layers), 3)[:, :, idx, :]
         emb = expand_dims(emb, 1, hid.ndim + 1)
 
         if hid_len is not None:
-            slice_inputs = lambda x, dim: x
             emb = cache(
                 f"emb_repeat_{idx}_{branch_tag}",
-                lambda: slice_inputs(
-                    torch.repeat_interleave(emb, hid_len, dim=0),
-                    dim=0,
-                ),
+                lambda: torch.repeat_interleave(emb, hid_len, dim=0),
             )
 
         shiftA, scaleA, gateA = emb.unbind(-1)
@@ -1069,7 +1049,7 @@ class AdaSingle(nn.Module):
             else:
                 return hid.mul_(gateA)
 
-        raise NotImplementedError
+        raise ValueError(f"Unknown AdaSingle mode: {mode}")
 
 
 class TimeEmbedding(nn.Module):
@@ -1117,7 +1097,8 @@ def flatten(
     torch.FloatTensor,  # (L c)
     torch.LongTensor,  # (b n)
 ]:
-    assert len(hid) > 0
+    if len(hid) == 0:
+        raise ValueError("SeedVR2 flatten requires at least one tensor.")
     shape = torch.as_tensor([x.shape[:-1] for x in hid], device=hid[0].device)
     hid = torch.cat([x.flatten(0, -2) for x in hid])
     return hid, shape
@@ -1140,7 +1121,7 @@ class NaDiT(nn.Module):
         num_layers,
         mlp_type,
         vid_in_channels = 33,
-        vid_out_channels = 16,
+        vid_out_channels = SEEDVR2_LATENT_CHANNELS,
         vid_dim = 2560,
         txt_in_dim = 5120,
         heads = 20,
@@ -1148,15 +1129,17 @@ class NaDiT(nn.Module):
         mm_layers = 10,
         expand_ratio = 4,
         qk_bias = False,
-        patch_size = [ 1,2,2 ],
+        patch_size = (1, 2, 2),
         rope_dim = 128,
         rope_type = "mmrope3d",
         vid_out_norm: Optional[str] = None,
+        image_model = None,
         device = None,
         dtype = None,
         operations = None,
-        **kwargs,
     ):
+        if image_model not in (None, "seedvr2"):
+            raise ValueError(f"SeedVR2 NaDiT expected image_model='seedvr2', got {image_model!r}.")
         self._7b_version = vid_dim == SEEDVR2_7B_VID_DIM
         if self._7b_version:
             rope_type = "rope3d"
@@ -1212,14 +1195,13 @@ class NaDiT(nn.Module):
                     rope_dim = rope_dim,
                     window=window[i],
                     window_method=window_method[i],
+                    version = self._7b_version,
                     is_last_layer=(i == num_layers - 1) and not self._7b_version,
                     rope_type = rope_type,
                     shared_weights=not (
                         (i < mm_layers) if isinstance(mm_layers, int) else mm_layers[i]
                     ),
-                    version = self._7b_version,
                     operations = operations,
-                    **kwargs,
                     **factory_kwargs
                 )
                 for i in range(num_layers)
@@ -1272,13 +1254,17 @@ class NaDiT(nn.Module):
         first = cond_or_uncond[0]
         return all(entry == first for entry in cond_or_uncond)
 
+    @staticmethod
+    def _check_seedvr2_video_latent(x, channels, name):
+        if x.ndim != 5:
+            raise ValueError(f"SeedVR2 expected {name} to be 5-D native latent, got shape {tuple(x.shape)}.")
+        if x.shape[1] != channels:
+            raise ValueError(f"SeedVR2 expected {name} channels to be {channels}, got shape {tuple(x.shape)}.")
+        return x
+
     def _swap_pos_neg_halves(self, out, cond_or_uncond=None):
         if NaDiT._seedvr2_is_single_conditioning_branch(cond_or_uncond):
             return out
-        # ``dim=0`` is explicit on both calls. The contract is "split
-        # the batch axis into two halves and swap them"; making the
-        # axis load-bearing in source guards against silent drift if a
-        # future refactor reorders tensor axes.
         pos, neg = out.chunk(2, dim=0)
         return torch.cat([neg, pos], dim=0)
 
@@ -1294,9 +1280,15 @@ class NaDiT(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         conditions = kwargs.get("condition")
-        b, tc, h, w = x.shape
-        x = x.view(b, 16, -1, h, w)
-        conditions = conditions.view(b, 17, -1, h, w)
+        if conditions is None:
+            raise ValueError("SeedVR2 requires conditioning latents from the SeedVR2Conditioning node.")
+        x = self._check_seedvr2_video_latent(x, SEEDVR2_LATENT_CHANNELS, "latent")
+        conditions = self._check_seedvr2_video_latent(conditions, SEEDVR2_LATENT_CHANNELS + 1, "conditioning")
+        b, _, t, h, w = x.shape
+        if conditions.shape[0] != b or conditions.shape[2:] != (t, h, w):
+            raise ValueError(
+                f"SeedVR2 conditioning shape must match latent batch/temporal/spatial dimensions; got latent {tuple(x.shape)} and conditioning {tuple(conditions.shape)}."
+            )
         x = x.movedim(1, -1)
         conditions = conditions.movedim(1, -1)
         cache = Cache(disable=disable_cache)
@@ -1361,7 +1353,6 @@ class NaDiT(nn.Module):
 
         vid, vid_shape = self.vid_out(vid, vid_shape, cache, vid_shape_before_patchify = vid_shape_before_patchify)
         vid = unflatten(vid, vid_shape)
-        out =  torch.stack(vid)
+        out = torch.stack(vid)
         out = out.movedim(-1, 1)
-        out = out.reshape(out.shape[0], out.shape[1] * out.shape[2], out.shape[3], out.shape[4])
         return self._swap_pos_neg_halves(out, transformer_options.get("cond_or_uncond"))

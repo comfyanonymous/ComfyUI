@@ -1688,6 +1688,7 @@ class SeedVR2(supported_models_base.BASE):
     unet_config = {
         "image_model": "seedvr2"
     }
+    unet_extra_config = {}
     required_keys = {
         "{}positive_conditioning",
         "{}negative_conditioning",

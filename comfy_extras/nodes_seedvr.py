@@ -19,21 +19,14 @@ from comfy.ldm.seedvr.constants import (
 )
 
 from torchvision.transforms import functional as TVF
-from torchvision.transforms import Lambda
 from torchvision.transforms.functional import InterpolationMode
 
 
-_SEEDVR2_INVALID_MODEL_MSG_PREFIX = (
-    "SeedVR2Conditioning: model object does not match expected SeedVR2 structure"
-)
-
-# Private sentinel for getattr default: distinguishes "attribute missing"
-# from "attribute present but None" so the failure message is accurate.
+_SEEDVR2_INVALID_MODEL_MSG_PREFIX = "SeedVR2Conditioning: model object does not match expected SeedVR2 structure"
 _ATTR_MISSING = object()
 
 
 def _resolve_seedvr2_diffusion_model(model):
-    """Resolve ``model.model.diffusion_model``, failing loud via the ``_ATTR_MISSING`` sentinel so each of the four modes (model/diffusion_model missing vs None) gives an accurate message."""
     inner = getattr(model, "model", _ATTR_MISSING)
     if inner is _ATTR_MISSING:
         raise RuntimeError(
@@ -59,15 +52,7 @@ def _resolve_seedvr2_diffusion_model(model):
     return diffusion_model
 
 
-def get_conditions(latent, latent_blur):
-    t, h, w, c = latent.shape
-    cond = torch.ones([t, h, w, c + 1], device=latent.device, dtype=latent.dtype)
-    cond[:, ..., :-1] = latent_blur[:]
-    cond[:, ..., -1:] = 1.0
-    return cond
-
 def div_pad(image, factor):
-
     height_factor, width_factor = factor
     height, width = image.shape[-2:]
 
@@ -77,31 +62,25 @@ def div_pad(image, factor):
     if pad_height == 0 and pad_width == 0:
         return image
 
-    if isinstance(image, torch.Tensor):
-        padding = (0, pad_width, 0, pad_height)
-        image = torch.nn.functional.pad(image, padding, mode='constant', value=0.0)
-
-    return image
+    padding = (0, pad_width, 0, pad_height)
+    return torch.nn.functional.pad(image, padding, mode='constant', value=0.0)
 
 def cut_videos(videos):
     t = videos.size(1)
+    if t < 1:
+        raise ValueError("SeedVR2Preprocess expected at least one frame.")
     if t == 1:
         return videos
-    if t <= 4 :
-        padding = [videos[:, -1].unsqueeze(1)] * (4 - t + 1)
-        padding = torch.cat(padding, dim=1)
-        videos = torch.cat([videos, padding], dim=1)
+    if t <= 4:
+        padding = videos[:, -1:].repeat(1, 4 - t + 1, 1, 1, 1)
+        return torch.cat([videos, padding], dim=1)
+    if (t - 1) % 4 == 0:
         return videos
-    if (t - 1) % (4) == 0:
-        return videos
-    else:
-        padding = [videos[:, -1].unsqueeze(1)] * (
-            4 - ((t - 1) % (4))
-        )
-        padding = torch.cat(padding, dim=1)
-        videos = torch.cat([videos, padding], dim=1)
-        assert (videos.size(1) - 1) % (4) == 0
-        return videos
+    padding = videos[:, -1:].repeat(1, 4 - ((t - 1) % 4), 1, 1, 1)
+    videos = torch.cat([videos, padding], dim=1)
+    if (videos.size(1) - 1) % 4 != 0:
+        raise ValueError(f"SeedVR2Preprocess failed to pad video length to 4n+1; got {videos.size(1)} frames.")
+    return videos
 
 def _seedvr2_input_shorter_edge(images, node_name):
     if images.dim() == 4:
@@ -136,8 +115,7 @@ def _seedvr2_pad(images, upscaled_shorter_edge, node_name):
     b, t, c, h, w = images.shape
     images = images.reshape(b * t, c, h, w)
 
-    clip = Lambda(lambda x: torch.clamp(x, 0.0, 1.0))
-    images = clip(images)
+    images = torch.clamp(images, 0.0, 1.0)
     images = div_pad(images, (16, 16))
     _, _, new_h, new_w = images.shape
 
@@ -295,7 +273,6 @@ class SeedVR2PostProcessing(io.ComfyNode):
     def _color_transfer_chunked(cls, decoded_flat, reference_flat, output_device, color_correction_method):
         chunk_size = cls._estimate_color_correction_chunk_size(decoded_flat, color_correction_method)
         while True:
-            next_chunk_size = None
             try:
                 return cls._run_color_transfer_chunks(
                     decoded_flat, reference_flat, output_device, color_correction_method, chunk_size,
@@ -307,9 +284,7 @@ class SeedVR2PostProcessing(io.ComfyNode):
                         "SeedVR2PostProcessing: color correction OOM at one frame; "
                         f"color_correction_method={color_correction_method}, shape={tuple(decoded_flat.shape)}."
                     ) from e
-                next_chunk_size = max(1, chunk_size // SEEDVR2_OOM_BACKOFF_DIVISOR)
-
-            chunk_size = next_chunk_size
+                chunk_size = max(1, chunk_size // SEEDVR2_OOM_BACKOFF_DIVISOR)
 
     @classmethod
     def _run_color_transfer_chunks(cls, decoded_flat, reference_flat, output_device, color_correction_method, chunk_size):
@@ -392,10 +367,8 @@ class SeedVR2Conditioning(io.ComfyNode):
                 io.Latent.Input("vae_conditioning", display_name="latent"),
             ],
             outputs=[
-                io.Model.Output(display_name="model", tooltip="The SeedVR2 model, passed through."),
                 io.Conditioning.Output(display_name="positive", tooltip="The positive conditioning for sampling."),
                 io.Conditioning.Output(display_name="negative", tooltip="The negative conditioning for sampling."),
-                io.Latent.Output(display_name="latent", tooltip="The latent to denoise."),
             ],
         )
 
@@ -408,29 +381,30 @@ class SeedVR2Conditioning(io.ComfyNode):
                 "SeedVR2Conditioning expects a 5-D VAE latent in Comfy "
                 f"channel-first layout; got shape {tuple(vae_conditioning.shape)}."
             )
-        if vae_conditioning.shape[-1] == SEEDVR2_LATENT_CHANNELS and vae_conditioning.shape[1] != SEEDVR2_LATENT_CHANNELS:
+        if vae_conditioning.shape[1] != SEEDVR2_LATENT_CHANNELS:
+            if vae_conditioning.shape[-1] == SEEDVR2_LATENT_CHANNELS:
+                raise ValueError(
+                    "SeedVR2Conditioning expects SeedVR2 VAE latents in Comfy "
+                    f"channel-first layout (B, {SEEDVR2_LATENT_CHANNELS}, T, H, W); "
+                    f"got channel-last shape {tuple(vae_conditioning.shape)}."
+                )
             raise ValueError(
-                "SeedVR2Conditioning expects SeedVR2 VAE latents in Comfy "
-                f"channel-first layout (B, {SEEDVR2_LATENT_CHANNELS}, T, H, W); "
-                f"got channel-last shape {tuple(vae_conditioning.shape)}."
+                "SeedVR2Conditioning expects SeedVR2 VAE latents with "
+                f"{SEEDVR2_LATENT_CHANNELS} channels; got shape {tuple(vae_conditioning.shape)}."
             )
         vae_conditioning = vae_conditioning.movedim(1, -1).contiguous()
-        model_patcher = model
-        model = _resolve_seedvr2_diffusion_model(model_patcher)
+        model = _resolve_seedvr2_diffusion_model(model)
         pos_cond = model.positive_conditioning
         neg_cond = model.negative_conditioning
 
-        condition = torch.stack([get_conditions(c, c) for c in vae_conditioning])
+        mask = vae_conditioning.new_ones(vae_conditioning.shape[:-1] + (1,))
+        condition = torch.cat((vae_conditioning, mask), dim=-1)
         condition = condition.movedim(-1, 1)
-        latent = vae_conditioning.movedim(-1, 1)
-
-        latent = latent.reshape(latent.shape[0], latent.shape[1] * latent.shape[2], latent.shape[3], latent.shape[4])
-        condition = condition.reshape(condition.shape[0], condition.shape[1] * condition.shape[2], condition.shape[3], condition.shape[4])
 
         negative = [[neg_cond.unsqueeze(0), {"condition": condition}]]
         positive = [[pos_cond.unsqueeze(0), {"condition": condition}]]
 
-        return io.NodeOutput(model_patcher, positive, negative, {"samples": latent})
+        return io.NodeOutput(positive, negative)
 
 class SeedVRExtension(ComfyExtension):
     @override

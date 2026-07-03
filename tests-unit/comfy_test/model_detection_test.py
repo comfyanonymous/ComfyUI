@@ -201,6 +201,17 @@ class TestModelDetection:
         del sd["positive_conditioning"]
         assert model_config_from_unet_config(unet_config, sd) is None
 
+    def test_seedvr2_model_match_normalizes_num_heads(self):
+        sd = _make_seedvr2_7b_shared_mm_sd()
+        unet_config = detect_unet_config(sd, "")
+        unet_config["num_heads"] = unet_config.pop("heads")
+
+        model_config = model_config_from_unet_config(unet_config, sd)
+
+        assert type(model_config).__name__ == "SeedVR2"
+        assert model_config.unet_config["heads"] == 24
+        assert "num_heads" not in model_config.unet_config
+
     def test_seedvr2_model_match_accepts_full_checkpoint_prefix(self):
         sd = _add_model_diffusion_prefix(_make_seedvr2_7b_shared_mm_sd())
 

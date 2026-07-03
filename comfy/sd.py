@@ -472,8 +472,7 @@ class VAE:
     def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
         is_seedvr2_vae = "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd
         if not is_seedvr2_vae and 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
-            if metadata is None or metadata.get("keep_diffusers_format") != "true":
-                sd = diffusers_convert.convert_vae_state_dict(sd)
+            sd = diffusers_convert.convert_vae_state_dict(sd)
 
         if model_management.is_amd():
             VAE_KL_MEM_RATIO = 2.73
@@ -549,7 +548,7 @@ class VAE:
                 self.latent_channels = 16
             elif "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd: # seedvr2
                 self.first_stage_model = comfy.ldm.seedvr.vae.VideoAutoencoderKLWrapper()
-                self.latent_channels = 16
+                self.latent_channels = comfy.ldm.seedvr.vae.SEEDVR2_LATENT_CHANNELS
                 self.latent_dim = 3
                 self.disable_offload = True
                 self.memory_used_decode = lambda shape, dtype: self.first_stage_model.comfy_memory_used_decode(shape)
@@ -1074,6 +1073,20 @@ class VAE:
         out = self.first_stage_model.encode_tiled(x, **kwargs)
         return out.to(device=self.output_device, dtype=self.vae_output_dtype())
 
+    def _owned_tiled_args(self, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
+        args = {}
+        if tile_x is not None:
+            args["tile_x"] = tile_x
+        if tile_y is not None:
+            args["tile_y"] = tile_y
+        if overlap is not None:
+            args["overlap"] = overlap
+        if tile_t is not None:
+            args["tile_t"] = tile_t
+        if overlap_t is not None:
+            args["overlap_t"] = overlap_t
+        return args
+
     def decode(self, samples_in, vae_options={}):
         self.throw_exception_if_invalid()
         pixel_samples = None
@@ -1153,18 +1166,7 @@ class VAE:
 
         with model_management.cuda_device_context(self.device):
             if self.handles_tiling and dims in (2, 3):
-                tiled_args = {}
-                if tile_x is not None:
-                    tiled_args["tile_x"] = tile_x
-                if tile_y is not None:
-                    tiled_args["tile_y"] = tile_y
-                if overlap is not None:
-                    tiled_args["overlap"] = overlap
-                if tile_t is not None:
-                    tiled_args["tile_t"] = tile_t
-                if overlap_t is not None:
-                    tiled_args["overlap_t"] = overlap_t
-                output = self._decode_tiled_owned(samples, **tiled_args)
+                output = self._decode_tiled_owned(samples, **self._owned_tiled_args(tile_x, tile_y, overlap, tile_t, overlap_t))
             elif dims == 1 or self.extra_1d_channel is not None:
                 args.pop("tile_y")
                 output = self.decode_tiled_1d(samples, **args)
@@ -1269,18 +1271,7 @@ class VAE:
                 samples = self.encode_tiled_(pixel_samples, **args)
             elif dims == 3:
                 if self.handles_tiling:
-                    tiled_args = {}
-                    if tile_x is not None:
-                        tiled_args["tile_x"] = tile_x
-                    if tile_y is not None:
-                        tiled_args["tile_y"] = tile_y
-                    if overlap is not None:
-                        tiled_args["overlap"] = overlap
-                    if tile_t is not None:
-                        tiled_args["tile_t"] = tile_t
-                    if overlap_t is not None:
-                        tiled_args["overlap_t"] = overlap_t
-                    samples = self._encode_tiled_owned(pixel_samples, **tiled_args)
+                    samples = self._encode_tiled_owned(pixel_samples, **self._owned_tiled_args(tile_x, tile_y, overlap, tile_t, overlap_t))
                 else:
                     if tile_t is not None:
                         tile_t_latent = max(2, self.downscale_ratio[0](tile_t))
@@ -1849,7 +1840,6 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         clip.clip_layer(layer_idx)
 
     return (model, clip, vae)
-
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, disable_dynamic=False):
     sd, metadata = comfy.utils.load_torch_file(ckpt_path, return_metadata=True)

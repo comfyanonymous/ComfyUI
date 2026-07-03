@@ -1,20 +1,15 @@
-"""Consolidated SeedVR2 conditioning and refactor regression tests.
-
-Merges the prior test_seedvr2_refactor_nodes.py and
-test_seedvr_conditioning_hardening.py modules. Refactor tests use the
-top-level comfy_extras.nodes_seedvr import; conditioning-hardening tests
-use _import_nodes_seedvr_isolated() for sys.modules isolation when
-mocking comfy.model_management.
-"""
+"""SeedVR2 conditioning node regression tests."""
 
 import importlib
 import sys
 from unittest.mock import MagicMock
 
+import pytest
 import torch
 import torch.nn as nn
 
 from comfy.cli_args import args as cli_args
+from comfy.ldm.seedvr.constants import SEEDVR2_LATENT_CHANNELS
 
 if not torch.cuda.is_available():
     cli_args.cpu = True
@@ -79,21 +74,18 @@ def _import_nodes_seedvr_isolated():
 
 
 class _Rope(nn.Module):
-    """Minimal RoPE stub exposing a `freqs` parameter."""
     def __init__(self):
         super().__init__()
         self.freqs = nn.Parameter(torch.zeros(4))
 
 
 class _Block(nn.Module):
-    """Minimal transformer block stub holding a `_Rope`."""
     def __init__(self):
         super().__init__()
         self.rope = _Rope()
 
 
 class _DiffusionModel(nn.Module):
-    """Stub diffusion model with N blocks and pos/neg conditioning buffers."""
     def __init__(self, n_blocks=3, conditioning_dtype=torch.float32):
         super().__init__()
         self.blocks = nn.ModuleList([_Block() for _ in range(n_blocks)])
@@ -102,18 +94,16 @@ class _DiffusionModel(nn.Module):
 
 
 class _ModelInner:
-    """Inner model wrapper exposing `.diffusion_model`."""
     def __init__(self, diffusion_model):
         self.diffusion_model = diffusion_model
 
 
 class _ModelPatcher:
-    """ModelPatcher stub exposing `.model._ModelInner`."""
     def __init__(self, diffusion_model):
         self.model = _ModelInner(diffusion_model)
 
 
-def test_seedvr2_conditioning_schema_exposes_model_passthrough_output():
+def test_seedvr2_conditioning_schema_exposes_conditioning_outputs():
     nodes_seedvr, restore = _import_nodes_seedvr_isolated()
     try:
         schema = nodes_seedvr.SeedVR2Conditioning.define_schema()
@@ -123,37 +113,50 @@ def test_seedvr2_conditioning_schema_exposes_model_passthrough_output():
         ]
         assert schema.inputs[1].display_name == "latent"
         assert [output.display_name for output in schema.outputs] == [
-            "model",
             "positive",
             "negative",
-            "latent",
         ]
     finally:
         restore()
 
 
-def test_seedvr2_conditioning_returns_packed_input_latent_deterministically():
+def test_seedvr2_conditioning_rejects_wrong_latent_channels():
+    nodes_seedvr, restore = _import_nodes_seedvr_isolated()
+    try:
+        patcher = _ModelPatcher(_DiffusionModel())
+        vae_conditioning = {"samples": torch.zeros(1, 8, 2, 2, 2)}
+
+        with pytest.raises(ValueError, match=f"{SEEDVR2_LATENT_CHANNELS} channels"):
+            nodes_seedvr.SeedVR2Conditioning.execute(patcher, vae_conditioning)
+    finally:
+        restore()
+
+
+def test_seedvr2_conditioning_returns_conditioning_deterministically():
     nodes_seedvr, restore = _import_nodes_seedvr_isolated()
     try:
         diffusion_model = _DiffusionModel()
         patcher = _ModelPatcher(diffusion_model)
-        samples = torch.arange(1, 25, dtype=torch.float32).reshape(1, 2, 3, 2, 2)
+        samples = torch.arange(
+            1,
+            1 + SEEDVR2_LATENT_CHANNELS * 3 * 2 * 2,
+            dtype=torch.float32,
+        ).reshape(1, SEEDVR2_LATENT_CHANNELS, 3, 2, 2)
         vae_conditioning = {"samples": samples}
 
-        _, first_positive, first_negative, first_latent = (
+        first_positive, first_negative = (
             nodes_seedvr.SeedVR2Conditioning.execute(
                 patcher,
                 vae_conditioning,
             )
         )
-        _, second_positive, second_negative, second_latent = (
+        second_positive, second_negative = (
             nodes_seedvr.SeedVR2Conditioning.execute(
                 patcher,
                 vae_conditioning,
             )
         )
 
-        expected_latent = samples.reshape(1, 6, 2, 2)
         channel_last = samples.movedim(1, -1).contiguous()
         expected_condition = torch.cat(
             [
@@ -161,10 +164,8 @@ def test_seedvr2_conditioning_returns_packed_input_latent_deterministically():
                 torch.ones((*channel_last.shape[:-1], 1)),
             ],
             dim=-1,
-        ).movedim(-1, 1).reshape(1, 9, 2, 2)
+        ).movedim(-1, 1)
 
-        assert torch.equal(first_latent["samples"], expected_latent)
-        assert torch.equal(second_latent["samples"], expected_latent)
         assert torch.equal(
             first_positive[0][1]["condition"],
             expected_condition,

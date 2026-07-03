@@ -1,16 +1,4 @@
-"""Consolidated SeedVR2 internals regression tests.
-
-Sources (all merged verbatim, helper names disambiguated where colliding):
-
-  * GroupNorm limit gate — causal_norm_wrapper at vae.py:509 must compare
-    memory_occupy against get_norm_limit(), not float('inf').
-  * SeedVR2 variable-length attention split-loop contract.
-
-Pre-import CPU-only guard is required because comfy.ldm.seedvr.model and
-comfy.ldm.modules.attention transitively pull in comfy.model_management,
-which probes torch.cuda.current_device() at import time unless args.cpu is
-set first.
-"""
+"""SeedVR2 internals regression tests."""
 
 from __future__ import annotations
 
@@ -34,10 +22,6 @@ from comfy.ldm.seedvr.vae import (  # noqa: E402
 )
 from comfy.ldm.seedvr.attention import var_attention_optimized_split  # noqa: E402
 
-
-# ---------------------------------------------------------------------------
-# GroupNorm limit tests (test_seedvr_groupnorm_limit.py)
-# ---------------------------------------------------------------------------
 
 _NUM_CHANNELS = 8
 _NUM_GROUPS = 4
@@ -89,10 +73,6 @@ def test_seedvr_groupnorm_low_limit_uses_chunked_groupnorm_path(groupnorm_cls):
         set_norm_limit(None)
 
 
-# ---------------------------------------------------------------------------
-# SeedVR2 var_attention split-loop tests
-# ---------------------------------------------------------------------------
-
 def test_seedvr2_7b_swin_attention_forward_uses_optimized_var_attention(monkeypatch):
     dim = 8
     heads = 2
@@ -140,18 +120,8 @@ def test_seedvr2_7b_swin_attention_forward_uses_optimized_var_attention(monkeypa
     assert call["heads"] == heads
     assert call["skip_reshape"] is True
     assert call["skip_output_reshape"] is True
-    torch.testing.assert_close(
-        call["cu_seqlens_q"],
-        torch.tensor([0, 7, 14], dtype=torch.int32),
-        rtol=0,
-        atol=0,
-    )
-    torch.testing.assert_close(
-        call["cu_seqlens_k"],
-        torch.tensor([0, 7, 14], dtype=torch.int32),
-        rtol=0,
-        atol=0,
-    )
+    assert call["cu_seqlens_q"] == [0, 7, 14]
+    assert call["cu_seqlens_k"] == [0, 7, 14]
 
 
 def test_var_attention_optimized_split_calls_dense_backend_per_window(monkeypatch):
@@ -160,7 +130,7 @@ def test_var_attention_optimized_split_calls_dense_backend_per_window(monkeypatc
     q = torch.arange(30, dtype=torch.float32).reshape(5, heads, head_dim)
     k = q + 100
     v = q + 200
-    cu = torch.tensor([0, 2, 5], dtype=torch.int32)
+    cu = [0, 2, 5]
     calls = []
 
     def fake_optimized_attention(q_arg, k_arg, v_arg, heads_arg, **kwargs):
@@ -197,20 +167,3 @@ def test_var_attention_optimized_split_calls_dense_backend_per_window(monkeypatc
     assert all(call["kwargs"]["skip_output_reshape"] is True for call in calls)
     torch.testing.assert_close(out, q + v, rtol=0, atol=0)
 
-
-def test_var_attention_optimized_split_rejects_bad_offsets():
-    q = torch.randn(5, 2, 3)
-    cu_bad = torch.tensor([0, 2, 6], dtype=torch.int32)
-    cu_ok = torch.tensor([0, 2, 5], dtype=torch.int32)
-
-    with pytest.raises(ValueError, match="cu_seqlens_q does not match token count"):
-        var_attention_optimized_split(
-            q,
-            q,
-            q,
-            2,
-            cu_bad,
-            cu_ok,
-            skip_reshape=True,
-            skip_output_reshape=True,
-        )

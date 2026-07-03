@@ -62,7 +62,6 @@ def tiled_vae(
     temporal_size=16,
     temporal_overlap=0,
     encode=True,
-    **kwargs,
 ):
     if x.ndim != 5:
         x = x.unsqueeze(2)
@@ -166,8 +165,8 @@ def tiled_vae(
 
         if single_spatial_tile:
             result = tile_out[:, :, :target_d, :target_h, :target_w]
-            if result.device != x.device:
-                result = result.to(x.device).to(x.dtype)
+            if result.device != x.device or result.dtype != x.dtype:
+                result = result.to(device=x.device, dtype=x.dtype)
             if x.shape[2] == 1 and sf_t == 1:
                 result = result.squeeze(2)
             bar.update(1)
@@ -221,8 +220,8 @@ def tiled_vae(
 
     result.div_(count.clamp(min=1e-6))
 
-    if result.device != x.device:
-        result = result.to(x.device).to(x.dtype)
+    if result.device != x.device or result.dtype != x.dtype:
+        result = result.to(device=x.device, dtype=x.dtype)
 
     if x.shape[2] == 1 and sf_t == 1:
         result = result.squeeze(2)
@@ -256,15 +255,18 @@ class MemoryState(Enum):
     UNSET = 3
 
 def get_cache_size(conv_module, input_len, pad_len, dim=0):
-    dilated_kernerl_size = conv_module.dilation[dim] * (conv_module.kernel_size[dim] - 1) + 1
-    output_len = (input_len + pad_len - dilated_kernerl_size) // conv_module.stride[dim] + 1
+    dilated_kernel_size = conv_module.dilation[dim] * (conv_module.kernel_size[dim] - 1) + 1
+    output_len = (input_len + pad_len - dilated_kernel_size) // conv_module.stride[dim] + 1
     remain_len = (
-        input_len + pad_len - ((output_len - 1) * conv_module.stride[dim] + dilated_kernerl_size)
+        input_len + pad_len - ((output_len - 1) * conv_module.stride[dim] + dilated_kernel_size)
     )
-    overlap_len = dilated_kernerl_size - conv_module.stride[dim]
-    cache_len = overlap_len + remain_len  # >= 0
+    overlap_len = dilated_kernel_size - conv_module.stride[dim]
+    cache_len = overlap_len + remain_len
 
-    assert output_len > 0
+    if output_len <= 0:
+        raise ValueError(
+            f"SeedVR2 VAE cache input is too short for convolution: input_len={input_len}, pad_len={pad_len}."
+        )
     return cache_len
 
 class DiagonalGaussianDistribution(object):
@@ -294,52 +296,27 @@ class SpatialNorm(nn.Module):
         new_f = norm_f * self.conv_y(zq) + self.conv_b(zq)
         return new_f
 
-# partial implementation of diffusers's Attention for comfyui
 class Attention(nn.Module):
     def __init__(
         self,
         query_dim: int,
-        cross_attention_dim: Optional[int] = None,
         heads: int = 8,
-        kv_heads: Optional[int] = None,
         dim_head: int = 64,
-        dropout: float = 0.0,
         bias: bool = False,
-        upcast_softmax: bool = False,
         norm_num_groups: Optional[int] = None,
         spatial_norm_dim: Optional[int] = None,
         out_bias: bool = True,
-        scale_qk: bool = True,
-        only_cross_attention: bool = False,
         eps: float = 1e-5,
         rescale_output_factor: float = 1.0,
         residual_connection: bool = False,
-        out_dim: int = None,
-        pre_only=False,
     ):
         super().__init__()
 
-        self.inner_dim = out_dim if out_dim is not None else dim_head * heads
-        self.inner_kv_dim = self.inner_dim if kv_heads is None else dim_head * kv_heads
-        self.query_dim = query_dim
-        self.use_bias = bias
-        self.is_cross_attention = cross_attention_dim is not None
-        self.cross_attention_dim = cross_attention_dim if cross_attention_dim is not None else query_dim
-        self.upcast_softmax = upcast_softmax
+        self.inner_dim = dim_head * heads
         self.rescale_output_factor = rescale_output_factor
         self.residual_connection = residual_connection
-        self.dropout = dropout
-        self.fused_projections = False
-        self.out_dim = out_dim if out_dim is not None else query_dim
-        self.pre_only = pre_only
-
-        self.scale_qk = scale_qk
-        self.scale = dim_head**-0.5 if self.scale_qk else 1.0
-
-        self.heads = out_dim // dim_head if out_dim is not None else heads
-        self.sliceable_head_dim = heads
-
-        self.only_cross_attention = only_cross_attention
+        self.out_dim = query_dim
+        self.heads = heads
 
         if norm_num_groups is not None:
             self.group_norm = ops.GroupNorm(num_channels=query_dim, num_groups=norm_num_groups, eps=eps, affine=True)
@@ -351,37 +328,19 @@ class Attention(nn.Module):
         else:
             self.spatial_norm = None
 
-        self.norm_q = None
-        self.norm_k = None
-
-        self.norm_cross = None
         self.to_q = ops.Linear(query_dim, self.inner_dim, bias=bias)
-
-        if not self.only_cross_attention:
-            # only relevant for the `AddedKVProcessor` classes
-            self.to_k = ops.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
-            self.to_v = ops.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
-        else:
-            self.to_k = None
-            self.to_v = None
-
-        if not self.pre_only:
-            self.to_out = nn.ModuleList([])
-            self.to_out.append(ops.Linear(self.inner_dim, self.out_dim, bias=out_bias))
-            self.to_out.append(nn.Dropout(dropout))
-        else:
-            self.to_out = None
+        self.to_k = ops.Linear(query_dim, self.inner_dim, bias=bias)
+        self.to_v = ops.Linear(query_dim, self.inner_dim, bias=bias)
+        self.to_out = nn.ModuleList([])
+        self.to_out.append(ops.Linear(self.inner_dim, self.out_dim, bias=out_bias))
+        self.to_out.append(nn.Identity())
 
         self.optimized_vae_attention = vae_attention()
 
-    def __call__(
+    def forward(
         self,
         hidden_states: torch.Tensor,
-        encoder_hidden_states: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
         temb: Optional[torch.Tensor] = None,
-        *args,
-        **kwargs,
     ) -> torch.Tensor:
 
         residual = hidden_states
@@ -394,20 +353,14 @@ class Attention(nn.Module):
             batch_size, channel, height, width = hidden_states.shape
             hidden_states = hidden_states.view(batch_size, channel, height * width).transpose(1, 2)
 
-        batch_size, sequence_length, _ = (
-            hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
-        )
+        batch_size = hidden_states.shape[0]
 
         if self.group_norm is not None:
             hidden_states = self.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
         query = self.to_q(hidden_states)
-
-        if encoder_hidden_states is None:
-            encoder_hidden_states = hidden_states
-
-        key = self.to_k(encoder_hidden_states)
-        value = self.to_v(encoder_hidden_states)
+        key = self.to_k(hidden_states)
+        value = self.to_v(hidden_states)
 
         inner_dim = key.shape[-1]
         head_dim = inner_dim // self.heads
@@ -417,25 +370,18 @@ class Attention(nn.Module):
         key = key.view(batch_size, -1, self.heads, head_dim).transpose(1, 2)
         value = value.view(batch_size, -1, self.heads, head_dim).transpose(1, 2)
 
-        if self.norm_q is not None:
-            query = self.norm_q(query)
-        if self.norm_k is not None:
-            key = self.norm_k(key)
-
-        if input_ndim == 4 and encoder_hidden_states is hidden_states and attention_mask is None and self.heads == 1:
+        if input_ndim == 4 and self.heads == 1:
             query = query.squeeze(1).transpose(1, 2).reshape(batch_size, head_dim, height, width)
             key = key.squeeze(1).transpose(1, 2).reshape(batch_size, head_dim, height, width)
             value = value.squeeze(1).transpose(1, 2).reshape(batch_size, head_dim, height, width)
             hidden_states = self.optimized_vae_attention(query, key, value).reshape(batch_size, self.heads, head_dim, height * width).transpose(2, 3)
         else:
-            hidden_states = optimized_attention(query, key, value, heads = self.heads, mask = attention_mask, skip_reshape=True, skip_output_reshape=True)
+            hidden_states = optimized_attention(query, key, value, heads = self.heads, skip_reshape=True, skip_output_reshape=True)
 
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, self.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
 
-        # linear proj
         hidden_states = self.to_out[0](hidden_states)
-        # dropout
         hidden_states = self.to_out[1](hidden_states)
 
         if input_ndim == 4:
@@ -471,7 +417,10 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
             memory_occupy = x.numel() * x.element_size() / 1024**3
             if isinstance(norm_layer, ops.GroupNorm) and memory_occupy > get_norm_limit():
                 num_chunks = min(BYTEDANCE_GN_CHUNKS_FP16 if x.element_size() == 2 else BYTEDANCE_GN_CHUNKS_FP32, norm_layer.num_groups)
-                assert norm_layer.num_groups % num_chunks == 0
+                if norm_layer.num_groups % num_chunks != 0:
+                    raise ValueError(
+                        f"SeedVR2 VAE GroupNorm groups must divide chunks: groups={norm_layer.num_groups}, chunks={num_chunks}."
+                    )
                 num_groups_per_chunk = norm_layer.num_groups // num_chunks
 
                 x = list(x.chunk(num_chunks, dim=1))
@@ -485,14 +434,15 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
                 x = norm_layer(x)
             x = x.reshape((b, t, x.size(1), x.size(2), x.size(3))).transpose(1, 2)
             return x.to(input_dtype)
-    raise NotImplementedError
+    raise TypeError(f"SeedVR2 VAE unsupported norm layer type: {type(norm_layer).__name__}")
 
 _receptive_field_t = Literal["half", "full"]
 
 def extend_head(tensor, times: int = 2, memory = None):
     if memory is not None:
         return torch.cat((memory.to(tensor), tensor), dim=2)
-    assert times >= 0, "Invalid input for function 'extend_head'!"
+    if times < 0:
+        raise ValueError(f"SeedVR2 VAE extend_head expected times >= 0, got {times}.")
     if times == 0:
         return tensor
     else:
@@ -547,13 +497,11 @@ class InflatedCausalConv3d(ops.Conv3d):
         padding=(0, 0, 0, 0, 0, 0),
         prev_cache=None,
     ):
-        # Compatible with no limit.
         if math.isinf(self.memory_limit):
             if prev_cache is not None:
                 x = torch.cat([prev_cache, x], dim=split_dim - 1)
             return super().forward(x)
 
-        # Compute tensor shape after concat & padding.
         shape = list(x.size())
         if prev_cache is not None:
             shape[split_dim - 1] += prev_cache.size(split_dim - 1)
@@ -597,16 +545,19 @@ class InflatedCausalConv3d(ops.Conv3d):
 
             next_cache = None
             cache_len = cache.size(split_dim) if cache is not None else 0
-            next_catch_size = get_cache_size(
+            next_cache_size = get_cache_size(
                 conv_module=self,
                 input_len=x[idx].size(split_dim) + cache_len,
                 pad_len=pad_len,
                 dim=split_dim - 2,
             )
-            if next_catch_size != 0:
-                assert next_catch_size <= x[idx].size(split_dim)
+            if next_cache_size != 0:
+                if next_cache_size > x[idx].size(split_dim):
+                    raise ValueError(
+                        f"SeedVR2 VAE cache size {next_cache_size} exceeds split size {x[idx].size(split_dim)}."
+                    )
                 next_cache = (
-                    x[idx].transpose(0, split_dim)[-next_catch_size:].transpose(0, split_dim)
+                    x[idx].transpose(0, split_dim)[-next_cache_size:].transpose(0, split_dim)
                 )
 
             x[idx] = self.memory_limit_conv(
@@ -627,7 +578,8 @@ class InflatedCausalConv3d(ops.Conv3d):
         memory_state: MemoryState = MemoryState.UNSET,
         memory_cache = None,
     ) -> Tensor:
-        assert memory_state != MemoryState.UNSET
+        if memory_state == MemoryState.UNSET:
+            raise ValueError("SeedVR2 VAE convolution requires an explicit MemoryState.")
         if memory_cache is None:
             memory_cache = {}
         if memory_state != MemoryState.ACTIVE:
@@ -677,9 +629,8 @@ class InflatedCausalConv3d(ops.Conv3d):
             input, cache_size=cache_size, memory=memory, times=self.temporal_padding * 2
         )
 
-        # Single GPU inference - simplified memory management
         if (
-            memory_state in [MemoryState.INITIALIZING, MemoryState.ACTIVE]  # use_slicing
+            memory_state in [MemoryState.INITIALIZING, MemoryState.ACTIVE]
             and cache_size != 0
         ):
             if cache_size > input[-1].size(2) and cache is not None and len(input) == 1:
@@ -690,7 +641,6 @@ class InflatedCausalConv3d(ops.Conv3d):
 
         padding = tuple(x for x in reversed(self.padding) for _ in range(2))
         for i in range(len(input)):
-            # Prepare cache for next input slice.
             next_cache = None
             cache_size = 0
             if i < len(input) - 1:
@@ -700,17 +650,16 @@ class InflatedCausalConv3d(ops.Conv3d):
                 if cache_size > input[i].size(2) and cache is not None:
                     input[i] = torch.cat([cache, input[i]], dim=2)
                     cache = None
-                assert cache_size <= input[i].size(2), f"{cache_size} > {input[i].size(2)}"
+                if cache_size > input[i].size(2):
+                    raise ValueError(f"SeedVR2 VAE cache size {cache_size} exceeds input length {input[i].size(2)}.")
                 next_cache = input[i][:, :, -cache_size:]
 
-            # Conv forward for this input slice.
             input[i] = self.memory_limit_conv(
                 input[i],
                 padding=padding,
                 prev_cache=cache
             )
 
-            # Update cache.
             cache = next_cache
 
         return input[0] if squeeze_out else input
@@ -729,7 +678,6 @@ class Upsample3D(nn.Module):
         inflation_mode = "tail",
         temporal_up: bool = False,
         spatial_up: bool = True,
-        **kwargs,
     ):
         super().__init__()
         self.channels = channels
@@ -760,9 +708,9 @@ class Upsample3D(nn.Module):
         hidden_states: torch.FloatTensor,
         memory_state=None,
         memory_cache=None,
-        **kwargs,
     ) -> torch.FloatTensor:
-        assert hidden_states.shape[1] == self.channels
+        if hidden_states.shape[1] != self.channels:
+            raise ValueError(f"SeedVR2 upsample expected {self.channels} channels, got {hidden_states.shape[1]}.")
 
         hidden_states = self.upscale_conv(hidden_states)
         b, channels, f, h, w = hidden_states.shape
@@ -785,8 +733,6 @@ class Upsample3D(nn.Module):
 
 
 class Downsample3D(nn.Module):
-    """A 3D downsampling layer with an optional convolution."""
-
     def __init__(
         self,
         channels,
@@ -794,7 +740,6 @@ class Downsample3D(nn.Module):
         inflation_mode = "tail",
         spatial_down: bool = False,
         temporal_down: bool = False,
-        **kwargs,
     ):
         super().__init__()
         self.channels = channels
@@ -823,20 +768,17 @@ class Downsample3D(nn.Module):
         hidden_states: torch.FloatTensor,
         memory_state = None,
         memory_cache = None,
-        **kwargs,
     ) -> torch.FloatTensor:
 
-        assert hidden_states.shape[1] == self.channels
-
-        if hasattr(self, "norm") and self.norm is not None:
-            # [Overridden] change to causal norm.
-            hidden_states = causal_norm_wrapper(self.norm, hidden_states)
+        if hidden_states.shape[1] != self.channels:
+            raise ValueError(f"SeedVR2 downsample expected {self.channels} channels, got {hidden_states.shape[1]}.")
 
         if self.spatial_down:
             pad = (0, 1, 0, 1)
             hidden_states = F.pad(hidden_states, pad, mode="constant", value=0)
 
-        assert hidden_states.shape[1] == self.channels
+        if hidden_states.shape[1] != self.channels:
+            raise ValueError(f"SeedVR2 downsample expected {self.channels} channels after padding, got {hidden_states.shape[1]}.")
 
         hidden_states = self.conv(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
@@ -848,7 +790,6 @@ class ResnetBlock3D(nn.Module):
         self,
         in_channels: int,
         out_channels: Optional[int] = None,
-        dropout: float = 0.0,
         temb_channels: int = 512,
         groups: int = 32,
         groups_out: Optional[int] = None,
@@ -857,7 +798,6 @@ class ResnetBlock3D(nn.Module):
         skip_time_act: bool = False,
         inflation_mode = "tail",
         time_receptive_field: _receptive_field_t = "half",
-        **kwargs,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -866,15 +806,14 @@ class ResnetBlock3D(nn.Module):
         self.skip_time_act = skip_time_act
         self.nonlinearity = nn.SiLU()
         if temb_channels is not None:
-            self.time_emb_proj = ops.Linear(temb_channels, out_channels)
+            self.time_emb_proj = ops.Linear(temb_channels, self.out_channels)
         else:
             self.time_emb_proj = None
         self.norm1 = ops.GroupNorm(num_groups=groups, num_channels=in_channels, eps=eps, affine=True)
         if groups_out is None:
             groups_out = groups
-        self.norm2 = ops.GroupNorm(num_groups=groups_out, num_channels=out_channels, eps=eps, affine=True)
-        self.use_in_shortcut = self.in_channels != out_channels
-        self.dropout = torch.nn.Dropout(dropout)
+        self.norm2 = ops.GroupNorm(num_groups=groups_out, num_channels=self.out_channels, eps=eps, affine=True)
+        self.use_in_shortcut = self.in_channels != self.out_channels
         self.conv1 = InflatedCausalConv3d(
             self.in_channels,
             self.out_channels,
@@ -886,7 +825,7 @@ class ResnetBlock3D(nn.Module):
 
         self.conv2 = InflatedCausalConv3d(
             self.out_channels,
-            out_channels,
+            self.out_channels,
             kernel_size=3,
             stride=1,
             padding=1,
@@ -897,7 +836,7 @@ class ResnetBlock3D(nn.Module):
         if self.use_in_shortcut:
             self.conv_shortcut = InflatedCausalConv3d(
                 self.in_channels,
-                out_channels,
+                self.out_channels,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -905,9 +844,7 @@ class ResnetBlock3D(nn.Module):
                 inflation_mode=inflation_mode,
             )
 
-    def forward(
-        self, input_tensor, temb, memory_state = None, memory_cache = None, **kwargs
-    ):
+    def forward(self, input_tensor, temb, memory_state = None, memory_cache = None):
         hidden_states = input_tensor
 
         hidden_states = causal_norm_wrapper(self.norm1, hidden_states)
@@ -928,7 +865,6 @@ class ResnetBlock3D(nn.Module):
 
         hidden_states = self.nonlinearity(hidden_states)
 
-        hidden_states = self.dropout(hidden_states)
         hidden_states = self.conv2(hidden_states, memory_state=memory_state, memory_cache=memory_cache)
 
         if self.conv_shortcut is not None:
@@ -944,7 +880,6 @@ class DownEncoderBlock3D(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        dropout: float = 0.0,
         num_layers: int = 1,
         resnet_eps: float = 1e-6,
         resnet_groups: int = 32,
@@ -957,28 +892,23 @@ class DownEncoderBlock3D(nn.Module):
     ):
         super().__init__()
         resnets = []
-        temporal_modules = []
 
         for i in range(num_layers):
             in_channels = in_channels if i == 0 else out_channels
             resnets.append(
-                # [Override] Replace module.
                 ResnetBlock3D(
                     in_channels=in_channels,
                     out_channels=out_channels,
                     temb_channels=None,
                     eps=resnet_eps,
                     groups=resnet_groups,
-                    dropout=dropout,
                     output_scale_factor=output_scale_factor,
                     inflation_mode=inflation_mode,
                     time_receptive_field=time_receptive_field,
                 )
             )
-            temporal_modules.append(nn.Identity())
 
         self.resnets = nn.ModuleList(resnets)
-        self.temporal_modules = nn.ModuleList(temporal_modules)
 
         if add_downsample:
             self.downsamplers = nn.ModuleList(
@@ -1000,11 +930,9 @@ class DownEncoderBlock3D(nn.Module):
         hidden_states: torch.FloatTensor,
         memory_state = None,
         memory_cache = None,
-        **kwargs,
     ) -> torch.FloatTensor:
-        for resnet, temporal in zip(self.resnets, self.temporal_modules):
+        for resnet in self.resnets:
             hidden_states = resnet(hidden_states, temb=None, memory_state=memory_state, memory_cache=memory_cache)
-            hidden_states = temporal(hidden_states)
 
         if self.downsamplers is not None:
             for downsampler in self.downsamplers:
@@ -1018,7 +946,6 @@ class UpDecoderBlock3D(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        dropout: float = 0.0,
         num_layers: int = 1,
         resnet_eps: float = 1e-6,
         resnet_groups: int = 32,
@@ -1032,33 +959,26 @@ class UpDecoderBlock3D(nn.Module):
     ):
         super().__init__()
         resnets = []
-        temporal_modules = []
 
         for i in range(num_layers):
             input_channels = in_channels if i == 0 else out_channels
 
             resnets.append(
-                # [Override] Replace module.
                 ResnetBlock3D(
                     in_channels=input_channels,
                     out_channels=out_channels,
                     temb_channels=temb_channels,
                     eps=resnet_eps,
                     groups=resnet_groups,
-                    dropout=dropout,
                     output_scale_factor=output_scale_factor,
                     inflation_mode=inflation_mode,
                     time_receptive_field=time_receptive_field,
                 )
             )
 
-            temporal_modules.append(nn.Identity())
-
         self.resnets = nn.ModuleList(resnets)
-        self.temporal_modules = nn.ModuleList(temporal_modules)
 
         if add_upsample:
-            # [Override] Replace module & use learnable upsample
             self.upsamplers = nn.ModuleList(
                 [
                     Upsample3D(
@@ -1080,9 +1000,8 @@ class UpDecoderBlock3D(nn.Module):
         memory_state=None,
         memory_cache=None,
     ) -> torch.FloatTensor:
-        for resnet, temporal in zip(self.resnets, self.temporal_modules):
+        for resnet in self.resnets:
             hidden_states = resnet(hidden_states, temb=None, memory_state=memory_state, memory_cache=memory_cache)
-            hidden_states = temporal(hidden_states)
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:
@@ -1096,7 +1015,6 @@ class UNetMidBlock3D(nn.Module):
         self,
         in_channels: int,
         temb_channels: int,
-        dropout: float = 0.0,
         num_layers: int = 1,
         resnet_eps: float = 1e-6,
         resnet_time_scale_shift: str = "default",  # default, spatial
@@ -1111,16 +1029,13 @@ class UNetMidBlock3D(nn.Module):
         resnet_groups = resnet_groups if resnet_groups is not None else min(in_channels // 4, 32)
         self.add_attention = add_attention
 
-        # there is always at least one resnet
         resnets = [
-            # [Override] Replace module.
             ResnetBlock3D(
                 in_channels=in_channels,
                 out_channels=in_channels,
                 temb_channels=temb_channels,
                 eps=resnet_eps,
                 groups=resnet_groups,
-                dropout=dropout,
                 output_scale_factor=output_scale_factor,
                 inflation_mode=inflation_mode,
                 time_receptive_field=time_receptive_field,
@@ -1148,7 +1063,6 @@ class UNetMidBlock3D(nn.Module):
                         ),
                         residual_connection=True,
                         bias=True,
-                        upcast_softmax=True,
                     )
                 )
             else:
@@ -1161,7 +1075,6 @@ class UNetMidBlock3D(nn.Module):
                     temb_channels=temb_channels,
                     eps=resnet_eps,
                     groups=resnet_groups,
-                    dropout=dropout,
                     output_scale_factor=output_scale_factor,
                     inflation_mode=inflation_mode,
                     time_receptive_field=time_receptive_field,
@@ -1172,7 +1085,7 @@ class UNetMidBlock3D(nn.Module):
         self.resnets = nn.ModuleList(resnets)
 
     def forward(self, hidden_states, temb=None, memory_state=None, memory_cache=None):
-        video_length, frame_height, frame_width = hidden_states.size()[-3:]
+        video_length = hidden_states.size(2)
         hidden_states = self.resnets[0](hidden_states, temb, memory_state=memory_state, memory_cache=memory_cache)
         for attn, resnet in zip(self.attentions, self.resnets[1:]):
             if attn is not None:
@@ -1195,7 +1108,6 @@ class Encoder3D(nn.Module):
         layers_per_block: int = 2,
         norm_num_groups: int = 32,
         mid_block_add_attention=True,
-        # [Override] add temporal down num
         temporal_down_num: int = 2,
         inflation_mode = "tail",
         time_receptive_field: _receptive_field_t = "half",
@@ -1216,17 +1128,15 @@ class Encoder3D(nn.Module):
         self.mid_block = None
         self.down_blocks = nn.ModuleList([])
 
-        # down
         output_channel = block_out_channels[0]
         for i, down_block_type in enumerate(down_block_types):
             input_channel = output_channel
             output_channel = block_out_channels[i]
             is_final_block = i == len(block_out_channels) - 1
-            # [Override] to support temporal down block design
             is_temporal_down_block = i >= len(block_out_channels) - self.temporal_down_num - 1
-            # Note: take the last ones
 
-            assert down_block_type == "DownEncoderBlock3D"
+            if down_block_type != "DownEncoderBlock3D":
+                raise ValueError(f"SeedVR2 encoder only supports DownEncoderBlock3D, got {down_block_type}.")
 
             down_block = DownEncoderBlock3D(
                 num_layers=self.layers_per_block,
@@ -1242,7 +1152,6 @@ class Encoder3D(nn.Module):
             )
             self.down_blocks.append(down_block)
 
-        # mid
         self.mid_block = UNetMidBlock3D(
             in_channels=block_out_channels[-1],
             resnet_eps=1e-6,
@@ -1256,7 +1165,6 @@ class Encoder3D(nn.Module):
             time_receptive_field=time_receptive_field,
         )
 
-        # out
         self.conv_norm_out = ops.GroupNorm(
             num_channels=block_out_channels[-1], num_groups=norm_num_groups, eps=1e-6
         )
@@ -1274,17 +1182,13 @@ class Encoder3D(nn.Module):
         memory_state = None,
         memory_cache = None,
     ) -> torch.FloatTensor:
-        r"""The forward method of the `Encoder` class."""
         sample = sample.to(next(self.parameters()).device)
         sample = self.conv_in(sample, memory_state=memory_state, memory_cache=memory_cache)
-        # down
         for down_block in self.down_blocks:
             sample = down_block(sample, memory_state=memory_state, memory_cache=memory_cache)
 
-        # middle
         sample = self.mid_block(sample, memory_state=memory_state, memory_cache=memory_cache)
 
-        # post-process
         sample = causal_norm_wrapper(self.conv_norm_out, sample)
         sample = self.conv_act(sample)
         sample = self.conv_out(sample, memory_state=memory_state, memory_cache=memory_cache)
@@ -1303,7 +1207,6 @@ class Decoder3D(nn.Module):
         layers_per_block: int = 2,
         norm_num_groups: int = 32,
         mid_block_add_attention=True,
-        # [Override] add temporal up block
         inflation_mode = "tail",
         time_receptive_field: _receptive_field_t = "half",
         temporal_up_num: int = 2,
@@ -1326,7 +1229,6 @@ class Decoder3D(nn.Module):
 
         temb_channels = None
 
-        # mid
         self.mid_block = UNetMidBlock3D(
             in_channels=block_out_channels[-1],
             resnet_eps=1e-6,
@@ -1340,7 +1242,6 @@ class Decoder3D(nn.Module):
             time_receptive_field=time_receptive_field,
         )
 
-        # up
         reversed_block_out_channels = list(reversed(block_out_channels))
         output_channel = reversed_block_out_channels[0]
         for i, up_block_type in enumerate(up_block_types):
@@ -1349,7 +1250,8 @@ class Decoder3D(nn.Module):
 
             is_final_block = i == len(block_out_channels) - 1
             is_temporal_up_block = i < self.temporal_up_num
-            assert up_block_type == "UpDecoderBlock3D"
+            if up_block_type != "UpDecoderBlock3D":
+                raise ValueError(f"SeedVR2 decoder only supports UpDecoderBlock3D, got {up_block_type}.")
             up_block = UpDecoderBlock3D(
                 num_layers=self.layers_per_block + 1,
                 in_channels=prev_output_channel,
@@ -1365,7 +1267,6 @@ class Decoder3D(nn.Module):
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
 
-        # out
         self.conv_norm_out = ops.GroupNorm(
             num_channels=block_out_channels[0], num_groups=norm_num_groups, eps=1e-6
         )
@@ -1375,7 +1276,6 @@ class Decoder3D(nn.Module):
         )
 
 
-    # Note: Just copy from Decoder.
     def forward(
         self,
         sample: torch.FloatTensor,
@@ -1388,15 +1288,12 @@ class Decoder3D(nn.Module):
         sample = self.conv_in(sample, memory_state=memory_state, memory_cache=memory_cache)
 
         upscale_dtype = next(iter(self.up_blocks.parameters())).dtype
-        # middle
         sample = self.mid_block(sample, latent_embeds, memory_state=memory_state, memory_cache=memory_cache)
         sample = sample.to(upscale_dtype)
 
-        # up
         for up_block in self.up_blocks:
             sample = up_block(sample, latent_embeds, memory_state=memory_state, memory_cache=memory_cache)
 
-        # post-process
         sample = causal_norm_wrapper(self.conv_norm_out, sample)
         sample = self.conv_act(sample)
         sample = self.conv_out(sample, memory_state=memory_state, memory_cache=memory_cache)
@@ -1415,8 +1312,6 @@ class VideoAutoencoderKL(nn.Module):
         inflation_mode = "pad",
         time_receptive_field: _receptive_field_t = "full",
         slicing_sample_min_size = BYTEDANCE_SLICING_SAMPLE_MIN,
-        *args,
-        **kwargs,
     ):
         self.slicing_sample_min_size = slicing_sample_min_size
         self.slicing_latent_min_size = slicing_sample_min_size // (2**temporal_scale_num)
@@ -1425,7 +1320,6 @@ class VideoAutoencoderKL(nn.Module):
         up_block_types = ("UpDecoderBlock3D",) * 4
         super().__init__()
 
-        # pass init params to Encoder
         self.encoder = Encoder3D(
             in_channels=in_channels,
             out_channels=latent_channels,
@@ -1433,13 +1327,11 @@ class VideoAutoencoderKL(nn.Module):
             block_out_channels=block_out_channels,
             layers_per_block=layers_per_block,
             norm_num_groups=norm_num_groups,
-            # [Override] add temporal_down_num parameter
             temporal_down_num=temporal_scale_num,
             inflation_mode=inflation_mode,
             time_receptive_field=time_receptive_field,
         )
 
-        # pass init params to Decoder
         self.decoder = Decoder3D(
             in_channels=latent_channels,
             out_channels=out_channels,
@@ -1447,7 +1339,6 @@ class VideoAutoencoderKL(nn.Module):
             block_out_channels=block_out_channels,
             layers_per_block=layers_per_block,
             norm_num_groups=norm_num_groups,
-            # [Override] add temporal_up_num parameter
             temporal_up_num=temporal_scale_num,
             inflation_mode=inflation_mode,
             time_receptive_field=time_receptive_field,
@@ -1489,11 +1380,10 @@ class VideoAutoencoderKL(nn.Module):
         return output.to(z.device)
 
     def slicing_encode(self, x: torch.Tensor) -> torch.Tensor:
-        sp_size =1
-        if self.use_slicing and (x.shape[2] - 1) > self.slicing_sample_min_size * sp_size:
+        if self.use_slicing and (x.shape[2] - 1) > self.slicing_sample_min_size:
             memory_cache = {}
             split_size = max(
-                self.slicing_sample_min_size * sp_size,
+                self.slicing_sample_min_size,
                 getattr(self, "temporal_downsample_factor", 1),
             )
             x_slices = list(x[:, :, 1:].split(split_size=split_size, dim=2))
@@ -1518,10 +1408,9 @@ class VideoAutoencoderKL(nn.Module):
             return self._encode(x)
 
     def slicing_decode(self, z: torch.Tensor) -> torch.Tensor:
-        sp_size = 1
-        if self.use_slicing and (z.shape[2] - 1) > self.slicing_latent_min_size * sp_size:
+        if self.use_slicing and (z.shape[2] - 1) > self.slicing_latent_min_size:
             memory_cache = {}
-            z_slices = z[:, :, 1:].split(split_size=self.slicing_latent_min_size * sp_size, dim=2)
+            z_slices = z[:, :, 1:].split(split_size=self.slicing_latent_min_size, dim=2)
             decoded_slices = [
                 self._decode(
                     torch.cat((z[:, :, :1], z_slices[0]), dim=2),
@@ -1538,33 +1427,28 @@ class VideoAutoencoderKL(nn.Module):
         else:
             return self._decode(z)
 
-    def forward(
-        self, x: torch.FloatTensor, mode: Literal["encode", "decode", "all"] = "all", **kwargs
-    ):
-        # x: [b c t h w]
+    def forward(self, x: torch.FloatTensor, mode: Literal["encode", "decode", "all"] = "all"):
         def _unwrap(value):
             return value[0] if isinstance(value, tuple) else value
 
         if mode == "encode":
             return _unwrap(self.encode(x))
-        elif mode == "decode":
+        if mode == "decode":
             return _unwrap(self.decode_(x))
-        else:
+        if mode == "all":
             latent = _unwrap(self.encode(x))
             return _unwrap(self.decode_(latent))
+        raise ValueError(f"Unknown SeedVR2 VAE forward mode: {mode}")
 
 class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
     def __init__(
         self,
-        *args,
         spatial_downsample_factor = 8,
         temporal_downsample_factor = 4,
-        **kwargs,
     ):
         self.spatial_downsample_factor = spatial_downsample_factor
         self.temporal_downsample_factor = temporal_downsample_factor
-        self.enable_tiling = False
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.set_memory_limit(BYTEDANCE_VAE_CONV_MEM_GIB, BYTEDANCE_VAE_NORM_MEM_GIB)
 
     def forward(self, x: torch.FloatTensor):
@@ -1581,7 +1465,7 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         z = p.squeeze(2)
         return z, p
 
-    def encode(self, x, orig_dims=None):
+    def encode(self, x):
         z, _ = self._encode_with_raw_latent(x)
         return z
 
@@ -1594,26 +1478,27 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
             )
 
         if z.ndim == 5:
-            b, c, t_latent, h, w = z.shape
-            if c != 16:
+            _, c, _, _, _ = z.shape
+            if c != SEEDVR2_LATENT_CHANNELS:
                 raise RuntimeError(
                     "SeedVR2 VideoAutoencoderKLWrapper.decode: 5-D latent input must "
-                    f"have 16 channels; got shape {tuple(z.shape)}."
+                    f"have {SEEDVR2_LATENT_CHANNELS} channels; got shape {tuple(z.shape)}."
                 )
             latent = z
         elif z.ndim == 4:
             b, tc, h, w = z.shape
-            if tc % 16 != 0:
+            if tc % SEEDVR2_LATENT_CHANNELS != 0:
                 raise RuntimeError(
                     "SeedVR2 VideoAutoencoderKLWrapper.decode: 4-D latent input must "
-                    "use collapsed channel layout (B, 16*T, H, W); "
+                    f"use collapsed channel layout (B, {SEEDVR2_LATENT_CHANNELS}*T, H, W); "
                     f"got shape {tuple(z.shape)}."
                 )
-            latent = z.reshape(b, 16, -1, h, w)
+            latent = z.reshape(b, SEEDVR2_LATENT_CHANNELS, -1, h, w)
         else:
             raise RuntimeError(
                 "SeedVR2 VideoAutoencoderKLWrapper.decode: latent input must be "
-                "4-D collapsed (B, 16*T, H, W) or 5-D (B, 16, T, H, W); "
+                f"4-D collapsed (B, {SEEDVR2_LATENT_CHANNELS}*T, H, W) or "
+                f"5-D (B, {SEEDVR2_LATENT_CHANNELS}, T, H, W); "
                 f"got shape {tuple(z.shape)}."
             )
         scale = BYTEDANCE_VAE_SCALING_FACTOR
@@ -1621,10 +1506,11 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         latent = latent / scale + shift
 
         self.device = latent.device
-        self.enable_tiling = seedvr2_tiling.get("enable_tiling", False)
+        enable_tiling = seedvr2_tiling.get("enable_tiling", False)
 
-        if self.enable_tiling:
+        if enable_tiling:
             decode_seedvr2_args = dict(seedvr2_tiling)
+            decode_seedvr2_args.pop("enable_tiling", None)
             tile_h, tile_w = decode_seedvr2_args.get("tile_size", (512, 512))
             ov_h, ov_w = decode_seedvr2_args.get("tile_overlap", (64, 64))
             decode_seedvr2_args["tile_overlap"] = (
@@ -1641,7 +1527,6 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         else:
             x = super().decode_(latent)
 
-        # ensure even dims for save video
         h, w = x.shape[-2:]
         w2 = w - (w % 2)
         h2 = h - (h % 2)
@@ -1693,7 +1578,7 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         if samples.ndim == 4:
             samples = samples.unsqueeze(2)
         samples = samples.contiguous()
-        samples = samples * 0.9152
+        samples = samples * BYTEDANCE_VAE_SCALING_FACTOR
         return samples
 
     def comfy_memory_used_decode(self, shape):
@@ -1707,15 +1592,15 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         # plus int64 sort indices dominate peak memory, not the VAE weight dtype.
         if len(shape) == 5:
             candidates = []
-            if shape[1] == 16:
+            if shape[1] == SEEDVR2_LATENT_CHANNELS:
                 candidates.append((shape[2], shape[3], shape[4]))
-            if shape[-1] == 16:
+            if shape[-1] == SEEDVR2_LATENT_CHANNELS:
                 candidates.append((shape[1], shape[2], shape[3]))
             if len(candidates) == 0:
                 candidates.append((shape[2], shape[3], shape[4]))
             pixels = max(output_pixels(*candidate) for candidate in candidates)
         elif len(shape) == 4:
-            latent_t = max(1, (shape[1] + 15) // 16)
+            latent_t = max(1, (shape[1] + SEEDVR2_LATENT_CHANNELS - 1) // SEEDVR2_LATENT_CHANNELS)
             pixels = output_pixels(latent_t, shape[2], shape[3])
         else:
             pixels = output_pixels(1, shape[-2], shape[-1])
