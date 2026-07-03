@@ -674,8 +674,8 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024, pad_factor
     if max(H, W) > max_image_size:
         scale = max_image_size / max(H, W)
         new_w, new_h = int(W * scale), int(H * scale)
-        img  = comfy.utils.common_upscale(img,  new_w, new_h, "lanczos",       "disabled")
-        mask = comfy.utils.common_upscale(mask, new_w, new_h, "nearest-exact", "disabled")
+        img  = comfy.utils.common_upscale(img,  new_w, new_h, "lanczos", "disabled")
+        mask = comfy.utils.common_upscale(mask, new_w, new_h, "lanczos", "disabled")
         H, W = new_h, new_w
     scene_size = (W, H)
 
