@@ -82,6 +82,7 @@ def segment_charts(
     w_normal_deviation: float = DEFAULT_W_NORMAL_DEVIATION,
     w_roundness: float = DEFAULT_W_ROUNDNESS,
     w_straightness: float = DEFAULT_W_STRAIGHTNESS,
+    progress_callback=None,
 ) -> Tensor:
     """Segment mesh into charts (parallel batch cost-grow). Returns face -> chart_id."""
     F = mesh.faces.shape[0]
@@ -134,6 +135,7 @@ def segment_charts(
     thresholds = [t for t in (0.05, 0.1, 0.25) if t < tau_final] + [tau_final]
     max_inner = max(64, int(F ** 0.5) * 2)
     outer_iter = 0
+    assigned = 0
     tq = tqdm(total=F, desc="unwrap: segment (adaptive)", unit="face", leave=False)
     while True:
         outer_iter += 1
@@ -147,6 +149,9 @@ def segment_charts(
                 if n_added == 0:
                     break
                 tq.update(n_added)
+                assigned += n_added
+                if progress_callback is not None:
+                    progress_callback(assigned, F)
         unassigned = face_chart < 0
         if int(unassigned.sum()) == 0:
             break
@@ -331,6 +336,7 @@ def cluster_charts_pec(
     max_cost: float = 0.7,
     max_iters: int = 1024,
     min_faces: int = 8,
+    progress_callback=None,
 ) -> Tensor:
     """Parallel edge-collapse clustering; returns face_chart [F]. max_cost is the per-merge
     cutoff (~0.7 rad ~ 40deg); charts under min_faces are then absorbed at a relaxed 2x cutoff."""
@@ -381,6 +387,8 @@ def cluster_charts_pec(
         n_merge = int(winners.sum().item())
         if n_merge == 0:
             break
+        if progress_callback is not None:
+            progress_callback(F - N + n_merge, F)      # saturating: charts remaining vs faces
 
         win_a = a[winners]
         win_b = b[winners]

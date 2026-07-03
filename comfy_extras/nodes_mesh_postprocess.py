@@ -2456,6 +2456,8 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     """UV-unwrap a single mesh; returns (vmapping, indices, uvs); vmapping maps each output
     vertex to an input vertex (seam verts duplicated)."""
     t_start = time.perf_counter()
+    # phase-weighted node progress: weld/mesh 2%, segment 33%, extract 5%, param 25%, pack 33%
+    pbar = comfy.utils.ProgressBar(1000)
     v_in = positions.to(torch.float32)
     f_in = indices.to(torch.long).reshape(-1, 3)
     v_in, f_in, welded_to_orig = _uv_weld_vertices(v_in, f_in, weld_distance)
@@ -2471,12 +2473,16 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
         logging.warning("[uv_unwrap] mesh face-adjacency < 25% — vertices appear un-welded "
                         "(triangle soup); UV charts will be per-face. Raise weld_distance.")
 
+    pbar.update_absolute(20, 1000)
+    def _seg_progress(done, total):
+        pbar.update_absolute(20 + (330 * done) // max(total, 1), 1000)
     if segmenter == "pec":
-        face_chart = _uv_seg.cluster_charts_pec(mesh, max_cost=1.0)
+        face_chart = _uv_seg.cluster_charts_pec(mesh, max_cost=1.0, progress_callback=_seg_progress)
     elif segmenter == "adaptive":
-        face_chart = _uv_seg.segment_charts(mesh, max_cost=2.0)
+        face_chart = _uv_seg.segment_charts(mesh, max_cost=2.0, progress_callback=_seg_progress)
     else:
         raise ValueError(f"unknown segmenter '{segmenter}'. valid: pec, adaptive")
+    pbar.update_absolute(350, 1000)
 
     n_charts = int(face_chart.max().item()) + 1 if face_chart.numel() else 0
     areas_cpu = _uv_mesh.chart_3d_areas(mesh.face_area, face_chart, n_charts).detach().cpu()
@@ -2512,8 +2518,7 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     keep = (ff_sorted >= 0) & (face_chart_np[ff_safe] == chart_sorted[:, None])
     local_ff_all = np.where(keep, pos_in_chart[ff_safe], -1)
 
-    # progress: n_charts units for parameterize + 2*n_charts for pack (prepare + place)
-    pbar = comfy.utils.ProgressBar(3 * n_charts)
+    pbar.update_absolute(400, 1000)
 
     # parameterize (batched): ortho-project every chart at once, batched stretch metrics
     # decide acceptance, rejected charts solve ABF/LSCM in dense per-size-bucket batches
@@ -2528,7 +2533,8 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     auto = valid_chart & (chart_counts_np <= 5)          # tiny charts always keep ortho
     flip_ok = (n_flip == 0) | (n_flip == chart_counts_np)
     cand = valid_chart & ~auto & flip_ok & (n_zero == 0) & (rms <= 1.5) & (mx <= 2.0)
-    pbar.update(int(auto.sum()))
+    param_done = int(auto.sum())
+    pbar.update_absolute(400 + (250 * param_done) // n_charts, 1000)
 
     ortho_ok = auto.copy()
     cand_ids = np.nonzero(cand)[0]
@@ -2538,7 +2544,8 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
         if not _uv_param._uv_boundary_self_intersects(
                 uv0[v0:v1], local_faces_all[f0:f1], local_ff_all[f0:f1]):
             ortho_ok[c] = True
-        pbar.update(1)
+        param_done += 1
+        pbar.update_absolute(400 + (250 * param_done) // n_charts, 1000)
 
     lscm_mask = valid_chart & ~ortho_ok
     batchable = vert_counts <= _uv_param.LSCM_BATCH_MAX_VERTS
@@ -2548,7 +2555,8 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
         verts_concat, uv0, gl_faces, face_pos, chart_sorted, chart_of_vert,
         vert_offsets, lscm_ids, n_charts,
         device=comfy.model_management.get_torch_device())
-    pbar.update(int(lscm_ids.size))
+    param_done += int(lscm_ids.size)
+    pbar.update_absolute(400 + (250 * param_done) // n_charts, 1000)
 
     uvs_np_list: list = [None] * n_charts
     uv0_f32 = uv0.astype(np.float32)
@@ -2560,7 +2568,8 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
             torch.from_numpy(local_faces_all[f0:f1]),
             torch.from_numpy(local_ff_all[f0:f1]), pin_positions=uv0[v0:v1])
         lscm_uv[int(c)] = uvs_t.detach().cpu().numpy().astype(np.float32)
-        pbar.update(1)
+        param_done += 1
+        pbar.update_absolute(400 + (250 * param_done) // n_charts, 1000)
     for c in range(n_charts):
         v0, v1 = vert_offsets[c], vert_offsets[c + 1]
         if ortho_ok[c]:
@@ -2595,13 +2604,13 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     with tqdm(total=2 * n_charts, desc="unwrap: pack", unit="chart", leave=False) as tq_pack:
         def _pack_progress(done, total):
             tq_pack.update(done - tq_pack.n)
-            pbar.update_absolute(n_charts + done, 3 * n_charts)
+            pbar.update_absolute(650 + (340 * done) // max(total, 1), 1000)
         p_x, p_y, p_sw, p_th, p_sc, p_chh, atlas_w, atlas_h = _uv_pack.pack_bitmap_concat(
             uvs_all_np, vert_offsets, local_faces_all, chart_offsets_np,
             areas_3d_np, uv_area_np,
             texels_per_unit=tex_per_unit, padding_texels=padding,
             progress_callback=_pack_progress)
-    pbar.update_absolute(3 * n_charts, 3 * n_charts)
+    pbar.update_absolute(1000, 1000)
 
     # assembly: output verts are the per-chart used-vert lists concatenated in chart order,
     # so vert_offsets doubles as the output vertex cursor
