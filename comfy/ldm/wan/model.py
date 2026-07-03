@@ -552,6 +552,7 @@ class WanModel(torch.nn.Module):
                 List of denoised video tensors with original input shapes [C_out, F, H / 8, W / 8]
         """
         # embeddings
+        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
         transformer_options["grid_sizes"] = grid_sizes
@@ -564,11 +565,13 @@ class WanModel(torch.nn.Module):
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
 
         full_ref = None
+        img_offset = 0
         if self.ref_conv is not None:
             full_ref = kwargs.get("reference_latent", None)
             if full_ref is not None:
                 full_ref = self.ref_conv(full_ref).flatten(2).transpose(1, 2)
                 x = torch.concat((full_ref, x), dim=1)
+                img_offset = full_ref.shape[1]
 
         # In-context reference (Bernini)
         context_latents = kwargs.get("context_latents", None)
@@ -589,6 +592,7 @@ class WanModel(torch.nn.Module):
             context_img_len = clip_fea.shape[-2]
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
@@ -603,6 +607,11 @@ class WanModel(torch.nn.Module):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": img_offset, "transformer_options": transformer_options})
+                    x = out["img"]
 
         # head
         x = self.head(x, e)
@@ -777,6 +786,7 @@ class VaceWanModel(WanModel):
         **kwargs,
     ):
         # embeddings
+        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
         transformer_options["grid_sizes"] = grid_sizes
@@ -807,6 +817,7 @@ class VaceWanModel(WanModel):
         x_orig = x
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
@@ -821,6 +832,11 @@ class VaceWanModel(WanModel):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": 0, "transformer_options": transformer_options})
+                    x = out["img"]
 
             ii = self.vace_layers_mapping.get(i, None)
             if ii is not None:
