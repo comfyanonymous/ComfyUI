@@ -674,7 +674,6 @@ class NaSwinAttention(NaMMAttention):
             else:
                 vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
 
-        txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
         txt_len_win_list = cache_win(
             "txt_len_list",
             lambda: [txt_len for txt_len, window_count in zip(txt_len.tolist(), window_count_list) for _ in range(window_count)],
