@@ -157,7 +157,7 @@ class SeedVR2PostProcessing(io.ComfyNode):
         return io.Schema(
             node_id="SeedVR2PostProcessing",
             display_name="Post-Process SeedVR2 Output",
-            category="image/upscaling",
+            category="image/post-processors",
             description="Align the generated image with the original resized image and apply color correction.",
             search_aliases=["seedvr2", "upscale", "color correction", "color match", "postprocess"],
             inputs=[
