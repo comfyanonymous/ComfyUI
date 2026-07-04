@@ -598,8 +598,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
-    seedvr2_7b_separate_key = "{}blocks.35.mlp.vid.proj_in.weight".format(key_prefix)
-    if seedvr2_7b_separate_key in state_dict_keys and state_dict[seedvr2_7b_separate_key].shape[1] == 3072: # seedvr2 7b
+    seedvr2_7b_separate_key = "{}blocks.35.mlp.vid.proj_out.weight".format(key_prefix)
+    if seedvr2_7b_separate_key in state_dict_keys and state_dict[seedvr2_7b_separate_key].shape[0] == 3072: # seedvr2 7b
         dit_config = {}
         dit_config["image_model"] = "seedvr2"
         dit_config["vid_dim"] = 3072
