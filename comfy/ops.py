@@ -1216,7 +1216,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         bias_dtype=input.dtype,
                         offloadable=True,
                         compute_dtype=compute_dtype,
-                        want_requant=want_requant,
+                        want_requant=True,
                     )
                     weight = weight.to(dtype=input.dtype)
                 else:

@@ -143,7 +143,7 @@ class VAEDecodeTripoSplat(IO.ComfyNode):
         return IO.Schema(
             node_id="VAEDecodeTripoSplat",
             display_name="TripoSplat Decode",
-            category="3d/latent",
+            category="model/latent/triposplat",
             description="Decode the sampled TripoSplat latent into a 3D gaussian splat. "
                         "Modify the number of gaussians to vary the density.",
             inputs=[
@@ -188,7 +188,7 @@ class TripoSplatSamplingPreview(IO.ComfyNode):
         return IO.Schema(
             node_id="TripoSplatSamplingPreview",
             display_name="TripoSplat Sampling Preview",
-            category="3d/latent",
+            category="model/latent/triposplat",
             description="Patch the TripoSplat model for the standard Ksampler node to show a live decoded "
                         "gaussian splat preview at each step.",
             inputs=[

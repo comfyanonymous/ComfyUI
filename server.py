@@ -127,6 +127,7 @@ def create_cors_middleware(allowed_origin: str):
 
     return cors_middleware
 
+
 def is_loopback(host):
     if host is None:
         return False
@@ -616,15 +617,30 @@ class PromptServer():
                             or 'application/octet-stream'
                         )
 
-                        # For security, force certain mimetypes to download instead of display
-                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
-                            content_type = 'application/octet-stream'  # Forces download
+                        # For security, force renderable/active types (HTML, JS,
+                        # CSS, SVG, XML — anything that can carry inline <script>
+                        # and execute in the page origin) to download instead of
+                        # displaying inline, preventing stored XSS. The
+                        # attachment disposition is the load-bearing guard: a
+                        # bare filename= hint does not force a download per
+                        # RFC 6266, so we only attach it on the dangerous branch
+                        # to avoid breaking inline display of legitimate images.
+                        # Escape backslash/quote per RFC 6266 quoted-string so a
+                        # filename containing a double quote (which passes the
+                        # ".."/leading-slash filter above) can't break out of the
+                        # header's quoted-string and malform the disposition.
+                        safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+                        disposition = f"filename=\"{safe_filename}\""
+                        if folder_paths.is_dangerous_content_type(content_type):
+                            content_type = 'application/octet-stream'
+                            disposition = f"attachment; filename=\"{safe_filename}\""
 
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
-                                "Content-Type": content_type
+                                "Content-Disposition": disposition,
+                                "Content-Type": content_type,
+                                "X-Content-Type-Options": "nosniff"
                             }
                         )
 

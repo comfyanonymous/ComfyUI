@@ -26,6 +26,7 @@ from .conversions import (
     text_filepath_to_base64_string,
     text_filepath_to_data_uri,
     trim_video,
+    upscale_image_tensor_to_min_pixels,
     upscale_video_to_min_pixels,
     video_to_base64_string,
 )
@@ -99,6 +100,7 @@ __all__ = [
     "text_filepath_to_base64_string",
     "text_filepath_to_data_uri",
     "trim_video",
+    "upscale_image_tensor_to_min_pixels",
     "upscale_video_to_min_pixels",
     "video_to_base64_string",
     # Validation utilities
