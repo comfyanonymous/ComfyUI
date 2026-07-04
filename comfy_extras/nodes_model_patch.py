@@ -572,7 +572,7 @@ class WanUni3CCnetPatch:
             self.temp_data = None
             active = True
             sigmas = transformer_options.get("sigmas", None)
-            if sigmas is not None and sigmas.numel() > 0:
+            if sigmas is not None:
                 sigma = sigmas[0].item()
                 if sigma > self.sigma_start or sigma < self.sigma_end:
                     active = False

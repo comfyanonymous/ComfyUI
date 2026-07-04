@@ -497,7 +497,6 @@ class AnimateWanModel(WanModel):
         x = self.patch_embedding(x.float()).to(x.dtype)
         x, motion_vec = self.after_patch_embedding(x, pose_latents, face_pixel_values)
         grid_sizes = x.shape[2:]
-        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings

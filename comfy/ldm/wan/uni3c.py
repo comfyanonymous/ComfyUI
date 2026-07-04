@@ -97,13 +97,11 @@ class WanUni3CControlnet(nn.Module):
         device=None, dtype=None, operations=None
     ):
         super().__init__()
-        self.dtype = dtype
-        self.patch_size = (1, 2, 2)
-        self.in_channels = in_channels
+        patch_size = (1, 2, 2)
         self.num_layers = num_layers
 
         self.controlnet_patch_embedding = operations.Conv3d(
-            in_channels, conv_out_dim, kernel_size=self.patch_size, stride=self.patch_size, device=device, dtype=torch.float32)
+            in_channels, conv_out_dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32)
         self.controlnet_mask_embedding = MaskCamEmbed(add_channels, mid_channels, conv_out_dim, device=device, dtype=dtype, operations=operations)
 
         if conv_out_dim != dim:
@@ -152,11 +150,3 @@ class WanUni3CControlnet(nn.Module):
         hidden = self.controlnet_blocks[block_index](hidden, temb, freqs, transformer_options=transformer_options)
         residual = self.proj_out[block_index](hidden)
         return hidden, residual
-
-    def forward(self, control_input, temb, render_mask=None, camera_embedding=None, transformer_options={}):
-        hidden, freqs = self.process_input(control_input, render_mask=render_mask, camera_embedding=camera_embedding)
-        controlnet_states = []
-        for i in range(self.num_layers):
-            hidden, residual = self.forward_block(i, hidden, temb, freqs, transformer_options=transformer_options)
-            controlnet_states.append(residual)
-        return controlnet_states

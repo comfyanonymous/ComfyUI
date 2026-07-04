@@ -908,7 +908,6 @@ class CameraWanModel(WanModel):
         if self.control_adapter is not None and camera_conditions is not None:
             x = x + self.control_adapter(camera_conditions).to(x.dtype)
         grid_sizes = x.shape[2:]
-        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
@@ -1368,7 +1367,6 @@ class WanModel_S2V(WanModel):
             t = t.unsqueeze(1).repeat(1, x.shape[2])
 
         grid_sizes = x.shape[2:]
-        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
         seq_len = x.size(1)
 
@@ -1635,7 +1633,6 @@ class HumoWanModel(WanModel):
         x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
-        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
