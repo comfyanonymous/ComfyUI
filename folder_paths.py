@@ -24,7 +24,7 @@ def valid_path(saved_path,description = "Instance Folder"):
 
     redirect_path = os.path.join(os.path.dirname(__file__),"path.redirects.json")
     if os.path.exists(redirect_path):
-        with open("redirect_path","r") as f:
+        with open(redirect_path,"r") as f:
             redirects = json.load(f)
             if description in redirects and os.path.exists(redirects[description]):
                 return redirects[description]
