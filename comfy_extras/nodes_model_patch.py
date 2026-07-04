@@ -275,13 +275,18 @@ class ModelPatchLoader:
             sd = converted_sd
 
             num_layers = sum(1 for k in sd if k.startswith("proj_out.") and k.endswith(".weight"))
+            conv_out_dim = sd["controlnet_patch_embedding.weight"].shape[0]
+            if "proj_in.weight" in sd:
+                dim = sd["proj_in.weight"].shape[0]
+            else:
+                dim = conv_out_dim
             model = comfy.ldm.wan.uni3c.WanUni3CControlnet(
                     in_channels=sd["controlnet_patch_embedding.weight"].shape[1],
-                    conv_out_dim=sd["controlnet_patch_embedding.weight"].shape[0],
-                    dim=sd["proj_out.0.weight"].shape[1],
+                    conv_out_dim=conv_out_dim,
+                    dim=dim,
                     ffn_dim=sd["controlnet_blocks.0.ffn.0.bias"].shape[0],
                     num_layers=num_layers,
-                    time_embed_dim=sd["controlnet_blocks.0.norm1.linear.weight"].shape[1],
+                    time_embed_dim=conv_out_dim,
                     out_proj_dim=sd["proj_out.0.weight"].shape[0],
                     add_channels=sd["controlnet_mask_embedding.mask_proj.0.weight"].shape[1],
                     mid_channels=sd["controlnet_mask_embedding.mask_proj.0.weight"].shape[0],
@@ -548,6 +553,7 @@ class WanUni3CCnetPatch:
         self.strength = strength
         self.sigma_start = sigma_start
         self.sigma_end = sigma_end
+        self.prepared_render = None
         self.temp_data = None
 
     def build_controlnet_input(self, x, dtype):
@@ -558,9 +564,13 @@ class WanUni3CCnetPatch:
             pad_shape[1] = 20 - hidden.shape[1]
             hidden = torch.cat([hidden, torch.zeros(pad_shape, dtype=hidden.dtype, device=hidden.device)], dim=1)
 
-        render = self.render_latent.to(device=hidden.device, dtype=hidden.dtype)
-        if render.shape[2:] != hidden.shape[2:]:
-            render = torch.nn.functional.interpolate(render, size=hidden.shape[2:], mode="trilinear", align_corners=False)
+        render = self.prepared_render
+        if render is None or render.shape[2:] != hidden.shape[2:] or render.device != hidden.device or render.dtype != dtype:
+            render = self.render_latent.to(device=hidden.device)
+            if render.shape[2:] != hidden.shape[2:]:
+                render = torch.nn.functional.interpolate(render, size=hidden.shape[2:], mode="trilinear", align_corners=False)
+            render = render.to(dtype)
+            self.prepared_render = render
         return torch.cat([hidden, render], dim=1)
 
     def __call__(self, kwargs):
@@ -577,19 +587,24 @@ class WanUni3CCnetPatch:
                 if sigma > self.sigma_start or sigma < self.sigma_end:
                     active = False
             if active:
-                controlnet_input = self.build_controlnet_input(kwargs.get("x"), img.dtype)
                 temb = kwargs.get("vec")[:1]
                 if temb.ndim == 3:
                     temb = temb[:, 0]
-                hidden, freqs = self.model_patch.model.process_input(controlnet_input)
+                model = self.model_patch.model
+                cnet_dim = model.controlnet_blocks[0].norm1.linear.in_features
+                if temb.shape[-1] != cnet_dim:
+                    raise RuntimeError("This Uni3C controlnet expects a Wan model with dim {}, the loaded model has dim {}".format(cnet_dim, temb.shape[-1]))
+                controlnet_input = self.build_controlnet_input(kwargs.get("x"), img.dtype)
+                hidden, freqs = model.process_input(controlnet_input)
                 self.temp_data = (hidden, temb.to(img.dtype), freqs)
 
-        if self.temp_data is not None and block_index < self.model_patch.model.num_layers:
+        num_layers = self.model_patch.model.num_layers
+        if self.temp_data is not None and block_index < num_layers:
             hidden, temb, freqs = self.temp_data
-            hidden, residual = self.model_patch.model.forward_block(block_index, hidden, temb, freqs, transformer_options=transformer_options)
+            hidden, residual = self.model_patch.model.forward_block(block_index, hidden, temb, freqs)
             img_offset = kwargs.get("img_offset", 0)
             img[:, img_offset:img_offset + residual.shape[1]] += residual.to(img.dtype) * self.strength
-            if block_index >= self.model_patch.model.num_layers - 1:
+            if block_index >= num_layers - 1:
                 self.temp_data = None
             else:
                 self.temp_data = (hidden, temb, freqs)
@@ -599,6 +614,7 @@ class WanUni3CCnetPatch:
     def to(self, device_or_dtype):
         if isinstance(device_or_dtype, torch.device):
             self.render_latent = self.render_latent.to(device_or_dtype)
+            self.prepared_render = None
             self.temp_data = None
         return self
 

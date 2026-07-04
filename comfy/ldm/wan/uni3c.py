@@ -45,9 +45,9 @@ class Uni3CAttentionBlock(nn.Module):
             operations.Linear(dim, ffn_dim, device=device, dtype=dtype), nn.GELU(approximate='tanh'),
             operations.Linear(ffn_dim, dim, device=device, dtype=dtype))
 
-    def forward(self, x, temb, freqs, transformer_options={}):
+    def forward(self, x, temb, freqs):
         norm_x, gate_msa = self.norm1(x, temb)
-        x = x + gate_msa * self.self_attn(norm_x, freqs, transformer_options=transformer_options)
+        x = x + gate_msa * self.self_attn(norm_x, freqs)
         norm_x, gate_ff = self.norm2(x, temb)
         x = x + gate_ff * self.ffn(norm_x)
         return x
@@ -59,14 +59,10 @@ class MaskCamEmbed(nn.Module):
         add_channels=7,
         mid_channels=256,
         conv_out_dim=5120,
-        interp=False,
         device=None, dtype=None, operations=None
     ):
         super().__init__()
-        if interp:
-            self.mask_padding = [0, 0, 0, 0, 3, 3]  # first and last frame conditioning
-        else:
-            self.mask_padding = [0, 0, 0, 0, 3, 0]  # first frame conditioning
+        self.mask_padding = [0, 0, 0, 0, 3, 0]  # first frame conditioning
         self.mask_proj = nn.Sequential(
             operations.Conv3d(add_channels, mid_channels, kernel_size=(4, 8, 8), stride=(4, 8, 8), device=device, dtype=dtype),
             operations.GroupNorm(mid_channels // 8, mid_channels, device=device, dtype=dtype),
@@ -129,6 +125,7 @@ class WanUni3CControlnet(nn.Module):
         return freqs
 
     def process_input(self, control_input, render_mask=None, camera_embedding=None):
+        # render_mask/camera_embedding are the checkpoint's extra conditioning path, not wired up yet
         hidden = self.controlnet_patch_embedding(control_input.float()).to(control_input.dtype)
         t_len, h_len, w_len = hidden.shape[2:]
         freqs = self.rope_encode(t_len, h_len, w_len, device=hidden.device, dtype=hidden.dtype)
@@ -146,7 +143,7 @@ class WanUni3CControlnet(nn.Module):
         hidden = self.proj_in(hidden)
         return hidden, freqs
 
-    def forward_block(self, block_index, hidden, temb, freqs, transformer_options={}):
-        hidden = self.controlnet_blocks[block_index](hidden, temb, freqs, transformer_options=transformer_options)
+    def forward_block(self, block_index, hidden, temb, freqs):
+        hidden = self.controlnet_blocks[block_index](hidden, temb, freqs)
         residual = self.proj_out[block_index](hidden)
         return hidden, residual
