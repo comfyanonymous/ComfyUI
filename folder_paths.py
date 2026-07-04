@@ -30,14 +30,13 @@ def valid_path(saved_path,description = "Instance Folder"):
                 return redirects[description]
     print(f"\n[!] ALERT: {description} not found at: {saved_path}")
     new_path= input(f"Please paste the updated absolute path for '{description}': ").strip()        
-    try:
-        redirects = {}
-        if os.path.exists(redirects):
-            with open(redirects, "r") as f: redirects = json.load(f)
-        redirects[description] = new_path
-        with open(redirects, "w") as f: json.dump(redirects, f, indent=4)
-    except Exception:
-        pass
+    redirects = {}
+    if os.path.exists(redirect_path):
+        with open(redirect_path, "r") as f:
+            redirects = json.load(f)
+    redirects[description] = new_path
+    with open(redirect_path, "w") as f:
+        json.dump(redirects, f, indent=4)
         
     return new_path
 
