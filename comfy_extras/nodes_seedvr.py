@@ -132,7 +132,7 @@ class SeedVR2Preprocess(io.ComfyNode):
         return io.Schema(
             node_id="SeedVR2Preprocess",
             display_name="Pre-Process SeedVR2 Input",
-            category="image/upscaling",
+            category="image/pre-processors",
             description="Pad a resized image for SeedVR2 model. Alpha channel is dropped. The node Post-Process SeedVR2 Output re-applies it from the original resized image.",
             search_aliases=["seedvr2", "upscale", "video upscale", "pad", "preprocess"],
             inputs=[
