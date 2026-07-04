@@ -16,12 +16,20 @@ class ColorToRGBInt(io.ComfyNode):
             ],
             outputs=[
                 io.Int.Output(display_name="rgb_int"),
-                io.Color.Output(display_name="hex")
+                io.Color.Output(display_name="hex"),
+                io.Float.Output(display_name="transparency"),
             ],
         )
 
     @classmethod
     def execute(cls, color: str) -> io.NodeOutput:
+
+        # Extract transparency if provided in the format #RRGGBBAA 
+        transparency = 1.0
+        if len(color) > 7:
+            transparency = int(color[7:9], 16) / 255.0
+            color = color[:7]
+
         # expect format #RRGGBB
         if len(color) != 7 or color[0] != "#":
             raise ValueError("Color must be in format #RRGGBB")
@@ -32,7 +40,7 @@ class ColorToRGBInt(io.ComfyNode):
         r, g, b = hex_to_rgb(color)
 
         rgb_int = r * 256 * 256 + g * 256 + b
-        return io.NodeOutput(rgb_int, color)
+        return io.NodeOutput(rgb_int, color, transparency)
 
 
 class ColorExtension(ComfyExtension):
