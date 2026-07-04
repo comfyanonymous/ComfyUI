@@ -24,7 +24,7 @@ class ColorToRGBInt(io.ComfyNode):
     @classmethod
     def execute(cls, color: str) -> io.NodeOutput:
 
-        # Extract transparency if provided in the format #RRGGBBAA 
+        # Extract transparency if provided in the format #RRGGBBAA
         transparency = 1.0
         if len(color) > 7:
             transparency = int(color[7:9], 16) / 255.0
