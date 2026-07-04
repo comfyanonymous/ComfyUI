@@ -1,3 +1,5 @@
+import logging
+
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 import torch
@@ -9,7 +11,12 @@ from comfy.ldm.seedvr.color_fix import (
     wavelet_color_transfer,
 )
 from comfy.ldm.seedvr.constants import (
+    BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE,
     SEEDVR2_ADAIN_SCALE_MULTIPLIER,
+    SEEDVR2_CHUNK_GIB_PER_MPX_FRAME,
+    SEEDVR2_CHUNK_RESERVED_GIB,
+    SEEDVR2_CHUNK_SIGMA_GIB,
+    SEEDVR2_CHUNK_SIGMA_K,
     SEEDVR2_COLOR_MEM_HEADROOM,
     SEEDVR2_DTYPE_BYTES_FLOOR,
     SEEDVR2_LAB_SCALE_MULTIPLIER,
@@ -406,6 +413,184 @@ class SeedVR2Conditioning(io.ComfyNode):
 
         return io.NodeOutput(positive, negative)
 
+def _seedvr2_chunk_crossfade_weights(overlap, device, dtype):
+    """Descending previous-chunk weights across the overlap (next chunk gets ``1 - w``): a Hann fade over the middle third, flat shoulders on the outer thirds."""
+    ramp = torch.linspace(0.0, 1.0, steps=overlap, device=device, dtype=dtype)
+    ramp = ((ramp - 1.0 / 3.0) / (1.0 / 3.0)).clamp(0.0, 1.0)
+    return 0.5 + 0.5 * torch.cos(torch.pi * ramp)
+
+
+class SeedVR2TemporalChunk(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SeedVR2TemporalChunk",
+            display_name="Chunk SeedVR2 Latent",
+            category="model/latent/batch",
+            description="Split a SeedVR2 video latent into overlapping temporal chunks small enough to sample one at a time within VRAM, wiring latent_chunks to both Apply SeedVR2 Conditioning and the sampler latent input before recombining with Merge SeedVR2 Latent Chunks.",
+            search_aliases=["seedvr2", "chunk", "temporal", "video upscale", "rebatch"],
+            inputs=[
+                io.Latent.Input("latent", tooltip="The VAE-encoded SeedVR2 latent to split."),
+                io.Int.Input("frames_per_chunk", default=21, min=1, max=16384, step=4,
+                             tooltip="Pixel frames per temporal chunk (4n+1: 1, 5, 9, 13, ...)."),
+                io.Int.Input("temporal_overlap", default=0, min=0, max=16384,
+                             tooltip="Latent frames shared between adjacent chunks and crossfaded at merge; 0 = no overlap."),
+                io.Combo.Input("chunking_mode", options=["auto", "manual"], default="manual",
+                               tooltip="manual = use frames_per_chunk exactly; auto = predict the largest chunk that fits free VRAM."),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="latent_chunks", is_output_list=True,
+                                 tooltip="The temporal chunks in sequence order."),
+                io.Int.Output(display_name="temporal_overlap",
+                              tooltip="The effective latent-frame overlap between adjacent chunks, for Merge SeedVR2 Latent Chunks."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, latent, frames_per_chunk, temporal_overlap, chunking_mode) -> io.NodeOutput:
+        samples = latent["samples"]
+        if samples.ndim != 5:
+            raise ValueError(
+                f"SeedVR2TemporalChunk: expected a 5-D video latent (B, C, T, H, W); "
+                f"got shape {tuple(samples.shape)}."
+            )
+        if samples.shape[1] != SEEDVR2_LATENT_CHANNELS:
+            raise ValueError(
+                f"SeedVR2TemporalChunk: expected {SEEDVR2_LATENT_CHANNELS} latent channels; "
+                f"got shape {tuple(samples.shape)}."
+            )
+        if temporal_overlap < 0:
+            raise ValueError(
+                f"SeedVR2TemporalChunk: temporal_overlap must be >= 0; got {temporal_overlap}."
+            )
+        if chunking_mode not in ("auto", "manual"):
+            raise ValueError(
+                f"SeedVR2TemporalChunk: chunking_mode must be 'auto' or 'manual'; "
+                f"got {chunking_mode!r}."
+            )
+        t_latent = samples.shape[2]
+        t_pixel = 4 * (t_latent - 1) + 1
+
+        if chunking_mode == "auto":
+            free_gb = comfy.model_management.get_free_memory(
+                comfy.model_management.get_torch_device()) / (1024 ** 3)
+            mpx_per_frame = (samples.shape[0] * samples.shape[3] * samples.shape[4]) * (BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE ** 2) / 1e6
+            budget_gb = free_gb - SEEDVR2_CHUNK_RESERVED_GIB - SEEDVR2_CHUNK_SIGMA_K * SEEDVR2_CHUNK_SIGMA_GIB
+            chunk_latent_max = max(1, int(budget_gb / (SEEDVR2_CHUNK_GIB_PER_MPX_FRAME * mpx_per_frame)))
+            frames_per_chunk = min(4 * (chunk_latent_max - 1) + 1, t_pixel)
+            logging.info(
+                "SeedVR2TemporalChunk auto: free=%.2fGiB, %.2fMpx -> frames_per_chunk=%d (t_pixel=%d).",
+                free_gb, mpx_per_frame, frames_per_chunk, t_pixel,
+            )
+        elif frames_per_chunk < 1 or (frames_per_chunk - 1) % 4 != 0:
+            raise ValueError(
+                f"SeedVR2TemporalChunk: frames_per_chunk must be a 4n+1 pixel-frame count "
+                f"(1, 5, 9, 13, 17, 21, ...); got {frames_per_chunk}."
+            )
+
+        if t_pixel <= frames_per_chunk:
+            return io.NodeOutput([latent], 0)
+
+        chunk_latent = (frames_per_chunk - 1) // 4 + 1
+        temporal_overlap = min(temporal_overlap, chunk_latent - 1)
+        step = chunk_latent - temporal_overlap
+
+        chunks = []
+        for start in range(0, t_latent, step):
+            end = min(start + chunk_latent, t_latent)
+            chunk = latent.copy()
+            chunk["samples"] = samples[:, :, start:end].contiguous()
+            chunks.append(chunk)
+            if end >= t_latent:
+                break
+        return io.NodeOutput(chunks, temporal_overlap)
+
+
+class SeedVR2TemporalMerge(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SeedVR2TemporalMerge",
+            display_name="Merge SeedVR2 Latent Chunks",
+            category="model/latent/batch",
+            is_input_list=True,
+            description="Recombine sampled SeedVR2 temporal chunks into one latent, crossfading each overlap with a Hann window sized by the temporal_overlap wired from Chunk SeedVR2 Latent.",
+            search_aliases=["seedvr2", "merge", "temporal", "hann", "crossfade"],
+            inputs=[
+                io.Latent.Input("latent_chunks", tooltip="The sampled temporal chunks in sequence order."),
+                io.Int.Input("temporal_overlap", default=0, min=0, max=16384, force_input=True,
+                             tooltip="The temporal_overlap output of Chunk SeedVR2 Latent. 0 = plain concatenation."),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="latent", tooltip="The recombined full-length latent."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, latent_chunks, temporal_overlap) -> io.NodeOutput:
+        temporal_overlap = temporal_overlap[0]
+        if temporal_overlap < 0:
+            raise ValueError(
+                f"SeedVR2TemporalMerge: temporal_overlap must be >= 0; got {temporal_overlap}."
+            )
+        chunks = [entry["samples"] for entry in latent_chunks]
+        first = chunks[0]
+        if first.ndim != 5:
+            raise ValueError(
+                f"SeedVR2TemporalMerge: expected 5-D video latents (B, C, T, H, W); "
+                f"chunk 0 has shape {tuple(first.shape)}."
+            )
+        for i, chunk in enumerate(chunks[1:], start=1):
+            if chunk.shape[:2] != first.shape[:2] or chunk.shape[3:] != first.shape[3:]:
+                raise ValueError(
+                    f"SeedVR2TemporalMerge: chunk {i} shape {tuple(chunk.shape)} does not "
+                    f"match chunk 0 shape {tuple(first.shape)} outside the temporal axis."
+                )
+            if i < len(chunks) - 1 and chunk.shape[2] != first.shape[2]:
+                raise ValueError(
+                    f"SeedVR2TemporalMerge: chunk {i} has {chunk.shape[2]} latent frames but "
+                    f"chunk 0 has {first.shape[2]}; only the final chunk may be shorter."
+                )
+
+        out = latent_chunks[0].copy()
+        out.pop("noise_mask", None)
+
+        if len(chunks) == 1:
+            out["samples"] = first
+            return io.NodeOutput(out)
+        if temporal_overlap == 0:
+            out["samples"] = torch.cat(chunks, dim=2)
+            return io.NodeOutput(out)
+
+        chunk_latent = first.shape[2]
+        step = chunk_latent - min(temporal_overlap, chunk_latent - 1)
+        t_total = step * (len(chunks) - 1) + chunks[-1].shape[2]
+        b, c, _, h, w = first.shape
+        merged = torch.empty((b, c, t_total, h, w), device=first.device, dtype=first.dtype)
+
+        merged[:, :, :chunk_latent] = first
+        filled = chunk_latent
+        for i, chunk in enumerate(chunks[1:], start=1):
+            start = i * step
+            end = start + chunk.shape[2]
+            # Crossfade width is bounded by the previous fill frontier and by a runt
+            # final chunk shorter than the configured overlap.
+            fade = min(filled - start, chunk.shape[2])
+            if fade > 0:
+                w_prev = _seedvr2_chunk_crossfade_weights(
+                    fade, chunk.device, chunk.dtype).view(1, 1, fade, 1, 1)
+                merged[:, :, start:start + fade] = (
+                    merged[:, :, start:start + fade] * w_prev + chunk[:, :, :fade] * (1.0 - w_prev)
+                )
+                merged[:, :, start + fade:end] = chunk[:, :, fade:]
+            else:
+                merged[:, :, start:end] = chunk
+            filled = end
+
+        out["samples"] = merged
+        return io.NodeOutput(out)
+
+
 class SeedVRExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -413,6 +598,8 @@ class SeedVRExtension(ComfyExtension):
             SeedVR2Conditioning,
             SeedVR2Preprocess,
             SeedVR2PostProcessing,
+            SeedVR2TemporalChunk,
+            SeedVR2TemporalMerge,
         ]
 
 async def comfy_entrypoint() -> SeedVRExtension:
