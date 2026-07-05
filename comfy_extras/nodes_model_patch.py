@@ -547,14 +547,39 @@ class ZImageFunControlnet(QwenImageDiffsynthControlnet):
     CATEGORY = "model/patch/z-image"
 
 class WanUni3CCnetPatch:
-    def __init__(self, model_patch, render_latent, strength, sigma_start, sigma_end):
+    def __init__(self, model_patch, render_video, vae, latent_format, strength, sigma_start, sigma_end):
         self.model_patch = model_patch
-        self.render_latent = render_latent
+        self.render_video = render_video
+        self.vae = vae
+        self.latent_format = latent_format
         self.strength = strength
         self.sigma_start = sigma_start
         self.sigma_end = sigma_end
         self.prepared_render = None
         self.temp_data = None
+
+    def encode_render_video(self, target_latent_shape):
+        t_len, h_len, w_len = target_latent_shape
+        temporal_compression = self.vae.temporal_compression_decode() or 1
+        spatial_compression = self.vae.spacial_compression_encode()
+        target_frames = (t_len - 1) * temporal_compression + 1
+        target_height = h_len * spatial_compression
+        target_width = w_len * spatial_compression
+
+        frames = self.render_video
+        if frames.shape[0] > target_frames:
+            frames = frames[:target_frames]
+        elif frames.shape[0] < target_frames:
+            last_frame = frames[-1:].expand(target_frames - frames.shape[0], -1, -1, -1)
+            frames = torch.cat([frames, last_frame], dim=0)
+
+        if frames.shape[1] != target_height or frames.shape[2] != target_width:
+            frames = comfy.utils.common_upscale(frames.movedim(-1, 1), target_width, target_height, "bilinear", "center").movedim(1, -1)
+
+        loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
+        render_latent = self.vae.encode(frames)
+        comfy.model_management.load_models_gpu(loaded_models)
+        return self.latent_format.process_in(render_latent)
 
     def build_controlnet_input(self, x, dtype):
         # first 20 channels of the model input: noise latent + I2V mask (zero padded for T2V)
@@ -565,12 +590,10 @@ class WanUni3CCnetPatch:
             hidden = torch.cat([hidden, torch.zeros(pad_shape, dtype=hidden.dtype, device=hidden.device)], dim=1)
 
         render = self.prepared_render
-        if render is None or render.shape[2:] != hidden.shape[2:] or render.device != hidden.device or render.dtype != dtype:
-            render = self.render_latent.to(device=hidden.device)
-            if render.shape[2:] != hidden.shape[2:]:
-                render = torch.nn.functional.interpolate(render, size=hidden.shape[2:], mode="trilinear", align_corners=False)
-            render = render.to(dtype)
-            self.prepared_render = render
+        if render is None or render.shape[2:] != hidden.shape[2:]:
+            render = self.encode_render_video(hidden.shape[2:])
+        render = render.to(device=hidden.device, dtype=dtype)
+        self.prepared_render = render
         return torch.cat([hidden, render], dim=1)
 
     def __call__(self, kwargs):
@@ -613,8 +636,8 @@ class WanUni3CCnetPatch:
 
     def to(self, device_or_dtype):
         if isinstance(device_or_dtype, torch.device):
-            self.render_latent = self.render_latent.to(device_or_dtype)
-            self.prepared_render = None
+            if self.prepared_render is not None:
+                self.prepared_render = self.prepared_render.to(device_or_dtype)
             self.temp_data = None
         return self
 
@@ -641,12 +664,12 @@ class WanUni3CControlnetApply:
 
     def apply_patch(self, model, model_patch, vae, render_video, strength, start_percent, end_percent):
         model_patched = model.clone()
-        render_latent = vae.encode(render_video[:, :, :, :3])
-        render_latent = model.get_model_object("latent_format").process_in(render_latent)
         model_sampling = model.get_model_object("model_sampling")
         sigma_start = model_sampling.percent_to_sigma(start_percent)
         sigma_end = model_sampling.percent_to_sigma(end_percent)
-        model_patched.set_model_double_block_patch(WanUni3CCnetPatch(model_patch, render_latent, strength, sigma_start, sigma_end))
+        latent_format = model.get_model_object("latent_format")
+        patch = WanUni3CCnetPatch(model_patch, render_video[:, :, :, :3], vae, latent_format, strength, sigma_start, sigma_end)
+        model_patched.set_model_double_block_patch(patch)
         return (model_patched,)
 
 
