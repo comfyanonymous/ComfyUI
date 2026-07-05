@@ -53,8 +53,11 @@ def test_annotated_filepath():
 
 def test_get_annotated_filepath():
     default_dir = "/default/dir"
-    assert folder_paths.get_annotated_filepath("test.txt", default_dir) == os.path.join(default_dir, "test.txt")
-    assert folder_paths.get_annotated_filepath("test.txt [output]") == os.path.join(folder_paths.get_output_directory(), "test.txt")
+    # get_annotated_filepath now normalizes with os.path.abspath (part of the
+    # GHSA-779p traversal hardening), so compare against the normalized form —
+    # on Windows abspath also prepends the current drive letter.
+    assert folder_paths.get_annotated_filepath("test.txt", default_dir) == os.path.abspath(os.path.join(default_dir, "test.txt"))
+    assert folder_paths.get_annotated_filepath("test.txt [output]") == os.path.abspath(os.path.join(folder_paths.get_output_directory(), "test.txt"))
 
 def test_add_model_folder_path_append(clear_folder_paths):
     folder_paths.add_model_folder_path("test_folder", "/default/path", is_default=True)

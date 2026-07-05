@@ -8,10 +8,13 @@
   directly required.
 - Prefer practical fixes over broad architecture work. Add abstractions only
   when they remove real repeated logic or match an existing ComfyUI pattern.
+- Prefer fewer dependencies. Do not add new dependencies to ComfyUI unless they
+  are absolutely necessary.
 - Delete obsolete code aggressively when newer infrastructure makes it useless.
   Remove dead fallbacks, migration paths, unused options, debug prints, and
   compatibility branches that are no longer needed. Do not leave dead branches,
-  unreachable code, or functions that are never called.
+  unreachable code, or functions that are never called. If code is not
+  necessary for the current behavior, remove it.
 - Revert or disable problematic behavior quickly when it breaks users. It is
   better to remove a broken feature path than keep a complicated partial fix.
 - Preserve existing APIs, node names, model-loading behavior, file layout, and
@@ -85,6 +88,14 @@
   not change a shared method to return extra values, alternate shapes, or
   sentinel wrappers for one implementation unless the shared interface is
   explicitly updated.
+- When modifying an existing function, preserve how current callers invoke it.
+  Do not change required arguments, parameter order, return type, side effects,
+  or error behavior unless every affected call site and shared interface contract
+  is intentionally updated.
+- Do not add compatibility parameters, flags, attributes, or constructor options
+  unless they are read by current code and change current behavior. Remove
+  pass-through or stored-but-unused values instead of preserving upstream or
+  deprecated API baggage.
 - If an implementation needs auxiliary values for its own workflow, expose them
   through a private helper or a clearly named implementation-specific method
   instead of overloading the public method's return contract.
@@ -102,6 +113,11 @@
 - Do not add freeze, unfreeze, or trainability toggles to model classes. ComfyUI
   models are always treated as frozen for inference, so explicit freeze
   functionality is redundant and should not be added.
+- Remove training-only behavior such as dropout from inference model code, but
+  preserve checkpoint and state-dict compatibility when doing so. If deleting a
+  module would change state-dict keys, module ordering, or checkpoint loading
+  behavior, replace it with a no-op such as `nn.Identity` instead of removing the
+  slot outright.
 
 ## Python Style
 
@@ -111,6 +127,11 @@
 - Do not add unnecessary `try`/`except` blocks. Use them for optional dependency,
   platform, or backend capability detection only when the program has a useful
   fallback. Prefer specific exception types when changing new code.
+- Remove any workarounds for PyTorch versions that ComfyUI no longer officially
+  supports. Deprecated workarounds include catching an exception and rerunning
+  the same op with the input cast to float. If a workaround does not have a
+  comment naming the exact PyTorch version or versions that still need it,
+  remove it.
 - Let unsupported model formats, invalid quantization metadata, and bad states
   fail with clear errors instead of silently producing lower quality output.
 - Match the existing local style in the file you edit. This codebase tolerates
@@ -129,8 +150,101 @@
   adding parallel code paths. Use `comfy.quant_ops`, `comfy.model_management`,
   `comfy.memory_management`, `comfy.pinned_memory`, `comfy_aimdo`, and
   `comfy-kitchen` helpers where they already solve the problem.
+- Use optimized comfy-kitchen ops in places where they improve performance
+  without changing the expected dtype, device, memory, or interface behavior.
+- All models should use the optimized attention function selected by ComfyUI.
+  Treat optimized backend functions, dispatch helpers, and capability-selected
+  callables as opaque. Higher-level code must not inspect function identity,
+  names, modules, or implementation details to decide behavior.
+- Apply the same opacity rule to similar patterns beyond attention: callers
+  should depend on the documented interface and result contract, not on which
+  backend implementation was selected underneath.
+- Do not use custom inference ops that only duplicate an existing op while
+  upcasting to float32, such as custom RMSNorm variants. Use the generic ComfyUI
+  ops and/or native torch ops instead.
+- If a model class `__init__` has an `operations` parameter, assume
+  `operations` is never `None`. Do not add fallback branches or default torch
+  ops for a missing `operations` object.
+- Do not add unnecessary parameters to model, model block, or model ops related
+  classes. Constructor and forward signatures should carry only values that are
+  actually needed by that object for inference.
+- Reuse existing model classes, blocks, ops, and helper modules when appropriate.
+  Before implementing a new version of a model component, search the existing
+  model code for a class or helper that already provides the behavior.
+- Model detection code that inspects linear weight shapes should only use the
+  first dimension. The second dimension may be half the original size for
+  NVFP4 or other 4-bit quantized models.
+- Avoid adding `einops` usage in core inference code. Use native torch tensor
+  ops such as `reshape`, `view`, `permute`, `transpose`, `flatten`, `unflatten`,
+  `unsqueeze`, and `squeeze` instead.
+- Do not use tensors as general-purpose Python data structures. Keep metadata,
+  bookkeeping, counters, flags, shape math, padding math, index planning, memory
+  estimates, and control-flow decisions in plain Python values unless the data
+  must participate directly in tensor computation. Do not create tensors for
+  structural metadata that is only used for Python-side control flow. Sequence
+  lengths, cumulative offsets, split indices, window counts, slice boundaries,
+  and repeat counts should be kept as Python ints/lists from the point they are
+  computed. Do not build them as CPU/GPU tensors and then cast, move, validate,
+  or convert them back to Python for `split`, `tensor_split`, indexing plans,
+  loops, or cache keys. Avoid creating temporary tensors just to use tensor
+  methods for scalar or structural calculations.
 - Avoid unnecessary casts and transfers. Preserve the intended compute dtype,
   storage dtype, bias dtype, and original tensor shape metadata.
+- Keep model-native latent layout handling inside the model or latent-format
+  owner, not in helper nodes. Do not collapse, expand, pack, or unpack latent
+  dimensions in nodes or other caller-side adapters just to satisfy a model
+  forward; the model path should consume and return the native latent shape for
+  that model family.
+- Assume inputs to the main model forward are already in the compute dtype by
+  default, except integer inputs such as some model timestep tensors. Do not add
+  defensive or convenience casts in model code; it is better for invalid dtype
+  plumbing to error clearly than to hide it with unnecessary casts.
+- Raw model parameters that are not owned by an op and may be initialized in a
+  dtype different from the compute dtype should be cast at use in forward or
+  inference code with `comfy.ops.cast_to_input` or
+  `comfy.model_management.cast_to` to avoid dtype mismatches.
+- Model code should not care what dtype it is initialized in, and model
+  `__init__` methods should not contain workarounds for specific dtypes. Dtype
+  workaround code, such as making a model work with fp16 compute, belongs in the
+  execution or model-management layer that owns compute policy.
+- Model code should not perform unnecessary device-to-CPU or CPU-to-device
+  transfers. New allocations must be created on the correct device and dtype;
+  never allocate on CPU and then move to GPU, or allocate in one dtype and then
+  convert to another.
+- Model code itself should not perform memory management. Loading, unloading,
+  offloading, device movement, VRAM policy, cache lifetime, and cleanup belong
+  in the relevant model-management and execution layers, not inside model
+  implementations.
+- Do not add global, module-level, class-level, singleton, or model-owned stores
+  for tensors or other large memory that persist across executions. Temporary
+  caches must be scoped to a single execution or forward/encode/decode call:
+  allocate them in the owning top-level call, pass them explicitly through the
+  call stack, and let them be discarded when that call returns.
+- Follow the Wan VAE temporal cache pattern for temporary caches: create a local
+  cache such as `feat_map` for the encode/decode operation, pass it into the
+  blocks that need it, and do not retain it on the model or in global state.
+- In model init code, prefer `torch.empty` for parameter/buffer placeholders
+  that are populated from the model state dict instead of zero-initializing with
+  `torch.zeros` or similar. If an allocation is not loaded from the state dict
+  and is useless for inference, do not include it.
+- `nn.Parameter` tensors that are stored in and populated from the model state
+  dict should be initialized with `torch.empty`, not with zero, random, or
+  otherwise meaningful initialization.
+- Model initialization should describe module structure, not fabricate
+  checkpoint-owned tensor contents. Parameters and buffers that are loaded from
+  the state dict must not be manually initialized, reassigned, or filled with
+  fallback values unless that value is actually used when no checkpoint key
+  exists.
+- When slicing large tensors, copy the slice if the sliced tensor's lifetime
+  exceeds the current function scope. Do not keep a long-lived view into a large
+  backing tensor when a smaller copy would release memory sooner.
+- Use fused or compound torch operations such as `addcmul` when they naturally
+  match the math. Reducing Python and torch dispatch overhead is a valid
+  optimization when it does not obscure the code or change dtype/device
+  behavior.
+- Avoid caches that persist across different executions as much as possible.
+  Persistent caches are acceptable only when they use a very minimal amount of
+  memory and have a clear ownership and invalidation story.
 - When optimizing, favor small measurable changes: fewer allocations, fewer
   device transfers, less peak memory, better batching, or use of a faster
   existing backend op.
@@ -141,6 +255,20 @@
   `CATEGORY`, and registration through the local mapping used by that file.
 - Keep node changes backward compatible by default. Add inputs with sensible
   defaults and avoid changing output types unless the request requires it.
+- Model implementations should add the minimal number of ComfyUI nodes required
+  to run the model. Reuse existing nodes as much as possible; adapting the model
+  to work with existing nodes is strongly preferred over creating new nodes.
+- Nodes should output only values they own. Do not add pass-through outputs for
+  workflow convenience unless the node is explicitly an output node. Existing
+  models, latents, conditioning, or other inputs should flow directly to the
+  next consumer instead of being re-emitted unchanged.
+- Nodes should expose only inputs they actually read to produce current
+  behavior. Do not add placeholder, pass-through, compatibility, or
+  workflow-shaping inputs that are ignored or could flow directly to another
+  node.
+- Node-level code must not patch model code directly. Any node behavior that
+  modifies, wraps, hooks, or changes model behavior must go through the model
+  patcher class instead of reaching into model internals.
 - The official mascot of ComfyUI is a very cute anime girl with massive fennec
   ears, a big fluffy tail, long blonde wavy hair, and blue eyes. Feel free to
   use her in ComfyUI materials, UI text, examples, tests, generated assets, or
