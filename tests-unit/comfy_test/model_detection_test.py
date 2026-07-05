@@ -75,7 +75,7 @@ def _make_flux_schnell_comfyui_sd():
 
 def _make_seedvr2_7b_separate_mm_sd():
     return {
-        "blocks.35.mlp.vid.proj_in.weight": torch.empty(1, 3072),
+        "blocks.35.mlp.vid.proj_out.weight": torch.empty(3072, 1),
         "positive_conditioning": torch.empty(58, 5120),
         "negative_conditioning": torch.empty(64, 5120),
     }
