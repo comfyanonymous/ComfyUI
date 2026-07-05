@@ -171,6 +171,9 @@
 - Reuse existing model classes, blocks, ops, and helper modules when appropriate.
   Before implementing a new version of a model component, search the existing
   model code for a class or helper that already provides the behavior.
+- Model detection code that inspects linear weight shapes should only use the
+  first dimension. The second dimension may be half the original size for
+  NVFP4 or other 4-bit quantized models.
 - Avoid adding `einops` usage in core inference code. Use native torch tensor
   ops such as `reshape`, `view`, `permute`, `transpose`, `flatten`, `unflatten`,
   `unsqueeze`, and `squeeze` instead.
