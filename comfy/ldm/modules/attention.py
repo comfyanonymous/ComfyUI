@@ -643,9 +643,6 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 skip_output_reshape=skip_output_reshape,
                 **kwargs
             )
-        if kwargs.get("enable_gqa", False):
-            k, v = _repeat_kv_for_gqa(k, v, H, -3)
-        q_s, k_s, v_s = q, k, v
         N = q.shape[2]
         dim_head = D
     else:
@@ -671,7 +668,13 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 **kwargs
             )
 
-    if not skip_reshape:
+    if skip_reshape:
+        q_s = q
+        if kwargs.get("enable_gqa", False):
+            k_s, v_s = _repeat_kv_for_gqa(k, v, H, -3)
+        else:
+            k_s, v_s = k, v
+    else:
         q_s, k_s, v_s = _reshape_qkv_to_heads(q, k, v, B, heads, dim_head, kwargs.get("enable_gqa", False))
         q_s, k_s, v_s = map(lambda t: t.permute(0, 2, 1, 3).contiguous(), (q_s, k_s, v_s))
         B, H, L, D = q_s.shape
