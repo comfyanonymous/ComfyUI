@@ -939,13 +939,12 @@ class BaseGenerate:
         # Sampling mode
         if len(token_history) > 0 and (repetition_penalty != 1.0 or (presence_penalty is not None and presence_penalty != 0.0)):
             token_ids = torch.tensor(list(set(token_history)), device=logits.device)
-            for i in range(logits.shape[0]):
-                token_logits = logits[i, token_ids]
-                if repetition_penalty != 1.0:
-                    token_logits = torch.where(token_logits < 0, token_logits * repetition_penalty, token_logits / repetition_penalty)
-                if presence_penalty is not None and presence_penalty != 0.0:
-                    token_logits = token_logits - presence_penalty
-                logits[i, token_ids] = token_logits
+            token_logits = logits[:, token_ids]
+            if repetition_penalty != 1.0:
+                token_logits = torch.where(token_logits < 0, token_logits * repetition_penalty, token_logits / repetition_penalty)
+            if presence_penalty is not None and presence_penalty != 0.0:
+                token_logits = token_logits - presence_penalty
+            logits[:, token_ids] = token_logits
 
         if temperature != 1.0:
             logits = logits / temperature
