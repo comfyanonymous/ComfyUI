@@ -550,10 +550,8 @@ class Attention(nn.Module):
                 xv = xv[:, :, -sliding_window:]
                 attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
 
-        xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-        xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-
-        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
+        gqa_kwargs = {"enable_gqa": True} if self.num_heads != self.num_kv_heads else {}
+        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True, **gqa_kwargs)
         return self.o_proj(output), present_key_value
 
 class MLP(nn.Module):
