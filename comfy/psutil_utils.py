@@ -1,3 +1,5 @@
+"""Small wrappers around psutil memory queries with conservative fallbacks."""
+
 import logging
 import os
 from collections import namedtuple
@@ -9,6 +11,7 @@ _virtual_memory_warned = False
 
 
 def _fallback_total_memory():
+    """Return total system memory without using psutil, or 0 if unavailable."""
     try:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
     except (AttributeError, OSError, ValueError):
@@ -16,6 +19,7 @@ def _fallback_total_memory():
 
 
 def virtual_memory(default_total=None, default_available=None):
+    """Return psutil virtual memory, falling back to supplied values on RuntimeError."""
     global _virtual_memory_warned
     try:
         return psutil.virtual_memory()
@@ -30,8 +34,10 @@ def virtual_memory(default_total=None, default_available=None):
 
 
 def virtual_memory_available(default=None):
+    """Return available system memory, or default when psutil cannot report it."""
     return virtual_memory(default_available=default).available
 
 
 def virtual_memory_total(default=None):
+    """Return total system memory, or default when psutil cannot report it."""
     return virtual_memory(default_total=default).total
