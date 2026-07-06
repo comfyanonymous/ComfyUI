@@ -469,7 +469,7 @@ class CLIP:
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
 
     def is_dynamic(self):
-        return hasattr(self.patcher, "is_dynamic") and self.patcher.is_dynamic()
+        return self.patcher.is_dynamic()
 
 class VAE:
     def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
@@ -1255,7 +1255,7 @@ class VAE:
             return None
 
     def is_dynamic(self):
-        return hasattr(self.patcher, "is_dynamic") and self.patcher.is_dynamic()
+        return self.patcher.is_dynamic()
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
