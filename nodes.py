@@ -1662,8 +1662,9 @@ class SaveImage:
             },
         }
 
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("images",)
+    RETURN_TYPES = ("IMAGE","STRING", "STRING")
+    RETURN_NAMES = ("images","filenames", "subfolder")
+    OUTPUT_IS_LIST = (True, True, False)
     FUNCTION = "save_images"
 
     OUTPUT_NODE = True
@@ -1697,9 +1698,10 @@ class SaveImage:
                 "subfolder": subfolder,
                 "type": self.type
             })
+            filenames.append(file)            
             counter += 1
 
-        return { "ui": { "images": results }, "result" : (images,) }
+        return { "ui": { "images": results, "filenames": filenames, "subfolder": full_output_folder }, "result" : (images, filenames, full_output_folder) }
 
 class PreviewImage(SaveImage):
     def __init__(self):
