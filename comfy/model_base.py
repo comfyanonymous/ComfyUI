@@ -2267,42 +2267,11 @@ class QwenImage(BaseModel):
 
 class JoyImage(BaseModel):
     # The noise latent and every reference latent are concatenated as a token sequence inside the
-    # transformer. A single-reference edit is just the len(ref_latents) == 1 case. The built-in CFG
-    # guidance rescale is installed from here.
+    # transformer. A single-reference edit is just the len(ref_latents) == 1 case. The required CFG
+    # guidance rescale is applied by the JoyImageGuidanceRescale node (comfy_extras/nodes_joyimage.py).
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.joyimage.model.JoyImageTransformer3DModel)
         self.memory_usage_factor_conds = ("ref_latents",)
-
-    @staticmethod
-    def _guidance_rescale_cfg(args):
-        # CFG combine + per-row L2 rescale in eps-space (guidance rescale).
-        cond = args["cond"]
-        uncond = args["uncond"]
-        cond_scale = args["cond_scale"]
-        comb = uncond + cond_scale * (cond - uncond)
-        cond_norm = torch.norm(cond, dim=1, keepdim=True)
-        comb_norm = torch.norm(comb, dim=1, keepdim=True)
-        return comb * (cond_norm / comb_norm.clamp_min(1e-6))
-
-    def _ensure_guidance_rescale_installed(self):
-        # Self-install the hard-wired guidance rescale once the patcher binds (sd.py doesn't expose a hook
-        # for this; doing it here keeps the edit confined to model_base.py). Idempotent; refuses to install
-        # if a different sampler_cfg_function is already present (e.g. a CFGNorm node) so the user's
-        # override does not silently shadow JoyImage's required rescale.
-        patcher = self.current_patcher
-        if patcher is None:
-            return
-        existing = patcher.model_options.get("sampler_cfg_function", None)
-        if existing is JoyImage._guidance_rescale_cfg:
-            return
-        if existing is not None:
-            raise RuntimeError(
-                "JoyImage requires its built-in CFG guidance-rescale function "
-                "(comb * cond_norm / comb_norm); an external sampler_cfg_function "
-                "(e.g. CFGNorm) is already installed and would override it. "
-                "Remove the external function before sampling JoyImage."
-            )
-        patcher.set_model_sampler_cfg_function(JoyImage._guidance_rescale_cfg)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -2336,7 +2305,6 @@ class JoyImage(BaseModel):
         if c_concat is not None:
             raise ValueError("JoyImage does not support c_concat / noise_concat conditioning")
         transformer_options = transformer_options.copy()
-        self._ensure_guidance_rescale_installed()
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
         context = c_crossattn

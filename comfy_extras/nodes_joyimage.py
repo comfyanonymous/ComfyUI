@@ -1,5 +1,6 @@
 import node_helpers
 import comfy.utils
+import torch
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
@@ -144,12 +145,50 @@ class TextEncodeJoyImageEditPlus(io.ComfyNode):
         return io.NodeOutput(conditioning, resized_images[-1])
 
 
+class JoyImageGuidanceRescale(io.ComfyNode):
+    """CFG combine + per-token L2 norm rescale required by JoyImageEdit.
+
+    Wire this onto the model before sampling: JoyImageEdit's diffusers pipeline
+    rescales the combined noise prediction back to the conditional branch's norm
+    (comb * ||cond|| / ||comb||), the same rescale CFGNorm's pre_cfg branch does.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="JoyImageGuidanceRescale",
+            category="model/patch",
+            inputs=[
+                io.Model.Input("model"),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model) -> io.NodeOutput:
+        def guidance_rescale(args):
+            cond = args["cond"]
+            uncond = args["uncond"]
+            cond_scale = args["cond_scale"]
+            comb = uncond + cond_scale * (cond - uncond)
+            cond_norm = torch.norm(cond, dim=1, keepdim=True)
+            comb_norm = torch.norm(comb, dim=1, keepdim=True)
+            return comb * (cond_norm / comb_norm.clamp_min(1e-6))
+
+        m = model.clone()
+        m.set_model_sampler_cfg_function(guidance_rescale)
+        return io.NodeOutput(m)
+
+
 class JoyImageExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             TextEncodeJoyImageEdit,
             TextEncodeJoyImageEditPlus,
+            JoyImageGuidanceRescale,
         ]
 
 
