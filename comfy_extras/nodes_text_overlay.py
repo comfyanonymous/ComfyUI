@@ -23,22 +23,12 @@ class TextOverlay(IO.ComfyNode):
                 IO.Combo.Input("position", options=["top", "bottom"], default="top"),
                 IO.Combo.Input("align", options=["left", "center", "right"], default="left"),
                 IO.Boolean.Input("outline", default=True, tooltip="Draw a black outline around the text."),
-                IO.DynamicCombo.Input(
-                    "background",
-                    tooltip="Draw a banner behind the text to improve contrast.",
-                    options=[
-                        IO.DynamicCombo.Option("disabled", []),
-                        IO.DynamicCombo.Option("enabled", [
-                            IO.Color.Input("bg_color", default="#00000080", tooltip="Color of the banner drawn behind the text. The color's opacity controls the banner transparency."),
-                        ]),
-                    ],
-                ),
             ],
             outputs=[IO.Image.Output()],
         )
 
     @classmethod
-    def execute(cls, image, text, font_size, color, position, align, outline, background) -> IO.NodeOutput:
+    def execute(cls, image, text, font_size, color, position, align, outline) -> IO.NodeOutput:
         if text.strip() == "":
             return IO.NodeOutput(image)
 
@@ -47,17 +37,11 @@ class TextOverlay(IO.ComfyNode):
         text_rgba = cls.parse_color_to_rgba(color)
         outline_rgba = (0, 0, 0, 255) if outline else (0, 0, 0, 0)
 
-        # The background banner opacity is set by the color's alpha channel, 50% by default
-        if background["background"] == "enabled":
-            background_rgba = cls.parse_color_to_rgba(background["bg_color"])
-        else:
-            background_rgba = (0, 0, 0, 0)
-
         # Render the overlay once and composite it across all frames in the batch
         height = image.shape[1]
         width = image.shape[2]
         overlay_rgb, overlay_alpha = cls.render_overlay_text(width, height, text, position, align, font_size,
-                                                             text_rgba, outline_rgba, background_rgba)
+                                                             text_rgba, outline_rgba)
         overlay_rgb = overlay_rgb.to(device=image.device, dtype=image.dtype)
         overlay_alpha = overlay_alpha.to(device=image.device, dtype=image.dtype)
 
@@ -74,7 +58,7 @@ class TextOverlay(IO.ComfyNode):
         return parsed
 
     @classmethod
-    def render_overlay_text(cls, width, height, text, position, align, font_size, text_rgba, outline_rgba, background_rgba):
+    def render_overlay_text(cls, width, height, text, position, align, font_size, text_rgba, outline_rgba):
         line_spacing = 1.2
         margin_percent = 1.0
         min_font_percent = 2.0
@@ -110,14 +94,9 @@ class TextOverlay(IO.ComfyNode):
 
             size = max(floor, int(size * 0.9))
 
-        if background_rgba[3] > 0:
-            band = block_height + 2 * margin
-            rect = [0, height - band, width, height] if position == "bottom" else [0, 0, width, band]
-            draw.rectangle(rect, fill=background_rgba)
-
         anchor_h, x = {"left": ("l", margin), "center": ("m", width / 2), "right": ("r", width - margin)}[align]
 
-        # Offset y to better center text vertically within its defined band
+        # Offset y so the rendered text sits flush against the margin
         if position == "bottom":
             y = height - margin - box[3]
         else:
