@@ -12,16 +12,16 @@ class Asset(BaseModel):
     name: str = Field(
         ...,
         deprecated=True,
-        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `file_path` and `display_name` when present.",
+        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `loader_path` and `display_name` when present.",
     )
     hash: str | None = None
-    file_path: str | None = Field(
+    loader_path: str | None = Field(
         default=None,
-        description="Runtime storage locator for filesystem-backed assets, using Comfy storage namespaces such as `input/`, `output/`, `temp/`, or `models/`. Not an absolute filesystem path, unique identity, or model loader path.",
+        description="The value a loader consumes to load this asset. `None` when no loader can resolve the file.",
     )
     display_name: str | None = Field(
         default=None,
-        description="Human-facing label derived from `file_path`, usually the path below the top-level storage namespace. Not unique.",
+        description="Human-facing label for the asset. Not unique.",
     )
     asset_hash: str | None = None
     size: int | None = None

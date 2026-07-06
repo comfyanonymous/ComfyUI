@@ -39,7 +39,10 @@ from app.assets.services import (
     upload_from_temp_path,
 )
 from app.assets.services.cursor import InvalidCursorError
-from app.assets.services.path_utils import compute_asset_response_paths
+from app.assets.services.path_utils import (
+    compute_display_name,
+    compute_loader_path,
+)
 from app.assets.services.tagging import list_tag_histogram
 
 ROUTES = web.RouteTableDef()
@@ -162,16 +165,21 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
     else:
         preview_url = _build_preview_url_from_view(result.tags, result.ref.user_metadata)
     if result.ref.file_path:
-        paths = compute_asset_response_paths(result.ref.file_path)
-        file_path, display_name = paths if paths else (None, None)
+        display_name = compute_display_name(result.ref.file_path)
+        # In-root loader path (model category dropped): what model loaders consume.
+        # Persisted at scan/ingest; fall back to computing for rows written
+        # before the column existed.
+        loader_path = result.ref.loader_path
+        if loader_path is None:
+            loader_path = compute_loader_path(result.ref.file_path)
     else:
-        file_path, display_name = None, None
+        display_name, loader_path = None, None
     asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
         id=result.ref.id,
         name=result.ref.name,
         hash=asset_content_hash,
-        file_path=file_path,
+        loader_path=loader_path,
         display_name=display_name,
         asset_hash=asset_content_hash,
         size=int(result.asset.size_bytes) if result.asset else None,

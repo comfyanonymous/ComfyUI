@@ -56,6 +56,7 @@ class ReferenceRow(TypedDict):
     id: str
     asset_id: str
     file_path: str
+    loader_path: str | None
     mtime_ns: int
     owner_id: str
     name: str
@@ -172,6 +173,8 @@ def batch_insert_seed_assets(
                 "id": reference_id,
                 "asset_id": asset_id,
                 "file_path": absolute_path,
+                # spec["fname"] is compute_loader_path(abs_path) from build_asset_specs.
+                "loader_path": spec["fname"],
                 "mtime_ns": spec["mtime_ns"],
                 "owner_id": owner_id,
                 "name": spec["info_name"],

@@ -650,6 +650,7 @@ def upsert_reference(
     name: str,
     mtime_ns: int,
     owner_id: str = "",
+    loader_path: str | None = None,
 ) -> tuple[bool, bool]:
     """Upsert a reference by file_path. Returns (created, updated).
 
@@ -659,6 +660,7 @@ def upsert_reference(
     vals = {
         "asset_id": asset_id,
         "file_path": file_path,
+        "loader_path": loader_path,
         "name": name,
         "owner_id": owner_id,
         "mtime_ns": int(mtime_ns),

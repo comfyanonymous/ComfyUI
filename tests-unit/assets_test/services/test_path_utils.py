@@ -8,7 +8,8 @@ import pytest
 
 from app.assets.services.path_utils import (
     compute_display_name,
-    compute_file_path,
+    compute_loader_path,
+    compute_logical_path,
     get_asset_category_and_relative_path,
     get_known_input_subfolder_tags_from_path,
     get_known_subfolder_tags,
@@ -258,7 +259,7 @@ class TestResponseStoragePaths:
         f = sub / "image.png"
         f.touch()
 
-        assert compute_file_path(str(f)) == "input/some/folder/image.png"
+        assert compute_logical_path(str(f)) == "input/some/folder/image.png"
         assert compute_display_name(str(f)) == "some/folder/image.png"
 
     def test_output_file_path_and_display_name_include_subfolder(self, fake_dirs):
@@ -267,18 +268,18 @@ class TestResponseStoragePaths:
         f = sub / "ComfyUI_00001_.png"
         f.touch()
 
-        assert compute_file_path(str(f)) == "output/renders/ComfyUI_00001_.png"
+        assert compute_logical_path(str(f)) == "output/renders/ComfyUI_00001_.png"
         assert compute_display_name(str(f)) == "renders/ComfyUI_00001_.png"
 
     def test_temp_file_path_and_display_name(self, fake_dirs):
         f = fake_dirs["temp"] / "preview.png"
         f.touch()
 
-        assert compute_file_path(str(f)) == "temp/preview.png"
+        assert compute_logical_path(str(f)) == "temp/preview.png"
         assert compute_display_name(str(f)) == "preview.png"
 
     def test_exact_storage_root_has_no_display_name(self, fake_dirs):
-        assert compute_file_path(str(fake_dirs["input"])) == "input"
+        assert compute_logical_path(str(fake_dirs["input"])) == "input"
         assert compute_display_name(str(fake_dirs["input"])) is None
 
     def test_longest_matching_builtin_root_wins(self, fake_dirs, tmp_path: Path):
@@ -293,7 +294,7 @@ class TestResponseStoragePaths:
             mock_fp.get_temp_directory.return_value = str(tmp_path / "temp")
             mock_fp.models_dir = str(fake_dirs["models_root"])
 
-            assert compute_file_path(str(f)) == "output/image.png"
+            assert compute_logical_path(str(f)) == "output/image.png"
             assert compute_display_name(str(f)) == "image.png"
 
     def test_model_file_path_is_relative_to_physical_models_root(self, fake_dirs):
@@ -302,7 +303,7 @@ class TestResponseStoragePaths:
         f = sub / "model.safetensors"
         f.touch()
 
-        assert compute_file_path(str(f)) == "models/checkpoints/flux/model.safetensors"
+        assert compute_logical_path(str(f)) == "models/checkpoints/flux/model.safetensors"
         assert compute_display_name(str(f)) == "checkpoints/flux/model.safetensors"
 
         name, tags = get_name_and_tags_from_asset_path(str(f))
@@ -330,7 +331,7 @@ class TestResponseStoragePaths:
                 (folder_name, [str(default_model_dir), str(output_model_dir)], {".safetensors"})
             ],
         ):
-            assert compute_file_path(str(f)) == f"output/{folder_name}/saved.safetensors"
+            assert compute_logical_path(str(f)) == f"output/{folder_name}/saved.safetensors"
             assert compute_display_name(str(f)) == f"{folder_name}/saved.safetensors"
 
             name, tags = get_name_and_tags_from_asset_path(str(f))
@@ -353,7 +354,7 @@ class TestResponseStoragePaths:
             return_value=[(folder_name, [str(output_model_dir)], {".safetensors"})],
         ):
             assert (
-                compute_file_path(str(f))
+                compute_logical_path(str(f))
                 == "output/loras/experiments/my_lora.safetensors"
             )
             assert compute_display_name(str(f)) == "loras/experiments/my_lora.safetensors"
@@ -376,7 +377,7 @@ class TestResponseStoragePaths:
             "app.assets.services.path_utils.get_comfy_models_folders",
             return_value=[("checkpoints", [str(external_checkpoints_dir)], {".safetensors"})],
         ):
-            assert compute_file_path(str(f)) is None
+            assert compute_logical_path(str(f)) is None
             assert compute_display_name(str(f)) is None
 
             name, tags = get_name_and_tags_from_asset_path(str(f))
@@ -400,8 +401,8 @@ class TestResponseStoragePaths:
             "app.assets.services.path_utils.get_comfy_models_folders",
             return_value=[("checkpoints", [str(foo_dir), str(bar_dir)], {".safetensors"})],
         ):
-            assert compute_file_path(str(foo_file)) is None
-            assert compute_file_path(str(bar_file)) is None
+            assert compute_logical_path(str(foo_file)) is None
+            assert compute_logical_path(str(bar_file)) is None
             assert compute_display_name(str(foo_file)) is None
             assert compute_display_name(str(bar_file)) is None
 
@@ -415,7 +416,7 @@ class TestResponseStoragePaths:
             "app.assets.services.path_utils.get_comfy_models_folders",
             return_value=[("text_encoders", [str(output_clip_dir)], {".safetensors"})],
         ):
-            assert compute_file_path(str(f)) == "output/clip/clip_l.safetensors"
+            assert compute_logical_path(str(f)) == "output/clip/clip_l.safetensors"
             assert compute_display_name(str(f)) == "clip/clip_l.safetensors"
 
             name, tags = get_name_and_tags_from_asset_path(str(f))
@@ -439,7 +440,7 @@ class TestResponseStoragePaths:
                 ("diffusion_models", [str(unet_dir), str(diffusion_models_dir)], {".safetensors"})
             ],
         ):
-            assert compute_file_path(str(f)) == "models/unet/wan.safetensors"
+            assert compute_logical_path(str(f)) == "models/unet/wan.safetensors"
             assert compute_display_name(str(f)) == "unet/wan.safetensors"
 
             name, tags = get_name_and_tags_from_asset_path(str(f))
@@ -453,7 +454,7 @@ class TestResponseStoragePaths:
         f.parent.mkdir()
         f.touch()
 
-        assert compute_file_path(str(f)) == "models/not_registered/orphan.bin"
+        assert compute_logical_path(str(f)) == "models/not_registered/orphan.bin"
         assert compute_display_name(str(f)) == "not_registered/orphan.bin"
 
     def test_output_checkpoint_folder_without_registration_has_only_output_tag(self, fake_dirs):
@@ -465,7 +466,7 @@ class TestResponseStoragePaths:
             "app.assets.services.path_utils.get_comfy_models_folders",
             return_value=[],
         ):
-            assert compute_file_path(str(f)) == "output/checkpoints/saved.safetensors"
+            assert compute_logical_path(str(f)) == "output/checkpoints/saved.safetensors"
             assert compute_display_name(str(f)) == "checkpoints/saved.safetensors"
 
             name, tags = get_name_and_tags_from_asset_path(str(f))
@@ -475,8 +476,55 @@ class TestResponseStoragePaths:
             assert not any(tag.startswith("model_type:") for tag in tags)
 
     def test_unknown_path_returns_none(self):
-        assert compute_file_path("/some/random/path.png") is None
+        assert compute_logical_path("/some/random/path.png") is None
         assert compute_display_name("/some/random/path.png") is None
+
+
+class TestLoaderPath:
+    """In-root loader path: relative to the storage root, model category dropped."""
+
+    def test_model_loader_path_drops_category(self, fake_dirs):
+        sub = fake_dirs["models"] / "flux"
+        sub.mkdir()
+        f = sub / "model.safetensors"
+        f.touch()
+
+        # logical_path keeps the category, file_path (loader) drops it
+        assert compute_logical_path(str(f)) == "models/checkpoints/flux/model.safetensors"
+        assert compute_loader_path(str(f)) == "flux/model.safetensors"
+
+    def test_model_loader_path_flat_file(self, fake_dirs):
+        f = fake_dirs["models"] / "model.safetensors"
+        f.touch()
+
+        assert compute_loader_path(str(f)) == "model.safetensors"
+
+    def test_input_loader_path_keeps_subfolders(self, fake_dirs):
+        sub = fake_dirs["input"] / "some" / "folder"
+        sub.mkdir(parents=True)
+        f = sub / "image.png"
+        f.touch()
+
+        assert compute_loader_path(str(f)) == "some/folder/image.png"
+
+    def test_temp_loader_path(self, fake_dirs):
+        f = fake_dirs["temp"] / "preview.png"
+        f.touch()
+
+        assert compute_loader_path(str(f)) == "preview.png"
+
+    def test_unregistered_file_under_models_root_has_no_loader_path(self, fake_dirs):
+        # Under models_root but not within any registered category base.
+        f = fake_dirs["models_root"] / "not_registered" / "orphan.bin"
+        f.parent.mkdir()
+        f.touch()
+
+        # It still has a namespaced logical_path, but no loader path.
+        assert compute_logical_path(str(f)) == "models/not_registered/orphan.bin"
+        assert compute_loader_path(str(f)) is None
+
+    def test_unknown_path_returns_none(self):
+        assert compute_loader_path("/some/random/path.png") is None
 
 
 class TestResolveDestinationFromTags:

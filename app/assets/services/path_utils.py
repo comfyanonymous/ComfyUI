@@ -84,11 +84,14 @@ def _is_relative_to(child: str, parent: str) -> bool:
 
 
 def compute_asset_response_paths(file_path: str) -> tuple[str, str | None] | None:
-    """Return public (file_path, display_name) response fields for a file path.
+    """Return (logical_path, display_name) for a file path.
 
-    These fields are storage locators, not model-loader namespaces. Registered
-    model-folder membership is represented by backend tags such as
-    ``model_type:<folder_name>``; response paths only use known storage roots.
+    ``logical_path`` is the internal namespaced storage locator (e.g.
+    ``models/checkpoints/foo/bar.safetensors``); ``display_name`` is the
+    human-facing label below that namespace, served on Asset responses. These
+    are storage locators, not model-loader namespaces. Registered model-folder
+    membership is represented by backend tags such as
+    ``model_type:<folder_name>``; these paths only use known storage roots.
     """
     fp_abs = os.path.abspath(file_path)
     candidates: list[tuple[int, int, str, str]] = []
@@ -122,23 +125,26 @@ def compute_display_name(file_path: str) -> str | None:
     return result[1] if result else None
 
 
-def compute_file_path(file_path: str) -> str | None:
-    """Return the asset's logical storage `file_path`, or None for unknown paths."""
+def compute_logical_path(file_path: str) -> str | None:
+    """Return the internal namespaced storage locator, or None for unknown paths."""
     result = compute_asset_response_paths(file_path)
     return result[0] if result else None
 
 
-def compute_relative_filename(file_path: str) -> str | None:
+def compute_loader_path(file_path: str) -> str | None:
     """
-    Return the model's path relative to the last well-known folder (the model category),
-    using forward slashes, eg:
+    Return the asset's in-root loader path: the path relative to the last
+    well-known folder (the model category), using forward slashes, eg:
       /.../models/checkpoints/flux/123/flux.safetensors -> "flux/123/flux.safetensors"
       /.../models/text_encoders/clip_g.safetensors -> "clip_g.safetensors"
 
-    This is legacy metadata/view filename logic, not the public Asset response
-    `display_name`. Response fields should use compute_asset_response_paths().
+    This is the value model loaders consume (the model category is dropped). It
+    is persisted as ``AssetReference.loader_path`` and served as the public
+    Asset response `loader_path` field. The human-facing `display_name` comes
+    from compute_asset_response_paths().
 
-    For non-model paths, returns None.
+    For input/output/temp paths the full path relative to that root is returned.
+    For paths outside any known root, returns None.
     """
     try:
         root_category, rel_path = get_asset_category_and_relative_path(file_path)

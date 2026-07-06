@@ -191,6 +191,8 @@ class TestBatchInsertSeedAssets:
         refs = session.query(AssetReference).all()
         assert len(refs) == 1
         assert refs[0].file_path == absolute_path
+        # loader_path is persisted from the spec's fname (compute_loader_path).
+        assert refs[0].loader_path == "same-file.safetensors"
         assert set(get_reference_tags(session, reference_id=refs[0].id)) == {
             "models",
             "model_type:checkpoints",

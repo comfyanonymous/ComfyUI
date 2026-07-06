@@ -11,12 +11,12 @@ components:
                     description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
                     type: string
-                file_path:
-                    description: Runtime storage locator for filesystem-backed assets, using Comfy storage namespaces such as `input/`, `output/`, `temp/`, or `models/`. Not an absolute filesystem path, unique identity, or model loader path.
+                loader_path:
+                    description: The value a loader consumes to load this asset. Null when no loader can resolve the file.
                     nullable: true
                     type: string
                 display_name:
-                    description: Human-facing label derived from `file_path`, usually the path below the top-level storage namespace. Not unique.
+                    description: Human-facing label for the asset. Not unique.
                     nullable: true
                     type: string
                 id:
