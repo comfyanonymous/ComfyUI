@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import logging
 import math
@@ -20,6 +21,10 @@ from comfy_api_nodes.apis.bytedance import (
     GetAssetResponse,
     Image2VideoTaskCreationRequest,
     ImageTaskCreationResponse,
+    SeedAudioConfig,
+    SeedAudioReference,
+    SeedAudioRequest,
+    SeedAudioResponse,
     Seedance2TaskCreationRequest,
     SeedanceCreateAssetRequest,
     SeedanceCreateAssetResponse,
@@ -43,6 +48,8 @@ from comfy_api_nodes.apis.bytedance import (
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
+    audio_bytes_to_audio_input,
+    audio_input_to_mp3,
     download_url_to_image_tensor,
     download_url_to_video_output,
     downscale_image_tensor_by_max_side,
@@ -51,11 +58,14 @@ from comfy_api_nodes.util import (
     image_tensor_pair_to_batch,
     poll_op,
     sync_op,
+    tensor_to_base64_string,
     upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
+    upscale_image_tensor_to_min_pixels,
     upscale_video_to_min_pixels,
+    validate_audio_duration,
     validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_string,
@@ -2474,6 +2484,311 @@ class ByteDanceCreateVideoAsset(IO.ComfyNode):
         return IO.NodeOutput(asset_id, resolved_group)
 
 
+MODE_TEXT = "text only"
+MODE_AUDIO = "audio reference"
+MODE_IMAGE = "image reference"
+MODE_SPEAKER = "preset voice"
+
+# (speaker_id, display_label) for built-in TTS 2.0 voices; resolvable ids are account-scoped.
+SEED_AUDIO_PRESET_VOICES: list[tuple[str, str]] = [
+    ("zh_female_vv_uranus_bigtts", "Vivi (Female, multilingual)"),
+    ("zh_female_xiaohe_uranus_bigtts", "Mindy (Female, multilingual)"),
+    ("en_female_stokie_uranus_bigtts", "Stokie (Female, English)"),
+    ("en_female_dacey_uranus_bigtts", "Dacey (Female, English)"),
+    ("en_male_tim_uranus_bigtts", "Tim (Male, English)"),
+    ("zh_male_m191_uranus_bigtts", "Kian (Male, multilingual)"),
+    ("zh_male_taocheng_uranus_bigtts", "Cedric (Male, multilingual)"),
+    ("zh_male_sophie_uranus_bigtts", "Sophie (Female, multilingual)"),
+    ("zh_female_yingyujiaoxue_uranus_bigtts", "Jean (Female, multilingual)"),
+    ("zh_male_dayi_uranus_bigtts", "Magnus (Male, multilingual)"),
+    ("zh_female_mizai_uranus_bigtts", "Mabel (Female, multilingual)"),
+    ("zh_female_jitangnv_uranus_bigtts", "Nadia (Female, multilingual)"),
+    ("zh_female_meilinvyou_uranus_bigtts", "Opal (Female, multilingual)"),
+    ("zh_female_liuchangnv_uranus_bigtts", "Pearl (Female, multilingual)"),
+    ("zh_male_ruyayichen_uranus_bigtts", "Quentin (Male, multilingual)"),
+    ("zh_female_vivo_uranus_bigtts", "Vienna (Female, multilingual)"),
+    ("zh_female_xiaoai_uranus_bigtts", "Alina (Female, multilingual)"),
+    ("zh_female_cancan_uranus_bigtts", "Corinne (Female, multilingual)"),
+    ("zh_female_tianmeixiaoyuan_uranus_bigtts", "Esther (Female, multilingual)"),
+    ("zh_female_tianmeitaozi_uranus_bigtts", "Freya (Female, multilingual)"),
+    ("zh_female_shuangkuaisisi_uranus_bigtts", "Gigi (Female, multilingual)"),
+    ("zh_female_peiqi_uranus_bigtts", "Holly (Female, multilingual)"),
+    ("zh_female_xiaoxue_uranus_bigtts", "Lyla (Female, multilingual)"),
+    ("zh_female_yuanqi_uranus_bigtts", "Daisy (Female, multilingual)"),
+    ("zh_female_kefunvsheng_uranus_bigtts", "Tracy (Female, multilingual)"),
+    ("zh_male_shaonianzixin_uranus_bigtts", "Jess (Male, multilingual)"),
+    ("zh_female_linjianvhai_uranus_bigtts", "Pinky (Female, multilingual)"),
+    ("zh_female_kiwi_uranus_bigtts", "Sweety (Female, multilingual)"),
+    ("zh_female_sajiaoxuemei_uranus_bigtts", "Sandy (Female, multilingual)"),
+    ("de_male_seven_uranus_bigtts", "Sven (Male, German)"),
+    ("jp_female_minimi_uranus_bigtts", "Minimi (Female, Japanese)"),
+    ("fr_male_usseau_uranus_bigtts", "Usseau (Male, French)"),
+    ("es_male_felipe_uranus_bigtts", "Felipe (Male, Spanish)"),
+    ("id_male_han_uranus_bigtts", "Han (Male, Indonesian)"),
+    ("pt_male_martins_uranus_bigtts", "Martins (Male, Portuguese)"),
+    ("it_male_enzo_uranus_bigtts", "Enzo (Male, Italian)"),
+    ("kr_male_shane_uranus_bigtts", "Shane (Male, Korean)"),
+    ("zh_male_liufei_uranus_bigtts", "Felix (Male, Chinese)"),
+    ("zh_female_qingxinnvsheng_uranus_bigtts", "Celeste (Female, Chinese)"),
+    ("zh_male_sunwukong_uranus_bigtts", "Monkey King (Male, Chinese)"),
+]
+SEED_AUDIO_VOICE_OPTIONS = [label for _, label in SEED_AUDIO_PRESET_VOICES]
+SEED_AUDIO_VOICE_MAP = {label: speaker_id for speaker_id, label in SEED_AUDIO_PRESET_VOICES}
+
+_AUDIO_TAG_RE = re.compile(r"@Audio(\d+)", re.IGNORECASE)
+
+
+def max_audio_tag(prompt: str) -> int:
+    """Highest N referenced as @AudioN in the prompt (0 if none)."""
+    nums = [int(m) for m in _AUDIO_TAG_RE.findall(prompt or "")]
+    return max(nums) if nums else 0
+
+
+def connected_audio_indices(reference_mode: dict) -> list[int]:
+    """Indices (1-based) of connected reference_audio sockets, in order."""
+    return [
+        i
+        for i in range(1, 3 + 1)
+        if reference_mode.get(f"reference_audio_{i}") is not None
+    ]
+
+
+def validate_seed_audio_inputs(
+    text_prompt: str,
+    mode: str,
+    audio_indices: list[int],
+    has_image: bool,
+    preset_voice: str | None = None,
+) -> None:
+    validate_string(text_prompt, field_name="text_prompt", min_length=1, max_length=3000)
+    max_tag = max_audio_tag(text_prompt)
+
+    if mode == MODE_TEXT:
+        if max_tag:
+            raise ValueError(
+                f"The prompt references @Audio{max_tag}, but reference mode is '{MODE_TEXT}'. "
+                f"Switch to '{MODE_AUDIO}' and connect the reference clip(s)."
+            )
+    elif mode == MODE_AUDIO:
+        if not audio_indices:
+            raise ValueError(
+                f"Reference mode '{MODE_AUDIO}' requires at least one reference_audio input "
+                f"(or switch to '{MODE_TEXT}')."
+            )
+        if audio_indices != list(range(1, len(audio_indices) + 1)):
+            raise ValueError(
+                "Connect reference_audio inputs in order without gaps: reference_audio_1, then _2, then _3."
+            )
+        if max_tag > len(audio_indices):
+            raise ValueError(
+                f"The prompt references @Audio{max_tag}, but only {len(audio_indices)} "
+                f"reference audio(s) are connected."
+            )
+    elif mode == MODE_IMAGE:
+        if not has_image:
+            raise ValueError(f"Reference mode '{MODE_IMAGE}' requires a reference_image input.")
+        if max_tag:
+            raise ValueError(
+                f"@AudioN tags are not used in '{MODE_IMAGE}' mode; the prompt should contain "
+                f"only the text to synthesize."
+            )
+    elif mode == MODE_SPEAKER:
+        if not preset_voice or preset_voice not in SEED_AUDIO_VOICE_MAP:
+            raise ValueError(f"Reference mode '{MODE_SPEAKER}' requires selecting a preset voice.")
+        if max_tag > 1:
+            raise ValueError(
+                f"'{MODE_SPEAKER}' mode uses a single voice, so @Audio{max_tag} is out of range. "
+                f"Remove the @AudioN tags — the whole prompt is read in the selected voice."
+            )
+    else:
+        raise ValueError(f"Unknown reference mode: {mode!r}")
+
+
+class ByteDanceSeedAudioNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ByteDanceSeedAudio",
+            display_name="ByteDance Seed Audio 1.0",
+            category="partner/audio/ByteDance",
+            description=(
+                "Generate speech, music, sound effects and multi-speaker dialogue from a single prompt "
+                "with ByteDance Seed Audio 1.0. Describe the voice(s), emotion, ambience, background music "
+                "and sound effects in the prompt, and include the lines to speak. Optionally pick a built-in "
+                "preset voice, clone voices from up to 3 reference clips (tagged @Audio1-3 in the prompt), "
+                "or derive a voice from a character image. Up to 2 minutes of audio per run."
+            ),
+            inputs=[
+                IO.String.Input(
+                    "text_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip=(
+                        "Describe the voice(s), emotion, pacing, ambience, background music and sound "
+                        "effects, and include the lines to speak (name characters inline for dialogue). "
+                        "In 'audio reference' mode, refer to connected clips by order as @Audio1, @Audio2, "
+                        "@Audio3. Maximum 3000 characters."
+                    ),
+                ),
+                IO.DynamicCombo.Input(
+                    "reference_mode",
+                    options=[
+                        IO.DynamicCombo.Option(MODE_TEXT, []),
+                        IO.DynamicCombo.Option(
+                            MODE_AUDIO,
+                            [
+                                IO.Audio.Input(
+                                    "reference_audio_1",
+                                    optional=True,
+                                    tooltip="Reference clip for voice cloning, tagged @Audio1 in the prompt. "
+                                    "Up to 30s.",
+                                ),
+                                IO.Audio.Input(
+                                    "reference_audio_2",
+                                    optional=True,
+                                    tooltip="Reference clip tagged @Audio2 in the prompt. Up to 30s.",
+                                ),
+                                IO.Audio.Input(
+                                    "reference_audio_3",
+                                    optional=True,
+                                    tooltip="Reference clip tagged @Audio3 in the prompt. Up to 30s.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            MODE_IMAGE,
+                            [
+                                IO.Image.Input(
+                                    "reference_image",
+                                    optional=True,
+                                    tooltip="A single character image; the model derives a voice from it. "
+                                    "Cannot be combined with reference audio.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            MODE_SPEAKER,
+                            [
+                                IO.Combo.Input(
+                                    "preset_voice",
+                                    options=SEED_AUDIO_VOICE_OPTIONS,
+                                    default=SEED_AUDIO_VOICE_OPTIONS[0],
+                                    tooltip="A built-in TTS 2.0 voice that reads the prompt. No reference "
+                                    "clip needed, and @AudioN tags are not used in this mode.",
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip=(
+                        "How to condition the voice: 'text only' (describe everything in the prompt), "
+                        "'audio reference' (clone up to 3 voices, tagged @Audio1-3), 'image reference' "
+                        "(derive a voice from one character image), or 'preset voice' (pick a built-in "
+                        "named voice that reads the prompt)."
+                    ),
+                ),
+                IO.Combo.Input(
+                    "sample_rate",
+                    options=["8000", "16000", "24000", "32000", "44100", "48000"],
+                    default="24000",
+                    tooltip="Output sample rate in Hz.",
+                ),
+                IO.Int.Input(
+                    "speech_rate",
+                    default=0,
+                    min=-50,
+                    max=100,
+                    tooltip="Speaking speed. 0 = normal, 100 = 2.0x, -50 = 0.5x.",
+                ),
+                IO.Int.Input(
+                    "loudness_rate",
+                    default=0,
+                    min=-50,
+                    max=100,
+                    tooltip="Loudness. 0 = normal, 100 = 2.0x, -50 = 0.5x.",
+                ),
+                IO.Int.Input(
+                    "pitch_rate",
+                    default=0,
+                    min=-12,
+                    max=12,
+                    tooltip="Pitch shift in semitones (-12 to 12).",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[IO.Audio.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd": 0.2145, "format":{"suffix":"/minute","approximate":true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        text_prompt: str,
+        reference_mode: dict,
+        sample_rate: str,
+        speech_rate: int,
+        loudness_rate: int,
+        pitch_rate: int,
+        seed: int,
+    ) -> IO.NodeOutput:
+        mode = reference_mode["reference_mode"]
+        audio_indices = connected_audio_indices(reference_mode)
+        image = reference_mode.get("reference_image")
+        preset_voice = reference_mode.get("preset_voice")
+        validate_seed_audio_inputs(text_prompt, mode, audio_indices, image is not None, preset_voice)
+
+        references: list[SeedAudioReference] | None = None
+        if mode == MODE_AUDIO:
+            references = []
+            for i in audio_indices:
+                clip = reference_mode[f"reference_audio_{i}"]
+                validate_audio_duration(clip, max_duration=30.0)
+                mp3_bytes = audio_input_to_mp3(clip).getvalue()
+                references.append(SeedAudioReference(audio_data=base64.b64encode(mp3_bytes).decode("utf-8")))
+        elif mode == MODE_IMAGE:
+            image = upscale_image_tensor_to_min_pixels(image, 160_000)
+            references = [SeedAudioReference(image_data=tensor_to_base64_string(image, mime_type="image/png"))]
+        elif mode == MODE_SPEAKER:
+            references = [SeedAudioReference(speaker=SEED_AUDIO_VOICE_MAP[preset_voice])]
+
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/byteplus/api/v3/tts/create", method="POST"),
+            response_model=SeedAudioResponse,
+            data=SeedAudioRequest(
+                text_prompt=text_prompt,
+                references=references,
+                audio_config=SeedAudioConfig(
+                    sample_rate=int(sample_rate),
+                    speech_rate=speech_rate,
+                    loudness_rate=loudness_rate,
+                    pitch_rate=pitch_rate,
+                ),
+            ),
+        )
+        if not response.audio:
+            raise Exception(
+                f"Seed Audio returned no audio (code={response.code}): {response.message}"
+            )
+        return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response.audio)))
+
+
 class ByteDanceExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -2490,6 +2805,7 @@ class ByteDanceExtension(ComfyExtension):
             ByteDance2ReferenceNode,
             ByteDanceCreateImageAsset,
             ByteDanceCreateVideoAsset,
+            ByteDanceSeedAudioNode,
         ]
 
 
