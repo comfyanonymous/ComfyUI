@@ -5,8 +5,8 @@ import os
 import av
 import io
 from fractions import Fraction
-from comfy_api.input_impl.video_types import VideoFromFile, VideoFromComponents
-from comfy_api.util.video_types import VideoComponents
+from comfy_api.input_impl.video_types import VideoFromFile, VideoFromComponents, get_open_write_kwargs
+from comfy_api.util.video_types import VideoComponents, VideoContainer
 from comfy_api.input.basic_types import AudioInput
 from av.error import InvalidDataError
 
@@ -237,3 +237,26 @@ def test_duration_consistency(video_components):
     manual_duration = float(components.images.shape[0] / components.frame_rate)
 
     assert duration == pytest.approx(manual_duration)
+
+
+def test_open_write_kwargs_keep_movflags_container_scoped():
+    """movflags must not leak into stream codec options such as AAC."""
+    kwargs = get_open_write_kwargs("out.mp4", "mp4", VideoContainer.AUTO)
+
+    assert kwargs["container_options"] == {"movflags": "use_metadata_tags"}
+    assert "options" not in kwargs
+
+
+def test_open_write_kwargs_sets_buffer_format():
+    """BytesIO outputs still get an explicit container format."""
+    kwargs = get_open_write_kwargs(io.BytesIO(), "mov,mp4,m4a,3gp,3g2,mj2", VideoContainer.AUTO)
+
+    assert kwargs["format"] == "mov"
+    assert kwargs["container_options"] == {"movflags": "use_metadata_tags"}
+    assert "options" not in kwargs
+
+
+def test_open_write_kwargs_honors_explicit_container_format():
+    kwargs = get_open_write_kwargs(io.BytesIO(), "mov,mp4,m4a,3gp,3g2,mj2", VideoContainer.MP4)
+
+    assert kwargs["format"] == "mp4"
