@@ -12,20 +12,6 @@ from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention
 
 
-class FP32LayerNorm(nn.Module):
-    def __init__(self, normalized_shape, eps: float = 1e-6):
-        super().__init__()
-        if isinstance(normalized_shape, int):
-            normalized_shape = (normalized_shape,)
-        self.normalized_shape = tuple(normalized_shape)
-        self.eps = eps
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        orig_dtype = x.dtype
-        out = F.layer_norm(x.float(), self.normalized_shape, None, None, self.eps)
-        return out.to(orig_dtype)
-
-
 def _apply_rotary_emb(
     xq: torch.Tensor,
     xk: torch.Tensor,
@@ -186,13 +172,13 @@ class JoyImageTransformerBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_width_ratio)
 
         self.img_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device)
-        self.img_norm1 = FP32LayerNorm(dim, eps=eps)
-        self.img_norm2 = FP32LayerNorm(dim, eps=eps)
+        self.img_norm1 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
+        self.img_norm2 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
         self.img_mlp = JoyImageFeedForward(dim, inner_dim=mlp_hidden_dim, dtype=dtype, device=device, operations=operations)
 
         self.txt_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device)
-        self.txt_norm1 = FP32LayerNorm(dim, eps=eps)
-        self.txt_norm2 = FP32LayerNorm(dim, eps=eps)
+        self.txt_norm1 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
+        self.txt_norm2 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
         self.txt_mlp = JoyImageFeedForward(dim, inner_dim=mlp_hidden_dim, dtype=dtype, device=device, operations=operations)
 
         self.attn = JoyImageAttention(
@@ -366,7 +352,7 @@ class JoyImageTransformer3DModel(nn.Module):
             for _ in range(num_layers)
         ])
 
-        self.norm_out = FP32LayerNorm(hidden_size, eps=1e-6)
+        self.norm_out = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
         self.proj_out = operations.Linear(
             hidden_size,
             self.out_channels * math.prod(self.patch_size),
