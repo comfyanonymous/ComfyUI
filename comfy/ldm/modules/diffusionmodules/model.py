@@ -10,8 +10,8 @@ import comfy.ops
 ops = comfy.ops.disable_weight_init
 
 if model_management.xformers_enabled_vae():
-    import xformers
-    import xformers.ops
+    # xFormers's fmha module is now provided by MSLK
+    import mslk.attention.fmha
 
 def torch_cat_if_needed(xl, dim):
     xl = [x for x in xl if x is not None and x.shape[dim] > 0]
@@ -295,7 +295,8 @@ def xformers_attention(q, k, v):
     )
 
     try:
-        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
+        # xFormers's fmha module is now provided by MSLK
+        out = mslk.attention.fmha.memory_efficient_attention(q, k, v, attn_bias=None)
         out = out.transpose(1, 2).reshape(orig_shape)
     except NotImplementedError:
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(orig_shape)

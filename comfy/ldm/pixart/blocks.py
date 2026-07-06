@@ -10,11 +10,9 @@ from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, Mlp, time
 from comfy.ldm.modules.attention import optimized_attention
 
 # if model_management.xformers_enabled():
-#     import xformers.ops
-#     if int((xformers.__version__).split(".")[2].split("+")[0]) >= 28:
-#         block_diagonal_mask_from_seqlens = xformers.ops.fmha.attn_bias.BlockDiagonalMask.from_seqlens
-#     else:
-#         block_diagonal_mask_from_seqlens = xformers.ops.fmha.BlockDiagonalMask.from_seqlens
+#     # xFormers's fmha module is now provided by MSLK
+#     import mslk.attention.fmha
+#     block_diagonal_mask_from_seqlens = mslk.attention.fmha.attn_bias.BlockDiagonalMask.from_seqlens
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
@@ -51,7 +49,8 @@ class MultiHeadCrossAttention(nn.Module):
         #     attn_bias = None
         #     if mask is not None:
         #         attn_bias = block_diagonal_mask_from_seqlens([N] * B, mask)
-        #     x = xformers.ops.memory_efficient_attention(q, k, v, p=0, attn_bias=attn_bias)
+        #     # xFormers's fmha module is now provided by MSLK
+        #     x = mslk.attention.fmha.memory_efficient_attention(q, k, v, p=0, attn_bias=attn_bias)
         # else:
         #     q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v),)
         #     attn_mask = None

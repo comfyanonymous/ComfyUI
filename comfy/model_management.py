@@ -399,20 +399,13 @@ if args.disable_xformers:
     XFORMERS_IS_AVAILABLE = False
 else:
     try:
-        import xformers
-        import xformers.ops
+        # xFormers's fmha module is now provided by MSLK
+        import mslk
+        import mslk.attention.fmha
         XFORMERS_IS_AVAILABLE = True
         try:
-            XFORMERS_IS_AVAILABLE = xformers._has_cpp_library
-        except:
-            pass
-        try:
-            XFORMERS_VERSION = xformers.version.__version__
+            XFORMERS_VERSION = mslk.__version__
             logging.info("xformers version: {}".format(XFORMERS_VERSION))
-            if XFORMERS_VERSION.startswith("0.0.18"):
-                logging.warning("\nWARNING: This version of xformers has a major bug where you will get black images when generating high resolution images.")
-                logging.warning("Please downgrade or upgrade xformers to a different version.\n")
-                XFORMERS_ENABLED_VAE = False
         except:
             pass
     except:

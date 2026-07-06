@@ -17,8 +17,9 @@ from comfy import model_management
 TORCH_HAS_GQA = model_management.torch_version_numeric >= (2, 5)
 
 if model_management.xformers_enabled():
-    import xformers
-    import xformers.ops
+    # xFormers's fmha module is now provided by MSLK
+    import mslk
+    import mslk.attention.fmha
 
 SAGE_ATTENTION_IS_AVAILABLE = False
 try:
@@ -415,12 +416,6 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     return r1
 
 BROKEN_XFORMERS = False
-try:
-    x_vers = xformers.__version__
-    # XFormers bug confirmed on all versions from 0.0.21 to 0.0.26 (q with bs bigger than 65535 gives CUDA error)
-    BROKEN_XFORMERS = x_vers.startswith("0.0.2") and not x_vers.startswith("0.0.20")
-except:
-    pass
 
 @wrap_attn
 def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
@@ -474,7 +469,8 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
         mask = mask_out[..., :mask.shape[-1]]
         mask = mask.expand(b, heads, -1, -1)
 
-    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
+    # xFormers's fmha module is now provided by MSLK
+    out = mslk.attention.fmha.memory_efficient_attention(q, k, v, attn_bias=mask)
 
     if skip_output_reshape:
         out = out.permute(0, 2, 1, 3)
