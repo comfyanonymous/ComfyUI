@@ -2335,6 +2335,7 @@ class JoyImage(BaseModel):
         # component and concatenates them along the sequence dim. References may be any resolution.
         if c_concat is not None:
             raise ValueError("JoyImage does not support c_concat / noise_concat conditioning")
+        transformer_options = transformer_options.copy()
         self._ensure_guidance_rescale_installed()
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)

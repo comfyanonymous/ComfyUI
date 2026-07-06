@@ -1362,7 +1362,6 @@ class TEModel(Enum):
     GPT_OSS_20B = 33
     QWEN3VL_4B = 34
     QWEN3VL_8B = 35
-    QWEN3VL_8B_JOYIMAGE = 36
 
 
 def detect_te_model(sd):
@@ -1424,8 +1423,6 @@ def detect_te_model(sd):
         if weight.shape[0] == 5120:
             return TEModel.QWEN35_27B
         return TEModel.QWEN35_2B
-    if "model.language_model.layers.0.self_attn.q_norm.weight" in sd and "model.visual.patch_embed.proj.weight" in sd:
-        return TEModel.QWEN3VL_8B_JOYIMAGE
     if "model.visual.deepstack_merger_list.0.norm.weight" in sd:  # DeepStack is unique to Qwen3-VL
         return TEModel.QWEN3VL_4B if sd["model.visual.merger.linear_fc2.weight"].shape[0] == 2560 else TEModel.QWEN3VL_8B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
@@ -1639,6 +1636,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.krea2.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.krea2.Krea2Tokenizer
+            elif clip_type == CLIPType.JOYIMAGE and te_model == TEModel.QWEN3VL_8B:  # JoyImageEdit: full Qwen3-VL-8B, edit-conditioning template + drop_idx.
+                clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
+                clip_target.clip = comfy.text_encoders.joyimage.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.joyimage.JoyImageTokenizer
             elif clip_type in (CLIPType.FLUX, CLIPType.FLUX2):  # Flux2 Klein reuses the Qwen3-VL LM (3-layer tap -> 12288); visual unused.
                 klein_model_type = "qwen3_8b" if te_model == TEModel.QWEN3VL_8B else "qwen3_4b"
                 clip_target.clip = comfy.text_encoders.flux.klein_te(**llama_detect(clip_data), model_type=klein_model_type)
@@ -1648,12 +1649,6 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 qwen3vl_type = {TEModel.QWEN3VL_4B: "qwen3vl_4b", TEModel.QWEN3VL_8B: "qwen3vl_8b"}[te_model]
                 clip_target.clip = comfy.text_encoders.qwen3vl.te(**llama_detect(clip_data), model_type=qwen3vl_type)
                 clip_target.tokenizer = comfy.text_encoders.qwen3vl.tokenizer(model_type=qwen3vl_type)
-        elif te_model == TEModel.QWEN3VL_8B_JOYIMAGE:
-            # Remap the HF Qwen3VLForConditionalGeneration layout to the Qwen3VL
-            # namespace (model.*, visual.*, model.lm_head.*).
-            clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
-            clip_target.clip = comfy.text_encoders.joyimage.te(**llama_detect(clip_data))
-            clip_target.tokenizer = comfy.text_encoders.joyimage.JoyImageTokenizer
         elif te_model == TEModel.QWEN3_06B:
             clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.anima.AnimaTokenizer
