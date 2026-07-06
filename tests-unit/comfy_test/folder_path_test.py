@@ -163,3 +163,35 @@ def test_base_path_change_clears_old(set_base_dir):
 
     for name in ["controlnet", "diffusion_models", "text_encoders"]:
         assert len(folder_paths.get_folder_paths(name)) == 2
+
+
+class TestIsPathWithinDirectory:
+    """Tests for folder_paths.is_path_within_directory."""
+
+    def test_path_inside_directory(self, temp_dir):
+        inner = os.path.join(temp_dir, "sub", "file.txt")
+        assert folder_paths.is_path_within_directory(inner, temp_dir) is True
+
+    def test_path_is_directory_itself(self, temp_dir):
+        assert folder_paths.is_path_within_directory(temp_dir, temp_dir) is True
+
+    def test_path_outside_directory(self, temp_dir):
+        outside = os.path.join(temp_dir, "..", "other")
+        assert folder_paths.is_path_within_directory(outside, temp_dir) is False
+
+    def test_sibling_directory(self, temp_dir):
+        sibling = os.path.join(os.path.dirname(temp_dir), "sibling")
+        assert folder_paths.is_path_within_directory(sibling, temp_dir) is False
+
+    def test_parent_not_within_child(self, temp_dir):
+        parent = os.path.dirname(temp_dir)
+        assert folder_paths.is_path_within_directory(parent, temp_dir) is False
+
+    def test_different_drives_returns_false(self):
+        """Simulate the Windows cross-drive scenario (issue #1488).
+
+        On non-Windows systems os.path.commonpath won't raise ValueError
+        for these paths, so we mock it to verify the except-branch.
+        """
+        with patch("folder_paths.os.path.commonpath", side_effect=ValueError("Paths don't have the same drive")):
+            assert folder_paths.is_path_within_directory("D:\\data\\img.png", "C:\\ComfyUI\\output") is False

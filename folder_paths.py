@@ -9,6 +9,30 @@ from comfy.cli_args import args
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
+
+def is_path_within_directory(path: str, directory: str) -> bool:
+    """Check whether 'path' is located inside 'directory'.
+
+    This is a safe replacement for the pattern::
+
+        os.path.commonpath((directory, path)) == directory
+
+    which raises ``ValueError`` on Windows when the two paths reside on
+    different drives (e.g. ``C:\\`` vs ``D:\\``).  When the drives differ the
+    path is clearly **not** inside the directory, so we return ``False``
+    instead of letting the exception propagate.
+
+    Both arguments are normalised with ``os.path.abspath`` before comparison.
+    """
+    try:
+        return os.path.commonpath((os.path.abspath(path), os.path.abspath(directory))) == os.path.abspath(directory)
+    except ValueError:
+        # On Windows, commonpath raises ValueError when paths are on
+        # different drives.  Different drives means the path is not
+        # within the directory.
+        return False
+
+
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
 # --base-directory - Resets all default paths configured in folder_paths with a new base path
@@ -526,11 +550,10 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
 
     full_output_folder = os.path.join(output_dir, subfolder)
 
-    if os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) != output_dir:
+    if not is_path_within_directory(full_output_folder, output_dir):
         err = "**** ERROR: Saving image outside the output folder is not allowed." + \
               "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
-              "\n         output_dir: " + output_dir + \
-              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))
+              "\n         output_dir: " + output_dir
         logging.error(err)
         raise Exception(err)
 

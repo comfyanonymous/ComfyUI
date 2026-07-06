@@ -425,7 +425,10 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
         try:
             if os.path.commonpath((embed_dir, embed_path)) != embed_dir:
                 continue
-        except:
+        except ValueError:
+            # On Windows, commonpath raises ValueError when paths are
+            # on different drives.  The embedding is clearly not inside
+            # this directory, so skip it.
             continue
         if not os.path.isfile(embed_path):
             extensions = ['.safetensors', '.pt', '.bin']
