@@ -29,7 +29,7 @@ class TextOverlay(IO.ComfyNode):
                     options=[
                         IO.DynamicCombo.Option("disabled", []),
                         IO.DynamicCombo.Option("enabled", [
-                            IO.Color.Input("background_color", default="#00000080", tooltip="Color of the banner drawn behind the text. The color's opacity controls the banner transparency."),
+                            IO.Color.Input("bg_color", default="#00000080", tooltip="Color of the banner drawn behind the text. The color's opacity controls the banner transparency."),
                         ]),
                     ],
                 ),
@@ -49,7 +49,7 @@ class TextOverlay(IO.ComfyNode):
 
         # The background banner opacity is set by the color's alpha channel, 50% by default
         if background["background"] == "enabled":
-            background_rgba = cls.parse_color_to_rgba(background["background_color"])
+            background_rgba = cls.parse_color_to_rgba(background["bg_color"])
         else:
             background_rgba = (0, 0, 0, 0)
 
