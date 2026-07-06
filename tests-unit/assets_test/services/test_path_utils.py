@@ -523,6 +523,32 @@ class TestLoaderPath:
         assert compute_logical_path(str(f)) == "models/not_registered/orphan.bin"
         assert compute_loader_path(str(f)) is None
 
+    def test_extra_path_model_has_loader_path_but_no_logical_path(self, tmp_path: Path):
+        """Registered category base outside models_dir (extra_model_paths style).
+
+        Loadable, so loader_path resolves; but it is not under any canonical
+        storage root, so logical_path/display_name are None. This asymmetry is
+        intentional: loader_path resolves every registered model-folder base,
+        logical_path only resolves the canonical storage roots.
+        """
+        extra = tmp_path / "extra_ckpts"
+        extra.mkdir()
+        f = extra / "foo.safetensors"
+        f.touch()
+
+        with patch("app.assets.services.path_utils.folder_paths") as mock_fp, patch(
+            "app.assets.services.path_utils.get_comfy_models_folders",
+            return_value=[("checkpoints", [str(extra)], {".safetensors"})],
+        ):
+            mock_fp.get_input_directory.return_value = str(tmp_path / "in")
+            mock_fp.get_output_directory.return_value = str(tmp_path / "out")
+            mock_fp.get_temp_directory.return_value = str(tmp_path / "tmp")
+            mock_fp.models_dir = str(tmp_path / "models")  # extra is NOT under this
+
+            assert compute_loader_path(str(f)) == "foo.safetensors"
+            assert compute_logical_path(str(f)) is None
+            assert compute_display_name(str(f)) is None
+
     def test_unknown_path_returns_none(self):
         assert compute_loader_path("/some/random/path.png") is None
 

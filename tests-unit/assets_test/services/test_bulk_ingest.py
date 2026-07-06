@@ -253,6 +253,36 @@ class TestBatchInsertSeedAssets:
             "model_type:diffusion_models",
         }
 
+    def test_loader_path_persisted_as_null_when_fname_is_none(
+        self, session: Session, temp_dir: Path
+    ):
+        """A file with no in-root loader path (fname=None, e.g. an orphan under
+        models_root) persists loader_path as NULL rather than a synthesized value."""
+        file_path = temp_dir / "orphan.bin"
+        file_path.write_bytes(b"x")
+
+        specs: list[SeedAssetSpec] = [
+            {
+                "abs_path": str(file_path),
+                "size_bytes": 1,
+                "mtime_ns": 1234567890000000000,
+                "info_name": "orphan.bin",
+                "tags": [],
+                "fname": None,
+                "metadata": None,
+                "hash": None,
+                "mime_type": None,
+            }
+        ]
+
+        result = batch_insert_seed_assets(session, specs=specs, owner_id="")
+
+        assert result.inserted_refs == 1
+        refs = session.query(AssetReference).all()
+        assert len(refs) == 1
+        assert refs[0].file_path == str(file_path)
+        assert refs[0].loader_path is None
+
 
 class TestMetadataExtraction:
     def test_extracts_mime_type_for_model_files(self, temp_dir: Path):
