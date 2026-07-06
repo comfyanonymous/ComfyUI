@@ -4,13 +4,10 @@ JoyImage-specific prompt templates, system-prompt strip, image preprocessing,
 and conditioning-path multimodal handling.
 """
 
-import math
-from typing import List, Optional
-
 import torch
-import torch.nn.functional as F
 
 from comfy import sd1_clip
+import comfy.text_encoders.qwen_vl
 from comfy.text_encoders.qwen3vl import Qwen3VL, Qwen3VLTokenizer
 
 # Prompt templates for the text-only and image-conditioned modes. The image-conditioned template
@@ -43,82 +40,6 @@ IMAGE_PAD_TOKEN = 151655
 PAD_TOKEN = 151643
 
 
-# ---------------------------------------------------------------------------
-# Image preprocessing
-# ---------------------------------------------------------------------------
-
-def process_qwen3vl_image(
-    image: torch.Tensor,
-    min_pixels: int = 65536,
-    max_pixels: int = 16777216,
-    patch_size: int = 16,
-    temporal_patch_size: int = 2,
-    merge_size: int = 2,
-    image_mean: Optional[List[float]] = None,
-    image_std: Optional[List[float]] = None,
-):
-    """Resize, normalize and patch-flatten a single (B=1, H, W, C) image tensor in [0, 1].
-
-    Returns ``(flatten_patches, grid_thw)`` ready for the Qwen3-VL vision tower.
-    Uses bicubic interpolation followed by ``clamp(0, 1)``.
-    """
-    if image_mean is None:
-        image_mean = [0.5, 0.5, 0.5]
-    if image_std is None:
-        image_std = [0.5, 0.5, 0.5]
-
-    if image.dim() == 3:
-        image = image.unsqueeze(0)
-    batch, height, width, channels = image.shape
-    if batch != 1:
-        raise ValueError("process_qwen3vl_image expects one image (B=1) at a time.")
-    device = image.device
-
-    image = image.permute(0, 3, 1, 2)  # (1, C, H, W)
-    img = image[0]
-
-    factor = patch_size * merge_size
-    h_bar = round(height / factor) * factor
-    w_bar = round(width / factor) * factor
-    if h_bar * w_bar > max_pixels:
-        beta = math.sqrt((height * width) / max_pixels)
-        h_bar = max(factor, math.floor(height / beta / factor) * factor)
-        w_bar = max(factor, math.floor(width / beta / factor) * factor)
-    elif h_bar * w_bar < min_pixels:
-        beta = math.sqrt(min_pixels / (height * width))
-        h_bar = math.ceil(height * beta / factor) * factor
-        w_bar = math.ceil(width * beta / factor) * factor
-
-    img_resized = F.interpolate(
-        img.unsqueeze(0), size=(h_bar, w_bar), mode="bicubic", align_corners=False,
-    ).squeeze(0).clamp(0.0, 1.0)
-
-    normalized = img_resized.clone()
-    for c in range(3):
-        normalized[c] = (img_resized[c] - image_mean[c]) / image_std[c]
-
-    grid_h = h_bar // patch_size
-    grid_w = w_bar // patch_size
-    grid_thw = torch.tensor([[1, grid_h, grid_w]], device=device, dtype=torch.long)
-
-    # Single-frame inputs are duplicated along T to fill the 2-frame temporal
-    # patch kernel; matches Qwen2VLImageProcessorFast for static images.
-    pixel_values = normalized.unsqueeze(0).repeat(temporal_patch_size, 1, 1, 1)
-    grid_t = 1
-    channel = pixel_values.shape[1]
-    patches = pixel_values.reshape(
-        grid_t, temporal_patch_size, channel,
-        grid_h // merge_size, merge_size, patch_size,
-        grid_w // merge_size, merge_size, patch_size,
-    )
-    patches = patches.permute(0, 3, 6, 4, 7, 2, 1, 5, 8)
-    flatten_patches = patches.reshape(
-        grid_t * grid_h * grid_w,
-        channel * temporal_patch_size * patch_size * patch_size,
-    )
-    return flatten_patches, grid_thw
-
-
 class Qwen3VL8B_JoyImage(Qwen3VL):
     """JoyImage Qwen3-VL-8B encoder.
 
@@ -133,8 +54,10 @@ class Qwen3VL8B_JoyImage(Qwen3VL):
         # Run the vision tower with JoyImage's bicubic+clamp preprocessing and
         # return ``(merged, {"grid", "deepstack"})``.
         if embed["type"] == "image":
-            image, grid = process_qwen3vl_image(
-                embed["data"], patch_size=16, image_mean=[0.5, 0.5, 0.5], image_std=[0.5, 0.5, 0.5],
+            image, grid = comfy.text_encoders.qwen_vl.process_qwen2vl_images(
+                embed["data"], min_pixels=65536, max_pixels=16777216, patch_size=16,
+                image_mean=[0.5, 0.5, 0.5], image_std=[0.5, 0.5, 0.5],
+                interpolation="bicubic", clamp=True,
             )
             merged, deepstack = self.visual(image.to(device, dtype=torch.float32), grid)
             return merged, {"grid": grid, "deepstack": deepstack}
