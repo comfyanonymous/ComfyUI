@@ -163,3 +163,30 @@ def test_base_path_change_clears_old(set_base_dir):
 
     for name in ["controlnet", "diffusion_models", "text_encoders"]:
         assert len(folder_paths.get_folder_paths(name)) == 2
+
+
+def test_get_full_path_or_raise_includes_search_paths(clear_folder_paths, temp_dir):
+    first_dir = os.path.join(temp_dir, "first")
+    second_dir = os.path.join(temp_dir, "second")
+    folder_paths.add_model_folder_path("test_folder", first_dir, is_default=True)
+    folder_paths.add_model_folder_path("test_folder", second_dir, is_default=False)
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        folder_paths.get_full_path_or_raise("test_folder", "missing_model.safetensors")
+
+    message = str(exc_info.value)
+    assert "Model in folder 'test_folder'" in message
+    assert "missing_model.safetensors" in message
+    assert "Searched in:" in message
+    assert first_dir in message
+    assert second_dir in message
+
+
+def test_get_full_path_or_raise_mentions_legacy_mapping(clear_folder_paths):
+    with pytest.raises(FileNotFoundError) as exc_info:
+        folder_paths.get_full_path_or_raise("clip", "missing_encoder.safetensors")
+
+    message = str(exc_info.value)
+    assert "Model in folder 'clip' (mapped to 'text_encoders')" in message
+    assert os.path.join(folder_paths.models_dir, "text_encoders") in message
+    assert os.path.join(folder_paths.models_dir, "clip") in message

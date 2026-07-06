@@ -439,9 +439,19 @@ def get_full_path_or_raise(folder_name: str, filename: str) -> str:
     """
     Get the full path of a file in a folder, has to be a file
     """
-    full_path = get_full_path(folder_name, filename)
+    canonical_folder_name = map_legacy(folder_name)
+    full_path = get_full_path(canonical_folder_name, filename)
     if full_path is None:
-        raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
+        search_paths = folder_names_and_paths.get(canonical_folder_name, ([], set()))[0]
+        mapped_note = f" (mapped to '{canonical_folder_name}')" if canonical_folder_name != folder_name else ""
+        if search_paths:
+            raise FileNotFoundError(
+                f"Model in folder '{folder_name}'{mapped_note} with filename '{filename}' not found. "
+                f"Searched in: {', '.join(search_paths)}"
+            )
+        raise FileNotFoundError(
+            f"Model in folder '{folder_name}'{mapped_note} with filename '{filename}' not found and no search paths are registered."
+        )
     return full_path
 
 
