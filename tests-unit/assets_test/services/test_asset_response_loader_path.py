@@ -1,8 +1,8 @@
 """Tests for how _build_asset_response derives the response `loader_path`.
 
 Guards the persist-and-read contract: the response reads the stored
-`loader_path` directly, and only recomputes when the column is NULL (rows
-written before the column existed).
+`loader_path` verbatim, with no read-time recomputation; stored values are
+kept correct by the startup reconciliation sweep instead.
 """
 
 from datetime import datetime
@@ -48,8 +48,9 @@ def test_uses_persisted_loader_path_without_recomputing():
     assert resp.loader_path == "SENTINEL/stored.safetensors"
 
 
-def test_falls_back_to_compute_when_stored_loader_path_is_null(tmp_path: Path):
-    """A NULL column (pre-migration row) is backfilled at read time."""
+def test_null_stored_loader_path_is_served_as_null(tmp_path: Path):
+    """No read-time recomputation: a NULL column is served as null even when
+    the path would resolve; the startup sweep owns correctness."""
     models = tmp_path / "models"
     ckpt = models / "checkpoints"
     ckpt.mkdir(parents=True)
@@ -68,7 +69,7 @@ def test_falls_back_to_compute_when_stored_loader_path_is_null(tmp_path: Path):
         result = _make_result(file_path=str(f), loader_path=None)
         resp = _build_asset_response(result)
 
-        assert resp.loader_path == "bar.safetensors"
+        assert resp.loader_path is None
         assert resp.display_name == "checkpoints/bar.safetensors"
 
 

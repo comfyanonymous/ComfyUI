@@ -17,6 +17,7 @@ from app.assets.scanner import (
     enrich_assets_batch,
     get_all_known_prefixes,
     get_prefixes_for_root,
+    reconcile_loader_paths,
     get_unenriched_assets_for_roots,
     insert_asset_specs,
     mark_missing_outside_prefixes_safely,
@@ -578,6 +579,15 @@ class _AssetSeeder:
                         "total": total_paths,
                     },
                 )
+
+                # loader_path is registry-dependent and the registry only
+                # changes across restarts; reconcile stored values once per
+                # scan so responses can read the column verbatim.
+                reconciled = reconcile_loader_paths()
+                if reconciled:
+                    logging.info(
+                        "Reconciled loader_path on %d asset references", reconciled
+                    )
 
             # Phase 2: Enrichment scan (metadata + hashes)
             if phase in (ScanPhase.ENRICH, ScanPhase.FULL):

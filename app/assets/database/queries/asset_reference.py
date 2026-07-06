@@ -1076,3 +1076,34 @@ def get_reference_ids_by_ids(
         )
         found.update(result.scalars().all())
     return found
+
+
+def get_reference_loader_path_rows(
+    session: Session,
+) -> list[tuple[str, str, str | None]]:
+    """Return (id, file_path, loader_path) for all filesystem-backed references."""
+    rows = session.execute(
+        select(
+            AssetReference.id,
+            AssetReference.file_path,
+            AssetReference.loader_path,
+        ).where(AssetReference.file_path.is_not(None))
+    ).all()
+    return [(row[0], row[1], row[2]) for row in rows]
+
+
+def bulk_update_loader_paths(
+    session: Session,
+    updates: list[dict],
+) -> int:
+    """Bulk-update loader_path by primary key.
+
+    Each dict must carry ``id`` and the new ``loader_path`` (which may be None).
+
+    Returns: Number of rows updated
+    """
+    if not updates:
+        return 0
+    for chunk in iter_chunks(updates, MAX_BIND_PARAMS):
+        session.execute(sa.update(AssetReference), chunk)
+    return len(updates)

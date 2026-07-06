@@ -7,6 +7,7 @@ import folder_paths
 from app.assets.database.queries import (
     add_missing_tag_for_asset_id,
     bulk_update_enrichment_level,
+    bulk_update_loader_paths,
     bulk_update_is_missing,
     bulk_update_needs_verify,
     delete_orphaned_seed_asset,
@@ -14,6 +15,7 @@ from app.assets.database.queries import (
     ensure_tags_exist,
     get_asset_by_hash,
     get_reference_by_id,
+    get_reference_loader_path_rows,
     get_references_for_prefixes,
     get_unenriched_references,
     mark_references_missing_outside_prefixes,
@@ -359,6 +361,31 @@ def insert_asset_specs(specs: list[SeedAssetSpec], tag_pool: set[str]) -> int:
         result = batch_insert_seed_assets(sess, specs=specs, owner_id="")
         sess.commit()
         return result.inserted_refs
+
+
+
+def reconcile_loader_paths() -> int:
+    """Recompute ``loader_path`` for every filesystem-backed reference.
+
+    ``loader_path`` is a pure function of the absolute path and the model
+    folder registry, and the registry only changes across restarts (custom
+    node loads, extra_model_paths parsing). Reconciling once per scan keeps
+    stored values correct for rows written before the column existed and for
+    registry changes (a bucket appearing, disappearing, or moving) without
+    any read-time recomputation.
+
+    Returns: Number of rows whose loader_path changed.
+    """
+    with create_session() as session:
+        rows = get_reference_loader_path_rows(session)
+        updates = []
+        for ref_id, file_path, stored in rows:
+            computed = compute_loader_path(file_path)
+            if computed != stored:
+                updates.append({"id": ref_id, "loader_path": computed})
+        updated = bulk_update_loader_paths(session, updates)
+        session.commit()
+    return updated
 
 
 # Enrichment level constants
