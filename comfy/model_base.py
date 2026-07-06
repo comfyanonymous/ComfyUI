@@ -2340,7 +2340,7 @@ class JoyImage(BaseModel):
                 raise ValueError(
                     "JoyImageEdit: each reference latent must be 5D (B,C,T,H,W); got shape {}.".format(tuple(r.shape))
                 )
-            refs.append(r.to(device=device, dtype=dtype))
+            refs.append(r)
 
         if control is not None:
             raise ValueError("JoyImageEdit: control (ControlNet) is not supported by the transformer.")

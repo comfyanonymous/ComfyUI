@@ -6,13 +6,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import comfy.ops
 import comfy.patcher_extension
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention
 
 
 class FP32LayerNorm(nn.Module):
-    def __init__(self, normalized_shape, eps: float = 1e-6, dtype=None, device=None):
+    def __init__(self, normalized_shape, eps: float = 1e-6):
         super().__init__()
         if isinstance(normalized_shape, int):
             normalized_shape = (normalized_shape,)
@@ -32,8 +33,8 @@ def _apply_rotary_emb(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     ndim = xq.ndim
     shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(xq.shape)]
-    cos = freqs_cis[0].view(*shape).to(xq.device)
-    sin = freqs_cis[1].view(*shape).to(xq.device)
+    cos = freqs_cis[0].view(*shape)
+    sin = freqs_cis[1].view(*shape)
 
     def _rotate_half(x):
         x_real, x_imag = x.float().reshape(*x.shape[:-1], -1, 2).unbind(-1)
@@ -45,17 +46,17 @@ def _apply_rotary_emb(
 
 
 class JoyImageModulate(nn.Module):
-    def __init__(self, hidden_size: int, factor: int, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, factor: int, dtype=None, device=None):
         super().__init__()
         self.factor = factor
         self.modulate_table = nn.Parameter(
-            torch.zeros(1, factor, hidden_size, dtype=dtype, device=device)
+            torch.empty(1, factor, hidden_size, dtype=dtype, device=device)
         )
 
     def forward(self, x: torch.Tensor) -> list:
         if x.ndim != 3:
             x = x.unsqueeze(1)
-        table = self.modulate_table.to(dtype=x.dtype, device=x.device)
+        table = comfy.ops.cast_to_input(self.modulate_table, x)
         return [o.squeeze(1) for o in (table + x).chunk(self.factor, dim=1)]
 
 
@@ -71,7 +72,7 @@ class JoyImageFeedForward(nn.Module):
         super().__init__()
         self.net = nn.ModuleList([
             _GeluApproximate(dim, inner_dim, dtype=dtype, device=device, operations=operations),
-            nn.Dropout(0.0),
+            nn.Identity(),
             operations.Linear(inner_dim, dim, bias=True, dtype=dtype, device=device),
         ])
 
@@ -184,14 +185,14 @@ class JoyImageTransformerBlock(nn.Module):
         self.attention_head_dim = attention_head_dim
         mlp_hidden_dim = int(dim * mlp_width_ratio)
 
-        self.img_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device, operations=operations)
-        self.img_norm1 = FP32LayerNorm(dim, eps=eps, dtype=dtype, device=device)
-        self.img_norm2 = FP32LayerNorm(dim, eps=eps, dtype=dtype, device=device)
+        self.img_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device)
+        self.img_norm1 = FP32LayerNorm(dim, eps=eps)
+        self.img_norm2 = FP32LayerNorm(dim, eps=eps)
         self.img_mlp = JoyImageFeedForward(dim, inner_dim=mlp_hidden_dim, dtype=dtype, device=device, operations=operations)
 
-        self.txt_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device, operations=operations)
-        self.txt_norm1 = FP32LayerNorm(dim, eps=eps, dtype=dtype, device=device)
-        self.txt_norm2 = FP32LayerNorm(dim, eps=eps, dtype=dtype, device=device)
+        self.txt_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device)
+        self.txt_norm1 = FP32LayerNorm(dim, eps=eps)
+        self.txt_norm2 = FP32LayerNorm(dim, eps=eps)
         self.txt_mlp = JoyImageFeedForward(dim, inner_dim=mlp_hidden_dim, dtype=dtype, device=device, operations=operations)
 
         self.attn = JoyImageAttention(
@@ -365,7 +366,7 @@ class JoyImageTransformer3DModel(nn.Module):
             for _ in range(num_layers)
         ])
 
-        self.norm_out = FP32LayerNorm(hidden_size, eps=1e-6, dtype=dtype, device=device)
+        self.norm_out = FP32LayerNorm(hidden_size, eps=1e-6)
         self.proj_out = operations.Linear(
             hidden_size,
             self.out_channels * math.prod(self.patch_size),
@@ -496,8 +497,7 @@ class JoyImageTransformer3DModel(nn.Module):
         img = torch.cat(img_tokens, dim=1)
 
         _, vec, txt = self.condition_embedder(timestep, encoder_hidden_states)
-        if vec.shape[-1] > self.hidden_size:
-            vec = vec.unflatten(1, (6, -1))
+        vec = vec.unflatten(1, (6, -1))
 
         vis_cos, vis_sin = self.get_rotary_pos_embed_for_components(
             component_sizes,
