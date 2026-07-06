@@ -74,6 +74,8 @@ class TextEncodeJoyImageEdit(io.ComfyNode):
         ref_latent = vae.encode(resized_image)
         conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=True)
 
+        # Return the bucketed image so VAEEncode can build a matching-size init latent;
+        # the bucket size isn't reproducible outside this node.
         return io.NodeOutput(conditioning, resized_image)
 
 
@@ -140,8 +142,8 @@ class TextEncodeJoyImageEditPlus(io.ComfyNode):
             conditioning, {"reference_latents": ref_latents}, append=True,
         )
 
-        # The last reference sets the target resolution; return it for VAEEncode and the
-        # matching negative encode.
+        # The last reference sets the target resolution; return it for VAEEncode
+        # since the bucket size isn't reproducible outside this node.
         return io.NodeOutput(conditioning, resized_images[-1])
 
 
