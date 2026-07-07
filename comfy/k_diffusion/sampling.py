@@ -1355,7 +1355,7 @@ def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback
             h = t_next - t
             s = t + r * h
             x_2 = (sigma_fn(s) / sigma_fn(t)) * x - (-h * r).expm1() * uncond_denoised
-            denoised_2 = model(x_2, sigma_fn(s) * s_in, **extra_args)
+            _ = model(x_2, sigma_fn(s) * s_in, **extra_args)
             uncond_denoised_2 = uncond_denoised
             x = (sigma_fn(t_next) / sigma_fn(t)) * x - (-h).expm1() * uncond_denoised_2
         # Noise addition
@@ -1417,7 +1417,7 @@ def sample_dpmpp_2s_ancestral_RF_cfg_pp(model, x, sigmas, extra_args=None, callb
             # sigma_s = sigmas[i+1]
             sigma_s_i_ratio = sigma_s / sigmas[i]
             u = sigma_s_i_ratio * x + (1 - sigma_s_i_ratio) * uncond_denoised
-            D_i = model(u, sigma_s * s_in, **extra_args)
+            _ = model(u, sigma_s * s_in, **extra_args)
             uncond_D_i = uncond_denoised
             sigma_down_i_ratio = sigma_down / sigmas[i]
             x = sigma_down_i_ratio * x + (1 - sigma_down_i_ratio) * uncond_D_i
