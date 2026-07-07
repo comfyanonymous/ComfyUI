@@ -16,7 +16,7 @@ class TextOverlay(IO.ComfyNode):
             description="Draw text overlay on an image or batch of images.",
             search_aliases=["text", "label", "caption", "subtitle", "watermark", "title", "addlabel", "overlay"],
             inputs=[
-                IO.Image.Input("image"),
+                IO.Image.Input("images"),
                 IO.String.Input("text", multiline=True, default=""),
                 IO.Float.Input("font_size", default=5.0, min=0.5, max=50.0, step=0.5, tooltip="Font size as a percentage of the image height."),
                 IO.Color.Input("color", default="#ffffff", tooltip="Color of the text."),
@@ -24,13 +24,13 @@ class TextOverlay(IO.ComfyNode):
                 IO.Combo.Input("align", options=["left", "center", "right"], default="left"),
                 IO.Boolean.Input("outline", default=True, tooltip="Draw a black outline around the text."),
             ],
-            outputs=[IO.Image.Output()],
+            outputs=[IO.Image.Output(display_name="images")],
         )
 
     @classmethod
-    def execute(cls, image, text, font_size, color, position, align, outline) -> IO.NodeOutput:
+    def execute(cls, images, text, font_size, color, position, align, outline) -> IO.NodeOutput:
         if text.strip() == "":
-            return IO.NodeOutput(image)
+            return IO.NodeOutput(images)
 
         text = text.replace("\\n", "\n").replace("\\t", "\t")
 
@@ -38,14 +38,13 @@ class TextOverlay(IO.ComfyNode):
         outline_rgba = (0, 0, 0, 255) if outline else (0, 0, 0, 0)
 
         # Render the overlay once and composite it across all frames in the batch
-        height = image.shape[1]
-        width = image.shape[2]
-        overlay_rgb, overlay_alpha = cls.render_overlay_text(width, height, text, position, align, font_size,
-                                                             text_rgba, outline_rgba)
-        overlay_rgb = overlay_rgb.to(device=image.device, dtype=image.dtype)
-        overlay_alpha = overlay_alpha.to(device=image.device, dtype=image.dtype)
+        height = images.shape[1]
+        width = images.shape[2]
+        overlay_rgb, overlay_alpha = cls.render_overlay_text(width, height, text, position, align, font_size, text_rgba, outline_rgba)
+        overlay_rgb = overlay_rgb.to(device=images.device, dtype=images.dtype)
+        overlay_alpha = overlay_alpha.to(device=images.device, dtype=images.dtype)
 
-        result = image * (1.0 - overlay_alpha) + overlay_rgb * overlay_alpha
+        result = images * (1.0 - overlay_alpha) + overlay_rgb * overlay_alpha
         return IO.NodeOutput(result)
 
     @staticmethod
