@@ -527,7 +527,7 @@ class SeedVR2TemporalMerge(io.ComfyNode):
             inputs=[
                 io.Latent.Input("latent_chunks", tooltip="The sampled temporal chunks in sequence order."),
                 io.Int.Input("temporal_overlap", default=0, min=0, max=16384, force_input=True,
-                             tooltip="The temporal_overlap output of Chunk SeedVR2 Latent. 0 = plain concatenation."),
+                             tooltip="The temporal_overlap output of Split SeedVR2 Latent. 0 = plain concatenation."),
             ],
             outputs=[
                 io.Latent.Output(display_name="latent", tooltip="The recombined full-length latent."),
