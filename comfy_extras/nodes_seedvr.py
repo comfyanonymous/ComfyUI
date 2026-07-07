@@ -522,7 +522,7 @@ class SeedVR2TemporalMerge(io.ComfyNode):
             display_name="Merge SeedVR2 Latents",
             category="model/latent/batch",
             is_input_list=True,
-            description="Recombine sampled SeedVR2 temporal chunks into one latent, crossfading each overlap with a Hann window sized by the temporal_overlap wired from Chunk SeedVR2 Latent.",
+            description="Recombine sampled SeedVR2 latent temporal chunks into one latent, crossfading each overlap with a Hann window sized by the temporal_overlap wired from Split SeedVR2 Latent.",
             search_aliases=["seedvr2", "merge", "temporal", "hann", "crossfade"],
             inputs=[
                 io.Latent.Input("latent_chunks", tooltip="The sampled temporal chunks in sequence order."),
