@@ -13,7 +13,7 @@ class TextOverlay(IO.ComfyNode):
             node_id="TextOverlay",
             display_name="Draw Text Overlay",
             category="text",
-            description="Draw overlay text on an image or batch of images.",
+            description="Draw text overlay on an image or batch of images.",
             search_aliases=["text", "label", "caption", "subtitle", "watermark", "title", "addlabel", "overlay"],
             inputs=[
                 IO.Image.Input("image"),
