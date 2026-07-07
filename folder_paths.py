@@ -4,7 +4,7 @@ import mimetypes
 import logging
 from typing import Literal, List
 from collections.abc import Collection
-
+import json
 from comfy.cli_args import args
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
@@ -13,11 +13,38 @@ folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
 # --base-directory - Resets all default paths configured in folder_paths with a new base path
 if args.base_directory:
-    base_path = os.path.abspath(args.base_directory)
+    raw_path = os.path.abspath(args.base_directory)
 else:
-    base_path = os.path.dirname(os.path.realpath(__file__))
+    raw_path = os.path.dirname(os.path.realpath(__file__))
 
-models_dir = os.path.join(base_path, "models")
+
+def valid_path(saved_path,description = "Instance Folder"):
+    if os.path.exists(saved_path):
+        return saved_path
+
+    redirect_path = os.path.join(os.path.dirname(__file__),"path.redirects.json")
+    if os.path.exists(redirect_path):
+        with open(redirect_path,"r") as f:
+            redirects = json.load(f)
+            if description in redirects and os.path.exists(redirects[description]):
+                return redirects[description]
+    print(f"\n[!] ALERT: {description} not found at: {saved_path}")
+    new_path= input(f"Please paste the updated absolute path for '{description}': ").strip()        
+    redirects = {}
+    if os.path.exists(redirect_path):
+        with open(redirect_path, "r") as f:
+            redirects = json.load(f)
+    redirects[description] = new_path
+    with open(redirect_path, "w") as f:
+        json.dump(redirects, f, indent=4)
+        
+    return new_path
+
+
+
+base_path = valid_path(raw_path,description = "ComfyUI Core Directory")
+
+models_dir =valid_path( os.path.join(base_path,"models"),description = "Model Directory")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
@@ -60,7 +87,7 @@ folder_names_and_paths["optical_flow"] = ([os.path.join(models_dir, "optical_flo
 
 folder_names_and_paths["detection"] = ([os.path.join(models_dir, "detection")], supported_pt_extensions)
 
-output_directory = os.path.join(base_path, "output")
+output_directory =valid_path( os.path.join(base_path, "output"),"Output Directory")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
