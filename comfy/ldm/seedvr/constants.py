@@ -5,7 +5,7 @@
 #   max_latent_frames = (free_GiB - RESERVED - K*SIGMA) / (GIB_PER_MPX_FRAME * megapixels)
 # RESERVED covers model staging plus fixed CUDA/torch overhead; SIGMA is the measured
 # run-to-run spread of the wall; K=4 trades ~10% smaller chunks for ~1e-5 OOM odds.
-SEEDVR2_CHUNK_GIB_PER_MPX_FRAME = 0.30
+SEEDVR2_CHUNK_GIB_PER_MPX_FRAME = 0.55
 SEEDVR2_CHUNK_RESERVED_GIB = 8.5
 SEEDVR2_CHUNK_SIGMA_GIB = 0.55
 SEEDVR2_CHUNK_SIGMA_K = 4
