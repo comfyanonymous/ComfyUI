@@ -425,7 +425,7 @@ class SeedVR2TemporalChunk(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SeedVR2TemporalChunk",
-            display_name="Chunk SeedVR2 Latent",
+            display_name="Split SeedVR2 Latent",
             category="model/latent/batch",
             description="Split a SeedVR2 video latent into overlapping temporal chunks small enough to sample one at a time within VRAM, wiring latent_chunks to both Apply SeedVR2 Conditioning and the sampler latent input before recombining with Merge SeedVR2 Latent Chunks.",
             search_aliases=["seedvr2", "chunk", "temporal", "video upscale", "rebatch"],
