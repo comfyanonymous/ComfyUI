@@ -469,6 +469,9 @@ class CLIP:
     def decode(self, token_ids, skip_special_tokens=True):
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
 
+    def is_dynamic(self):
+        return self.patcher.is_dynamic()
+
 class VAE:
     def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
         is_seedvr2_vae = "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd
@@ -1315,6 +1318,8 @@ class VAE:
         except:
             return None
 
+    def is_dynamic(self):
+        return self.patcher.is_dynamic()
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
