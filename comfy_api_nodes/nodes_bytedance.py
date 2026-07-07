@@ -2611,7 +2611,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ByteDanceSeedAudio",
             display_name="ByteDance Seed Audio 1.0",
-            category="api node/audio/ByteDance",
+            category="partner/audio/ByteDance",
             description=(
                 "Generate speech, music, sound effects and multi-speaker dialogue from a single prompt "
                 "with ByteDance Seed Audio 1.0. Describe the voice(s), emotion, ambience, background music "
