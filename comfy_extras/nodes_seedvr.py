@@ -431,12 +431,17 @@ class SeedVR2TemporalChunk(io.ComfyNode):
             search_aliases=["seedvr2", "chunk", "temporal", "video upscale", "rebatch"],
             inputs=[
                 io.Latent.Input("latent", tooltip="The VAE-encoded SeedVR2 latent to split."),
-                io.Int.Input("frames_per_chunk", default=21, min=1, max=16384, step=4,
-                             tooltip="Pixel frames per temporal chunk (4n+1: 1, 5, 9, 13, ...)."),
                 io.Int.Input("temporal_overlap", default=0, min=0, max=16384,
                              tooltip="Latent frames shared between adjacent chunks and crossfaded at merge; 0 = no overlap."),
-                io.Combo.Input("chunking_mode", options=["auto", "manual"], default="manual",
-                               tooltip="manual = use frames_per_chunk exactly; auto = predict the largest chunk that fits free VRAM."),
+                io.DynamicCombo.Input("chunking_mode",
+                                      tooltip="manual = use frames_per_chunk exactly; auto = predict the largest chunk that fits free VRAM.",
+                                      options=[
+                                          io.DynamicCombo.Option("auto", []),
+                                          io.DynamicCombo.Option("manual", [
+                                              io.Int.Input("frames_per_chunk", default=21, min=1, max=16384, step=4,
+                                                           tooltip="Pixel frames per temporal chunk (4n+1: 1, 5, 9, 13, ...)."),
+                                          ]),
+                                      ]),
             ],
             outputs=[
                 io.Latent.Output(display_name="latent_chunks", is_output_list=True,
@@ -447,7 +452,7 @@ class SeedVR2TemporalChunk(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, latent, frames_per_chunk, temporal_overlap, chunking_mode) -> io.NodeOutput:
+    def execute(cls, latent, temporal_overlap, chunking_mode) -> io.NodeOutput:
         samples = latent["samples"]
         if samples.ndim != 5:
             raise ValueError(
@@ -463,15 +468,16 @@ class SeedVR2TemporalChunk(io.ComfyNode):
             raise ValueError(
                 f"SeedVR2TemporalChunk: temporal_overlap must be >= 0; got {temporal_overlap}."
             )
-        if chunking_mode not in ("auto", "manual"):
+        mode = chunking_mode["chunking_mode"]
+        if mode not in ("auto", "manual"):
             raise ValueError(
                 f"SeedVR2TemporalChunk: chunking_mode must be 'auto' or 'manual'; "
-                f"got {chunking_mode!r}."
+                f"got {mode!r}."
             )
         t_latent = samples.shape[2]
         t_pixel = 4 * (t_latent - 1) + 1
 
-        if chunking_mode == "auto":
+        if mode == "auto":
             free_gb = comfy.model_management.get_free_memory(
                 comfy.model_management.get_torch_device()) / (1024 ** 3)
             mpx_per_frame = (samples.shape[0] * samples.shape[3] * samples.shape[4]) * (BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE ** 2) / 1e6
@@ -482,11 +488,13 @@ class SeedVR2TemporalChunk(io.ComfyNode):
                 "SeedVR2TemporalChunk auto: free=%.2fGiB, %.2fMpx -> frames_per_chunk=%d (t_pixel=%d).",
                 free_gb, mpx_per_frame, frames_per_chunk, t_pixel,
             )
-        elif frames_per_chunk < 1 or (frames_per_chunk - 1) % 4 != 0:
-            raise ValueError(
-                f"SeedVR2TemporalChunk: frames_per_chunk must be a 4n+1 pixel-frame count "
-                f"(1, 5, 9, 13, 17, 21, ...); got {frames_per_chunk}."
-            )
+        else:
+            frames_per_chunk = chunking_mode["frames_per_chunk"]
+            if frames_per_chunk < 1 or (frames_per_chunk - 1) % 4 != 0:
+                raise ValueError(
+                    f"SeedVR2TemporalChunk: frames_per_chunk must be a 4n+1 pixel-frame count "
+                    f"(1, 5, 9, 13, 17, 21, ...); got {frames_per_chunk}."
+                )
 
         if t_pixel <= frames_per_chunk:
             return io.NodeOutput([latent], 0)

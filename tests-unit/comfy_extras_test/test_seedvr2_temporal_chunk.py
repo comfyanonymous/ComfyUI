@@ -17,7 +17,10 @@ def _latent(t_latent, h=8, w=8, b=1):
     return {"samples": torch.randn(b, SEEDVR2_LATENT_CHANNELS, t_latent, h, w, generator=g)}
 
 def _split(latent, frames_per_chunk, temporal_overlap, chunking_mode="manual"):
-    return SeedVR2TemporalChunk.execute(latent, frames_per_chunk, temporal_overlap, chunking_mode).args
+    combo = {"chunking_mode": chunking_mode}
+    if chunking_mode != "auto":
+        combo["frames_per_chunk"] = frames_per_chunk
+    return SeedVR2TemporalChunk.execute(latent, temporal_overlap, combo).args
 
 def _merge(chunks, temporal_overlap):
     return SeedVR2TemporalMerge.execute(chunks, [temporal_overlap]).args[0]
