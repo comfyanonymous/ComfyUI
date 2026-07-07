@@ -163,7 +163,7 @@ async def upload_video_to_comfyapi(
     except Exception as e:
         raise ValueError(
             f"Could not convert the input video to {container.value.upper()} for upload; "
-            f"the file may be corrupt or use an unsupported codec. "
+            f"the file may be corrupted or use an unsupported codec. "
             f"Try re-exporting it as MP4 (H.264). Original error: {e}"
         ) from e
     video_bytes_io.seek(0)
