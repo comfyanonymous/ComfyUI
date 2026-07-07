@@ -525,7 +525,7 @@ class SeedVR2TemporalMerge(io.ComfyNode):
             description="Recombine sampled SeedVR2 latent temporal chunks into one latent, crossfading each overlap with a Hann window sized by the temporal_overlap wired from Split SeedVR2 Latent.",
             search_aliases=["seedvr2", "merge", "temporal", "hann", "crossfade"],
             inputs=[
-                io.Latent.Input("latent_chunks", tooltip="The sampled temporal chunks in sequence order."),
+                io.Latent.Input("latents", tooltip="The sampled temporal chunks in sequence order."),
                 io.Int.Input("temporal_overlap", default=0, min=0, max=16384, force_input=True,
                              tooltip="The temporal_overlap output of Split SeedVR2 Latent. 0 = plain concatenation."),
             ],
@@ -535,13 +535,13 @@ class SeedVR2TemporalMerge(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, latent_chunks, temporal_overlap) -> io.NodeOutput:
+    def execute(cls, latents, temporal_overlap) -> io.NodeOutput:
         temporal_overlap = temporal_overlap[0]
         if temporal_overlap < 0:
             raise ValueError(
                 f"SeedVR2TemporalMerge: temporal_overlap must be >= 0; got {temporal_overlap}."
             )
-        chunks = [entry["samples"] for entry in latent_chunks]
+        chunks = [entry["samples"] for entry in latents]
         first = chunks[0]
         if first.ndim != 5:
             raise ValueError(
@@ -560,7 +560,7 @@ class SeedVR2TemporalMerge(io.ComfyNode):
                     f"chunk 0 has {first.shape[2]}; only the final chunk may be shorter."
                 )
 
-        out = latent_chunks[0].copy()
+        out = latents[0].copy()
         out.pop("noise_mask", None)
 
         if len(chunks) == 1:
