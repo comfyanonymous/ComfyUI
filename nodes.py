@@ -159,6 +159,29 @@ class ConditioningConcat:
 
         return (out, )
 
+class ConditioningMultiply:
+    SEARCH_ALIASES = ["scale conditioning", "scale prompt", "multiply conditioning", "multiply prompt"]
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                            "multiplier": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01})
+                            }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION     = "multiply"
+    CATEGORY     = "model/conditioning/transform"
+
+    def multiply(self, conditioning, multiplier):
+        c = []
+        for t in conditioning:
+            values = {}
+            pooled_output = t[1].get("pooled_output", None)
+            if pooled_output is not None:
+                values["pooled_output"] = pooled_output * multiplier
+            scaled = node_helpers.conditioning_set_values([[t[0] * multiplier, t[1]]], values)[0]
+            c.append(scaled)
+        return (c,)
+
 class ConditioningSetArea:
     SEARCH_ALIASES = ["regional prompt", "area prompt", "spatial conditioning", "localized prompt"]
 
@@ -326,7 +349,7 @@ class VAEDecodeTiled:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     def decode(self, vae, samples, tile_size, overlap=64, temporal_size=64, temporal_overlap=8):
         if tile_size < overlap * 4:
@@ -373,7 +396,7 @@ class VAEEncodeTiled:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     def encode(self, vae, pixels, tile_size, overlap, temporal_size=64, temporal_overlap=8):
         t = vae.encode_tiled(pixels, tile_x=tile_size, tile_y=tile_size, overlap=overlap, tile_t=temporal_size, overlap_t=temporal_overlap)
@@ -480,16 +503,18 @@ class SaveLatent:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ),
-                              "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
-    RETURN_TYPES = ()
+        return { "required": {
+            "samples": ("LATENT",),
+            "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("samples",)
     FUNCTION = "save"
 
     OUTPUT_NODE = True
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     def save(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -522,7 +547,7 @@ class SaveLatent:
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
-        return { "ui": { "latents": results } }
+        return { "ui": { "latents": results }, "result": (samples,) }
 
 
 class LoadLatent:
@@ -534,7 +559,7 @@ class LoadLatent:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
         return {"required": {"latent": [sorted(files), ]}, }
 
-    CATEGORY = "experimental"
+    CATEGORY = "model/latent"
 
     RETURN_TYPES = ("LATENT", )
     FUNCTION = "load"
@@ -967,7 +992,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu", "krea2"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1627,14 +1652,18 @@ class SaveImage:
         return {
             "required": {
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
-                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+                "filename_prefix": ("STRING", {
+                    "default": "ComfyUI",
+                    "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."
+                })
             },
             "hidden": {
                 "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
             },
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
     FUNCTION = "save_images"
 
     OUTPUT_NODE = True
@@ -1670,7 +1699,7 @@ class SaveImage:
             })
             counter += 1
 
-        return { "ui": { "images": results } }
+        return { "ui": { "images": results }, "result" : (images,) }
 
 class PreviewImage(SaveImage):
     def __init__(self):
@@ -2044,6 +2073,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningAverage": ConditioningAverage,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningConcat": ConditioningConcat,
+    "ConditioningMultiply": ConditioningMultiply,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetAreaPercentage": ConditioningSetAreaPercentage,
     "ConditioningSetAreaStrength": ConditioningSetAreaStrength,
@@ -2115,6 +2145,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningAverage": "Conditioning (Average)",
     "ConditioningConcat": "Conditioning (Concat)",
+    "ConditioningMultiply": "Conditioning (Multiply)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
     "ConditioningSetAreaStrength": "Conditioning (Set Area Strength)",
@@ -2124,6 +2155,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GLIGENTextBoxApply": "Apply GLIGEN Text Box",
     "ConditioningZeroOut": "Conditioning Zero Out",
     # Latent
+    "LoadLatent": "Load Latent",
+    "SaveLatent": "Save Latent",
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
     "VAEDecode": "VAE Decode",
@@ -2158,7 +2191,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageSharpen": "Sharpen Image",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     "GetImageSize": "Get Image Size",
-    # experimental
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
@@ -2368,6 +2400,8 @@ async def init_builtin_extra_nodes():
         "nodes_images.py",
         "nodes_video_model.py",
         "nodes_ideogram4.py",
+        "nodes_bounding_boxes.py",
+        "nodes_json_prompt.py",
         "nodes_train.py",
         "nodes_dataset.py",
         "nodes_sag.py",
@@ -2468,6 +2502,7 @@ async def init_builtin_extra_nodes():
         "nodes_gaussian_splat.py",
         "nodes_triposplat.py",
         "nodes_depth_anything_3.py",
+        "nodes_seed.py",
     ]
 
     import_failed = []

@@ -8,7 +8,15 @@ import time
 import nodes
 import folder_paths
 import execution
-from comfy_execution.jobs import JobStatus, get_job, get_all_jobs, validate_job_id
+from comfy_execution.jobs import (
+    JobStatus,
+    get_job,
+    get_all_jobs,
+    validate_job_id,
+    cancel_job,
+    CANCEL_PENDING,
+    CANCEL_RUNNING,
+)
 import uuid
 import urllib
 import json
@@ -118,6 +126,7 @@ def create_cors_middleware(allowed_origin: str):
         return response
 
     return cors_middleware
+
 
 def is_loopback(host):
     if host is None:
@@ -608,15 +617,30 @@ class PromptServer():
                             or 'application/octet-stream'
                         )
 
-                        # For security, force certain mimetypes to download instead of display
-                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
-                            content_type = 'application/octet-stream'  # Forces download
+                        # For security, force renderable/active types (HTML, JS,
+                        # CSS, SVG, XML — anything that can carry inline <script>
+                        # and execute in the page origin) to download instead of
+                        # displaying inline, preventing stored XSS. The
+                        # attachment disposition is the load-bearing guard: a
+                        # bare filename= hint does not force a download per
+                        # RFC 6266, so we only attach it on the dangerous branch
+                        # to avoid breaking inline display of legitimate images.
+                        # Escape backslash/quote per RFC 6266 quoted-string so a
+                        # filename containing a double quote (which passes the
+                        # ".."/leading-slash filter above) can't break out of the
+                        # header's quoted-string and malform the disposition.
+                        safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+                        disposition = f"filename=\"{safe_filename}\""
+                        if folder_paths.is_dangerous_content_type(content_type):
+                            content_type = 'application/octet-stream'
+                            disposition = f"attachment; filename=\"{safe_filename}\""
 
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
-                                "Content-Type": content_type
+                                "Content-Disposition": disposition,
+                                "Content-Type": content_type,
+                                "X-Content-Type-Options": "nosniff"
                             }
                         )
 
@@ -898,6 +922,107 @@ class PromptServer():
                 )
 
             return web.json_response(job)
+
+        def _cancel_job_by_id(job_id):
+            """Cancel a single job by id using the queue's existing mechanics.
+
+            Running jobs are interrupted (same mechanism as /interrupt); pending
+            jobs are dequeued (same mechanism as /queue {"delete": [...]}).
+            Already-finished or unknown ids are no-ops. State-agnostic.
+
+            Returns True when a cancel was actually dispatched (running or
+            pending job), False when the call was a no-op (terminal/unknown id).
+            """
+            running, queued = self.prompt_queue.get_current_queue()
+            history = self.prompt_queue.get_history()
+
+            def interrupt(prompt_id):
+                logging.info(f"Cancelling running prompt {prompt_id}")
+                # Atomic: only interrupts if the job is still the one running,
+                # so a cancel can't land on a prompt that started in the gap
+                # since the snapshot above. Returns whether it actually fired.
+                return self.prompt_queue.interrupt_if_running(prompt_id)
+
+            def dequeue(prompt_id):
+                logging.info(f"Cancelling pending prompt {prompt_id}")
+                return self.prompt_queue.delete_queue_item(lambda a: a[1] == prompt_id)
+
+            classification = cancel_job(job_id, running, queued, history, interrupt, dequeue)
+            return classification in (CANCEL_RUNNING, CANCEL_PENDING)
+
+        @routes.post("/api/jobs/{job_id}/cancel")
+        async def cancel_job_by_id(request):
+            """Cancel a single job by id, regardless of state.
+
+            Idempotent: cancelling a job that has already finished, or an id
+            that is not known, returns 200 with {"cancelled": false} rather
+            than an error.
+            """
+            job_id = request.match_info.get("job_id", None)
+            if not job_id:
+                return web.json_response(
+                    {"error": "job_id is required"},
+                    status=400
+                )
+
+            cancelled = _cancel_job_by_id(job_id)
+            return web.json_response({"cancelled": cancelled})
+
+        @routes.post("/api/jobs/cancel")
+        async def cancel_jobs_batch(request):
+            """Cancel a batch of jobs by id.
+
+            Body: {"job_ids": ["<uuid>", ...]}
+
+            Best-effort and idempotent: every well-formed id is cancelled if it
+            is running or pending; ids that are already finished or unknown are
+            no-ops, not errors. A batch of all no-ops still returns 200 with
+            {"cancelled": false}. This matches the single-cancel endpoint and
+            means "cancel all" still cancels the in-progress jobs even if some
+            finished between the client's snapshot and the request. Malformed
+            ids are still rejected up front with 400 (see below).
+            """
+            try:
+                json_data = await request.json()
+            except json.JSONDecodeError:
+                return web.json_response(
+                    {"error": "Request body must be valid JSON"},
+                    status=400
+                )
+
+            job_ids = json_data.get("job_ids") if isinstance(json_data, dict) else None
+            if not isinstance(job_ids, list):
+                return web.json_response(
+                    {"error": "job_ids must be a list"},
+                    status=400
+                )
+
+            # Validate that every element is a well-formed job id before doing
+            # anything else.  An unhashable element (e.g. a nested dict or list)
+            # would cause a TypeError when used as a history dict key; a
+            # non-string or non-UUID value is never a valid id.  Reject early
+            # with 400 rather than letting the classify loop raise 500.
+            invalid_ids = []
+            for jid in job_ids:
+                try:
+                    validate_job_id(jid)
+                except (ValueError, AttributeError):
+                    invalid_ids.append(jid if isinstance(jid, str) else repr(jid))
+            if invalid_ids:
+                return web.json_response(
+                    {"error": "job_ids contains invalid id(s)", "invalid_ids": invalid_ids},
+                    status=400,
+                )
+
+            # Best-effort: cancel each id that is still running/pending; an id
+            # that has finished or never existed is a no-op rather than a reason
+            # to fail the whole batch.
+            cancelled = False
+            for jid in job_ids:
+                if _cancel_job_by_id(jid):
+                    cancelled = True
+
+            return web.json_response({"cancelled": cancelled})
 
         @routes.get("/history")
         async def get_history(request):

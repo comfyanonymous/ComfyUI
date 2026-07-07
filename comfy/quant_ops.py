@@ -10,6 +10,7 @@ try:
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
+        TensorWiseINT8Layout as _CKTensorWiseINT8Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
@@ -45,6 +46,9 @@ except ImportError as e:
         pass
 
     class _CKNvfp4Layout:
+        pass
+
+    class _CKTensorWiseINT8Layout:
         pass
 
     def register_layout_class(name, cls):
@@ -174,6 +178,7 @@ class TensorCoreFP8E5M2Layout(_TensorCoreFP8LayoutBase):
 
 # Backward compatibility alias - default to E4M3
 TensorCoreFP8Layout = TensorCoreFP8E4M3Layout
+TensorWiseINT8Layout = _CKTensorWiseINT8Layout
 
 
 # ==============================================================================
@@ -184,6 +189,7 @@ register_layout_class("TensorCoreFP8Layout", TensorCoreFP8Layout)
 register_layout_class("TensorCoreFP8E4M3Layout", TensorCoreFP8E4M3Layout)
 register_layout_class("TensorCoreFP8E5M2Layout", TensorCoreFP8E5M2Layout)
 register_layout_class("TensorCoreNVFP4Layout", TensorCoreNVFP4Layout)
+register_layout_class("TensorWiseINT8Layout", _CKTensorWiseINT8Layout)
 if _CK_MXFP8_AVAILABLE:
     register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
 
@@ -214,6 +220,13 @@ if _CK_MXFP8_AVAILABLE:
         "group_size": 32,
     }
 
+QUANT_ALGOS["int8_tensorwise"] = {
+    "storage_t": torch.int8,
+    "parameters": {"weight_scale"},
+    "comfy_tensor_layout": "TensorWiseINT8Layout",
+    "quantize_input": False,
+}
+
 
 # ==============================================================================
 # Re-exports for backward compatibility
@@ -226,6 +239,7 @@ __all__ = [
     "TensorCoreFP8E4M3Layout",
     "TensorCoreFP8E5M2Layout",
     "TensorCoreNVFP4Layout",
+    "TensorWiseINT8Layout",
     "QUANT_ALGOS",
     "register_layout_op",
 ]
