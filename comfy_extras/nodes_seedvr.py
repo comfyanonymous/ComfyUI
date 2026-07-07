@@ -427,7 +427,7 @@ class SeedVR2TemporalChunk(io.ComfyNode):
             node_id="SeedVR2TemporalChunk",
             display_name="Split SeedVR2 Latent",
             category="model/latent/batch",
-            description="Split a SeedVR2 video latent into overlapping temporal chunks small enough to sample one at a time within VRAM, wiring latent_chunks to both Apply SeedVR2 Conditioning and the sampler latent input before recombining with Merge SeedVR2 Latent Chunks.",
+            description="Split a SeedVR2 video latent into overlapping temporal chunks small enough to sample one at a time within VRAM, wiring latents outputs to both Apply SeedVR2 Conditioning and the sampler latent input before recombining with Merge SeedVR2 Latents.",
             search_aliases=["seedvr2", "split", "chunk", "temporal", "video upscale", "rebatch"],
             inputs=[
                 io.Latent.Input("latent", tooltip="The VAE-encoded SeedVR2 latent to split."),
