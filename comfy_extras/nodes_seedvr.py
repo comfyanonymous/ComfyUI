@@ -444,7 +444,7 @@ class SeedVR2TemporalChunk(io.ComfyNode):
                                       ]),
             ],
             outputs=[
-                io.Latent.Output(display_name="latent_chunks", is_output_list=True,
+                io.Latent.Output(display_name="latents", is_output_list=True,
                                  tooltip="The temporal chunks in sequence order."),
                 io.Int.Output(display_name="temporal_overlap",
                               tooltip="The effective latent-frame overlap between adjacent chunks, for Merge SeedVR2 Latent Chunks."),
