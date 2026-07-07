@@ -1316,13 +1316,14 @@ def sample_euler_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disabl
 @torch.no_grad()
 def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
-    if isinstance(model.inner_model.inner_model.model_sampling, comfy.model_sampling.CONST):
+    model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
+    if isinstance(model_sampling, comfy.model_sampling.CONST):
         return sample_dpmpp_2s_ancestral_RF_cfg_pp(model, x, sigmas, extra_args, callback, disable, eta, s_noise, noise_sampler)
 
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
-    s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
+    s_noise = s_noise * getattr(model_sampling, "noise_scale", 1.0)
 
     uncond_denoised = None
     def post_cfg_function(args):
@@ -1365,7 +1366,6 @@ def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback
         x += guidance_vector
     return x
 
-@torch.no_grad()
 def sample_dpmpp_2s_ancestral_RF_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
     extra_args = {} if extra_args is None else extra_args
