@@ -519,7 +519,7 @@ class SeedVR2TemporalMerge(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SeedVR2TemporalMerge",
-            display_name="Merge SeedVR2 Latent Chunks",
+            display_name="Merge SeedVR2 Latents",
             category="model/latent/batch",
             is_input_list=True,
             description="Recombine sampled SeedVR2 temporal chunks into one latent, crossfading each overlap with a Hann window sized by the temporal_overlap wired from Chunk SeedVR2 Latent.",
