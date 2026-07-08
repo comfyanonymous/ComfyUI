@@ -17,7 +17,6 @@
 """
 from __future__ import annotations
 
-import psutil
 import logging
 from enum import Enum
 from comfy.cli_args import args, PerformanceFeature
@@ -30,6 +29,7 @@ import gc
 import os
 from contextlib import contextmanager, nullcontext
 import comfy.memory_management
+import comfy.psutil_utils
 import comfy.utils
 import comfy.quant_ops
 import comfy_aimdo.host_buffer
@@ -317,7 +317,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
+        mem_total = comfy.psutil_utils.virtual_memory_total()
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -360,7 +360,7 @@ def mac_version():
         return None
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
-total_ram = psutil.virtual_memory().total / (1024 * 1024)
+total_ram = comfy.psutil_utils.virtual_memory_total() / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
 
 try:
@@ -648,7 +648,7 @@ def ensure_pin_budget(size, evict_active=False):
     if args.fast_disk:
         shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     else:
-        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - psutil.virtual_memory().available
+        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - comfy.psutil_utils.virtual_memory_available()
     if shortfall <= 0:
         return True
 
@@ -1656,7 +1656,7 @@ def get_free_memory(dev=None, torch_free_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_free_total = psutil.virtual_memory().available
+        mem_free_total = comfy.psutil_utils.virtual_memory_available()
         mem_free_torch = mem_free_total
     else:
         if directml_enabled:

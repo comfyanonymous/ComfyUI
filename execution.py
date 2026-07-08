@@ -2,7 +2,6 @@ import copy
 import heapq
 import inspect
 import logging
-import psutil
 import sys
 import threading
 import time
@@ -15,6 +14,7 @@ import torch
 
 from comfy.cli_args import args
 import comfy.memory_management
+import comfy.psutil_utils
 import comfy.model_management
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
@@ -793,7 +793,7 @@ class PromptExecutor:
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
-                        ram_shortfall = ram_headroom - psutil.virtual_memory().available
+                        ram_shortfall = ram_headroom - comfy.psutil_utils.virtual_memory_available(default=ram_headroom)
                         freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
                         if freed < ram_shortfall:
                             if freed > 64 * (1024 ** 2):
