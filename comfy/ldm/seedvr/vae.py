@@ -39,7 +39,7 @@ def _seedvr2_temporal_slicing_min_size(temporal_size, temporal_overlap, temporal
 
     temporal_size = int(temporal_size)
     if temporal_size <= 0:
-        return 0
+        return None
 
     temporal_overlap = max(0, int(temporal_overlap or 0))
     temporal_overlap = min(temporal_overlap, temporal_size - 1)
@@ -1535,22 +1535,21 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         return x
 
     def decode_tiled(self, z, tile_x=32, tile_y=32, overlap=8, tile_t=None, overlap_t=None):
-        # SeedVR2's causal VAE owns temporal via the MemoryState cache; temporal
-        # slicing breaks that continuity (empirically corrupts decode), so the VAE
-        # tiling knobs (tile_t / overlap_t) are discarded and temporal stays whole.
+        # SeedVR2's causal VAE owns temporal via the MemoryState cache; external
+        # temporal tiling breaks that continuity, so only spatial tiling is applied.
         sf = self.spatial_downsample_factor
         seedvr2_tiling = {
             "enable_tiling": True,
             "tile_size": (tile_y * sf, tile_x * sf),
             "tile_overlap": (overlap * sf, overlap * sf),
-            "temporal_size": 0,
-            "temporal_overlap": 0,
+            "temporal_size": None,
+            "temporal_overlap": None,
         }
         return self.decode(z, seedvr2_tiling=seedvr2_tiling)
 
     def encode_tiled(self, x, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
-        # Temporal tiling knobs are discarded; the causal VAE owns temporal (slicing
-        # breaks MemoryState continuity), so temporal stays whole.
+        # External temporal tiling knobs are discarded; the causal VAE keeps its
+        # own internal MemoryState slicing.
         if tile_y is None:
             tile_y = 512
         if tile_x is None:
@@ -1569,8 +1568,8 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
             self,
             tile_size=(tile_y, tile_x),
             tile_overlap=(overlap_y, overlap_x),
-            temporal_size=0,
-            temporal_overlap=0,
+            temporal_size=None,
+            temporal_overlap=None,
             encode=True,
         )
 

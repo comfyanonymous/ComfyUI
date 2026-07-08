@@ -304,9 +304,8 @@ def test_vaedecode_tiled_spatial_applies_temporal_discarded(monkeypatch):
         temporal_overlap=4,
     )
 
-    # Spatial inputs flow through; temporal inputs are discarded — SeedVR2 owns
-    # temporal via the MemoryState causal cache, so VAEDecodeTiled's temporal
-    # knobs are no-ops at the wrapper.
+    # Spatial inputs flow through; temporal inputs are discarded as public tiling
+    # knobs, but SeedVR2's internal MemoryState causal slicing is left intact.
     assert vae.first_stage_model.calls == [
         {
             "shape": (1, _LATENT_CHANNELS, 2, 4, 5),
@@ -314,8 +313,8 @@ def test_vaedecode_tiled_spatial_applies_temporal_discarded(monkeypatch):
                 "enable_tiling": True,
                 "tile_size": (512, 512),
                 "tile_overlap": (64, 64),
-                "temporal_size": 0,
-                "temporal_overlap": 0,
+                "temporal_size": None,
+                "temporal_overlap": None,
             },
         }
     ]

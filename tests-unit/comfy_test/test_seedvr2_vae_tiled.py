@@ -19,7 +19,7 @@ from comfy.ldm.seedvr.vae import MemoryState, tiled_vae  # noqa: E402
 _LATENT_CHANNELS = seedvr_vae_mod.SEEDVR2_LATENT_CHANNELS
 
 
-def test_runtime_decode_zero_temporal_size_disables_slicing_for_call():
+def test_runtime_decode_zero_temporal_size_preserves_model_slicing():
     class StubVAEModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -54,8 +54,8 @@ def test_runtime_decode_zero_temporal_size_disables_slicing_for_call():
         encode=False,
     )
 
-    assert vae.decode_min_sizes == [5]
-    assert vae.memory_states == [MemoryState.DISABLED]
+    assert vae.decode_min_sizes == [2]
+    assert vae.memory_states == [MemoryState.INITIALIZING, MemoryState.ACTIVE]
     assert vae.slicing_latent_min_size == 2
 
 
