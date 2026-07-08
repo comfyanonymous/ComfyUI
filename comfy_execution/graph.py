@@ -111,6 +111,32 @@ class TopologicalSort:
         self.blocking = {} # Which nodes are blocked by this node
         self.externalBlocks = 0
         self.unblockedEvent = asyncio.Event()
+        # Tracks bounded-feedback edges that were intentionally excluded from
+        # strong (blocking) links.  Maps to_node_id -> list of (from_node_id,
+        # from_socket) so the execution layer can inject initial values for the
+        # iteration output that closes the cycle.
+        self.feedback_links = {}
+
+    def _is_feedback_output(self, from_node_id, from_socket):
+        """Return True when *from_socket* of *from_node_id* is a declared
+        bounded-iteration output (``BOUNDED_FEEDBACK``)."""
+        try:
+            class_type = self.dynprompt.get_node(from_node_id)["class_type"]
+            class_def = nodes.NODE_CLASS_MAPPINGS.get(class_type)
+        except (NodeNotFoundError, KeyError):
+            return False
+        if class_def is None:
+            return False
+        bounded = getattr(class_def, 'BOUNDED_FEEDBACK', None)
+        if not bounded:
+            return False
+        # Map socket index to name via RETURN_NAMES, falling back to the raw index.
+        return_names = getattr(class_def, 'RETURN_NAMES', None)
+        idx = int(from_socket)
+        if return_names is not None and 0 <= idx < len(return_names):
+            return return_names[idx] in bounded
+        # If the socket is already a string (uncommon), check directly.
+        return str(from_socket) in bounded
 
     def get_input_info(self, unique_id, input_name):
         class_type = self.dynprompt.get_node(unique_id)["class_type"]
@@ -163,6 +189,24 @@ class TopologicalSort:
                         links.append((from_node_id, from_socket, unique_id))
 
         for link in links:
+            from_node_id, from_socket, to_node_id = link
+            if self._is_feedback_output(from_node_id, from_socket):
+                # This edge carries an iteration variable (e.g. step_index)
+                # back upstream to close a bounded feedback cycle.  Don't
+                # create a strong (blocking) link — that would deadlock the
+                # topological dissolve.  Instead record it so the execution
+                # layer can seed the iteration output with an initial value.
+                if to_node_id not in self.feedback_links:
+                    self.feedback_links[to_node_id] = []
+                self.feedback_links[to_node_id].append((from_node_id, from_socket))
+                # Still ensure the source node is in the graph.
+                self.add_node(from_node_id)
+                # Create a cache link so the downstream node can read the
+                # placeholder value injected into the output cache by the
+                # execution bootstrap (only available on ExecutionList).
+                if hasattr(self, 'cache_link'):
+                    self.cache_link(from_node_id, to_node_id)
+                continue
             self.add_strong_link(*link)
 
     def add_external_block(self, node_id):
