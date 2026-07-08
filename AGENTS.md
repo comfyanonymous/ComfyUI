@@ -127,6 +127,8 @@
 - Do not add unnecessary `try`/`except` blocks. Use them for optional dependency,
   platform, or backend capability detection only when the program has a useful
   fallback. Prefer specific exception types when changing new code.
+- If a library version is pinned in `requirements.txt`, do not add code to
+  ComfyUI to handle older versions of that library.
 - Remove any workarounds for PyTorch versions that ComfyUI no longer officially
   supports. Deprecated workarounds include catching an exception and rerunning
   the same op with the input cast to float. If a workaround does not have a
