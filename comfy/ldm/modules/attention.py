@@ -618,28 +618,31 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
     if SDP_BATCH_LIMIT >= b:
         # See _mps_forced_attn_chunk_steps: on MPS a single attention matrix over
         # ~2^31 elements silently corrupts, so chunk over seq_q to stay under that.
-        # steps stays 1 (one iteration over the full sequence, identical to the
-        # previous unchunked call) everywhere this doesn't apply.
         steps = 1
         if q.device.type == "mps":
             elements_full = q.shape[0] * q.shape[1] * q.shape[2] * k.shape[2]
             steps = _mps_forced_attn_chunk_steps(elements_full, steps)
-        slice_size = math.ceil(q.shape[2] / steps)
 
-        raw_out = torch.empty((b, q.shape[1], q.shape[2], dim_head), dtype=q.dtype, layout=q.layout, device=q.device)
-        for i in range(0, q.shape[2], slice_size):
-            end = i + slice_size
-            mask_chunk = mask
-            if mask is not None and mask.shape[-2] != 1:
-                mask_chunk = mask[..., i:end, :]
-            raw_out[:, :, i:end] = comfy.ops.scaled_dot_product_attention(
-                q[:, :, i:end], k, v, attn_mask=mask_chunk, dropout_p=0.0, is_causal=False, **sdpa_extra
-            )
-
-        if skip_output_reshape:
-            out = raw_out
+        if steps == 1:
+            out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False, **sdpa_extra)
+            if not skip_output_reshape:
+                out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
         else:
-            out = raw_out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+            slice_size = math.ceil(q.shape[2] / steps)
+            raw_out = torch.empty((b, q.shape[1], q.shape[2], dim_head), dtype=q.dtype, layout=q.layout, device=q.device)
+            for i in range(0, q.shape[2], slice_size):
+                end = i + slice_size
+                mask_chunk = mask
+                if mask is not None and mask.shape[-2] != 1:
+                    mask_chunk = mask[..., i:end, :]
+                raw_out[:, :, i:end] = comfy.ops.scaled_dot_product_attention(
+                    q[:, :, i:end], k, v, attn_mask=mask_chunk, dropout_p=0.0, is_causal=False, **sdpa_extra
+                )
+
+            if skip_output_reshape:
+                out = raw_out
+            else:
+                out = raw_out.transpose(1, 2).reshape(b, -1, heads * dim_head)
     else:
         out = torch.empty((b, q.shape[2], heads * dim_head), dtype=q.dtype, layout=q.layout, device=q.device)
         for i in range(0, b, SDP_BATCH_LIMIT):
