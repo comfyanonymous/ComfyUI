@@ -81,39 +81,19 @@ def get_attn_precision(attn_precision, current_dtype):
         return FORCE_UPCAST_ATTENTION_DTYPE[current_dtype]
     return attn_precision
 
-_DIAG_MAX_ATTN_ELEMENTS = {"split": 0, "pytorch": 0, "basic": 0, "sub_quad": 0}
-
-def _diag_log_attn_size(tag, b_heads, seq_q, seq_k, extra=""):
-    total = b_heads * seq_q * seq_k
-    if total > _DIAG_MAX_ATTN_ELEMENTS[tag]:
-        _DIAG_MAX_ATTN_ELEMENTS[tag] = total
-        logging.warning(
-            f"[ATTN-DIAG:{tag}] new max attn matrix size: b*heads={b_heads} seq_q={seq_q} seq_k={seq_k} "
-            f"total_elements={total} (2^31={2**31}) ratio={total / (2**31):.3f} {extra}"
-        )
-
 # MPS uses 32-bit indexing internally for many ops; a single attention matrix
 # (b*heads * seq_q * seq_k) at or above ~2^31 elements silently corrupts instead
 # of raising, regardless of how much unified memory is free. Shared by every
 # attention implementation that needs to force chunking to stay under that limit.
 MPS_MAX_ATTN_ELEMENTS = 2 ** 30
 
-def _mps_forced_attn_chunk_steps(elements_full, steps, tag):
+def _mps_forced_attn_chunk_steps(elements_full, steps):
     if elements_full <= MPS_MAX_ATTN_ELEMENTS:
         return steps
     mps_steps = 2 ** math.ceil(math.log(elements_full / MPS_MAX_ATTN_ELEMENTS, 2))
-    if mps_steps > steps:
-        # Quieted to debug for now -- this fires on every call once the guard engages
-        # (not deduplicated like _diag_log_attn_size), which floods the log during a
-        # long render. Bump back to logging.warning if you need it visible again.
-        logging.debug(
-            f"[MPS-ATTN-FIX:{tag}] forcing attention chunking steps={mps_steps} (was {steps}) to stay "
-            f"under MPS's ~2^31-element indexing limit (full attn matrix would be {elements_full} elements)"
-        )
-        return mps_steps
-    return steps
+    return max(mps_steps, steps)
 
-def _mps_cap_subquad_chunk_sizes(batch_x_heads, q_tokens, k_tokens, query_chunk_size, kv_chunk_size, tag):
+def _mps_cap_subquad_chunk_sizes(batch_x_heads, q_tokens, k_tokens, query_chunk_size, kv_chunk_size):
     effective_kv = kv_chunk_size if kv_chunk_size is not None else max(1, int(math.sqrt(k_tokens)))
     elements_full = batch_x_heads * min(query_chunk_size, q_tokens) * effective_kv
     if elements_full <= MPS_MAX_ATTN_ELEMENTS:
@@ -131,13 +111,7 @@ def _mps_cap_subquad_chunk_sizes(batch_x_heads, q_tokens, k_tokens, query_chunk_
         effective_kv = new_kv
 
     new_query_chunk_size = max(1, MPS_MAX_ATTN_ELEMENTS // (batch_x_heads * effective_kv))
-    if new_query_chunk_size < query_chunk_size:
-        logging.debug(
-            f"[MPS-ATTN-FIX:{tag}] capping query_chunk_size={new_query_chunk_size} (was {query_chunk_size}) "
-            f"kv_chunk_size={kv_chunk_size} to stay under MPS's ~2^31-element indexing limit "
-            f"(full attn matrix would be {elements_full} elements)"
-        )
-        query_chunk_size = new_query_chunk_size
+    query_chunk_size = min(query_chunk_size, new_query_chunk_size)
     return query_chunk_size, kv_chunk_size
 
 def exists(val):
@@ -267,7 +241,7 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     steps = 1
     if q.device.type == "mps":
         elements_full = q.shape[0] * q.shape[1] * k.shape[1]
-        steps = _mps_forced_attn_chunk_steps(elements_full, steps, tag="basic")
+        steps = _mps_forced_attn_chunk_steps(elements_full, steps)
     slice_size = math.ceil(q.shape[1] / steps)
 
     is_bool_mask = False
@@ -306,7 +280,6 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
         sim = sim.softmax(dim=-1)
 
         out[:, i:end] = einsum('b i j, b j d -> b i d', sim.to(v.dtype), v)
-        _diag_log_attn_size("basic", q.shape[0], end - i, k.shape[1], extra=f"steps={steps} b={b} heads={heads} full_seq_q={q.shape[1]}")
 
     del q, k
 
@@ -378,12 +351,7 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
 
     if query.device.type == "mps":
         query_chunk_size, kv_chunk_size = _mps_cap_subquad_chunk_sizes(
-            batch_x_heads, q_tokens, k_tokens, query_chunk_size, kv_chunk_size, tag="sub_quad")
-        _diag_log_attn_size(
-            "sub_quad", batch_x_heads, min(query_chunk_size, q_tokens),
-            kv_chunk_size if kv_chunk_size is not None else int(math.sqrt(k_tokens)),
-            extra=f"q_tokens={q_tokens} k_tokens={k_tokens}"
-        )
+            batch_x_heads, q_tokens, k_tokens, query_chunk_size, kv_chunk_size)
 
     if mask is not None:
         if len(mask.shape) == 2:
@@ -461,7 +429,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     # of the memory-based steps calculation above.
     if q.device.type == "mps":
         elements_full = q.shape[0] * q.shape[1] * k.shape[1]
-        steps = _mps_forced_attn_chunk_steps(elements_full, steps, tag="split")
+        steps = _mps_forced_attn_chunk_steps(elements_full, steps)
 
     if steps > 64:
         max_res = math.floor(math.sqrt(math.sqrt(mem_free_total / 2.5)) / 8) * 64
@@ -481,7 +449,6 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     while True:
         try:
             slice_size = min(q.shape[1], math.ceil(q.shape[1] / steps))
-            _diag_log_attn_size("split", q.shape[0], slice_size, k.shape[1], extra=f"steps={steps} b={b} heads={heads} full_seq_q={q.shape[1]}")
             for i in range(0, q.shape[1], slice_size):
                 end = i + slice_size
                 if upcast:
@@ -656,7 +623,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
         steps = 1
         if q.device.type == "mps":
             elements_full = q.shape[0] * q.shape[1] * q.shape[2] * k.shape[2]
-            steps = _mps_forced_attn_chunk_steps(elements_full, steps, tag="pytorch")
+            steps = _mps_forced_attn_chunk_steps(elements_full, steps)
         slice_size = math.ceil(q.shape[2] / steps)
 
         raw_out = torch.empty((b, q.shape[1], q.shape[2], dim_head), dtype=q.dtype, layout=q.layout, device=q.device)
@@ -665,7 +632,6 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             mask_chunk = mask
             if mask is not None and mask.shape[-2] != 1:
                 mask_chunk = mask[..., i:end, :]
-            _diag_log_attn_size("pytorch", q.shape[0] * q.shape[1], min(end, q.shape[2]) - i, k.shape[2], extra=f"steps={steps} b={b} heads={q.shape[1]} full_seq_q={q.shape[2]} dtype={q.dtype}")
             raw_out[:, :, i:end] = comfy.ops.scaled_dot_product_attention(
                 q[:, :, i:end], k, v, attn_mask=mask_chunk, dropout_p=0.0, is_causal=False, **sdpa_extra
             )
