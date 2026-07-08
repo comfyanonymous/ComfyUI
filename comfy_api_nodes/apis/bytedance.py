@@ -24,8 +24,8 @@ class Seedream4TaskCreationRequest(BaseModel):
     image: list[str] | None = Field(None, description="Image URLs")
     size: str = Field(...)
     seed: int = Field(..., ge=0, le=2147483647)
-    sequential_image_generation: str = Field("disabled")
-    sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
+    sequential_image_generation: str | None = Field("disabled")
+    sequential_image_generation_options: Seedream4Options | None = Field(Seedream4Options(max_images=15))
     watermark: bool = Field(False)
     output_format: str | None = None
 
@@ -261,6 +261,19 @@ _PRESETS_SEEDREAM_4K = [
 
 _CUSTOM_PRESET = [("Custom", None, None)]
 
+_PRESETS_SEEDREAM_2K_PRO = [
+    ("(2K) 2048x2048 (1:1)", 2048, 2048),
+    ("(2K) 1728x2304 (3:4)", 1728, 2304),
+    ("(2K) 2304x1728 (4:3)", 2304, 1728),
+    # ("(2K) 2848x1600 (16:9)", 2848, 1600),  # 4,556,800 px - temporarily unavailable
+    # ("(2K) 1600x2848 (9:16)", 1600, 2848),  # 4,556,800 px - temporarily unavailable
+    ("(2K) 1664x2496 (2:3)", 1664, 2496),
+    ("(2K) 2496x1664 (3:2)", 2496, 1664),
+    # ("(2K) 3136x1344 (21:9)", 3136, 1344),  # 4,214,784 px - temporarily unavailable
+]
+RECOMMENDED_PRESETS_SEEDREAM_5_PRO = (
+    _PRESETS_SEEDREAM_1K + _PRESETS_SEEDREAM_2K_PRO + _CUSTOM_PRESET
+)
 RECOMMENDED_PRESETS_SEEDREAM_5_LITE = (
     _PRESETS_SEEDREAM_2K + _PRESETS_SEEDREAM_3K + _PRESETS_SEEDREAM_4K + _CUSTOM_PRESET
 )
