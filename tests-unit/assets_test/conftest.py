@@ -234,7 +234,7 @@ def seeded_asset(request: pytest.FixtureRequest, http: requests.Session, api_bas
     p = getattr(request, "param", {}) or {}
     tags: Optional[list[str]] = p.get("tags")
     if tags is None:
-        tags = ["models", "checkpoints", "unit-tests", "alpha"]
+        tags = ["models", "model_type:checkpoints", "unit-tests", "alpha"]
     meta = {"purpose": "test", "epoch": 1, "flags": ["x", "y"], "nullable": None}
     # Unique content per test so the seed always creates a fresh asset (201).
     # Delete is now always a soft delete, so content from a prior test survives

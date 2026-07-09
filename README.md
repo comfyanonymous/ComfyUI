@@ -229,7 +229,7 @@ Python 3.14 works but some custom nodes may have issues. The free threaded varia
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 
-torch 2.4 and above is supported but some features and optimizations might only work on newer versions. We generally recommend using the latest major version of pytorch with the latest cuda version unless it is less than 2 weeks old.
+torch 2.5 is minimally supported but using a newer version is extremely recommended. Some features and optimizations might only work on newer versions. We generally recommend using the latest major version of pytorch with the latest cuda version unless it is less than 2 weeks old. If your pytorch is more than 6 months old, please update it.
 
 ### Instructions:
 

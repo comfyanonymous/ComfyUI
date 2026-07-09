@@ -16,6 +16,7 @@ from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS_SEEDREAM_4_0,
     RECOMMENDED_PRESETS_SEEDREAM_4_5,
     RECOMMENDED_PRESETS_SEEDREAM_5_LITE,
+    RECOMMENDED_PRESETS_SEEDREAM_5_PRO,
     SEEDANCE2_REF_VIDEO_PIXEL_LIMITS,
     VIDEO_TASKS_EXECUTION_TIME,
     GetAssetResponse,
@@ -80,12 +81,14 @@ _VERIFICATION_POLL_TIMEOUT_SEC = 120
 _VERIFICATION_POLL_INTERVAL_SEC = 3
 
 SEEDREAM_MODELS = {
+    "seedream 5.0 pro": "seedream-5-0-pro-260628",
     "seedream 5.0 lite": "seedream-5-0-260128",
     "seedream-4-5-251128": "seedream-4-5-251128",
     "seedream-4-0-250828": "seedream-4-0-250828",
 }
 
 SEEDREAM_PRESETS = {
+    "seedream-5-0-pro-260628": RECOMMENDED_PRESETS_SEEDREAM_5_PRO,
     "seedream-5-0-260128": RECOMMENDED_PRESETS_SEEDREAM_5_LITE,
     "seedream-4-5-251128": RECOMMENDED_PRESETS_SEEDREAM_4_5,
     "seedream-4-0-250828": RECOMMENDED_PRESETS_SEEDREAM_4_0,
@@ -743,8 +746,15 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
 
 
-def _seedream_model_inputs(*, max_ref_images: int, presets: list):
-    return [
+def _seedream_model_inputs(
+    *,
+    max_ref_images: int,
+    presets: list,
+    max_width: int = 6240,
+    max_height: int = 4992,
+    supports_batch: bool = True,
+):
+    inputs = [
         IO.Combo.Input(
             "size_preset",
             options=[label for label, _, _ in presets],
@@ -754,7 +764,7 @@ def _seedream_model_inputs(*, max_ref_images: int, presets: list):
             "width",
             default=2048,
             min=1024,
-            max=6240,
+            max=max_width,
             step=2,
             tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
         ),
@@ -762,22 +772,27 @@ def _seedream_model_inputs(*, max_ref_images: int, presets: list):
             "height",
             default=2048,
             min=1024,
-            max=4992,
+            max=max_height,
             step=2,
             tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
         ),
-        IO.Int.Input(
-            "max_images",
-            default=1,
-            min=1,
-            max=max_ref_images,
-            step=1,
-            display_mode=IO.NumberDisplay.number,
-            tooltip="Maximum number of images to generate. With 1, exactly one image is produced. "
-            "With >1, the model generates between 1 and max_images related images "
-            "(e.g., story scenes, character variations). "
-            "Total images (input + generated) cannot exceed 15.",
-        ),
+    ]
+    if supports_batch:
+        inputs.append(
+            IO.Int.Input(
+                "max_images",
+                default=1,
+                min=1,
+                max=max_ref_images,
+                step=1,
+                display_mode=IO.NumberDisplay.number,
+                tooltip="Maximum number of images to generate. With 1, exactly one image is produced. "
+                "With >1, the model generates between 1 and max_images related images "
+                "(e.g., story scenes, character variations). "
+                "Total images (input + generated) cannot exceed 15.",
+            )
+        )
+    inputs.append(
         IO.Autogrow.Input(
             "images",
             template=IO.Autogrow.TemplateNames(
@@ -787,14 +802,18 @@ def _seedream_model_inputs(*, max_ref_images: int, presets: list):
             ),
             tooltip=f"Optional reference image(s) for image-to-image or multi-reference generation. "
             f"Up to {max_ref_images} images.",
-        ),
-        IO.Boolean.Input(
-            "fail_on_partial",
-            default=False,
-            tooltip="If enabled, abort execution if any requested images are missing or return an error.",
-            advanced=True,
-        ),
-    ]
+        )
+    )
+    if supports_batch:
+        inputs.append(
+            IO.Boolean.Input(
+                "fail_on_partial",
+                default=False,
+                tooltip="If enabled, abort execution if any requested images are missing or return an error.",
+                advanced=True,
+            )
+        )
+    return inputs
 
 
 class ByteDanceSeedreamNodeV2(IO.ComfyNode):
@@ -816,6 +835,16 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "seedream 5.0 pro",
+                            _seedream_model_inputs(
+                                max_ref_images=10,
+                                presets=RECOMMENDED_PRESETS_SEEDREAM_5_PRO,
+                                max_width=3136,
+                                max_height=2496,
+                                supports_batch=False,
+                            ),
+                        ),
                         IO.DynamicCombo.Option(
                             "seedream 5.0 lite",
                             _seedream_model_inputs(max_ref_images=14, presets=RECOMMENDED_PRESETS_SEEDREAM_5_LITE),
@@ -857,15 +886,27 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=["model", "model.size_preset", "model.width", "model.height"]
+                ),
                 expr="""
                 (
-                  $price := $contains(widgets.model, "5.0 lite") ? 0.035 :
-                            $contains(widgets.model, "4-5") ? 0.04 : 0.03;
+                  $sp := $lookup(widgets, "model.size_preset");
+                  $px := $lookup(widgets, "model.width") * $lookup(widgets, "model.height");
+                  $isPro := $contains(widgets.model, "5.0 pro");
+                  $price := $isPro
+                              ? (
+                                  $contains($sp, "custom")
+                                    ? ($px <= 2360000 ? 0.045 : 0.09)
+                                    : ($contains($sp, "1k") ? 0.045 : 0.09)
+                                )
+                              : $contains(widgets.model, "5.0 lite") ? 0.035
+                              : $contains(widgets.model, "4-5") ? 0.04
+                              : 0.03;
                   {
-                    "type":"usd",
+                    "type": "usd",
                     "usd": $price,
-                    "format": { "suffix":" x images/Run", "approximate": true }
+                    "format": { "suffix": $isPro ? "/Image" : " x images/Run", "approximate": true }
                   }
                 )
                 """,
@@ -883,6 +924,7 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_id = SEEDREAM_MODELS[model["model"]]
         presets = SEEDREAM_PRESETS[model_id]
+        is_pro = "seedream-5-0-pro" in model_id
 
         size_preset = model.get("size_preset", presets[0][0])
         width = model.get("width", 2048)
@@ -902,19 +944,29 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
 
         out_num_pixels = w * h
         mp_provided = out_num_pixels / 1_000_000.0
-        if ("seedream-4-5" in model_id or "seedream-5-0" in model_id) and out_num_pixels < 3686400:
-            raise ValueError(
-                f"Minimum image resolution for the selected model is 3.68MP, but {mp_provided:.2f}MP provided."
-            )
-        if "seedream-4-0" in model_id and out_num_pixels < 921600:
-            raise ValueError(
-                f"Minimum image resolution that the selected model can generate is 0.92MP, "
-                f"but {mp_provided:.2f}MP provided."
-            )
-        if out_num_pixels > 16_777_216:
-            raise ValueError(
-                f"Maximum image resolution for the selected model is 16.78MP, but {mp_provided:.2f}MP provided."
-            )
+        if is_pro:
+            if out_num_pixels < 921_600:
+                raise ValueError(
+                    f"Minimum image resolution for the selected model is 0.92MP, but {mp_provided:.2f}MP provided."
+                )
+            if out_num_pixels > 4_194_304:
+                raise ValueError(
+                    f"Maximum image resolution for the selected model is 4.19MP, but {mp_provided:.2f}MP provided."
+                )
+        else:
+            if ("seedream-4-5" in model_id or "seedream-5-0" in model_id) and out_num_pixels < 3_686_400:
+                raise ValueError(
+                    f"Minimum image resolution for the selected model is 3.68MP, but {mp_provided:.2f}MP provided."
+                )
+            if "seedream-4-0" in model_id and out_num_pixels < 921_600:
+                raise ValueError(
+                    f"Minimum image resolution that the selected model can generate is 0.92MP, "
+                    f"but {mp_provided:.2f}MP provided."
+                )
+            if out_num_pixels > 16_777_216:
+                raise ValueError(
+                    f"Maximum image resolution for the selected model is 16.78MP, but {mp_provided:.2f}MP provided."
+                )
 
         image_tensors: list[Input.Image] = [t for t in images_dict.values() if t is not None]
         n_input_images = sum(get_number_of_images(t) for t in image_tensors)
@@ -950,8 +1002,8 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 image=reference_images_urls,
                 size=f"{w}x{h}",
                 seed=seed,
-                sequential_image_generation=sequential_image_generation,
-                sequential_image_generation_options=Seedream4Options(max_images=max_images),
+                sequential_image_generation=None if is_pro else sequential_image_generation,
+                sequential_image_generation_options=None if is_pro else Seedream4Options(max_images=max_images),
                 watermark=watermark,
             ),
         )

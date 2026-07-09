@@ -174,6 +174,8 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
                     elif xfer_dest2 is not None:
                         xfer_source.prepare(xfer_dest2, stream, copy=True, commit=False)
                         return
+                    else:
+                        return
                 comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=stream, r2=xfer_dest2)
 
         def handle_pin(m, pin, source, dest, subset="weights", size=None):

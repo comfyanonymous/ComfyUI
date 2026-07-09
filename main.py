@@ -131,6 +131,10 @@ def apply_custom_paths():
     if args.base_directory:
         logging.info(f"Setting base directory to: {folder_paths.base_path}")
 
+    # --models-directory
+    if args.models_directory:
+        logging.info(f"Setting models directory to: {folder_paths.models_dir}")
+
     # --output-directory, --input-directory, --user-directory
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)

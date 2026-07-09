@@ -13,7 +13,7 @@ def _seed(asset_factory, make_asset_bytes, count: int, tag: str) -> list[str]:
     for n in names:
         asset_factory(
             n,
-            ["models", "checkpoints", "unit-tests", tag],
+            ["models", "model_type:checkpoints", "unit-tests", tag],
             {},
             make_asset_bytes(n, size=2048),
         )
@@ -208,7 +208,7 @@ def test_cursor_walks_for_non_name_sorts(sort_field, http: requests.Session, api
     names = []
     for i in range(4):
         n = f"cursor_{sort_field}_{i:02d}.safetensors"
-        asset_factory(n, ["models", "checkpoints", "unit-tests", f"cursor-{sort_field}"], {}, make_asset_bytes(n, size=2048 + i))
+        asset_factory(n, ["models", "model_type:checkpoints", "unit-tests", f"cursor-{sort_field}"], {}, make_asset_bytes(n, size=2048 + i))
         names.append(n)
 
     params = {
