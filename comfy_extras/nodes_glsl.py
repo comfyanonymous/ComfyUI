@@ -9,7 +9,10 @@ import numpy as np
 import torch
 
 import nodes
-import comfy_angle
+try:
+    import comfy_angle
+except ImportError:
+    comfy_angle = None
 from comfy_api.latest import ComfyExtension, io, ui
 from typing_extensions import override
 
@@ -17,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def _preload_angle():
+    if comfy_angle is None:
+        raise ImportError("comfy_angle module not available")
     egl_path = comfy_angle.get_egl_path()
     gles_path = comfy_angle.get_glesv2_path()
 
@@ -30,22 +35,12 @@ def _preload_angle():
     ctypes.CDLL(str(gles_path), mode=mode)
 
 
-# Pre-load ANGLE *before* any PyOpenGL import so that the EGL platform
-# plugin picks up ANGLE's libEGL / libGLESv2 instead of system libs.
-_preload_angle()
-os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
-
-
-import OpenGL
-OpenGL.USE_ACCELERATE = False
-
-
 def _patch_find_library():
     """PyOpenGL's EGL platform looks for 'EGL' and 'GLESv2' by short name
     via ctypes.util.find_library, but ANGLE ships as 'libEGL' and
     'libGLESv2'.  Patch find_library to return the full ANGLE paths so
     PyOpenGL loads the same libraries we pre-loaded."""
-    if sys.platform == "linux":
+    if sys.platform == "linux" or comfy_angle is None:
         return
     import ctypes.util
     _orig = ctypes.util.find_library
@@ -58,10 +53,32 @@ def _patch_find_library():
     ctypes.util.find_library = _patched
 
 
-_patch_find_library()
+# Pre-load ANGLE *before* any PyOpenGL import so that the EGL platform
+# plugin picks up ANGLE's libEGL / libGLESv2 instead of system libs.
+# Check PyOpenGL availability first to avoid preloading ANGLE libraries
+# on systems where GLSL nodes cannot work anyway.
+_glsl_available = False
 
-from OpenGL import EGL
-from OpenGL import GLES3 as gl
+try:
+    import OpenGL
+except ImportError:
+    pass
+else:
+    OpenGL.USE_ACCELERATE = False
+    try:
+        _preload_angle()
+        os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
+        _patch_find_library()
+        from OpenGL import EGL
+        from OpenGL import GLES3 as gl
+    except Exception as e:
+        logger.warning(
+            "GLSL Shader nodes will not be available: %s. "
+            "This is expected on headless Linux without X11 or systems without EGL support.",
+            e,
+        )
+    else:
+        _glsl_available = True
 
 class SizeModeInput(TypedDict):
     size_mode: str
@@ -839,6 +856,8 @@ class GLSLShader(io.ComfyNode):
 class GLSLExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        if not _glsl_available:
+            return []
         return [GLSLShader]
 
 
