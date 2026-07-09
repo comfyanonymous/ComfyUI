@@ -503,6 +503,21 @@ RAM_CACHE_DEFAULT_RAM_USAGE = 0.05
 
 RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER = 1.3
 
+
+def all_outputs_dynamic(outputs):
+    if outputs is None:
+        return False
+
+    for output in outputs:
+        if isinstance(output, (list, tuple)):
+            if not all_outputs_dynamic(output):
+                return False
+        elif not hasattr(output, "is_dynamic") or not output.is_dynamic():
+            return False
+
+    return True
+
+
 class RAMPressureCache(LRUCache):
 
     def __init__(self, key_class, enable_providers=False):
@@ -533,7 +548,11 @@ class RAMPressureCache(LRUCache):
         for key, cache_entry in self.cache.items():
             if not free_active and self.used_generation[key] == self.generation:
                 continue
-            oom_score =  RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
+
+            if all_outputs_dynamic(cache_entry.outputs) and self.used_generation[key] == self.generation:
+                continue
+
+            oom_score = RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
 
             ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
             def scan_list_for_ram_usage(outputs):

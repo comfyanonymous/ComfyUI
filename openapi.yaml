@@ -7,17 +7,17 @@ components:
                     description: Timestamp when the asset was created
                     format: date-time
                     type: string
-                display_name:
-                    description: Display name of the asset. Mirrors name for backwards compatibility.
-                    nullable: true
-                    type: string
-                file_path:
-                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
-                    nullable: true
-                    type: string
                 hash:
                     description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
+                    type: string
+                loader_path:
+                    description: The value a loader consumes to load this asset. Null when no loader can resolve the file.
+                    nullable: true
+                    type: string
+                display_name:
+                    description: Human-facing label for the asset. Not unique.
+                    nullable: true
                     type: string
                 id:
                     description: Unique identifier for the asset
@@ -144,14 +144,6 @@ components:
         AssetUpdated:
             description: Response returned when an existing asset is successfully updated.
             properties:
-                display_name:
-                    description: Display name of the asset. Mirrors name for backwards compatibility.
-                    nullable: true
-                    type: string
-                file_path:
-                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
-                    nullable: true
-                    type: string
                 hash:
                     description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
@@ -1644,7 +1636,7 @@ paths:
                                     format: uuid
                                     type: string
                                 tags:
-                                    description: JSON-encoded array of freeform tag strings, e.g. '["models","checkpoint"]'. Common types include "models", "input", "output", and "temp", but any tag can be used in any order.
+                                    description: JSON-encoded array of tag strings. For new byte uploads, include exactly one destination role (`input`, `output`, or `models`); `models` uploads also require exactly one `model_type:<folder_name>` tag. Extra tags are stored as labels and do not create path components.
                                     type: string
                                 user_metadata:
                                     description: Custom JSON metadata as a string
@@ -1829,7 +1821,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/AssetUpdated'
+                                $ref: '#/components/schemas/Asset'
                     description: Asset updated successfully
                 "400":
                     content:
@@ -2469,6 +2461,9 @@ paths:
                                         type: integer
                                     supports_preview_metadata:
                                         description: Whether the server supports preview metadata
+                                        type: boolean
+                                    supports_model_type_tags:
+                                        description: Whether the server supports namespaced model type asset tags
                                         type: boolean
                                 type: object
                     description: Success

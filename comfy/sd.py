@@ -468,6 +468,9 @@ class CLIP:
     def decode(self, token_ids, skip_special_tokens=True):
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
 
+    def is_dynamic(self):
+        return self.patcher.is_dynamic()
+
 class VAE:
     def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
@@ -1251,6 +1254,11 @@ class VAE:
         except:
             return None
 
+    def is_dynamic(self):
+        # A VAE built from a state dict with no detectable VAE weights returns early
+        # from __init__ ("No VAE weights detected") before self.patcher is assigned.
+        patcher = getattr(self, "patcher", None)
+        return patcher is not None and patcher.is_dynamic()
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
