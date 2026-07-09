@@ -1255,7 +1255,10 @@ class VAE:
             return None
 
     def is_dynamic(self):
-        return self.patcher.is_dynamic()
+        # A VAE built from a state dict with no detectable VAE weights returns early
+        # from __init__ ("No VAE weights detected") before self.patcher is assigned.
+        patcher = getattr(self, "patcher", None)
+        return patcher is not None and patcher.is_dynamic()
 
 class StyleModel:
     def __init__(self, model, device="cpu"):

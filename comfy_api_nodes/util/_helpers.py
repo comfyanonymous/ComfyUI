@@ -11,6 +11,7 @@ from io import BytesIO
 from yarl import URL
 
 from comfy.cli_args import args
+from comfy.comfy_api_env import normalize_comfy_api_base
 from comfy.deploy_environment import get_deploy_environment
 from comfy.model_management import processing_interrupted
 from comfy_api.latest import IO
@@ -63,7 +64,7 @@ def get_comfy_api_headers(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
 
 
 def default_base_url() -> str:
-    return getattr(args, "comfy_api_base", "https://api.comfy.org")
+    return normalize_comfy_api_base(getattr(args, "comfy_api_base", "https://api.comfy.org"))
 
 
 async def sleep_with_interrupt(
