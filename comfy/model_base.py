@@ -866,7 +866,7 @@ class StableAudio3(BaseModel):
         noise = kwargs.get("noise", None)
         device = kwargs["device"]
 
-        seconds_total = kwargs.get("seconds_total", int(noise.shape[-1] / 10.7666))
+        seconds_total = kwargs.get("seconds_total", int(noise.shape[-1] / 21.5332))
         seconds_total_embed = self.seconds_total_embedder([seconds_total])[0].to(device)
 
         global_embed = seconds_total_embed.reshape((1, -1))
