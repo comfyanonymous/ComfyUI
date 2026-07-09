@@ -46,6 +46,7 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.assets.seeder import asset_seeder
 from app.assets.api.routes import register_assets_routes
 from app.assets.services.ingest import register_file_in_place
+from app.assets.services.path_utils import get_known_subfolder_tags
 from app.assets.services.asset_management import resolve_hash_to_path
 
 from app.user_manager import UserManager
@@ -441,7 +442,9 @@ class PromptServer():
                 if args.enable_assets:
                     try:
                         tag = image_upload_type if image_upload_type in ("input", "output") else "input"
-                        result = register_file_in_place(abs_path=filepath, name=filename, tags=[tag])
+                        tags = [tag]
+                        tags.extend(get_known_subfolder_tags(subfolder))
+                        result = register_file_in_place(abs_path=filepath, name=filename, tags=tags)
                         resp["asset"] = {
                             "id": result.ref.id,
                             "name": result.ref.name,

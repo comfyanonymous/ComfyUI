@@ -2479,6 +2479,7 @@ async def init_builtin_extra_nodes():
         "nodes_glsl.py",
         "nodes_lora_debug.py",
         "nodes_textgen.py",
+        "nodes_text_overlay.py",
         "nodes_color.py",
         "nodes_toolkit.py",
         "nodes_replacements.py",
