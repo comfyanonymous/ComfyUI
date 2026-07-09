@@ -4,7 +4,14 @@ import pytest
 import torch
 
 from comfy.cli_args import args as cli_args
-from comfy.ldm.seedvr.constants import SEEDVR2_LATENT_CHANNELS
+from comfy.ldm.seedvr.constants import (
+    BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE,
+    SEEDVR2_CHUNK_GIB_PER_MPX_FRAME,
+    SEEDVR2_CHUNK_RESERVED_GIB,
+    SEEDVR2_CHUNK_SIGMA_GIB,
+    SEEDVR2_CHUNK_SIGMA_K,
+    SEEDVR2_LATENT_CHANNELS,
+)
 
 if not torch.cuda.is_available():
     cli_args.cpu = True
@@ -40,8 +47,13 @@ def test_chunk_temporal_windows_and_validation():
     assert (r := _split(_latent(5), 21, 3)) and len(r[0]) == 1 and r[1] == 0  # t_pixel <= 21: passthrough
 
 def test_chunk_auto_mode_applies_vram_law(monkeypatch):
-    monkeypatch.setattr(comfy.model_management, "get_free_memory", lambda dev=None: 10.8 * (1024 ** 3))
-    # budget = 10.8 - 8.5 - 4*0.55 = 0.1 GiB; 32x32 latent = 0.0655 Mpx -> chunk_latent = 5
+    mpx_per_frame = (32 * 32) * (BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE ** 2) / 1e6
+    free_gb = (
+        SEEDVR2_CHUNK_RESERVED_GIB
+        + SEEDVR2_CHUNK_SIGMA_K * SEEDVR2_CHUNK_SIGMA_GIB
+        + 5.1 * SEEDVR2_CHUNK_GIB_PER_MPX_FRAME * mpx_per_frame
+    )
+    monkeypatch.setattr(comfy.model_management, "get_free_memory", lambda dev=None: free_gb * (1024 ** 3))
     assert [c["samples"].shape[2] for c in _split(_latent(13, h=32, w=32), 1, 0, "auto")[0]] == [5, 5, 3]
     assert _split(_latent(13, h=32, w=32, b=2), 1, 0, "auto")[0][0]["samples"].shape[2] == 2  # batch halves the chunk
 
