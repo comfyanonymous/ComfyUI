@@ -24,8 +24,8 @@ jobs:
         if: >
           github.event_name == 'pull_request_target' ||
           (github.event_name == 'issue_comment' && github.event.issue.pull_request && (
-            startsWith(github.event.comment.body, 'recheck') ||
-            startsWith(github.event.comment.body, 'I have read and agree to the Contributor License Agreement')
+            github.event.comment.body == 'recheck' ||
+            github.event.comment.body == 'I have read and agree to the Contributor License Agreement'
           ))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
