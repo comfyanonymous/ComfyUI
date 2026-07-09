@@ -31,7 +31,7 @@ def normalize_comfy_api_base(url: str) -> str:
     return f"{parsed.scheme or 'https'}://{label}-registry{_TESTENV_HOST_SUFFIX}"
 
 
-def frontend_config_for_base(base_url: str) -> dict[str, Any] | None:
+def environment_overrides_for_base(base_url: str) -> dict[str, Any] | None:
     """The /features overrides for a staging-tier base, or None for prod."""
     if not _is_staging_tier(urlparse(base_url).hostname or ""):
         return None
@@ -42,5 +42,5 @@ def frontend_config_for_base(base_url: str) -> dict[str, Any] | None:
     }
 
 
-def get_frontend_config() -> dict[str, Any] | None:
-    return frontend_config_for_base(getattr(args, "comfy_api_base", "") or "")
+def get_environment_overrides() -> dict[str, Any] | None:
+    return environment_overrides_for_base(getattr(args, "comfy_api_base", "") or "")

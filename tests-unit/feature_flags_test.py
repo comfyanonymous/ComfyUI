@@ -6,14 +6,14 @@ from comfy_api.feature_flags import (
     get_connection_feature,
     supports_feature,
     get_server_features,
-    get_frontend_features,
     CLI_FEATURE_FLAG_REGISTRY,
     SERVER_FEATURE_FLAGS,
     _coerce_flag_value,
     _parse_cli_feature_flags,
 )
 from comfy.comfy_api_env import (
-    frontend_config_for_base,
+    environment_overrides_for_base,
+    get_environment_overrides,
     normalize_comfy_api_base,
 )
 
@@ -212,35 +212,35 @@ class TestComfyApiEnv:
 
     def test_config_for_staging_tier_else_none(self):
         # ephemeral testenv: friendly main host -> -registry, staging platform, dev Firebase env
-        eph = frontend_config_for_base("https://pr-1234.testenvs.comfy.org/")
+        eph = environment_overrides_for_base("https://pr-1234.testenvs.comfy.org/")
         assert eph["comfy_api_base_url"] == "https://pr-1234-registry.testenvs.comfy.org"
         assert eph["comfy_platform_base_url"] == "https://stagingplatform.comfy.org"
         assert eph["firebase_env"] == "dev"
         # staging api host: emitted as-is
-        stg = frontend_config_for_base("https://stagingapi.comfy.org")
+        stg = environment_overrides_for_base("https://stagingapi.comfy.org")
         assert stg["comfy_api_base_url"] == "https://stagingapi.comfy.org"
         assert stg["comfy_platform_base_url"] == "https://stagingplatform.comfy.org"
         assert stg["firebase_env"] == "dev"
         # prod / unknown: nothing
-        assert frontend_config_for_base("https://api.comfy.org") is None
+        assert environment_overrides_for_base("https://api.comfy.org") is None
 
-    def test_frontend_features_merge_only_for_staging_tier(self, monkeypatch):
+    def test_environment_overrides_only_for_staging_tier(self, monkeypatch):
         def set_base(url):
             monkeypatch.setattr(
                 "comfy.comfy_api_env.args",
                 type("Args", (), {"comfy_api_base": url})(),
             )
 
-        # The HTTP /features endpoint carries the overrides for staging-tier bases...
+        # The overrides merged into the HTTP /features response are present for staging-tier bases...
         set_base("https://stagingapi.comfy.org")
-        assert "comfy_api_base_url" in get_frontend_features()
+        assert "comfy_api_base_url" in get_environment_overrides()
         set_base("https://pr-7.testenvs.comfy.org")
-        assert "comfy_api_base_url" in get_frontend_features()
+        assert "comfy_api_base_url" in get_environment_overrides()
         # ...but never for prod.
         set_base("https://api.comfy.org")
-        assert "comfy_api_base_url" not in get_frontend_features()
+        assert get_environment_overrides() is None
 
-    def test_server_features_never_carry_frontend_overrides(self, monkeypatch):
+    def test_server_features_never_carry_env_overrides(self, monkeypatch):
         """The WebSocket capability handshake must stay free of routing keys."""
         monkeypatch.setattr(
             "comfy.comfy_api_env.args",
