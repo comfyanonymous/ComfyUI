@@ -15,7 +15,7 @@ if not has_gpu():
     args.cpu = True
 
 from comfy import ops
-from comfy.quant_ops import QuantizedTensor
+from comfy.quant_ops import QUANT_ALGOS, QuantizedTensor
 import comfy.utils
 
 
@@ -283,7 +283,59 @@ class TestMixedPrecisionOps(unittest.TestCase):
         saved = model.state_dict()
         saved_conf = json.loads(saved["layer.comfy_quant"].numpy().tobytes())
         self.assertTrue(saved_conf["convrot"])
+
+    def test_convrot_w4a4_loads_into_params(self):
+        """ConvRot W4A4 checkpoints must load as the dedicated kitchen layout."""
+        if "convrot_w4a4" not in QUANT_ALGOS:
+            self.skipTest("comfy_kitchen does not provide ConvRot W4A4")
+
+        torch.manual_seed(456)
+        layer_quant_config = {
+            "layer": {
+                "format": "convrot_w4a4",
+                "convrot_groupsize": 256,
+                "linear_dtype": "int8",
+            }
+        }
+        weight = torch.randn(16, 256, dtype=torch.bfloat16)
+        bias = torch.randn(16, dtype=torch.bfloat16)
+        q_weight = QuantizedTensor.from_float(
+            weight,
+            "TensorCoreConvRotW4A4Layout",
+            convrot_groupsize=256,
+            quant_group_size=64,
+        )
+        state_dict = {
+            "layer.weight": q_weight._qdata,
+            "layer.bias": bias,
+            "layer.weight_scale": q_weight._params.scale,
+        }
+
+        state_dict, _ = comfy.utils.convert_old_quants(
+            state_dict,
+            metadata={"_quantization_metadata": json.dumps({"layers": layer_quant_config})},
+        )
+        model = torch.nn.Module()
+        model.layer = ops.mixed_precision_ops({}).Linear(256, 16, device="cpu", dtype=torch.bfloat16)
+        model.load_state_dict(state_dict, strict=False)
+
+        self.assertIsInstance(model.layer.weight, QuantizedTensor)
+        self.assertEqual(model.layer.weight._layout_cls, "TensorCoreConvRotW4A4Layout")
+        self.assertEqual(model.layer.weight._params.convrot_groupsize, 256)
+        self.assertEqual(model.layer.weight._params.quant_group_size, 64)
+        self.assertEqual(model.layer.weight._params.linear_dtype, "int8")
+
+        input_tensor = torch.randn(4, 256, dtype=torch.bfloat16)
+        loaded_out = model.layer(input_tensor)
+        ref_out = torch.nn.functional.linear(input_tensor, q_weight, bias)
+        self.assertTrue(torch.equal(loaded_out, ref_out))
+
+        saved = model.state_dict()
+        saved_conf = json.loads(saved["layer.comfy_quant"].numpy().tobytes())
+        self.assertEqual(saved_conf["format"], "convrot_w4a4")
         self.assertEqual(saved_conf["convrot_groupsize"], 256)
+        self.assertEqual(saved_conf["linear_dtype"], "int8")
+        self.assertNotIn("quant_group_size", saved_conf)
 
 if __name__ == "__main__":
     unittest.main()
