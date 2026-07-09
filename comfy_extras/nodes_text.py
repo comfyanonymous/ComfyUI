@@ -45,7 +45,6 @@ class SaveTextNode(io.ComfyNode):
                 with open(filepath, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
             except json.JSONDecodeError:
-                logging.warning("Saved JSON as a raw text")
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(text)
         else:
