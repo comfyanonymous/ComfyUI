@@ -110,6 +110,35 @@ class BoundingBox(IO.ComfyNode):
         return IO.NodeOutput({"x": x, "y": y, "width": width, "height": height})
 
 
+class UnpackBoundingBox(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="UnpackBoundingBox",
+            display_name="Unpack Bounding Box",
+            category="utilities/primitive",
+            description="Extract the components of a bounding box: x, y, width, height.",
+            inputs=[
+                IO.BoundingBox.Input("bbox"),
+            ],
+            outputs=[
+                IO.Int.Output(display_name="x"),
+                IO.Int.Output(display_name="y"),
+                IO.Int.Output(display_name="width"),
+                IO.Int.Output(display_name="height"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, bbox) -> IO.NodeOutput:
+        return IO.NodeOutput(
+            bbox.get("x", 0),
+            bbox.get("y", 0),
+            bbox.get("width", 512),
+            bbox.get("height", 512),
+        )
+
+
 class RepeatImageBatch(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -1234,6 +1263,7 @@ class ImagesExtension(ComfyExtension):
             ImageCrop,
             ImageCropV2,
             BoundingBox,
+            UnpackBoundingBox,
             RepeatImageBatch,
             ImageFromBatch,
             ImageAddNoise,
