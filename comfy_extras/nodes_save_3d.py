@@ -499,7 +499,6 @@ class SaveGaussianSplat(IO.ComfyNode):
                     ],
                     tooltip="A gaussian splat 3D file.",
                 ),
-
                 IO.String.Input("filename_prefix", default="3d/ComfyUI"),
                 IO.Load3D.Input("viewport_state"),
                 IO.Load3DModelInfo.Input("model_3d_info", optional=True, advanced=True),
