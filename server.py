@@ -39,6 +39,7 @@ from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
 from comfy_api import feature_flags
+from comfy.comfy_api_env import get_environment_overrides
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
@@ -727,7 +728,11 @@ class PromptServer():
 
         @routes.get("/features")
         async def get_features(request):
-            return web.json_response(feature_flags.get_server_features())
+            features = feature_flags.get_server_features()
+            overrides = get_environment_overrides()
+            if overrides:
+                features.update(overrides)
+            return web.json_response(features)
 
         @routes.get("/prompt")
         async def get_prompt(request):
