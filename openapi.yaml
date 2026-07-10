@@ -775,6 +775,14 @@ components:
         ModelFolder:
             description: Represents a folder containing models
             properties:
+                extensions:
+                    description: The folder's registered file-extension allowlist. An empty array means the folder accepts any extension (match-all).
+                    example:
+                        - .ckpt
+                        - .safetensors
+                    items:
+                        type: string
+                    type: array
                 folders:
                     description: List of paths where models of this type are stored
                     example:
