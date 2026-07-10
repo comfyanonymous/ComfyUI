@@ -92,6 +92,7 @@ class Preview3D(IO.ComfyNode):
             search_aliases=["view mesh", "3d viewer"],
             display_name="Preview 3D & Animation",
             category="3d",
+            description="Preview a 3D model file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             inputs=[
@@ -136,6 +137,7 @@ class Preview3DAdvanced(IO.ComfyNode):
             display_name="Preview 3D (Advanced)",
             search_aliases=["preview 3d", "3d viewer", "view mesh", "frame 3d", "3d camera output"],
             category="3d",
+            description="Preview a 3D model file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             inputs=[
@@ -193,6 +195,7 @@ class PreviewGaussianSplat(IO.ComfyNode):
             node_id="PreviewGaussianSplat",
             display_name="Preview Splat",
             category="3d",
+            description="Preview a gaussian splat 3D file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             search_aliases=[
@@ -261,6 +264,7 @@ class PreviewPointCloud(IO.ComfyNode):
             node_id="PreviewPointCloud",
             display_name="Preview Point Cloud",
             category="3d",
+            description="Preview a point cloud 3D file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             search_aliases=[

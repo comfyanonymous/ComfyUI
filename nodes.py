@@ -1709,6 +1709,7 @@ class PreviewImage(SaveImage):
         self.compress_level = 1
 
     SEARCH_ALIASES = ["preview", "preview image", "show image", "view image", "display image", "image viewer"]
+    DESCRIPTION = "Preview the images without saving them to the ComfyUI output directory."
 
     @classmethod
     def INPUT_TYPES(s):
