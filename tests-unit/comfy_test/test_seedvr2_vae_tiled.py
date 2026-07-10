@@ -122,6 +122,31 @@ def test_tiled_vae_encode_uses_tensor_return_without_indexing():
     assert tuple(out.shape) == (2, _LATENT_CHANNELS, 1, 8, 8)
 
 
+def test_tiled_vae_preserves_compute_dtype_with_different_parameter_dtype():
+    class DummyVAE(nn.Module):
+        spatial_downsample_factor = 8
+        temporal_downsample_factor = 4
+        slicing_sample_min_size = 8
+
+        def __init__(self):
+            super().__init__()
+            self.device = torch.device("cpu")
+            self._dummy = nn.Parameter(torch.zeros(1, dtype=torch.float16))
+            self.input_dtype = None
+
+        def encode(self, t_chunk):
+            self.input_dtype = t_chunk.dtype
+            b, _, _, h, w = t_chunk.shape
+            return torch.ones((b, _LATENT_CHANNELS, 1, h // 8, w // 8), dtype=t_chunk.dtype)
+
+    vae = DummyVAE()
+    x = torch.zeros((1, 3, 1, 64, 64), dtype=torch.float32)
+
+    tiled_vae(x, vae, tile_size=(64, 64), tile_overlap=(16, 16), encode=True)
+
+    assert vae.input_dtype == torch.float32
+
+
 def test_tiled_vae_preserves_input_dtype_on_single_tile():
     class FloatOutputVAEModel(torch.nn.Module):
         def __init__(self):

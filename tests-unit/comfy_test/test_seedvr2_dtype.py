@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 from comfy.cli_args import args as cli_args
 
@@ -48,3 +49,31 @@ def test_seedvr2_vae_decode_memory_covers_full_frame_lab_transfer():
     assert estimate == 101 * 960 * 1280 * 160
     assert estimate > 15 * 1024 ** 3
     assert estimate > old_estimate * 100
+
+
+def test_seedvr2_vae_encode_preserves_compute_dtype(monkeypatch):
+    wrapper = seedvr_vae.VideoAutoencoderKLWrapper.__new__(seedvr_vae.VideoAutoencoderKLWrapper)
+    nn.Module.__init__(wrapper)
+    wrapper._dummy = nn.Parameter(torch.empty(1, dtype=torch.float16))
+    input_dtype = None
+
+    def encode(self, x):
+        nonlocal input_dtype
+        input_dtype = x.dtype
+        return x
+
+    monkeypatch.setattr(seedvr_vae.VideoAutoencoderKL, "encode", encode)
+
+    x = torch.zeros((1, 3, 1, 8, 8), dtype=torch.float32)
+    wrapper._encode_with_raw_latent(x)
+
+    assert input_dtype == torch.float32
+
+
+def test_seedvr2_vae_ops_cast_weights_to_compute_dtype():
+    attention = seedvr_vae.Attention(query_dim=4, heads=1, dim_head=4).to(torch.float16)
+    hidden_states = torch.zeros((1, 2, 4), dtype=torch.float32)
+
+    output = attention(hidden_states)
+
+    assert output.dtype == torch.float32

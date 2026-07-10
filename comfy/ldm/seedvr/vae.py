@@ -30,7 +30,7 @@ from enum import Enum
 import logging
 import comfy.model_management
 import comfy.ops
-ops = comfy.ops.disable_weight_init
+ops = comfy.ops.manual_cast
 
 
 def _seedvr2_temporal_slicing_min_size(temporal_size, temporal_overlap, temporal_scale=1):
@@ -103,11 +103,10 @@ def tiled_vae(
     storage_device = vae_model.device
     result = None
     count = None
-    def run_temporal_chunks(spatial_tile, model=vae_model, device=storage_device):
-        device = torch.device(device)
-        t_chunk = spatial_tile.to(device=device, dtype=next(model.parameters()).dtype, non_blocking=True).contiguous()
+    def run_temporal_chunks(spatial_tile, model=vae_model):
+        t_chunk = spatial_tile.contiguous()
         old_device = getattr(model, "device", None)
-        model.device = device
+        model.device = t_chunk.device
         old_slicing_min_size = getattr(model, slicing_attr, None)
         if old_slicing_min_size is not None and slicing_min_size is not None:
             if slicing_min_size <= 0:
@@ -397,7 +396,7 @@ class Attention(nn.Module):
 
 def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
     input_dtype = x.dtype
-    if isinstance(norm_layer, (ops.LayerNorm, ops.RMSNorm)):
+    if isinstance(norm_layer, (nn.LayerNorm, nn.RMSNorm)):
         if x.ndim == 4:
             x = x.permute(0, 2, 3, 1)
             x = norm_layer(x)
@@ -408,14 +407,14 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
             x = norm_layer(x)
             x = x.permute(0, 4, 1, 2, 3)
             return x.to(input_dtype)
-    if isinstance(norm_layer, (ops.GroupNorm, nn.BatchNorm2d, nn.SyncBatchNorm)):
+    if isinstance(norm_layer, (nn.GroupNorm, nn.BatchNorm2d, nn.SyncBatchNorm)):
         if x.ndim <= 4:
             return norm_layer(x).to(input_dtype)
         if x.ndim == 5:
             b, c, t, h, w = x.shape
             x = x.transpose(1, 2).reshape(b * t, c, h, w)
             memory_occupy = x.numel() * x.element_size() / 1024**3
-            if isinstance(norm_layer, ops.GroupNorm) and memory_occupy > get_norm_limit():
+            if isinstance(norm_layer, nn.GroupNorm) and memory_occupy > get_norm_limit():
                 num_chunks = min(BYTEDANCE_GN_CHUNKS_FP16 if x.element_size() == 2 else BYTEDANCE_GN_CHUNKS_FP32, norm_layer.num_groups)
                 if norm_layer.num_groups % num_chunks != 0:
                     raise ValueError(
@@ -423,9 +422,9 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
                     )
                 num_groups_per_chunk = norm_layer.num_groups // num_chunks
 
+                weights = comfy.ops.cast_to_input(norm_layer.weight, x).chunk(num_chunks, dim=0)
+                biases = comfy.ops.cast_to_input(norm_layer.bias, x).chunk(num_chunks, dim=0)
                 x = list(x.chunk(num_chunks, dim=1))
-                weights = norm_layer.weight.chunk(num_chunks, dim=0)
-                biases = norm_layer.bias.chunk(num_chunks, dim=0)
                 for i, (w, bias) in enumerate(zip(weights, biases)):
                     x[i] = F.group_norm(x[i], num_groups_per_chunk, w, bias, norm_layer.eps)
                     x[i] = x[i].to(input_dtype)
@@ -1459,7 +1458,6 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
     def _encode_with_raw_latent(self, x):
         if x.ndim == 4:
             x = x.unsqueeze(2)
-        x = x.to(dtype=next(self.parameters()).dtype)
         self.device = x.device
         p = super().encode(x)
         z = p.squeeze(2)
