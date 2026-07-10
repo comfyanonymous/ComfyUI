@@ -3,7 +3,9 @@ TINT4Linear — INT4 weight-only Linear with LoRA + QuaRot.
 
 Backed by torchao Int4PlainInt32Tensor. Activations stay FP16.
 LoRA entries are injected at forward time — no kernel modification needed.
-QuaRot activation rotation is applied online when enabled.
+QuaRot activation rotation is applied online; LoRA A/w2 matrices are
+rotated into the QuaRot basis inside forward() automatically unless
+_lora_prerotated is set (for callers that pre-rotate at injection time).
 """
 
 import torch
@@ -26,6 +28,9 @@ class TINT4Linear(nn.Module):
       _group_size: int          — QuaRot group size
       _hadamard_H: Tensor|None  — normalized Hadamard matrix
       _tint4_lora_entries: dict|None — {lora_name: [(type, ...), ...]}
+      _lora_prerotated: bool    — True if caller already rotated A/w2
+                                  into QuaRot basis (default False).
+                                  When False, rotation is done in forward().
     """
 
     def __init__(self, in_features: int, out_features: int,
@@ -55,6 +60,9 @@ class TINT4Linear(nn.Module):
         # LoRA entries slot
         self._tint4_lora_entries: dict | None = None
 
+        # Pre-rotation flag: set True if caller already rotated A/w2
+        self._lora_prerotated: bool = False
+
     @property
     def weight(self) -> Int4PlainInt32Tensor:
         if self._qt is None:
@@ -68,6 +76,24 @@ class TINT4Linear(nn.Module):
     def weight(self, value: Int4PlainInt32Tensor) -> None:
         if isinstance(value, Int4PlainInt32Tensor):
             self._qt = value
+
+    # ═══════════════════════════════════════════════════════════════
+    # Helper: rotate a LoRA A / w2 matrix into the QuaRot basis
+    # ═══════════════════════════════════════════════════════════════
+
+    def _rotate_into_quarot(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Rotate tensor (A or w2) to match the Hadamard-rotated activation.
+        Skipped when _lora_prerotated is True (caller already rotated)."""
+        if self._lora_prerotated:
+            return tensor
+        if not self._use_quarot or self._hadamard_H is None:
+            return tensor
+        if tensor.shape[1] % self._group_size != 0:
+            return tensor
+        Ht = self._hadamard_H.T.to(device=tensor.device, dtype=tensor.dtype)
+        ng = tensor.shape[1] // self._group_size
+        return (tensor.reshape(tensor.shape[0], ng, self._group_size)
+                @ Ht).reshape(tensor.shape[0], -1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_flat = x.reshape(-1, x.shape[-1])
@@ -107,6 +133,10 @@ class TINT4Linear(nn.Module):
                         _, w1, w2, mult, factor = e[:5]
                         sl = e[5] if len(e) > 5 else None
                         se = e[6] if len(e) > 6 else None
+
+                        # Rotate w2 into QuaRot basis (honors _lora_prerotated)
+                        w2 = self._rotate_into_quarot(w2)
+
                         w1d = w1.to(device=dev, dtype=cd)
                         w2d = w2.to(device=dev, dtype=cd)
                         of2, if2 = w2d.shape
@@ -136,6 +166,10 @@ class TINT4Linear(nn.Module):
                     A, B, mult = e[:3]
                     sl = e[3] if len(e) > 3 else None
                     se = e[4] if len(e) > 4 else None
+
+                    # Rotate A into QuaRot basis (honors _lora_prerotated)
+                    A = self._rotate_into_quarot(A)
+
                     Ad = A.to(device=dev, dtype=cd)
                     Bd = B.to(device=dev, dtype=cd)
                     lo = (x_flat.to(cd) @ Ad.T) @ Bd.T * mult
