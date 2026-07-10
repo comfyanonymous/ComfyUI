@@ -598,6 +598,44 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
+    seedvr2_7b_separate_key = "{}blocks.35.mlp.vid.proj_out.weight".format(key_prefix)
+    if seedvr2_7b_separate_key in state_dict_keys and state_dict[seedvr2_7b_separate_key].shape[0] == 3072: # seedvr2 7b
+        dit_config = {}
+        dit_config["image_model"] = "seedvr2"
+        dit_config["vid_dim"] = 3072
+        dit_config["heads"] = 24
+        dit_config["num_layers"] = 36
+        # This checkpoint uses separate vid/txt MMModule keys in every block.
+        dit_config["mm_layers"] = 36
+        dit_config["norm_eps"] = 1e-5
+        dit_config["rope_type"] = "rope3d"
+        dit_config["rope_dim"] = 64
+        dit_config["mlp_type"] = "normal"
+        return dit_config
+    if "{}blocks.35.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 7b
+        dit_config = {}
+        dit_config["image_model"] = "seedvr2"
+        dit_config["vid_dim"] = 3072
+        dit_config["heads"] = 24
+        dit_config["num_layers"] = 36
+        # This checkpoint uses shared all.* MMModule keys after the initial blocks.
+        dit_config["mm_layers"] = 10
+        dit_config["norm_eps"] = 1e-5
+        dit_config["rope_type"] = "rope3d"
+        dit_config["rope_dim"] = 64
+        dit_config["mlp_type"] = "swiglu"
+        return dit_config
+    if "{}blocks.31.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 3b
+        dit_config = {}
+        dit_config["image_model"] = "seedvr2"
+        dit_config["vid_dim"] = 2560
+        dit_config["heads"] = 20
+        dit_config["num_layers"] = 32
+        dit_config["norm_eps"] = 1.0e-05
+        dit_config["mlp_type"] = "swiglu"
+        dit_config["vid_out_norm"] = True
+        return dit_config
+
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
         dit_config = {}
         dit_config["image_model"] = "wan2.1"
@@ -1119,9 +1157,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
     return unet_config
 
-def model_config_from_unet_config(unet_config, state_dict=None):
+
+def model_config_from_unet_config(unet_config, state_dict=None, unet_key_prefix=""):
     for model_config in comfy.supported_models.models:
-        if model_config.matches(unet_config, state_dict):
+        if model_config.matches(unet_config, state_dict, unet_key_prefix=unet_key_prefix):
             return model_config(unet_config)
 
     logging.error("no match {}".format(unet_config))
@@ -1131,7 +1170,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     unet_config = detect_unet_config(state_dict, unet_key_prefix, metadata=metadata)
     if unet_config is None:
         return None
-    model_config = model_config_from_unet_config(unet_config, state_dict)
+    model_config = model_config_from_unet_config(unet_config, state_dict, unet_key_prefix)
     if model_config is None and use_base_if_no_match:
         model_config = comfy.supported_models_base.BASE(unet_config)
 

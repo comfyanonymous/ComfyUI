@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import torch
 
-from comfy.model_detection import detect_unet_config, model_config_from_unet_config
+from comfy.model_detection import detect_unet_config, model_config_from_unet, model_config_from_unet_config
 import comfy.supported_models
 
 
@@ -73,6 +73,34 @@ def _make_flux_schnell_comfyui_sd():
     return sd
 
 
+def _make_seedvr2_7b_separate_mm_sd():
+    return {
+        "blocks.35.mlp.vid.proj_out.weight": torch.empty(3072, 1),
+        "positive_conditioning": torch.empty(58, 5120),
+        "negative_conditioning": torch.empty(64, 5120),
+    }
+
+
+def _make_seedvr2_7b_shared_mm_sd():
+    return {
+        "blocks.35.mlp.all.proj_in_gate.weight": torch.empty(1, 1),
+        "positive_conditioning": torch.empty(58, 5120),
+        "negative_conditioning": torch.empty(64, 5120),
+    }
+
+
+def _make_seedvr2_3b_shared_mm_sd():
+    return {
+        "blocks.31.mlp.all.proj_in_gate.weight": torch.empty(1, 1),
+        "positive_conditioning": torch.empty(58, 5120),
+        "negative_conditioning": torch.empty(64, 5120),
+    }
+
+
+def _add_model_diffusion_prefix(sd):
+    return {f"model.diffusion_model.{k}": v for k, v in sd.items()}
+
+
 class TestModelDetection:
     """Verify that first-match model detection selects the correct model
     based on list ordering and unet_config specificity."""
@@ -124,6 +152,59 @@ class TestModelDetection:
         model_config = model_config_from_unet_config(unet_config, sd)
         assert model_config is not None
         assert type(model_config).__name__ == "FluxSchnell"
+
+    def test_seedvr2_7b_separate_mm_detection_config(self):
+        sd = _make_seedvr2_7b_separate_mm_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert unet_config is not None
+        assert unet_config["image_model"] == "seedvr2"
+        assert unet_config["vid_dim"] == 3072
+        assert unet_config["heads"] == 24
+        assert unet_config["num_layers"] == 36
+        assert unet_config["mm_layers"] == 36
+        assert unet_config["mlp_type"] == "normal"
+        assert unet_config["rope_type"] == "rope3d"
+        assert unet_config["rope_dim"] == 64
+
+    def test_seedvr2_7b_shared_mm_detection_config(self):
+        sd = _make_seedvr2_7b_shared_mm_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert unet_config is not None
+        assert unet_config["image_model"] == "seedvr2"
+        assert unet_config["vid_dim"] == 3072
+        assert unet_config["heads"] == 24
+        assert unet_config["num_layers"] == 36
+        assert unet_config["mm_layers"] == 10
+        assert unet_config["mlp_type"] == "swiglu"
+        assert unet_config["rope_type"] == "rope3d"
+        assert unet_config["rope_dim"] == 64
+
+    def test_seedvr2_3b_shared_mm_detection_config(self):
+        sd = _make_seedvr2_3b_shared_mm_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert unet_config is not None
+        assert unet_config["image_model"] == "seedvr2"
+        assert unet_config["vid_dim"] == 2560
+        assert unet_config["heads"] == 20
+        assert unet_config["num_layers"] == 32
+        assert unet_config["mlp_type"] == "swiglu"
+
+    def test_seedvr2_model_match_requires_conditioning_tensors(self):
+        sd = _make_seedvr2_7b_shared_mm_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert type(model_config_from_unet_config(unet_config, sd)).__name__ == "SeedVR2"
+
+        del sd["positive_conditioning"]
+        assert model_config_from_unet_config(unet_config, sd) is None
+
+    def test_seedvr2_model_match_accepts_full_checkpoint_prefix(self):
+        sd = _add_model_diffusion_prefix(_make_seedvr2_7b_shared_mm_sd())
+
+        assert type(model_config_from_unet(sd, "model.diffusion_model.")).__name__ == "SeedVR2"
 
     def test_unet_config_and_required_keys_combination_is_unique(self):
         """Each model in the registry must have a unique combination of

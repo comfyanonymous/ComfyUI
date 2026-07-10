@@ -32,9 +32,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login || github.event.issue.user.login }}
           BASE_ALLOWLIST: action@github.com,actions-user,ampagent,claude,comfy-pr-bot,GitHub Action,github-actions,github-actions[bot],Glary Bot,Glary-Bot,*[bot]
+        # For each commit emit the GitHub login when the author/committer email resolves to a GitHub account
+        # otherwise fall back to the raw git name.
         run: |
           others=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits" --paginate \
-            --jq '.[] | (.author.login // empty), (.committer.login // empty)' \
+            --jq '.[] | (.author.login // .commit.author.name // empty), (.committer.login // .commit.committer.name // empty)' \
             | sort -u | grep -vix "${PR_AUTHOR}" | paste -sd, -)
           if [ -n "$others" ]; then
             echo "allowlist=${BASE_ALLOWLIST},${others}" >> "$GITHUB_OUTPUT"
@@ -43,7 +45,7 @@ jobs:
           fi
 
       - name: CLA Assistant
-        # Run on PR events, on "recheck" comment, or when someone posts the exact signing phrase.
+        # Run on PR events, on "recheck" comment, or when someone posts the signing phrase.
         # IMPORTANT: this phrase must match `custom-pr-sign-comment` below.
         if: >
           github.event_name == 'pull_request_target' ||

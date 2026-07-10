@@ -17,6 +17,10 @@ class Seedream4Options(BaseModel):
     max_images: int = Field(15)
 
 
+class Seedream5OptimizePromptOptions(BaseModel):
+    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+
+
 class Seedream4TaskCreationRequest(BaseModel):
     model: str = Field(...)
     prompt: str = Field(...)
@@ -28,6 +32,7 @@ class Seedream4TaskCreationRequest(BaseModel):
     sequential_image_generation_options: Seedream4Options | None = Field(Seedream4Options(max_images=15))
     watermark: bool = Field(False)
     output_format: str | None = None
+    optimize_prompt_options: Seedream5OptimizePromptOptions | None = None
 
 
 class ImageTaskCreationResponse(BaseModel):
