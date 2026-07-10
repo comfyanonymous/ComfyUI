@@ -74,18 +74,15 @@ class TINT4Linear(nn.Module):
 
         # ── QuaRot activation rotation (online) ──────────────────
         if self._use_quarot and self._hadamard_H is not None:
-            try:
-                H_dev = self._hadamard_H.to(
-                    device=x.device,
-                    dtype=(x.dtype if x.dtype in (
-                        torch.float16, torch.bfloat16)
-                           else torch.float16),
+            if x_flat.shape[-1] % self._group_size != 0:
+                raise ValueError(
+                    f"activation dim {x_flat.shape[-1]} not divisible "
+                    f"by QuaRot group_size {self._group_size}"
                 )
-                n_groups = x_flat.shape[-1] // self._group_size
-                x_g = x_flat.view(-1, n_groups, self._group_size)
-                x_flat = torch.matmul(x_g, H_dev).view(-1, x_g.shape[2] * n_groups)
-            except Exception:
-                pass
+            H_dev = self._hadamard_H.to(device=x.device, dtype=x.dtype)
+            n_groups = x_flat.shape[-1] // self._group_size
+            x_g = x_flat.view(-1, n_groups, self._group_size)
+            x_flat = torch.matmul(x_g, H_dev).view(-1, n_groups * self._group_size)
 
         dev = x.device
 
@@ -105,6 +102,7 @@ class TINT4Linear(nn.Module):
                   else torch.float16)
             for lora_entries in entries.values():
                 for e in lora_entries:
+                    # ── LoKr path ────────────────────────────────
                     if isinstance(e[0], str) and e[0] == "lokr":
                         _, w1, w2, mult, factor = e[:5]
                         sl = e[5] if len(e) > 5 else None
@@ -118,13 +116,23 @@ class TINT4Linear(nn.Module):
                         dw = (w1x * w2d).mul_(mult)
                         lo = x_flat.to(cd) @ dw.T
                         if sl is not None:
-                            if lo.shape[1] == (se - sl):
-                                out[:, sl:se] += lo
+                            if lo.shape[1] != (se - sl):
+                                raise ValueError(
+                                    f"LoKr output width {lo.shape[1]} "
+                                    f"doesn't match target slice width "
+                                    f"{se - sl}"
+                                )
+                            out[:, sl:se] += lo
                         elif lo.shape == out.shape:
                             out += lo
+                        else:
+                            raise ValueError(
+                                f"LoKr output shape {lo.shape} "
+                                f"incompatible with {out.shape}"
+                            )
                         continue
 
-                    # standard LoRA
+                    # ── Standard LoRA path ────────────────────────
                     A, B, mult = e[:3]
                     sl = e[3] if len(e) > 3 else None
                     se = e[4] if len(e) > 4 else None
@@ -132,10 +140,20 @@ class TINT4Linear(nn.Module):
                     Bd = B.to(device=dev, dtype=cd)
                     lo = (x_flat.to(cd) @ Ad.T) @ Bd.T * mult
                     if sl is not None:
-                        if lo.shape[1] == (se - sl):
-                            out[:, sl:se] += lo
+                        if lo.shape[1] != (se - sl):
+                            raise ValueError(
+                                f"LoRA output width {lo.shape[1]} "
+                                f"doesn't match target slice width "
+                                f"{se - sl}"
+                            )
+                        out[:, sl:se] += lo
                     elif lo.shape[1] == out.shape[1]:
                         out += lo
+                    else:
+                        raise ValueError(
+                            f"LoRA output shape {lo.shape} "
+                            f"incompatible with {out.shape}"
+                        )
 
         if self.bias is not None:
             out += self.bias.to(device=dev, dtype=out.dtype)

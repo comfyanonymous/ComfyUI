@@ -14,6 +14,7 @@ except ImportError:
     _SCIPY_AVAILABLE = False
 
 _HADAMARD_CACHE: dict = {}
+_HADAMARD_MAX_SIZE = 64  # Maximum number of cached (size, device, dtype) entries
 
 
 def build_hadamard(
@@ -38,13 +39,19 @@ def build_hadamard(
         H_np = _scipy_hadamard(size)
         H = torch.tensor(H_np, dtype=dtype, device=device) / (size ** 0.5)
     else:
+        # Pure-PyTorch Sylvester construction
         H = torch.tensor([[1.0]], dtype=dtype, device=device)
         n = 1
         while n < size:
-            H = torch.cat([torch.cat([H,  H], dim=1),
-                           torch.cat([H, -H], dim=0)], dim=0)
+            top = torch.cat([H, H], dim=1)
+            bottom = torch.cat([H, -H], dim=1)
+            H = torch.cat([top, bottom], dim=0)
             n *= 2
         H = H / (size ** 0.5)
+
+    # Enforce cache size cap (evict oldest entry)
+    if len(_HADAMARD_CACHE) >= _HADAMARD_MAX_SIZE:
+        _HADAMARD_CACHE.pop(next(iter(_HADAMARD_CACHE)))
 
     _HADAMARD_CACHE[cache_key] = H
     return H
