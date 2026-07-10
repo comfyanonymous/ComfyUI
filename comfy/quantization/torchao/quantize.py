@@ -24,7 +24,7 @@ def quantize_model(
         model: PyTorch model to quantize.
         group_size: Quantization group size (32/64/128/256).
         filter_fn: Optional callable(module, name) → bool.
-                   Return True to skip that module.
+                   Return True to quantize that module.
 
     Returns:
         Same model (quantized in-place).
