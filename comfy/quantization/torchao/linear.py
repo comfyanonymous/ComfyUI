@@ -37,6 +37,18 @@ class TINT4Linear(nn.Module):
                  qdata: torch.Tensor, scale: torch.Tensor,
                  zp: torch.Tensor, block_size: tuple,
                  bias: torch.Tensor | None = None):
+        """
+        Initialize TINT4Linear from raw torchao INT4 tensors.
+
+        Args:
+            in_features: Input feature dimension.
+            out_features: Output feature dimension.
+            qdata: Packed int32 quantized weight data (out_f, in_f // 8).
+            scale: Per-block fp16 scales (n_blocks, out_f).
+            zp: Per-block int8 zero-points (n_blocks, out_f).
+            block_size: (b0, b1) tuple defining quantization block shape.
+            bias: Optional bias tensor (out_f,).
+        """
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -46,10 +58,10 @@ class TINT4Linear(nn.Module):
         else:
             self.register_parameter('bias', None)
 
-        self._qdata = qdata           # int32  (out_f, in_f // 8)
-        self._scale = scale           # fp16   (n_blocks, out_f)
-        self._zp = zp                 # int8   (n_blocks, out_f)
-        self._block_size = block_size # (b0, b1)
+        self._qdata = qdata
+        self._scale = scale
+        self._zp = zp
+        self._block_size = block_size
         self._qt: Int4PlainInt32Tensor | None = None
 
         # QuaRot (optional)
@@ -60,11 +72,12 @@ class TINT4Linear(nn.Module):
         # LoRA entries slot
         self._tint4_lora_entries: dict | None = None
 
-        # Pre-rotation flag: set True if caller already rotated A/w2
+        # Pre-rotation flag
         self._lora_prerotated: bool = False
 
     @property
     def weight(self) -> Int4PlainInt32Tensor:
+        """Lazily construct and return the Int4PlainInt32Tensor view."""
         if self._qt is None:
             self._qt = Int4PlainInt32Tensor(
                 self._qdata, self._scale, self._zp,
@@ -74,16 +87,18 @@ class TINT4Linear(nn.Module):
 
     @weight.setter
     def weight(self, value: Int4PlainInt32Tensor) -> None:
+        """Replace the underlying Int4PlainInt32Tensor."""
         if isinstance(value, Int4PlainInt32Tensor):
             self._qt = value
 
-    # ═══════════════════════════════════════════════════════════════
-    # Helper: rotate a LoRA A / w2 matrix into the QuaRot basis
-    # ═══════════════════════════════════════════════════════════════
-
     def _rotate_into_quarot(self, tensor: torch.Tensor) -> torch.Tensor:
-        """Rotate tensor (A or w2) to match the Hadamard-rotated activation.
-        Skipped when _lora_prerotated is True (caller already rotated)."""
+        """
+        Rotate a LoRA A or w2 matrix into the QuaRot Hadamard basis.
+
+        Skipped when _lora_prerotated is True (caller already rotated).
+        Returns unchanged tensor if QuaRot is disabled or dimensions
+        are not divisible by _group_size.
+        """
         if self._lora_prerotated:
             return tensor
         if not self._use_quarot or self._hadamard_H is None:
@@ -96,9 +111,22 @@ class TINT4Linear(nn.Module):
                 @ Ht).reshape(tensor.shape[0], -1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass with optional QuaRot activation rotation and LoRA injection.
+
+        Args:
+            x: Input tensor, shape (..., in_features).
+
+        Returns:
+            Output tensor, shape (..., out_features).
+
+        Raises:
+            ValueError: If activation dim is not divisible by QuaRot group_size,
+                        or if LoRA output shapes are incompatible.
+        """
         x_flat = x.reshape(-1, x.shape[-1])
 
-        # ── QuaRot activation rotation (online) ──────────────────
+        # QuaRot activation rotation (online)
         if self._use_quarot and self._hadamard_H is not None:
             if x_flat.shape[-1] % self._group_size != 0:
                 raise ValueError(
@@ -112,7 +140,7 @@ class TINT4Linear(nn.Module):
 
         dev = x.device
 
-        # ── Rebuild Int4PlainInt32Tensor on device change ────────
+        # Rebuild Int4PlainInt32Tensor on device change
         if self._qt is None or self._qt.device != dev:
             self._qt = Int4PlainInt32Tensor(
                 self._qdata.to(dev), self._scale.to(dev), self._zp.to(dev),
@@ -121,22 +149,19 @@ class TINT4Linear(nn.Module):
 
         out = F.linear(x_flat, self._qt, None)
 
-        # ── LoRA forward injection ───────────────────────────────
+        # LoRA forward injection
         entries = self._tint4_lora_entries
         if entries is not None and entries:
             cd = (x.dtype if x.dtype in (torch.float16, torch.bfloat16)
                   else torch.float16)
             for lora_entries in entries.values():
                 for e in lora_entries:
-                    # ── LoKr path ────────────────────────────────
+                    # LoKr path
                     if isinstance(e[0], str) and e[0] == "lokr":
                         _, w1, w2, mult, factor = e[:5]
                         sl = e[5] if len(e) > 5 else None
                         se = e[6] if len(e) > 6 else None
-
-                        # Rotate w2 into QuaRot basis (honors _lora_prerotated)
                         w2 = self._rotate_into_quarot(w2)
-
                         w1d = w1.to(device=dev, dtype=cd)
                         w2d = w2.to(device=dev, dtype=cd)
                         of2, if2 = w2d.shape
@@ -162,14 +187,11 @@ class TINT4Linear(nn.Module):
                             )
                         continue
 
-                    # ── Standard LoRA path ────────────────────────
+                    # Standard LoRA path
                     A, B, mult = e[:3]
                     sl = e[3] if len(e) > 3 else None
                     se = e[4] if len(e) > 4 else None
-
-                    # Rotate A into QuaRot basis (honors _lora_prerotated)
                     A = self._rotate_into_quarot(A)
-
                     Ad = A.to(device=dev, dtype=cd)
                     Bd = B.to(device=dev, dtype=cd)
                     lo = (x_flat.to(cd) @ Ad.T) @ Bd.T * mult
@@ -199,6 +221,7 @@ class TINT4Linear(nn.Module):
         self._qt = None
 
     def __del__(self):
+        """Cleanup raw tensor references on deletion."""
         self._qdata = None
         self._scale = None
         self._zp = None

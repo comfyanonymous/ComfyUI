@@ -21,10 +21,10 @@ def quantize_model(
     Quantize all nn.Linear layers in-place via torchao INT4 weight-only.
 
     Args:
-        model:      PyTorch model to quantize.
+        model: PyTorch model to quantize.
         group_size: Quantization group size (32/64/128/256).
-        filter_fn:  Optional callable(module, name) → bool.
-                    Return True to skip that module.
+        filter_fn: Optional callable(module, name) → bool.
+                   Return True to skip that module.
 
     Returns:
         Same model (quantized in-place).
@@ -47,7 +47,7 @@ _QUANT_SUFFIXES = (
 
 
 def _is_quantized_weight(key: str, sd: dict) -> bool:
-    """Check whether a safetensors key is a torchao-quantized weight."""
+    """Check whether a safetensors key is a torchao-quantized weight tensor."""
     if not key.endswith(".weight"):
         return False
     base = key[:-len(".weight")]
@@ -67,7 +67,7 @@ def reconstruct_int4_state_dict(
     Caller is responsible for placing the modules into the target model.
 
     Args:
-        sd:     Safetensors state dict with torchao int4 packed weights.
+        sd: Safetensors state dict with torchao int4 packed weights.
         device: Target device for the reconstructed layers.
 
     Returns:
@@ -89,7 +89,7 @@ def reconstruct_int4_state_dict(
         for suffix in _QUANT_SUFFIXES:
             sd.pop(f"{base}{suffix}", None)
 
-        in_f = qdata.shape[1] * 8   # int32 packs 8 int4 values
+        in_f = qdata.shape[1] * 8
         out_f = qdata.shape[0]
 
         layer = TINT4Linear(
