@@ -25,10 +25,18 @@ try:
             ck.registry.disable("cuda")
             logging.warning("WARNING: You need pytorch with cu130 or higher to use optimized CUDA operations.")
 
-    if args.enable_triton_backend:
+    # On ROCm/AMD the CUDA backend is unavailable, so Triton is the only accelerated
+    # comfy-kitchen backend. Enable it by default there, but only on Triton >= 3.7:
+    # older Triton lacks libdevice.rint on the HIP backend and hard-crashes the INT8 path.
+    if args.enable_triton_backend or torch.version.hip is not None:
         try:
             import triton
-            logging.info("Found triton %s. Enabling comfy-kitchen triton backend.", triton.__version__)
+            triton_version = tuple(int(v) for v in triton.__version__.split(".")[:2])
+            if args.enable_triton_backend or triton_version >= (3, 7):
+                logging.info("Found triton %s. Enabling comfy-kitchen triton backend.", triton.__version__)
+            else:
+                logging.info("Triton %s is too old for the ROCm INT8 path (needs >= 3.7); comfy-kitchen triton backend disabled.", triton.__version__)
+                ck.registry.disable("triton")
         except ImportError as e:
             logging.error(f"Failed to import triton, Error: {e}, the comfy-kitchen triton backend will not be available.")
             ck.registry.disable("triton")
