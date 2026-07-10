@@ -1156,22 +1156,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         unet_config["heatmap_head"] = True
 
     return unet_config
-def normalize_seedvr2_unet_config(unet_config):
-    if unet_config.get("image_model") != "seedvr2" or "num_heads" not in unet_config:
-        return unet_config
-
-    unet_config = dict(unet_config)
-    num_heads = unet_config.pop("num_heads")
-    if "heads" in unet_config and unet_config["heads"] != num_heads:
-        raise ValueError(
-            f"SeedVR2 config has conflicting heads={unet_config['heads']} and num_heads={num_heads}."
-        )
-    unet_config["heads"] = num_heads
-    return unet_config
 
 
 def model_config_from_unet_config(unet_config, state_dict=None, unet_key_prefix=""):
-    unet_config = normalize_seedvr2_unet_config(unet_config)
     for model_config in comfy.supported_models.models:
         if model_config.matches(unet_config, state_dict, unet_key_prefix=unet_key_prefix):
             return model_config(unet_config)
