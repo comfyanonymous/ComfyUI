@@ -2504,6 +2504,7 @@ async def init_builtin_extra_nodes():
         "nodes_triposplat.py",
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
+        "nodes_lora_stack.py",
     ]
 
     import_failed = []
