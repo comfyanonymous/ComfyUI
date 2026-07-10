@@ -10,6 +10,7 @@ try:
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
+        TensorCoreConvRotW4A4Layout as _CKTensorCoreConvRotW4A4Layout,
         TensorWiseINT8Layout as _CKTensorWiseINT8Layout,
         register_layout_op,
         register_layout_class,
@@ -24,10 +25,18 @@ try:
             ck.registry.disable("cuda")
             logging.warning("WARNING: You need pytorch with cu130 or higher to use optimized CUDA operations.")
 
-    if args.enable_triton_backend:
+    # On ROCm/AMD the CUDA backend is unavailable, so Triton is the only accelerated
+    # comfy-kitchen backend. Enable it by default there, but only on Triton >= 3.7:
+    # older Triton lacks libdevice.rint on the HIP backend and hard-crashes the INT8 path.
+    if args.enable_triton_backend or torch.version.hip is not None:
         try:
             import triton
-            logging.info("Found triton %s. Enabling comfy-kitchen triton backend.", triton.__version__)
+            triton_version = tuple(int(v) for v in triton.__version__.split(".")[:2])
+            if args.enable_triton_backend or triton_version >= (3, 7):
+                logging.info("Found triton %s. Enabling comfy-kitchen triton backend.", triton.__version__)
+            else:
+                logging.info("Triton %s is too old for the ROCm INT8 path (needs >= 3.7); comfy-kitchen triton backend disabled.", triton.__version__)
+                ck.registry.disable("triton")
         except ImportError as e:
             logging.error(f"Failed to import triton, Error: {e}, the comfy-kitchen triton backend will not be available.")
             ck.registry.disable("triton")
@@ -49,6 +58,9 @@ except ImportError as e:
         pass
 
     class _CKTensorWiseINT8Layout:
+        pass
+
+    class _CKTensorCoreConvRotW4A4Layout:
         pass
 
     def register_layout_class(name, cls):
@@ -179,6 +191,7 @@ class TensorCoreFP8E5M2Layout(_TensorCoreFP8LayoutBase):
 # Backward compatibility alias - default to E4M3
 TensorCoreFP8Layout = TensorCoreFP8E4M3Layout
 TensorWiseINT8Layout = _CKTensorWiseINT8Layout
+TensorCoreConvRotW4A4Layout = _CKTensorCoreConvRotW4A4Layout
 
 
 # ==============================================================================
@@ -190,6 +203,7 @@ register_layout_class("TensorCoreFP8E4M3Layout", TensorCoreFP8E4M3Layout)
 register_layout_class("TensorCoreFP8E5M2Layout", TensorCoreFP8E5M2Layout)
 register_layout_class("TensorCoreNVFP4Layout", TensorCoreNVFP4Layout)
 register_layout_class("TensorWiseINT8Layout", _CKTensorWiseINT8Layout)
+register_layout_class("TensorCoreConvRotW4A4Layout", _CKTensorCoreConvRotW4A4Layout)
 if _CK_MXFP8_AVAILABLE:
     register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
 
@@ -227,6 +241,13 @@ QUANT_ALGOS["int8_tensorwise"] = {
     "quantize_input": False,
 }
 
+QUANT_ALGOS["convrot_w4a4"] = {
+    "storage_t": torch.int8,
+    "parameters": {"weight_scale"},
+    "comfy_tensor_layout": "TensorCoreConvRotW4A4Layout",
+    "quantize_input": False,
+}
+
 
 # ==============================================================================
 # Re-exports for backward compatibility
@@ -239,6 +260,7 @@ __all__ = [
     "TensorCoreFP8E4M3Layout",
     "TensorCoreFP8E5M2Layout",
     "TensorCoreNVFP4Layout",
+    "TensorCoreConvRotW4A4Layout",
     "TensorWiseINT8Layout",
     "QUANT_ALGOS",
     "register_layout_op",

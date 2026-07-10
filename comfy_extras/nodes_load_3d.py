@@ -61,14 +61,10 @@ class Load3D(IO.ComfyNode):
 
     @classmethod
     def execute(cls, model_file, image, **kwargs) -> IO.NodeOutput:
-        image_path = folder_paths.get_annotated_filepath(image['image'])
-        mask_path = folder_paths.get_annotated_filepath(image['mask'])
-        normal_path = folder_paths.get_annotated_filepath(image['normal'])
-
         load_image_node = nodes.LoadImage()
-        output_image, ignore_mask = load_image_node.load_image(image=image_path)
-        ignore_image, output_mask = load_image_node.load_image(image=mask_path)
-        normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
+        output_image, ignore_mask = load_image_node.load_image(image=image['image'])
+        ignore_image, output_mask = load_image_node.load_image(image=image['mask'])
+        normal_image, ignore_mask2 = load_image_node.load_image(image=image['normal'])
 
         video = None
 
