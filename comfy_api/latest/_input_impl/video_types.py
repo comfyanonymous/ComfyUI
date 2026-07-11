@@ -281,11 +281,18 @@ class VideoFromFile(VideoInput):
         video_done = False
         audio_done = True
 
-        if len(container.streams.audio):
-            audio_stream = container.streams.audio[-1]
+        # Use the last decodable audio stream. Streams FFmpeg has no decoder for have no codec context,
+        # and decoding their packets crashes the process. (e.g. APAC spatial-audio track in iPhone)
+        audio_stream = next(
+            (s for s in reversed(container.streams.audio) if s.codec_context is not None),
+            None,
+        )
+        if audio_stream is not None:
             streams += [audio_stream]
             resampler = av.audio.resampler.AudioResampler(format='fltp')
             audio_done = False
+        elif len(container.streams.audio):
+            logging.warning("No decodable audio stream found in video; ignoring audio.")
 
         for packet in container.demux(*streams):
             if video_done and audio_done:
@@ -457,10 +464,13 @@ class VideoFromFile(VideoInput):
                         else:
                             output_container.metadata[key] = json.dumps(value)
 
-                # Add streams to the new container
+                # Add streams to the new container. Streams with no codec context cannot be used as an output template.
                 stream_map = {}
                 for stream in streams:
                     if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
+                        if stream.codec_context is None:
+                            logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
+                            continue
                         out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
                         stream_map[stream] = out_stream
 
