@@ -63,7 +63,7 @@ def get_alembic_config():
 
 
 def get_database_url():
-    if getattr(args, "database_url_explicit", False):
+    if args.database_url is not None:
         return args.database_url
 
     import folder_paths
@@ -73,10 +73,9 @@ def get_database_url():
 
 
 def get_legacy_default_db_path():
-    url = args.database_url
-    if url.startswith("sqlite:///"):
-        return url.split("///", 1)[1]
-    return None
+    from comfy.cli_args import database_default_path
+
+    return database_default_path
 
 
 def get_db_path():
@@ -88,7 +87,7 @@ def get_db_path():
 
 
 def copy_legacy_default_db(db_path):
-    if getattr(args, "database_url_explicit", False):
+    if args.database_url is not None:
         return
 
     legacy_db_path = get_legacy_default_db_path()
