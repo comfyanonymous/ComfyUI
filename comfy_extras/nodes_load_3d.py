@@ -61,14 +61,10 @@ class Load3D(IO.ComfyNode):
 
     @classmethod
     def execute(cls, model_file, image, **kwargs) -> IO.NodeOutput:
-        image_path = folder_paths.get_annotated_filepath(image['image'])
-        mask_path = folder_paths.get_annotated_filepath(image['mask'])
-        normal_path = folder_paths.get_annotated_filepath(image['normal'])
-
         load_image_node = nodes.LoadImage()
-        output_image, ignore_mask = load_image_node.load_image(image=image_path)
-        ignore_image, output_mask = load_image_node.load_image(image=mask_path)
-        normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
+        output_image, ignore_mask = load_image_node.load_image(image=image['image'])
+        ignore_image, output_mask = load_image_node.load_image(image=image['mask'])
+        normal_image, ignore_mask2 = load_image_node.load_image(image=image['normal'])
 
         video = None
 
@@ -96,6 +92,7 @@ class Preview3D(IO.ComfyNode):
             search_aliases=["view mesh", "3d viewer"],
             display_name="Preview 3D & Animation",
             category="3d",
+            description="Preview a 3D model file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             inputs=[
@@ -140,6 +137,7 @@ class Preview3DAdvanced(IO.ComfyNode):
             display_name="Preview 3D (Advanced)",
             search_aliases=["preview 3d", "3d viewer", "view mesh", "frame 3d", "3d camera output"],
             category="3d",
+            description="Preview a 3D model file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             inputs=[
@@ -197,6 +195,7 @@ class PreviewGaussianSplat(IO.ComfyNode):
             node_id="PreviewGaussianSplat",
             display_name="Preview Splat",
             category="3d",
+            description="Preview a gaussian splat 3D file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             search_aliases=[
@@ -265,6 +264,7 @@ class PreviewPointCloud(IO.ComfyNode):
             node_id="PreviewPointCloud",
             display_name="Preview Point Cloud",
             category="3d",
+            description="Preview a point cloud 3D file without saving it to the ComfyUI output directory.",
             is_experimental=True,
             is_output_node=True,
             search_aliases=[

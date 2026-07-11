@@ -550,10 +550,8 @@ class Attention(nn.Module):
                 xv = xv[:, :, -sliding_window:]
                 attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
 
-        xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-        xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-
-        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
+        gqa_kwargs = {"enable_gqa": True} if self.num_heads != self.num_kv_heads else {}
+        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True, **gqa_kwargs)
         return self.o_proj(output), present_key_value
 
 class MLP(nn.Module):
@@ -937,22 +935,41 @@ class BaseGenerate:
             return torch.argmax(logits, dim=-1, keepdim=True)
 
         # Sampling mode
-        if repetition_penalty != 1.0:
-            for i in range(logits.shape[0]):
-                for token_id in set(token_history):
-                    logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
-
-        if presence_penalty is not None and presence_penalty != 0.0:
-            for i in range(logits.shape[0]):
-                for token_id in set(token_history):
-                    logits[i, token_id] -= presence_penalty
+        if len(token_history) > 0 and (repetition_penalty != 1.0 or (presence_penalty is not None and presence_penalty != 0.0)):
+            token_ids = torch.tensor(list(set(token_history)), device=logits.device)
+            token_logits = logits[:, token_ids]
+            if repetition_penalty != 1.0:
+                token_logits = torch.where(token_logits < 0, token_logits * repetition_penalty, token_logits / repetition_penalty)
+            if presence_penalty is not None and presence_penalty != 0.0:
+                token_logits = token_logits - presence_penalty
+            logits[:, token_ids] = token_logits
 
         if temperature != 1.0:
             logits = logits / temperature
 
         if top_k > 0:
-            indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-            logits[indices_to_remove] = torch.finfo(logits.dtype).min
+            top_k = min(top_k, logits.shape[-1])
+            logits, top_indices = torch.topk(logits, top_k)
+
+            if min_p > 0.0:
+                probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
+                top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
+                min_threshold = min_p * top_probs
+                indices_to_remove = probs_before_filter < min_threshold
+                logits[indices_to_remove] = torch.finfo(logits.dtype).min
+
+            if top_p < 1.0:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[..., 0] = False
+                indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
+                indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
+                logits[indices_to_remove] = torch.finfo(logits.dtype).min
+
+            probs = torch.nn.functional.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1, generator=generator)
+            return top_indices.gather(1, next_token)
 
         if min_p > 0.0:
             probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
