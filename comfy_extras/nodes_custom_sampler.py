@@ -245,7 +245,7 @@ class SplitSigmasDenoise(io.ComfyNode):
     def execute(cls, sigmas, denoise) -> io.NodeOutput:
         steps = max(sigmas.shape[-1] - 1, 0)
         total_steps = round(steps * denoise)
-        sigmas1 = sigmas[:-(total_steps)]
+        sigmas1 = sigmas[:len(sigmas) - total_steps]
         sigmas2 = sigmas[-(total_steps + 1):]
         return io.NodeOutput(sigmas1, sigmas2)
 
