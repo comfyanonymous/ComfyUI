@@ -48,7 +48,7 @@ try:
     # older Triton lacks libdevice.rint on the HIP backend and hard-crashes the INT8 path.
     if args.disable_triton_backend:
         ck.registry.disable("triton")
-    elif args.enable_triton_backend or (torch.version.hip is not None and _rocm_kitchen_arch_supported()):
+    elif args.enable_triton_backend: # or (torch.version.hip is not None and _rocm_kitchen_arch_supported()):
         try:
             import triton
             triton_version = tuple(int(v) for v in triton.__version__.split(".")[:2])
