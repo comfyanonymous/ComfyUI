@@ -923,7 +923,7 @@ def _run_training_loop(
 
     if bucket_mode:
         # Use first bucket's first latent as dummy for guider
-        dummy_latent = latents[0][:1].repeat(num_images, 1, 1, 1)
+        dummy_latent = latents[0][:1].repeat(num_images, *([1] * (latents[0].dim() - 1)))
         guider.sample(
             noise.generate_noise({"samples": dummy_latent}),
             dummy_latent,
@@ -933,7 +933,7 @@ def _run_training_loop(
         )
     elif multi_res:
         # use first latent as dummy latent if multi_res
-        latents = latents[0].repeat(num_images, 1, 1, 1)
+        latents = latents[0].repeat(num_images, *([1] * (latents[0].dim() - 1)))
         guider.sample(
             noise.generate_noise({"samples": latents}),
             latents,
