@@ -41,7 +41,7 @@ def torch_attention_op(
     q_B_S_H_D: torch.Tensor,
     k_B_S_H_D: torch.Tensor,
     v_B_S_H_D: torch.Tensor,
-    transformer_options: Optional[dict] = {},
+    transformer_options: dict = {},
     is_self_attention: bool = False,
 ) -> torch.Tensor:
     """Computes multi-head attention using PyTorch's native implementation.

@@ -277,6 +277,7 @@ class CausalWanModel(WanModel):
                 kv_caches=ar_state["kv_caches"],
                 crossattn_caches=ar_state["crossattn_caches"],
                 clip_fea=clip_fea,
+                transformer_options=transformer_options,
             )
 
         return super().forward(x, timestep, context, clip_fea=clip_fea,
