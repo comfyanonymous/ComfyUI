@@ -454,6 +454,7 @@ class CrossAttention(nn.Module):
 
     def forward(self, x, context=None, mask=None, pe=None, k_pe=None, transformer_options={}):
         q = self.to_q(x)
+        is_self_attention = context is None
         context = x if context is None else context
         k = self.to_k(context)
         v = self.to_v(context)
@@ -466,11 +467,11 @@ class CrossAttention(nn.Module):
             k = apply_rotary_emb(k, pe if k_pe is None else k_pe)
 
         if mask is None:
-            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options, is_self_attention=is_self_attention)
         elif isinstance(mask, GuideAttentionMask):
             out = _attention_with_guide_mask(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
-            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, mask=mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, mask=mask, attn_precision=self.attn_precision, transformer_options=transformer_options, is_self_attention=is_self_attention)
 
         # Apply per-head gating if enabled
         if self.to_gate_logits is not None:
@@ -970,6 +971,12 @@ class LTXBaseModel(torch.nn.Module, ABC):
         merged_args = {**transformer_options, **kwargs}
         x, pixel_coords, additional_args = self._process_input(x, keyframe_idxs, denoise_mask, **merged_args)
         merged_args.update(additional_args)
+        transformer_options.pop("attention_token_grid", None)
+        orig_shape = additional_args.get("orig_shape")
+        if isinstance(x, torch.Tensor) and isinstance(orig_shape, (tuple, list)) and len(orig_shape) == 5:
+            token_grid = tuple(orig_shape[-3:])
+            if math.prod(token_grid) == x.shape[1]:
+                transformer_options["attention_token_grid"] = token_grid
 
         # Prepare timestep and context
         timestep, embedded_timestep, prompt_timestep = self._prepare_timestep(timestep, batch_size, input_dtype, **merged_args)

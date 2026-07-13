@@ -62,6 +62,7 @@ class CausalWanSelfAttention(nn.Module):
                 v.view(b, s, n * d),
                 heads=self.num_heads,
                 transformer_options=transformer_options,
+                is_self_attention=True,
             )
         else:
             end = kv_cache["end"]
@@ -78,6 +79,8 @@ class CausalWanSelfAttention(nn.Module):
                 kv_cache["v"][:, :new_end].view(b, new_end, n * d),
                 heads=self.num_heads,
                 transformer_options=transformer_options,
+                is_self_attention=True,
+                is_kv_cached_attention=True,
             )
 
         x = self.o(x)
@@ -170,7 +173,7 @@ class CausalWanModel(WanModel):
             device=device, dtype=dtype, operations=operations)
 
     def forward_block(self, x, timestep, context, start_frame,
-                      kv_caches, crossattn_caches, clip_fea=None):
+                      kv_caches, crossattn_caches, clip_fea=None, transformer_options={}):
         """
         Forward one temporal block for autoregressive inference.
 
@@ -191,6 +194,7 @@ class CausalWanModel(WanModel):
 
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # Per-frame time embedding
@@ -212,11 +216,15 @@ class CausalWanModel(WanModel):
         freqs = self.rope_encode(t, h, w, t_start=start_frame, device=x.device, dtype=x.dtype)
 
         # Transformer blocks
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             x = block(x, e=e0, freqs=freqs, context=context,
                       context_img_len=context_img_len,
                       kv_cache=kv_caches[i],
-                      crossattn_cache=crossattn_caches[i])
+                      crossattn_cache=crossattn_caches[i],
+                      transformer_options=transformer_options)
 
         # Head
         x = self.head(x, e)
