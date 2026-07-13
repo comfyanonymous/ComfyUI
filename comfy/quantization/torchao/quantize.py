@@ -37,7 +37,6 @@ def quantize_model(
     return model
 
 
-# torchao plain_int32 safetensors suffixes
 _QUANT_SUFFIXES = (
     ".weight_scale", ".weight_zp",
     ".weight_b0", ".weight_b1",
@@ -89,6 +88,8 @@ def reconstruct_int4_state_dict(
         for suffix in _QUANT_SUFFIXES:
             sd.pop(f"{base}{suffix}", None)
 
+        bias = sd.pop(f"{base}.bias", None)
+
         in_f = qdata.shape[1] * 8
         out_f = qdata.shape[0]
 
@@ -99,12 +100,15 @@ def reconstruct_int4_state_dict(
             scale=scale.to(torch.float16),
             zp=zp.to(torch.int8),
             block_size=(b0.item(), b1.item()),
+            bias=bias,
         )
 
         if device.type != "cpu":
             layer._qdata = layer._qdata.to(device)
             layer._scale = layer._scale.to(device)
             layer._zp = layer._zp.to(device)
+            if bias is not None:
+                layer.bias.data = layer.bias.data.to(device)
 
         replaced[base] = layer
 
