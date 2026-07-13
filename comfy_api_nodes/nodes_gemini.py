@@ -1133,7 +1133,9 @@ class GeminiImage2(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         if model == "Nano Banana 2 (Gemini 3.1 Flash Image)":
-            model = "gemini-3.1-flash-image-preview"
+            model = "gemini-3.1-flash-image"
+        elif model == "gemini-3-pro-image-preview":
+            model = "gemini-3-pro-image"
 
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
         if images is not None:
@@ -1507,7 +1509,7 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_choice = model["model"]
         if model_choice == "Nano Banana 2 (Gemini 3.1 Flash Image)":
-            model_id = "gemini-3.1-flash-image-preview"
+            model_id = "gemini-3.1-flash-image"
         elif model_choice == "Nano Banana 2 Lite":
             model_id = "gemini-3.1-flash-lite-image"
         else:
