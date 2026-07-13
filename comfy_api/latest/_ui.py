@@ -7,7 +7,6 @@ import uuid
 from io import BytesIO
 
 import av
-import numpy as np
 import torch
 try:
     import torchaudio
@@ -18,6 +17,7 @@ from PIL import Image as PILImage
 from PIL.PngImagePlugin import PngInfo
 
 import folder_paths
+import comfy.utils
 
 # used for image preview
 from comfy.cli_args import args
@@ -79,7 +79,7 @@ class ImageSaveHelper:
     @staticmethod
     def _convert_tensor_to_pil(image_tensor: torch.Tensor) -> PILImage.Image:
         """Converts a single torch tensor to a PIL Image."""
-        return PILImage.fromarray(np.clip(255.0 * image_tensor.cpu().numpy(), 0, 255).astype(np.uint8))
+        return PILImage.fromarray(comfy.utils.image_to_uint8(image_tensor))
 
     @staticmethod
     def _create_png_metadata(cls: type[ComfyNode] | None) -> PngInfo | None:
@@ -440,8 +440,7 @@ class PreviewUI3D(_UIOutput):
         self.bg_image_path = None
         bg_image = kwargs.get("bg_image", None)
         if bg_image is not None:
-            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
-            img = PILImage.fromarray(img_array)
+            img = PILImage.fromarray(comfy.utils.image_to_uint8(bg_image[0]))
             temp_dir = folder_paths.get_temp_directory()
             filename = f"bg_{uuid.uuid4().hex}.png"
             bg_image_path = os.path.join(temp_dir, filename)

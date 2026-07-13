@@ -12,7 +12,7 @@ from comfy_execution.utils import get_executing_context
 from comfy_execution.progress import get_progress_state, PreviewImageTuple
 from PIL import Image
 from comfy.cli_args import args
-import numpy as np
+import comfy.utils
 
 
 class ComfyAPI_latest(ComfyAPIBase):
@@ -65,9 +65,7 @@ class ComfyAPI_latest(ComfyAPIBase):
                     if len(tensor.shape) == 4:
                         tensor = tensor[0]
 
-                    # Convert to numpy array and scale to 0-255
-                    image_np = (tensor.cpu().numpy() * 255).astype(np.uint8)
-                    to_display = Image.fromarray(image_np)
+                    to_display = Image.fromarray(comfy.utils.image_to_uint8(tensor))
 
                 if isinstance(to_display, Image.Image):
                     # Detect image format from PIL Image
