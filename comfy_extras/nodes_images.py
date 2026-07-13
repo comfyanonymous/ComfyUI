@@ -894,10 +894,11 @@ def hlg_to_linear(t: torch.Tensor) -> torch.Tensor:
         return torch.cat([hlg_to_linear(rgb), alpha], dim=-1)
 
     # Piecewise: sqrt branch below 0.5, log branch above.
-    # Clamp inside the log branch so negative / out-of-range values don't blow up;
+    # Clamp the log branch at the 0.5 branch point (not above it) so the
+    # unselected lane stays finite in exp() without altering selected values;
     # values above 1.0 are allowed and extrapolate naturally.
     low = (t ** 2) / 3.0
-    high = (torch.exp((t.clamp(min=_HLG_C) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
+    high = (torch.exp((t.clamp(min=0.5) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
     return torch.where(t <= 0.5, low, high)
 
 
