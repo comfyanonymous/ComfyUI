@@ -309,8 +309,6 @@ def model_lora_keys_unet(model, key_map={}):
             if k.startswith("diffusion_model."):
                 if k.endswith(".weight"):
                     key_lora = k[len("diffusion_model."):-len(".weight")]
-                    key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k
-                    key_map["transformer.{}".format(key_lora)] = k
                     key_map["model.{}".format(key_lora)] = k
 
     if isinstance(model, comfy.model_base.ACEStep):
