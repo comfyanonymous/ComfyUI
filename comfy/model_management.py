@@ -395,6 +395,7 @@ def raise_non_oom(e):
 
 XFORMERS_VERSION = ""
 XFORMERS_ENABLED_VAE = True
+ENABLE_PYTORCH_VAE_ON_AMD = "COMFYUI_ENABLE_PYTORCH_VAE_ON_AMD"
 if args.disable_xformers:
     XFORMERS_IS_AVAILABLE = False
 else:
@@ -1628,8 +1629,13 @@ def pytorch_attention_enabled():
 
 def pytorch_attention_enabled_vae():
     if is_amd():
-        return False  # enabling pytorch attention on AMD currently causes crash when doing high res
+        if os.getenv(ENABLE_PYTORCH_VAE_ON_AMD) == "1":
+            return hasattr(torch.nn.functional, "scaled_dot_product_attention")
+        return False  # enabling pytorch attention on AMD can corrupt high-res VAE decode
     return pytorch_attention_enabled()
+
+def pytorch_attention_vae_single_batch():
+    return sys.platform == "win32" and is_amd() and pytorch_attention_enabled_vae()
 
 def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
