@@ -426,12 +426,12 @@ def _is_intermediate_output(dynprompt, node_id):
 
 
 def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
+    if cached.ui is not None:
+        ui_outputs[node_id] = cached.ui
     if server.client_id is None:
         return
     cached_ui = cached.ui or {}
     server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, server.client_id)
-    if cached.ui is not None:
-        ui_outputs[node_id] = cached.ui
 
 async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
