@@ -72,7 +72,8 @@ def test_legacy_default_database_is_copied_to_effective_user_directory(monkeypat
     db.copy_legacy_default_db(str(user_dir / "comfyui.db"))
 
     assert (user_dir / "comfyui.db").read_bytes() == b"legacy db"
-    assert legacy_db.read_bytes() == b"legacy db"
+    assert not legacy_db.exists()
+    assert legacy_db.with_suffix(".db.bak").read_bytes() == b"legacy db"
 
 
 def test_legacy_default_database_does_not_overwrite_existing_effective_db(monkeypatch, tmp_path):

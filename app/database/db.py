@@ -4,7 +4,7 @@ import shutil
 from app.logger import log_startup_warning
 from utils.install_util import get_missing_requirements_message
 from filelock import FileLock, Timeout
-from comfy.cli_args import args
+from comfy.cli_args import args, database_default_path
 
 _DB_AVAILABLE = False
 Session = None
@@ -73,8 +73,6 @@ def get_database_url():
 
 
 def get_legacy_default_db_path():
-    from comfy.cli_args import database_default_path
-
     return database_default_path
 
 
@@ -101,7 +99,10 @@ def copy_legacy_default_db(db_path):
         return
 
     shutil.copy(legacy_db_path, db_path)
-    logging.info(f"Copied legacy database from '{legacy_db_path}' to '{db_path}'")
+    os.replace(legacy_db_path, legacy_db_path + ".bak")
+    logging.info(
+        f"Copied legacy database from '{legacy_db_path}' to '{db_path}' and renamed the original to '{legacy_db_path}.bak'"
+    )
 
 
 def prepare_file_db_path(db_path):
