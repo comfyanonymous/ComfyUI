@@ -288,7 +288,8 @@ class TestGetOutputsSummary:
             'image_node': {'images': [{'filename': 'preview.png', 'type': 'temp'}]},
         }
         count, preview = get_outputs_summary(outputs)
-        assert count == 2
+        # Text is preview-only metadata and not counted; only the image counts.
+        assert count == 1
         assert preview['filename'] == 'preview.png'
         assert preview['mediaType'] == 'images'
 
@@ -298,7 +299,7 @@ class TestGetOutputsSummary:
             'text_node': {'text': ['hello world']},
         }
         count, preview = get_outputs_summary(outputs)
-        assert count == 1
+        assert count == 0  # text entries are not counted as outputs
         assert preview['mediaType'] == 'text'
         assert preview['content'] == 'hello world'
 
