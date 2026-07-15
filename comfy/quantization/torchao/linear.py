@@ -58,9 +58,12 @@ class TINT4Linear(nn.Module):
         else:
             self.register_parameter('bias', None)
 
-        self._qdata = qdata
-        self._scale = scale
-        self._zp = zp
+        # ★ FIX 1: 使用 register_buffer 而不是直接用 = 赋值
+        # 好处：model.to(device) / state_dict() / load_state_dict() 能自动管理
+        # 旧代码：self._qdata = qdata → PyTorch 不知道这是持久化数据
+        self.register_buffer('_qdata', qdata)
+        self.register_buffer('_scale', scale)
+        self.register_buffer('_zp', zp)
         self._block_size = block_size
         self._qt: Int4PlainInt32Tensor | None = None
 
@@ -156,19 +159,38 @@ class TINT4Linear(nn.Module):
                   else torch.float16)
             for lora_entries in entries.values():
                 for e in lora_entries:
-                    # LoKr path
+                    # ── LoKr path ──
+                    # ★ FIX 2: 用 torch.kron 替代 repeat_interleave
+                    # 旧方案要求 w2 维度能被 factor 整除（例如 64÷60=不整除→报错）
+                    # 新方案 kron 展开 + pad/trim 到目标维度，兼容任意分解
                     if isinstance(e[0], str) and e[0] == "lokr":
                         _, w1, w2, mult, factor = e[:5]
                         sl = e[5] if len(e) > 5 else None
                         se = e[6] if len(e) > 6 else None
+
+                        # QuaRot: 先旋转 w2（小矩阵，转发负担小）
+                        # 数学上等价于旋转完整 kron 展开（Hadamard 是分块对角的）
                         w2 = self._rotate_into_quarot(w2)
                         w1d = w1.to(device=dev, dtype=cd)
                         w2d = w2.to(device=dev, dtype=cd)
-                        of2, if2 = w2d.shape
-                        w1x = w1d.repeat_interleave(
-                            of2 // factor, dim=0).repeat_interleave(
-                            if2 // factor, dim=1)
-                        dw = (w1x * w2d).mul_(mult)
+
+                        # kron 展开为完整 delta（代替 repeat_interleave）
+                        dw = torch.kron(w1d, w2d)
+
+                        # pad/trim 到层实际维度
+                        # QKV 融合层：kron 覆盖 1 个 head，模块持有 3 个
+                        if dw.shape[0] < self.out_features:
+                            dw = dw.repeat(
+                                self.out_features // dw.shape[0], 1)
+                        elif dw.shape[0] > self.out_features:
+                            dw = dw[:self.out_features, :]
+                        if dw.shape[1] < self.in_features:
+                            dw = dw.repeat(
+                                1, self.in_features // dw.shape[1])
+                        elif dw.shape[1] > self.in_features:
+                            dw = dw[:, :self.in_features]
+
+                        dw = dw.contiguous().mul_(mult)
                         lo = x_flat.to(cd) @ dw.T
                         if sl is not None:
                             if lo.shape[1] != (se - sl):

@@ -24,9 +24,8 @@ __all__ = [
     "rotate_weight",
 ]
 
-# Sphinx-compatible references for docstring coverage tools
-TINT4Linear.__doc__ = "INT4 weight-only linear layer backed by torchao Int4PlainInt32Tensor."
-quantize_model.__doc__ = "Quantize all nn.Linear layers in a model via torchao INT4 weight-only quantization."
-reconstruct_int4_state_dict.__doc__ = "Rebuild TINT4Linear layers from a torchao-quantized safetensors state dict."
-build_hadamard.__doc__ = "Build a normalized orthogonal Hadamard matrix for QuaRot."
-rotate_weight.__doc__ = "Rotate weight matrix offline for QuaRot quantization."
+# ★ FIX 3: 删除 __doc__ 覆写（5 行）
+# 原因：这些类/函数的 .py 文件里已有 docstring，重复赋值会：
+#   1. 覆盖原始文档（如果两处不一致会让人困惑）
+#   2. 干扰 Sphinx 等文档工具的正确引用
+#   3. 违反 DRY 原则——文档应该只在源码处维护一份
