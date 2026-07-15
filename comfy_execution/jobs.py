@@ -3,9 +3,21 @@ Job utilities for the /api/jobs endpoint.
 Provides normalization and helper functions for job status tracking.
 """
 
-from typing import Optional
+import uuid
+from typing import Callable, Optional
 
 from comfy_api.internal import prune_dict
+
+
+# Result of classifying a job for cancellation.
+# 'running'  -> job is currently executing (interrupt it)
+# 'pending'  -> job is queued but not started (dequeue it)
+# 'terminal' -> job already finished (present in history); cancel is a no-op
+# 'unknown'  -> job id is not present anywhere
+CANCEL_RUNNING = 'running'
+CANCEL_PENDING = 'pending'
+CANCEL_TERMINAL = 'terminal'
+CANCEL_UNKNOWN = 'unknown'
 
 
 class JobStatus:
@@ -19,11 +31,33 @@ class JobStatus:
     ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
 
 
+def validate_job_id(value) -> str:
+    """Validate a client-supplied job (prompt) id.
+
+    Job ids must be UUIDs in the canonical lowercase hyphenated form. The id
+    is stored and compared verbatim everywhere downstream — history keys,
+    websocket events, and /interrupt matching — so accepting another spelling
+    would silently rewrite the client's id and then miss every exact-match
+    lookup. Rejecting loudly beats that.
+
+    Returns the id unchanged. Raises ValueError when the value is not a
+    string in canonical UUID form.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"job id must be a string, got {type(value).__name__}")
+    if str(uuid.UUID(value)) != value:
+        raise ValueError("job id must be a UUID in canonical lowercase hyphenated form")
+    return value
+
+
 # Media types that can be previewed in the frontend
 PREVIEWABLE_MEDIA_TYPES = frozenset({'images', 'video', 'audio', '3d', 'text'})
 
 # 3D file extensions for preview fallback (no dedicated media_type exists)
 THREE_D_EXTENSIONS = frozenset({'.obj', '.fbx', '.gltf', '.glb', '.usdz'})
+
+# Text file extensions for preview fallback (the formats SaveText can produce)
+TEXT_EXTENSIONS = frozenset({'.txt', '.md', '.json'})
 
 
 def has_3d_extension(filename: str) -> bool:
@@ -112,9 +146,10 @@ def is_previewable(media_type: str, item: dict) -> bool:
     Maintains backwards compatibility with existing logic.
 
     Priority:
-    1. media_type is 'images', 'video', 'audio', or '3d'
+    1. media_type is 'images', 'video', 'audio', '3d', or 'text'
     2. format field starts with 'video/' or 'audio/'
     3. filename has a 3D extension (.obj, .fbx, .gltf, .glb, .usdz)
+    4. filename has a text extension (.txt, .md, .json, ...)
     """
     if media_type in PREVIEWABLE_MEDIA_TYPES:
         return True
@@ -125,9 +160,11 @@ def is_previewable(media_type: str, item: dict) -> bool:
     if fmt and (fmt.startswith('video/') or fmt.startswith('audio/')):
         return True
 
-    # Check for 3D files by extension
+    # Check for 3D and text files by extension
     filename = item.get('filename', '').lower()
     if any(filename.endswith(ext) for ext in THREE_D_EXTENSIONS):
+        return True
+    if any(filename.endswith(ext) for ext in TEXT_EXTENSIONS):
         return True
 
     return False
@@ -224,6 +261,10 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
     Preview priority (matching frontend):
     1. type="output" with previewable media
     2. Any previewable media
+
+    Text content entries (strings under 'text') are preview-only metadata,
+    matching the frontend's METADATA_KEYS: they can serve as the fallback
+    preview but are not counted as outputs.
     """
     count = 0
     preview_output = None
@@ -244,7 +285,6 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                     if normalized is None:
                         # Not a 3D file string — check for text preview
                         if media_type == 'text':
-                            count += 1
                             if preview_output is None:
                                 if isinstance(item, tuple):
                                     text_value = item[0] if item else ''
@@ -387,3 +427,71 @@ def get_all_jobs(
         jobs = jobs[:limit]
 
     return (jobs, total_count)
+
+
+def classify_job_for_cancel(prompt_id: str, running: list, queued: list, history: dict) -> str:
+    """Classify a job id for cancellation.
+
+    Returns one of CANCEL_RUNNING, CANCEL_PENDING, CANCEL_TERMINAL, CANCEL_UNKNOWN.
+
+    Queue items are tuples whose second element (index 1) is the prompt_id.
+    History is a dict keyed by prompt_id, so a job present there has already
+    finished and cancelling it is a no-op.
+    """
+    for item in running:
+        if item[1] == prompt_id:
+            return CANCEL_RUNNING
+    for item in queued:
+        if item[1] == prompt_id:
+            return CANCEL_PENDING
+    if prompt_id in history:
+        return CANCEL_TERMINAL
+    return CANCEL_UNKNOWN
+
+
+def cancel_job(
+    prompt_id: str,
+    running: list,
+    queued: list,
+    history: dict,
+    interrupt: Callable[[str], bool],
+    dequeue: Callable[[str], bool],
+) -> str:
+    """Cancel a single job by id, regardless of state.
+
+    Maps the cancel onto the runtime's existing mechanics:
+      - a running job is interrupted via ``interrupt``
+      - a pending job is removed from the queue via ``dequeue``
+      - a job that already finished (terminal) is a no-op
+      - an unknown id is a no-op (callers that need fail-fast behaviour should
+        validate ids up front with ``classify_job_for_cancel``)
+
+    Both ``interrupt`` and ``dequeue`` take the prompt id and return whether
+    they acted on a job that was *actually* in that state, so the value returned
+    here reflects what truly happened rather than the (possibly stale)
+    classification. This matters around the narrow TOCTOU windows where a job
+    changes state between the caller's snapshot and the action:
+
+      - a job classified RUNNING may have finished before ``interrupt`` fires:
+        ``interrupt`` returns False and this returns CANCEL_UNKNOWN (no-op).
+      - a job classified PENDING may have started executing before ``dequeue``
+        fires: ``dequeue`` returns False, ``interrupt`` then catches the now-
+        running job and this returns CANCEL_RUNNING. If it had simply finished
+        instead, both return False and this returns CANCEL_UNKNOWN.
+
+    ``interrupt`` must be atomic — interrupt the job only if it is still the one
+    running — so a cancel can never land on an unrelated prompt that started in
+    the meantime (see ``execution.PromptQueue.interrupt_if_running``).
+    """
+    classification = classify_job_for_cancel(prompt_id, running, queued, history)
+    if classification == CANCEL_RUNNING:
+        return CANCEL_RUNNING if interrupt(prompt_id) else CANCEL_UNKNOWN
+    if classification == CANCEL_PENDING:
+        if dequeue(prompt_id):
+            return CANCEL_PENDING
+        # Left the pending queue between classification and dequeue: if it
+        # started executing, interrupt the now-running job; otherwise it has
+        # already finished and the cancel is a genuine no-op.
+        return CANCEL_RUNNING if interrupt(prompt_id) else CANCEL_UNKNOWN
+    # CANCEL_TERMINAL and CANCEL_UNKNOWN are intentional no-ops.
+    return classification

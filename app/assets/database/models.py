@@ -76,6 +76,8 @@ class AssetReference(Base):
 
     # Cache state fields (from former AssetCacheState)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # In-root loader path derived from file_path at scan/ingest time.
+    loader_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     needs_verify: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_missing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -227,7 +229,6 @@ class Tag(Base):
     __tablename__ = "tags"
 
     name: Mapped[str] = mapped_column(String(512), primary_key=True)
-    tag_type: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
 
     asset_reference_links: Mapped[list[AssetReferenceTag]] = relationship(
         back_populates="tag",
@@ -239,8 +240,6 @@ class Tag(Base):
         viewonly=True,
         overlaps="asset_reference_links,tag_links,tags,asset_reference",
     )
-
-    __table_args__ = (Index("ix_tags_tag_type", "tag_type"),)
 
     def __repr__(self) -> str:
         return f"<Tag {self.name}>"

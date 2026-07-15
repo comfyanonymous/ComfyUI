@@ -19,7 +19,8 @@ def test_seed_asset_removed_when_file_is_deleted(
     """Asset without hash (seed) whose file disappears:
        after triggering sync_seed_assets, Asset + AssetInfo disappear.
     """
-    # Create a file directly under input/unit-tests/<case> so tags include "unit-tests"
+    # Create a file directly under input/unit-tests/<case>. Backend tags only
+    # classify the root; nested path components are not exposed as tags.
     case_dir = comfy_tmp_base_dir / root / "unit-tests" / "syncseed"
     case_dir.mkdir(parents=True, exist_ok=True)
     name = f"seed_{uuid.uuid4().hex[:8]}.bin"
@@ -32,7 +33,7 @@ def test_seed_asset_removed_when_file_is_deleted(
     # Verify it is visible via API and carries no hash (seed)
     r1 = http.get(
         api_base + "/api/assets",
-        params={"include_tags": "unit-tests,syncseed", "name_contains": name},
+        params={"include_tags": root, "name_contains": name},
         timeout=120,
     )
     body1 = r1.json()
@@ -54,7 +55,7 @@ def test_seed_asset_removed_when_file_is_deleted(
     # It should disappear (AssetInfo and seed Asset gone)
     r2 = http.get(
         api_base + "/api/assets",
-        params={"include_tags": "unit-tests,syncseed", "name_contains": name},
+        params={"include_tags": root, "name_contains": name},
         timeout=120,
     )
     body2 = r2.json()
@@ -132,7 +133,7 @@ def test_hashed_asset_two_asset_infos_both_get_missing(
     second_id = b2["id"]
 
     # Remove the single underlying file
-    p = comfy_tmp_base_dir / "input" / "unit-tests" / "multiinfo" / get_asset_filename(b2["asset_hash"], ".png")
+    p = comfy_tmp_base_dir / "input" / get_asset_filename(created["asset_hash"], ".png")
     assert p.exists()
     p.unlink()
 
@@ -250,8 +251,7 @@ def test_missing_tag_clears_on_fastpass_when_mtime_and_size_match(
 
     a = asset_factory(name, [root, "unit-tests", scope], {}, data)
     aid = a["id"]
-    base = comfy_tmp_base_dir / root / "unit-tests" / scope
-    p = base / get_asset_filename(a["asset_hash"], ".bin")
+    p = comfy_tmp_base_dir / root / get_asset_filename(a["asset_hash"], ".bin")
     st0 = p.stat()
     orig_mtime_ns = getattr(st0, "st_mtime_ns", int(st0.st_mtime * 1_000_000_000))
 

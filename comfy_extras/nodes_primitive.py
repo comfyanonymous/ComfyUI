@@ -10,12 +10,10 @@ class String(io.ComfyNode):
         return io.Schema(
             node_id="PrimitiveString",
             search_aliases=["text", "string", "text box", "prompt"],
-            display_name="Text String",
+            display_name="Text",
             category="utilities/primitive",
-            inputs=[
-                io.String.Input("value"),
-            ],
-            outputs=[io.String.Output()],
+            inputs=[io.String.Input("value")],
+            outputs=[io.String.Output()]
         )
 
     @classmethod
@@ -29,12 +27,10 @@ class StringMultiline(io.ComfyNode):
         return io.Schema(
             node_id="PrimitiveStringMultiline",
             search_aliases=["text", "string", "text multiline", "string multiline", "text box", "prompt"],
-            display_name="Text String (Multiline)",
+            display_name="Text (Multiline)",
             category="utilities/primitive",
             essentials_category="Basics",
-            inputs=[
-                io.String.Input("value", multiline=True),
-            ],
+            inputs=[io.String.Input("value", multiline=True)],
             outputs=[io.String.Output()],
         )
 

@@ -1088,7 +1088,7 @@ class Gemma4_Tokenizer():
             h, w = samples.shape[2], samples.shape[3]
             patch_size = 16
             pooling_k = 3
-            max_soft_tokens = 70 if is_video else 280  # video uses smaller token budget per frame
+            max_soft_tokens = kwargs.get("max_soft_tokens", 70 if is_video else 280)
             max_patches = max_soft_tokens * pooling_k * pooling_k
             target_px = max_patches * patch_size * patch_size
             factor = (target_px / (h * w)) ** 0.5

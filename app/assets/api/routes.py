@@ -39,6 +39,8 @@ from app.assets.services import (
     update_asset_metadata,
     upload_from_temp_path,
 )
+from app.assets.services.cursor import InvalidCursorError
+from app.assets.services.path_utils import compute_display_name
 from app.assets.services.tagging import list_tag_histogram
 
 ROUTES = web.RouteTableDef()
@@ -160,11 +162,19 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
             preview_url = None
     else:
         preview_url = _build_preview_url_from_view(result.tags, result.ref.user_metadata)
+    if result.ref.file_path:
+        display_name = compute_display_name(result.ref.file_path)
+        # In-root loader path (model category dropped): what model loaders consume.
+        loader_path = result.ref.loader_path
+    else:
+        display_name, loader_path = None, None
     asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
         id=result.ref.id,
         name=result.ref.name,
         hash=asset_content_hash,
+        loader_path=loader_path,
+        display_name=display_name,
         asset_hash=asset_content_hash,
         size=int(result.asset.size_bytes) if result.asset else None,
         mime_type=result.asset.mime_type if result.asset else None,
@@ -174,7 +184,7 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
         user_metadata=result.ref.user_metadata or {},
         metadata=result.ref.system_metadata,
         job_id=result.ref.job_id,
-        prompt_id=result.ref.job_id,  # deprecated: mirrors job_id for cloud compat
+        prompt_id=result.ref.job_id,  # deprecated alias of job_id, kept for compatibility
         created_at=result.ref.created_at,
         updated_at=result.ref.updated_at,
         last_access_time=result.ref.last_access_time,
@@ -211,24 +221,37 @@ async def list_assets_route(request: web.Request) -> web.Response:
     order_candidate = (q.order or "desc").lower()
     order = order_candidate if order_candidate in {"asc", "desc"} else "desc"
 
-    result = list_assets_page(
-        owner_id=USER_MANAGER.get_request_user_id(request),
-        include_tags=q.include_tags,
-        exclude_tags=q.exclude_tags,
-        name_contains=q.name_contains,
-        metadata_filter=q.metadata_filter,
-        limit=q.limit,
-        offset=q.offset,
-        sort=sort,
-        order=order,
-    )
+    try:
+        result = list_assets_page(
+            owner_id=USER_MANAGER.get_request_user_id(request),
+            include_tags=q.include_tags,
+            exclude_tags=q.exclude_tags,
+            name_contains=q.name_contains,
+            metadata_filter=q.metadata_filter,
+            limit=q.limit,
+            offset=q.offset,
+            sort=sort,
+            order=order,
+            after=q.after,
+        )
+    except InvalidCursorError as e:
+        return _build_error_response(400, "INVALID_CURSOR", str(e))
 
     summaries = [_build_asset_response(item) for item in result.items]
+
+    # has_more semantics differ by mode:
+    #   - cursor mode: a non-empty next_cursor means there are more results.
+    #   - offset mode: derived from total - (offset + page size).
+    if q.after is not None:
+        has_more = result.next_cursor is not None
+    else:
+        has_more = (q.offset + len(summaries)) < result.total
 
     payload = schemas_out.AssetsList(
         assets=summaries,
         total=result.total,
-        has_more=(q.offset + len(summaries)) < result.total,
+        has_more=has_more,
+        next_cursor=result.next_cursor,
     )
     return web.json_response(payload.model_dump(mode="json", exclude_none=True))
 
@@ -292,12 +315,15 @@ async def download_asset_content(request: web.Request) -> web.Response:
             404, "FILE_NOT_FOUND", "Underlying file not found on disk."
         )
 
-    _DANGEROUS_MIME_TYPES = {
-        "text/html", "text/html-sandboxed", "application/xhtml+xml",
-        "text/javascript", "text/css",
-    }
-    if content_type in _DANGEROUS_MIME_TYPES:
+    # User-controlled asset content must never render inline in the app origin
+    # (stored XSS via SVG/HTML/XML). Force dangerous types to download and
+    # override any requested inline disposition. Centralised through
+    # folder_paths.is_dangerous_content_type so this can't drift from /view and
+    # /userdata (the previous inline set here omitted image/svg+xml and missed
+    # the charset/casing/+xml-dialect bypasses).
+    if folder_paths.is_dangerous_content_type(content_type):
         content_type = "application/octet-stream"
+        disposition = "attachment"
 
     safe_name = (filename or "").replace("\r", "").replace("\n", "")
     encoded = urllib.parse.quote(safe_name)
@@ -402,17 +428,6 @@ async def upload_asset(request: web.Request) -> web.Response:
             400, "INVALID_BODY", f"Validation failed: {ve.json()}"
         )
 
-    if spec.tags and spec.tags[0] == "models":
-        if (
-            len(spec.tags) < 2
-            or spec.tags[1] not in folder_paths.folder_names_and_paths
-        ):
-            delete_temp_file_if_exists(parsed.tmp_path)
-            category = spec.tags[1] if len(spec.tags) >= 2 else ""
-            return _build_error_response(
-                400, "INVALID_BODY", f"unknown models category '{category}'"
-            )
-
     try:
         # Fast path: hash exists, create AssetReference without writing anything
         if spec.hash and parsed.provided_hash_exists is True:
@@ -456,7 +471,7 @@ async def upload_asset(request: web.Request) -> web.Response:
         return _build_error_response(400, e.code, str(e))
     except ValueError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
-        return _build_error_response(400, "BAD_REQUEST", str(e))
+        return _build_error_response(400, "INVALID_BODY", str(e))
     except HashMismatchError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
         return _build_error_response(400, "HASH_MISMATCH", str(e))
@@ -519,18 +534,14 @@ async def update_asset_route(request: web.Request) -> web.Response:
 @_require_assets_feature_enabled
 async def delete_asset_route(request: web.Request) -> web.Response:
     reference_id = str(uuid.UUID(request.match_info["id"]))
-    delete_content_param = request.query.get("delete_content")
-    delete_content = (
-        False
-        if delete_content_param is None
-        else delete_content_param.lower() not in {"0", "false", "no"}
-    )
 
     try:
+        # Deleting an asset is a soft delete of the reference; the underlying
+        # content is preserved (it may be shared with other references).
         deleted = delete_asset_reference(
             reference_id=reference_id,
             owner_id=USER_MANAGER.get_request_user_id(request),
-            delete_content_if_orphan=delete_content,
+            delete_content_if_orphan=False,
         )
     except Exception:
         logging.exception(
@@ -575,8 +586,8 @@ async def get_tags(request: web.Request) -> web.Response:
     )
 
     tags = [
-        schemas_out.TagUsage(name=name, count=count, type=tag_type)
-        for (name, tag_type, count) in rows
+        schemas_out.TagUsage(name=name, count=count)
+        for (name, count) in rows
     ]
     payload = schemas_out.TagsList(
         tags=tags, total=total, has_more=(query.offset + len(tags)) < total

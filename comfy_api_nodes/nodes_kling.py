@@ -60,6 +60,12 @@ from comfy_api_nodes.apis.kling import (
     OmniProImageRequest,
     OmniProReferences2VideoRequest,
     OmniProText2VideoRequest,
+    Kling3TurboSettings,
+    Kling3TurboText2VideoRequest,
+    Kling3TurboContent,
+    Kling3TurboImage2VideoRequest,
+    Kling3TurboCreateResponse,
+    Kling3TurboQueryResponse,
     TaskStatusResponse,
     TextToVideoWithAudioRequest,
 )
@@ -436,7 +442,7 @@ async def execute_text2video(
             negative_prompt=negative_prompt if negative_prompt else None,
             duration=KlingVideoGenDuration(duration),
             mode=KlingVideoGenMode(model_mode),
-            model_name=KlingVideoGenModelName(model_name),
+            model_name=model_name,
             cfg_scale=cfg_scale,
             aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
             camera_control=camera_control,
@@ -2847,6 +2853,67 @@ class MotionControl(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
+def build_turbo_shot_prompt(multi_prompt: list[MultiPromptEntry]) -> str:
+    """Render storyboard entries into the Turbo multi-shot prompt 'shot n, m, words; ...'."""
+    return "; ".join(f"shot {i}, {int(e.duration)}, {e.prompt}" for i, e in enumerate(multi_prompt, 1)) + ";"
+
+
+def _turbo_video_url(response: Kling3TurboQueryResponse) -> str:
+    """Extract the result video URL from a /tasks response (data[].outputs[] where type == 'video')."""
+    task = response.data[0] if response.data else None
+    if task and task.outputs:
+        for output in task.outputs:
+            if output.type == "video" and output.url:
+                return output.url
+    raise RuntimeError(f"Kling 3.0 Turbo task finished without a video output: {response.model_dump()}")
+
+
+async def execute_kling_turbo(
+    cls: type[IO.ComfyNode],
+    *,
+    prompt: str,
+    resolution: str,
+    aspect_ratio: str,
+    duration: int,
+    start_frame: torch.Tensor | None,
+) -> IO.NodeOutput:
+    """Create + poll a Kling 3.0 Turbo task. Image-to-video when start_frame is given, else text-to-video."""
+    if start_frame is not None:
+        validate_image_dimensions(start_frame, min_width=300, min_height=300)
+        validate_image_aspect_ratio(start_frame, (1, 2.5), (2.5, 1))
+        contents = [Kling3TurboContent(type="first_frame", url=tensor_to_base64_string(start_frame))]
+        if prompt:
+            contents.insert(0, Kling3TurboContent(type="prompt", text=prompt))
+        create = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/image-to-video/kling-3.0-turbo", method="POST"),
+            response_model=Kling3TurboCreateResponse,
+            data=Kling3TurboImage2VideoRequest(
+                contents=contents,
+                settings=Kling3TurboSettings(resolution=resolution, duration=duration),  # i2v: no aspect_ratio
+            ),
+        )
+    else:
+        create = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/text-to-video/kling-3.0-turbo", method="POST"),
+            response_model=Kling3TurboCreateResponse,
+            data=Kling3TurboText2VideoRequest(
+                prompt=prompt,
+                settings=Kling3TurboSettings(resolution=resolution, aspect_ratio=aspect_ratio, duration=duration),
+            ),
+        )
+    if not (create.data and create.data.id):
+        raise RuntimeError(f"Kling 3.0 Turbo create failed. Code: {create.code}, Message: {create.message}")
+    final_response = await poll_op(
+        cls,
+        ApiEndpoint(path="/proxy/kling/tasks", query_params={"task_ids": create.data.id}),
+        response_model=Kling3TurboQueryResponse,
+        status_extractor=lambda r: (r.data[0].status if r.data else None),
+    )
+    return IO.NodeOutput(await download_url_to_video_output(_turbo_video_url(final_response)))
+
+
 class KlingVideoNode(IO.ComfyNode):
 
     @classmethod
@@ -2884,7 +2951,11 @@ class KlingVideoNode(IO.ComfyNode):
                     ],
                     tooltip="Generate a series of video segments with individual prompts and durations.",
                 ),
-                IO.Boolean.Input("generate_audio", default=True),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=True,
+                    tooltip="'kling-3.0-turbo' always generates native audio, so the audio toggle is ignored.",
+                ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
@@ -2892,6 +2963,17 @@ class KlingVideoNode(IO.ComfyNode):
                             "kling-v3",
                             [
                                 IO.Combo.Input("resolution", options=["4k", "1080p", "720p"], default="1080p"),
+                                IO.Combo.Input(
+                                    "aspect_ratio",
+                                    options=["16:9", "9:16", "1:1"],
+                                    tooltip="Ignored in image-to-video mode.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "kling-3.0-turbo",
+                            [
+                                IO.Combo.Input("resolution", options=["1080p", "720p"], default="720p"),
                                 IO.Combo.Input(
                                     "aspect_ratio",
                                     options=["16:9", "9:16", "1:1"],
@@ -2930,6 +3012,7 @@ class KlingVideoNode(IO.ComfyNode):
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(
                     widgets=[
+                        "model",
                         "model.resolution",
                         "generate_audio",
                         "multi_shot",
@@ -2944,14 +3027,7 @@ class KlingVideoNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $rates := {
-                    "4k": {"off": 0.42, "on": 0.42},
-                    "1080p": {"off": 0.112, "on": 0.168},
-                    "720p": {"off": 0.084, "on": 0.126}
-                  };
                   $res := $lookup(widgets, "model.resolution");
-                  $audio := widgets.generate_audio ? "on" : "off";
-                  $rate := $lookup($lookup($rates, $res), $audio);
                   $ms := widgets.multi_shot;
                   $isSb := $ms != "disabled";
                   $n := $isSb ? $number($substring($ms, 0, 1)) : 0;
@@ -2962,7 +3038,18 @@ class KlingVideoNode(IO.ComfyNode):
                   $d5 := $n >= 5 ? $lookup(widgets, "multi_shot.storyboard_5_duration") : 0;
                   $d6 := $n >= 6 ? $lookup(widgets, "multi_shot.storyboard_6_duration") : 0;
                   $dur := $isSb ? $d1 + $d2 + $d3 + $d4 + $d5 + $d6 : $lookup(widgets, "multi_shot.duration");
-                  {"type":"usd","usd": $rate * $dur}
+                  widgets.model = "kling-3.0-turbo"
+                    ? {"type":"usd","usd": ($res = "1080p" ? 0.14 : 0.112) * $dur}
+                    : (
+                        $rates := {
+                          "4k": {"off": 0.42, "on": 0.42},
+                          "1080p": {"off": 0.112, "on": 0.168},
+                          "720p": {"off": 0.084, "on": 0.126}
+                        };
+                        $audio := widgets.generate_audio ? "on" : "off";
+                        $rate := $lookup($lookup($rates, $res), $audio);
+                        {"type":"usd","usd": $rate * $dur}
+                      )
                 )
                 """,
             ),
@@ -3014,6 +3101,17 @@ class KlingVideoNode(IO.ComfyNode):
         else:
             duration = multi_shot["duration"]
             validate_string(multi_shot["prompt"], min_length=1, max_length=2500)
+
+        if model["model"] == "kling-3.0-turbo":
+            turbo_prompt = build_turbo_shot_prompt(multi_prompt_list) if custom_multi_shot else multi_shot["prompt"]
+            return await execute_kling_turbo(
+                cls,
+                prompt=turbo_prompt,
+                resolution=model["resolution"],
+                aspect_ratio=model["aspect_ratio"],
+                duration=duration,
+                start_frame=start_frame,
+            )
 
         if start_frame is not None:
             validate_image_dimensions(start_frame, min_width=300, min_height=300)

@@ -27,10 +27,13 @@ class VideoInput(ABC):
         path: Union[str, IO[bytes]],
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        bit_depth: int | None = None,
     ):
         """
         Abstract method to save the video input to a file.
+
+        bit_depth selects the encoded bit depth; None keeps the video's native depth.
         """
         pass
 
@@ -82,6 +85,14 @@ class VideoInput(ABC):
         """
         components = self.get_components()
         return components.images.shape[2], components.images.shape[1]
+
+    def get_bit_depth(self) -> int:
+        """
+        Returns the bit depth of the video (e.g. 8 or 10).
+
+        Default implementation returns 8; subclasses report their real depth.
+        """
+        return 8
 
     def get_duration(self) -> float:
         """

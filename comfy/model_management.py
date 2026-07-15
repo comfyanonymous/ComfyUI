@@ -534,8 +534,10 @@ try:
 except:
     pass
 
-if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
-    torch.backends.cudnn.benchmark = True
+
+def set_cudnn_benchmark():
+    if torch.cuda.is_available() and torch.backends.cudnn.is_available():
+        torch.backends.cudnn.benchmark = PerformanceFeature.AutoTune in args.fast
 
 try:
     if torch_version_numeric >= (2, 5):
@@ -614,6 +616,8 @@ PIN_PRESSURE_HYSTERESIS = 256 * 1024 * 1024
 #Freeing registerables on pressure does imply a GPU sync, so go big on
 #the hysteresis so each expensive sync gives us back a good chunk.
 REGISTERABLE_PIN_HYSTERESIS = 2048 * 1024 * 1024
+WINDOWS_PIN_EVICTION_SWAP_PERCENT = 5.0
+WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE = 512 * 1024 ** 2
 
 def module_size(module):
     module_mem = 0
@@ -640,7 +644,18 @@ def free_pins(size, evict_active=False):
             size -= freed
     return freed_total
 
+def should_free_pins_for_ram_pressure(shortfall):
+    if shortfall <= 0:
+        return False
+    if not WINDOWS:
+        return True
+    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+        return True
+    return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+
 def ensure_pin_budget(size, evict_active=False):
+    if args.high_ram:
+        return True
     if args.fast_disk:
         shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     else:
@@ -651,8 +666,7 @@ def ensure_pin_budget(size, evict_active=False):
     to_free = shortfall + PIN_PRESSURE_HYSTERESIS
     return free_pins(to_free, evict_active=evict_active) >= shortfall
 
-def ensure_pin_registerable(size, evict_active=True):
-    shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
+def free_registrations(shortfall, evict_active=True):
     if MAX_PINNED_MEMORY <= 0:
         return False
     if shortfall <= 0:
@@ -673,6 +687,9 @@ def ensure_pin_registerable(size, evict_active=True):
                 if shortfall <= 0:
                     return True
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
+
+def ensure_pin_registerable(size, evict_active=True):
+    return free_registrations(TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY, evict_active=evict_active)
 
 class LoadedModel:
     def __init__(self, model: ModelPatcher):
@@ -955,8 +972,6 @@ def loaded_models(only_currently_used=False):
 
 def cleanup_models_gc():
     do_gc = False
-
-    reset_cast_buffers()
 
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
@@ -1494,6 +1509,8 @@ if not args.disable_pinned_memory:
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
 
 def pinned_hostbuf_size(size):
+    if args.high_ram:
+        return max(0, int(size * 2))
     return max(0, int(min(size, MAX_PINNED_MEMORY) * 2))
 
 def discard_cuda_async_error():
