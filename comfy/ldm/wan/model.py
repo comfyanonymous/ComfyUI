@@ -1698,11 +1698,16 @@ class SCAILWanModel(WanModel):
 
     def forward_orig(self, x, t, context, clip_fea=None, freqs=None, transformer_options={}, pose_latents=None, reference_latent=None, ref_mask_latents=None, sam_latents=None, **kwargs):
 
+        x_input = x
+
+        img_offset = 0
         if reference_latent is not None:
             x = torch.cat((reference_latent, x), dim=2)
+            img_offset = (reference_latent.shape[2] // self.patch_size[0]) * \
+                         (reference_latent.shape[3] // self.patch_size[1]) * \
+                         (reference_latent.shape[4] // self.patch_size[2])
 
         # embeddings
-        x_input = x
         x = self.patch_embedding(x.float()).to(x.dtype)
         if ref_mask_latents is not None:  # SCAIL-2 additive mask stream (one identity mask frame per reference, then video)
             x = x + self.patch_embedding_mask(ref_mask_latents.float()).to(x.dtype)
@@ -1754,7 +1759,7 @@ class SCAILWanModel(WanModel):
 
             if "double_block" in patches:
                 for p in patches["double_block"]:
-                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": 0, "transformer_options": transformer_options})
+                    out = p({"img": x, "x": x_input, "vec": e, "block_index": i, "img_offset": img_offset, "transformer_options": transformer_options})
                     x = out["img"]
 
         # head

@@ -581,9 +581,9 @@ class WanUni3CCnetPatch:
         comfy.model_management.load_models_gpu(loaded_models)
         return self.latent_format.process_in(render_latent)
 
-    def build_controlnet_input(self, x, dtype):
+    def build_controlnet_input(self, x, dtype, samples_per_cond):
         # first 20 channels of the model input: noise latent + I2V mask (zero padded for T2V)
-        hidden = x[:1, :20].to(dtype)
+        hidden = x[:samples_per_cond, :20].to(dtype)
         if hidden.shape[1] < 20:
             pad_shape = list(hidden.shape)
             pad_shape[1] = 20 - hidden.shape[1]
@@ -594,6 +594,8 @@ class WanUni3CCnetPatch:
             render = self.encode_render_video(hidden.shape[2:])
         render = render.to(device=hidden.device, dtype=dtype)
         self.prepared_render = render
+        if render.shape[0] != hidden.shape[0]:
+            render = render.expand(hidden.shape[0], -1, -1, -1, -1)
         return torch.cat([hidden, render], dim=1)
 
     def __call__(self, kwargs):
@@ -610,14 +612,20 @@ class WanUni3CCnetPatch:
                 if sigma > self.sigma_start or sigma < self.sigma_end:
                     active = False
             if active:
-                temb = kwargs.get("vec")[:1]
+                x = kwargs.get("x")
+                # cond and uncond chunks share latents, so we can reuse residuals
+                num_conds = len(transformer_options.get("cond_or_uncond", [0]))
+                samples_per_cond = x.shape[0]
+                if num_conds > 0 and x.shape[0] % num_conds == 0:
+                    samples_per_cond = x.shape[0] // num_conds
+                temb = kwargs.get("vec")[:samples_per_cond]
                 if temb.ndim == 3:
                     temb = temb[:, 0]
                 model = self.model_patch.model
                 cnet_dim = model.controlnet_blocks[0].norm1.linear.in_features
                 if temb.shape[-1] != cnet_dim:
                     raise RuntimeError("This Uni3C controlnet expects a Wan model with dim {}, the loaded model has dim {}".format(cnet_dim, temb.shape[-1]))
-                controlnet_input = self.build_controlnet_input(kwargs.get("x"), img.dtype)
+                controlnet_input = self.build_controlnet_input(x, img.dtype, samples_per_cond)
                 hidden, freqs = model.process_input(controlnet_input)
                 self.temp_data = (hidden, temb.to(img.dtype), freqs)
 
@@ -625,8 +633,11 @@ class WanUni3CCnetPatch:
         if self.temp_data is not None and block_index < num_layers:
             hidden, temb, freqs = self.temp_data
             hidden, residual = self.model_patch.model.forward_block(block_index, hidden, temb, freqs)
+            residual = residual.to(img.dtype) * self.strength
+            if residual.shape[0] != img.shape[0]:
+                residual = residual.repeat(img.shape[0] // residual.shape[0], 1, 1)
             img_offset = kwargs.get("img_offset", 0)
-            img[:, img_offset:img_offset + residual.shape[1]] += residual.to(img.dtype) * self.strength
+            img[:, img_offset:img_offset + residual.shape[1]] += residual
             if block_index >= num_layers - 1:
                 self.temp_data = None
             else:
