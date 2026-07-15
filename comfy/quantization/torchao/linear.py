@@ -58,9 +58,6 @@ class TINT4Linear(nn.Module):
 		else:
 			self.register_parameter('bias', None)
 
-		# ★ FIX 1: 使用 register_buffer 而不是直接用 = 赋值
-		# 好处：model.to(device) / state_dict() / load_state_dict() 能自动管理
-		# 旧代码：self._qdata = qdata → PyTorch 不知道这是持久化数据
 		self.register_buffer('_qdata', qdata)
 		self.register_buffer('_scale', scale)
 		self.register_buffer('_zp', zp)
@@ -167,9 +164,7 @@ class TINT4Linear(nn.Module):
 						_, w1, w2, mult, factor = e[:5]
 						sl = e[5] if len(e) > 5 else None
 						se = e[6] if len(e) > 6 else None
-
-						# QuaRot: 先旋转 w2（小矩阵，转发负担小）
-						# 数学上等价于旋转完整 kron 展开（Hadamard 是分块对角的）
+）
 						w2 = self._rotate_into_quarot(w2)
 						w1d = w1.to(device=dev, dtype=cd)
 						w2d = w2.to(device=dev, dtype=cd)
@@ -241,11 +236,3 @@ class TINT4Linear(nn.Module):
 	def release(self) -> None:
 		"""Drop cached Int4PlainInt32Tensor to free VRAM."""
 		self._qt = None
-
-	def __del__(self):
-		"""Cleanup raw tensor references on deletion."""
-		self._qdata = None
-		self._scale = None
-		self._zp = None
-		self._qt = None
-		self._tint4_lora_entries = None
