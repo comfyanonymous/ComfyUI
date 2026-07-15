@@ -35,7 +35,11 @@ class ModelFileManager:
             for folder in model_types:
                 if folder in folder_black_list:
                     continue
-                output_folders.append({"name": folder, "folders": folder_paths.get_folder_paths(folder)})
+                output_folders.append({
+                    "name": folder,
+                    "folders": folder_paths.get_folder_paths(folder),
+                    "extensions": sorted(folder_paths.folder_names_and_paths[folder][1]),
+                })
             return web.json_response(output_folders)
 
         # NOTE: This is an experiment to replace `/models/{folder}`

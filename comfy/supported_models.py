@@ -1685,6 +1685,40 @@ class Chroma(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.pixart_t5.PixArtTokenizer, comfy.text_encoders.pixart_t5.pixart_te(**t5_detect))
 
+class SeedVR2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "seedvr2"
+    }
+    unet_extra_config = {}
+    required_keys = {
+        "{}positive_conditioning",
+        "{}negative_conditioning",
+    }
+    latent_format = comfy.latent_formats.SeedVR2
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+    sampling_settings = {
+        "shift": 1.0,
+    }
+
+    def set_inference_dtype(self, dtype, manual_cast_dtype, device=None):
+        if (
+            dtype == torch.float16
+            and manual_cast_dtype is None
+            and comfy.model_management.should_use_bf16(device)
+        ):
+            manual_cast_dtype = torch.bfloat16
+        super().set_inference_dtype(dtype, manual_cast_dtype, device=device)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SeedVR2(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        return None
+
 class ChromaRadiance(Chroma):
     unet_config = {
         "image_model": "chroma_radiance",
@@ -2348,6 +2382,7 @@ models = [
     HiDream,
     HiDreamO1,
     Chroma,
+    SeedVR2,
     ChromaRadiance,
     ACEStep,
     ACEStep15,
