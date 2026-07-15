@@ -37,7 +37,7 @@ def get_open_write_kwargs(
     open_kwargs = {
         "mode": "w",
         # If isobmff, preserve custom metadata tags (workflow, prompt, extra_pnginfo)
-        "options": {"movflags": "use_metadata_tags"},
+        "container_options": {"movflags": "use_metadata_tags"},
     }
 
     is_write_to_buffer = isinstance(dest, io.BytesIO)
@@ -535,14 +535,8 @@ class VideoFromComponents(VideoInput):
         if bit_depth is None:
             bit_depth = self.__bit_depth
         is_10bit = bit_depth >= 10
-        extra_kwargs = {}
-        if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
-            extra_kwargs["format"] = format.value
-        elif isinstance(path, io.BytesIO):
-            # BytesIO has no file extension, so av.open can't infer the format.
-            # Default to mp4 since that's the only supported format anyway.
-            extra_kwargs["format"] = "mp4"
-        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
+        open_kwargs = get_open_write_kwargs(path, "mp4", format)
+        with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:
                 for key, value in metadata.items():
