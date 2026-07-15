@@ -152,19 +152,15 @@ class TINT4Linear(nn.Module):
 		# LoRA forward injection
 		entries = self._tint4_lora_entries
 		if entries is not None and entries:
-			cd = (x.dtype if x.dtype in (torch.float16, torch.bfloat16)
-				  else torch.float16)
+			cd = x.dtype
 			for lora_entries in entries.values():
 				for e in lora_entries:
 					# ── LoKr path ──
-					# ★ FIX 2: 用 torch.kron 替代 repeat_interleave
-					# 旧方案要求 w2 维度能被 factor 整除（例如 64÷60=不整除→报错）
-					# 新方案 kron 展开 + pad/trim 到目标维度，兼容任意分解
 					if isinstance(e[0], str) and e[0] == "lokr":
 						_, w1, w2, mult, factor = e[:5]
 						sl = e[5] if len(e) > 5 else None
 						se = e[6] if len(e) > 6 else None
-）
+
 						w2 = self._rotate_into_quarot(w2)
 						w1d = w1.to(device=dev, dtype=cd)
 						w2d = w2.to(device=dev, dtype=cd)
