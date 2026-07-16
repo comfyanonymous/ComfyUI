@@ -19,6 +19,9 @@
   better to remove a broken feature path than keep a complicated partial fix.
 - Preserve existing APIs, node names, model-loading behavior, file layout, and
   workflow compatibility unless the change is explicitly about replacing them.
+- When compatibility is explicitly out of scope, remove compatibility-only
+  aliases, duplicate nodes, legacy entry points, and preset wrappers instead of
+  retaining parallel ways to perform the same operation.
 - Code must look hand-written for this repository. Changes that read like
   generic AI-generated code will be rejected automatically: unnecessary helper
   layers, vague names, boilerplate comments, defensive branches without a real
@@ -96,6 +99,13 @@
   unless they are read by current code and change current behavior. Remove
   pass-through or stored-but-unused values instead of preserving upstream or
   deprecated API baggage.
+- Do not add a model-specific option to a shared helper when only one caller
+  needs it. Keep one-off behavior at the model integration boundary, or extend
+  the shared helper only when the option is a coherent reusable capability.
+- Implementations of shared model interfaces should accept the standard caller
+  contract without model-specific rejection branches for optional capabilities
+  they do not consume. Let supported behavior be determined by implementation
+  paths that actually use those inputs.
 - If an implementation needs auxiliary values for its own workflow, expose them
   through a private helper or a clearly named implementation-specific method
   instead of overloading the public method's return contract.
@@ -154,6 +164,10 @@
   `comfy-kitchen` helpers where they already solve the problem.
 - Use optimized comfy-kitchen ops in places where they improve performance
   without changing the expected dtype, device, memory, or interface behavior.
+- Prefer ComfyUI's shared optimized kernels and backend dispatchers over
+  handwritten implementations of the same operation. Remove duplicate local
+  kernels and adapt inputs to the shared operation's documented layout while
+  preserving the model's original math and output contract.
 - All models should use the optimized attention function selected by ComfyUI.
   Treat optimized backend functions, dispatch helpers, and capability-selected
   callables as opaque. Higher-level code must not inspect function identity,
@@ -176,6 +190,12 @@
 - Model detection code that inspects linear weight shapes should only use the
   first dimension. The second dimension may be half the original size for
   NVFP4 or other 4-bit quantized models.
+- A model-detection signature must guard every state-dict key it dereferences.
+  Do not partially match a format and then raise an incidental `KeyError` while
+  extracting its configuration.
+- Order model-detection checks from established or more-specific signatures to
+  newer or broader signatures. Put a broad new detector near the generic
+  fallback when giving it higher precedence could steal another model family.
 - Avoid adding `einops` usage in core inference code. Use native torch tensor
   ops such as `reshape`, `view`, `permute`, `transpose`, `flatten`, `unflatten`,
   `unsqueeze`, and `squeeze` instead.
@@ -192,11 +212,23 @@
   methods for scalar or structural calculations.
 - Avoid unnecessary casts and transfers. Preserve the intended compute dtype,
   storage dtype, bias dtype, and original tensor shape metadata.
+- Do not cast the result of an optimized backend operation back to its input
+  dtype unless that backend's documented result contract requires normalization.
+  In particular, trust the selected optimized-attention implementation to honor
+  its dtype contract.
 - Keep model-native latent layout handling inside the model or latent-format
   owner, not in helper nodes. Do not collapse, expand, pack, or unpack latent
   dimensions in nodes or other caller-side adapters just to satisfy a model
   forward; the model path should consume and return the native latent shape for
   that model family.
+- DiT models should accept latent dimensions that are not exact patch-size
+  multiples. Use `comfy.ldm.common_dit.pad_to_patch_size` on every patchified
+  target or reference input, then crop only the target output back to its
+  original dimensions.
+- Avoid defensive shape and configuration checks that merely replace the clear
+  failure from the tensor operation immediately below them. Add explicit
+  validation only when it provides materially better context at a real boundary
+  or prevents silent incorrect output.
 - Assume inputs to the main model forward are already in the compute dtype by
   default, except integer inputs such as some model timestep tensors. Do not add
   defensive or convenience casts in model code; it is better for invalid dtype
@@ -260,6 +292,15 @@
 - Model implementations should add the minimal number of ComfyUI nodes required
   to run the model. Reuse existing nodes as much as possible; adapting the model
   to work with existing nodes is strongly preferred over creating new nodes.
+- Use `io.Autogrow` for a variable number of repeated inputs instead of a fixed
+  series of numbered optional sockets. Set its minimum to zero when the model
+  has a valid no-item path, and cap it only when the model has a real limit.
+- Mark inputs optional when execution has a valid path that does not read them.
+  If one optional input is needed only to process another optional input, do not
+  force users on the path that supplies neither to connect it.
+- Conditioning nodes should normally output conditioning only. Do not expose
+  input or intermediate images as convenience outputs for downstream sizing or
+  routing; use the existing image path or a dedicated image operation instead.
 - Nodes should output only values they own. Do not add pass-through outputs for
   workflow convenience unless the node is explicitly an output node. Existing
   models, latents, conditioning, or other inputs should flow directly to the
