@@ -27,6 +27,7 @@ import comfy.text_encoders.z_image
 import comfy.text_encoders.ideogram4
 import comfy.text_encoders.boogu
 import comfy.text_encoders.krea2
+import comfy.text_encoders.joyimage
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
@@ -1916,9 +1917,6 @@ class JoyImage(supported_models_base.BASE):
         "image_model": "joyimage",
     }
 
-    # multiplier=1000: the transformer's time embedding is trained on t in [0,1000].
-    # ModelSamplingDiscreteFlow.timestep(sigma)=sigma*multiplier yields that range; the
-    # multiplier cancels in the sigma table, so it only rescales the timestep value.
     sampling_settings = {
         "multiplier": 1000,
         "shift": 1.5,
@@ -1931,7 +1929,7 @@ class JoyImage(supported_models_base.BASE):
         "rope_dim_list": [16, 56, 56],
     }
 
-    latent_format = latent_formats.Wan21  # AutoencoderKLWan: z_dim=16, scale_factor_spatial=8, scale_factor_temporal=4.
+    latent_format = latent_formats.Wan21
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1939,13 +1937,9 @@ class JoyImage(supported_models_base.BASE):
     text_encoder_key_prefix = ["text_encoders."]
 
     def get_model(self, state_dict, prefix="", device=None):
-        out = model_base.JoyImage(self, device=device)
-        return out
+        return model_base.JoyImage(self, device=device)
 
     def clip_target(self, state_dict={}):
-        # Imported lazily so this module stays importable without the text-encoder deps loaded;
-        # the import is only resolved when a checkpoint is actually loaded.
-        import comfy.text_encoders.joyimage
         pref = self.text_encoder_key_prefix[0]
         qwen3vl_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.joyimage.JoyImageTokenizer, comfy.text_encoders.joyimage.te(**qwen3vl_detect))

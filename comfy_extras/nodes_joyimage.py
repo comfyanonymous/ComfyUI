@@ -1,7 +1,7 @@
-import node_helpers
-import comfy.utils
-import torch
 from typing_extensions import override
+
+import comfy.utils
+import node_helpers
 from comfy_api.latest import ComfyExtension, io
 
 
@@ -41,147 +41,53 @@ def _find_best_bucket(height: int, width: int) -> tuple[int, int]:
     return min(BUCKETS_1024, key=lambda hw: abs(hw[0] / hw[1] - target_ratio))
 
 
-class TextEncodeJoyImageEdit(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="TextEncodeJoyImageEdit",
-            category="advanced/conditioning",
-            inputs=[
-                io.Clip.Input("clip"),
-                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
-                io.Vae.Input("vae"),
-                io.Image.Input("image"),
-            ],
-            outputs=[
-                io.Conditioning.Output(),
-                io.Image.Output(display_name="image"),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, clip, prompt, vae, image) -> io.NodeOutput:
-        samples = image.movedim(-1, 1)
-        src_h, src_w = samples.shape[2], samples.shape[3]
-        bucket_h, bucket_w = _find_best_bucket(src_h, src_w)
-
-        resized = comfy.utils.common_upscale(samples, bucket_w, bucket_h, "bilinear", "center")
-        resized_image = resized.movedim(1, -1)[:, :, :, :3]
-
-        tokens = clip.tokenize(prompt, images=[resized_image])
-        conditioning = clip.encode_from_tokens_scheduled(tokens)
-
-        ref_latent = vae.encode(resized_image)
-        conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=True)
-
-        # Return the bucketed image so VAEEncode can build a matching-size init latent;
-        # the bucket size isn't reproducible outside this node.
-        return io.NodeOutput(conditioning, resized_image)
+def _resize_reference(image):
+    if image.shape[0] != 1:
+        raise ValueError("JoyImage reference inputs must contain one image each")
+    samples = image.movedim(-1, 1)
+    bucket_h, bucket_w = _find_best_bucket(samples.shape[2], samples.shape[3])
+    resized = comfy.utils.common_upscale(samples, bucket_w, bucket_h, "bilinear", "center")
+    return resized.movedim(1, -1)[:, :, :, :3]
 
 
-class TextEncodeJoyImageEditPlus(io.ComfyNode):
-    """JoyImageEdit multi-image (Plus) text-encode node.
-
-    Accepts 1-6 optional reference images. Each supplied image is
-    bucket-resized independently (same buckets/resize as the single-image
-    node), VAE-encoded, and appended in order to
-    ``conditioning["reference_latents"]`` (image1 → ref0, image2 → ref1, ...).
-    All resized images are passed to the VL tower in one call; the tokenizer
-    emits one ``<|vision_start|><|image_pad|><|vision_end|>`` block per image.
-    """
-
-    MAX_IMAGES = 6
-
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="TextEncodeJoyImageEditPlus",
-            category="advanced/conditioning",
-            inputs=[
-                io.Clip.Input("clip"),
-                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
-                io.Vae.Input("vae"),
-                io.Image.Input("image1", optional=True),
-                io.Image.Input("image2", optional=True),
-                io.Image.Input("image3", optional=True),
-                io.Image.Input("image4", optional=True),
-                io.Image.Input("image5", optional=True),
-                io.Image.Input("image6", optional=True),
-            ],
-            outputs=[
-                io.Conditioning.Output(),
-                io.Image.Output(display_name="image"),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, clip, prompt, vae, image1=None, image2=None, image3=None,
-                image4=None, image5=None, image6=None) -> io.NodeOutput:
-        images = [image1, image2, image3, image4, image5, image6]
-        supplied = [img for img in images if img is not None]
-        if len(supplied) == 0:
-            raise ValueError(
-                "TextEncodeJoyImageEditPlus requires at least one reference image."
-            )
-
-        resized_images = []
-        ref_latents = []
-        for image in supplied:
-            samples = image.movedim(-1, 1)
-            src_h, src_w = samples.shape[2], samples.shape[3]
-            bucket_h, bucket_w = _find_best_bucket(src_h, src_w)
-
-            resized = comfy.utils.common_upscale(samples, bucket_w, bucket_h, "bilinear", "center")
-            resized_image = resized.movedim(1, -1)[:, :, :, :3]
-            resized_images.append(resized_image)
-            ref_latents.append(vae.encode(resized_image))
-
-        tokens = clip.tokenize(prompt, images=resized_images)
-        conditioning = clip.encode_from_tokens_scheduled(tokens)
+def _encode(clip, prompt, vae, images):
+    resized_images = [_resize_reference(image) for image in images]
+    conditioning = clip.encode_from_tokens_scheduled(clip.tokenize(prompt, images=resized_images))
+    if vae is not None and resized_images:
+        ref_latents = [vae.encode(image) for image in resized_images]
         conditioning = node_helpers.conditioning_set_values(
             conditioning, {"reference_latents": ref_latents}, append=True,
         )
-
-        # The last reference sets the target resolution; return it for VAEEncode
-        # since the bucket size isn't reproducible outside this node.
-        return io.NodeOutput(conditioning, resized_images[-1])
+    return conditioning
 
 
-class JoyImageGuidanceRescale(io.ComfyNode):
-    """CFG combine + per-token L2 norm rescale required by JoyImageEdit.
-
-    Wire this onto the model before sampling: JoyImageEdit's diffusers pipeline
-    rescales the combined noise prediction back to the conditional branch's norm
-    (comb * ||cond|| / ||comb||), the same rescale CFGNorm's pre_cfg branch does.
-    """
-
+class TextEncodeJoyImageEdit(io.ComfyNode):
     @classmethod
     def define_schema(cls):
+        image_template = io.Autogrow.TemplatePrefix(
+            io.Image.Input("image"),
+            prefix="image",
+            min=0,
+            max=6,
+        )
         return io.Schema(
-            node_id="JoyImageGuidanceRescale",
-            category="model/patch",
+            node_id="TextEncodeJoyImageEdit",
+            category="model/conditioning/joyimage",
             inputs=[
-                io.Model.Input("model"),
+                io.Clip.Input("clip"),
+                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.Vae.Input("vae", optional=True),
+                io.Autogrow.Input("images", template=image_template, optional=True),
             ],
             outputs=[
-                io.Model.Output(),
+                io.Conditioning.Output(),
             ],
         )
 
     @classmethod
-    def execute(cls, model) -> io.NodeOutput:
-        def guidance_rescale(args):
-            cond = args["cond"]
-            uncond = args["uncond"]
-            cond_scale = args["cond_scale"]
-            comb = uncond + cond_scale * (cond - uncond)
-            cond_norm = torch.norm(cond, dim=1, keepdim=True)
-            comb_norm = torch.norm(comb, dim=1, keepdim=True)
-            return comb * (cond_norm / comb_norm.clamp_min(1e-6))
-
-        m = model.clone()
-        m.set_model_sampler_cfg_function(guidance_rescale)
-        return io.NodeOutput(m)
+    def execute(cls, clip, prompt, vae=None, images: io.Autogrow.Type = None) -> io.NodeOutput:
+        images = images or {}
+        return io.NodeOutput(_encode(clip, prompt, vae, list(images.values())))
 
 
 class JoyImageExtension(ComfyExtension):
@@ -189,8 +95,6 @@ class JoyImageExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             TextEncodeJoyImageEdit,
-            TextEncodeJoyImageEditPlus,
-            JoyImageGuidanceRescale,
         ]
 
 

@@ -4,11 +4,11 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
+import comfy.ldm.common_dit
 import comfy.ops
 import comfy.patcher_extension
-from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
+from comfy.ldm.lightricks.model import GELU_approx, PixArtAlphaTextProjection, TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention
 
 
@@ -57,7 +57,7 @@ class JoyImageFeedForward(nn.Module):
     ):
         super().__init__()
         self.net = nn.ModuleList([
-            _GeluApproximate(dim, inner_dim, dtype=dtype, device=device, operations=operations),
+            GELU_approx(dim, inner_dim, dtype=dtype, device=device, operations=operations),
             nn.Identity(),
             operations.Linear(inner_dim, dim, bias=True, dtype=dtype, device=device),
         ])
@@ -66,15 +66,6 @@ class JoyImageFeedForward(nn.Module):
         for module in self.net:
             x = module(x)
         return x
-
-
-class _GeluApproximate(nn.Module):
-    def __init__(self, dim_in: int, dim_out: int, dtype=None, device=None, operations=None):
-        super().__init__()
-        self.proj = operations.Linear(dim_in, dim_out, bias=True, dtype=dtype, device=device)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.gelu(self.proj(x), approximate="tanh")
 
 
 class JoyImageAttention(nn.Module):
@@ -106,8 +97,8 @@ class JoyImageAttention(nn.Module):
         self,
         img: torch.Tensor,
         txt: torch.Tensor,
-        image_rotary_emb: Optional[Tuple[Tuple[torch.Tensor, torch.Tensor], Optional[Tuple[torch.Tensor, torch.Tensor]]]],
-        transformer_options={},
+        image_rotary_emb: Tuple[torch.Tensor, torch.Tensor],
+        transformer_options=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         heads = self.num_attention_heads
 
@@ -126,12 +117,7 @@ class JoyImageAttention(nn.Module):
         txt_q = self.txt_attn_q_norm(txt_q)
         txt_k = self.txt_attn_k_norm(txt_k)
 
-        if image_rotary_emb is not None:
-            vis_freqs, txt_freqs = image_rotary_emb
-            if vis_freqs is not None:
-                img_q, img_k = _apply_rotary_emb(img_q, img_k, vis_freqs)
-            if txt_freqs is not None:
-                txt_q, txt_k = _apply_rotary_emb(txt_q, txt_k, txt_freqs)
+        img_q, img_k = _apply_rotary_emb(img_q, img_k, image_rotary_emb)
 
         joint_q = torch.cat([img_q, txt_q], dim=1)
         joint_k = torch.cat([img_k, txt_k], dim=1)
@@ -142,7 +128,6 @@ class JoyImageAttention(nn.Module):
         joint_v = joint_v.flatten(2, 3)
 
         joint_out = optimized_attention(joint_q, joint_k, joint_v, heads=heads, transformer_options=transformer_options)
-        joint_out = joint_out.to(joint_q.dtype)
 
         seq_img = img.shape[1]
         img_out = joint_out[:, :seq_img, :]
@@ -166,9 +151,6 @@ class JoyImageTransformerBlock(nn.Module):
         operations=None,
     ):
         super().__init__()
-        self.dim = dim
-        self.num_attention_heads = num_attention_heads
-        self.attention_head_dim = attention_head_dim
         mlp_hidden_dim = int(dim * mlp_width_ratio)
 
         self.img_mod = JoyImageModulate(dim, factor=6, dtype=dtype, device=device)
@@ -196,8 +178,8 @@ class JoyImageTransformerBlock(nn.Module):
         hidden_states: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
         temb: torch.Tensor,
-        image_rotary_emb: Optional[Tuple[Tuple[torch.Tensor, torch.Tensor], Optional[Tuple[torch.Tensor, torch.Tensor]]]] = None,
-        transformer_options={},
+        image_rotary_emb: Tuple[torch.Tensor, torch.Tensor],
+        transformer_options=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         (
             img_mod1_shift,
@@ -258,8 +240,8 @@ class JoyImageTimeTextImageEmbedding(nn.Module):
         )
         self.act_fn = nn.SiLU()
         self.time_proj = operations.Linear(dim, time_proj_dim, bias=True, dtype=dtype, device=device)
-        self.text_embedder = _PixArtAlphaTextProjection(
-            text_embed_dim, dim, dtype=dtype, device=device, operations=operations,
+        self.text_embedder = PixArtAlphaTextProjection(
+            text_embed_dim, dim, act_fn="gelu_tanh", dtype=dtype, device=device, operations=operations,
         )
 
     def forward(self, timestep: torch.Tensor, encoder_hidden_states: torch.Tensor):
@@ -268,17 +250,6 @@ class JoyImageTimeTextImageEmbedding(nn.Module):
         timestep_proj = self.time_proj(self.act_fn(temb))
         encoder_hidden_states = self.text_embedder(encoder_hidden_states)
         return temb, timestep_proj, encoder_hidden_states
-
-
-class _PixArtAlphaTextProjection(nn.Module):
-    def __init__(self, in_features: int, hidden_size: int, dtype=None, device=None, operations=None):
-        super().__init__()
-        self.linear_1 = operations.Linear(in_features, hidden_size, bias=True, dtype=dtype, device=device)
-        self.act_1 = nn.GELU(approximate="tanh")
-        self.linear_2 = operations.Linear(hidden_size, hidden_size, bias=True, dtype=dtype, device=device)
-
-    def forward(self, caption: torch.Tensor) -> torch.Tensor:
-        return self.linear_2(self.act_1(self.linear_1(caption)))
 
 
 class JoyImageTransformer3DModel(nn.Module):
@@ -293,7 +264,6 @@ class JoyImageTransformer3DModel(nn.Module):
         mlp_width_ratio: float = 4.0,
         num_layers: int = 20,
         rope_dim_list: list = [16, 56, 56],
-        rope_type: str = "rope",
         theta: int = 256,
         image_model=None,
         dtype=None,
@@ -304,21 +274,10 @@ class JoyImageTransformer3DModel(nn.Module):
         self.dtype = dtype
         self.out_channels = out_channels or in_channels
         self.patch_size = list(patch_size)
-        self.hidden_size = hidden_size
-        self.num_attention_heads = num_attention_heads
         self.rope_dim_list = list(rope_dim_list)
-        self.rope_type = rope_type
         self.theta = theta
 
-        if hidden_size % num_attention_heads != 0:
-            raise ValueError(
-                f"hidden_size ({hidden_size}) must be divisible by num_attention_heads ({num_attention_heads})"
-            )
         attention_head_dim = hidden_size // num_attention_heads
-        if sum(self.rope_dim_list) != attention_head_dim:
-            raise ValueError(
-                f"sum(rope_dim_list) ({sum(self.rope_dim_list)}) must equal head_dim ({attention_head_dim})"
-            )
 
         self.img_in = operations.Conv3d(
             in_channels,
@@ -369,12 +328,7 @@ class JoyImageTransformer3DModel(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # 3D RoPE for the patch grid range [start, stop) over (t, h, w). Token order after
         # reshape(-1) is (t, h, w), matching the img_in Conv3d flatten.
-        head_dim = self.hidden_size // self.num_attention_heads
         rope_dim_list = self.rope_dim_list
-        if rope_dim_list is None:
-            rope_dim_list = [head_dim // 3 for _ in range(3)]
-        if sum(rope_dim_list) != head_dim:
-            raise ValueError("sum(rope_dim_list) should equal head_dim")
 
         grids = [torch.arange(start[i], stop[i], dtype=torch.float32, device=device) for i in range(3)]
         mesh = torch.stack(torch.meshgrid(*grids, indexing="ij"), dim=0)
@@ -413,8 +367,6 @@ class JoyImageTransformer3DModel(nn.Module):
     def unpatchify(self, x: torch.Tensor, t: int, h: int, w: int) -> torch.Tensor:
         c = self.out_channels
         pt, ph, pw = self.patch_size
-        if t * h * w != x.shape[1]:
-            raise ValueError(f"Expected t*h*w ({t * h * w}) to equal x.shape[1] ({x.shape[1]})")
         x = x.reshape(x.shape[0], t, h, w, pt, ph, pw, c)
         x = x.permute(0, 7, 1, 4, 2, 5, 3, 6)
         return x.reshape(x.shape[0], c, t * pt, h * ph, w * pw)
@@ -423,75 +375,50 @@ class JoyImageTransformer3DModel(nn.Module):
         self,
         hidden_states: torch.Tensor,
         timestep: torch.Tensor,
-        encoder_hidden_states: torch.Tensor,
+        context: torch.Tensor = None,
         ref_latents=None,
-        transformer_options={},
+        control=None,
+        transformer_options=None,
         **kwargs,
     ) -> torch.Tensor:
+        transformer_options = {} if transformer_options is None else transformer_options.copy()
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
-        ).execute(hidden_states, timestep, encoder_hidden_states, ref_latents, transformer_options, **kwargs)
+        ).execute(hidden_states, timestep, context, ref_latents, transformer_options, **kwargs)
 
     def _forward(
         self,
         hidden_states: torch.Tensor,
         timestep: torch.Tensor,
-        encoder_hidden_states: torch.Tensor,
+        context: torch.Tensor,
         ref_latents=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs,
     ) -> torch.Tensor:
-        # The target noise latent and each reference latent are independently patchified by img_in
-        # (Conv3d) and concatenated along the sequence dim, in the order [target, ref0, ref1, ...].
-        # RoPE is built per component so references may differ in resolution. Only the leading
-        # target segment (tt*th*tw tokens) is projected back out; reference tokens are dropped.
-        # A single reference is simply the len(ref_latents) == 1 case.
-        if hidden_states.ndim != 5:
-            raise ValueError(f"JoyImage transformer expects 5D (B,C,T,H,W) hidden_states; got shape {tuple(hidden_states.shape)}")
-
-        _, _, ot, oh, ow = hidden_states.shape
         pt, ph, pw = self.patch_size
-        if ot % pt != 0 or oh % ph != 0 or ow % pw != 0:
-            raise ValueError(
-                f"JoyImage: target latent spatial/temporal shape {(ot, oh, ow)} must be divisible by patch_size {tuple(self.patch_size)}"
-            )
-        tt = ot // pt
-        th = oh // ph
-        tw = ow // pw
+        _, _, ot, oh, ow = hidden_states.shape
 
-        components = [hidden_states]
-        if ref_latents is not None:
-            for r in ref_latents:
-                if r.ndim != 5:
-                    raise ValueError(f"JoyImage: each reference latent must be 5D (B,C,T,H,W); got shape {tuple(r.shape)}")
-                components.append(r)
-
+        components = [hidden_states, *(ref_latents or [])]
         component_sizes = []
         img_tokens = []
         for comp in components:
+            comp = comfy.ldm.common_dit.pad_to_patch_size(comp, self.patch_size)
             _, _, ct, ch, cw = comp.shape
-            if ct % pt != 0 or ch % ph != 0 or cw % pw != 0:
-                raise ValueError(
-                    f"JoyImage: component shape {(ct, ch, cw)} must be divisible by patch_size {tuple(self.patch_size)}"
-                )
             component_sizes.append((ct // pt, ch // ph, cw // pw))
             tokens = self.img_in(comp).flatten(2).transpose(1, 2)  # (B, n_i, D)
             img_tokens.append(tokens)
 
         img = torch.cat(img_tokens, dim=1)
 
-        _, vec, txt = self.condition_embedder(timestep, encoder_hidden_states)
+        _, vec, txt = self.condition_embedder(timestep, context)
         vec = vec.unflatten(1, (6, -1))
 
-        vis_cos, vis_sin = self.get_rotary_pos_embed_for_components(
+        image_rotary_emb = self.get_rotary_pos_embed_for_components(
             component_sizes,
             device=hidden_states.device,
         )
-        vis_freqs = (vis_cos, vis_sin)
-        txt_freqs = None
-        image_rotary_emb = (vis_freqs, txt_freqs)
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
@@ -528,8 +455,9 @@ class JoyImageTransformer3DModel(nn.Module):
                     transformer_options=transformer_options,
                 )
 
-        img = self.proj_out(self.norm_out(img))
+        tt, th, tw = component_sizes[0]
         target_tokens = tt * th * tw
         img = img[:, :target_tokens, :]
+        img = self.proj_out(self.norm_out(img))
         img = self.unpatchify(img, tt, th, tw)
-        return img
+        return img[:, :, :ot, :oh, :ow]

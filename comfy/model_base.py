@@ -2278,9 +2278,6 @@ class QwenImage(BaseModel):
         return out
 
 class JoyImage(BaseModel):
-    # The noise latent and every reference latent are concatenated as a token sequence inside the
-    # transformer. A single-reference edit is just the len(ref_latents) == 1 case. The required CFG
-    # guidance rescale is applied by the JoyImageGuidanceRescale node (comfy_extras/nodes_joyimage.py).
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.joyimage.model.JoyImageTransformer3DModel)
         self.memory_usage_factor_conds = ("ref_latents",)
@@ -2291,17 +2288,8 @@ class JoyImage(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         ref_latents = kwargs.get("reference_latents", None)
-        if ref_latents is None or len(ref_latents) == 0:
-            raise ValueError(
-                "JoyImageEdit is an edit model: every conditioning (positive AND negative) must carry "
-                "reference_latents. Wire the same reference image(s) and vae into both the positive and "
-                "negative TextEncodeJoyImageEdit / TextEncodeJoyImageEditPlus nodes. Empty negative "
-                "prompts still need the image(s) and vae."
-            )
-        latents = []
-        for lat in ref_latents:
-            latents.append(self.process_latent_in(lat))
-        out['ref_latents'] = comfy.conds.CONDList(latents)
+        if ref_latents is not None:
+            out['ref_latents'] = comfy.conds.CONDList([self.process_latent_in(lat) for lat in ref_latents])
         return out
 
     def extra_conds_shapes(self, **kwargs):
@@ -2310,61 +2298,6 @@ class JoyImage(BaseModel):
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
-
-    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
-        # Pass the noise latent and the reference latents to the transformer, which patchifies each
-        # component and concatenates them along the sequence dim. References may be any resolution.
-        if c_concat is not None:
-            raise ValueError("JoyImage does not support c_concat / noise_concat conditioning")
-        transformer_options = transformer_options.copy()
-        sigma = t
-        xc = self.model_sampling.calculate_input(sigma, x)
-        context = c_crossattn
-        dtype = self.get_dtype_inference()
-        xc = xc.to(dtype)
-        device = xc.device
-        t_in = self.model_sampling.timestep(t).float()
-        if context is not None:
-            context = comfy.model_management.cast_to_device(context, device, dtype)
-
-        extra_conds = {}
-        for o in kwargs:
-            extra = kwargs[o]
-            if hasattr(extra, "dtype"):
-                extra = convert_tensor(extra, dtype, device)
-            elif isinstance(extra, list):
-                ex = []
-                for ext in extra:
-                    ex.append(convert_tensor(ext, dtype, device))
-                extra = ex
-            extra_conds[o] = extra
-
-        ref_latents = extra_conds.pop("ref_latents", None)
-        if ref_latents is None or len(ref_latents) == 0:
-            raise ValueError("JoyImageEdit forward requires ref_latents; got none.")
-
-        if xc.ndim != 5:
-            raise ValueError("JoyImageEdit: noise latent must be 5D (B,C,T,H,W); got shape {}.".format(tuple(xc.shape)))
-
-        refs = []
-        for r in ref_latents:
-            if r.ndim != 5:
-                raise ValueError(
-                    "JoyImageEdit: each reference latent must be 5D (B,C,T,H,W); got shape {}.".format(tuple(r.shape))
-                )
-            refs.append(r)
-
-        if control is not None:
-            raise ValueError("JoyImageEdit: control (ControlNet) is not supported by the transformer.")
-
-        # The transformer's forward signature is (hidden_states, timestep, encoder_hidden_states,
-        # ref_latents, transformer_options); it does not accept control/other extra_conds.
-        if extra_conds:
-            raise ValueError("JoyImageEdit: unexpected extra_conds keys {} reached the transformer.".format(list(extra_conds.keys())))
-
-        noise_pred = self.diffusion_model(xc, t_in, context, ref_latents=refs, transformer_options=transformer_options)
-
-        return self.model_sampling.calculate_denoised(sigma, noise_pred.float(), x)
 
 class Ideogram4(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
