@@ -844,15 +844,18 @@ class ImageMergeTileList(IO.ComfyNode):
 # Format specifications
 # ---------------------------------------------------------------------------
 
-# Maps (file_format, bit_depth, has_alpha) -> (numpy dtype scale, av pixel format,
-# stream pix_fmt). Keeps the encode path declarative instead of branchy.
+# Maps (file_format, bit_depth, num_channels) -> (quantization scale, numpy dtype,
+# av frame pix_fmt, stream pix_fmt). Keeps the encode path declarative instead of branchy.
 _FORMAT_SPECS = {
-    ("png", "8-bit", False):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgb24",     "stream_fmt": "rgb24"},
-    ("png", "8-bit", True):   {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgba",      "stream_fmt": "rgba"},
-    ("png", "16-bit", False): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgb48le",   "stream_fmt": "rgb48be"},
-    ("png", "16-bit", True):  {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgba64le",  "stream_fmt": "rgba64be"},
-    ("exr", "32-bit float", False): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrpf32le",  "stream_fmt": "gbrpf32le"},
-    ("exr", "32-bit float", True):  {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrapf32le", "stream_fmt": "gbrapf32le"},
+    ("png", "8-bit", 1):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "gray",      "stream_fmt": "gray"},
+    ("png", "8-bit", 3):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgb24",     "stream_fmt": "rgb24"},
+    ("png", "8-bit", 4):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgba",      "stream_fmt": "rgba"},
+    ("png", "16-bit", 1): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "gray16le",  "stream_fmt": "gray16be"},
+    ("png", "16-bit", 3): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgb48le",   "stream_fmt": "rgb48be"},
+    ("png", "16-bit", 4): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgba64le",  "stream_fmt": "rgba64be"},
+    ("exr", "32-bit float", 1): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "grayf32le",  "stream_fmt": "grayf32le"},
+    ("exr", "32-bit float", 3): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrpf32le",  "stream_fmt": "gbrpf32le"},
+    ("exr", "32-bit float", 4): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrapf32le", "stream_fmt": "gbrapf32le"},
 }
 
 
@@ -891,10 +894,11 @@ def hlg_to_linear(t: torch.Tensor) -> torch.Tensor:
         return torch.cat([hlg_to_linear(rgb), alpha], dim=-1)
 
     # Piecewise: sqrt branch below 0.5, log branch above.
-    # Clamp inside the log branch so negative / out-of-range values don't blow up;
+    # Clamp the log branch at the 0.5 branch point (not above it) so the
+    # unselected lane stays finite in exp() without altering selected values;
     # values above 1.0 are allowed and extrapolate naturally.
     low = (t ** 2) / 3.0
-    high = (torch.exp((t.clamp(min=_HLG_C) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
+    high = (torch.exp((t.clamp(min=0.5) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
     return torch.where(t <= 0.5, low, high)
 
 
@@ -1087,7 +1091,8 @@ def _encode_image(
     bit_depth: str,
     colorspace: str,
 ) -> bytes:
-    """Encode a single HxWxC tensor to PNG or EXR bytes in memory.
+    """Encode a single HxWxC (or channel-less HxW grayscale) tensor to PNG or
+    EXR bytes in memory. Grayscale is written as single-channel PNG / Y-only EXR.
 
     For EXR the input is interpreted according to `colorspace` and converted
     to scene-linear (EXR's convention) before writing:
@@ -1101,10 +1106,16 @@ def _encode_image(
     For PNG, colorspace selection does not modify pixels — PNG is delivered
     sRGB-encoded and there is no PNG path for wide-gamut HDR in this node.
     """
+    if img_tensor.ndim == 2:
+        img_tensor = img_tensor.unsqueeze(-1)  # Some nodes emit grayscale as (H, W) with no channel dim, mask-style.
     height, width, num_channels = img_tensor.shape
-    has_alpha = num_channels == 4
 
-    spec = _FORMAT_SPECS[(file_format, bit_depth, has_alpha)]
+    spec = _FORMAT_SPECS.get((file_format, bit_depth, num_channels))
+    if spec is None:
+        raise ValueError(
+            f"No {file_format}/{bit_depth} encoder for {num_channels}-channel images: "
+            "supported channel counts are 1 (grayscale), 3 (RGB) and 4 (RGBA)."
+        )
 
     if spec["dtype"] == np.float32:
         # EXR path: preserve full range, no clamp.

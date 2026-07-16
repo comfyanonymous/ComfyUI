@@ -616,6 +616,8 @@ PIN_PRESSURE_HYSTERESIS = 256 * 1024 * 1024
 #Freeing registerables on pressure does imply a GPU sync, so go big on
 #the hysteresis so each expensive sync gives us back a good chunk.
 REGISTERABLE_PIN_HYSTERESIS = 2048 * 1024 * 1024
+WINDOWS_PIN_EVICTION_SWAP_PERCENT = 5.0
+WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE = 512 * 1024 ** 2
 
 def module_size(module):
     module_mem = 0
@@ -641,6 +643,15 @@ def free_pins(size, evict_active=False):
             freed_total += freed
             size -= freed
     return freed_total
+
+def should_free_pins_for_ram_pressure(shortfall):
+    if shortfall <= 0:
+        return False
+    if not WINDOWS:
+        return True
+    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+        return True
+    return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
 
 def ensure_pin_budget(size, evict_active=False):
     if args.high_ram:
