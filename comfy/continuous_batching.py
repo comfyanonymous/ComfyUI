@@ -208,6 +208,37 @@ def cfg_combine(cond, uncond, cfg):
     return uncond + (cond - uncond) * cfg
 
 
+def _batch_cfg_predictions(states, state_branches, branch_outputs):
+    predictions = [None] * len(states)
+    guided_indices = []
+    for index, (state, branches, outputs) in enumerate(zip(states, state_branches, branch_outputs)):
+        if len(branches) == 1 or math.isclose(state.cfg, 1.0):
+            predictions[index] = outputs["positive"]
+        else:
+            guided_indices.append(index)
+
+    if guided_indices:
+        cond = torch.cat([branch_outputs[index]["positive"] for index in guided_indices])
+        uncond = torch.cat([branch_outputs[index]["negative"] for index in guided_indices])
+        cfg = cond.new_tensor([states[index].cfg for index in guided_indices]).reshape(
+            len(guided_indices), *((1,) * (cond.ndim - 1))
+        )
+        guided = torch.addcmul(uncond, cond - uncond, cfg).split(1)
+        for index, prediction in zip(guided_indices, guided):
+            predictions[index] = prediction
+    return predictions
+
+
+def _batch_euler_updates(states, denoised):
+    x = torch.cat([state.x for state in states])
+    predictions = torch.cat(denoised)
+    sigma = torch.stack([state.sigmas[state.index] for state in states]).to(x).reshape(
+        len(states), *((1,) * (x.ndim - 1))
+    )
+    sigma_next = torch.stack([state.sigmas[state.index + 1] for state in states]).to(x).reshape_as(sigma)
+    return torch.addcmul(x, x - predictions, (sigma_next - sigma) / sigma).split(1)
+
+
 def _cfg_branches(cfg, model_options):
     if math.isclose(cfg, 1.0) and not model_options.get("disable_cfg1_optimization", False):
         return (("positive", 0),)
@@ -476,13 +507,7 @@ class ContinuousBatchSession:
             for entry, output in zip(bucket, outputs):
                 branch_outputs[entry[0]][entry[1]] = output
 
-        predictions = []
-        for state, branches, outputs in zip(states, state_branches, branch_outputs):
-            if len(branches) == 1:
-                predictions.append(outputs["positive"])
-            else:
-                predictions.append(cfg_combine(outputs["positive"], outputs["negative"], state.cfg))
-        return predictions
+        return _batch_cfg_predictions(states, state_branches, branch_outputs)
 
     @staticmethod
     def run_callback(state, prediction):
@@ -508,13 +533,18 @@ class ContinuousBatchSession:
             for state in states:
                 self.prepare_request(state)
             denoised = self.predict(states)
-            updates = []
             for state, prediction in zip(states, denoised):
                 if prediction.shape != state.x.shape:
                     raise RuntimeError("Continuous batch denoiser returned an invalid shape")
-                sigma = state.sigmas[state.index].to(state.x)
                 self.run_callback(state, prediction)
-                state.x = euler_step(state.x, prediction, sigma, state.sigmas[state.index + 1].to(state.x))
+            batched_updates = _batch_euler_updates(states, denoised) if len(states) > 1 else None
+            updates = []
+            for state, prediction, batched_update in zip(states, denoised, batched_updates or [None] * len(states)):
+                if batched_update is None:
+                    sigma = state.sigmas[state.index].to(state.x)
+                    state.x = euler_step(state.x, prediction, sigma, state.sigmas[state.index + 1].to(state.x))
+                else:
+                    state.x = batched_update
                 state.index += 1
                 finished = state.index == len(state.sigmas) - 1
                 if finished:

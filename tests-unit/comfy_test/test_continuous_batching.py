@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,8 @@ from comfy.continuous_batching import (
     FAMILY_SDXL,
     ContinuousBatchCoordinator,
     ContinuousBatchSession,
+    _batch_cfg_predictions,
+    _batch_euler_updates,
     _cfg_branches,
     _conditioning_structure,
     _PreparedConditioning,
@@ -172,6 +175,114 @@ def test_euler_and_cfg_match_reference_formulas():
     assert _cfg_branches(1.0, {}) == (("positive", 0),)
     assert _cfg_branches(1.0, {"disable_cfg1_optimization": True}) == (("negative", 1), ("positive", 0))
     assert _cfg_branches(5.0, {}) == (("negative", 1), ("positive", 0))
+
+
+def test_batched_cfg_and_euler_match_per_request_math_for_different_schedules(monkeypatch):
+    calls = {"cat": 0, "stack": 0, "addcmul": []}
+    original_cat = torch.cat
+    original_stack = torch.stack
+    original_addcmul = torch.addcmul
+
+    def cat(*args, **kwargs):
+        calls["cat"] += 1
+        return original_cat(*args, **kwargs)
+
+    def stack(*args, **kwargs):
+        calls["stack"] += 1
+        return original_stack(*args, **kwargs)
+
+    def addcmul(input, tensor1, tensor2, **kwargs):
+        calls["addcmul"].append((tensor2.shape, tensor2.dtype, tensor2.device))
+        return original_addcmul(input, tensor1, tensor2, **kwargs)
+
+    monkeypatch.setattr(torch, "cat", cat)
+    monkeypatch.setattr(torch, "stack", stack)
+    monkeypatch.setattr(torch, "addcmul", addcmul)
+
+    states = [
+        SimpleNamespace(x=torch.tensor([[[[4.0, 2.0]]]]), sigmas=torch.tensor([2.0, 0.5, 0.0]), index=0, cfg=2.0),
+        SimpleNamespace(x=torch.tensor([[[[3.0, 6.0]]]]), sigmas=torch.tensor([3.0, 1.5, 0.25, 0.0]), index=1, cfg=3.5),
+    ]
+    branches = [(("negative", 1), ("positive", 0))] * 2
+    outputs = [
+        {"negative": torch.tensor([[[[1.0, 0.5]]]]), "positive": torch.tensor([[[[2.0, 1.5]]]])},
+        {"negative": torch.tensor([[[[0.5, 1.0]]]]), "positive": torch.tensor([[[[1.5, 2.0]]]])},
+    ]
+
+    predictions = _batch_cfg_predictions(states, branches, outputs)
+    expected_predictions = [cfg_combine(output["positive"], output["negative"], state.cfg) for state, output in zip(states, outputs)]
+    updates = _batch_euler_updates(states, predictions)
+    expected_updates = [
+        euler_step(state.x, prediction, state.sigmas[state.index], state.sigmas[state.index + 1])
+        for state, prediction in zip(states, expected_predictions)
+    ]
+
+    for actual, expected in zip(predictions, expected_predictions):
+        torch.testing.assert_close(actual, expected)
+    for actual, expected in zip(updates, expected_updates):
+        torch.testing.assert_close(actual, expected)
+    assert calls == {
+        "cat": 4,
+        "stack": 2,
+        "addcmul": [
+            (torch.Size([2, 1, 1, 1]), torch.float32, torch.device("cpu")),
+            (torch.Size([2, 1, 1, 1]), torch.float32, torch.device("cpu")),
+        ],
+    }
+
+
+def test_batched_cfg_preserves_cfg1_positive_output_identity():
+    positive = torch.ones(1, 1, 1, 1)
+    states = [SimpleNamespace(cfg=1.0), SimpleNamespace(cfg=2.0)]
+    branches = [(("negative", 1), ("positive", 0))] * 2
+    outputs = [
+        {"negative": torch.zeros_like(positive), "positive": positive},
+        {"negative": torch.zeros_like(positive), "positive": torch.full_like(positive, 2.0)},
+    ]
+
+    predictions = _batch_cfg_predictions(states, branches, outputs)
+
+    assert predictions[0] is positive
+    assert torch.equal(predictions[1], torch.full_like(positive, 4.0))
+
+
+def test_multi_step_runs_callbacks_before_one_batched_euler_update(monkeypatch):
+    events = []
+    session = ContinuousBatchSession(SimpleNamespace(load_device=torch.device("cpu")))
+    states = []
+    predictions = []
+    for index, sigma_next in enumerate((0.5, 0.25)):
+        x = torch.full((1, 1, 1, 1), 2.0 + index)
+        states.append(SimpleNamespace(
+            x=x,
+            sigmas=torch.tensor([1.0 + index, sigma_next, 0.0]),
+            index=0,
+            callback=lambda *args, index=index: events.append(f"callback-{index}"),
+            client_id=None,
+            progress_registry=None,
+            prompt_id=None,
+            node_id=None,
+        ))
+        predictions.append(torch.ones_like(x))
+
+    monkeypatch.setattr("comfy.continuous_batching.comfy.model_management.cuda_device_context", lambda device: nullcontext())
+    monkeypatch.setattr(session, "open_session", lambda requests: None)
+    monkeypatch.setattr(session, "ensure_model_loaded", lambda requests: None)
+    monkeypatch.setattr(session, "prepare_request", lambda request: None)
+    monkeypatch.setattr(session, "predict", lambda requests: predictions)
+    original_batched_euler = _batch_euler_updates
+
+    def batched_euler(requests, denoised):
+        events.append("batched-euler")
+        return original_batched_euler(requests, denoised)
+
+    monkeypatch.setattr("comfy.continuous_batching._batch_euler_updates", batched_euler)
+
+    updates = session.step(states)
+
+    assert events == ["callback-0", "callback-1", "batched-euler"]
+    assert updates == [(states[0], False), (states[1], False)]
+    assert [state.index for state in states] == [1, 1]
 
 
 def test_single_request_prediction_uses_standard_sampling_function(monkeypatch):
