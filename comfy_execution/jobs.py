@@ -56,6 +56,9 @@ PREVIEWABLE_MEDIA_TYPES = frozenset({'images', 'video', 'audio', '3d', 'text'})
 # 3D file extensions for preview fallback (no dedicated media_type exists)
 THREE_D_EXTENSIONS = frozenset({'.obj', '.fbx', '.gltf', '.glb', '.usdz'})
 
+# Text file extensions for preview fallback (the formats SaveText can produce)
+TEXT_EXTENSIONS = frozenset({'.txt', '.md', '.json'})
+
 
 def has_3d_extension(filename: str) -> bool:
     lower = filename.lower()
@@ -143,9 +146,10 @@ def is_previewable(media_type: str, item: dict) -> bool:
     Maintains backwards compatibility with existing logic.
 
     Priority:
-    1. media_type is 'images', 'video', 'audio', or '3d'
+    1. media_type is 'images', 'video', 'audio', '3d', or 'text'
     2. format field starts with 'video/' or 'audio/'
     3. filename has a 3D extension (.obj, .fbx, .gltf, .glb, .usdz)
+    4. filename has a text extension (.txt, .md, .json, ...)
     """
     if media_type in PREVIEWABLE_MEDIA_TYPES:
         return True
@@ -156,9 +160,11 @@ def is_previewable(media_type: str, item: dict) -> bool:
     if fmt and (fmt.startswith('video/') or fmt.startswith('audio/')):
         return True
 
-    # Check for 3D files by extension
+    # Check for 3D and text files by extension
     filename = item.get('filename', '').lower()
     if any(filename.endswith(ext) for ext in THREE_D_EXTENSIONS):
+        return True
+    if any(filename.endswith(ext) for ext in TEXT_EXTENSIONS):
         return True
 
     return False
@@ -255,6 +261,10 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
     Preview priority (matching frontend):
     1. type="output" with previewable media
     2. Any previewable media
+
+    Text content entries (strings under 'text') are preview-only metadata,
+    matching the frontend's METADATA_KEYS: they can serve as the fallback
+    preview but are not counted as outputs.
     """
     count = 0
     preview_output = None
@@ -275,7 +285,6 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                     if normalized is None:
                         # Not a 3D file string — check for text preview
                         if media_type == 'text':
-                            count += 1
                             if preview_output is None:
                                 if isinstance(item, tuple):
                                     text_value = item[0] if item else ''

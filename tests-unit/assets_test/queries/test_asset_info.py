@@ -133,6 +133,66 @@ class TestListReferencesPage:
         assert total == 1
         assert refs[0].name == "tagged"
 
+    def test_include_tags_filter_ands_persisted_model_tags(self, session: Session):
+        asset = _make_asset(session, "hash-model-tags")
+        checkpoint = _make_reference(session, asset, name="checkpoint")
+        lora = _make_reference(session, asset, name="lora")
+        input_ref = _make_reference(session, asset, name="input")
+        ensure_tags_exist(
+            session,
+            ["models", "model_type:checkpoints", "model_type:loras", "unit-tests"],
+        )
+        add_tags_to_reference(
+            session,
+            reference_id=checkpoint.id,
+            tags=["models", "model_type:checkpoints", "unit-tests"],
+            origin="automatic",
+        )
+        add_tags_to_reference(
+            session,
+            reference_id=lora.id,
+            tags=["models", "model_type:loras", "unit-tests"],
+            origin="automatic",
+        )
+        add_tags_to_reference(
+            session,
+            reference_id=input_ref.id,
+            tags=["unit-tests"],
+        )
+        session.commit()
+
+        refs, _, total = list_references_page(
+            session,
+            include_tags=["models", "model_type:checkpoints", "unit-tests"],
+        )
+
+        assert total == 1
+        assert refs[0].id == checkpoint.id
+
+    def test_include_tags_filter_preserves_model_type_case(self, session: Session):
+        asset = _make_asset(session, "hash-model-case")
+        ref = _make_reference(session, asset, name="llm")
+        ensure_tags_exist(session, ["models", "model_type:LLM"])
+        add_tags_to_reference(
+            session,
+            reference_id=ref.id,
+            tags=["models", "model_type:LLM"],
+            origin="automatic",
+        )
+        session.commit()
+
+        refs, _, total = list_references_page(
+            session, include_tags=["models", "model_type:LLM"]
+        )
+        refs_lower, _, total_lower = list_references_page(
+            session, include_tags=["models", "model_type:llm"]
+        )
+
+        assert total == 1
+        assert refs[0].id == ref.id
+        assert total_lower == 0
+        assert refs_lower == []
+
     def test_exclude_tags_filter(self, session: Session):
         asset = _make_asset(session, "hash1")
         _make_reference(session, asset, name="keep")

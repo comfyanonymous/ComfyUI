@@ -11,7 +11,7 @@ def test_list_assets_paging_and_sort(http: requests.Session, api_base: str, asse
     for n in names:
         asset_factory(
             n,
-            ["models", "checkpoints", "unit-tests", "paging"],
+            ["models", "model_type:checkpoints", "unit-tests", "paging"],
             {"epoch": 1},
             make_asset_bytes(n, size=2048),
         )
@@ -45,8 +45,8 @@ def test_list_assets_paging_and_sort(http: requests.Session, api_base: str, asse
 
 
 def test_list_assets_include_exclude_and_name_contains(http: requests.Session, api_base: str, asset_factory):
-    a = asset_factory("inc_a.safetensors", ["models", "checkpoints", "unit-tests", "alpha"], {}, b"X" * 1024)
-    b = asset_factory("inc_b.safetensors", ["models", "checkpoints", "unit-tests", "beta"], {}, b"Y" * 1024)
+    a = asset_factory("inc_a.safetensors", ["models", "model_type:checkpoints", "unit-tests", "alpha"], {}, b"X" * 1024)
+    b = asset_factory("inc_b.safetensors", ["models", "model_type:checkpoints", "unit-tests", "beta"], {}, b"Y" * 1024)
 
     r = http.get(
         api_base + "/api/assets",
@@ -81,7 +81,7 @@ def test_list_assets_include_exclude_and_name_contains(http: requests.Session, a
 
 
 def test_list_assets_sort_by_size_both_orders(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-size"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-size"]
     n1, n2, n3 = "sz1.safetensors", "sz2.safetensors", "sz3.safetensors"
     asset_factory(n1, t, {}, make_asset_bytes(n1, 1024))
     asset_factory(n2, t, {}, make_asset_bytes(n2, 2048))
@@ -108,7 +108,7 @@ def test_list_assets_sort_by_size_both_orders(http, api_base, asset_factory, mak
 
 
 def test_list_assets_sort_by_updated_at_desc(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-upd"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-upd"]
     a1 = asset_factory("upd_a.safetensors", t, {}, make_asset_bytes("upd_a", 1200))
     a2 = asset_factory("upd_b.safetensors", t, {}, make_asset_bytes("upd_b", 1200))
 
@@ -131,7 +131,7 @@ def test_list_assets_sort_by_updated_at_desc(http, api_base, asset_factory, make
 
 
 def test_list_assets_sort_by_last_access_time_desc(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-access"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-access"]
     asset_factory("acc_a.safetensors", t, {}, make_asset_bytes("acc_a", 1100))
     time.sleep(0.02)
     a2 = asset_factory("acc_b.safetensors", t, {}, make_asset_bytes("acc_b", 1100))
@@ -154,14 +154,14 @@ def test_list_assets_sort_by_last_access_time_desc(http, api_base, asset_factory
 
 
 def test_list_assets_include_tags_variants_and_case(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-include"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-include"]
     a = asset_factory("incvar_alpha.safetensors", [*t, "alpha"], {}, make_asset_bytes("iva"))
     asset_factory("incvar_beta.safetensors", [*t, "beta"], {}, make_asset_bytes("ivb"))
 
-    # CSV + case-insensitive
+    # CSV tag filters are whitespace-trimmed and case-sensitive.
     r1 = http.get(
         api_base + "/api/assets",
-        params={"include_tags": "UNIT-TESTS,LF-INCLUDE,alpha"},
+        params={"include_tags": "unit-tests,lf-include,alpha"},
         timeout=120,
     )
     b1 = r1.json()
@@ -196,14 +196,14 @@ def test_list_assets_include_tags_variants_and_case(http, api_base, asset_factor
 
 
 def test_list_assets_exclude_tags_dedup_and_case(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-exclude"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-exclude"]
     a = asset_factory("ex_a_alpha.safetensors", [*t, "alpha"], {}, make_asset_bytes("exa", 900))
     asset_factory("ex_b_beta.safetensors", [*t, "beta"], {}, make_asset_bytes("exb", 900))
 
-    # Exclude uppercase should work
+    # Exclude filters are case-sensitive.
     r1 = http.get(
         api_base + "/api/assets",
-        params={"include_tags": "unit-tests,lf-exclude", "exclude_tags": "BETA"},
+        params={"include_tags": "unit-tests,lf-exclude", "exclude_tags": "beta"},
         timeout=120,
     )
     b1 = r1.json()
@@ -225,7 +225,7 @@ def test_list_assets_exclude_tags_dedup_and_case(http, api_base, asset_factory, 
 
 
 def test_list_assets_name_contains_case_and_specials(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-name"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-name"]
     a1 = asset_factory("CaseMix.SAFE", t, {}, make_asset_bytes("cm", 800))
     a2 = asset_factory("case-other.safetensors", t, {}, make_asset_bytes("co", 800))
 
@@ -261,7 +261,7 @@ def test_list_assets_name_contains_case_and_specials(http, api_base, asset_facto
 
 
 def test_list_assets_offset_beyond_total_and_limit_boundary(http, api_base, asset_factory, make_asset_bytes):
-    t = ["models", "checkpoints", "unit-tests", "lf-pagelimits"]
+    t = ["models", "model_type:checkpoints", "unit-tests", "lf-pagelimits"]
     asset_factory("pl1.safetensors", t, {}, make_asset_bytes("pl1", 600))
     asset_factory("pl2.safetensors", t, {}, make_asset_bytes("pl2", 600))
     asset_factory("pl3.safetensors", t, {}, make_asset_bytes("pl3", 600))
@@ -319,7 +319,7 @@ def test_list_assets_name_contains_literal_underscore(
       - foobar.safetensors       (must NOT match)
     """
     scope = f"lf-underscore-{uuid.uuid4().hex[:6]}"
-    tags = ["models", "checkpoints", "unit-tests", scope]
+    tags = ["models", "model_type:checkpoints", "unit-tests", scope]
 
     a = asset_factory("foo_bar.safetensors", tags, {}, make_asset_bytes("a", 700))
     b = asset_factory("fooxbar.safetensors", tags, {}, make_asset_bytes("b", 700))
