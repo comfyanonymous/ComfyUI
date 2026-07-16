@@ -276,7 +276,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         else:
             intermediate_output = self.layer_idx
 
-        outputs = self.transformer(None, attention_mask_model, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32, embeds_info=embeds_info)
+        outputs = self.transformer_forward(tokens, attention_mask_model, embeds, num_tokens, intermediate_output, embeds_info)
 
         if self.layer == "last":
             z = outputs[0].float()
@@ -301,6 +301,9 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             return z, pooled_output, extra
 
         return z, pooled_output
+
+    def transformer_forward(self, tokens, attention_mask, embeds, num_tokens, intermediate_output, embeds_info):
+        return self.transformer(None, attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32, embeds_info=embeds_info)
 
     def encode(self, tokens):
         return self(tokens)

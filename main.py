@@ -29,9 +29,12 @@ import logging
 import signal
 import sys
 from comfy_execution.progress import get_progress_state
-from comfy_execution.utils import get_executing_context
+from comfy_execution.utils import get_current_client_id, get_executing_context, has_current_client_id
 from comfy_api import feature_flags
 from app.database.db import init_db, dependencies_available
+
+if args.continuous_batching:
+    logging.info("Continuous batching enabled; DynamicVRAM is disabled and the legacy ModelPatcher will be used")
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -225,6 +228,7 @@ import gc
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
+import torch
 
 import comfy.utils
 
@@ -232,6 +236,8 @@ import execution
 import server
 from protocol import BinaryEventTypes
 import nodes
+import comfy.continuous_batching
+import comfy.text_encoders.anima_cache
 import comfy.model_management
 import comfyui_version
 import app.logger
@@ -313,8 +319,7 @@ def _collect_output_absolute_paths(history_result: dict) -> list[str]:
     return paths
 
 
-def prompt_worker(q, server_instance):
-    current_time: float = 0.0
+def prompt_executor_config():
     cache_ram = 0
     cache_ram_inactive = 0
     if not args.cache_classic and not args.cache_none and args.cache_lru <= 0:
@@ -333,7 +338,189 @@ def prompt_worker(q, server_instance):
     elif args.cache_none:
         cache_type = execution.CacheType.NONE
 
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : cache_ram, "ram_inactive" : cache_ram_inactive } )
+    return cache_type, {"lru": args.cache_lru, "ram": cache_ram, "ram_inactive": cache_ram_inactive}
+
+
+async def execute_prompt_async(q, server_instance, item, item_id, cache_type, cache_args, shared_outputs):
+    executor = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args=cache_args, shared_outputs=shared_outputs)
+    execution_start_time = time.perf_counter()
+    prompt_id = item[1]
+    server_instance.last_prompt_id = prompt_id
+
+    sensitive = item[5]
+    extra_data = item[3].copy()
+    for key in sensitive:
+        extra_data[key] = sensitive[key]
+
+    asset_seeder.pause()
+    await executor.execute_async(item[2], prompt_id, extra_data, item[4])
+
+    remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
+    q.task_done(
+        item_id,
+        executor.history_result,
+        status=execution.PromptQueue.ExecutionStatus(
+            status_str="success" if executor.success else "error",
+            completed=executor.success,
+            messages=executor.status_messages,
+        ),
+        process_item=remove_sensitive,
+    )
+    client_id = extra_data.get("client_id")
+    if client_id is not None:
+        server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, client_id)
+
+    execution_time = time.perf_counter() - execution_start_time
+    if execution_time > 600:
+        execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
+        logging.info(f"Prompt executed in {execution_time}", extra={"color": "green"})
+    else:
+        logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={"color": "green"})
+
+    if not asset_seeder.is_disabled():
+        paths = _collect_output_absolute_paths(executor.history_result)
+        register_output_files(paths, job_id=prompt_id)
+
+
+def _freeze_prompt_value(value):
+    if isinstance(value, dict):
+        return tuple((key, _freeze_prompt_value(item)) for key, item in sorted(value.items()))
+    if isinstance(value, list):
+        return tuple(_freeze_prompt_value(item) for item in value)
+    return value
+
+
+def _prompt_dependency_signature(prompt, node_id, memo):
+    if node_id in memo:
+        return memo[node_id]
+    node = prompt[node_id]
+    inputs = []
+    for name, value in sorted(node.get("inputs", {}).items()):
+        if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str) and value[0] in prompt and isinstance(value[1], (int, float)):
+            value = ("link", value[1], _prompt_dependency_signature(prompt, value[0], memo))
+        else:
+            value = ("value", _freeze_prompt_value(value))
+        inputs.append((name, value))
+    signature = (node["class_type"], tuple(inputs))
+    memo[node_id] = signature
+    return signature
+
+
+def continuous_prompt_key(item):
+    prompt = item[2]
+    outputs_to_execute = item[4]
+    pending = list(outputs_to_execute) if isinstance(outputs_to_execute, (list, tuple, set)) else [outputs_to_execute]
+    dependencies = set()
+    while pending:
+        node_id = pending.pop()
+        if node_id in dependencies:
+            continue
+        node = prompt.get(node_id)
+        if not isinstance(node, dict):
+            continue
+        dependencies.add(node_id)
+        for value in node.get("inputs", {}).values():
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str) and value[0] in prompt and isinstance(value[1], (int, float)):
+                pending.append(value[0])
+
+    sampler_ids = [node_id for node_id in dependencies if prompt[node_id].get("class_type") in comfy.continuous_batching.CONTINUOUS_SAMPLER_NODE_FAMILIES]
+    if len(sampler_ids) != 1:
+        return None
+    sampler_type = prompt[sampler_ids[0]]["class_type"]
+    model_input = prompt[sampler_ids[0]].get("inputs", {}).get("model")
+    if not isinstance(model_input, list) or len(model_input) != 2 or model_input[0] not in prompt:
+        return None
+    return (
+        sampler_type,
+        _prompt_dependency_signature(prompt, model_input[0], {}),
+        item[3].get("preview_method"),
+    )
+
+
+async def cooperative_prompt_worker(q, server_instance, max_prompts):
+    cache_type, cache_args = prompt_executor_config()
+    shared_outputs = execution.CacheSet(cache_type=cache_type, cache_args=cache_args).outputs
+    active = set()
+    active_key = None
+    worker_cache_scope = None
+    group_cache_scope = None
+    q.set_cooperative(True)
+    comfy.continuous_batching.set_cancel_checker(q.is_cancelled)
+    ram_headroom = int(cache_args["ram"] * (1024 ** 3))
+    ram_inactive_headroom = int(cache_args["ram_inactive"] * (1024 ** 3))
+    ram_release_callback = shared_outputs.ram_release if cache_type == execution.CacheType.RAM_PRESSURE else None
+    comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
+    try:
+        worker_cache_scope = comfy.text_encoders.anima_cache.begin_cache_scope(False)
+        # PromptExecutor originally owned this scope. It is moved to one worker owner because
+        # thread-local inference mode can break when interleaved async tasks exit out of order.
+        with torch.inference_mode():
+            while True:
+                while len(active) < max_prompts:
+                    queue_item = q.get_if(lambda item: not active or active_key is not None and continuous_prompt_key(item) == active_key)
+                    if queue_item is None:
+                        break
+                    item, item_id = queue_item
+                    item_key = continuous_prompt_key(item)
+                    if not active:
+                        nodes.interrupt_processing(False)
+                        active_key = item_key
+                        family = comfy.continuous_batching.CONTINUOUS_SAMPLER_NODE_FAMILIES.get(item_key[0]) if item_key is not None else None
+                        group_cache_scope = comfy.text_encoders.anima_cache.begin_cache_scope(family == comfy.continuous_batching.FAMILY_ANIMA)
+                    active.add(asyncio.create_task(execute_prompt_async(q, server_instance, item, item_id, cache_type, cache_args, shared_outputs)))
+                    if item_key is None:
+                        break
+
+                if active:
+                    done, active = await asyncio.wait(active, timeout=0.05, return_when=asyncio.FIRST_COMPLETED)
+                    for task in done:
+                        task.result()
+                    if done and not active:
+                        active_key = None
+                        comfy.text_encoders.anima_cache.end_cache_scope(group_cache_scope)
+                        group_cache_scope = None
+                        q.finish_cooperative_drain()
+                        if ram_release_callback is not None:
+                            ram_release_callback(ram_inactive_headroom, free_active=True)
+                        gc.collect()
+                        comfy.model_management.soft_empty_cache()
+                        hook_breaker_ac10a0.restore_functions()
+                        if not asset_seeder.is_disabled():
+                            asset_seeder.enqueue_enrich(roots=("output",), compute_hashes=args.enable_asset_hashing)
+                        asset_seeder.resume()
+                else:
+                    await asyncio.sleep(0.05)
+
+                if not active:
+                    flags = q.get_flags()
+                    free_memory = flags.get("free_memory", False)
+                    if flags.get("unload_models", free_memory):
+                        comfy.model_management.unload_all_models()
+                    if free_memory:
+                        gc.collect()
+                        comfy.model_management.soft_empty_cache()
+    finally:
+        try:
+            if group_cache_scope is not None:
+                comfy.text_encoders.anima_cache.end_cache_scope(group_cache_scope)
+        finally:
+            if worker_cache_scope is not None:
+                comfy.text_encoders.anima_cache.end_cache_scope(worker_cache_scope)
+        comfy.memory_management.set_ram_cache_release_state(None, 0)
+        comfy.continuous_batching.set_cancel_checker(None)
+        q.set_cooperative(False)
+
+
+def prompt_worker(q, server_instance):
+    max_prompts = args.continuous_batching
+    if max_prompts:
+        asyncio.run(cooperative_prompt_worker(q, server_instance, max_prompts))
+        return
+
+    current_time: float = 0.0
+    cache_type, cache_args = prompt_executor_config()
+
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args=cache_args)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -367,8 +554,8 @@ def prompt_worker(q, server_instance):
                             status_str='success' if e.success else 'error',
                             completed=e.success,
                             messages=e.status_messages), process_item=remove_sensitive)
-            if server_instance.client_id is not None:
-                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
+            if e.client_id is not None:
+                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, e.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
@@ -434,18 +621,21 @@ def hijack_progress(server_instance):
         progress = {"value": value, "max": total, "prompt_id": prompt_id, "node": node_id}
         get_progress_state().update_progress(node_id, value, total, preview_image)
 
-        server_instance.send_sync("progress", progress, server_instance.client_id)
+        client_id = get_current_client_id()
+        if not has_current_client_id():
+            client_id = server_instance.client_id
+        server_instance.send_sync("progress", progress, client_id)
         if preview_image is not None:
             # Only send old method if client doesn't support preview metadata
             if not feature_flags.supports_feature(
                 server_instance.sockets_metadata,
-                server_instance.client_id,
+                client_id,
                 "supports_preview_metadata",
             ):
                 server_instance.send_sync(
                     BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
                     preview_image,
-                    server_instance.client_id,
+                    client_id,
                 )
 
     comfy.utils.set_progress_bar_global_hook(hook)

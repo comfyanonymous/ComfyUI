@@ -26,7 +26,10 @@ import comfy.sample
 import comfy.sd
 import comfy.utils
 import comfy.controlnet
+import comfy.continuous_batching
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
+from comfy_execution.progress import get_progress_state
+from comfy_execution.utils import get_current_client_id, get_executing_context
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
 from comfy_api.latest import io, ComfyExtension, InputImpl
@@ -1606,6 +1609,87 @@ class KSampler:
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
 
+
+class _ContinuousKSampler:
+    FAMILY = None
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
+                "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS,),
+                "positive": ("CONDITIONING",),
+                "negative": ("CONDITIONING",),
+                "latent_image": ("LATENT",),
+                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "max_batch_size": ("INT", {"default": 4, "min": 1, "max": 64}),
+                "admission_delay_ms": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 1000.0, "step": 0.1}),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    OUTPUT_TOOLTIPS = ("The denoised latent.",)
+    FUNCTION = "sample"
+    CATEGORY = "model/sampling"
+
+    async def sample(self, model, seed, steps, cfg, scheduler, positive, negative, latent_image, denoise=1.0, max_batch_size=4, admission_delay_ms=2.0):
+        latent = latent_image["samples"]
+        latent = comfy.sample.fix_empty_latent_channels(model, latent, latent_image.get("downscale_ratio_spacial"), latent_image.get("downscale_ratio_temporal"))
+        sampler = comfy.samplers.KSampler(model, steps=steps, device=model.load_device, sampler="euler", scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+        if len(sampler.sigmas) == 0:
+            out = latent_image.copy()
+            out.pop("downscale_ratio_spacial", None)
+            out.pop("downscale_ratio_temporal", None)
+            out["samples"] = latent
+            return (out,)
+        if "noise_mask" in latent_image:
+            raise ValueError("Continuous batching does not support noise masks")
+        noise = comfy.sample.prepare_noise(latent, seed, latent_image.get("batch_index"))
+        execution_context = get_executing_context()
+        state = comfy.continuous_batching.ContinuousBatchRequest(
+            family=self.FAMILY,
+            model_patcher=model,
+            noise=noise,
+            latent_image=latent,
+            positive=positive,
+            negative=negative,
+            sigmas=sampler.sigmas,
+            callback=latent_preview.prepare_callback(model, steps),
+            seed=seed,
+            cfg=cfg,
+            max_batch_size=max_batch_size,
+            admission_delay=admission_delay_ms / 1000.0,
+            prompt_id=execution_context.prompt_id if execution_context is not None else None,
+            node_id=execution_context.node_id if execution_context is not None else None,
+            client_id=get_current_client_id(),
+            progress_registry=get_progress_state(),
+        )
+        samples = await comfy.continuous_batching.sample_euler_continuous(state)
+        out = latent_image.copy()
+        out.pop("downscale_ratio_spacial", None)
+        out.pop("downscale_ratio_temporal", None)
+        out["samples"] = samples
+        return (out,)
+
+
+class AnimaContinuousKSampler(_ContinuousKSampler):
+    FAMILY = comfy.continuous_batching.FAMILY_ANIMA
+    DESCRIPTION = "Continuously batches compatible Anima requests at Euler denoising-step boundaries."
+
+
+class SD15ContinuousKSampler(_ContinuousKSampler):
+    FAMILY = comfy.continuous_batching.FAMILY_SD15
+    DESCRIPTION = "Continuously batches compatible SD1.5 requests at Euler denoising-step boundaries."
+
+
+class SDXLContinuousKSampler(_ContinuousKSampler):
+    FAMILY = comfy.continuous_batching.FAMILY_SDXL
+    DESCRIPTION = "Continuously batches compatible SDXL requests at Euler denoising-step boundaries."
+
 class KSamplerAdvanced:
     @classmethod
     def INPUT_TYPES(s):
@@ -2048,6 +2132,9 @@ class ImagePadForOutpaint:
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
+    "AnimaContinuousKSampler": AnimaContinuousKSampler,
+    "SD15ContinuousKSampler": SD15ContinuousKSampler,
+    "SDXLContinuousKSampler": SDXLContinuousKSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
     "CLIPTextEncode": CLIPTextEncode,
     "CLIPSetLastLayer": CLIPSetLastLayer,
@@ -2120,6 +2207,9 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Sampling
     "KSampler": "KSampler",
+    "AnimaContinuousKSampler": "Anima Continuous KSampler",
+    "SD15ContinuousKSampler": "SD1.5 Continuous KSampler",
+    "SDXLContinuousKSampler": "SDXL Continuous KSampler",
     "KSamplerAdvanced": "KSampler (Advanced)",
     # Loaders
     "CheckpointLoader": "Load Checkpoint With Config (DEPRECATED)",

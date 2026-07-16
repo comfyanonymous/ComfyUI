@@ -155,6 +155,7 @@ parser.add_argument("--enable-dynamic-vram", action="store_true", help="Enable d
 parser.add_argument("--fast-disk", action="store_true", help="Prefer disk-backed dynamic loading and offload over unpinned RAM. Can be faster for users with fast NVME disks.")
 
 parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
+parser.add_argument("--continuous-batching", type=int, default=0, metavar="MAX_PROMPTS", help="Run up to MAX_PROMPTS compatible continuous sampler workflows cooperatively using the legacy ModelPatcher. DynamicVRAM is disabled.")
 
 parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
 
@@ -254,6 +255,13 @@ else:
 if args.cache_ram is not None and len(args.cache_ram) > 2:
     parser.error("--cache-ram accepts at most two values: active GB and inactive GB")
 
+if args.continuous_batching < 0:
+    parser.error("--continuous-batching must be zero or greater")
+if args.continuous_batching > 1 and args.cache_none:
+    parser.error("--continuous-batching with more than one prompt is incompatible with --cache-none")
+if args.continuous_batching and args.enable_dynamic_vram:
+    parser.error("--continuous-batching is incompatible with --enable-dynamic-vram")
+
 if args.high_ram:
     args.cache_classic = True
 
@@ -282,6 +290,8 @@ else:
     args.fast = set(args.fast)
 
 def enables_dynamic_vram():
+    if args.continuous_batching:
+        return False
     if args.enable_dynamic_vram:
         return True
     return not args.disable_dynamic_vram and not args.highvram and not args.gpu_only and not args.novram and not args.cpu

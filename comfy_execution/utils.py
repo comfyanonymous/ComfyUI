@@ -14,9 +14,24 @@ class ExecutionContext(NamedTuple):
     list_index: Optional[int]
 
 current_executing_context: contextvars.ContextVar[Optional[ExecutionContext]] = contextvars.ContextVar("current_executing_context", default=None)
+_client_id_unset = object()
+current_client_id = contextvars.ContextVar("current_client_id", default=_client_id_unset)
 
 def get_executing_context() -> Optional[ExecutionContext]:
     return current_executing_context.get(None)
+
+def get_current_client_id() -> Optional[str]:
+    value = current_client_id.get()
+    return None if value is _client_id_unset else value
+
+def has_current_client_id() -> bool:
+    return current_client_id.get() is not _client_id_unset
+
+def set_current_client_id(client_id: Optional[str]):
+    return current_client_id.set(client_id)
+
+def reset_current_client_id(token):
+    current_client_id.reset(token)
 
 class CurrentNodeContext:
     """
