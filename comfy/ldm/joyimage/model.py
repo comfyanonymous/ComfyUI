@@ -2,6 +2,7 @@
 import math
 from typing import Optional, Tuple
 
+import comfy_kitchen
 import torch
 import torch.nn as nn
 
@@ -10,25 +11,6 @@ import comfy.ops
 import comfy.patcher_extension
 from comfy.ldm.lightricks.model import GELU_approx, PixArtAlphaTextProjection, TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention
-
-
-def _apply_rotary_emb(
-    xq: torch.Tensor,
-    xk: torch.Tensor,
-    freqs_cis: Tuple[torch.Tensor, torch.Tensor],
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    ndim = xq.ndim
-    shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(xq.shape)]
-    cos = freqs_cis[0].view(*shape)
-    sin = freqs_cis[1].view(*shape)
-
-    def _rotate_half(x):
-        x_real, x_imag = x.float().reshape(*x.shape[:-1], -1, 2).unbind(-1)
-        return torch.stack([-x_imag, x_real], dim=-1).flatten(3)
-
-    xq_out = (xq.float() * cos + _rotate_half(xq) * sin).type_as(xq)
-    xk_out = (xk.float() * cos + _rotate_half(xk) * sin).type_as(xk)
-    return xq_out, xk_out
 
 
 class JoyImageModulate(nn.Module):
@@ -97,7 +79,7 @@ class JoyImageAttention(nn.Module):
         self,
         img: torch.Tensor,
         txt: torch.Tensor,
-        image_rotary_emb: Tuple[torch.Tensor, torch.Tensor],
+        image_rotary_emb: torch.Tensor,
         transformer_options=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         heads = self.num_attention_heads
@@ -117,7 +99,7 @@ class JoyImageAttention(nn.Module):
         txt_q = self.txt_attn_q_norm(txt_q)
         txt_k = self.txt_attn_k_norm(txt_k)
 
-        img_q, img_k = _apply_rotary_emb(img_q, img_k, image_rotary_emb)
+        img_q, img_k = comfy_kitchen.apply_rope(img_q, img_k, image_rotary_emb)
 
         joint_q = torch.cat([img_q, txt_q], dim=1)
         joint_k = torch.cat([img_k, txt_k], dim=1)
@@ -178,7 +160,7 @@ class JoyImageTransformerBlock(nn.Module):
         hidden_states: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
         temb: torch.Tensor,
-        image_rotary_emb: Tuple[torch.Tensor, torch.Tensor],
+        image_rotary_emb: torch.Tensor,
         transformer_options=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         (
@@ -325,7 +307,7 @@ class JoyImageTransformer3DModel(nn.Module):
         start: Tuple[int, int, int],
         stop: Tuple[int, int, int],
         device=None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         # 3D RoPE for the patch grid range [start, stop) over (t, h, w). Token order after
         # reshape(-1) is (t, h, w), matching the img_in Conv3d flatten.
         rope_dim_list = self.rope_dim_list
@@ -333,36 +315,36 @@ class JoyImageTransformer3DModel(nn.Module):
         grids = [torch.arange(start[i], stop[i], dtype=torch.float32, device=device) for i in range(3)]
         mesh = torch.stack(torch.meshgrid(*grids, indexing="ij"), dim=0)
 
-        cos_parts, sin_parts = [], []
+        angles_parts = []
         for i, dim in enumerate(rope_dim_list):
             pos = mesh[i].reshape(-1)
             freqs = 1.0 / (self.theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device)[: (dim // 2)] / dim))
-            angles = torch.outer(pos, freqs)
-            cos_parts.append(angles.cos().repeat_interleave(2, dim=1))
-            sin_parts.append(angles.sin().repeat_interleave(2, dim=1))
+            angles_parts.append(torch.outer(pos, freqs))
 
-        return torch.cat(cos_parts, dim=1), torch.cat(sin_parts, dim=1)
+        angles = torch.cat(angles_parts, dim=1)
+        cos = angles.cos()
+        sin = angles.sin()
+        return torch.stack((cos, -sin, sin, cos), dim=-1).unflatten(-1, (2, 2))
 
     def get_rotary_pos_embed_for_components(
         self,
         component_sizes,
         device=None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         # Per-component 3D RoPE. component_sizes is a list of (t, h, w) patch grid sizes in
         # sequence order [target, ref0, ref1, ...]; h/w restart at 0 for each component while t
         # continues from the running offset, giving every image its own temporal position band.
-        cos_parts, sin_parts = [], []
+        freqs_parts = []
         t_offset = 0
         for (t, h, w) in component_sizes:
-            cos_emb, sin_emb = self._get_rotary_pos_embed_for_range(
+            freqs = self._get_rotary_pos_embed_for_range(
                 start=(t_offset, 0, 0),
                 stop=(t_offset + t, h, w),
                 device=device,
             )
-            cos_parts.append(cos_emb)
-            sin_parts.append(sin_emb)
+            freqs_parts.append(freqs)
             t_offset += t
-        return torch.cat(cos_parts, dim=0), torch.cat(sin_parts, dim=0)
+        return torch.cat(freqs_parts, dim=0).unsqueeze(0).unsqueeze(2)
 
     def unpatchify(self, x: torch.Tensor, t: int, h: int, w: int) -> torch.Tensor:
         c = self.out_channels
