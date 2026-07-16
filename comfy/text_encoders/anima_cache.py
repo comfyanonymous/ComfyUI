@@ -90,23 +90,19 @@ def forward(transformer, cache_owner, tokens, attention_mask, embeds, num_tokens
 
     suffix_embeds = embeds[:, common:]
     if common > 0 and suffix_embeds.shape[1] > 1:
-        suffix_outputs = []
-        next_key_values = past_key_values
-        for index in range(suffix_embeds.shape[1]):
-            output = transformer(
-                None,
-                None,
-                embeds=suffix_embeds[:, index:index + 1],
-                num_tokens=[1],
-                intermediate_output=intermediate_output,
-                final_layer_norm_intermediate=final_layer_norm_intermediate,
-                dtype=dtype,
-                embeds_info=embeds_info,
-                past_key_values=next_key_values,
-            )
-            suffix_outputs.append(output[0])
-            next_key_values = output[2]
-        suffix_hidden = torch.cat(suffix_outputs, dim=1)
+        output = transformer(
+            None,
+            None,
+            embeds=suffix_embeds,
+            num_tokens=[suffix_embeds.shape[1]],
+            intermediate_output=intermediate_output,
+            final_layer_norm_intermediate=final_layer_norm_intermediate,
+            dtype=dtype,
+            embeds_info=embeds_info,
+            past_key_values=past_key_values,
+        )
+        suffix_hidden = output[0]
+        next_key_values = output[2]
     else:
         output = transformer(
             None,

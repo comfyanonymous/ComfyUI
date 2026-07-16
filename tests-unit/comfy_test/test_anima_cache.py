@@ -3,7 +3,7 @@ import asyncio
 import pytest
 import torch
 
-from comfy.text_encoders import anima_cache
+from comfy.text_encoders import anima_cache, llama
 
 
 def tokens(*ids):
@@ -18,8 +18,6 @@ class TinyCausalTransformer:
     def __call__(self, _, attention_mask, embeds, num_tokens, intermediate_output, final_layer_norm_intermediate, dtype, embeds_info, past_key_values=None):
         self.calls.append((embeds.shape[1], past_key_values is not None))
         self.num_tokens.append(tuple(num_tokens))
-        if past_key_values and embeds.shape[1] > 1:
-            raise RuntimeError("cached multi-token suffix would use an invalid causal mask")
         prefix = 0
         if past_key_values:
             prefix = past_key_values[0][2]
@@ -124,8 +122,48 @@ def test_diverging_suffix_matches_full_causal_forward(prefix_cache):
     output, _ = cached_forward(transformer, [1, 2, 4, 5], owner=owner)
 
     assert torch.equal(output, torch.tensor([[[1.0], [3.0], [7.0], [12.0]]]))
-    assert transformer.calls == [(3, True), (1, True), (1, True)]
-    assert transformer.num_tokens == [(3,), (1,), (1,)]
+    assert transformer.calls == [(3, True), (2, True)]
+    assert transformer.num_tokens == [(3,), (2,)]
+    cached = prefix_cache[owner]
+    assert cached[2] == (1, 2, 4, 5)
+    assert torch.equal(cached[3], output)
+    key, value, length = cached[4][0]
+    assert length == 4
+    assert torch.equal(key.flatten(), torch.tensor([1.0, 2.0, 4.0, 5.0]))
+    assert torch.equal(value.flatten(), torch.tensor([2.0, 4.0, 8.0, 10.0]))
+
+
+def test_llama_cached_multi_token_causal_mask_uses_absolute_positions(monkeypatch):
+    masks = []
+
+    class Layer:
+        def __call__(self, x, attention_mask, freqs_cis, optimized_attention, past_key_value):
+            masks.append(attention_mask.clone())
+            return x, None
+
+    class Model:
+        layers = (Layer(),)
+        norm = None
+
+        def get_past_len(self, past_key_values):
+            return past_key_values[0][2]
+
+        def compute_freqs_cis(self, position_ids, device):
+            return None
+
+    monkeypatch.setattr(llama, "optimized_attention_for_device", lambda *args, **kwargs: None)
+    x = torch.zeros((1, 2, 1))
+    past_key_values = [(torch.empty((1, 1, 3, 1)), torch.empty((1, 1, 3, 1)), 3)]
+
+    llama.Llama2_.forward(Model(), None, embeds=x, past_key_values=past_key_values)
+
+    blocked = torch.finfo(x.dtype).min / 4
+    expected = torch.tensor([
+        [0.0, 0.0, 0.0, 0.0, blocked],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+    ])
+    assert masks[0].shape == (2, 5)
+    assert torch.equal(masks[0], expected)
 
 
 def test_cache_is_isolated_by_owner_and_transformer_identity(prefix_cache):
