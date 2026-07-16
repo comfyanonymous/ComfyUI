@@ -195,6 +195,13 @@ def _processed_conditioning_signature(family, cond):
     return tuple(signature)
 
 
+@dataclass(frozen=True)
+class _PreparedConditioning:
+    conditioning: dict
+    uuid: Any
+    signature: tuple
+
+
 def cfg_combine(cond, uncond, cfg):
     if math.isclose(cfg, 1.0):
         return cond
@@ -230,6 +237,7 @@ class ContinuousBatchRequest:
     conds: dict | None = None
     output: torch.Tensor | None = None
     prepared: bool = False
+    processed_conds: dict | None = field(default=None, init=False)
 
     def validate(self):
         _validate_model_family(self.family, self.model_patcher)
@@ -281,6 +289,7 @@ class ContinuousBatchRequest:
         self.progress_registry = None
         self.x = None
         self.conds = None
+        self.processed_conds = None
         self.output = None
 
 
@@ -388,13 +397,20 @@ class ContinuousBatchSession:
         max_denoise = math.isclose(sigma_max, sigma, rel_tol=1e-5) or sigma > sigma_max
         state.x = self.inner_model.model_sampling.noise_scaling(state.sigmas[0], state.noise, latent_image, max_denoise)
         sigma = state.sigmas[0].to(state.x).unsqueeze(0)
+        processed_conds = {}
         for name in ("positive", "negative"):
             if len(conds[name]) != 1:
                 raise ValueError(f"Continuous batching requires one processed {name} conditioning entry")
             processed = comfy.samplers.get_area_and_mult(conds[name][0], state.x, sigma)
-            _processed_conditioning_signature(state.family, processed)
+            signature = _processed_conditioning_signature(state.family, processed)
+            processed_conds[name] = _PreparedConditioning(
+                conditioning=processed.conditioning,
+                uuid=processed.uuid,
+                signature=signature,
+            )
         state.latent_image = latent_image
         state.conds = conds
+        state.processed_conds = processed_conds
         state.prepared = True
 
     def predict(self, states):
@@ -423,14 +439,16 @@ class ContinuousBatchSession:
             branches = _cfg_branches(state.cfg, self.model_options)
             state_branches.append(branches)
             for name, branch in branches:
-                cond = comfy.samplers.get_area_and_mult(state.conds[name][0], state.x, sigma.unsqueeze(0))
-                signature = _processed_conditioning_signature(state.family, cond)
-                entries.append((state_index, name, branch, state.x, sigma, cond, signature))
+                entries.append((state_index, name, branch, state.x, sigma, state.processed_conds[name]))
 
         buckets = []
         for entry in entries:
             for bucket in buckets:
-                if entry[6] == bucket[0][6] and comfy.samplers.can_concat_cond(entry[5], bucket[0][5]):
+                if (
+                    entry[5].signature == bucket[0][5].signature
+                    and entry[3].shape == bucket[0][3].shape
+                    and comfy.samplers.cond_equal_size(entry[5].conditioning, bucket[0][5].conditioning)
+                ):
                     bucket.append(entry)
                     break
             else:
@@ -442,8 +460,7 @@ class ContinuousBatchSession:
         for bucket in buckets:
             input_x = torch.cat([entry[3] for entry in bucket])
             timestep = torch.stack([entry[4] for entry in bucket])
-            cond_objects = [entry[5] for entry in bucket]
-            conditioning = comfy.samplers.cond_cat([cond.conditioning for cond in cond_objects])
+            conditioning = comfy.samplers.cond_cat([entry[5].conditioning for entry in bucket])
             transformer_options = self.model_patcher.apply_hooks(hooks=None)
             if "transformer_options" in self.model_options:
                 transformer_options = comfy.patcher_extension.merge_nested_dicts(
@@ -452,7 +469,7 @@ class ContinuousBatchSession:
                     copy_dict1=False,
                 )
             transformer_options["cond_or_uncond"] = [entry[2] for entry in bucket]
-            transformer_options["uuids"] = [cond.uuid for cond in cond_objects]
+            transformer_options["uuids"] = [entry[5].uuid for entry in bucket]
             transformer_options["sigmas"] = timestep
             conditioning["transformer_options"] = transformer_options
             outputs = self.inner_model.apply_model(input_x, timestep, **conditioning).split(1)

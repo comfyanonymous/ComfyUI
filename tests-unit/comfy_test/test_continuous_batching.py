@@ -16,6 +16,7 @@ from comfy.continuous_batching import (
     ContinuousBatchSession,
     _cfg_branches,
     _conditioning_structure,
+    _PreparedConditioning,
     _processed_conditioning_signature,
     _validate_conditioning,
     _validate_model_extensions,
@@ -115,6 +116,8 @@ def _batch_cond(x, length, marker, uuid):
 
 def _batch_state(sigma, cfg, negative_marker, positive_marker):
     x = torch.zeros(1, 4, 2, 2)
+    negative = _batch_cond(x, 77, negative_marker, f"negative-{negative_marker}")
+    positive = _batch_cond(x, 154, positive_marker, f"positive-{positive_marker}")
     return SimpleNamespace(
         family=FAMILY_SD15,
         x=x,
@@ -122,8 +125,12 @@ def _batch_state(sigma, cfg, negative_marker, positive_marker):
         index=0,
         cfg=cfg,
         conds={
-            "negative": [_batch_cond(x, 77, negative_marker, f"negative-{negative_marker}")],
-            "positive": [_batch_cond(x, 154, positive_marker, f"positive-{positive_marker}")],
+            "negative": [negative],
+            "positive": [positive],
+        },
+        processed_conds={
+            "negative": _PreparedConditioning(negative.conditioning, negative.uuid, _processed_conditioning_signature(FAMILY_SD15, negative)),
+            "positive": _PreparedConditioning(positive.conditioning, positive.uuid, _processed_conditioning_signature(FAMILY_SD15, positive)),
         },
     )
 
@@ -198,7 +205,7 @@ def test_single_request_prediction_uses_standard_sampling_function(monkeypatch):
 
 
 def test_multi_prediction_buckets_positive_154_and_negative_77_for_two_requests(monkeypatch):
-    monkeypatch.setattr("comfy.continuous_batching.comfy.samplers.get_area_and_mult", lambda cond, *args: cond)
+    monkeypatch.setattr("comfy.continuous_batching.comfy.samplers.get_area_and_mult", lambda *args: pytest.fail("predict reprocessed conditioning"))
     patcher = _RecordingPatcher()
     model = _RecordingModel()
     session = ContinuousBatchSession(patcher)
@@ -222,8 +229,7 @@ def test_multi_prediction_buckets_positive_154_and_negative_77_for_two_requests(
     assert model.calls[1][2]["uuids"] == ["positive-3.0", "positive-20.0"]
 
 
-def test_multi_prediction_remaps_bucket_outputs_before_cfg(monkeypatch):
-    monkeypatch.setattr("comfy.continuous_batching.comfy.samplers.get_area_and_mult", lambda cond, *args: cond)
+def test_multi_prediction_remaps_bucket_outputs_before_cfg():
     session = ContinuousBatchSession(_RecordingPatcher())
     session.inner_model = _RecordingModel()
     session.model_options = {}
@@ -236,6 +242,63 @@ def test_multi_prediction_remaps_bucket_outputs_before_cfg(monkeypatch):
 
     assert torch.equal(predictions[0], torch.full_like(states[0].x, 5.0))
     assert torch.equal(predictions[1], torch.full_like(states[1].x, 40.0))
+
+
+def test_prepare_request_processes_conditioning_once_across_predict_steps(monkeypatch):
+    get_area_calls = []
+
+    def get_area_and_mult(cond, *args):
+        get_area_calls.append(cond.uuid)
+        return cond
+
+    monkeypatch.setattr("comfy.continuous_batching.comfy.sampler_helpers.convert_cond", lambda cond: cond)
+    monkeypatch.setattr("comfy.continuous_batching.comfy.samplers.process_conds", lambda model, noise, conds, *args, **kwargs: conds)
+    monkeypatch.setattr("comfy.continuous_batching.comfy.samplers.get_area_and_mult", get_area_and_mult)
+
+    patcher = _RecordingPatcher()
+    patcher.load_device = torch.device("cpu")
+    model = _RecordingModel()
+    model.model_sampling = SimpleNamespace(
+        sigma_max=torch.tensor(2.0),
+        noise_scaling=lambda sigma, noise, latent, max_denoise: noise,
+    )
+    session = ContinuousBatchSession(patcher)
+    session.inner_model = model
+    session.model_options = {}
+
+    def state(negative_marker, positive_marker):
+        x = torch.zeros(1, 4, 2, 2)
+        negative = _batch_cond(x, 77, negative_marker, f"negative-{negative_marker}")
+        positive = _batch_cond(x, 154, positive_marker, f"positive-{positive_marker}")
+        return SimpleNamespace(
+            family=FAMILY_SD15,
+            noise=x.clone(),
+            latent_image=x.clone(),
+            sigmas=torch.tensor([2.0, 1.0, 0.0]),
+            positive=[positive],
+            negative=[negative],
+            seed=1,
+            cfg=2.0,
+            index=0,
+            prepared=False,
+            processed_conds=None,
+        )
+
+    states = [state(1.0, 3.0), state(10.0, 20.0)]
+    for request in states:
+        session.prepare_request(request)
+
+    assert get_area_calls == ["positive-3.0", "negative-1.0", "positive-20.0", "negative-10.0"]
+    first = session.predict(states)
+    for request in states:
+        request.index = 1
+    second = session.predict(states)
+
+    assert get_area_calls == ["positive-3.0", "negative-1.0", "positive-20.0", "negative-10.0"]
+    assert torch.equal(first[0], torch.full_like(states[0].x, 5.0))
+    assert torch.equal(first[1], torch.full_like(states[1].x, 30.0))
+    assert torch.equal(second[0], first[0])
+    assert torch.equal(second[1], first[1])
 
 
 def test_model_family_validation_accepts_only_plain_sd_contracts():
