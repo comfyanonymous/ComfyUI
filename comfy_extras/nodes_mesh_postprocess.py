@@ -1329,7 +1329,7 @@ class BakeTextureFromVoxel(IO.ComfyNode):
         return IO.Schema(
             node_id="BakeTextureFromVoxel",
             display_name="Bake Texture From Voxel",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=(
                 "Bakes PBR textures onto the mesh's existing UV layout (trilinear-sample the "
                 "sparse voxel volume). Does NOT unwrap — connect a UV unwrap node upstream. Outputs "
@@ -1339,7 +1339,7 @@ class BakeTextureFromVoxel(IO.ComfyNode):
             inputs=[
                 IO.Mesh.Input("mesh"),
                 IO.Voxel.Input("voxel_colors"),
-                IO.Int.Input("texture_size", default=2048, min=64, max=8192,
+                IO.Int.Input("texture_size", display_name="resolution", default=2048, min=64, max=8192,
                              tooltip="Square UV atlas resolution."),
                 IO.Mesh.Input("reference_mesh", optional=True,
                               tooltip=(
@@ -1432,7 +1432,7 @@ class MeshTextureToImage(IO.ComfyNode):
         return IO.Schema(
             node_id="MeshTextureToImage",
             display_name="Mesh Texture to Image",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=(
                 "Extracts a mesh's baked textures as individual IMAGEs: base_color, metallic, "
                 "roughness, occlusion and normal_map. Channels with nothing baked come back "
@@ -1490,7 +1490,7 @@ class ApplyTextureToMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="ApplyTextureToMesh",
             display_name="Apply Texture to Mesh",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=(
                 "Attaches baked texture IMAGEs to a mesh's UV layout for SaveGLB. Feed the SAME mesh you baked"
             ),
@@ -1583,12 +1583,12 @@ class BakeNormalMapFromMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="BakeNormalMapFromMesh",
             display_name="Bake Normal Map from Mesh",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=(
                 "Bakes a tangent-space normal map (glTF/OpenGL +Y) from a high-poly mesh into a "
-                "low-poly's UV layout, capturing detail lost to decimation. Feed the UV-unwrapped "
-                "low_poly and the same-frame high_poly it was decimated from. Outputs an IMAGE for "
-                "ApplyTextureToMesh's normal_map input."
+                "low-poly's UV layout, capturing detail lost during decimation. Feed the UV-unwrapped "
+                "low_poly and the high_poly it was decimated from. Outputs an image for "
+                "Apply Texture To Mesh's normal_map input."
             ),
             inputs=[
                 IO.Mesh.Input("low_poly"),
@@ -1596,7 +1596,7 @@ class BakeNormalMapFromMesh(IO.ComfyNode):
                 IO.Int.Input("resolution", default=1024, min=64, max=8192, step=64,
                              display_name="resolution"),
                 IO.Float.Input("cage_distance", default=0.05, min=0.001, max=0.5, step=0.001,
-                               tooltip="Surface search band, as a fraction of the bbox diagonal. "
+                               tooltip="Surface search band, as a fraction of the bounding box diagonal. "
                                        "Raise for wrong/missing patches under heavy decimation; "
                                        "lower if it grabs across gaps."),
                 IO.Boolean.Input("ignore_backfaces", default=True,
@@ -1664,12 +1664,12 @@ class BakeAmbientOcclusion(IO.ComfyNode):
         return IO.Schema(
             node_id="BakeAmbientOcclusion",
             display_name="Bake Ambient Occlusion",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=(
                 "Bakes an ambient-occlusion map from a high-poly mesh into a low-poly's UV "
                 "layout (white = open, dark = crevices). Feed the UV-unwrapped low_poly and the "
-                "high_poly it was decimated from. Outputs a grayscale IMAGE for "
-                "ApplyTextureToMesh's occlusion input (packed into the ORM map / occlusionTexture)."
+                "high_poly it was decimated from. Outputs a grayscale image for "
+                "Apply Texture To Mesh's occlusion input (packed into the ORM map / occlusionTexture)."
             ),
             inputs=[
                 IO.Mesh.Input("low_poly"),
@@ -1678,12 +1678,12 @@ class BakeAmbientOcclusion(IO.ComfyNode):
                 IO.Int.Input("samples", default=64, min=4, max=1024, step=4,
                              tooltip="Rays per texel. More = smoother, slower. Raise if grainy."),
                 IO.Float.Input("max_distance", default=0.5, min=0.01, max=2.0, step=0.01,
-                               tooltip="Ray length, as a fraction of the bbox diagonal. "
+                               tooltip="Ray length, as a fraction of the bounding box diagonal. "
                                        "Smaller = tighter, more local occlusion."),
                 IO.Float.Input("strength", default=1.0, min=0.0, max=2.0, step=0.05,
                                tooltip="Scales the occlusion. >1 darkens, <1 lightens."),
                 IO.Float.Input("bias", default=0.01, min=0.0001, max=0.2, step=0.0005,
-                               tooltip="Ray origin lift off the surface, as a fraction of the bbox "
+                               tooltip="Ray origin lift off the surface, as a fraction of the bounding box "
                                        "diagonal. Raise if even surfaces show dark blotches/holes."),
             ],
             outputs=[IO.Image.Output(display_name="occlusion")],
@@ -2202,7 +2202,7 @@ class DecimateMesh(IO.ComfyNode):
                 IO.Float.Input("feature_edge_quadric_weight", default=0.0, min=0.0, max=1000.0, step=1.0,
                                tooltip="Extra quadric weight on dihedral feature edges (creases). 0 = off."),
                 IO.Float.Input("feature_edge_min_dihedral_deg", default=30.0, min=0.0, max=180.0, step=1.0,
-                               tooltip="Min dihedral angle (deg) to count an edge as a feature edge."),
+                               tooltip="Minimum dihedral angle (degree) to count an edge as a feature edge."),
                 IO.Boolean.Input("clamp_v_to_edge", default=True,
                                  tooltip="Project the QEM-optimal position onto the collapsed edge segment."),
             ]),
@@ -2214,7 +2214,7 @@ class DecimateMesh(IO.ComfyNode):
             description=(
                 "Simplifies a mesh to a target face count using QEM, on the active compute "
                 "device. 'midpoint' is the cumesh-faithful preset (best quality, preserves thin "
-                "features / hair); 'qem' places verts at the QEM optimum with line/feature-edge "
+                "features / hair); 'qem' places vertices at the QEM optimum with line/feature-edge "
                 "controls. Output stays welded."
             ),
             inputs=[
@@ -2285,7 +2285,7 @@ class RemeshMesh(IO.ComfyNode):
         sign_mode_options = [
             IO.DynamicCombo.Option(key="udf", inputs=[
                 IO.Boolean.Input("qef", default=False, advanced=True,
-                                 tooltip="QEF dual-vertex placement for sharper edges."),
+                                 tooltip="QEF (Quadratic Error Function) dual-vertex placement for sharper edges."),
                 IO.Boolean.Input("drop_inverted_components", default=False, advanced=True,
                                  tooltip="Drop inward-normal (negative-volume) closed components — the UDF inner shell."),
                 IO.Boolean.Input("drop_enclosed_components", default=False, advanced=True,
@@ -2293,7 +2293,7 @@ class RemeshMesh(IO.ComfyNode):
             ]),
             IO.DynamicCombo.Option(key="sdf", inputs=[
                 IO.Boolean.Input("qef", default=True,
-                                 tooltip="QEF dual-vertex placement (recovers sharp features) vs edge-crossing centroid."),
+                                 tooltip="QEF (Quadratic Error Function) dual-vertex placement (recovers sharp features) vs edge-crossing centroid."),
                 IO.Boolean.Input("manifold", default=False,
                                  tooltip="Manifold Dual Contouring: 1-4 dual verts/voxel for multi-sheet cases. Slower."),
             ]),
@@ -2305,25 +2305,25 @@ class RemeshMesh(IO.ComfyNode):
             description=(
                 "Re-extracts a uniformly tessellated mesh via a narrow-band distance field + Dual "
                 "Contouring, on the active compute device. Normalizes messy / non-manifold / "
-                "self-intersecting topology; run before DecimateMesh to hit an exact face count. "
+                "self-intersecting topology; run before Decimate Mesh to hit an exact face count. "
                 "Output stays welded."
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
                 IO.Int.Input("resolution", default=512, min=32, max=1024,
                              tooltip="Voxel grid resolution (output density). 256 ~ 100k faces, 512 ~ 1M. "
-                                     "For an exact face count, follow with DecimateMesh."),
+                                     "For an exact face count, follow with Decimate Mesh."),
                 IO.DynamicCombo.Input("sign_mode", options=sign_mode_options, display_name="sign_mode",
                                       tooltip="udf: robust to messy/non-manifold input. sdf: clean single "
-                                              "surface with QEF sharp-feature recovery, but needs consistent winding."),
+                                              "surface with QEF (Quadratic Error Function) sharp-feature recovery, but needs consistent winding."),
                 IO.Float.Input("band", default=1.0, min=0.5, max=4.0, step=0.1, advanced=True,
                                tooltip="Narrow-band width in voxel units. In UDF mode also offsets the surface."),
                 IO.Float.Input("project_back", default=0.0, min=0.0, max=1.0, step=0.05, advanced=True,
-                               tooltip="Lerp verts toward the original surface (0 = pure DC, 1 = snapped)."),
+                               tooltip="Linearly interpolate vertices toward the original surface (0 = pure DC, 1 = snapped)."),
                 IO.Boolean.Input("fix_poles", default=False, advanced=True,
                                  tooltip="Collapse valence-3 vertex pairs (DC T-junction artifact)."),
                 IO.Int.Input("smooth_iters", default=0, min=0, max=20,
-                             tooltip="Taubin smoothing iters (0 = off). 2-3 cleans DC stairstepping; higher rounds off QEF edges."),
+                             tooltip="Taubin smoothing iterations (0 = off). 2-3 cleans DC staircase-like artifacts; higher over-smooth QEF edges."),
                 IO.Float.Input("drop_small_components", default=0.01, min=0.0, max=0.5, step=0.005, advanced=True,
                                tooltip="Drop components below this fraction of the largest's face count. 0 disables."),
                 IO.Int.Input("precluster_max_verts", default=8_000_000, min=0, max=50_000_000, advanced=True,
@@ -2631,11 +2631,11 @@ class UnwrapMesh(IO.ComfyNode):
         return IO.Schema(
             node_id="UnwrapMesh",
             display_name="Unwrap Mesh UVs",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=(
-                "Generates a UV atlas (pure-torch, no xatlas): segments the surface into charts, "
-                "parameterizes each, packs into a [0,1] atlas. Seam verts duplicated. Run after "
-                "DecimateMesh/RemeshMesh, before texture baking."
+                "Generates a UV atlas: segments the surface into charts, parameterizes each, packs into a [0,1] atlas. "
+                "Vertices on chart seams are duplicated (one copy per chart, same position, own UV), so the output mesh "
+                "has more vertices than the input. Run after Remesh/Decimate, before texture baking."
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
@@ -2865,7 +2865,7 @@ class RenderUVAtlas(IO.ComfyNode):
         return IO.Schema(
             node_id="RenderUVAtlas",
             display_name="Render UV Atlas",
-            category="3d/mesh/texturing",
+            category="3d/texturing",
             description=("Renders a mesh's UV layout as an image."),
             inputs=[
                 IO.Mesh.Input("mesh"),
@@ -2909,10 +2909,10 @@ class FillHoles(IO.ComfyNode):
                 IO.Float.Input("max_perimeter", default=0.03, min=0.0, step=0.0001,
                                tooltip="Max hole perimeter to fill. 0 disables."),
                 IO.Float.Input("weld_epsilon_rel", default=1e-5, min=0.0, step=1e-6,
-                               tooltip="Pre-weld tolerance (fraction of bbox diagonal); boundary detection "
-                                       "needs welded verts. 0 skips."),
-                IO.Int.Input("max_verts", default=16, min=3, max=1024,
-                             tooltip="Cap boundary verts per cycle; centroid-fan only works for small "
+                               tooltip="Pre-weld tolerance (fraction of bounding box diagonal); boundary detection "
+                                       "needs welded vertices. 0 skips."),
+                IO.Int.Input("max_vertices", default=16, min=3, max=1024,
+                             tooltip="Cap boundary vertices per cycle; centroid-fan only works for small "
                                      "near-planar holes. Keep ≤16."),
                 IO.Boolean.Input("fill_chains", default=False,
                                  tooltip="Also fill open chains (not just cycles). Noisy; OFF matches cumesh."),
@@ -2984,7 +2984,7 @@ class MeshSmoothNormals(IO.ComfyNode):
             inputs=[
                 IO.Mesh.Input("mesh"),
                 IO.Float.Input("crease_angle", default=180.0, min=0.0, max=180.0, step=1.0,
-                               tooltip="Edges whose dihedral angle exceeds this (degrees) stay "
+                               tooltip="Edges whose dihedral angle exceeds this value (degrees) stay "
                                        "hard (vertices are split). 180 = fully smooth; lower "
                                        "preserves sharp edges (e.g. ~30-60 for hard-surface)."),
             ],

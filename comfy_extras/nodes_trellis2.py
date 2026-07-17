@@ -7,7 +7,6 @@ from comfy_extras.nodes_mesh_postprocess import pack_variable_mesh_batch
 import comfy.latent_formats
 import comfy.model_management
 import comfy.utils
-import logging
 import math
 import torch
 
@@ -102,7 +101,7 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VaeDecodeShapeTrellis",
-            category="latent/3d",
+            category="model/latent/trellis",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -174,7 +173,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VaeDecodeTextureTrellis",
-            category="latent/3d",
+            category="model/latent/trellis",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -248,7 +247,7 @@ class VaeDecodeStructureTrellis2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VaeDecodeStructureTrellis2",
-            category="latent/3d",
+            category="model/latent/trellis",
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
@@ -618,7 +617,7 @@ class EmptyTrellis2LatentStructure(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="EmptyTrellis2LatentStructure",
-            category="latent/3d",
+            category="model/latent/trellis",
             inputs=[
                 IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
             ],
@@ -646,95 +645,6 @@ def _dinov3_patches_to_2d(tokens, image_size, patch_size=16):
     start = 1 + n_reg
     patches = tokens[:, start:start + n_patches]
     return patches.transpose(1, 2).reshape(tokens.shape[0], -1, h_p, w_p).contiguous()
-
-
-def _crop_image_with_mask(item_image, item_mask, max_image_size=1024, pad_factor=1.1,
-                          mask_offset=0, mask_threshold=0.05, bg_rgb=(0.0, 0.0, 0.0),
-                          aspect_ratio=1.0):
-    img = item_image.permute(2, 0, 1).unsqueeze(0).cpu().float().clamp(0, 1)
-    mask = item_mask.unsqueeze(0).unsqueeze(0).cpu().float().clamp(0, 1)
-
-    # Detect and correct an inverted mask, only when border and center have opposite polarity.
-    m2d = mask[0, 0]
-    h, w = m2d.shape
-    border = torch.cat([m2d[0, :], m2d[-1, :], m2d[:, 0], m2d[:, -1]])
-    center = m2d[h // 4:h - h // 4, w // 4:w - w // 4]
-    if float(border.mean()) > 0.5 and float(center.mean()) < 0.5:
-        mask = 1.0 - mask
-
-    if mask_offset > 0:
-        r = mask_offset
-        mask = torch.nn.functional.max_pool2d(mask, kernel_size=2 * r + 1, stride=1, padding=r)
-    elif mask_offset < 0:
-        r = -mask_offset
-        mask = 1.0 - torch.nn.functional.max_pool2d(1.0 - mask, kernel_size=2 * r + 1, stride=1, padding=r)
-
-    if mask_threshold > 0.0:
-        mask = torch.where(mask < mask_threshold, torch.zeros_like(mask), mask)
-
-    H, W = img.shape[-2:]
-    if max(H, W) > max_image_size:
-        scale = max_image_size / max(H, W)
-        new_w, new_h = int(W * scale), int(H * scale)
-        img  = comfy.utils.common_upscale(img,  new_w, new_h, "lanczos", "disabled")
-        mask = comfy.utils.common_upscale(mask, new_w, new_h, "lanczos", "disabled")
-        # common_upscale's lanczos path drops the singleton channel dim for masks (utils.py:1062).
-        if mask.ndim == 3:
-            mask = mask.unsqueeze(1)
-        H, W = new_h, new_w
-    scene_size = (W, H)
-
-    alpha_u8 = (mask[0, 0].clamp(0, 1) * 255.0).to(torch.uint8)
-    fg_pixels = (alpha_u8 > 204).nonzero()
-    if fg_pixels.numel() == 0:
-        # Try the inverted mask — auto-invert above may have been too conservative.
-        inv_fg = ((255 - alpha_u8) > 204).nonzero()
-        if inv_fg.numel() > 0:
-            logging.info("Trellis2 preprocess: mask bbox empty, using inverted mask.")
-            mask = 1.0 - mask
-            fg_pixels = inv_fg
-    if fg_pixels.numel() > 0:
-        y_min, x_min = fg_pixels.min(dim=0).values.tolist()
-        y_max, x_max = fg_pixels.max(dim=0).values.tolist()
-        center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
-        bw = x_max - x_min
-        bh = y_max - y_min
-        # Grow the bbox so its aspect matches `aspect_ratio` (width/height),
-        # anchored on the max side. Then apply pad_factor.
-        if bw / max(bh, 1) >= aspect_ratio:
-            crop_w = int(bw * pad_factor)
-            crop_h = int(bw / aspect_ratio * pad_factor)
-        else:
-            crop_h = int(bh * pad_factor)
-            crop_w = int(bh * aspect_ratio * pad_factor)
-        half_w, half_h = crop_w // 2, crop_h // 2
-        crop_x1 = int(center_x - half_w)
-        crop_y1 = int(center_y - half_h)
-        crop_x2 = crop_x1 + 2 * half_w
-        crop_y2 = crop_y1 + 2 * half_h
-    else:
-        logging.warning("Mask for the image is empty; a clean foreground mask is required for best quality.")
-        crop_x1, crop_y1, crop_x2, crop_y2 = 0, 0, W, H
-    crop_bbox = (crop_x1, crop_y1, crop_x2, crop_y2)
-
-    # Zero-pad out-of-bounds slice (PIL.crop semantics).
-    pad_l = max(0, -crop_x1)
-    pad_t = max(0, -crop_y1)
-    pad_r = max(0, crop_x2 - W)
-    pad_b = max(0, crop_y2 - H)
-    if pad_l or pad_t or pad_r or pad_b:
-        img  = torch.nn.functional.pad(img,  (pad_l, pad_r, pad_t, pad_b), value=0.0)
-        mask = torch.nn.functional.pad(mask, (pad_l, pad_r, pad_t, pad_b), value=0.0)
-        crop_x1 += pad_l
-        crop_x2 += pad_l
-        crop_y1 += pad_t
-        crop_y2 += pad_t
-    cropped_img  = img [..., crop_y1:crop_y2, crop_x1:crop_x2]
-    cropped_mask = mask[..., crop_y1:crop_y2, crop_x1:crop_x2]
-
-    bg = torch.tensor(bg_rgb, dtype=cropped_img.dtype, device=cropped_img.device).view(1, 3, 1, 1)
-    composite = (cropped_img * cropped_mask + bg * (1.0 - cropped_mask)).clamp(0, 1)
-    return composite, crop_bbox, scene_size
 
 
 def _dino_encode_batch(clip_vision_model, image, out_device, *, want_patches=False):
@@ -774,59 +684,6 @@ def _dino_encode_batch(clip_vision_model, image, out_device, *, want_patches=Fal
         out["composites"] = composite_list
     return out
 
-
-class ImageCropToMask(IO.ComfyNode):
-    """Crop an image to its mask's bounding box (centered square, with pad_factor
-    margin), then composite `img * mask` and resize to a square. Handles OOB crops
-    with zero-padding. Useful for 3D pipelines that expect a centered, background-free
-    subject at a fixed input resolution (Trellis2, Pixal3D, Hunyuan3D, TripoSR, etc.)."""
-
-    @classmethod
-    def define_schema(cls):
-        return IO.Schema(
-            node_id="ImageCropToMask",
-            display_name="Image Crop to Mask",
-            category="image/transform",
-            search_aliases=["crop to mask", "mask crop", "crop mask", "mask crop resize", "crop mask resize", "trellis2", "pixal3d"],
-            inputs=[
-                IO.Image.Input("image"),
-                IO.Mask.Input("mask"),
-                IO.Int.Input("width", default=1024, min=64, max=4096, step=8, tooltip="Output width in pixels."),
-                IO.Int.Input("height", default=1024, min=64, max=4096, step=8, tooltip="Output height in pixels."),
-                IO.Float.Input("pad_factor", default=1.0, min=1.0, max=2.0, step=0.01, tooltip="Extra margin around the mask bbox as a multiplier."),
-                IO.Int.Input("mask_offset", default=0, min=-32, max=32, step=1, tooltip="Grow or shrink the mask by this many pixels before cropping."),
-                IO.Color.Input("background", default="#000000", tooltip="Fill color behind the masked subject."),
-            ],
-            outputs=[IO.Image.Output(display_name="image")],
-        )
-
-    @classmethod
-    def execute(cls, image, mask, width, height, pad_factor, mask_offset, background) -> IO.NodeOutput:
-        h = background.lstrip("#")
-        bg_rgb = (int(h[0:2], 16) / 255.0, int(h[2:4], 16) / 255.0, int(h[4:6], 16) / 255.0) if len(h) == 6 else (0.0, 0.0, 0.0)
-        image = image[..., :3]
-        batch_size = image.shape[0]
-        if mask.shape[0] == 1 and batch_size > 1:
-            mask = mask.expand(batch_size, -1, -1)
-        elif mask.shape[0] != batch_size:
-            raise ValueError(f"Mask batch {mask.shape[0]} does not match image batch {batch_size}")
-
-        out_images = []
-        for b in range(batch_size):
-            composite, _, _ = _crop_image_with_mask(
-                image[b], mask[b], max_image_size=max(width, height), pad_factor=pad_factor,
-                mask_offset=mask_offset, bg_rgb=bg_rgb, aspect_ratio=width / height,
-            )
-            composite = comfy.utils.common_upscale(composite, width, height, "lanczos", "disabled")
-            out_images.append(composite.movedim(-3, -1))
-
-        result = torch.cat(out_images, dim=0).to(
-            device=comfy.model_management.intermediate_device(),
-            dtype=comfy.model_management.intermediate_dtype(),
-        )
-        return IO.NodeOutput(result)
-
-
 class Pixal3DConditioning(IO.ComfyNode):
 
     @classmethod
@@ -839,7 +696,7 @@ class Pixal3DConditioning(IO.ComfyNode):
                 IO.Image.Input("image", tooltip="Preprocessed image from ImageCropToMask (pad_factor=1.1 for Pixal3D)."),
                 IO.Float.Input(
                     "camera_angle_x", display_name="fov",
-                    default=49.13, min=1.0, max=170.0, step=0.01, advanced=True,
+                    default=49.13, min=1.0, max=170.0, step=0.01,
                     tooltip="Horizontal FOV in degrees. Wire a MoGeGeometryToFOV "
                             "(axis='horizontal', unit='degrees') for a per-image FoV (matches upstream default).",
                 ),
@@ -930,7 +787,6 @@ class Trellis2Extension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            ImageCropToMask,
             Trellis2Conditioning,
             Pixal3DConditioning,
             Trellis2ShapeStage,
