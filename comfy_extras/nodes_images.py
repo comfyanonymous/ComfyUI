@@ -1129,10 +1129,7 @@ def encode_avif_image(
     """Encode one sRGB image tensor as an 8-bit AVIF with optional XMP."""
     PILImage.init()
     if not features.check("avif") or "AVIF" not in PILImage.SAVE:
-        raise RuntimeError(
-            "Saving AVIF images requires Pillow built with AVIF support. "
-            "Official Pillow 11.3.0 and newer wheels include it."
-        )
+        raise RuntimeError("Saving AVIF images requires a Pillow build with AVIF support.")
 
     if img_tensor.ndim == 2:
         img_tensor = img_tensor.unsqueeze(-1)
@@ -1159,6 +1156,7 @@ def encode_avif_image(
         save_options["xmp"] = xmp
     image.save(output, **save_options)
     return output.getvalue()
+
 
 def _encode_image(
     img_tensor: torch.Tensor,
@@ -1287,7 +1285,6 @@ class SaveImageAdvanced(IO.ComfyNode):
     @classmethod
     def execute(cls, images, filename_prefix: str, format: dict) -> IO.NodeOutput:
         file_format = format["format"]
-        bit_depth = format.get("bit_depth", "8-bit")
         colorspace = format.get("input_color_space", "sRGB")
 
         output_dir = folder_paths.get_output_directory()
@@ -1307,7 +1304,7 @@ class SaveImageAdvanced(IO.ComfyNode):
             if file_format == "avif":
                 encoded = encode_avif_image(image, format["quality"], avif_xmp)
             else:
-                encoded = _encode_image(image, file_format, bit_depth, colorspace)
+                encoded = _encode_image(image, file_format, format["bit_depth"], colorspace)
 
             if write_metadata:
                 if file_format == "png":

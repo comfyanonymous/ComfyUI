@@ -1,3 +1,4 @@
+import importlib
 import json
 import sys
 from io import BytesIO
@@ -5,31 +6,48 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from xml.etree import ElementTree
 
+import comfy_extras
 import numpy as np
 import pytest
 import torch
 from PIL import Image as PILImage
 
 
+MISSING = object()
+
 mock_nodes = MagicMock()
 mock_nodes.MAX_RESOLUTION = 16384
 mock_server = MagicMock()
 
-original_nodes = sys.modules.get("nodes")
-original_server = sys.modules.get("server")
+original_nodes = sys.modules.get("nodes", MISSING)
+original_server = sys.modules.get("server", MISSING)
+original_nodes_images = sys.modules.get("comfy_extras.nodes_images", MISSING)
+original_nodes_images_attr = getattr(comfy_extras, "nodes_images", MISSING)
 sys.modules["nodes"] = mock_nodes
 sys.modules["server"] = mock_server
+sys.modules.pop("comfy_extras.nodes_images", None)
+if original_nodes_images_attr is not MISSING:
+    delattr(comfy_extras, "nodes_images")
 try:
-    from comfy_extras import nodes_images
+    nodes_images = importlib.import_module("comfy_extras.nodes_images")
 finally:
-    if original_nodes is None:
+    if original_nodes is MISSING:
         sys.modules.pop("nodes", None)
     else:
         sys.modules["nodes"] = original_nodes
-    if original_server is None:
+    if original_server is MISSING:
         sys.modules.pop("server", None)
     else:
         sys.modules["server"] = original_server
+    if original_nodes_images is MISSING:
+        sys.modules.pop("comfy_extras.nodes_images", None)
+    else:
+        sys.modules["comfy_extras.nodes_images"] = original_nodes_images
+    if original_nodes_images_attr is MISSING:
+        if hasattr(comfy_extras, "nodes_images"):
+            delattr(comfy_extras, "nodes_images")
+    else:
+        setattr(comfy_extras, "nodes_images", original_nodes_images_attr)
 
 
 COMFYUI_XMP_NAMESPACE = "https://github.com/Comfy-Org/ComfyUI"
@@ -126,10 +144,23 @@ def test_encode_avif_image_round_trips_rgba_and_xmp():
         assert saved_image.info["xmp"] == xmp
 
 
+@pytest.mark.parametrize("image_shape", [(12, 16), (12, 16, 1)])
+def test_encode_avif_image_round_trips_grayscale(image_shape):
+    image = torch.rand(image_shape, dtype=torch.float32)
+
+    encoded = nodes_images.encode_avif_image(image, quality=85, xmp=None)
+
+    with PILImage.open(BytesIO(encoded)) as saved_image:
+        saved_image.load()
+        assert saved_image.format == "AVIF"
+        assert saved_image.size == (16, 12)
+        assert saved_image.mode == "RGB"
+
+
 def test_encode_avif_image_reports_missing_pillow_support(monkeypatch):
     monkeypatch.setattr(nodes_images.features, "check", lambda feature: False)
 
-    with pytest.raises(RuntimeError, match="Pillow built with AVIF support"):
+    with pytest.raises(RuntimeError, match="Pillow build with AVIF support"):
         nodes_images.encode_avif_image(torch.zeros((8, 8, 3)), quality=75, xmp=None)
 
 
