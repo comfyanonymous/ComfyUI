@@ -14,6 +14,7 @@ from torchvision import transforms
 import comfy.patcher_extension
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.ldm.common_dit
+import comfy.ops
 import comfy.quant_ops
 
 
@@ -168,11 +169,30 @@ class Attention(nn.Module):
                 v_input = out.get("v", v_input)
                 rope_emb = out.get("pe", rope_emb)
 
-        q = self.q_norm(rearrange(self.q_proj(q_input), "b s (h d) -> b s h d", h=self.n_heads, d=self.head_dim))
-        k = self.k_norm(rearrange(self.k_proj(k_input), "b s (h d) -> b s h d", h=self.n_heads, d=self.head_dim))
-        v = self.v_norm(rearrange(self.v_proj(v_input), "b s (h d) -> b s h d", h=self.n_heads, d=self.head_dim))
-        if self.is_selfattn and rope_emb is not None:
-            q, k = comfy.quant_ops.ck.apply_rope_split_half(q, k, rope_emb)
+        q = self.q_proj(q_input)
+        k = self.k_proj(k_input)
+        v = self.v_proj(v_input)
+        q, k, v = map(
+            lambda t: rearrange(t, "b ... (h d) -> b ... h d", h=self.n_heads, d=self.head_dim),
+            (q, k, v),
+        )
+
+        def apply_norm_and_rotary_pos_emb(
+            q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, rope_emb: Optional[torch.Tensor]
+        ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            v = self.v_norm(v)
+            if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
+                q_scale, _, q_offload_stream = comfy.ops.cast_bias_weight(self.q_norm, q, offloadable=True)
+                k_scale, _, k_offload_stream = comfy.ops.cast_bias_weight(self.k_norm, k, offloadable=True)
+                q, k = comfy.quant_ops.ck.rms_rope_split_half(q, k, rope_emb, q_scale, k_scale, self.q_norm.eps)
+                comfy.ops.uncast_bias_weight(self.q_norm, q_scale, None, q_offload_stream)
+                comfy.ops.uncast_bias_weight(self.k_norm, k_scale, None, k_offload_stream)
+            else:
+                q = self.q_norm(q)
+                k = self.k_norm(k)
+            return q, k, v
+
+        q, k, v = apply_norm_and_rotary_pos_emb(q, k, v, rope_emb)
 
         return q, k, v
 

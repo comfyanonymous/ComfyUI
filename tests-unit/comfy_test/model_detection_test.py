@@ -112,6 +112,17 @@ def _make_pid_v1_5_sd(latent_proj_channels=16):
     return sd
 
 
+def _make_joyimage_edit_plus_sd():
+    sd = {
+        "img_in.weight": torch.empty(4096, 16, 1, 2, 2, device="meta"),
+        "condition_embedder.time_embedder.linear_1.weight": torch.empty(1, device="meta"),
+        "double_blocks.0.attn.img_attn_q_norm.weight": torch.empty(128, device="meta"),
+    }
+    for i in range(40):
+        sd[f"double_blocks.{i}.attn.img_attn_qkv.weight"] = torch.empty(1, device="meta")
+    return sd
+
+
 def _add_model_diffusion_prefix(sd):
     return {f"model.diffusion_model.{k}": v for k, v in sd.items()}
 
@@ -257,6 +268,26 @@ class TestModelDetection:
         assert processed["pixel_blocks.0.adaLN_modulation_mlp.weight"].shape == (12288, 1536)
         assert processed["pixel_blocks.0.adaLN_modulation_msa.bias"].shape == (12288,)
         assert processed["pixel_blocks.0.adaLN_modulation_mlp.bias"].shape == (12288,)
+
+    def test_joyimage_edit_plus_detection(self):
+        sd = _make_joyimage_edit_plus_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert unet_config == {
+            "image_model": "joyimage",
+            "in_channels": 16,
+            "hidden_size": 4096,
+            "patch_size": [1, 2, 2],
+            "num_layers": 40,
+            "num_attention_heads": 32,
+            "text_dim": 4096,
+        }
+        assert type(model_config_from_unet_config(unet_config, sd)).__name__ == "JoyImage"
+
+    def test_incomplete_joyimage_signature_is_not_detected(self):
+        sd = _make_joyimage_edit_plus_sd()
+        del sd["double_blocks.0.attn.img_attn_q_norm.weight"]
+        assert detect_unet_config(sd, "") is None
 
     def test_unet_config_and_required_keys_combination_is_unique(self):
         """Each model in the registry must have a unique combination of
