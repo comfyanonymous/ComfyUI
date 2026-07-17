@@ -14,6 +14,7 @@ from torchvision import transforms
 import comfy.patcher_extension
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.ldm.common_dit
+import comfy.ops
 import comfy.quant_ops
 
 
@@ -161,11 +162,16 @@ class Attention(nn.Module):
         def apply_norm_and_rotary_pos_emb(
             q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, rope_emb: Optional[torch.Tensor]
         ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-            q = self.q_norm(q)
-            k = self.k_norm(k)
             v = self.v_norm(v)
             if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
-                q, k = comfy.quant_ops.ck.apply_rope_split_half(q, k, rope_emb)
+                q_scale, _, q_offload_stream = comfy.ops.cast_bias_weight(self.q_norm, q, offloadable=True)
+                k_scale, _, k_offload_stream = comfy.ops.cast_bias_weight(self.k_norm, k, offloadable=True)
+                q, k = comfy.quant_ops.ck.rms_rope_split_half(q, k, rope_emb, q_scale, k_scale, self.q_norm.eps)
+                comfy.ops.uncast_bias_weight(self.q_norm, q_scale, None, q_offload_stream)
+                comfy.ops.uncast_bias_weight(self.k_norm, k_scale, None, k_offload_stream)
+            else:
+                q = self.q_norm(q)
+                k = self.k_norm(k)
             return q, k, v
 
         q, k, v = apply_norm_and_rotary_pos_emb(q, k, v, rope_emb)

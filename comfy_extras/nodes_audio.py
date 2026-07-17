@@ -298,6 +298,7 @@ class PreviewAudio(IO.ComfyNode):
             search_aliases=["play audio"],
             display_name="Preview Audio",
             category="audio",
+            description="Preview the audio without saving it to the ComfyUI output directory.",
             inputs=[
                 IO.Audio.Input("audio"),
             ],

@@ -18,6 +18,7 @@ class PreviewAny():
 
     CATEGORY = "utilities"
     SEARCH_ALIASES = ["show output", "inspect", "debug", "print value", "show text"]
+    DESCRIPTION = "Preview any input value as text."
 
     def main(self, source=None):
         torch.set_printoptions(edgeitems=6)
