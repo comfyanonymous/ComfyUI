@@ -18,8 +18,9 @@ def _temporal_frame_count(samples):
         return samples.shape[2]  # (B,C,T,H,W)
     return samples.shape[0]  # (B,C,H,W) — batch count
 
-def _accum_count(accum):
-    """Count items in an accumulation, handling tensors (Image/Mask) and dicts (Latent/Video Latent)."""
+def _accum_count(accum, blend_overlap=0):
+    """Count items in an accumulation, handling tensors (Image/Mask) and dicts (Latent/Video Latent).
+    blend_overlap: frames consumed per seam by post-loop crossfade blending (fade modes)."""
     if not isinstance(accum, dict) or "accum" not in accum:
         return 0
     total = 0
@@ -28,6 +29,8 @@ def _accum_count(accum):
             total += _temporal_frame_count(item["samples"])
         else:
             total += item.shape[0]  # IMAGE/MASK: count batch items
+    if blend_overlap > 0 and len(accum["accum"]) > 1:
+        total -= (len(accum["accum"]) - 1) * blend_overlap
     return total
 
 
@@ -85,6 +88,7 @@ class TensorLoopOpen(io.ComfyNode):
             accum = state["accum"]
             previous_value = state["previous_value"]
             open_node_id = state["open_node_id"]
+            blend_overlap = state.get("blend_overlap", 0)
         else:
             selected_mode = mode.get("mode", "iterations")
             count = mode.get("iterations", 4) if selected_mode == "iterations" else 0
@@ -93,8 +97,9 @@ class TensorLoopOpen(io.ComfyNode):
             accum = None
             previous_value = initial_value
             open_node_id = unique_id
+            blend_overlap = 0
 
-        accumulated_count = _accum_count(accum)
+        accumulated_count = _accum_count(accum, blend_overlap)
         # In total_frames mode, count=0 and remaining goes negative each iteration.
         # The math still produces correct 1-based iteration: 0-0+1=1, 0-(-1)+1=2, etc.
         current_iteration = count - remaining + 1
@@ -102,8 +107,15 @@ class TensorLoopOpen(io.ComfyNode):
             comfy.utils.ProgressBar(total_frames_val, node_id=open_node_id).update_absolute(accumulated_count)
         elif count > 0:
             comfy.utils.ProgressBar(count, node_id=open_node_id).update_absolute(count - remaining)
-        loop_state = {"remaining": remaining, "accum": accum, "previous_value": previous_value, "count": count, "open_node_id": open_node_id, "total_frames": total_frames_val}
+        loop_state = {"remaining": remaining, "accum": accum, "previous_value": previous_value, "count": count, "open_node_id": open_node_id, "total_frames": total_frames_val, "blend_overlap": blend_overlap}
         return io.NodeOutput(loop_state, previous_value, accumulated_count, current_iteration)
+
+
+def _overlap_option(name, tooltip):
+    """DynamicCombo option with an overlap_frames count input."""
+    return io.DynamicCombo.Option(name, [
+        io.Int.Input("overlap_frames", default=8, min=1, tooltip=tooltip),
+    ])
 
 
 class TensorLoopClose(io.ComfyNode):
@@ -127,24 +139,15 @@ class TensorLoopClose(io.ComfyNode):
                 io.MatchType.Input("processed", template=cls.MATCHTYPE, raw_link=True, tooltip="Output generated this iteration."),
                 io.Boolean.Input("accumulate", default=True,
                                  tooltip="When enabled, collects all iterations into a batch. When disabled, only outputs the final iteration's result."),
-                io.DynamicCombo.Input("overlap", tooltip="Remove or blend duplicate frames where consecutive iterations overlap.", options=[
+                io.DynamicCombo.Input("overlap", tooltip="How to handle duplicate frames where consecutive iterations overlap (e.g. context frames a video model re-generates).\n"
+                                                         "- disabled: keep every frame as-is\n"
+                                                         "- start/end: cut the duplicates from the start or end of each iteration's output\n"
+                                                         "- fade_linear/fade_smooth: crossfade the end of each iteration into the start of the next", options=[
                     io.DynamicCombo.Option("disabled", []),
-                    io.DynamicCombo.Option("start", [
-                        io.Int.Input("overlap_frames", default=8, min=1,
-                                     tooltip="Number of frames to trim. Use when the model re-generates context frames at the start of its output (most common for video continuation)."),
-                    ]),
-                    io.DynamicCombo.Option("end", [
-                        io.Int.Input("overlap_frames", default=8, min=1,
-                                     tooltip="Number of frames to trim. Use when the model generates look-ahead frames at the end of its output."),
-                    ]),
-                    io.DynamicCombo.Option("fade_linear", [
-                        io.Int.Input("overlap_frames", default=8, min=1,
-                                     tooltip="Number of frames to crossfade with a linear blend between consecutive iterations."),
-                    ]),
-                    io.DynamicCombo.Option("fade_smooth", [
-                        io.Int.Input("overlap_frames", default=8, min=1,
-                                     tooltip="Number of frames to crossfade with a smoothstep (ease in/out) blend between consecutive iterations."),
-                    ]),
+                    _overlap_option("start", "Number of frames to cut from the START of each iteration's output. Use when the model re-generates its context frames at the start of its output (most common for video continuation). The first generation is always kept whole; only iterations 2+ are trimmed."),
+                    _overlap_option("end", "Number of frames to cut from the END of each iteration's output. Use when the model generates look-ahead frames at the end of its output that the next iteration re-generates. The trimmed tail of the final iteration is re-appended."),
+                    _overlap_option("fade_linear", "Number of overlapping frames to crossfade: the end of each iteration is blended into the start of the next with a linear ramp. The first generation is kept whole."),
+                    _overlap_option("fade_smooth", "Number of overlapping frames to crossfade: the end of each iteration is blended into the start of the next with a smoothstep (ease in/out) ramp. The first generation is kept whole."),
                 ]),
                 io.Boolean.Input("stop", optional=True, default=False, raw_link=True, force_input=True,
                                  tooltip="Optional early stop signal from inside the loop body. When True, the loop stops after the current iteration regardless of remaining iterations or total_frames target."),
@@ -174,30 +177,21 @@ class TensorLoopClose(io.ComfyNode):
         if accumulate:
             to_accum = processed
             if overlap_frames > 0 and overlap_mode != "disabled":
-                is_first = graph.node("_IntOperations", a=unpack.out(3), b=0, operation="==")
-                trimmed_start = graph.node("_BatchOps", batch=processed, operation="trim_start", amount=overlap_frames).out(0)
-
+                # The first generation has no preceding chunk, so it is kept whole; only the seams
+                # of iterations 2+ are trimmed. start_trim is 0 on iteration 1 (a _BatchOps no-op).
                 if overlap_mode == "start":
-                    to_accum = trimmed_start
+                    iter_index = graph.node("_IntOperations", a=unpack.out(4), b=unpack.out(0), operation="subtract")
+                    not_first = graph.node("_IntOperations", a=iter_index.out(0), b=0, operation=">")
+                    start_trim = graph.node("_IntOperations", a=not_first.out(0), b=overlap_frames, operation="multiply")
+                    to_accum = graph.node("_BatchOps", batch=processed, operation="trim_start", amount=start_trim.out(0)).out(0)
                 elif overlap_mode == "end":
-                    trimmed_end = graph.node("_BatchOps", batch=processed, operation="trim_end", amount=overlap_frames).out(0)
-                    trimmed_both = graph.node("_BatchOps", batch=trimmed_end, operation="trim_start", amount=overlap_frames).out(0)
-                    to_accum = graph.node("_ConditionalSelect",
-                        condition=is_first.out(1),
-                        value_if_true=trimmed_both,
-                        value_if_false=trimmed_end,
-                    ).out(0)
-                else:
-                    # Fade: trim start on iter 1 only, keep full on subsequent for post-loop blend
-                    to_accum = graph.node("_ConditionalSelect",
-                        condition=is_first.out(1),
-                        value_if_true=trimmed_start,
-                        value_if_false=processed,
-                    ).out(0)
+                    to_accum = graph.node("_BatchOps", batch=processed, operation="trim_end", amount=overlap_frames).out(0)
+                # fade modes blend the seams post-loop
 
             accum_out = graph.node("_AccumulateNode", to_add=to_accum, accumulation=accum_out).out(0)
 
         # Disable total_frames when not accumulating to avoid infinite loops
+        blend_overlap = overlap_frames if overlap_mode in ("fade_linear", "fade_smooth") else 0
         pack = graph.node("_ImageAccumStatePack",
             remaining=sub.out(0),
             accum=accum_out,
@@ -206,6 +200,7 @@ class TensorLoopClose(io.ComfyNode):
             open_node_id=unpack.out(5),
             total_frames=unpack.out(6) if accumulate else 0,
             prev_accumulated_count=unpack.out(3),
+            blend_overlap=blend_overlap if accumulate else 0,
         )
 
         # Optional early stop from loop body
@@ -480,13 +475,19 @@ def _concat_tensor(a, b, dim):
         if _is_nested(sa):
             result["samples"] = NestedTensor([torch.cat([ta, tb], dim=dim) for ta, tb in zip(sa.tensors, sb.tensors)])
             ma, mb = a.get("noise_mask"), b.get("noise_mask")
-            if ma is not None and mb is not None and _is_nested(ma):
+            if ma is not None and mb is not None and _is_nested(ma) and _is_nested(mb):
                 result["noise_mask"] = NestedTensor([torch.cat([ta, tb], dim=dim) for ta, tb in zip(ma.tensors, mb.tensors)])
+            elif ma is not None and _is_nested(ma):
+                # Per-frame mask can't cover the concatenated frames — drop it
+                result.pop("noise_mask", None)
         else:
             result["samples"] = torch.cat([sa, sb], dim=dim)
             ma, mb = a.get("noise_mask"), b.get("noise_mask")
-            if ma is not None and mb is not None and ma.ndim == sa.ndim:
+            if ma is not None and mb is not None and ma.ndim == sa.ndim and mb.ndim == sb.ndim:
                 result["noise_mask"] = torch.cat([ma, mb], dim=dim)
+            elif ma is not None and ma.ndim == sa.ndim:
+                # Per-frame mask can't cover the concatenated frames — drop it
+                result.pop("noise_mask", None)
         return result
     else:
         return torch.cat([a, b], dim=dim)
@@ -501,7 +502,10 @@ def _blend_overlap(items, overlap_frames, mode):
     overlap_frames = min(overlap_frames, min_frames - 1) if min_frames > 1 else 0
     if overlap_frames <= 0:
         # Nothing to blend — fall through to simple concat
-        return _concat_tensor(items[0], items[1], dim) if len(items) == 2 else items[0]
+        result = items[0]
+        for item in items[1:]:
+            result = _concat_tensor(result, item, dim)
+        return result
     t = torch.linspace(0, 1, overlap_frames)
     if mode == "fade_smooth":
         t = t * t * (3 - 2 * t)
@@ -572,8 +576,9 @@ class _AccumulationToImageBatch(io.ComfyNode):
                 result = items[0].copy()
                 result["samples"] = NestedTensor(catted)
                 result.pop("noise_mask", None)
-                masks = [item.get("noise_mask") for item in items if item.get("noise_mask") is not None]
-                if masks and _is_nested(masks[0]):
+                # Only keep masks when every item has one, otherwise the mask wouldn't cover all frames
+                masks = [item.get("noise_mask") for item in items]
+                if all(m is not None and _is_nested(m) for m in masks):
                     mask_catted = []
                     for i in range(len(masks[0].tensors)):
                         mask_catted.append(torch.cat([m.tensors[i] for m in masks], dim=2))
@@ -583,14 +588,18 @@ class _AccumulationToImageBatch(io.ComfyNode):
                 result = items[0].copy()
                 result["samples"] = torch.cat([item["samples"] for item in items], dim=2)
                 result.pop("noise_mask", None)
-                masks = [item.get("noise_mask") for item in items if item.get("noise_mask") is not None]
-                if masks and masks[0].ndim == 5:
+                masks = [item.get("noise_mask") for item in items]
+                if all(m is not None and m.ndim == 5 for m in masks):
                     result["noise_mask"] = torch.cat(masks, dim=2)
                 return io.NodeOutput(result)
             else:
                 # Image latent — batch along dim 0
                 result = items[0].copy()
                 result["samples"] = torch.cat([item["samples"] for item in items], dim=0)
+                result.pop("noise_mask", None)
+                masks = [item.get("noise_mask") for item in items]
+                if all(m is not None and m.ndim == samples.ndim for m in masks):
+                    result["noise_mask"] = torch.cat(masks, dim=0)
                 return io.NodeOutput(result)
         else:
             return io.NodeOutput(torch.cat(items, dim=0))
@@ -646,6 +655,7 @@ class _ImageAccumStatePack(io.ComfyNode):
                 io.AnyType.Input("open_node_id"),
                 io.AnyType.Input("total_frames"),
                 io.Int.Input("prev_accumulated_count", default=0),
+                io.Int.Input("blend_overlap", default=0),
             ],
             outputs=[
                 io.AnyType.Output("loop_state"),
@@ -654,13 +664,14 @@ class _ImageAccumStatePack(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, remaining, accum, previous_value, count, open_node_id, total_frames, prev_accumulated_count=0) -> io.NodeOutput:
-        accumulated_count = _accum_count(accum)
+    def execute(cls, remaining, accum, previous_value, count, open_node_id, total_frames, prev_accumulated_count=0, blend_overlap=0) -> io.NodeOutput:
+        # Effective count: fade modes consume blend_overlap frames per seam in the post-loop blend
+        accumulated_count = _accum_count(accum, blend_overlap)
 
         if total_frames > 0:
             should_continue = accumulated_count < total_frames
-            # Bail if the last iteration added nothing — the loop would never reach the target
-            if accumulated_count == prev_accumulated_count:
+            # Bail if the last iteration made no progress — the target is unreachable
+            if accumulated_count <= prev_accumulated_count:
                 should_continue = False
             comfy.utils.ProgressBar(total_frames, node_id=open_node_id).update_absolute(accumulated_count)
         else:
@@ -669,7 +680,7 @@ class _ImageAccumStatePack(io.ComfyNode):
             comfy.utils.ProgressBar(count, node_id=open_node_id).update_absolute(current_iteration)
 
         return io.NodeOutput(
-            {"remaining": remaining, "accum": accum, "previous_value": previous_value, "count": count, "open_node_id": open_node_id, "total_frames": total_frames},
+            {"remaining": remaining, "accum": accum, "previous_value": previous_value, "count": count, "open_node_id": open_node_id, "total_frames": total_frames, "blend_overlap": blend_overlap},
             should_continue,
         )
 
@@ -703,7 +714,7 @@ class _ImageAccumStateUnpack(io.ComfyNode):
         count = loop_state.get("count", 0)
         open_node_id = loop_state.get("open_node_id")
         total_frames = loop_state.get("total_frames", 0)
-        accumulated_count = _accum_count(accum)
+        accumulated_count = _accum_count(accum, loop_state.get("blend_overlap", 0))
         return io.NodeOutput(remaining, accum, previous_value, accumulated_count, count, open_node_id, total_frames)
 
 
