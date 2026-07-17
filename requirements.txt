@@ -14,7 +14,7 @@ safetensors>=0.4.2
 aiohttp>=3.11.8
 yarl>=1.18.0
 pyyaml
-Pillow
+Pillow>=11.3.0
 scipy
 tqdm
 psutil
