@@ -13,7 +13,7 @@ from typing_extensions import override
 
 import folder_paths
 from comfy.cli_args import args
-from comfy_api.latest import ComfyExtension, IO, Types
+from comfy_api.latest import ComfyExtension, IO, Types, UI
 
 
 def pack_variable_mesh_batch(vertices, faces, colors=None, uvs=None, texture=None, unlit=False):
@@ -406,10 +406,165 @@ class SaveGLB(IO.ComfyNode):
         return IO.NodeOutput(ui={"3d": results})
 
 
+def _save_file3d_to_output(model_3d: Types.File3D, filename_prefix: str) -> str:
+    full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+        filename_prefix, folder_paths.get_output_directory()
+    )
+    ext = model_3d.format or "glb"
+    saved_filename = f"{filename}_{counter:05}.{ext}"
+    model_3d.save_to(os.path.join(full_output_folder, saved_filename))
+    return f"{subfolder}/{saved_filename}" if subfolder else saved_filename
+
+
+def execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_prefix, kwargs) -> IO.NodeOutput:
+    model_file = _save_file3d_to_output(model_3d, filename_prefix)
+    viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
+    camera_info_input = kwargs.get("camera_info", None)
+    camera_info = camera_info_input if camera_info_input is not None else viewport_state.get('camera_info')
+    model_3d_info_input = kwargs.get("model_3d_info", None)
+    model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
+    return IO.NodeOutput(
+        model_3d,
+        model_3d_info,
+        camera_info,
+        width,
+        height,
+        ui=UI.PreviewUI3DAdvanced(model_file, camera_info, model_3d_info),
+    )
+
+
+class Save3DAdvanced(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Save3DAdvanced",
+            display_name="Save 3D (Advanced)",
+            search_aliases=["save 3d", "export 3d model", "save mesh advanced"],
+            category="3d",
+            is_experimental=True,
+            is_output_node=True,
+            inputs=[
+                IO.MultiType.Input(
+                    "model_3d",
+                    types=[
+                        IO.File3DGLB,
+                        IO.File3DGLTF,
+                        IO.File3DFBX,
+                        IO.File3DOBJ,
+                        IO.File3DSTL,
+                        IO.File3DUSDZ,
+                        IO.File3DAny,
+                    ],
+                    tooltip="3D model file from an upstream 3D node.",
+                ),
+                IO.String.Input("filename_prefix", default="3d/ComfyUI"),
+                IO.Load3D.Input("viewport_state"),
+                IO.Load3DModelInfo.Input("model_3d_info", optional=True, advanced=True),
+                IO.Load3DCamera.Input("camera_info", optional=True, advanced=True),
+                IO.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                IO.Int.Input("height", default=1024, min=1, max=4096, step=1),
+            ],
+            outputs=[
+                IO.File3DAny.Output(display_name="model_3d"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
+                IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Int.Output(display_name="width"),
+                IO.Int.Output(display_name="height"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model_3d: Types.File3D, viewport_state, width: int, height: int, filename_prefix: str, **kwargs) -> IO.NodeOutput:
+        return execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_prefix, kwargs)
+
+
+class SaveGaussianSplat(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveGaussianSplat",
+            display_name="Save Splat",
+            search_aliases=["save splat", "save gaussian splat", "export gaussian", "export splat"],
+            category="3d",
+            is_experimental=True,
+            is_output_node=True,
+            inputs=[
+                IO.MultiType.Input(
+                    "model_3d",
+                    types=[
+                        IO.File3DSplatAny,
+                        IO.File3DPLY,
+                        IO.File3DSPLAT,
+                        IO.File3DSPZ,
+                        IO.File3DKSPLAT,
+                    ],
+                    tooltip="A gaussian splat 3D file.",
+                ),
+                IO.String.Input("filename_prefix", default="3d/ComfyUI"),
+                IO.Load3D.Input("viewport_state"),
+                IO.Load3DModelInfo.Input("model_3d_info", optional=True, advanced=True),
+                IO.Load3DCamera.Input("camera_info", optional=True, advanced=True),
+                IO.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                IO.Int.Input("height", default=1024, min=1, max=4096, step=1),
+            ],
+            outputs=[
+                IO.File3DSplatAny.Output(display_name="model_3d"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
+                IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Int.Output(display_name="width"),
+                IO.Int.Output(display_name="height"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model_3d: Types.File3D, viewport_state, width: int, height: int, filename_prefix: str, **kwargs) -> IO.NodeOutput:
+        return execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_prefix, kwargs)
+
+
+class SavePointCloud(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SavePointCloud",
+            display_name="Save Point Cloud",
+            search_aliases=["save point cloud", "save pointcloud", "export point cloud"],
+            category="3d",
+            is_experimental=True,
+            is_output_node=True,
+            inputs=[
+                IO.MultiType.Input(
+                    "model_3d",
+                    types=[
+                        IO.File3DPointCloudAny,
+                        IO.File3DPLY,
+                    ],
+                    tooltip="Point cloud file (.ply)",
+                ),
+                IO.String.Input("filename_prefix", default="3d/ComfyUI"),
+                IO.Load3D.Input("viewport_state"),
+                IO.Load3DModelInfo.Input("model_3d_info", optional=True, advanced=True),
+                IO.Load3DCamera.Input("camera_info", optional=True, advanced=True),
+                IO.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                IO.Int.Input("height", default=1024, min=1, max=4096, step=1),
+            ],
+            outputs=[
+                IO.File3DPointCloudAny.Output(display_name="model_3d"),
+                IO.Load3DModelInfo.Output(display_name="model_3d_info"),
+                IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Int.Output(display_name="width"),
+                IO.Int.Output(display_name="height"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model_3d: Types.File3D, viewport_state, width: int, height: int, filename_prefix: str, **kwargs) -> IO.NodeOutput:
+        return execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_prefix, kwargs)
+
+
 class Save3DExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [SaveGLB]
+        return [SaveGLB, Save3DAdvanced, SaveGaussianSplat, SavePointCloud]
 
 
 async def comfy_entrypoint() -> Save3DExtension:

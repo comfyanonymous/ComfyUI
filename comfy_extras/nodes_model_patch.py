@@ -232,7 +232,7 @@ class ModelPatchLoader:
     FUNCTION = "load_model_patch"
     EXPERIMENTAL = True
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "model/loaders"
 
     def load_model_patch(self, name):
         model_patch_path = folder_paths.get_full_path_or_raise("model_patches", name)
@@ -479,7 +479,7 @@ class QwenImageDiffsynthControlnet:
     FUNCTION = "diffsynth_controlnet"
     EXPERIMENTAL = True
 
-    CATEGORY = "advanced/loaders/qwen"
+    CATEGORY = "model/patch/qwen"
 
     def diffsynth_controlnet(self, model, model_patch, vae, image=None, strength=1.0, inpaint_image=None, mask=None):
         model_patched = model.clone()
@@ -512,7 +512,7 @@ class ZImageFunControlnet(QwenImageDiffsynthControlnet):
                               },
                 "optional": {"image": ("IMAGE",), "inpaint_image": ("IMAGE",), "mask": ("MASK",)}}
 
-    CATEGORY = "advanced/loaders/zimage"
+    CATEGORY = "model/patch/z-image"
 
 class UsoStyleProjectorPatch:
     def __init__(self, model_patch, encoded_image):
@@ -674,4 +674,12 @@ NODE_CLASS_MAPPINGS = {
     "ZImageFunControlnet": ZImageFunControlnet,
     "USOStyleReference": USOStyleReference,
     "SUPIRApply": SUPIRApply,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "ModelPatchLoader": "Load Model Patch",
+    "QwenImageDiffsynthControlnet": "Apply Qwen Image DiffSynth ControlNet",
+    "ZImageFunControlnet": "Apply Z-Image Fun ControlNet",
+    "USOStyleReference": "Apply USO Style Reference",
+    "SUPIRApply": "Apply SUPIR Patch",
 }

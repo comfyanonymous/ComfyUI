@@ -4,14 +4,19 @@ import os
 import re
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from io import BytesIO
 
 from yarl import URL
 
 from comfy.cli_args import args
+from comfy.comfy_api_env import normalize_comfy_api_base
 from comfy.deploy_environment import get_deploy_environment
 from comfy.model_management import processing_interrupted
 from comfy_api.latest import IO
+from comfy_execution.utils import get_executing_context
+from comfyui_version import __version__ as comfyui_version
 
 from .common_exceptions import ProcessingInterrupted
 
@@ -53,15 +58,20 @@ def get_comfy_api_headers(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
     relative/cloud URLs resolved against ``default_base_url()``; because the result
     includes auth, callers must not attach it to arbitrary absolute/presigned URLs.
     """
-    return {
+    headers = {
         **get_auth_header(node_cls),
         "Comfy-Env": get_deploy_environment(),
         "Comfy-Usage-Source": get_usage_source(node_cls),
+        "Comfy-Core-Version": comfyui_version,
     }
+    ctx = get_executing_context()
+    if ctx is not None:
+        headers["Comfy-Job-Id"] = ctx.prompt_id
+    return headers
 
 
 def default_base_url() -> str:
-    return getattr(args, "comfy_api_base", "https://api.comfy.org")
+    return normalize_comfy_api_base(getattr(args, "comfy_api_base", "https://api.comfy.org"))
 
 
 async def sleep_with_interrupt(
@@ -89,6 +99,32 @@ async def sleep_with_interrupt(
         if now >= end:
             break
         await asyncio.sleep(min(1.0, end - now))
+
+
+def _retry_after_wait(value: str | None, fallback: float, max_wait: float) -> float:
+    """Delay before the next retry, honoring a server ``Retry-After`` header."""
+
+    seconds: float | None = None
+    if value is not None:
+        value = value.strip()
+        if value.isascii() and value.isdigit():
+            # delay-seconds form. The ASCII-digit guard keeps exotic Unicode "digit" characters away from float()
+            # an all-digit string always converts (huge values become inf, never raising).
+            seconds = float(value)
+        elif value:
+            # HTTP-date form. parsedate_to_datetime raises OverflowError (not a ValueError) on absurd years/offsets
+            try:
+                parsed = parsedate_to_datetime(value)
+            except (TypeError, ValueError, OverflowError):
+                parsed = None
+            if parsed is not None:
+                if parsed.tzinfo is None:  # naive datetime: HTTP-date is UTC
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                delta = (parsed - datetime.now(timezone.utc)).total_seconds()
+                seconds = delta if delta > 0 else 0.0
+    if seconds is None:
+        return fallback
+    return min(seconds, max_wait)
 
 
 def mimetype_to_extension(mime_type: str) -> str:

@@ -29,6 +29,7 @@ from comfy_execution.caching import (
     HierarchicalCache,
     LRUCache,
     RAMPressureCache,
+    RAM_CACHE_LARGE_INTERMEDIATE,
 )
 from comfy_execution.graph import (
     DynamicPrompt,
@@ -425,12 +426,12 @@ def _is_intermediate_output(dynprompt, node_id):
 
 
 def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
+    if cached.ui is not None:
+        ui_outputs[node_id] = cached.ui
     if server.client_id is None:
         return
     cached_ui = cached.ui or {}
     server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, server.client_id)
-    if cached.ui is not None:
-        ui_outputs[node_id] = cached.ui
 
 async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
@@ -794,12 +795,16 @@ class PromptExecutor:
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
                         ram_shortfall = ram_headroom - psutil.virtual_memory().available
-                        freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
-                        if freed < ram_shortfall:
-                            if freed > 64 * (1024 ** 2):
-                                # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
-                                time.sleep(0.05)
-                            ram_release_callback(ram_headroom, free_active=True)
+                        if ram_shortfall > 0:
+                            freed = ram_release_callback(ram_headroom, free_active=True, min_entry_size=RAM_CACHE_LARGE_INTERMEDIATE)
+                            ram_shortfall -= freed
+                        if comfy.model_management.should_free_pins_for_ram_pressure(ram_shortfall):
+                            freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
+                            if freed < ram_shortfall:
+                                if freed > 64 * (1024 ** 2):
+                                    # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
+                                    time.sleep(0.05)
+                                ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
                     # Send cached UI for intermediate output nodes that weren't executed
@@ -1307,6 +1312,25 @@ class PromptQueue:
             running = [x for x in self.currently_running.values()]
             queued = copy.copy(self.queue)
             return (running, queued)
+
+    def interrupt_if_running(self, prompt_id):
+        """Interrupt the running prompt with this id, atomically.
+
+        Checks the live running set and signals the interrupt under the queue
+        mutex, so the worker cannot move the job to done (and start the next
+        prompt) in between. Returns True if a matching job was running and an
+        interrupt was signalled, False otherwise. The atomicity is what keeps a
+        cancel from landing on an unrelated prompt that started after a separate
+        is-running check: the global interrupt flag is reset at the start of
+        every prompt (execute_async), so a job that finishes before consuming
+        the flag cannot leak the interrupt onto its successor.
+        """
+        with self.mutex:
+            for item in self.currently_running.values():
+                if item[1] == prompt_id:
+                    nodes.interrupt_processing()
+                    return True
+        return False
 
     def get_tasks_remaining(self):
         with self.mutex:
