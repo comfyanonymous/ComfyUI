@@ -807,7 +807,7 @@ def _onb(n):
 
 def _bake_ambient_occlusion(high_v, high_f, low_v_np, low_f_np, low_uv_np, low_n, resolution,
                             num_samples=64, max_distance=0.5, strength=1.0, bias=0.01,
-                            ray_chunk=None, pbar=None):
+                            ray_chunk=None, pbar=None, pbar_range=None):
     """Bake high-poly ambient occlusion into the low-poly's UV layout: per texel, cosine-weight
     a hemisphere of rays around the normal and cast them at the high-poly. AO = 1 - hit-fraction
     (cosine weighting makes the hit-fraction the estimator). Returns ao_img [H,W,3] in [0,1].
@@ -853,7 +853,8 @@ def _bake_ambient_occlusion(high_v, high_f, low_v_np, low_f_np, low_uv_np, low_n
     T, B = _onb(Nl)
     occ = torch.zeros(K, device=dev)
     tex_per_chunk = max(1, int(ray_chunk) // max(1, S))
-    for s in range(0, K, tex_per_chunk):
+    n_chunks = max(1, (K + tex_per_chunk - 1) // tex_per_chunk)
+    for ci, s in enumerate(range(0, K, tex_per_chunk)):
         e = min(s + tex_per_chunk, K)
         kk = e - s
         o, n, t, b = origins[s:e], Nl[s:e], T[s:e], B[s:e]
@@ -871,8 +872,9 @@ def _bake_ambient_occlusion(high_v, high_f, low_v_np, low_f_np, low_uv_np, low_n
         oo = o[:, None, :].expand(-1, S, -1).reshape(-1, 3)
         hit = _any_hit_rays_bvh(oo, d, tri, bvh, tmin=biasw, tmax=tmax)
         occ[s:e] = hit.reshape(kk, S).sum(1, dtype=torch.float32).div_(float(S))   # mean without a float copy
-        if pbar is not None:
-            pbar.update(1)
+        if pbar is not None and pbar_range is not None:
+            lo, hi = pbar_range
+            pbar.update_absolute(lo + ((hi - lo) * (ci + 1)) // n_chunks, 1000)
 
     ao = occ.mul_(-float(strength)).add_(1.0).clamp_(0.0, 1.0)   # 1 - occ*strength, in place (occ is dead)
     out = torch.ones((H, W), device=dev)
@@ -1701,15 +1703,17 @@ class BakeAmbientOcclusion(IO.ComfyNode):
         B = int(low_poly.vertices.shape[0])
         h_batch = int(high_poly.vertices.shape[0])
 
-        pbar = comfy.utils.ProgressBar(max(1, B))   # one tick per batch item
+        # Absolute 0-1000 bar; each batch item owns a slice, filled as its ray chunks complete.
+        pbar = comfy.utils.ProgressBar(1000)
         imgs = []
         for i in range(B):
+            lo, hi = (1000 * i) // B, (1000 * (i + 1)) // B
             v_i, f_i, *_ = get_mesh_batch_item(low_poly, i)
             n = int(v_i.shape[0])
             if f_i.numel() == 0:
                 logging.warning(f"BakeAmbientOcclusion: skipping batch {i} (empty mesh)")
                 imgs.append(torch.ones((int(resolution), int(resolution), 3)))
-                pbar.update(1)
+                pbar.update_absolute(hi, 1000)
                 continue
 
             uv_i = low_uvs[i, :n] if low_uvs.ndim == 3 else low_uvs[:n]
@@ -1725,9 +1729,10 @@ class BakeAmbientOcclusion(IO.ComfyNode):
                 lv.detach().cpu().numpy(), lf.detach().cpu().numpy().astype(np.uint32), uv_np,
                 low_n, resolution, num_samples=int(samples),
                 max_distance=float(max_distance), strength=float(strength), bias=float(bias),
+                pbar=pbar, pbar_range=(lo, hi),
             )
             imgs.append(torch.from_numpy(np.ascontiguousarray(img)).float())
-            pbar.update(1)
+            pbar.update_absolute(hi, 1000)
 
         ao_img = torch.stack([t.clamp(0.0, 1.0) for t in imgs], dim=0)
         return IO.NodeOutput(ao_img)
