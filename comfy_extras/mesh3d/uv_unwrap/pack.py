@@ -468,33 +468,39 @@ def _raster_all_torch(uvs_tex_pad, faces_pad, fmask, bw_t, bh_t, padding, device
     d11 = (v1 * v1).sum(-1)
     den = (d00 * d11 - d01 * d01).clamp(min=1e-20)
 
+
+    free = comfy.model_management.get_free_memory(device)
+    budget = int(min(1 << 23, max(1 << 20, (free * 0.25) / 56)))
     for g in sorted(set(bsz.tolist())):                                  # one batch per pow2 grid
-        sel = (bsz == g).nonzero(as_tuple=True)[0]
-        m = sel.shape[0]
-        xs0 = x0[sel].view(m, 1, 1)
-        ys0 = y0[sel].view(m, 1, 1)
-        cc = cid[sel]
-        bwp = bwL[cc].view(m, 1, 1)
-        bhp = bhL[cc].view(m, 1, 1)
-        gi = torch.arange(g, device=device)
-        px = xs0 + gi.view(1, 1, g)
-        py = ys0 + gi.view(1, g, 1)                                        # (m,g,g) int
-        pxf = px.float() + 0.5
-        pyf = py.float() + 0.5
-        v2x = pxf - a[sel, 0].view(m, 1, 1)
-        v2y = pyf - a[sel, 1].view(m, 1, 1)
-        d20 = v2x * v0[sel, 0].view(m, 1, 1) + v2y * v0[sel, 1].view(m, 1, 1)
-        d21 = v2x * v1[sel, 0].view(m, 1, 1) + v2y * v1[sel, 1].view(m, 1, 1)
-        idn = den[sel].view(m, 1, 1).reciprocal()
-        vv = torch.addcmul(d11[sel].view(m, 1, 1) * d20, d01[sel].view(m, 1, 1), d21, value=-1) * idn
-        ww = torch.addcmul(d00[sel].view(m, 1, 1) * d21, d01[sel].view(m, 1, 1), d20, value=-1) * idn
-        uu = 1.0 - vv - ww
-        inside = (uu >= -1e-6) & (vv >= -1e-6) & (ww >= -1e-6)
-        if padding > 0:
-            inside = _dilate_local(inside, padding)
-        valid = inside & (px < bwp) & (py < bhp)
-        flat = (cbase[cc].view(m, 1, 1) + py * bwp + px)[valid]
-        buf[flat] = True
+        sel_g = (bsz == g).nonzero(as_tuple=True)[0]
+        per = max(1, budget // (g * g))
+        for cs in range(0, sel_g.shape[0], per):
+            sel = sel_g[cs:cs + per]
+            m = sel.shape[0]
+            xs0 = x0[sel].view(m, 1, 1)
+            ys0 = y0[sel].view(m, 1, 1)
+            cc = cid[sel]
+            bwp = bwL[cc].view(m, 1, 1)
+            bhp = bhL[cc].view(m, 1, 1)
+            gi = torch.arange(g, device=device)
+            px = xs0 + gi.view(1, 1, g)
+            py = ys0 + gi.view(1, g, 1)                                        # (m,g,g) int
+            pxf = px.float() + 0.5
+            pyf = py.float() + 0.5
+            v2x = pxf - a[sel, 0].view(m, 1, 1)
+            v2y = pyf - a[sel, 1].view(m, 1, 1)
+            d20 = v2x * v0[sel, 0].view(m, 1, 1) + v2y * v0[sel, 1].view(m, 1, 1)
+            d21 = v2x * v1[sel, 0].view(m, 1, 1) + v2y * v1[sel, 1].view(m, 1, 1)
+            idn = den[sel].view(m, 1, 1).reciprocal()
+            vv = torch.addcmul(d11[sel].view(m, 1, 1) * d20, d01[sel].view(m, 1, 1), d21, value=-1) * idn
+            ww = torch.addcmul(d00[sel].view(m, 1, 1) * d21, d01[sel].view(m, 1, 1), d20, value=-1) * idn
+            uu = 1.0 - vv - ww
+            inside = (uu >= -1e-6) & (vv >= -1e-6) & (ww >= -1e-6)
+            if padding > 0:
+                inside = _dilate_local(inside, padding)
+            valid = inside & (px < bwp) & (py < bhp)
+            flat = (cbase[cc].view(m, 1, 1) + py * bwp + px)[valid]
+            buf[flat] = True
     return buf, cbase
 
 
