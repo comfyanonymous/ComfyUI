@@ -97,6 +97,32 @@ def _make_seedvr2_3b_shared_mm_sd():
     }
 
 
+def _make_pid_v1_5_sd(latent_proj_channels=16):
+    sd = {
+        "pixel_embedder.proj.weight": torch.empty(16, 3, device="meta"),
+        "lq_proj.latent_proj.0.weight": torch.empty(1024, latent_proj_channels, 3, 3, device="meta"),
+        "lq_proj.pit_head.weight": torch.empty(1536, 1024, device="meta"),
+        "lq_proj.gate_modules.0.content_proj.weight": torch.empty(1, 3072, device="meta"),
+        "pixel_blocks.0.attn.q_norm.weight": torch.empty(72, device="meta"),
+        "pixel_blocks.0.adaLN_modulation.0.weight": torch.empty(24576, 1536, device="meta"),
+        "pixel_blocks.0.adaLN_modulation.0.bias": torch.empty(24576, device="meta"),
+    }
+    for i in range(7):
+        sd[f"lq_proj.gate_modules.{i}.log_alpha"] = torch.empty((), device="meta")
+    return sd
+
+
+def _make_joyimage_edit_plus_sd():
+    sd = {
+        "img_in.weight": torch.empty(4096, 16, 1, 2, 2, device="meta"),
+        "condition_embedder.time_embedder.linear_1.weight": torch.empty(1, device="meta"),
+        "double_blocks.0.attn.img_attn_q_norm.weight": torch.empty(128, device="meta"),
+    }
+    for i in range(40):
+        sd[f"double_blocks.{i}.attn.img_attn_qkv.weight"] = torch.empty(1, device="meta")
+    return sd
+
+
 def _add_model_diffusion_prefix(sd):
     return {f"model.diffusion_model.{k}": v for k, v in sd.items()}
 
@@ -205,6 +231,63 @@ class TestModelDetection:
         sd = _add_model_diffusion_prefix(_make_seedvr2_7b_shared_mm_sd())
 
         assert type(model_config_from_unet(sd, "model.diffusion_model.")).__name__ == "SeedVR2"
+
+    def test_pid_v1_5_detection(self):
+        sd = _make_pid_v1_5_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert unet_config == {
+            "image_model": "pid",
+            "lq_latent_channels": 16,
+            "lq_hidden_dim": 1024,
+            "latent_spatial_down_factor": 8,
+            "lq_interval": 2,
+            "lq_latent_unpatchify_factor": 1,
+            "lq_conv_padding_mode": "replicate",
+            "lq_gate_per_token": True,
+            "pit_lq_inject": True,
+            "rope_ref_h": 2048,
+            "rope_ref_w": 2048,
+        }
+        assert type(model_config_from_unet_config(unet_config, sd)).__name__ == "PiD"
+
+    def test_pid_v1_5_flux2_detection(self):
+        unet_config = detect_unet_config(_make_pid_v1_5_sd(latent_proj_channels=32), "")
+
+        assert unet_config["lq_latent_channels"] == 128
+        assert unet_config["latent_spatial_down_factor"] == 16
+        assert unet_config["lq_latent_unpatchify_factor"] == 2
+
+    def test_pid_v1_5_pixel_adaln_conversion(self):
+        sd = _make_pid_v1_5_sd()
+        model_config = model_config_from_unet_config(detect_unet_config(sd, ""), sd)
+        processed = model_config.process_unet_state_dict(sd)
+
+        assert processed["pixel_blocks.0.attn.q_norm.weight"].shape == (72,)
+        assert processed["pixel_blocks.0.adaLN_modulation_msa.weight"].shape == (12288, 1536)
+        assert processed["pixel_blocks.0.adaLN_modulation_mlp.weight"].shape == (12288, 1536)
+        assert processed["pixel_blocks.0.adaLN_modulation_msa.bias"].shape == (12288,)
+        assert processed["pixel_blocks.0.adaLN_modulation_mlp.bias"].shape == (12288,)
+
+    def test_joyimage_edit_plus_detection(self):
+        sd = _make_joyimage_edit_plus_sd()
+        unet_config = detect_unet_config(sd, "")
+
+        assert unet_config == {
+            "image_model": "joyimage",
+            "in_channels": 16,
+            "hidden_size": 4096,
+            "patch_size": [1, 2, 2],
+            "num_layers": 40,
+            "num_attention_heads": 32,
+            "text_dim": 4096,
+        }
+        assert type(model_config_from_unet_config(unet_config, sd)).__name__ == "JoyImage"
+
+    def test_incomplete_joyimage_signature_is_not_detected(self):
+        sd = _make_joyimage_edit_plus_sd()
+        del sd["double_blocks.0.attn.img_attn_q_norm.weight"]
+        assert detect_unet_config(sd, "") is None
 
     def test_unet_config_and_required_keys_combination_is_unique(self):
         """Each model in the registry must have a unique combination of

@@ -174,8 +174,9 @@ class Preview3DAdvanced(IO.ComfyNode):
         filename = f"preview3d_advanced_{uuid.uuid4().hex}.{model_3d.format}"
         model_3d.save_to(os.path.join(folder_paths.get_temp_directory(), filename))
 
+        viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
         camera_info_input = kwargs.get("camera_info", None)
-        camera_info = camera_info_input if camera_info_input is not None else viewport_state['camera_info']
+        camera_info = camera_info_input if camera_info_input is not None else viewport_state.get('camera_info')
         model_3d_info_input = kwargs.get("model_3d_info", None)
         model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
         return IO.NodeOutput(
@@ -243,8 +244,9 @@ class PreviewGaussianSplat(IO.ComfyNode):
         filename = f"preview_splat_{uuid.uuid4().hex}.{model_3d.format}"
         model_3d.save_to(os.path.join(folder_paths.get_temp_directory(), filename))
 
+        viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
         camera_info_input = kwargs.get("camera_info", None)
-        camera_info = camera_info_input if camera_info_input is not None else viewport_state['camera_info']
+        camera_info = camera_info_input if camera_info_input is not None else viewport_state.get('camera_info')
         model_3d_info_input = kwargs.get("model_3d_info", None)
         model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
         return IO.NodeOutput(
@@ -303,8 +305,9 @@ class PreviewPointCloud(IO.ComfyNode):
         filename = f"preview_pointcloud_{uuid.uuid4().hex}.{model_3d.format}"
         model_3d.save_to(os.path.join(folder_paths.get_temp_directory(), filename))
 
+        viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
         camera_info_input = kwargs.get("camera_info", None)
-        camera_info = camera_info_input if camera_info_input is not None else viewport_state['camera_info']
+        camera_info = camera_info_input if camera_info_input is not None else viewport_state.get('camera_info')
         model_3d_info_input = kwargs.get("model_3d_info", None)
         model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
         return IO.NodeOutput(
@@ -375,8 +378,9 @@ class Load3DAdvanced(IO.ComfyNode):
         file_3d = None
         if model_file and model_file != "none":
             file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
+        viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
         model_3d_info = viewport_state.get('model_3d_info', [])
-        return IO.NodeOutput(file_3d, model_3d_info, viewport_state['camera_info'], width, height)
+        return IO.NodeOutput(file_3d, model_3d_info, viewport_state.get('camera_info'), width, height)
 
 
 class Load3DExtension(ComfyExtension):

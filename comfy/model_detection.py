@@ -470,15 +470,46 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     # PiD (Pixel Diffusion Decoder). Must check BEFORE plain PixelDiT_T2I.
     _lq_w_key = '{}lq_proj.latent_proj.0.weight'.format(key_prefix)
     if _lq_w_key in state_dict_keys:
-        in_ch = int(state_dict[_lq_w_key].shape[1])
+        latent_proj_in_channels = int(state_dict[_lq_w_key].shape[1])
+        hidden_dim = int(state_dict[_lq_w_key].shape[0])
         _gate_prefix = '{}lq_proj.gate_modules.'.format(key_prefix)
         num_gates = len({k[len(_gate_prefix):].split('.')[0]
                          for k in state_dict_keys if k.startswith(_gate_prefix)})
+        pid_v1_5 = '{}lq_proj.pit_head.weight'.format(key_prefix) in state_dict_keys
         dit_config = {"image_model": "pid",
-                      "lq_latent_channels": in_ch,
-                      "latent_spatial_down_factor": 16 if in_ch >= 64 else 8}
+                      "lq_hidden_dim": hidden_dim}
         if num_gates > 0:
             dit_config["lq_interval"] = (14 + num_gates - 1) // num_gates
+        if pid_v1_5:
+            pid_v1_5_variants = {
+                16: {  # Flux and QwenImage
+                    "lq_latent_channels": 16,
+                    "latent_spatial_down_factor": 8,
+                    "lq_latent_unpatchify_factor": 1,
+                },
+                32: {  # Flux2 after 2x latent unpatchify
+                    "lq_latent_channels": 128,
+                    "latent_spatial_down_factor": 16,
+                    "lq_latent_unpatchify_factor": 2,
+                },
+            }
+            variant = pid_v1_5_variants.get(latent_proj_in_channels)
+            if variant is None:
+                raise ValueError(f"Unsupported PiD v1.5 latent projection with {latent_proj_in_channels} input channels")
+            gate_weight = state_dict['{}lq_proj.gate_modules.0.content_proj.weight'.format(key_prefix)]
+            dit_config.update(variant)
+            dit_config.update({
+                "lq_conv_padding_mode": "replicate",
+                "lq_gate_per_token": gate_weight.shape[0] == 1,
+                "pit_lq_inject": True,
+                "rope_ref_h": 2048,
+                "rope_ref_w": 2048,
+            })
+        else:
+            dit_config.update({
+                "lq_latent_channels": latent_proj_in_channels,
+                "latent_spatial_down_factor": 16 if latent_proj_in_channels >= 64 else 8,
+            })
         return dit_config
 
     if '{}core.pixel_embedder.proj.weight'.format(key_prefix) in state_dict_keys:  # PixelDiT T2I
@@ -1026,6 +1057,25 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             if 'detector.backbone.vision_backbone.propagation_convs.0.conv_1x1.weight' in state_dict_keys:
                 dit_config["image_model"] = "SAM31"
             return dit_config
+
+    if (
+        '{}double_blocks.0.attn.img_attn_qkv.weight'.format(key_prefix) in state_dict_keys
+        and '{}double_blocks.0.attn.img_attn_q_norm.weight'.format(key_prefix) in state_dict_keys
+        and '{}condition_embedder.time_embedder.linear_1.weight'.format(key_prefix) in state_dict_keys
+        and '{}img_in.weight'.format(key_prefix) in state_dict_keys
+        and len(state_dict['{}img_in.weight'.format(key_prefix)].shape) == 5
+    ):
+        img_in = state_dict['{}img_in.weight'.format(key_prefix)]
+        head_dim = state_dict['{}double_blocks.0.attn.img_attn_q_norm.weight'.format(key_prefix)].shape[0]
+        return {
+            "image_model": "joyimage",
+            "in_channels": img_in.shape[1],
+            "hidden_size": img_in.shape[0],
+            "patch_size": list(img_in.shape[2:]),
+            "num_layers": count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.'),
+            "num_attention_heads": img_in.shape[0] // head_dim,
+            "text_dim": 4096,
+        }
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None

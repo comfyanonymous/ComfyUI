@@ -418,8 +418,9 @@ def _save_file3d_to_output(model_3d: Types.File3D, filename_prefix: str) -> str:
 
 def execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_prefix, kwargs) -> IO.NodeOutput:
     model_file = _save_file3d_to_output(model_3d, filename_prefix)
+    viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
     camera_info_input = kwargs.get("camera_info", None)
-    camera_info = camera_info_input if camera_info_input is not None else viewport_state['camera_info']
+    camera_info = camera_info_input if camera_info_input is not None else viewport_state.get('camera_info')
     model_3d_info_input = kwargs.get("model_3d_info", None)
     model_3d_info = model_3d_info_input if model_3d_info_input is not None else viewport_state.get('model_3d_info', [])
     return IO.NodeOutput(
