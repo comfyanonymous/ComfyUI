@@ -274,6 +274,10 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
         input_tokens_price = 0.25
         output_text_tokens_price = 1.50
         output_image_tokens_price = 0.0
+    elif response.modelVersion == "gemini-3.5-flash":
+        input_tokens_price = 1.50
+        output_text_tokens_price = 9.0
+        output_image_tokens_price = 0.0
     elif response.modelVersion in ("gemini-3-pro-image-preview", "gemini-3-pro-image"):
         input_tokens_price = 2
         output_text_tokens_price = 12.0
@@ -619,11 +623,12 @@ class GeminiNode(IO.ComfyNode):
 
 GEMINI_V2_MODELS: dict[str, str] = {
     "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
+    "Gemini 3.5 Flash": "gemini-3.5-flash",
     "Gemini 3.1 Flash-Lite": "gemini-3.1-flash-lite-preview",
 }
 
 
-def _gemini_text_model_inputs(thinking_default: str) -> list[Input]:
+def _gemini_text_model_inputs(thinking_default: str, thinking_options: list[str] | None = None) -> list[Input]:
     """Per-model inputs revealed by the model DynamicCombo (shared media + sampling controls)."""
     return [
         IO.Autogrow.Input(
@@ -661,7 +666,7 @@ def _gemini_text_model_inputs(thinking_default: str) -> list[Input]:
         ),
         IO.Combo.Input(
             "thinking_level",
-            options=["LOW", "HIGH"],
+            options=thinking_options or ["LOW", "HIGH"],
             default=thinking_default,
             tooltip="How hard the model reasons internally before answering. "
             "HIGH improves quality on difficult tasks but costs more (thinking) tokens and is slower.",
@@ -719,6 +724,10 @@ class GeminiNodeV2(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "Gemini 3.5 Flash",
+                            _gemini_text_model_inputs("MEDIUM", ["MINIMAL", "LOW", "MEDIUM", "HIGH"]),
+                        ),
                         IO.DynamicCombo.Option("Gemini 3.1 Pro", _gemini_text_model_inputs("HIGH")),
                         IO.DynamicCombo.Option("Gemini 3.1 Flash-Lite", _gemini_text_model_inputs("LOW")),
                     ],
@@ -759,7 +768,13 @@ class GeminiNodeV2(IO.ComfyNode):
                     "type": "list_usd",
                     "usd": [0.00025, 0.0015],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
-                  } : {
+                  }
+                  : $contains($m, "3.5 flash") ? {
+                    "type": "list_usd",
+                    "usd": [0.0015, 0.009],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : {
                     "type": "list_usd",
                     "usd": [0.002, 0.012],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
