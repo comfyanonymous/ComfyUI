@@ -1,5 +1,6 @@
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
+from av.video.reformatter import ColorRange
 from fractions import Fraction
 from typing import Optional
 from .._input import AudioInput, VideoInput
@@ -9,6 +10,7 @@ import itertools
 import json
 import numpy as np
 import math
+import os
 import torch
 from .._util import VideoContainer, VideoCodec, VideoComponents
 import logging
@@ -56,6 +58,57 @@ def video_stream_bit_depth(stream) -> int:
     if stream is None or stream.format is None or not stream.format.components:
         return 8
     return max(component.bits for component in stream.format.components)
+
+
+def last_decodable_audio_stream(container: InputContainer):
+    """Streams FFmpeg has no decoder for have no codec context, and decoding their
+    packets crashes the process (e.g. APAC spatial-audio track in iPhone)."""
+    stream = next(
+        (s for s in reversed(container.streams.audio) if s.codec_context is not None),
+        None,
+    )
+    if stream is None and len(container.streams.audio):
+        logging.warning("No decodable audio stream found in video; ignoring audio.")
+    return stream
+
+
+def probe_audio_params(container: InputContainer, audio_stream, max_packets: int = 200):
+    """Containers probed only up to a window (mpegts) leave audio codec parameters unset when
+    audio starts beyond it; learn them by decoding ahead. The caller must seek back afterwards.
+    Returns (sample_rate, channels), zeros when the stream never yields a decodable frame."""
+    for i, packet in enumerate(container.demux(audio_stream)):
+        try:
+            frames = packet.decode()
+        except av.error.FFmpegError:
+            frames = ()
+        if frames:
+            return frames[0].sample_rate, frames[0].layout.nb_channels
+        if i >= max_packets:
+            break
+    return 0, 0
+
+
+def write_output_metadata(container: InputContainer, output, metadata: dict | None):
+    """Copy the source container's metadata, then overlay the caller's tags."""
+    for key, value in container.metadata.items():
+        if metadata is None or key not in metadata:
+            output.metadata[key] = value
+    if metadata is not None:
+        for key, value in metadata.items():
+            output.metadata[key] = value if isinstance(value, str) else json.dumps(value)
+
+
+def mp4_output_open_kwargs(path: str | io.BytesIO, format: VideoContainer, codec: VideoCodec) -> dict:
+    if format != VideoContainer.AUTO and format != VideoContainer.MP4:
+        raise ValueError("Only MP4 format is supported for now")
+    if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
+        raise ValueError("Only H264 codec is supported for now")
+    open_kwargs = {"mode": "w", "options": {"movflags": "use_metadata_tags"}}
+    if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
+        open_kwargs["format"] = format.value
+    elif isinstance(path, io.BytesIO):
+        open_kwargs["format"] = "mp4"  # no file extension to infer the format from
+    return open_kwargs
 
 
 class VideoFromFile(VideoInput):
@@ -192,13 +245,10 @@ class VideoFromFile(VideoInput):
                     return estimated_frames
 
             # 3. Last resort: decode frames and count them (streaming)
-            if self.__start_time < 0:
-                start_time = max(self._get_raw_duration() + self.__start_time, 0)
-            else:
-                start_time = self.__start_time
+            start_time, duration = self.get_active_trim_window()
             frame_count = 1
             start_pts = int(start_time / video_stream.time_base)
-            end_pts = int((start_time + self.__duration) / video_stream.time_base)
+            end_pts = int((start_time + duration) / video_stream.time_base)
             container.seek(start_pts, stream=video_stream)
             frame_iterator = (
                 container.decode(video_stream)
@@ -253,17 +303,14 @@ class VideoFromFile(VideoInput):
 
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         video_stream = self._get_first_video_stream(container)
-        if self.__start_time < 0:
-            start_time = max(self._get_raw_duration() + self.__start_time, 0)
-        else:
-            start_time = self.__start_time
+        start_time, duration = self.get_active_trim_window()
 
         # Get video frames
         frames = []
         audio_frames = []
         alphas = None
         start_pts = int(start_time / video_stream.time_base)
-        end_pts = int((start_time + self.__duration) / video_stream.time_base)
+        end_pts = int((start_time + duration) / video_stream.time_base)
 
         if start_pts != 0:
             container.seek(start_pts, stream=video_stream)
@@ -281,18 +328,11 @@ class VideoFromFile(VideoInput):
         video_done = False
         audio_done = True
 
-        # Use the last decodable audio stream. Streams FFmpeg has no decoder for have no codec context,
-        # and decoding their packets crashes the process. (e.g. APAC spatial-audio track in iPhone)
-        audio_stream = next(
-            (s for s in reversed(container.streams.audio) if s.codec_context is not None),
-            None,
-        )
+        audio_stream = last_decodable_audio_stream(container)
         if audio_stream is not None:
             streams += [audio_stream]
             resampler = av.audio.resampler.AudioResampler(format='fltp')
             audio_done = False
-        elif len(container.streams.audio):
-            logging.warning("No decodable audio stream found in video; ignoring audio.")
 
         for packet in container.demux(*streams):
             if video_done and audio_done:
@@ -305,7 +345,7 @@ class VideoFromFile(VideoInput):
                     for frame in packet.decode():
                         if frame.pts < start_pts:
                             continue
-                        if self.__duration and frame.pts >= end_pts:
+                        if duration and frame.pts >= end_pts:
                             video_done = True
                             break
 
@@ -372,7 +412,7 @@ class VideoFromFile(VideoInput):
                     map(resampler.resample, packet.decode())
                 )
                 for frame in aframes:
-                    if self.__duration and frame.time > start_time + self.__duration:
+                    if duration and frame.time > start_time + duration:
                         audio_done = True
                         break
 
@@ -394,8 +434,8 @@ class VideoFromFile(VideoInput):
 
         if len(audio_frames) > 0:
             audio_data = np.concatenate(audio_frames, axis=1)  # shape: (channels, total_samples)
-            if self.__duration:
-                audio_data = audio_data[..., :int(self.__duration * audio_stream.sample_rate)]
+            if duration:
+                audio_data = audio_data[..., :int(duration * audio_stream.sample_rate)]
 
             audio_tensor = torch.from_numpy(audio_data).unsqueeze(0)  # shape: (1, channels, total_samples)
             audio = AudioInput({
@@ -441,28 +481,14 @@ class VideoFromFile(VideoInput):
             if not reuse_streams:
                 if bit_depth is None:
                     bit_depth = source_bit_depth
-                components = self.get_components_internal(container)
-                video = VideoFromComponents(components)
-                return video.save_to(
-                    path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth,
-                )
+                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth)
 
             streams = container.streams
 
             open_kwargs = get_open_write_kwargs(path, container_format, format)
             with av.open(path, **open_kwargs) as output_container:
-                # Copy over the original metadata
-                for key, value in container.metadata.items():
-                    if metadata is None or key not in metadata:
-                        output_container.metadata[key] = value
-
-                # Add our new metadata
-                if metadata is not None:
-                    for key, value in metadata.items():
-                        if isinstance(value, str):
-                            output_container.metadata[key] = value
-                        else:
-                            output_container.metadata[key] = json.dumps(value)
+                # Add metadata before writing any streams
+                write_output_metadata(container, output_container, metadata)
 
                 # Add streams to the new container. Streams with no codec context cannot be used as an output template.
                 stream_map = {}
@@ -479,6 +505,282 @@ class VideoFromFile(VideoInput):
                     if packet.stream in stream_map and packet.dts is not None:
                         packet.stream = stream_map[packet.stream]
                         output_container.mux(packet)
+
+    def _save_transcoded(
+        self,
+        container: InputContainer,
+        path: str | io.BytesIO,
+        format: VideoContainer,
+        codec: VideoCodec,
+        metadata: dict | None,
+        bit_depth: int,
+    ):
+        """Re-encode to H.264/AAC one frame at a time; peak memory does not scale with video length."""
+        open_kwargs = mp4_output_open_kwargs(path, format, codec)
+        video_stream = self._get_first_video_stream(container)
+        start_time, duration = self.get_active_trim_window()
+        start_pts = int(start_time / video_stream.time_base)
+        end_pts = int((start_time + duration) / video_stream.time_base) if duration else None
+        stream_end_pts = None
+        if video_stream.duration is not None:
+            stream_end_pts = (video_stream.start_time or 0) + video_stream.duration
+        output_end_pts = end_pts
+        if stream_end_pts is not None and (output_end_pts is None or stream_end_pts < output_end_pts):
+            output_end_pts = stream_end_pts
+        if start_pts != 0:
+            container.seek(start_pts, stream=video_stream)
+
+        audio_stream = last_decodable_audio_stream(container)
+        pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
+        rate = Fraction(video_stream.average_rate) if video_stream.average_rate else Fraction(1)
+
+        resampler = None
+        sample_rate = 0
+        audio_time_base = None
+        duration_cap = None
+        if audio_stream is not None:
+            sample_rate = audio_stream.codec_context.sample_rate
+            channels = audio_stream.codec_context.channels
+            if not sample_rate:
+                sample_rate, channels = probe_audio_params(container, audio_stream)
+                container.seek(start_pts, stream=video_stream)
+                if sample_rate:
+                    audio_stream.codec_context.flush_buffers()
+                else:
+                    logging.warning("Audio stream parameters could not be determined; ignoring audio.")
+                    audio_stream = None
+        if audio_stream is not None:
+            audio_time_base = Fraction(1, sample_rate)
+            layout = {1: "mono", 2: "stereo", 6: "5.1"}.get(channels, "stereo")
+            resampler = av.audio.resampler.AudioResampler(format="fltp", layout=layout, rate=sample_rate)
+            if duration:
+                duration_cap = math.ceil(duration * sample_rate)
+
+        streams = [video_stream] if audio_stream is None else [video_stream, audio_stream]
+        pts_step = max(1, int(round((1 / rate) / video_stream.time_base)))
+        video_done = False
+        audio_done = audio_stream is None
+        video_pts_offset = None
+        last_video_pts = None
+        last_video_end = None
+        # rebased pts -> true display duration: the mp4 muxer pads the last sample with 1/rate otherwise
+        video_frame_durations = {}
+        source_size = None
+        rotation_k = 0
+        rotation_filter = None
+        audio_started = False
+        samples_written = 0
+        pending_audio = []
+        # The output opens lazily on the first kept frame: it decides the geometry (90/270 rotation swaps dims),
+        # and never seeking back keeps webm/mkv leading audio intact.
+        output = None
+        out_video = None
+        out_audio = None
+
+        def audio_frame_from_ndarray(nd_planar):
+            frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(nd_planar), format="fltp", layout=layout)
+            frame.sample_rate = sample_rate
+            return frame
+
+        def drain_audio(final=False):
+            # Audio may cover the pts span of the video written so far, capped by the requested duration
+            nonlocal samples_written, audio_done
+            if last_video_end is None:
+                cap = 0
+            else:
+                cap = math.ceil(last_video_end * video_stream.time_base * sample_rate)
+            if duration_cap is not None:
+                cap = min(cap, duration_cap)
+            while pending_audio and not audio_done:
+                frame = pending_audio[0]
+                if samples_written + frame.samples <= cap:
+                    frame.pts = samples_written
+                    frame.time_base = audio_time_base
+                    output.mux(out_audio.encode(frame))
+                    samples_written += frame.samples
+                    pending_audio.pop(0)
+                    continue
+                if final:
+                    keep = frame.to_ndarray()[..., :cap - samples_written]
+                    if keep.shape[-1] > 0:
+                        tail = audio_frame_from_ndarray(keep)
+                        tail.pts = samples_written
+                        tail.time_base = audio_time_base
+                        output.mux(out_audio.encode(tail))
+                        samples_written += keep.shape[-1]
+                    pending_audio.clear()
+                break
+            if duration_cap is not None and samples_written >= duration_cap:
+                audio_done = True
+            return cap
+
+        try:
+            for packet in container.demux(*streams):
+                if video_done and audio_done:
+                    break
+
+                if packet.stream == video_stream and not video_done:
+                    try:
+                        frames = packet.decode()
+                    except av.error.InvalidDataError:
+                        logging.info("pyav decode error")
+                        continue
+                    for frame in frames:
+                        if frame.pts is not None and frame.pts < start_pts:
+                            continue
+                        if end_pts is not None and frame.pts is not None and frame.pts >= end_pts:
+                            video_done = True
+                            if last_video_pts is not None:
+                                # the source continues past the window: hold the last kept frame to the window end
+                                end_offset = video_pts_offset if video_pts_offset is not None else start_pts
+                                last_video_end = max(last_video_end, end_pts - end_offset)
+                            break
+                        # the source's true display duration of this frame; average_rate is not a
+                        # frame duration (sparse/VFR sources), so it is only the fallback
+                        frame_duration = frame.duration if frame.duration else pts_step
+                        if end_pts is not None and frame.pts is not None:
+                            frame_duration = min(frame_duration, end_pts - frame.pts)
+                        if output is None:
+                            rotation_k = int(round(frame.rotation // 90)) % 4 if frame.rotation else 0
+                            if rotation_k % 2:
+                                out_width, out_height = frame.height, frame.width
+                            else:
+                                out_width, out_height = frame.width, frame.height
+                            if out_width % 2 or out_height % 2:
+                                raise ValueError(f"H.264 output requires even dimensions, got {out_width}x{out_height}")
+                            source_size = (frame.width, frame.height)
+                            output = av.open(path, **open_kwargs)
+                            # Add metadata before writing any streams
+                            write_output_metadata(container, output, metadata)
+                            out_video = output.add_stream("h264", rate=rate)
+                            # no B-frames: reordering makes mp4 sample durations follow decode order,
+                            # so irregular-VFR spans and trim windows land wrong
+                            out_video.codec_context.max_b_frames = 0
+                            out_video.width = out_width
+                            out_video.height = out_height
+                            out_video.pix_fmt = pix_fmt
+                            # source pts pass through (rebased to 0), so variable frame rate survives
+                            out_video.codec_context.time_base = video_stream.time_base
+                            if audio_stream is not None:
+                                out_audio = output.add_stream("aac", rate=sample_rate, layout=layout)
+                        if (frame.width, frame.height) != source_size:
+                            # encoding would silently rescale the new geometry into the old one
+                            raise ValueError(
+                                f"Video resolution changes mid-stream "
+                                f"({source_size[0]}x{source_size[1]} -> {frame.width}x{frame.height}); cannot transcode"
+                            )
+                        if rotation_k:
+                            if rotation_filter is None:
+                                g = av.filter.Graph()
+                                g_src = g.add_buffer(width=frame.width, height=frame.height,
+                                                     format=frame.format.name, time_base=video_stream.time_base)
+                                tail = g_src
+                                for filter_name, filter_args in {1: [("transpose", "cclock")],
+                                                                 2: [("hflip", None), ("vflip", None)],
+                                                                 3: [("transpose", "clock")]}[rotation_k]:
+                                    step = g.add(filter_name, filter_args)
+                                    tail.link_to(step)
+                                    tail = step
+                                g_sink = g.add("buffersink")
+                                tail.link_to(g_sink)
+                                g.configure()
+                                rotation_filter = (g_src, g_sink)
+                            rotation_filter[0].push(frame)
+                            frame = rotation_filter[1].pull()
+                        if frame.color_range == ColorRange.JPEG:
+                            # compress full-range sources (yuvj/MJPEG) to limited range
+                            frame = frame.reformat(format=pix_fmt, src_color_range="JPEG", dst_color_range="MPEG")
+                        else:
+                            frame = frame.reformat(format=pix_fmt)
+                        frame_output_end = None
+                        if frame.pts is not None:
+                            if video_pts_offset is None:
+                                video_pts_offset = frame.pts
+                            frame.pts -= video_pts_offset
+                            if output_end_pts is not None:
+                                frame_output_end = output_end_pts - video_pts_offset
+                                if frame.pts + frame_duration > frame_output_end:
+                                    clamped_pts = frame_output_end - frame_duration
+                                    if clamped_pts >= 0 and (last_video_pts is None or clamped_pts > last_video_pts):
+                                        frame.pts = min(frame.pts, clamped_pts)
+                                    elif frame.pts < frame_output_end:
+                                        frame_duration = frame_output_end - frame.pts
+                                    else:
+                                        continue
+                        if frame.pts is None or (last_video_pts is not None and frame.pts <= last_video_pts):
+                            # broken sources emit missing/backward timestamps mid-stream, which the
+                            # muxer rejects; nudge them forward by one nominal frame interval
+                            frame.pts = 0 if last_video_pts is None else last_video_pts + pts_step
+                            if frame_output_end is not None and frame.pts + frame_duration > frame_output_end:
+                                if frame.pts >= frame_output_end:
+                                    continue
+                                frame_duration = frame_output_end - frame.pts
+                        last_video_pts = frame.pts
+                        last_video_end = frame.pts + frame_duration
+                        video_frame_durations[frame.pts] = frame_duration
+                        # the decoded pict_type would force x264's frame types (intra-only
+                        # sources like MJPEG/ProRes would come out all-keyframe)
+                        frame.pict_type = 0
+                        for out_packet in out_video.encode(frame):
+                            out_packet.duration = video_frame_durations.pop(out_packet.pts, 0)
+                            output.mux(out_packet)
+                        drain_audio()
+
+                elif packet.stream == audio_stream and not audio_done:
+                    for resampled in itertools.chain.from_iterable(map(resampler.resample, packet.decode())):
+                        frame_start = None
+                        if resampled.pts is not None:
+                            # passthrough frames keep the source stream's time base
+                            tb = resampled.time_base if resampled.time_base else audio_time_base
+                            frame_start = float(resampled.pts * tb)
+                            if duration and not audio_started and frame_start >= start_time + duration:
+                                audio_done = True
+                                break
+                        if not audio_started:
+                            if frame_start is None:
+                                frame_start = 0.0
+                            to_skip = max(0, int((start_time - frame_start) * sample_rate))
+                            if to_skip >= resampled.samples:
+                                continue
+                            audio_started = True
+                            if duration and frame_start > start_time:
+                                duration_cap = min(duration_cap, math.ceil((start_time + duration - frame_start) * sample_rate))
+                            if to_skip:
+                                pending_audio.append(audio_frame_from_ndarray(resampled.to_ndarray()[..., to_skip:]))
+                                continue
+                        pending_audio.append(resampled)
+                        if video_done:
+                            # the video window is complete so the cap is final, but containers
+                            # that interleave audio behind video (fragmented mp4) still owe most
+                            # of it: stop only once the demuxed audio covers the cap
+                            cap = drain_audio()
+                            if pending_audio or samples_written >= cap:
+                                drain_audio(final=True)
+                                audio_done = True
+                                break
+
+            if output is None:
+                raise ValueError(f"No decodable video frames found in file '{self.__file}'")
+            if out_audio is not None and not audio_done:
+                drain_audio(final=True)
+            window_fill = last_video_end - last_video_pts if video_done and last_video_pts is not None else 0
+            for out_packet in out_video.encode(None):
+                duration = video_frame_durations.pop(out_packet.pts, 0)
+                if out_packet.pts == last_video_pts:
+                    duration = max(duration, window_fill)
+                out_packet.duration = duration
+                output.mux(out_packet)
+            if out_audio is not None:
+                output.mux(out_audio.encode(None))
+        except BaseException:
+            if output is not None:
+                output.close()
+                if isinstance(path, (str, os.PathLike)) and os.path.exists(path):
+                    os.remove(path)
+            raise
+        else:
+            if output is not None:
+                output.close()
 
     def _get_first_video_stream(self, container: InputContainer):
         if len(container.streams.video):
@@ -527,22 +829,12 @@ class VideoFromComponents(VideoInput):
         bit_depth: int | None = None,
     ):
         """Save the video to a file path or BytesIO buffer."""
-        if format != VideoContainer.AUTO and format != VideoContainer.MP4:
-            raise ValueError("Only MP4 format is supported for now")
-        if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
-            raise ValueError("Only H264 codec is supported for now")
+        open_kwargs = mp4_output_open_kwargs(path, format, codec)
         # None means "use the depth this video was created with" (CreateVideo's choice).
         if bit_depth is None:
             bit_depth = self.__bit_depth
         is_10bit = bit_depth >= 10
-        extra_kwargs = {}
-        if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
-            extra_kwargs["format"] = format.value
-        elif isinstance(path, io.BytesIO):
-            # BytesIO has no file extension, so av.open can't infer the format.
-            # Default to mp4 since that's the only supported format anyway.
-            extra_kwargs["format"] = "mp4"
-        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
+        with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:
                 for key, value in metadata.items():
