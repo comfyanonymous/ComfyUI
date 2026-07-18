@@ -366,7 +366,7 @@ class SeedVR2Conditioning(io.ComfyNode):
         return io.Schema(
             node_id="SeedVR2Conditioning",
             display_name="Apply SeedVR2 Conditioning",
-            category="model/conditioning",
+            category="model/conditioning/seedvr",
             description="Build SeedVR2 positive/negative conditioning from a VAE latent.",
             search_aliases=["seedvr2", "upscale", "conditioning"],
             inputs=[
