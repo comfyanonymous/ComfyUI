@@ -650,6 +650,7 @@ def upsert_reference(
     name: str,
     mtime_ns: int,
     owner_id: str = "",
+    loader_path: str | None = None,
 ) -> tuple[bool, bool]:
     """Upsert a reference by file_path. Returns (created, updated).
 
@@ -659,6 +660,7 @@ def upsert_reference(
     vals = {
         "asset_id": asset_id,
         "file_path": file_path,
+        "loader_path": loader_path,
         "name": name,
         "owner_id": owner_id,
         "mtime_ns": int(mtime_ns),
@@ -686,13 +688,14 @@ def upsert_reference(
                 AssetReference.asset_id != asset_id,
                 AssetReference.mtime_ns.is_(None),
                 AssetReference.mtime_ns != int(mtime_ns),
+                AssetReference.loader_path.is_distinct_from(loader_path),
                 AssetReference.is_missing == True,  # noqa: E712
                 AssetReference.deleted_at.isnot(None),
             )
         )
         .values(
-            asset_id=asset_id, mtime_ns=int(mtime_ns), is_missing=False,
-            deleted_at=None, updated_at=now,
+            asset_id=asset_id, mtime_ns=int(mtime_ns), loader_path=loader_path,
+            is_missing=False, deleted_at=None, updated_at=now,
         )
     )
     res2 = session.execute(upd)

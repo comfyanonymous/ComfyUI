@@ -34,6 +34,7 @@ from comfy_api_nodes.apis.bytedance import (
     SeedanceVirtualLibraryCreateAssetRequest,
     Seedream4Options,
     Seedream4TaskCreationRequest,
+    Seedream5OptimizePromptOptions,
     TaskAudioContent,
     TaskAudioContentUrl,
     TaskCreationResponse,
@@ -875,6 +876,17 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     advanced=True,
                 ),
+                IO.Boolean.Input(
+                    "thinking",
+                    default=True,
+                    tooltip=(
+                        "Enable the model's prompt-optimization reasoning ('thinking') for better adherence. "
+                        "Can substantially increase generation time — notably on Seedream 5.0 Pro. "
+                        "Can only be disabled for text-to-image (not when reference images are provided)."
+                    ),
+                    optional=True,
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -920,6 +932,7 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         model: dict,
         seed: int = 0,
         watermark: bool = False,
+        thinking: bool = True,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_id = SEEDREAM_MODELS[model["model"]]
@@ -979,6 +992,10 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
             raise ValueError(
                 "The maximum number of generated images plus the number of reference images cannot exceed 15."
             )
+        if not thinking and n_input_images > 0:
+            raise ValueError(
+                "'thinking' can only be disabled for text-to-image; enable it when using reference images."
+            )
 
         reference_images_urls: list[str] = []
         if image_tensors:
@@ -992,6 +1009,9 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 wait_label="Uploading reference images",
             )
 
+        optimize_prompt_options = None
+        if n_input_images == 0:
+            optimize_prompt_options = Seedream5OptimizePromptOptions(thinking="enabled" if thinking else "disabled")
         response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
@@ -1005,6 +1025,7 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 sequential_image_generation=None if is_pro else sequential_image_generation,
                 sequential_image_generation_options=None if is_pro else Seedream4Options(max_images=max_images),
                 watermark=watermark,
+                optimize_prompt_options=optimize_prompt_options,
             ),
         )
         if len(response.data) == 1:

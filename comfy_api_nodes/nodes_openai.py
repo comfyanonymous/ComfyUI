@@ -41,6 +41,9 @@ STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
 
 
 class SupportedOpenAIModel(str, Enum):
+    gpt_5_6_sol = "gpt-5.6-sol"
+    gpt_5_6_terra = "gpt-5.6-terra"
+    gpt_5_6_luna = "gpt-5.6-luna"
     gpt_5_5_pro = "gpt-5.5-pro"
     gpt_5_5 = "gpt-5.5"
     gpt_5 = "gpt-5"
@@ -1061,6 +1064,21 @@ class OpenAIChatNode(IO.ComfyNode):
                   : $contains($m, "gpt-4.1") ? {
                     "type": "list_usd",
                     "usd": [0.002, 0.008],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5.6-terra") ? {
+                    "type": "list_usd",
+                    "usd": [0.0025, 0.015],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5.6-luna") ? {
+                    "type": "list_usd",
+                    "usd": [0.001, 0.006],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5.6") ? {
+                    "type": "list_usd",
+                    "usd": [0.005, 0.03],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : $contains($m, "gpt-5.5-pro") ? {

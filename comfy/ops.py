@@ -1104,6 +1104,21 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
                 scales["convrot_groupsize"] = int(
                     layer_conf.get("convrot_groupsize", params_conf.get("convrot_groupsize", 256))
                 )
+        elif module.quant_format == "convrot_w4a4":
+            scale = pop_scale("weight_scale")
+            if scale is None:
+                raise ValueError(f"Missing ConvRot W4A4 weight scale for layer {layer_name}")
+            params_conf = layer_conf.get("params", {})
+            if not isinstance(params_conf, dict):
+                params_conf = {}
+            scales = {
+                "scale": scale,
+                "convrot_groupsize": int(
+                    layer_conf.get("convrot_groupsize", params_conf.get("convrot_groupsize", 256))
+                ),
+                "quant_group_size": 64,
+                "linear_dtype": layer_conf.get("linear_dtype", params_conf.get("linear_dtype", "int4")),
+            }
         else:
             raise ValueError(f"Unsupported quantization format: {module.quant_format}")
 
@@ -1150,6 +1165,11 @@ def _quantized_weight_state_dict(module, sd, prefix, extra_quant_conf=None, extr
         if module.quant_format == "int8_tensorwise" and getattr(params, "convrot", False):
             quant_conf["convrot"] = True
             quant_conf["convrot_groupsize"] = getattr(params, "convrot_groupsize", 256)
+        elif module.quant_format == "convrot_w4a4":
+            quant_conf["convrot_groupsize"] = getattr(params, "convrot_groupsize", 256)
+            linear_dtype = getattr(params, "linear_dtype", "int4")
+            if linear_dtype != "int4":
+                quant_conf["linear_dtype"] = linear_dtype
         if extra_quant_conf:
             quant_conf.update(extra_quant_conf)
         sd[f"{prefix}comfy_quant"] = torch.tensor(list(json.dumps(quant_conf).encode("utf-8")), dtype=torch.uint8)
@@ -1237,7 +1257,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 run_every_op()
 
                 input_shape = input.shape
-                reshaped_3d = False
+                reshaped_nd = False
                 #If cast needs to apply lora, it should be done in the compute dtype
                 compute_dtype = input.dtype
 
@@ -1274,12 +1294,12 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 # Inference path (unchanged)
                 if _use_quantized and quantize_input:
 
-                    # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
-                    input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
+                    # Reshape >=3D tensors to 2D for quantization (needed for NVFP4 and others)
+                    input_reshaped = input.reshape(-1, input_shape[-1]) if input.ndim >= 3 else input
 
                     # Fall back to non-quantized for non-2D tensors
                     if input_reshaped.ndim == 2:
-                        reshaped_3d = input.ndim == 3
+                        reshaped_nd = input.ndim >= 3
                         # dtype is now implicit in the layout class
                         scale = getattr(self, 'input_scale', None)
                         if scale is not None:
@@ -1294,9 +1314,9 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     weight_only_quant=weight_only_quant,
                 )
 
-                # Reshape output back to 3D if input was 3D
-                if reshaped_3d:
-                    output = output.reshape((input_shape[0], input_shape[1], self.weight.shape[0]))
+                # Reshape output back to original rank if input was >2D
+                if reshaped_nd:
+                    output = output.reshape((*input_shape[:-1], self.weight.shape[0]))
 
                 return output
 
@@ -1430,6 +1450,12 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 }
                 if hasattr(params, "block_scale"): # NVFP4
                     kwargs["block_scale"] = params.block_scale[i]
+                if hasattr(params, "quant_group_size"):
+                    kwargs["quant_group_size"] = params.quant_group_size
+                if hasattr(params, "convrot_groupsize"):
+                    kwargs["convrot_groupsize"] = params.convrot_groupsize
+                if hasattr(params, "linear_dtype"):
+                    kwargs["linear_dtype"] = params.linear_dtype
                 return QuantizedTensor(weight._qdata[i], weight._layout_cls, type(params)(**kwargs))
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):

@@ -709,7 +709,7 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     return out
 
 try:
-    @torch.library.custom_op("flash_attention::flash_attn", mutates_args=())
+    @torch.library.custom_op("comfy::flash_attn", mutates_args=())
     def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
                     dropout_p: float = 0.0, causal: bool = False, softmax_scale: float = -1.0) -> torch.Tensor:
         softmax_scale_arg = None if softmax_scale == -1.0 else softmax_scale
