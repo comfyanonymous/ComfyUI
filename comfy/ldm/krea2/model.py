@@ -74,11 +74,20 @@ class Attention(nn.Module):
         self.wo = operations.Linear(dim, dim, bias=bias, device=device, dtype=dtype)
 
     def forward(self, x, freqs=None, mask=None, transformer_options={}):
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
         q, k, v, gate = self.wq(x), self.wk(x), self.wv(x), self.gate(x)
         q = rearrange(q, "B L (H D) -> B H L D", H=self.heads)
         k = rearrange(k, "B L (H D) -> B H L D", H=self.kvheads)
         v = rearrange(v, "B L (H D) -> B H L D", H=self.kvheads)
         q, k = self.qknorm(q, k)
+
+        if "block_index" in transformer_options and "attn1_patch" in transformer_patches:
+            for p in transformer_patches["attn1_patch"]:
+                out = p(q, k, v, pe=freqs, attn_mask=mask, extra_options=extra_options)
+                q, k, v = out.get("q", q), out.get("k", k), out.get("v", v)
+                freqs, mask = out.get("pe", freqs), out.get("attn_mask", mask)
+
         if freqs is not None:
             q, k = apply_rope(q, k, freqs)
         if self.kvheads != self.heads:
@@ -87,6 +96,11 @@ class Attention(nn.Module):
             v = v.repeat_interleave(rep, dim=1)
         out = optimized_attention_masked(q, k, v, self.heads, mask=mask, skip_reshape=True,
                                          transformer_options=transformer_options)
+
+        if "block_index" in transformer_options and "attn1_output_patch" in transformer_patches:
+            for p in transformer_patches["attn1_output_patch"]:
+                out = p(out, extra_options)
+
         return self.wo(out * F.sigmoid(gate))
 
 
@@ -218,7 +232,7 @@ class LastLayer(nn.Module):
 class SingleStreamDiT(nn.Module):
     def __init__(self, features=6144, tdim=256, txtdim=2560, heads=48, kvheads=12, multiplier=4,
                  layers=28, patch=2, channels=16, bias=False, theta=1e3, txtlayers=12,
-                 txtheads=20, txtkvheads=20, image_model=None,
+                 txtheads=20, txtkvheads=20, default_ref_method=None, image_model=None,
                  device=None, dtype=None, operations=None, **kwargs):
         super().__init__()
         self.dtype = dtype
@@ -228,6 +242,7 @@ class SingleStreamDiT(nn.Module):
         self.heads = heads
         self.txtdim = txtdim
         self.txtlayers = txtlayers
+        self.default_ref_method = default_ref_method
 
         headdim = features // heads
         axes = [headdim - 12 * (headdim // 16), 6 * (headdim // 16), 6 * (headdim // 16)]
@@ -278,6 +293,7 @@ class SingleStreamDiT(nn.Module):
         return img, img_ids.reshape(1, h * w, 3).repeat(x.shape[0], 1, 1), h, w
 
     def _forward(self, x, timesteps, context, attention_mask=None, ref_latents=None, transformer_options={}, **kwargs):
+        transformer_options = transformer_options.copy()
         temporal = x.ndim == 5
         if temporal:
             b5, c5, t5, h5, w5 = x.shape
@@ -291,7 +307,8 @@ class SingleStreamDiT(nn.Module):
         img, imgpos, h_, w_ = self.process_img(x)
         img_tokens = img.shape[1]
         timestep_zero_index = None
-        if ref_latents is not None and len(ref_latents) > 0:
+        ref_method = kwargs.get("ref_latents_method", self.default_ref_method)
+        if ref_method is not None and ref_latents is not None and len(ref_latents) > 0:
             ref_tokens = []
             ref_pos = []
             ref_num_tokens = []
@@ -307,8 +324,8 @@ class SingleStreamDiT(nn.Module):
             img = torch.cat([img] + ref_tokens, dim=1)
             imgpos = torch.cat([imgpos] + ref_pos, dim=1)
             del ref_tokens, ref_pos
-            timestep_zero_index = img_tokens
-            transformer_options = transformer_options.copy()
+            if ref_method == "index_timestep_zero":
+                timestep_zero_index = img_tokens
             transformer_options["reference_image_num_tokens"] = ref_num_tokens
 
         img = self.first(img)
@@ -323,21 +340,33 @@ class SingleStreamDiT(nn.Module):
         context = self.txtmlp(context)
 
         txtlen = context.shape[1]
+        device = context.device
+        txtpos = torch.zeros(bs, txtlen, 3, device=device, dtype=torch.float32)
+
+        patches = transformer_options.get("patches", {})
+        if "post_input" in patches:
+            for p in patches["post_input"]:
+                out = p({"img": img, "txt": context, "img_ids": imgpos, "txt_ids": txtpos, "transformer_options": transformer_options})
+                img, context = out["img"], out["txt"]
+                imgpos, txtpos = out["img_ids"], out["txt_ids"]
+
         combined = torch.cat((context, img), dim=1)
         del context, img
         if timestep_zero_index is not None:
             timestep_zero_index += txtlen
 
         # Position ids: text at 0, image at (0, h_idx, w_idx).
-        device = combined.device
-        txtpos = torch.zeros(bs, txtlen, 3, device=device, dtype=torch.float32)
         pos = torch.cat((txtpos, imgpos), dim=1)
         del txtpos, imgpos
 
         freqs = self.pe_embedder(pos)
         del pos
 
-        for block in self.blocks:
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "single"
+        transformer_options["img_slice"] = [txtlen, combined.shape[1]]
+        for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             combined = block(combined, tvec, freqs, None, timestep_zero_index=timestep_zero_index, transformer_options=transformer_options)
 
         final = self.last(combined, t)

@@ -2214,10 +2214,7 @@ class Omnigen2(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            latents = []
-            for lat in ref_latents:
-                latents.append(self.process_latent_in(lat))
-            out['ref_latents'] = comfy.conds.CONDList(latents)
+            out['ref_latents'] = comfy.conds.CONDList([self.process_latent_in(lat) for lat in ref_latents])
         return out
 
     def extra_conds_shapes(self, **kwargs):
@@ -2295,6 +2292,10 @@ class Krea2(BaseModel):
             for lat in ref_latents:
                 latents.append(self.process_latent_in(lat))
             out['ref_latents'] = comfy.conds.CONDList(latents)
+
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
         return out
 
     def extra_conds_shapes(self, **kwargs):
