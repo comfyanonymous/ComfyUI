@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import logging
 import math
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ import comfy.model_patcher
 import comfy.patcher_extension
 import comfy.sampler_helpers
 import comfy.samplers
+import comfy.sd
 import comfy.supported_models
 from comfy_execution.progress import reset_progress_registry, set_progress_registry
 from comfy_execution.utils import CurrentNodeContext, reset_current_client_id, set_current_client_id
@@ -29,6 +31,7 @@ CONTINUOUS_SAMPLER_NODE_FAMILIES = {
 }
 
 _COORDINATORS = {}
+_VAE_COORDINATORS = {}
 _CANCEL_CHECKER = None
 
 
@@ -659,4 +662,196 @@ async def sample_euler_continuous(state):
     if coordinator is None:
         coordinator = ContinuousBatchCoordinator(model_key, state)
         _COORDINATORS[model_key] = coordinator
+    return await coordinator.submit(state)
+
+
+@dataclass
+class ContinuousVAEDecodeRequest:
+    vae: Any
+    samples: torch.Tensor
+    max_batch_size: int
+    admission_delay: float
+    prompt_id: str | None = None
+
+    def validate(self):
+        if type(self.vae) is not comfy.sd.VAE:
+            raise ValueError("Continuous VAE decoding requires a core VAE")
+        if not torch.is_tensor(self.samples):
+            raise ValueError("Continuous VAE decoding requires a tensor latent")
+        if self.samples.is_nested:
+            raise ValueError("Continuous VAE decoding does not support nested latents")
+        if self.samples.layout is not torch.strided:
+            raise ValueError("Continuous VAE decoding requires a dense strided latent")
+        if self.samples.ndim == 0:
+            raise ValueError("Continuous VAE decoding requires a batched latent")
+        if self.samples.shape[0] != 1:
+            raise ValueError("Continuous VAE decoding requires one latent per request")
+        if self.vae.latent_dim == 2:
+            if self.samples.ndim != 4:
+                raise ValueError("Continuous VAE decoding requires a four-dimensional image latent")
+        elif self.vae.latent_dim == 3:
+            if self.samples.ndim != 5 or self.samples.shape[2] != 1:
+                raise ValueError("Continuous VAE decoding supports only single-frame image latents for three-dimensional VAEs")
+        else:
+            raise ValueError("Continuous VAE decoding does not support this VAE latent dimensionality")
+        if self.max_batch_size < 1:
+            raise ValueError("Continuous VAE decoding max batch size must be positive")
+        if not math.isfinite(self.admission_delay) or self.admission_delay < 0:
+            raise ValueError("Continuous VAE decoding admission delay must be finite and non-negative")
+
+    def key(self):
+        self.validate()
+        return (
+            id(self.vae),
+            id(self.vae.patcher),
+            self.vae.device,
+            self.vae.vae_dtype,
+            self.vae.output_device,
+            tuple(self.samples.shape[1:]),
+            self.samples.dtype,
+            self.samples.device,
+            self.max_batch_size,
+            self.admission_delay,
+        )
+
+    def vae_key(self):
+        return id(self.vae)
+
+    def clear(self):
+        self.vae = None
+        self.samples = None
+
+
+@dataclass
+class _QueuedVAERequest:
+    state: ContinuousVAEDecodeRequest
+    future: asyncio.Future = field(init=False)
+    cancelled: bool = False
+
+    def __post_init__(self):
+        self.future = asyncio.get_running_loop().create_future()
+
+
+class ContinuousVAECoordinator:
+    def __init__(self, vae_key, vae):
+        self.vae_key = vae_key
+        self.vae = vae
+        self.pending = []
+        self.task = None
+        self.last_batch_size = None
+
+    async def submit(self, state):
+        request = _QueuedVAERequest(state)
+        self.pending.append(request)
+        if self.task is None:
+            self.task = contextvars.Context().run(asyncio.create_task, self._run())
+        try:
+            return await request.future
+        except asyncio.CancelledError:
+            request.cancelled = True
+            raise
+
+    @staticmethod
+    def _cancel(request):
+        request.state.clear()
+        if not request.future.done():
+            request.future.set_exception(comfy.model_management.InterruptProcessingException())
+
+    @staticmethod
+    def _fail(request, error):
+        request.state.clear()
+        if not request.future.done():
+            request.future.set_exception(error)
+
+    def _drop_cancelled(self):
+        remaining = []
+        for request in self.pending:
+            if request.cancelled or _is_cancelled(request.state.prompt_id):
+                self._cancel(request)
+            else:
+                remaining.append(request)
+        self.pending = remaining
+
+    def _take_group(self, group_key, max_batch_size):
+        group = []
+        remaining = []
+        for request in self.pending:
+            if request.cancelled or _is_cancelled(request.state.prompt_id):
+                self._cancel(request)
+            elif request.state.key() == group_key and len(group) < max_batch_size:
+                group.append(request)
+            else:
+                remaining.append(request)
+        self.pending = remaining
+        return group
+
+    def _decode(self, group):
+        if len(group) == 1:
+            images = self.vae.decode(group[0].state.samples)
+        else:
+            images = self.vae.decode(torch.cat([request.state.samples for request in group]))
+        if not torch.is_tensor(images) or images.ndim < 1 or images.shape[0] != len(group):
+            raise RuntimeError("Continuous VAE decoder returned an invalid batch shape")
+        return images
+
+    def _finish_group(self, group, images):
+        for index, request in enumerate(group):
+            if request.cancelled or _is_cancelled(request.state.prompt_id):
+                self._cancel(request)
+                continue
+            output = images if len(group) == 1 else images[index:index + 1].clone()
+            request.state.clear()
+            if not request.future.done():
+                request.future.set_result(output)
+
+    async def _run(self):
+        error = None
+        try:
+            while self.pending:
+                self._drop_cancelled()
+                if not self.pending:
+                    continue
+                representative = self.pending[0]
+                group_key = representative.state.key()
+                if representative.state.admission_delay > 0:
+                    await asyncio.sleep(representative.state.admission_delay)
+                self._drop_cancelled()
+                if not any(request is representative for request in self.pending):
+                    continue
+                group = self._take_group(group_key, representative.state.max_batch_size)
+                if not group:
+                    continue
+                if len(group) != self.last_batch_size:
+                    logging.info("Continuous VAE batch size: %d", len(group))
+                    self.last_batch_size = len(group)
+                try:
+                    images = self._decode(group)
+                except Exception as decode_error:
+                    for request in group:
+                        self._fail(request, decode_error)
+                    continue
+                self._finish_group(group, images)
+        except Exception as run_error:
+            error = run_error
+        finally:
+            if error is not None:
+                for request in self.pending:
+                    self._fail(request, error)
+            else:
+                for request in self.pending:
+                    self._cancel(request)
+            self.pending.clear()
+            self.vae = None
+            if _VAE_COORDINATORS.get(self.vae_key) is self:
+                del _VAE_COORDINATORS[self.vae_key]
+            self.task = None
+
+
+async def decode_vae_continuous(state):
+    state.key()
+    vae_key = state.vae_key()
+    coordinator = _VAE_COORDINATORS.get(vae_key)
+    if coordinator is None:
+        coordinator = ContinuousVAECoordinator(vae_key, state.vae)
+        _VAE_COORDINATORS[vae_key] = coordinator
     return await coordinator.submit(state)

@@ -340,6 +340,40 @@ class VAEDecode:
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
 
+
+class ContinuousVAEDecode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "The latent to be decoded."}),
+                "vae": ("VAE", {"tooltip": "The VAE model used for decoding the latent."}),
+                "max_batch_size": ("INT", {"default": 4, "min": 1, "max": 64}),
+                "admission_delay_ms": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 1000.0, "step": 0.1}),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    OUTPUT_TOOLTIPS = ("The decoded image.",)
+    FUNCTION = "decode"
+
+    CATEGORY = "model/latent"
+    DESCRIPTION = "Continuously batches compatible core VAE decodes from independent workflows."
+
+    async def decode(self, samples, vae, max_batch_size=4, admission_delay_ms=2.0):
+        execution_context = get_executing_context()
+        state = comfy.continuous_batching.ContinuousVAEDecodeRequest(
+            vae=vae,
+            samples=samples["samples"],
+            max_batch_size=max_batch_size,
+            admission_delay=admission_delay_ms / 1000.0,
+            prompt_id=execution_context.prompt_id if execution_context is not None else None,
+        )
+        images = await comfy.continuous_batching.decode_vae_continuous(state)
+        if len(images.shape) == 5: #Combine batches
+            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        return (images, )
+
+
 class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
@@ -2139,6 +2173,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPTextEncode": CLIPTextEncode,
     "CLIPSetLastLayer": CLIPSetLastLayer,
     "VAEDecode": VAEDecode,
+    "ContinuousVAEDecode": ContinuousVAEDecode,
     "VAEEncode": VAEEncode,
     "VAEEncodeForInpaint": VAEEncodeForInpaint,
     "VAELoader": VAELoader,
@@ -2251,6 +2286,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
     "VAEDecode": "VAE Decode",
+    "ContinuousVAEDecode": "VAE Decode (Continuous)",
     "VAEEncode": "VAE Encode",
     "LatentRotate": "Rotate Latent",
     "LatentFlip": "Flip Latent",
