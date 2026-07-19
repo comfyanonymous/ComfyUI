@@ -35,7 +35,6 @@ from comfy_api_nodes.apis.gemini import (
     GeminiSystemInstructionContent,
     GeminiTextPart,
     GeminiThinkingConfig,
-    Modality,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -238,60 +237,6 @@ async def get_image_from_response(response: GeminiGenerateContentResponse, thoug
     return torch.cat(image_tensors, dim=0)
 
 
-def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | None:
-    if not response.modelVersion:
-        return None
-    # Define prices (Cost per 1,000,000 tokens), see https://cloud.google.com/vertex-ai/generative-ai/pricing
-    if response.modelVersion == "gemini-2.5-pro":
-        input_tokens_price = 1.25
-        output_text_tokens_price = 10.0
-        output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-2.5-flash":
-        input_tokens_price = 0.30
-        output_text_tokens_price = 2.50
-        output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-2.5-flash-image":
-        input_tokens_price = 0.30
-        output_text_tokens_price = 2.50
-        output_image_tokens_price = 30.0
-    elif response.modelVersion in ("gemini-3-pro-preview", "gemini-3.1-pro-preview"):
-        input_tokens_price = 2
-        output_text_tokens_price = 12.0
-        output_image_tokens_price = 0.0
-    elif response.modelVersion in ("gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"):
-        input_tokens_price = 0.25
-        output_text_tokens_price = 1.50
-        output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-3.5-flash":
-        input_tokens_price = 1.50
-        output_text_tokens_price = 9.0
-        output_image_tokens_price = 0.0
-    elif response.modelVersion in ("gemini-3-pro-image-preview", "gemini-3-pro-image"):
-        input_tokens_price = 2
-        output_text_tokens_price = 12.0
-        output_image_tokens_price = 120.0
-    elif response.modelVersion in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-image"):
-        input_tokens_price = 0.5
-        output_text_tokens_price = 3.0
-        output_image_tokens_price = 60.0
-    elif response.modelVersion == "gemini-3.1-flash-lite-image":
-        input_tokens_price = 0.25
-        output_text_tokens_price = 1.50
-        output_image_tokens_price = 30.0
-    else:
-        return None
-    final_price = response.usageMetadata.promptTokenCount * input_tokens_price
-    if response.usageMetadata.candidatesTokensDetails:
-        for i in response.usageMetadata.candidatesTokensDetails:
-            if i.modality == Modality.IMAGE:
-                final_price += output_image_tokens_price * i.tokenCount  # for Nano Banana models
-            else:
-                final_price += output_text_tokens_price * i.tokenCount
-    if response.usageMetadata.thoughtsTokenCount:
-        final_price += output_text_tokens_price * response.usageMetadata.thoughtsTokenCount
-    return final_price / 1_000_000.0
-
-
 def get_text_from_interaction(interaction: GeminiInteraction) -> str:
     """Extract and concatenate all model output text from an Interactions API response."""
     texts = []
@@ -324,24 +269,6 @@ async def get_video_from_interaction(
         "Gemini did not generate a video. Try rephrasing your prompt, "
         "shortening the requested duration, or reducing the number of input images/videos."
     )
-
-
-def calculate_interaction_tokens_price(interaction: GeminiInteraction) -> float | None:
-    if interaction.usage is None:
-        return None
-    input_tokens_price = 1.5
-    output_tokens_prices = {"text": 9.0, "video": 17.5}
-    thoughts_tokens_price = 9.0
-    final_price = 0.0
-    for i in interaction.usage.input_tokens_by_modality or []:
-        if i.tokens:
-            final_price += input_tokens_price * i.tokens
-    for i in interaction.usage.output_tokens_by_modality or []:
-        if i.tokens and i.modality in output_tokens_prices:
-            final_price += output_tokens_prices[i.modality] * i.tokens
-    if interaction.usage.total_thought_tokens:
-        final_price += thoughts_tokens_price * interaction.usage.total_thought_tokens
-    return final_price / 1_000_000.0
 
 
 def create_video_parts(video_input: Input.Video) -> list[GeminiPart]:
@@ -657,7 +584,6 @@ class GeminiNode(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
 
         output_text = get_text_from_response(response)
@@ -872,7 +798,6 @@ class GeminiNodeV2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
 
         output_text = get_text_from_response(response)
@@ -1085,7 +1010,6 @@ class GeminiImage(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
@@ -1225,7 +1149,6 @@ class GeminiImage2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
@@ -1385,7 +1308,6 @@ class GeminiNanoBanana2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(
             await get_image_from_response(response),
@@ -1610,7 +1532,6 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(
             await get_image_from_response(response),
@@ -1762,7 +1683,6 @@ class GeminiVideoOmni(IO.ComfyNode):
                 ),
             ),
             response_model=GeminiInteraction,
-            price_extractor=calculate_interaction_tokens_price,
         )
         if interaction.status != "completed":
             model_message = get_text_from_interaction(interaction).strip()

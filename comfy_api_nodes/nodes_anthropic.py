@@ -106,49 +106,6 @@ def _claude_model_inputs(model_label: str):
     return inputs
 
 
-def _model_price_per_million(model: str) -> tuple[float, float] | None:
-    """Return (input_per_1M, output_per_1M) USD for a Claude model, or None if unknown."""
-    if "fable-5" in model:
-        return 14.30, 71.50
-    if "opus-5" in model or "opus-4-8" in model:
-        return 7.15, 35.75
-    if "sonnet-5" in model:
-        return 2.86, 14.30
-    if "opus-4-7" in model or "opus-4-6" in model or "opus-4-5" in model:
-        return 5.0, 25.0
-    if "sonnet-4" in model:
-        return 3.0, 15.0
-    if "haiku-4-5" in model:
-        return 1.0, 5.0
-    return None
-
-
-def calculate_tokens_price(response: AnthropicMessagesResponse) -> float | None:
-    """Compute approximate USD price from response usage. Server-side billing is authoritative."""
-    if not response.usage or not response.model:
-        return None
-    rates = _model_price_per_million(response.model)
-    if rates is None:
-        return None
-    input_rate, output_rate = rates
-    input_tokens = response.usage.input_tokens or 0
-    output_tokens = response.usage.output_tokens or 0
-    cache_read = response.usage.cache_read_input_tokens or 0
-    cache_5m = 0
-    cache_1h = 0
-    if response.usage.cache_creation:
-        cache_5m = response.usage.cache_creation.ephemeral_5m_input_tokens or 0
-        cache_1h = response.usage.cache_creation.ephemeral_1h_input_tokens or 0
-    total = (
-        input_tokens * input_rate
-        + output_tokens * output_rate
-        + cache_read * input_rate * 0.1
-        + cache_5m * input_rate * 1.25
-        + cache_1h * input_rate * 2.0
-    )
-    return total / 1_000_000.0
-
-
 def _get_text_from_response(response: AnthropicMessagesResponse) -> str:
     if not response.content:
         return ""
@@ -344,7 +301,6 @@ class ClaudeNode(IO.ComfyNode):
                 thinking=thinking_cfg,
                 output_config=output_cfg,
             ),
-            price_extractor=calculate_tokens_price,
         )
         if response.stop_reason == "refusal":
             raise ValueError(
