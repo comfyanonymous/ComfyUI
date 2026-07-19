@@ -530,6 +530,10 @@ components:
                     description: Job creation timestamp (Unix timestamp in milliseconds)
                     format: int64
                     type: integer
+                execution_end_time:
+                    description: Workflow execution completion timestamp (Unix milliseconds, only present for terminal states)
+                    format: int64
+                    type: integer
                 execution_error:
                     allOf:
                         - $ref: '#/components/schemas/ExecutionError'
@@ -538,6 +542,10 @@ components:
                     additionalProperties: true
                     description: Node-level execution metadata (only for terminal states)
                     type: object
+                execution_start_time:
+                    description: Workflow execution start timestamp (Unix milliseconds, only present once execution has started)
+                    format: int64
+                    type: integer
                 execution_status:
                     additionalProperties: true
                     description: ComfyUI execution status and timeline (only for terminal states)
@@ -570,6 +578,12 @@ components:
                     description: Last update timestamp (Unix timestamp in milliseconds)
                     format: int64
                     type: integer
+                user_id:
+                    description: |
+                        ID of the user that owns this job (see the `workspace_id`
+                        description above for why this is always the caller's own id
+                        on a successful response).
+                    type: string
                 workflow:
                     additionalProperties: true
                     description: |
@@ -582,6 +596,18 @@ components:
                     type: object
                 workflow_id:
                     description: UUID identifying the workflow graph definition
+                    type: string
+                workspace_id:
+                    description: |
+                        ID of the workspace that owns this job. A successful (200)
+                        response from this operation is only ever returned for the
+                        caller's own job (see this operation's ownership-scoped
+                        query), so this is always the caller's own workspace —
+                        consumers that also need to correlate this job to its
+                        live-progress broadcast channel (workspace+user scoped; see
+                        the internal common/gateways/broadcast package) can use this
+                        value directly rather than resolving their own identity a
+                        second way.
                     type: string
             required:
                 - id
@@ -1565,7 +1591,13 @@ paths:
                   schema:
                     default: true
                     type: boolean
-                - description: Filter assets by exact content hash.
+                - description: |
+                    Filter assets by content hash, in the canonical `blake3:<hex>`
+                    form. Matches regardless of which of this asset store's two
+                    internal hash storage formats the matching row was written
+                    under (the canonical form used by from-hash-created references,
+                    or the raw `<hex>.<ext>`/bare `<hex>` storage key used by direct
+                    uploads) — both represent the same content hash.
                   in: query
                   name: hash
                   schema:
@@ -2464,6 +2496,23 @@ paths:
                             schema:
                                 additionalProperties: true
                                 properties:
+                                    free_tier_balance:
+                                        description: Free-tier job allowance for an authenticated non-paid (FREE-tier) user in the rollout. Absent for paid users and unauthenticated requests. Synthesized from config before a grant row exists so a brand-new user still sees their full allowance.
+                                        properties:
+                                            allowance:
+                                                description: Total free jobs granted for the current period
+                                                type: integer
+                                            remaining:
+                                                description: Free jobs remaining (allowance - used, floored at 0)
+                                                type: integer
+                                            used:
+                                                description: Free jobs consumed so far
+                                                type: integer
+                                        required:
+                                            - allowance
+                                            - used
+                                            - remaining
+                                        type: object
                                     max_upload_size:
                                         description: Maximum upload size in bytes
                                         type: integer
