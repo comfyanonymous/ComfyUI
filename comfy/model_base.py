@@ -2024,11 +2024,11 @@ class WAN22_WanDancer(WAN21):
 
         fps = kwargs.get("fps", None)
         if fps is not None:
-            out['fps'] = comfy.conds.CONDRegular(torch.FloatTensor([fps]))
+            out['fps'] = comfy.conds.CONDConstant(fps)
 
         audio_inject_scale = kwargs.get("audio_inject_scale", None)
         if audio_inject_scale is not None:
-            out['audio_inject_scale'] = comfy.conds.CONDRegular(torch.FloatTensor([audio_inject_scale]))
+            out['audio_inject_scale'] = comfy.conds.CONDConstant(audio_inject_scale)
         return out
 
 class Hunyuan3Dv2(BaseModel):
