@@ -437,7 +437,7 @@ def _send_cached_ui(server, client_id, node_id, display_node_id, cached, prompt_
     cached_ui = cached.ui or {}
     server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, client_id)
 
-async def execute(server, client_id, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
+async def execute(server, client_id, legacy_server_state, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -497,7 +497,7 @@ async def execute(server, client_id, dynprompt, caches, current_item, extra_data
             get_progress_state().start_progress(unique_id)
             input_data_all, missing_keys, v3_data = get_input_data(inputs, class_def, unique_id, execution_list, dynprompt, extra_data)
             if client_id is not None:
-                if not getattr(getattr(server, "prompt_queue", None), "cooperative", False):
+                if legacy_server_state:
                     server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, client_id)
 
@@ -667,11 +667,12 @@ async def execute(server, client_id, dynprompt, caches, current_item, extra_data
     return (ExecutionResult.SUCCESS, None, None)
 
 class PromptExecutor:
-    def __init__(self, server, cache_type=False, cache_args=None, shared_outputs=None):
+    def __init__(self, server, cache_type=False, cache_args=None, shared_outputs=None, legacy_server_state=False):
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
         self.shared_outputs = shared_outputs
+        self.legacy_server_state = legacy_server_state
         self.reset()
 
     def reset(self):
@@ -739,9 +740,10 @@ class PromptExecutor:
         cooperative = getattr(getattr(self.server, "prompt_queue", None), "cooperative", False)
         if not cooperative:
             nodes.interrupt_processing(False)
+        legacy_server_state = not cooperative or self.legacy_server_state
 
         self.client_id = extra_data.get("client_id")
-        if not cooperative:
+        if legacy_server_state:
             self.server.client_id = self.client_id
         client_id_token = set_current_client_id(self.client_id)
 
@@ -795,7 +797,7 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    result, error, ex = await execute(self.server, self.client_id, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
+                    result, error, ex = await execute(self.server, self.client_id, legacy_server_state, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -841,13 +843,15 @@ class PromptExecutor:
                     "outputs": ui_outputs,
                     "meta": meta_outputs,
                 }
-                if not cooperative:
+                if legacy_server_state:
                     self.server.last_node_id = None
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
             for cache in self.caches.all:
                 cache.release_prompt()
+            if self.legacy_server_state:
+                self.server.last_node_id = None
             if not cooperative:
                 comfy.memory_management.set_ram_cache_release_state(None, 0)
             self._notify_prompt_lifecycle("end", prompt_id)

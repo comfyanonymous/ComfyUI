@@ -627,6 +627,10 @@ class ContinuousBatchCoordinator:
                 for request, (state, finished) in zip(current, updates):
                     if request.cancelled:
                         state.clear()
+                    elif _is_cancelled(getattr(state, "prompt_id", None)):
+                        state.clear()
+                        if not request.future.done():
+                            request.future.set_exception(comfy.model_management.InterruptProcessingException())
                     elif finished:
                         finished_any = True
                         output = state.output
@@ -672,6 +676,9 @@ class ContinuousVAEDecodeRequest:
     max_batch_size: int
     admission_delay: float
     prompt_id: str | None = None
+    node_id: str | None = None
+    client_id: str | None = None
+    progress_registry: Any = None
 
     def validate(self):
         if type(self.vae) is not comfy.sd.VAE:
@@ -720,6 +727,7 @@ class ContinuousVAEDecodeRequest:
     def clear(self):
         self.vae = None
         self.samples = None
+        self.progress_registry = None
 
 
 @dataclass
@@ -786,10 +794,20 @@ class ContinuousVAECoordinator:
         return group
 
     def _decode(self, group):
-        if len(group) == 1:
-            images = self.vae.decode(group[0].state.samples)
-        else:
-            images = self.vae.decode(torch.cat([request.state.samples for request in group]))
+        representative = group[0].state
+        samples = representative.samples if len(group) == 1 else torch.cat([request.state.samples for request in group])
+        client_id_token = set_current_client_id(representative.client_id)
+        progress_token = set_progress_registry(representative.progress_registry) if representative.progress_registry is not None else None
+        try:
+            if representative.prompt_id is not None and representative.node_id is not None:
+                with CurrentNodeContext(representative.prompt_id, representative.node_id):
+                    images = self.vae.decode(samples)
+            else:
+                images = self.vae.decode(samples)
+        finally:
+            if progress_token is not None:
+                reset_progress_registry(progress_token)
+            reset_current_client_id(client_id_token)
         if not torch.is_tensor(images) or images.ndim < 1 or images.shape[0] != len(group):
             raise RuntimeError("Continuous VAE decoder returned an invalid batch shape")
         return images

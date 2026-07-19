@@ -341,8 +341,14 @@ def prompt_executor_config():
     return cache_type, {"lru": args.cache_lru, "ram": cache_ram, "ram_inactive": cache_ram_inactive}
 
 
-async def execute_prompt_async(q, server_instance, item, item_id, cache_type, cache_args, shared_outputs):
-    executor = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args=cache_args, shared_outputs=shared_outputs)
+async def execute_prompt_async(q, server_instance, item, item_id, cache_type, cache_args, shared_outputs, legacy_server_state=False):
+    executor = execution.PromptExecutor(
+        server_instance,
+        cache_type=cache_type,
+        cache_args=cache_args,
+        shared_outputs=shared_outputs,
+        legacy_server_state=legacy_server_state,
+    )
     execution_start_time = time.perf_counter()
     prompt_id = item[1]
     server_instance.last_prompt_id = prompt_id
@@ -423,6 +429,14 @@ def continuous_prompt_key(item):
             if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str) and value[0] in prompt and isinstance(value[1], (int, float)):
                 pending.append(value[0])
 
+    for node_id in dependencies:
+        node_cls = nodes.NODE_CLASS_MAPPINGS.get(prompt[node_id].get("class_type"))
+        if node_cls is None:
+            return None
+        module = getattr(node_cls, "RELATIVE_PYTHON_MODULE", None)
+        if isinstance(module, str) and (module == "custom_nodes" or module.startswith("custom_nodes.") or module == "comfy_api_nodes" or module.startswith("comfy_api_nodes.")):
+            return None
+
     sampler_ids = [node_id for node_id in dependencies if prompt[node_id].get("class_type") in comfy.continuous_batching.CONTINUOUS_SAMPLER_NODE_FAMILIES]
     if len(sampler_ids) != 1:
         return None
@@ -467,7 +481,7 @@ async def cooperative_prompt_worker(q, server_instance, max_prompts):
                         active_key = item_key
                         family = comfy.continuous_batching.CONTINUOUS_SAMPLER_NODE_FAMILIES.get(item_key[0]) if item_key is not None else None
                         group_cache_scope = comfy.text_encoders.anima_cache.begin_cache_scope(family == comfy.continuous_batching.FAMILY_ANIMA)
-                    active.add(asyncio.create_task(execute_prompt_async(q, server_instance, item, item_id, cache_type, cache_args, shared_outputs)))
+                    active.add(asyncio.create_task(execute_prompt_async(q, server_instance, item, item_id, cache_type, cache_args, shared_outputs, item_key is None)))
                     if item_key is None:
                         break
 

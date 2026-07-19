@@ -150,3 +150,104 @@ def test_continuous_prompt_key_tracks_model_graph_and_preview_method():
     first_key = main.continuous_prompt_key(_queue_item(first, ["output"], "auto"))
     assert first_key != main.continuous_prompt_key(_queue_item(first, ["output"], "none"))
     assert first_key != main.continuous_prompt_key(_queue_item(second, ["output"], "auto"))
+
+
+def test_continuous_prompt_key_rejects_custom_and_api_nodes_but_allows_core_modules(monkeypatch):
+    prompt = _continuous_prompt(["sampler"])
+    prompt["output"]["inputs"]["images"] = ["sampler", 0]
+
+    for module, expected_none in (
+        ("custom_nodes", True),
+        ("custom_nodes.extension", True),
+        ("comfy_api_nodes", True),
+        ("comfy_api_nodes.extension", True),
+        (None, False),
+        ("comfy_extras.nodes_custom_sampler", False),
+    ):
+        node_cls = type("Dependency", (), {"RELATIVE_PYTHON_MODULE": module})
+        monkeypatch.setitem(main.nodes.NODE_CLASS_MAPPINGS, "ContinuousKeyDependency", node_cls)
+        prompt["model"]["class_type"] = "ContinuousKeyDependency"
+        key = main.continuous_prompt_key(_queue_item(prompt, ["output"]))
+        assert (key is None) is expected_none
+
+    prompt["model"]["class_type"] = "MissingContinuousKeyDependency"
+    assert main.continuous_prompt_key(_queue_item(prompt, ["output"])) is None
+
+
+def test_cooperative_serial_prompt_owns_legacy_server_state(monkeypatch):
+    observed = []
+
+    class LegacyNode:
+        @classmethod
+        def INPUT_TYPES(cls):
+            return {"required": {}}
+
+        RETURN_TYPES = ()
+        FUNCTION = "run"
+
+        def run(self):
+            observed.append((server.client_id, server.last_node_id))
+            return ()
+
+    class Queue:
+        def __init__(self, item):
+            self.item = item
+            self.returned = False
+            self.cooperative = False
+
+        def set_cooperative(self, enabled):
+            self.cooperative = enabled
+
+        def is_cancelled(self, prompt_id):
+            return False
+
+        def get_if(self, predicate):
+            if not self.returned:
+                self.returned = True
+                assert predicate(self.item)
+                return self.item, 0
+            raise StopWorker()
+
+        def task_done(self, *args, **kwargs):
+            pass
+
+        def finish_cooperative_drain(self):
+            pass
+
+        def get_flags(self):
+            return {}
+
+    class Server:
+        def __init__(self, queue):
+            self.prompt_queue = queue
+            self.client_id = "stale-client"
+            self.last_node_id = "stale-node"
+            self.last_prompt_id = None
+
+        def send_sync(self, event, data, client_id):
+            pass
+
+    prompt = {"legacy": {"class_type": "LegacyServerStateProbe", "inputs": {}}}
+    queue = Queue((0, "legacy-prompt", prompt, {"client_id": "legacy-client"}, ["legacy"], {}))
+    server = Server(queue)
+    monkeypatch.setitem(main.nodes.NODE_CLASS_MAPPINGS, "LegacyServerStateProbe", LegacyNode)
+    monkeypatch.setattr(main, "prompt_executor_config", lambda: (execution.CacheType.NONE, {"lru": 0, "ram": 0, "ram_inactive": 0}))
+    monkeypatch.setattr(main.comfy.memory_management, "set_ram_cache_release_state", lambda *args: None)
+    monkeypatch.setattr(main.comfy.continuous_batching, "set_cancel_checker", lambda checker: None)
+    monkeypatch.setattr(main.comfy.model_management, "soft_empty_cache", lambda: None)
+    monkeypatch.setattr(main.hook_breaker_ac10a0, "restore_functions", lambda: None)
+    monkeypatch.setattr(main.gc, "collect", lambda: None)
+    monkeypatch.setattr(main.asset_seeder, "is_disabled", lambda: True)
+    monkeypatch.setattr(main.asset_seeder, "pause", lambda: None)
+    monkeypatch.setattr(main.asset_seeder, "resume", lambda: None)
+
+    async def run():
+        try:
+            await main.cooperative_prompt_worker(queue, server, 2)
+        except StopWorker:
+            pass
+
+    asyncio.run(run())
+    assert observed == [("legacy-client", "legacy")]
+    assert server.client_id == "legacy-client"
+    assert server.last_node_id is None

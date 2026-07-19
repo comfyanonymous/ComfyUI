@@ -9,6 +9,7 @@ import comfy.continuous_batching as continuous_batching
 import comfy.model_base
 import comfy.patcher_extension
 import comfy.supported_models
+import comfy.utils
 from comfy.continuous_batching import (
     FAMILY_ANIMA,
     FAMILY_SD15,
@@ -28,8 +29,8 @@ from comfy.continuous_batching import (
     euler_step,
 )
 from comfy_execution.graph import DynamicPrompt
-from comfy_execution.progress import ProgressRegistry, get_progress_state, reset_progress_state
-from comfy_execution.utils import CurrentNodeContext, get_current_client_id, get_executing_context, reset_current_client_id, set_current_client_id
+from comfy_execution.progress import ProgressRegistry, get_progress_state, reset_progress_registry, set_progress_registry, reset_progress_state
+from comfy_execution.utils import get_current_client_id, get_executing_context, reset_current_client_id, set_current_client_id
 
 
 class FakeState:
@@ -523,6 +524,32 @@ def test_failure_clears_requests_and_finishing_request_reloads_survivor():
     asyncio.run(residency())
 
 
+def test_cancelled_final_sampler_request_is_interrupted_without_cancelling_peer():
+    cancelled = set()
+    continuous_batching.set_cancel_checker(cancelled.__contains__)
+
+    async def run():
+        cancelled_state = FakeState("cancelled", 1)
+        cancelled_state.prompt_id = "cancelled"
+        peer_state = FakeState("peer", 1)
+        peer_state.prompt_id = "peer"
+        coordinator = ContinuousBatchCoordinator("key", cancelled_state)
+        coordinator.session = FakeSession(on_first_step=lambda: cancelled.add("cancelled"))
+        results = await asyncio.gather(
+            coordinator.submit(cancelled_state),
+            coordinator.submit(peer_state),
+            return_exceptions=True,
+        )
+        assert isinstance(results[0], comfy.model_management.InterruptProcessingException)
+        assert results[1] == "peer output"
+        assert cancelled_state.cleared and peer_state.cleared
+
+    try:
+        asyncio.run(run())
+    finally:
+        continuous_batching.set_cancel_checker(None)
+
+
 def test_continuous_vae_single_request_passes_the_original_tensor(monkeypatch):
     monkeypatch.setattr(continuous_batching.comfy.sd, "VAE", FakeVAE)
 
@@ -724,20 +751,46 @@ def test_continuous_vae_node_preserves_standard_five_dimensional_image_contract(
     asyncio.run(run())
 
 
-def test_continuous_vae_coordinator_runs_without_the_submitter_context(monkeypatch):
+def test_continuous_vae_decode_uses_representative_context_and_progress_registry(monkeypatch):
     seen = []
+    request_registry = ProgressRegistry("request", DynamicPrompt({}))
+    stale_registry = ProgressRegistry("stale", DynamicPrompt({}))
 
     class ContextVAE(FakeVAE):
         def decode(self, samples):
-            seen.append(get_executing_context())
+            context = get_executing_context()
+            seen.append((context, get_current_client_id(), get_progress_state()))
+            comfy.utils.ProgressBar(1).update(1)
             return super().decode(samples)
 
     monkeypatch.setattr(continuous_batching.comfy.sd, "VAE", ContextVAE)
+    monkeypatch.setattr(
+        comfy.utils,
+        "PROGRESS_BAR_HOOK",
+        lambda value, total, preview, node_id=None: get_progress_state().update_progress(
+            node_id or get_executing_context().node_id, value, total, preview
+        ),
+    )
 
     async def run():
         vae = ContextVAE()
-        with CurrentNodeContext("request", "decode"):
-            await decode_vae_continuous(_vae_request(vae, torch.zeros(1, 4, 2, 2)))
+        progress_token = set_progress_registry(stale_registry)
+        client_token = set_current_client_id("stale-client")
+        try:
+            state = _vae_request(vae, torch.zeros(1, 4, 2, 2), prompt_id="request")
+            state.node_id = "decode"
+            state.client_id = "request-client"
+            state.progress_registry = request_registry
+            await decode_vae_continuous(state)
+            assert state.progress_registry is None
+        finally:
+            reset_current_client_id(client_token)
+            reset_progress_registry(progress_token)
 
     asyncio.run(run())
-    assert seen == [None]
+    assert seen[0][0].prompt_id == "request"
+    assert seen[0][0].node_id == "decode"
+    assert seen[0][1] == "request-client"
+    assert seen[0][2] is request_registry
+    assert request_registry.nodes["decode"]["value"] == 1
+    assert stale_registry.nodes == {}

@@ -367,6 +367,9 @@ class ContinuousVAEDecode:
             max_batch_size=max_batch_size,
             admission_delay=admission_delay_ms / 1000.0,
             prompt_id=execution_context.prompt_id if execution_context is not None else None,
+            node_id=execution_context.node_id if execution_context is not None else None,
+            client_id=get_current_client_id(),
+            progress_registry=get_progress_state(),
         )
         images = await comfy.continuous_batching.decode_vae_continuous(state)
         if len(images.shape) == 5: #Combine batches
