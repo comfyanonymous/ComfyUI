@@ -401,8 +401,24 @@ class Gemma4Transformer(nn.Module):
         shared_global_kv = None   # KV from last non-shared global layer
 
         intermediate = None
+        all_intermediate = None
+        only_layers = None
+        if intermediate_output is not None:
+            if isinstance(intermediate_output, list):
+                all_intermediate = []
+                only_layers = set(intermediate_output)
+            elif intermediate_output == "all":
+                all_intermediate = []
+                intermediate_output = None
+            elif intermediate_output < 0:
+                intermediate_output = len(self.layers) + intermediate_output
+
         next_key_values = []
         for i, layer in enumerate(self.layers):
+            if all_intermediate is not None:
+                if only_layers is None or (i in only_layers):
+                    all_intermediate.append(x.unsqueeze(1).clone())
+
             past_kv = past_key_values[i] if past_key_values is not None and len(past_key_values) > 0 else None
 
             layer_kwargs = {}
@@ -432,7 +448,17 @@ class Gemma4Transformer(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        if len(next_key_values) > 0:
+        if all_intermediate is not None:
+            if only_layers is None or ((i + 1) in only_layers):
+                all_intermediate.append(x.unsqueeze(1).clone())
+            intermediate = torch.cat(all_intermediate, dim=1)
+
+        if intermediate is not None and final_layer_norm_intermediate and self.norm is not None:
+            intermediate = self.norm(intermediate)
+
+        # Only hand back the KV cache when caching was actually requested; SDClipModel reads
+        # outputs[2] as the pooled output.
+        if past_key_values is not None and len(next_key_values) > 0:
             return x, intermediate, next_key_values
         return x, intermediate
 
