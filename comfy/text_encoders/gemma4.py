@@ -369,7 +369,7 @@ class Gemma4Transformer(nn.Module):
             mask = mask + causal_mask if mask is not None else causal_mask
 
             # Bidirectional attention within each image soft-token block (prefill only; text/audio stay causal).
-            if getattr(self.config, "vision_bidirectional", False) and past_len == 0 and embeds_info:
+            if self.config.vision_bidirectional and past_len == 0 and embeds_info:
                 block_ids = torch.full((seq_len,), -1, dtype=torch.long, device=x.device)
                 group = 0
                 for info in embeds_info:
