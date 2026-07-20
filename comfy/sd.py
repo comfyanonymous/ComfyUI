@@ -1434,7 +1434,7 @@ class TEModel(Enum):
     GPT_OSS_20B = 33
     QWEN3VL_4B = 34
     QWEN3VL_8B = 35
-    GEMMA_4_12B = 34
+    GEMMA_4_12B = 36
 
 
 def detect_te_model(sd):
