@@ -449,9 +449,10 @@ class Gemma4Transformer(nn.Module):
             x = self.norm(x)
 
         if all_intermediate is not None:
-            if only_layers is None or ((i + 1) in only_layers):
+            if only_layers is None or (len(self.layers) in only_layers):
                 all_intermediate.append(x.unsqueeze(1).clone())
-            intermediate = torch.cat(all_intermediate, dim=1)
+            if len(all_intermediate) > 0:
+                intermediate = torch.cat(all_intermediate, dim=1)
 
         if intermediate is not None and final_layer_norm_intermediate and self.norm is not None:
             intermediate = self.norm(intermediate)
