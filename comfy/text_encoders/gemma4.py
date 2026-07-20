@@ -9,6 +9,7 @@ import math
 
 from comfy import sd1_clip
 import comfy.model_management
+import comfy.ops
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy.rmsnorm import rms_norm
 from comfy.text_encoders.llama import RMSNorm, MLP, BaseLlama, BaseGenerate, _make_scaled_embedding
@@ -239,7 +240,7 @@ class TransformerBlockGemma4(nn.Module):
             self.post_per_layer_input_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, device=device, dtype=dtype)
 
         # layer_scalar exists on every gemma4 variant, independent of per-layer input
-        self.register_buffer("layer_scalar", torch.ones(1, device=device, dtype=dtype))
+        self.register_buffer("layer_scalar", torch.empty(1, device=device, dtype=dtype))
 
     def forward(self, x, attention_mask=None, freqs_cis=None, past_key_value=None, per_layer_input=None, shared_kv=None):
         sliding_window = None
@@ -278,8 +279,7 @@ class TransformerBlockGemma4(nn.Module):
             x = self.post_per_layer_input_norm(x)
             x = residual + x
 
-        if self.layer_scalar is not None:
-            x = x * comfy.model_management.cast_to_device(self.layer_scalar, x.device, x.dtype)
+        x = x * comfy.ops.cast_to_input(self.layer_scalar, x)
 
         return x, present_key_value, shareable_kv
 
@@ -799,10 +799,10 @@ def _patches_merge(patches, positions_xy, length):
     merged = merged.reshape(*batch, length, k, k, patch_size, patch_size, 3)
     merged = merged.permute(*range(len(batch)), -6, -5, -3, -4, -2, -1).reshape(*batch, length, (k * patch_size) ** 2 * 3)
 
-    pos = positions_xy.float().gather(-2, perm.unsqueeze(-1).expand_as(positions_xy).long())
+    pos = positions_xy.gather(-2, perm.unsqueeze(-1).expand_as(positions_xy))
     pad = (positions_xy == -1).all(dim=-1, keepdim=True)
-    pos = torch.where(pad, positions_xy.float(), pos).reshape(*batch, length, k * k, 2)
-    pos = torch.div(pos, k, rounding_mode="floor").min(dim=-2)[0].to(torch.long)
+    pos = torch.where(pad, positions_xy, pos).reshape(*batch, length, k * k, 2)
+    pos = torch.div(pos, k, rounding_mode="floor").min(dim=-2)[0]
     return merged, pos
 
 
