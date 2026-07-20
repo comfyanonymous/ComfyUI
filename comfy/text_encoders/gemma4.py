@@ -62,6 +62,7 @@ class Gemma4Config:
     num_kv_shared_layers: int = 18
     use_double_wide_mlp: bool = False
     stop_tokens = [1, 50, 106]
+    suppress_tokens = []
     vision_config = GEMMA4_VISION_CONFIG
     audio_config = GEMMA4_AUDIO_CONFIG
     mm_tokens_per_image = 280
@@ -105,6 +106,7 @@ class Gemma4_12B_Config(Gemma4Config):
     num_kv_shared_layers: int = 0
     audio_config = GEMMA4_UNIFIED_AUDIO_CONFIG
     vision_config = GEMMA4_UNIFIED_VISION_CONFIG
+    suppress_tokens = [258883, 258882]
 
 
 # unfused RoPE as addcmul_ RoPE diverges from reference code
@@ -406,7 +408,7 @@ class Gemma4Transformer(nn.Module):
         if intermediate_output is not None:
             if isinstance(intermediate_output, list):
                 all_intermediate = []
-                only_layers = set(intermediate_output)
+                only_layers = {len(self.layers) + layer if layer < 0 else layer for layer in intermediate_output}
             elif intermediate_output == "all":
                 all_intermediate = []
                 intermediate_output = None
@@ -478,6 +480,8 @@ class Gemma4Base(BaseLlama, BaseGenerate, torch.nn.Module):
         cap = self.model.config.final_logit_softcapping
         if cap:
             logits = cap * torch.tanh(logits / cap)
+        if self.model.config.suppress_tokens:
+            logits[..., self.model.config.suppress_tokens] = torch.finfo(logits.dtype).min
         return logits
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
@@ -1153,6 +1157,30 @@ class Gemma4AudioProjector(Gemma4RMSNormProjector):
 
 # Tokenizer and Wrappers
 
+def _get_aspect_ratio_preserving_size(height, width, patch_size, max_patches, pooling_kernel_size):
+    target_px = max_patches * patch_size ** 2
+    factor = math.sqrt(target_px / (height * width))
+    side_mult = pooling_kernel_size * patch_size
+    target_height = math.floor(factor * height / side_mult) * side_mult
+    target_width = math.floor(factor * width / side_mult) * side_mult
+
+    if target_height == 0 and target_width == 0:
+        raise ValueError(f"Attempting to resize to a 0 x 0 image. Resized height should be divisible by {side_mult}.")
+
+    max_side_length = (max_patches // pooling_kernel_size ** 2) * side_mult
+    if target_height == 0:
+        target_height = side_mult
+        target_width = min(math.floor(width / height) * side_mult, max_side_length)
+    elif target_width == 0:
+        target_width = side_mult
+        target_height = min(math.floor(height / width) * side_mult, max_side_length)
+
+    if target_height * target_width > target_px:
+        raise ValueError(f"Resizing [{height}x{width}] to [{target_height}x{target_width}] exceeds the patch budget.")
+
+    return target_height, target_width
+
+
 class Gemma4_Tokenizer():
     tokenizer_json_data = None
 
@@ -1263,11 +1291,7 @@ class Gemma4_Tokenizer():
             pooling_k = 3
             max_soft_tokens = kwargs.get("max_soft_tokens", 70 if is_video else 280)
             max_patches = max_soft_tokens * pooling_k * pooling_k
-            target_px = max_patches * patch_size * patch_size
-            factor = (target_px / (h * w)) ** 0.5
-            side_mult = pooling_k * patch_size
-            target_h = max(int(factor * h // side_mult) * side_mult, side_mult)
-            target_w = max(int(factor * w // side_mult) * side_mult, side_mult)
+            target_h, target_w = _get_aspect_ratio_preserving_size(h, w, patch_size, max_patches, pooling_k)
 
             for i in range(num_frames):
                 # rescaling to match reference code
