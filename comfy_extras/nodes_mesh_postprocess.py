@@ -2331,7 +2331,7 @@ class RemeshMesh(IO.ComfyNode):
                              tooltip="Taubin smoothing iterations (0 = off). 2-3 cleans DC staircase-like artifacts; higher over-smooth QEF edges."),
                 IO.Float.Input("drop_small_components", default=0.01, min=0.0, max=0.5, step=0.005, advanced=True,
                                tooltip="Drop components below this fraction of the largest's face count. 0 disables."),
-                IO.Int.Input("precluster_max_verts", default=8_000_000, min=0, max=50_000_000, advanced=True,
+                IO.Int.Input("precluster_max_verts", default=20_000_000, min=0, max=100_000_000, advanced=True,
                              tooltip="Cap input vertex count before the field queries, inputs above this are cluster-decimated to it first. Prevents OOM on huge meshes."),
             ],
             outputs=[IO.Mesh.Output("mesh")],
