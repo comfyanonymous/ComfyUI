@@ -564,7 +564,7 @@ class ContinuousBatchCoordinator:
         request = _QueuedRequest(state)
         self.pending.append(request)
         if self.task is None:
-            self.task = asyncio.create_task(self._run())
+            self.task = contextvars.Context().run(asyncio.create_task, self._run())
         try:
             return await request.future
         except asyncio.CancelledError:

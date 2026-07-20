@@ -186,10 +186,14 @@ class WebUIProgressHandler(ProgressHandler):
             if state["state"] != NodeState.Pending
         }
 
+        client_id = self._client_id()
+        if client_id is None:
+            return
+
         # Send a combined progress_state message with all node states
         # Include client_id to ensure message is only sent to the initiating client
         self.server_instance.send_sync(
-            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}, self._client_id()
+            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}, client_id
         )
 
     @override

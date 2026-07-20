@@ -472,6 +472,34 @@ def test_callback_uses_request_progress_and_routing_context():
         reset_current_client_id(client_token)
 
 
+def test_sampler_worker_does_not_inherit_submitter_context():
+    seen = []
+
+    class ContextSession(FakeSession):
+        def step(self, states):
+            seen.append((get_current_client_id(), get_progress_state()))
+            return super().step(states)
+
+    async def run():
+        state = FakeState("request", 1)
+        coordinator = ContinuousBatchCoordinator("key", state)
+        coordinator.session = ContextSession()
+        submitter_registry = ProgressRegistry("submitter", DynamicPrompt({}))
+        progress_token = set_progress_registry(submitter_registry)
+        client_token = set_current_client_id("submitter-client")
+        try:
+            assert await coordinator.submit(state) == "request output"
+        finally:
+            reset_current_client_id(client_token)
+            reset_progress_registry(progress_token)
+
+        assert seen[0][0] is None
+        assert seen[0][1] is not submitter_registry
+        assert seen[0][1].prompt_id == ""
+
+    asyncio.run(run())
+
+
 def test_admits_at_step_boundaries_and_retires_finished_requests():
     async def run():
         first = FakeState("first", 3)

@@ -850,7 +850,7 @@ class PromptExecutor:
         finally:
             for cache in self.caches.all:
                 cache.release_prompt()
-            if self.legacy_server_state:
+            if legacy_server_state:
                 self.server.last_node_id = None
             if not cooperative:
                 comfy.memory_management.set_ram_cache_release_state(None, 0)

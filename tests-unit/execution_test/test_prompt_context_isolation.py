@@ -77,11 +77,11 @@ def test_webui_progress_handler_uses_prompt_client_id():
     assert [message[2] for message in server.messages] == ["first-client", "second-client"]
 
 
-def test_explicit_anonymous_client_does_not_fall_back_to_stale_server_client():
+def test_explicit_anonymous_client_does_not_broadcast_progress():
     server = Server()
     handler = WebUIProgressHandler(server, None)
     handler._send_progress_state("anonymous", {})
-    assert server.messages[0][2] is None
+    assert server.messages == []
 
     assert not has_current_client_id()
     token = set_current_client_id(None)
@@ -90,6 +90,15 @@ def test_explicit_anonymous_client_does_not_fall_back_to_stale_server_client():
         assert get_current_client_id() is None
     finally:
         reset_current_client_id(token)
+
+
+def test_legacy_webui_progress_handler_uses_server_client_id():
+    server = Server()
+    handler = WebUIProgressHandler(server)
+
+    handler._send_progress_state("legacy", {})
+
+    assert [message[2] for message in server.messages] == ["shared-server-value"]
 
 
 def test_shared_cache_uses_task_local_prompt_signatures():
@@ -260,3 +269,41 @@ def test_serial_prompt_executor_still_owns_inference_mode():
         del nodes.NODE_CLASS_MAPPINGS["InferenceModeSerialProbe"]
     assert observations == [True]
     assert not torch.is_inference_mode_enabled()
+
+
+def test_classic_executor_clears_last_node_id_when_cancelled():
+    started = asyncio.Event()
+
+    class WaitForCancellation:
+        @classmethod
+        def INPUT_TYPES(cls):
+            return {"required": {}}
+
+        RETURN_TYPES = ()
+        FUNCTION = "run"
+
+        async def run(self):
+            started.set()
+            await asyncio.Event().wait()
+
+    async def run():
+        server = Server()
+        executor = PromptExecutor(server, cache_args={"lru": 0, "ram": 0, "ram_inactive": 0})
+        prompt = {"probe": {"class_type": "ClassicCancellationProbe", "inputs": {}}}
+        task = asyncio.create_task(executor.execute_async(prompt, "classic", {"client_id": "client"}, ["probe"]))
+        await started.wait()
+        assert server.last_node_id == "probe"
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        else:
+            assert False, "Cancelling the executor task must raise CancelledError"
+        assert server.last_node_id is None
+
+    nodes.NODE_CLASS_MAPPINGS["ClassicCancellationProbe"] = WaitForCancellation
+    try:
+        asyncio.run(run())
+    finally:
+        del nodes.NODE_CLASS_MAPPINGS["ClassicCancellationProbe"]
