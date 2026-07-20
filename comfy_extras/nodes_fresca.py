@@ -10,7 +10,7 @@ def Fourier_filter(x, scale_low=1.0, scale_high=1.5, freq_cutoff=20):
     Apply frequency-dependent scaling to an image tensor using Fourier transforms.
 
     Parameters:
-        x:           Input tensor of shape (B, C, H, W)
+        x:           Input tensor of shape (..., H, W)
         scale_low:   Scaling factor for low-frequency components (default: 1.0)
         scale_high:  Scaling factor for high-frequency components (default: 1.5)
         freq_cutoff: Number of frequency indices around center to consider as low-frequency (default: 20)
