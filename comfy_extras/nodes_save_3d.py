@@ -719,10 +719,19 @@ class RotateMesh(IO.ComfyNode):
             out.vertices = [rotate(v) for v in mesh.vertices]
         else:
             out.vertices = rotate(mesh.vertices)
-        # Normals are directions; rotate them too (R is orthogonal) so they stay valid.
+        # Normals are directions, rotate them too (R is orthogonal).
         nrm = mesh.normals
         if nrm is not None:
             out.normals = [rotate(n) for n in nrm] if isinstance(nrm, list) else rotate(nrm)
+        # Tangents (xyz + handedness w) are directions too: rotate xyz, keep w
+        tng = mesh.tangents
+        if tng is not None:
+            def rotate_tangent(t: torch.Tensor) -> torch.Tensor:
+                rt = t.clone()
+                rt[..., :3] = rotate(t[..., :3])
+                return rt
+            out.tangents = ([rotate_tangent(t) for t in tng] if isinstance(tng, list)
+                            else rotate_tangent(tng))
         return IO.NodeOutput(out)
 
 

@@ -665,35 +665,6 @@ class SparseTensor(VarLenTensor):
             spatial_cache=dict(self._spatial_cache),
         )
 
-    def __merge_sparse_cache(self, other: 'SparseTensor') -> dict:
-        new_cache = {}
-        for k in set(list(self._spatial_cache.keys()) + list(other._spatial_cache.keys())):
-            if k in self._spatial_cache:
-                new_cache[k] = self._spatial_cache[k]
-            if k in other._spatial_cache:
-                if k not in new_cache:
-                    new_cache[k] = other._spatial_cache[k]
-                else:
-                    new_cache[k].update(other._spatial_cache[k])
-        return new_cache
-
-    def __elemwise__(self, other: Union[torch.Tensor, VarLenTensor], op: callable) -> 'SparseTensor':
-        if isinstance(other, torch.Tensor):
-            # Try per-batch [B, C] -> per-voxel [N, C] broadcast. RuntimeError
-            # fires for incompatible shapes; fall through and let op() handle.
-            try:
-                other = torch.broadcast_to(other, self.shape)
-                other = other[self.batch_boardcast_map]
-            except RuntimeError:
-                pass
-        if isinstance(other, VarLenTensor):
-            other = other.feats
-        new_feats = op(self.feats, other)
-        new_tensor = self.replace(new_feats)
-        if isinstance(other, SparseTensor):
-            new_tensor._spatial_cache = self.__merge_sparse_cache(other)
-        return new_tensor
-
     def __getitem__(self, idx):
         if isinstance(idx, int):
             idx = [idx]

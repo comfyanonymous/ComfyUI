@@ -120,7 +120,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         has_tex = tex_key in state_dict_keys
         unet_config = {
             "image_model": "trellis2",
-            "resolution": 32 if (metadata is not None and "is_512" in metadata) else 64,
+            "resolution": 32 if (metadata or {}).get("is_512") else 64,
             "init_txt_model": has_tex,
             "txt_only": has_tex and not has_shape,
         }

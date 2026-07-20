@@ -34,13 +34,13 @@ def paint_mesh_with_voxels(mesh, voxel_coords, voxel_colors, resolution):
     verts = mesh.vertices.to(device).squeeze(0)
     voxel_colors = voxel_colors.to(device)
 
-    voxel_pos_np = voxel_pos.numpy()
-    verts_np = verts.numpy()
+    voxel_pos_np = voxel_pos.cpu().numpy()
+    verts_np = verts.cpu().numpy()
 
     tree = cKDTree(voxel_pos_np)
     _, nearest_idx_np = tree.query(verts_np, k=1, workers=-1)
 
-    nearest_idx = torch.from_numpy(nearest_idx_np).long()
+    nearest_idx = torch.from_numpy(nearest_idx_np).long().to(voxel_colors.device)
     v_colors = voxel_colors[nearest_idx]
     # Voxel field may carry full PBR; vertex colors use only base_color RGB.
     if v_colors.shape[-1] > 3:
@@ -2315,7 +2315,7 @@ class RemeshMesh(IO.ComfyNode):
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
-                IO.Int.Input("resolution", default=512, min=32, max=1024,
+                IO.Int.Input("resolution", default=512, min=32, max=2048,
                              tooltip="Voxel grid resolution (output density). 256 ~ 100k faces, 512 ~ 1M. "
                                      "For an exact face count, follow with Decimate Mesh."),
                 IO.DynamicCombo.Input("sign_mode", options=sign_mode_options, display_name="sign_mode",
@@ -2926,14 +2926,14 @@ class FillHoles(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mesh, max_perimeter, weld_epsilon_rel, max_verts, fill_chains):
+    def execute(cls, mesh, max_perimeter, weld_epsilon_rel, max_vertices, fill_chains):
         def _fn(v, f, c):
             if max_perimeter > 0:
                 v, f, c = fill_holes_v2_fn(
                     v, f, max_perimeter=max_perimeter, colors=c,
                     weld_epsilon_rel=weld_epsilon_rel,
                     fill_chains=fill_chains,
-                    max_verts=max_verts,
+                    max_verts=max_vertices,
                 )
             return v, f, c
         return _process_mesh_batch(mesh, _fn)

@@ -283,9 +283,7 @@ class Trellis2UpsampleStage(IO.ComfyNode):
     """Cascade-upsamples a 512-resolution shape latent into high-resolution
     sparse coords and sets up the second shape-stage sampling pass at the
     target resolution, attaching per-stage metadata to the conditioning for
-    the model to consume via extra_conds. target_resolution is reduced in
-    128-step decrements until the unique upsampled coord count fits under
-    max_tokens (floor 1024)."""
+    the model to consume via extra_conds."""
     @classmethod
     def define_schema(cls):
         return IO.Schema(
@@ -297,12 +295,8 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                 IO.Conditioning.Input("negative"),
                 IO.Latent.Input("shape_latent", tooltip="The 512-resolution shape latent output from the first shape-stage KSampler."),
                 IO.Vae.Input("vae"),
-                IO.Combo.Input("target_resolution", options=["1024", "1536"], default="1024", tooltip="Controls output detail level for upsampling."),
-                IO.Int.Input("max_tokens", default=49152, min=1024, max=100000,
-                             tooltip=(
-                                "Maximum number of output elements (coordinates) allowed after upsampling. "
-                                "Used to limit memory usage and control mesh density."
-                            )),
+                IO.Int.Input("target_resolution", default=1024, min=1024, max=2048, step=128,
+                             tooltip="Voxel resolution of the upsampled shape. Higher = more detail, more VRAM."),
             ],
             outputs=[
                 IO.Conditioning.Output(display_name="positive"),
@@ -326,14 +320,13 @@ class Trellis2UpsampleStage(IO.ComfyNode):
         return quant.unique(dim=0)
 
     @classmethod
-    def execute(cls, positive, negative, shape_latent, vae, target_resolution, max_tokens):
+    def execute(cls, positive, negative, shape_latent, vae, target_resolution):
         device = comfy.model_management.get_torch_device()
         vae.prepare_decode(shape_latent["samples"].shape)
 
         coord_counts = shape_latent.get("coord_counts")
         shape_vae = vae.first_stage_model
         lr_resolution = 512
-        target_resolution = int(target_resolution)
         proj_pack = _proj_pack_from_conditioning(positive)
         pixal3d_mode = proj_pack is not None
 
@@ -356,28 +349,11 @@ class Trellis2UpsampleStage(IO.ComfyNode):
                 slat_i = shape_norm(feats_i.to(device), coords_i)
                 sample_hr_coords.append(shape_vae.upsample_shape(slat_i.to(vae.vae_dtype), upsample_times=4))
 
-        # Resolution search — cache the final iteration's quantized unique tensors
-        # so we don't recompute .unique() per sample after picking hr_resolution.
         hr_resolution = target_resolution
-        quant_unique_list = []
-        while True:
-            quant_unique_list = []
-            exceeds_limit = False
-            for hr_coords_i in sample_hr_coords:
-                qu = cls._quantize_unique(hr_coords_i, lr_resolution, hr_resolution, pixal3d_mode)
-                quant_unique_list.append(qu)
-                if qu.shape[0] >= max_tokens:
-                    exceeds_limit = True
-                    break
-            if not exceeds_limit:
-                break
-            if hr_resolution <= 1024:
-                for k in range(len(quant_unique_list), len(sample_hr_coords)):
-                    quant_unique_list.append(
-                        cls._quantize_unique(sample_hr_coords[k], lr_resolution, hr_resolution, pixal3d_mode)
-                    )
-                break
-            hr_resolution -= 128
+        quant_unique_list = [
+            cls._quantize_unique(hr_coords_i, lr_resolution, hr_resolution, pixal3d_mode)
+            for hr_coords_i in sample_hr_coords
+        ]
 
         # Rewrite batch column to match per-sample offset and concat.
         per_sample_counts = []
