@@ -28,15 +28,17 @@ from comfy.ldm.hunyuan3d.paint import render as R  # noqa: E402
 # Rasterizer
 # --------------------------------------------------------------------------- #
 def test_rasterize_known_triangle_to_known_pixels():
-    # NDC triangle -> screen triangle (0,4),(4,4),(0,0): covers pixels where col <= row.
+    # NDC triangle -> screen triangle (0,0),(4,0),(0,4): row grows with NDC +y (no
+    # top/bottom flip, matching Tencent's custom_rasterizer pixel convention), so this
+    # covers pixels where col + row <= ~4 (dense near row 0, tapering by row 3).
     verts = torch.tensor([[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]])
     faces = torch.tensor([[0, 1, 2]])
     face_id, bary = R.rasterize(verts, faces, 4, 4)
     expected = torch.tensor([
-        [0, -1, -1, -1],
-        [0, 0, -1, -1],
-        [0, 0, 0, -1],
         [0, 0, 0, 0],
+        [0, 0, 0, -1],
+        [0, 0, -1, -1],
+        [0, -1, -1, -1],
     ])
     assert torch.equal(face_id, expected)
     # barycentric weights of covered pixels sum to 1
