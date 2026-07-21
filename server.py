@@ -4,6 +4,9 @@ import sys
 import asyncio
 import traceback
 import time
+import hashlib
+import shutil
+import subprocess
 
 import nodes
 import folder_paths
@@ -110,19 +113,18 @@ def _make_playable_proxy(path):
     if _video_codec_name(path) in _BROWSER_VIDEO_CODECS:
         _playable_proxy_cache[key] = (path, st.st_mtime_ns, st.st_size)
         return path
-    import shutil
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return path
-    import hashlib
-    import subprocess
     digest = hashlib.sha1(
         f"{key}:{st.st_mtime_ns}:{st.st_size}".encode()).hexdigest()[:16]
     proxy_dir = os.path.join(folder_paths.get_temp_directory(), "playable_proxies")
     os.makedirs(proxy_dir, exist_ok=True)
     proxy = os.path.join(proxy_dir, digest + ".mp4")
     if not os.path.isfile(proxy):
-        tmp = proxy + ".tmp.mp4"
+        # Unique temp per call so concurrent requests for the same clip don't
+        # write the same file; os.replace then atomically publishes the proxy.
+        tmp = proxy + f".{uuid.uuid4().hex}.tmp.mp4"
         # H.264 High / yuv420p is the universally browser-decodable combo;
         # faststart moves the moov atom up so playback can start while streaming.
         cmd = [ffmpeg, "-v", "error", "-y", "-i", path,
