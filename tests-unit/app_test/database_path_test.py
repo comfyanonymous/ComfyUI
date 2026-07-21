@@ -76,6 +76,25 @@ def test_legacy_default_database_is_copied_to_effective_user_directory(monkeypat
     assert legacy_db.with_suffix(".db.bak").read_bytes() == b"legacy db"
 
 
+def test_legacy_copy_skipped_when_backup_already_exists(monkeypatch, tmp_path):
+    legacy_db = tmp_path / "install" / "user" / "comfyui.db"
+    backup_db = tmp_path / "install" / "user" / "comfyui.db.bak"
+    user_db = tmp_path / "custom_user" / "comfyui.db"
+    legacy_db.parent.mkdir(parents=True)
+    user_db.parent.mkdir(parents=True)
+    legacy_db.write_bytes(b"live db")
+    backup_db.write_bytes(b"old backup")
+
+    monkeypatch.setattr(db.args, "database_url", None)
+    monkeypatch.setattr(db, "get_legacy_default_db_path", lambda: str(legacy_db))
+
+    db.copy_legacy_default_db(str(user_db))
+
+    assert not user_db.exists()
+    assert legacy_db.read_bytes() == b"live db"
+    assert backup_db.read_bytes() == b"old backup"
+
+
 def test_legacy_default_database_does_not_overwrite_existing_effective_db(monkeypatch, tmp_path):
     legacy_db = tmp_path / "install" / "user" / "comfyui.db"
     user_db = tmp_path / "custom_user" / "comfyui.db"

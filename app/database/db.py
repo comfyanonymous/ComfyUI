@@ -98,10 +98,14 @@ def copy_legacy_default_db(db_path):
     if os.path.exists(db_path) or not os.path.exists(legacy_db_path):
         return
 
-    shutil.copy(legacy_db_path, db_path)
-    os.replace(legacy_db_path, legacy_db_path + ".bak")
+    backup_path = legacy_db_path + ".bak"
+    if os.path.exists(backup_path):
+        return
+
+    os.replace(legacy_db_path, backup_path)
+    shutil.copy(backup_path, db_path)
     logging.info(
-        f"Copied legacy database from '{legacy_db_path}' to '{db_path}' and renamed the original to '{legacy_db_path}.bak'"
+        f"Renamed legacy database '{legacy_db_path}' to '{backup_path}' and copied it to '{db_path}'"
     )
 
 
