@@ -183,7 +183,10 @@ def get_key_weight(model, key):
         except AttributeError:
             pass
 
-        weight = getattr(op, op_keys[1])
+        try:
+            weight = getattr(op, op_keys[1])
+        except AttributeError:
+            return (None, None, None)
         if convert_func is not None:
             weight = comfy.utils.get_attr(model, key)
 
@@ -820,6 +823,8 @@ class ModelPatcher:
             bk = self.backup.get(k, None)
             hbk = self.hook_backup.get(k, None)
             weight, set_func, convert_func = get_key_weight(self.model, k)
+            if weight is None:
+                continue
             if bk is not None:
                 weight = bk.weight
             if hbk is not None:
