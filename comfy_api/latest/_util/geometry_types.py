@@ -34,6 +34,7 @@ class MESH:
                  uvs: torch.Tensor | None = None,
                  vertex_colors: torch.Tensor | None = None,
                  texture: torch.Tensor | None = None,
+                 texture_mr: torch.Tensor | None = None,
                  vertex_counts: torch.Tensor | None = None,
                  face_counts: torch.Tensor | None = None,
                  unlit: bool = False):
@@ -44,7 +45,9 @@ class MESH:
         self.faces = faces                  # faces: (B, M, 3)
         self.uvs = uvs                      # uvs: (B, N, 2)
         self.vertex_colors = vertex_colors  # vertex_colors: (B, N, 3 or 4)
-        self.texture = texture              # texture: (B, H, W, 3)
+        self.texture = texture              # texture: (B, H, W, 3) baseColor
+        # Optional glTF-packed metallic-roughness texture (B, H, W, 3): G=roughness, B=metallic.
+        self.texture_mr = texture_mr
         # When vertices/faces are zero-padded to a common N/M across the batch (variable-size mesh batch),
         # these hold the real per-item lengths (B,). None means rows are uniform and no slicing is needed.
         self.vertex_counts = vertex_counts
