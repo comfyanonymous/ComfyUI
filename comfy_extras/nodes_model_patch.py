@@ -289,7 +289,7 @@ class ModelPatchLoader:
                     dim=dim,
                     ffn_dim=sd["controlnet_blocks.0.ffn.0.bias"].shape[0],
                     num_layers=num_layers,
-                    time_embed_dim=conv_out_dim,
+                    time_embed_dim=sd["controlnet_blocks.0.norm1.linear.weight"].shape[1],
                     out_proj_dim=sd["proj_out.0.weight"].shape[0],
                     add_channels=sd["controlnet_mask_embedding.mask_proj.0.weight"].shape[1],
                     mid_channels=sd["controlnet_mask_embedding.mask_proj.0.weight"].shape[0],
@@ -669,9 +669,6 @@ class WanUni3CCnetPatch:
                 if temb.ndim == 3:
                     temb = temb[:, 0]
                 model = self.model_patch.model
-                cnet_dim = model.controlnet_blocks[0].norm1.linear.in_features
-                if temb.shape[-1] != cnet_dim:
-                    raise RuntimeError("This Uni3C controlnet expects a Wan model with dim {}, the loaded model has dim {}".format(cnet_dim, temb.shape[-1]))
                 controlnet_input = self.build_controlnet_input(x, img.dtype, samples_per_cond)
                 hidden, freqs = model.process_input(controlnet_input)
                 self.temp_data = (hidden, temb.to(img.dtype), freqs)
@@ -721,6 +718,13 @@ class WanUni3CControlnetApply:
     CATEGORY = "model/patch/wan"
 
     def apply_patch(self, model, model_patch, vae, render_video, strength, start_percent, end_percent):
+        cnet_dim = model_patch.model.controlnet_blocks[0].norm1.linear.in_features
+        model_dim = getattr(model.get_model_object("diffusion_model"), "dim", None)
+        if model_dim is None:
+            raise ValueError("The Uni3C ControlNet only works with Wan models.")
+        if model_dim != cnet_dim:
+            raise ValueError("This Uni3C ControlNet expects a Wan model with dim {}, the loaded model has dim {}.".format(cnet_dim, model_dim))
+
         model_patched = model.clone()
         model_sampling = model.get_model_object("model_sampling")
         sigma_start = model_sampling.percent_to_sigma(start_percent)
