@@ -304,7 +304,7 @@ def render_geometry_maps(vertices, faces, cameras, resolution=512, scale_factor=
     """
     device = vertices.device
     vtx = normalize_mesh(vertices, scale_factor) if normalize else vertices.to(torch.float32)
-    faces = faces.long()
+    faces = faces.long().to(device)
     fn = face_normals(vtx, faces)  # object-space flat normals
     tex_position = 0.5 - vtx / scale_factor
 
@@ -414,7 +414,9 @@ def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
     """
     device = vertices.device
     vtx = normalize_mesh(vertices, scale_factor) if normalize else vertices.to(torch.float32)
-    faces = faces.long()
+    faces = faces.long().to(device)
+    uvs = uvs.to(device=device, dtype=torch.float32)
+    views = views.to(device)
     V, vh, vw, C = views.shape
     T = int(texture_size)
     cos_thresh = math.cos(math.radians(cos_thresh_deg))
@@ -422,7 +424,6 @@ def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
     proj = orthographic_matrix(cameras.ortho_scale, cameras.near, cameras.far, device=device)
     color_acc = torch.zeros((T * T, C), dtype=torch.float32, device=device)
     weight_acc = torch.zeros((T * T, 1), dtype=torch.float32, device=device)
-    uvs = uvs.to(torch.float32)
 
     for vi in range(V):
         elev, azim = cameras.elevs[vi], cameras.azims[vi]
