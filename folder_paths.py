@@ -321,6 +321,38 @@ def is_within_directory(directory: str, target: str) -> bool:
         return False
 
 
+def _trusted_media_directories() -> tuple[str, ...]:
+    """Directories users are allowed to load media from via annotated paths."""
+    return (get_input_directory(), get_output_directory(), get_temp_directory())
+
+
+def is_safe_annotated_filepath(base_dir: str, filepath: str) -> bool:
+    """Validate an annotated media path, allowing symlinks into trusted dirs.
+
+    The path entry itself (its parent after resolving intermediate components)
+    must live under `base_dir`, so `../` traversal still fails. The ultimate
+    realpath target may be any of input/output/temp so that e.g.
+    `input/link.png -> ../temp/image.png` works for Load Image (#14990), while
+    symlinks that escape outside those media roots remain rejected.
+    """
+    try:
+        base = os.path.realpath(base_dir)
+        parent = os.path.realpath(os.path.dirname(filepath))
+        if os.path.commonpath((base, parent)) != base:
+            return False
+        target = os.path.realpath(filepath)
+        for media_dir in _trusted_media_directories():
+            try:
+                root = os.path.realpath(media_dir)
+                if os.path.commonpath((root, target)) == root:
+                    return True
+            except ValueError:
+                continue
+        return False
+    except ValueError:
+        return False
+
+
 def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
     name, base_dir = annotated_filepath(name)
 
@@ -331,9 +363,9 @@ def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
             base_dir = get_input_directory()  # fallback path
 
     filepath = os.path.abspath(os.path.join(base_dir, name))
-    # Prevent path traversal: the resolved path must stay within base_dir.
+    # Prevent path traversal / escape outside trusted media roots.
     # repr() the name in the message so a crafted value can't inject log lines.
-    if not is_within_directory(base_dir, filepath):
+    if not is_safe_annotated_filepath(base_dir, filepath):
         raise ValueError("Invalid file path: {!r}".format(name))
     return filepath
 
@@ -345,8 +377,8 @@ def exists_annotated_filepath(name) -> bool:
         base_dir = get_input_directory()  # fallback path
 
     filepath = os.path.abspath(os.path.join(base_dir, name))
-    # Treat traversal attempts as non-existent rather than probing the filesystem.
-    if not is_within_directory(base_dir, filepath):
+    # Treat traversal / unsafe symlink targets as non-existent.
+    if not is_safe_annotated_filepath(base_dir, filepath):
         return False
     return os.path.exists(filepath)
 
