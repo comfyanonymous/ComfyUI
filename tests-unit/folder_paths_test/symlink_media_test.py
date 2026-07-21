@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import pytest
+
 import folder_paths
 
 
@@ -46,12 +48,8 @@ def test_symlink_escaping_media_roots_is_rejected(tmp_path: Path):
     link.symlink_to(outside)
 
     assert folder_paths.exists_annotated_filepath("evil.png") is False
-    try:
+    with pytest.raises(ValueError):
         folder_paths.get_annotated_filepath("evil.png")
-        raised = False
-    except ValueError:
-        raised = True
-    assert raised
 
 
 def test_path_traversal_is_still_rejected(tmp_path: Path):

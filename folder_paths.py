@@ -321,11 +321,6 @@ def is_within_directory(directory: str, target: str) -> bool:
         return False
 
 
-def _trusted_media_directories() -> tuple[str, ...]:
-    """Directories users are allowed to load media from via annotated paths."""
-    return (get_input_directory(), get_output_directory(), get_temp_directory())
-
-
 def is_safe_annotated_filepath(base_dir: str, filepath: str) -> bool:
     """Validate an annotated media path, allowing symlinks into trusted dirs.
 
@@ -335,22 +330,22 @@ def is_safe_annotated_filepath(base_dir: str, filepath: str) -> bool:
     `input/link.png -> ../temp/image.png` works for Load Image (#14990), while
     symlinks that escape outside those media roots remain rejected.
     """
-    try:
-        base = os.path.realpath(base_dir)
-        parent = os.path.realpath(os.path.dirname(filepath))
-        if os.path.commonpath((base, parent)) != base:
-            return False
-        target = os.path.realpath(filepath)
-        for media_dir in _trusted_media_directories():
-            try:
-                root = os.path.realpath(media_dir)
-                if os.path.commonpath((root, target)) == root:
-                    return True
-            except ValueError:
-                continue
+    base = os.path.realpath(base_dir)
+    parent = os.path.realpath(os.path.dirname(filepath))
+    # Windows: different drives cannot share a common path root.
+    if os.path.splitdrive(base)[0].lower() != os.path.splitdrive(parent)[0].lower():
         return False
-    except ValueError:
+    if os.path.commonpath((base, parent)) != base:
         return False
+
+    target = os.path.realpath(filepath)
+    for media_dir in (get_input_directory(), get_output_directory(), get_temp_directory()):
+        root = os.path.realpath(media_dir)
+        if os.path.splitdrive(root)[0].lower() != os.path.splitdrive(target)[0].lower():
+            continue
+        if os.path.commonpath((root, target)) == root:
+            return True
+    return False
 
 
 def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
