@@ -1,0 +1,481 @@
+# Torch-native geometry renderer, rasterizer, UV unwrap and multiview baker for the
+# Hunyuan3D 2.1 paint pipeline. Pure PyTorch (no C++/CUDA extensions, no diffusers,
+# no trimesh/xatlas): a barycentric z-buffer rasterizer feeds the conditioning
+# normal/position maps the paint UNet consumes, and back-projects the generated
+# multiview PBR images onto a per-triangle UV atlas.
+#
+# Coordinate / camera conventions follow Tencent's reference renderer
+# (hy3dpaint/DifferentiableRenderer): an orthographic camera at distance 1.45 with a
+# Z-up look-at, meshes auto-centered and scaled by 1.15, object-space (flat) face
+# normals mapped to [0, 1] with a white background, and positions encoded as
+# 0.5 - p / scale_factor (white background = "no geometry").
+
+import math
+
+import torch
+import torch.nn.functional as F
+
+# Fixed camera intrinsics of the released paint model (hy3dpaint MeshRender defaults).
+ORTHO_SCALE = 1.2
+CAMERA_DISTANCE = 1.45
+NEAR = 0.1
+FAR = 100.0
+MESH_SCALE_FACTOR = 1.15
+
+# The standard 6-view set the 2.1 pipeline renders (front, right, back, left, top, bottom).
+STANDARD_VIEW_AZIMS = [0.0, 90.0, 180.0, 270.0, 0.0, 180.0]
+STANDARD_VIEW_ELEVS = [0.0, 0.0, 0.0, 0.0, 90.0, -90.0]
+STANDARD_VIEW_WEIGHTS = [1.0, 0.1, 0.5, 0.1, 0.05, 0.05]
+
+# z-buffer depth quantisation levels for the packed scatter-min resolve.
+_DEPTH_LEVELS = 1 << 24
+
+
+class Cameras:
+    """A set of V orthographic views sharing the paint model's intrinsics.
+
+    Carries just the per-view elevation/azimuth (degrees) plus the shared projection
+    parameters, so it can be passed between the multiview and bake nodes and re-used to
+    rasterize the same views for back-projection.
+    """
+
+    def __init__(self, elevs, azims, weights=None, ortho_scale=ORTHO_SCALE,
+                 camera_distance=CAMERA_DISTANCE, near=NEAR, far=FAR):
+        self.elevs = [float(e) for e in elevs]
+        self.azims = [float(a) for a in azims]
+        if weights is None:
+            weights = [1.0] * len(self.elevs)
+        self.weights = [float(w) for w in weights]
+        self.ortho_scale = float(ortho_scale)
+        self.camera_distance = float(camera_distance)
+        self.near = float(near)
+        self.far = float(far)
+
+    def __len__(self):
+        return len(self.elevs)
+
+
+def standard_cameras(num_views=6):
+    n = max(1, min(int(num_views), len(STANDARD_VIEW_AZIMS)))
+    return Cameras(STANDARD_VIEW_ELEVS[:n], STANDARD_VIEW_AZIMS[:n], STANDARD_VIEW_WEIGHTS[:n])
+
+
+# ---------------------------------------------------------------------------
+# Camera matrices (ported from hy3dpaint/DifferentiableRenderer/camera_utils.py)
+# ---------------------------------------------------------------------------
+def view_matrix(elev, azim, camera_distance, device="cpu", dtype=torch.float32):
+    """World->camera (4x4) look-at with a Z-up frame, matching get_mv_matrix."""
+    elev = -float(elev)
+    azim = float(azim) + 90.0
+    er = math.radians(elev)
+    ar = math.radians(azim)
+    cam = torch.tensor([
+        camera_distance * math.cos(er) * math.cos(ar),
+        camera_distance * math.cos(er) * math.sin(ar),
+        camera_distance * math.sin(er),
+    ], device=device, dtype=dtype)
+
+    lookat = -cam
+    lookat = lookat / lookat.norm()
+    up = torch.tensor([0.0, 0.0, 1.0], device=device, dtype=dtype)
+    right = torch.linalg.cross(lookat, up)
+    right = right / right.norm()
+    up = torch.linalg.cross(right, lookat)
+    up = up / up.norm()
+
+    rot = torch.stack([right, up, -lookat], dim=-1)  # camera->world rotation (3x3)
+    w2c = torch.eye(4, device=device, dtype=dtype)
+    w2c[:3, :3] = rot.t()
+    w2c[:3, 3] = -(rot.t() @ cam)
+    return w2c
+
+
+def orthographic_matrix(scale, near, far, device="cpu", dtype=torch.float32):
+    l, r = -scale * 0.5, scale * 0.5
+    b, t = -scale * 0.5, scale * 0.5
+    m = torch.eye(4, device=device, dtype=dtype)
+    m[0, 0] = 2.0 / (r - l)
+    m[1, 1] = 2.0 / (t - b)
+    m[2, 2] = -2.0 / (far - near)
+    m[0, 3] = -(r + l) / (r - l)
+    m[1, 3] = -(t + b) / (t - b)
+    m[2, 3] = -(far + near) / (far - near)
+    return m
+
+
+# ---------------------------------------------------------------------------
+# Mesh normalization (matches MeshRender.set_mesh auto_center path)
+# ---------------------------------------------------------------------------
+def normalize_mesh(vertices, scale_factor=MESH_SCALE_FACTOR):
+    """Convert GLB-frame vertices into the renderer's centered/scaled Z-up frame.
+
+    Returns the transformed vertices (same N, 3). The axis swaps map the glTF Y-up
+    front-facing frame onto the look-at camera's Z-up frame so azim=0/elev=0 is the
+    front view; the object is then centered and scaled to a fixed radius.
+    """
+    v = vertices.clone().to(torch.float32)
+    v[:, [0, 1]] = -v[:, [0, 1]]
+    v[:, [1, 2]] = v[:, [2, 1]]
+    max_bb = v.max(dim=0).values
+    min_bb = v.min(dim=0).values
+    center = (max_bb + min_bb) / 2.0
+    scale = torch.norm(v - center, dim=1).max() * 2.0
+    scale = torch.clamp(scale, min=1e-8)
+    v = (v - center) * (scale_factor / scale)
+    return v
+
+
+def face_normals(vertices, faces):
+    """Per-face unit normals (F, 3)."""
+    tri = vertices[faces.long()]
+    n = torch.linalg.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    return F.normalize(n, dim=-1)
+
+
+# ---------------------------------------------------------------------------
+# Rasterizer
+# ---------------------------------------------------------------------------
+def _edge(ax, ay, bx, by, px, py):
+    return (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+
+
+def rasterize(verts_ndc, faces, height, width, chunk_area=4_000_000):
+    """Barycentric z-buffer rasterizer.
+
+    Args:
+        verts_ndc: (N, 3) vertices in normalized device coords (x, y in [-1, 1],
+            z is depth with smaller = nearer).
+        faces: (F, 3) long triangle indices.
+        height, width: output resolution.
+
+    Returns:
+        face_id: (H, W) long, winning triangle per pixel (-1 = background).
+        bary: (H, W, 3) barycentric weights of the winning triangle (0 on background).
+    """
+    device = verts_ndc.device
+    faces = faces.long()
+    Fn = faces.shape[0]
+    npix = height * width
+    face_id = torch.full((height, width), -1, dtype=torch.long, device=device)
+    bary = torch.zeros((height, width, 3), dtype=torch.float32, device=device)
+    if Fn == 0:
+        return face_id, bary
+
+    # vertex screen coordinates (pixel space; y flipped so +y is up = row 0 at top)
+    sx = (verts_ndc[:, 0] * 0.5 + 0.5) * width
+    sy = (1.0 - (verts_ndc[:, 1] * 0.5 + 0.5)) * height
+    sz = verts_ndc[:, 2]
+
+    fx = sx[faces]  # (F, 3)
+    fy = sy[faces]
+    fz = sz[faces]
+
+    xmin = torch.clamp(torch.floor(fx.amin(dim=1)).long(), 0, width - 1)
+    xmax = torch.clamp(torch.ceil(fx.amax(dim=1)).long(), 0, width - 1)
+    ymin = torch.clamp(torch.floor(fy.amin(dim=1)).long(), 0, height - 1)
+    ymax = torch.clamp(torch.ceil(fy.amax(dim=1)).long(), 0, height - 1)
+    bw = (xmax - xmin + 1).clamp(min=0)
+    bh = (ymax - ymin + 1).clamp(min=0)
+    area = bw * bh
+
+    sentinel = torch.iinfo(torch.int64).max
+    key_buf = torch.full((npix,), sentinel, dtype=torch.int64, device=device)
+
+    # split faces into contiguous chunks bounded by cumulative bbox pixel area
+    budget = max(int(chunk_area), 1)
+    excl = torch.cumsum(area, 0) - area
+    chunk_id = torch.div(excl, budget, rounding_mode="floor")
+    n_chunks = int(chunk_id[-1].item()) + 1 if Fn > 0 else 0
+
+    for c in range(n_chunks):
+        sel = torch.nonzero(chunk_id == c, as_tuple=False).squeeze(1)
+        if sel.numel() == 0:
+            continue
+        a_s = area[sel]
+        total = int(a_s.sum().item())
+        if total == 0:
+            continue
+        bw_s = bw[sel]
+        # per-sample -> local face index within the chunk
+        local = torch.repeat_interleave(torch.arange(sel.numel(), device=device), a_s)
+        off = torch.arange(total, device=device) - (torch.cumsum(a_s, 0) - a_s)[local]
+        lw = bw_s[local]
+        px = xmin[sel][local] + (off % lw)
+        py = ymin[sel][local] + torch.div(off, lw, rounding_mode="floor")
+        fg = sel[local]  # global face index per sample
+
+        cx = px.to(torch.float32) + 0.5
+        cy = py.to(torch.float32) + 0.5
+        ax, ay = fx[fg, 0], fy[fg, 0]
+        bx, by = fx[fg, 1], fy[fg, 1]
+        cx2, cy2 = fx[fg, 2], fy[fg, 2]
+
+        area2 = _edge(ax, ay, bx, by, cx2, cy2)
+        w0 = _edge(bx, by, cx2, cy2, cx, cy)
+        w1 = _edge(cx2, cy2, ax, ay, cx, cy)
+        w2 = _edge(ax, ay, bx, by, cx, cy)
+        denom = torch.where(area2.abs() < 1e-9, torch.ones_like(area2), area2)
+        w0 = w0 / denom
+        w1 = w1 / denom
+        w2 = w2 / denom
+        inside = (w0 >= 0) & (w1 >= 0) & (w2 >= 0) & (area2.abs() >= 1e-9)
+
+        depth = w0 * fz[fg, 0] + w1 * fz[fg, 1] + w2 * fz[fg, 2]
+        dq = ((depth * 0.5 + 0.5).clamp(0.0, 1.0) * (_DEPTH_LEVELS - 1)).long()
+        key = dq * Fn + fg
+
+        pix = (py * width + px)[inside]
+        key_i = key[inside]
+        if pix.numel() > 0:
+            key_buf.scatter_reduce_(0, pix, key_i, reduce="amin", include_self=True)
+
+    valid = key_buf != sentinel
+    fid_flat = torch.where(valid, key_buf % Fn, torch.full_like(key_buf, -1))
+    face_id = fid_flat.view(height, width)
+
+    # recompute barycentric weights for the winning face at each covered pixel
+    idx = torch.nonzero(valid, as_tuple=False).squeeze(1)
+    if idx.numel() > 0:
+        fsel = fid_flat[idx]
+        row = torch.div(idx, width, rounding_mode="floor")
+        col = idx % width
+        cx = col.to(torch.float32) + 0.5
+        cy = row.to(torch.float32) + 0.5
+        ax, ay = fx[fsel, 0], fy[fsel, 0]
+        bx, by = fx[fsel, 1], fy[fsel, 1]
+        cx2, cy2 = fx[fsel, 2], fy[fsel, 2]
+        area2 = _edge(ax, ay, bx, by, cx2, cy2)
+        denom = torch.where(area2.abs() < 1e-9, torch.ones_like(area2), area2)
+        w0 = _edge(bx, by, cx2, cy2, cx, cy) / denom
+        w1 = _edge(cx2, cy2, ax, ay, cx, cy) / denom
+        w2 = _edge(ax, ay, bx, by, cx, cy) / denom
+        bary.view(-1, 3)[idx] = torch.stack([w0, w1, w2], dim=-1)
+
+    return face_id, bary
+
+
+def interpolate_vertex_attr(attr, faces, face_id, bary):
+    """Barycentric-interpolate a per-vertex attribute (N, C) into an (H, W, C) map."""
+    H, W = face_id.shape
+    C = attr.shape[-1]
+    out = torch.zeros((H, W, C), dtype=attr.dtype, device=attr.device)
+    valid = face_id >= 0
+    if valid.any():
+        f = faces.long()[face_id.clamp(min=0)]  # (H, W, 3)
+        a = attr[f]  # (H, W, 3, C)
+        out = (bary.unsqueeze(-1) * a).sum(dim=-2)
+        out = out * valid.unsqueeze(-1)
+    return out
+
+
+def gather_face_attr(attr_face, face_id):
+    """Gather a per-face attribute (F, C) into an (H, W, C) map (0 on background)."""
+    H, W = face_id.shape
+    out = attr_face[face_id.clamp(min=0)]
+    out = out * (face_id >= 0).unsqueeze(-1)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Geometry conditioning maps for the paint UNet
+# ---------------------------------------------------------------------------
+def _project(verts_norm, w2c, proj):
+    homog = torch.cat([verts_norm, torch.ones_like(verts_norm[:, :1])], dim=1)
+    cam = homog @ w2c.t()
+    clip = cam @ proj.t()
+    ndc = clip[:, :3] / clip[:, 3:4].clamp(min=1e-8)
+    return ndc, cam
+
+
+def render_geometry_maps(vertices, faces, cameras, resolution=512, scale_factor=MESH_SCALE_FACTOR,
+                         normalize=True):
+    """Render per-view object-space normal + position maps (the paint UNet's control).
+
+    Args:
+        vertices: (N, 3) mesh vertices in the input (GLB) frame.
+        faces: (F, 3) triangle indices.
+        cameras: a Cameras object.
+        resolution: output map resolution.
+
+    Returns:
+        normals: (V, H, W, 3) in [0, 1] with a white background.
+        positions: (V, H, W, 3) in [0, 1] with a white background.
+        masks: (V, H, W) float, 1 where the mesh is visible.
+    """
+    device = vertices.device
+    vtx = normalize_mesh(vertices, scale_factor) if normalize else vertices.to(torch.float32)
+    faces = faces.long()
+    fn = face_normals(vtx, faces)  # object-space flat normals
+    tex_position = 0.5 - vtx / scale_factor
+
+    proj = orthographic_matrix(cameras.ortho_scale, cameras.near, cameras.far, device=device)
+    normals, positions, masks = [], [], []
+    for elev, azim in zip(cameras.elevs, cameras.azims):
+        w2c = view_matrix(elev, azim, cameras.camera_distance, device=device)
+        ndc, _ = _project(vtx, w2c, proj)
+        face_id, bary = rasterize(ndc, faces, resolution, resolution)
+        mask = (face_id >= 0).to(torch.float32)
+
+        nrm = gather_face_attr(fn, face_id)  # (H, W, 3) object-space normal
+        nrm = (nrm + 1.0) * 0.5
+        nrm = nrm * mask.unsqueeze(-1) + (1.0 - mask.unsqueeze(-1))  # white background
+
+        pos = interpolate_vertex_attr(tex_position, faces, face_id, bary)
+        pos = pos * mask.unsqueeze(-1) + (1.0 - mask.unsqueeze(-1))  # white background
+
+        normals.append(nrm)
+        positions.append(pos)
+        masks.append(mask)
+
+    return torch.stack(normals), torch.stack(positions), torch.stack(masks)
+
+
+# ---------------------------------------------------------------------------
+# Per-triangle UV atlas (xatlas-free unwrap)
+# ---------------------------------------------------------------------------
+def pack_per_triangle_uv(vertices, faces, gutter=0.25):
+    """Unwrap a mesh by giving each triangle its own cell in a square UV atlas.
+
+    The mesh is "unwelded" (3 unique vertices per face) so UVs are per-vertex and
+    1:1 with vertices, as core's MESH/save_glb require. Charts are guaranteed
+    non-overlapping (one per grid cell) and every triangle is packed.
+
+    Returns:
+        new_vertices: (3F, 3)
+        new_faces: (F, 3) long, referencing the unwelded vertices
+        uvs: (3F, 2) in [0, 1]
+    """
+    faces = faces.long()
+    Fn = faces.shape[0]
+    device = vertices.device
+    corners = vertices[faces.reshape(-1)]  # (3F, 3)
+    new_faces = torch.arange(3 * Fn, device=device, dtype=torch.long).reshape(Fn, 3)
+
+    g = max(1, int(math.ceil(math.sqrt(Fn))))
+    fi = torch.arange(Fn, device=device)
+    row = torch.div(fi, g, rounding_mode="floor")
+    col = fi % g
+    cell = 1.0 / g
+    m = gutter * cell  # gutter keeps charts off the cell border to avoid bleed
+    u0 = col * cell + m
+    v0 = row * cell + m
+    u1 = (col + 1) * cell - m
+    v1 = (row + 1) * cell - m
+    # a right triangle (lower-left) filling most of the cell
+    uv = torch.stack([
+        torch.stack([u0, v0], dim=-1),
+        torch.stack([u1, v0], dim=-1),
+        torch.stack([u0, v1], dim=-1),
+    ], dim=1).reshape(3 * Fn, 2).to(torch.float32)
+    return corners, new_faces, uv
+
+
+# ---------------------------------------------------------------------------
+# Multiview back-projection / bake
+# ---------------------------------------------------------------------------
+def _splat_bilinear(coords01, values, sample_weight, tex_h, tex_w, color_acc, weight_acc):
+    """Bilinearly splat (K, C) values with per-sample weights (K, 1) into UV accumulators.
+
+    coords01 are (K, 2) [row, col] fractional coords in [0, 1]. Each texel receives
+    ``corner * sample_weight * value`` in ``color_acc`` and ``corner * sample_weight``
+    in ``weight_acc`` so a final divide yields the angle-weighted colour average.
+    """
+    idx = coords01 * torch.tensor([tex_h - 1, tex_w - 1], device=coords01.device, dtype=coords01.dtype)
+    i0 = idx.floor().long()
+    i0[:, 0].clamp_(0, tex_h - 2)
+    i0[:, 1].clamp_(0, tex_w - 2)
+    fr = idx - i0.to(idx.dtype)
+    fh, fw = fr[:, 0:1], fr[:, 1:2]
+    C = values.shape[1]
+    for di, dj, corner in ((0, 0, (1 - fh) * (1 - fw)), (0, 1, (1 - fh) * fw),
+                           (1, 0, fh * (1 - fw)), (1, 1, fh * fw)):
+        flat = (i0[:, 0] + di) * tex_w + (i0[:, 1] + dj)
+        cw = corner * sample_weight
+        color_acc.scatter_add_(0, flat.unsqueeze(1).expand(-1, C), values * cw)
+        weight_acc.scatter_add_(0, flat.unsqueeze(1), cw)
+
+
+def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
+                   scale_factor=MESH_SCALE_FACTOR, normalize=True,
+                   bake_exp=4.0, cos_thresh_deg=75.0):
+    """Back-project multiview images onto the UV atlas via angle-weighted blending.
+
+    Args:
+        vertices: (N, 3) vertices (unwelded, carrying the UV atlas) in the GLB frame.
+        faces: (F, 3) triangle indices.
+        uvs: (N, 2) per-vertex UVs in [0, 1].
+        views: (V, H, W, C) per-view images in [0, 1] (same camera order as cameras).
+        cameras: Cameras used to produce views.
+        texture_size: output texture resolution.
+
+    Returns:
+        texture: (texture_size, texture_size, C) baked texture (holes left at 0).
+        mask: (texture_size, texture_size) bool, True where a view contributed.
+    """
+    device = vertices.device
+    vtx = normalize_mesh(vertices, scale_factor) if normalize else vertices.to(torch.float32)
+    faces = faces.long()
+    V, vh, vw, C = views.shape
+    T = int(texture_size)
+    cos_thresh = math.cos(math.radians(cos_thresh_deg))
+
+    proj = orthographic_matrix(cameras.ortho_scale, cameras.near, cameras.far, device=device)
+    color_acc = torch.zeros((T * T, C), dtype=torch.float32, device=device)
+    weight_acc = torch.zeros((T * T, 1), dtype=torch.float32, device=device)
+    uvs = uvs.to(torch.float32)
+
+    for vi in range(V):
+        elev, azim = cameras.elevs[vi], cameras.azims[vi]
+        vw_weight = cameras.weights[vi] if vi < len(cameras.weights) else 1.0
+        w2c = view_matrix(elev, azim, cameras.camera_distance, device=device)
+        ndc, cam = _project(vtx, w2c, proj)
+        face_id, bary = rasterize(ndc, faces, vh, vw)
+        valid = face_id >= 0
+        if not valid.any():
+            continue
+
+        # camera-space flat normal -> facing cosine to the view axis. The z-buffer already
+        # keeps only the front-most surface, so |z-component| is the grazing cosine
+        # irrespective of triangle winding.
+        fn_cam = face_normals(cam[:, :3], faces)
+        cos_face = fn_cam[:, 2].abs()
+        cos_map = gather_face_attr(cos_face.unsqueeze(-1), face_id).squeeze(-1)  # (H, W)
+        cos_map = torch.where(cos_map < cos_thresh, torch.zeros_like(cos_map), cos_map)
+
+        uv_map = interpolate_vertex_attr(uvs, faces, face_id, bary)  # (H, W, 2)
+
+        weight = (vw_weight * cos_map.pow(bake_exp)) * valid.to(torch.float32)
+        sel = weight > 0
+        if not sel.any():
+            continue
+        w_sel = weight[sel].unsqueeze(-1)
+        colors = views[vi][sel]
+        # UV (u, v) -> texel (row = v, col = u)
+        coords = torch.stack([uv_map[sel][:, 1], uv_map[sel][:, 0]], dim=-1).clamp(0.0, 1.0)
+        _splat_bilinear(coords, colors, w_sel, T, T, color_acc, weight_acc)
+
+    mask = (weight_acc.squeeze(-1) > 1e-8)
+    texture = torch.zeros_like(color_acc)
+    texture[mask] = color_acc[mask] / weight_acc[mask].clamp(min=1e-8)
+    return texture.view(T, T, C), mask.view(T, T)
+
+
+def fill_holes(texture, mask, max_iters=64):
+    """Fill unseen texels by iterative 3x3 dilation of the nearest valid colors."""
+    T, _, C = texture.shape
+    device = texture.device
+    color = texture.permute(2, 0, 1).unsqueeze(0).clone()  # (1, C, T, T)
+    valid = mask.to(torch.float32).view(1, 1, T, T).clone()
+    kernel = torch.ones((1, 1, 3, 3), device=device, dtype=torch.float32)
+    for _ in range(max_iters):
+        holes = valid < 0.5
+        if not holes.any():
+            break
+        neigh_w = F.conv2d(valid, kernel, padding=1)
+        neigh_c = F.conv2d(color * valid, kernel.expand(C, 1, 3, 3), padding=1, groups=C)
+        can_fill = holes & (neigh_w > 0)
+        filled = neigh_c / neigh_w.clamp(min=1e-8)
+        cf = can_fill.expand(-1, C, -1, -1)
+        color = torch.where(cf, filled, color)
+        valid = torch.where(can_fill, torch.ones_like(valid), valid)
+    return color.squeeze(0).permute(1, 2, 0).contiguous()
