@@ -2,6 +2,7 @@ import logging
 import os
 import json
 
+import av
 import numpy as np
 import torch
 from PIL import Image
@@ -9,7 +10,7 @@ from typing_extensions import override
 
 import folder_paths
 import node_helpers
-from comfy_api.latest import ComfyExtension, io
+from comfy_api.latest import ComfyExtension, io, Input, InputImpl, Types
 
 
 def load_and_process_images(image_files, input_dir):
@@ -40,6 +41,38 @@ def load_and_process_images(image_files, input_dir):
         output_images.append(img_tensor)
 
     return output_images
+
+
+VALID_VIDEO_EXTENSIONS = [".mp4", ".avi", ".mov", ".webm", ".mkv", ".flv"]
+
+
+def _decode_selected_frames(video: Input.Video, indices: list[int]) -> Input.Video:
+    """Decode only the requested frame indices from a video.
+
+    Opens the underlying container once, decodes frames in presentation order,
+    keeps only the ones whose index is in ``indices``, and returns the result
+    wrapped in a VideoFromComponents so it still satisfies the VideoInput
+    contract for downstream nodes.
+    """
+    indices_sorted = sorted(set(indices))
+    max_idx = indices_sorted[-1]
+    source = video.get_stream_source()
+
+    frames_by_idx: dict[int, torch.Tensor] = {}
+    with av.open(source, mode="r") as container:
+        stream = container.streams.video[0]
+        wanted = set(indices_sorted)
+        for frame_idx, frame in enumerate(container.decode(stream)):
+            if frame_idx in wanted:
+                img = frame.to_ndarray(format="rgb24")
+                frames_by_idx[frame_idx] = torch.from_numpy(img.copy()).float() / 255.0
+            if frame_idx >= max_idx:
+                break
+
+    stacked = torch.stack([frames_by_idx[i] for i in indices])
+    return InputImpl.VideoFromComponents(
+        Types.VideoComponents(images=stacked, frame_rate=video.get_frame_rate())
+    )
 
 
 class LoadImageDataSetFromFolderNode(io.ComfyNode):
@@ -155,6 +188,116 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
 
         logging.info(f"Loaded {len(output_tensor)} images from {sub_input_dir}.")
         return io.NodeOutput(output_tensor, captions)
+
+
+class LoadVideoDataSetFromFolderNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LoadVideoDataSetFromFolder",
+            search_aliases=["load folder", "load from folder", "load dataset", "load videos", "import dataset"],
+            display_name="Load Video (from Folder)",
+            category="video",
+            description="Load a dataset of videos from a specified folder and return a list of videos. Supported formats: MP4, AVI, MOV, WEBM, MKV, FLV.",
+            is_experimental=True,
+            inputs=[
+                io.Combo.Input(
+                    "folder",
+                    options=folder_paths.get_input_subfolders(),
+                    tooltip="The folder containing video files.",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(
+                    display_name="videos",
+                    is_output_list=True,
+                    tooltip="Lazy video references; frames are decoded only when needed downstream.",
+                ),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, folder):
+        sub_input_dir = os.path.join(folder_paths.get_input_directory(), folder)
+        video_files = sorted([
+            f for f in os.listdir(sub_input_dir)
+            if any(f.lower().endswith(ext) for ext in VALID_VIDEO_EXTENSIONS)
+        ])
+
+        if not video_files:
+            raise ValueError(f"No video files found in {sub_input_dir}")
+
+        videos = [InputImpl.VideoFromFile(os.path.join(sub_input_dir, f)) for f in video_files]
+        logging.info(f"Loaded {len(videos)} lazy video references from {sub_input_dir}")
+        return io.NodeOutput(videos)
+
+
+class LoadVideoTextDataSetFromFolderNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LoadVideoTextDataSetFromFolder",
+            search_aliases=["load folder", "load from folder", "load dataset", "load videos", "import dataset"],
+            display_name="Load Video-Text (from Folder)",
+            category="video",
+            description="Load a dataset of pairs of videos and text captions from a specified folder and return them as a list. Supported formats: MP4, AVI, MOV, WEBM, MKV, FLV.",
+            is_experimental=True,
+            inputs=[
+                io.Combo.Input(
+                    "folder",
+                    options=folder_paths.get_input_subfolders(),
+                    tooltip="The folder containing video files and .txt captions.",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(
+                    display_name="videos",
+                    is_output_list=True,
+                    tooltip="Lazy video references; frames are decoded only when needed downstream.",
+                ),
+                io.String.Output(
+                    display_name="texts",
+                    is_output_list=True,
+                    tooltip="List of text captions.",
+                ),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, folder):
+        sub_input_dir = os.path.join(folder_paths.get_input_directory(), folder)
+
+        video_files = []
+        for item in sorted(os.listdir(sub_input_dir)):
+            path = os.path.join(sub_input_dir, item)
+            if any(item.lower().endswith(ext) for ext in VALID_VIDEO_EXTENSIONS):
+                video_files.append(path)
+            elif os.path.isdir(path):
+                # Support kohya-ss/sd-scripts folder structure: {repeat}_{desc}/
+                repeat = 1
+                if item.split("_")[0].isdigit():
+                    repeat = int(item.split("_")[0])
+                video_files.extend([
+                    os.path.join(path, f)
+                    for f in sorted(os.listdir(path))
+                    if any(f.lower().endswith(ext) for ext in VALID_VIDEO_EXTENSIONS)
+                ] * repeat)
+
+        if not video_files:
+            raise ValueError(f"No video files found in {sub_input_dir}")
+
+        captions = []
+        for vf in video_files:
+            caption_path = os.path.splitext(vf)[0] + ".txt"
+            if os.path.exists(caption_path):
+                with open(caption_path, "r", encoding="utf-8") as f:
+                    captions.append(f.read().strip())
+            else:
+                captions.append("")
+
+        videos = [InputImpl.VideoFromFile(vf) for vf in video_files]
+        logging.info(f"Loaded {len(videos)} lazy video references with captions from {sub_input_dir}")
+        return io.NodeOutput(videos, captions)
 
 
 def save_images_to_folder(image_list, output_dir, prefix="image", overwrite=True):
@@ -470,7 +613,15 @@ class ImageProcessingNode(io.ComfyNode):
 
     @classmethod
     def execute(cls, images, **kwargs):
-        """Execute the node. Routes to _process or _group_process based on mode."""
+        """Execute the node. Routes to _process or _group_process based on mode.
+
+        For individual processing (_process), automatically handles multi-frame
+        inputs (video tensors [T, H, W, C]) by applying _process per-frame and
+        concatenating the results. This allows all spatial transform nodes to
+        work with video without modification. Nodes that natively handle batched
+        tensors (e.g. pure tensor math) can set per_frame_process = False to
+        skip the per-frame loop.
+        """
         is_group = cls._detect_processing_mode()
 
         if is_group:
@@ -489,7 +640,16 @@ class ImageProcessingNode(io.ComfyNode):
             result = cls._group_process(images, **params)
         else:
             # Individual processing: images is single item, call _process
-            result = cls._process(images, **params)
+            # Auto-loop over frames for multi-frame inputs (video [T, H, W, C])
+            # so that PIL-based spatial transforms work per-frame automatically.
+            if images.shape[0] > 1 and getattr(cls, 'per_frame_process', True):
+                results = []
+                for i in range(images.shape[0]):
+                    frame_result = cls._process(images[i:i + 1], **params)
+                    results.append(frame_result)
+                result = torch.cat(results, dim=0)
+            else:
+                result = cls._process(images, **params)
 
         return io.NodeOutput(result)
 
@@ -803,6 +963,7 @@ class NormalizeImagesNode(ImageProcessingNode):
     display_name = "Normalize Image Colors"
     category = "image/color"
     description = "Normalize images using mean and standard deviation."
+    per_frame_process = False  # Pure tensor math, handles any batch size
     extra_inputs = [
         io.Float.Input(
             "mean",
@@ -833,6 +994,7 @@ class AdjustBrightnessNode(ImageProcessingNode):
     display_name = "Adjust Brightness"
     category="image/adjustments"
     description = "Adjust the brightness of an image."
+    per_frame_process = False  # Pure tensor math, handles any batch size
     extra_inputs = [
         io.Float.Input(
             "factor",
@@ -854,6 +1016,7 @@ class AdjustContrastNode(ImageProcessingNode):
     display_name = "Adjust Contrast"
     category="image/adjustments"
     description = "Adjust the contrast of an image."
+    per_frame_process = False  # Pure tensor math, handles any batch size
     extra_inputs = [
         io.Float.Input(
             "factor",
@@ -933,6 +1096,261 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
         shuffled_images = [images[i] for i in indices]
         shuffled_texts = [texts[i] for i in indices]
         return io.NodeOutput(shuffled_images, shuffled_texts)
+
+
+# ========== Video Processing Nodes ==========
+
+
+class VideoFrameSampleNode(io.ComfyNode):
+    """Sample a fixed number of frames from a video using various strategies.
+
+    For contiguous strategies ("head"/"tail") the result is a fully lazy
+    VideoInput (no frames decoded). For non-contiguous strategies
+    ("uniform"/"random") only the selected indices are decoded.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VideoFrameSample",
+            search_aliases=["sample frames", "extract frames"],
+            display_name="Sample Video Frame",
+            category="video",
+            description="Sample a fixed number of frames from a video using various strategies.",
+            is_experimental=True,
+            inputs=[
+                io.Video.Input("video", tooltip="Input video."),
+                io.Int.Input(
+                    "num_frames",
+                    default=16,
+                    min=1,
+                    max=9999,
+                    tooltip="Number of frames to sample.",
+                ),
+                io.Combo.Input(
+                    "strategy",
+                    options=["uniform", "head", "tail", "random"],
+                    default="uniform",
+                    tooltip="uniform: evenly spaced, head: first N, tail: last N, random: random sorted.",
+                ),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    tooltip="Random seed (only used with 'random' strategy).",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(display_name="video", tooltip="Sampled video."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, video, num_frames, strategy, seed):
+        total_frames = video.get_frame_count()
+        num_frames = min(num_frames, total_frames)
+        fps = float(video.get_frame_rate())
+
+        if strategy == "head":
+            return io.NodeOutput(
+                video.as_trimmed(0.0, num_frames / fps, strict_duration=False)
+            )
+        if strategy == "tail":
+            start_t = (total_frames - num_frames) / fps
+            return io.NodeOutput(
+                video.as_trimmed(start_t, num_frames / fps, strict_duration=False)
+            )
+
+        if strategy == "uniform":
+            if num_frames == 1:
+                indices = [total_frames // 2]
+            else:
+                indices = [round(i * (total_frames - 1) / (num_frames - 1)) for i in range(num_frames)]
+        elif strategy == "random":
+            rng = np.random.RandomState(seed % (2**32 - 1))
+            indices = sorted(rng.choice(total_frames, size=num_frames, replace=False).tolist())
+        else:
+            raise ValueError(f"Unknown strategy: {strategy}")
+
+        return io.NodeOutput(_decode_selected_frames(video, indices))
+
+
+class VideoTemporalCropNode(io.ComfyNode):
+    """Crop a continuous range of frames from a video (fully lazy)."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VideoTemporalCrop",
+            search_aliases=["crop", "crop video", "temporal crop", "truncate video"],
+            display_name="Crop Video (Temporal)",
+            category="video/transform",
+            description="Crop a continuous range of frames from a video.",
+            is_experimental=True,
+            inputs=[
+                io.Video.Input("video", tooltip="Input video."),
+                io.Int.Input(
+                    "start_frame",
+                    default=0,
+                    min=0,
+                    max=99999,
+                    tooltip="Starting frame index.",
+                ),
+                io.Int.Input(
+                    "length",
+                    default=16,
+                    min=1,
+                    max=99999,
+                    tooltip="Number of frames to keep.",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(display_name="video", tooltip="Cropped video (lazy)."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, video, start_frame, length):
+        total_frames = video.get_frame_count()
+        fps = float(video.get_frame_rate())
+        start_frame = min(start_frame, max(total_frames - 1, 0))
+        length = min(length, total_frames - start_frame)
+        return io.NodeOutput(
+            video.as_trimmed(start_frame / fps, length / fps, strict_duration=False)
+        )
+
+
+class VideoRandomTemporalCropNode(io.ComfyNode):
+    """Randomly crop a continuous range of frames from a video (fully lazy)."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VideoRandomTemporalCrop",
+            search_aliases=["crop", "crop video", "temporal crop", "truncate video", "random crop"],
+            display_name="Crop Video (Temporal Random)",
+            category="video/transform",
+            description="Randomly crop a continuous range of frames from a video.",
+            is_experimental=True,
+            inputs=[
+                io.Video.Input("video", tooltip="Input video."),
+                io.Int.Input(
+                    "length",
+                    default=16,
+                    min=1,
+                    max=99999,
+                    tooltip="Number of frames to keep.",
+                ),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    tooltip="Random seed.",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(display_name="video", tooltip="Cropped video (lazy)."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, video, length, seed):
+        total_frames = video.get_frame_count()
+        fps = float(video.get_frame_rate())
+        length = min(length, total_frames)
+        max_start = total_frames - length
+        rng = np.random.RandomState(seed % (2**32 - 1))
+        start = rng.randint(0, max_start + 1) if max_start > 0 else 0
+        return io.NodeOutput(
+            video.as_trimmed(start / fps, length / fps, strict_duration=False)
+        )
+
+
+class ShuffleVideoDatasetNode(io.ComfyNode):
+    """Randomly shuffle the order of videos in the dataset."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ShuffleVideoDataset",
+            search_aliases=["shuffle", "randomize", "mix"],
+            display_name="Shuffle Videos List",
+            category="video/batch",
+            description="Randomly shuffle the order of videos in a list.",
+            is_experimental=True,
+            is_input_list=True,
+            inputs=[
+                io.Video.Input("videos", tooltip="List of videos to shuffle."),
+                io.Int.Input(
+                    "seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, tooltip="Random seed."
+                ),
+            ],
+            outputs=[
+                io.Video.Output(
+                    display_name="videos",
+                    is_output_list=True,
+                    tooltip="Shuffled videos",
+                ),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, videos, seed):
+        seed = seed[0] if isinstance(seed, list) else seed
+        np.random.seed(seed % (2**32 - 1))
+        indices = np.random.permutation(len(videos))
+        return io.NodeOutput([videos[i] for i in indices])
+
+
+class ShuffleVideoTextDatasetNode(io.ComfyNode):
+    """Shuffle videos and their captions together, preserving pairs."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ShuffleVideoTextDataset",
+            search_aliases=["shuffle", "randomize", "mix"],
+            display_name="Shuffle Pairs of Video-Text",
+            category="dataset/video",
+            description="Randomly shuffle the order of pairs of video-text in a list.",
+            is_experimental=True,
+            is_input_list=True,
+            inputs=[
+                io.Video.Input("videos", tooltip="List of videos to shuffle."),
+                io.String.Input("texts", tooltip="List of texts to shuffle."),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    tooltip="Random seed.",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(
+                    display_name="videos",
+                    is_output_list=True,
+                    tooltip="Shuffled videos",
+                ),
+                io.String.Output(
+                    display_name="texts",
+                    is_output_list=True,
+                    tooltip="Shuffled texts",
+                ),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, videos, texts, seed):
+        seed = seed[0] if isinstance(seed, list) else seed
+        np.random.seed(seed % (2**32 - 1))
+        indices = np.random.permutation(len(videos))
+        return io.NodeOutput(
+            [videos[i] for i in indices],
+            [texts[i] for i in indices],
+        )
 
 
 # ========== Text Transform Nodes ==========
@@ -1608,7 +2026,10 @@ class DatasetExtension(ComfyExtension):
             LoadImageTextDataSetFromFolderNode,
             SaveImageDataSetToFolderNode,
             SaveImageTextDataSetToFolderNode,
-            # Image transform nodes
+            # Video data loading nodes
+            LoadVideoDataSetFromFolderNode,
+            LoadVideoTextDataSetFromFolderNode,
+            # Image transform nodes (auto-handle video via per-frame processing)
             ResizeImagesByShorterEdgeNode,
             ResizeImagesByLongerEdgeNode,
             CenterCropImagesNode,
@@ -1618,6 +2039,12 @@ class DatasetExtension(ComfyExtension):
             AdjustContrastNode,
             ShuffleDatasetNode,
             ShuffleImageTextDatasetNode,
+            # Video processing nodes (lazy VideoInput in/out)
+            VideoFrameSampleNode,
+            VideoTemporalCropNode,
+            VideoRandomTemporalCropNode,
+            ShuffleVideoDatasetNode,
+            ShuffleVideoTextDatasetNode,
             # Text transform nodes
             TextToLowercaseNode,
             TextToUppercaseNode,
