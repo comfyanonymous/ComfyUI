@@ -718,6 +718,8 @@ class WanUni3CControlnetApply:
     CATEGORY = "model/patch/wan"
 
     def apply_patch(self, model, model_patch, vae, render_video, strength, start_percent, end_percent):
+        if not isinstance(model_patch.model, comfy.ldm.wan.uni3c.WanUni3CControlnet):
+            raise ValueError("The connected model patch is not a Uni3C ControlNet.")
         cnet_dim = model_patch.model.controlnet_blocks[0].norm1.linear.in_features
         model_dim = getattr(model.get_model_object("diffusion_model"), "dim", None)
         if model_dim is None:
