@@ -161,9 +161,17 @@ def rasterize(verts_ndc, faces, height, width, chunk_area=4_000_000):
     if Fn == 0:
         return face_id, bary
 
-    # vertex screen coordinates (pixel space; y flipped so +y is up = row 0 at top)
+    # Vertex screen coordinates (pixel space). Matches Tencent's custom_rasterizer
+    # (rasterizer.cpp barycentricFromImgcoordCPU): row grows with NDC +y, i.e. NO
+    # top/bottom flip. This looks unusual (a "physically up" point ends up in the
+    # *last* row of the raw H,W buffer) but the released paint UNet was trained on
+    # conditioning images produced with exactly this convention, and render/bake use
+    # the same rasterize() for both the geometry-map render and the back-projection,
+    # so the mesh<->UV correspondence is self-consistent either way. What matters is
+    # matching the pretrained weights' expected pixel layout, not "looking upright"
+    # when this raw buffer is viewed directly.
     sx = (verts_ndc[:, 0] * 0.5 + 0.5) * width
-    sy = (1.0 - (verts_ndc[:, 1] * 0.5 + 0.5)) * height
+    sy = (verts_ndc[:, 1] * 0.5 + 0.5) * height
     sz = verts_ndc[:, 2]
 
     fx = sx[faces]  # (F, 3)
