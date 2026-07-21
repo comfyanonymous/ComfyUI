@@ -632,13 +632,23 @@ def mark_mmap_dirty(storage):
     if mmap_refs is not None:
         DIRTY_MMAPS.add(mmap_refs[0])
 
+def models_for_pin_eviction(active):
+    for current_prompt in (False, True):
+        for loaded_model in current_loaded_models:
+            model = loaded_model.model
+            if model is None or not model.is_dynamic():
+                continue
+            pin_state = model.model.dynamic_pins[model.load_device]
+            if pin_state["active"] == active and pin_state["current_prompt"] == current_prompt:
+                yield model
+
 def free_pins(size, evict_active=False):
     freed_total = 0
-    for loaded_model in reversed(current_loaded_models):
-        if size <= 0:
-            return freed_total
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
+    active_states = (False, True) if evict_active else (False,)
+    for active in active_states:
+        for model in models_for_pin_eviction(active):
+            if size <= 0:
+                return freed_total
             freed = model.partially_unload_ram(size)
             freed_total += freed
             size -= freed
@@ -673,19 +683,15 @@ def free_registrations(shortfall, evict_active=True):
         return True
 
     shortfall += REGISTERABLE_PIN_HYSTERESIS
-    for loaded_model in reversed(current_loaded_models):
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and not model.model.dynamic_pins[model.load_device]["active"]:
+    for model in models_for_pin_eviction(False):
+        shortfall -= model.unregister_inactive_pins(shortfall)
+        if shortfall <= 0:
+            return True
+    if evict_active:
+        for model in models_for_pin_eviction(True):
             shortfall -= model.unregister_inactive_pins(shortfall)
             if shortfall <= 0:
                 return True
-    if evict_active:
-        for loaded_model in current_loaded_models:
-            model = loaded_model.model
-            if model is not None and model.is_dynamic() and model.model.dynamic_pins[model.load_device]["active"]:
-                shortfall -= model.unregister_inactive_pins(shortfall)
-                if shortfall <= 0:
-                    return True
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
 def ensure_pin_registerable(size, evict_active=True):

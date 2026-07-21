@@ -1727,10 +1727,14 @@ class ModelPatcherDynamic(ModelPatcher):
                 "hostbufs_initialized": False,
                 "failed": False,
                 "active": False,
+                "current_prompt": False,
             }
 
     def is_dynamic(self):
         return True
+
+    def set_in_use_by_current_prompt(self, in_use):
+        self.model.dynamic_pins[self.load_device]["current_prompt"] = in_use
 
     def _vbar_get(self, create=False):
         if self.load_device == torch.device("cpu"):
