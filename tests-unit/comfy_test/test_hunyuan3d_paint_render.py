@@ -255,6 +255,57 @@ def test_save_glb_writes_metallic_roughness_texture(tmp_path):
     assert pbr["metallicRoughnessTexture"]["index"] == 1
 
 
+def _fake_vae():
+    class FakeVAE:
+        def encode(self, img):
+            x = img.permute(0, 3, 1, 2)
+            lat = torch.nn.functional.interpolate(x, scale_factor=0.125, mode="bilinear", align_corners=False)
+            return torch.cat([lat, lat[:, :1]], dim=1)  # 4-channel latent at H/8
+
+        def decode(self, lat):
+            x = torch.nn.functional.interpolate(lat[:, :3], scale_factor=8, mode="bilinear", align_corners=False)
+            return x.permute(0, 2, 3, 1).clamp(0, 1)
+
+    return FakeVAE()
+
+
+def test_multiview_then_bake_end_to_end_with_random_model():
+    """Exercise the full node glue: MESH + reference -> render -> multiview diffusion
+    -> VAE decode -> bake -> textured mesh, on a small random-init UNet + stub VAE."""
+    import comfy.ops as comfy_ops
+    from comfy.ldm.hunyuan3d.paint.unet import UNet2p5DConditionModel
+    from comfy.ldm.hunyuan3d.paint.loader import load_paint_unet
+    from comfy_api.latest import Types
+    N = _load_nodes()
+
+    cfg = dict(
+        in_channels=12, ref_in_channels=4, out_channels=4,
+        block_out_channels=(64, 64, 128, 128), layers_per_block=2, cross_attention_dim=64,
+        num_attention_heads=(1, 1, 2, 2), transformer_layers_per_block=1, norm_num_groups=32,
+        pbr_setting=("albedo", "mr"), pbr_token_channels=7, dino_embeddings_dim=32, use_dino=True)
+    model = UNet2p5DConditionModel(dtype=torch.float32, device="cpu",
+                                   operations=comfy_ops.disable_weight_init, **cfg)
+    model.eval()
+    patcher, config = load_paint_unet(model.state_dict(), model_options={"dtype": torch.float32})
+
+    v, f = _cube()
+    mesh = Types.MESH(v.unsqueeze(0), f.unsqueeze(0))
+    ref = torch.rand(1, 128, 128, 3)
+
+    albedo, mr, cams, normals, positions = N.Hunyuan3DPaintMultiView.execute(
+        (patcher, config), _fake_vae(), mesh, ref, 6, 128, 2, 3.0, 0)
+    assert albedo.shape == (6, 128, 128, 3)
+    assert mr.shape == (6, 128, 128, 3)
+    assert normals.shape == (6, 128, 128, 3)
+    assert len(cams) == 6
+
+    out_mesh, alb_tex, mr_tex, _av, _mv = N.Hunyuan3DBakeMultiView.execute(
+        mesh, albedo, mr, cams, 256, 4.0, True)
+    assert out_mesh.uvs is not None and out_mesh.texture is not None
+    assert out_mesh.texture_mr is not None
+    assert alb_tex.shape == (1, 256, 256, 3)
+
+
 def test_save_glb_without_mr_still_single_texture(tmp_path):
     from PIL import Image
     from comfy_extras.nodes_save_3d import save_glb
