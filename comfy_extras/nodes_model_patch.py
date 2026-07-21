@@ -8,6 +8,7 @@ import comfy.ldm.common_dit
 import comfy.latent_formats
 import comfy.ldm.lumina.controlnet
 import comfy.ldm.supir.supir_modules
+import comfy.ldm.anima.lllite
 import comfy.ldm.wan.uni3c
 from comfy.ldm.wan.model_multitalk import WanMultiTalkAttentionBlock, MultiTalkAudioProjModel
 from comfy_api.latest import io
@@ -237,10 +238,12 @@ class ModelPatchLoader:
 
     def load_model_patch(self, name):
         model_patch_path = folder_paths.get_full_path_or_raise("model_patches", name)
-        sd = comfy.utils.load_torch_file(model_patch_path, safe_load=True)
+        sd, metadata = comfy.utils.load_torch_file(model_patch_path, safe_load=True, return_metadata=True)
         dtype = comfy.utils.weight_dtype(sd)
 
-        if 'controlnet_blocks.0.y_rms.weight' in sd:
+        if 'lllite_conditioning1.conv1.weight' in sd:
+            model = comfy.ldm.anima.lllite.AnimaLLLite(sd, metadata, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
+        elif 'controlnet_blocks.0.y_rms.weight' in sd:
             additional_in_dim = sd["img_in.weight"].shape[1] - 64
             model = QwenImageBlockWiseControlNet(additional_in_dim=additional_in_dim, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
         elif 'feature_embedder.mid_layer_norm.bias' in sd:
@@ -326,6 +329,50 @@ class ModelPatchLoader:
         model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
         model.load_state_dict(sd, assign=model_patcher.is_dynamic())
         return (model_patcher,)
+
+
+class AnimaLLLiteApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"model": ("MODEL",),
+                             "model_patch": ("MODEL_PATCH",),
+                             "image": ("IMAGE",),
+                             "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             },
+                "optional": {"mask": ("MASK",),
+                             }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "apply_patch"
+    EXPERIMENTAL = True
+
+    CATEGORY = "model_patches/anima"
+
+    def apply_patch(self, model, model_patch, image, strength, start_percent, end_percent, mask=None):
+        image = image[..., :3]
+
+        if model_patch.model.cond_in_channels == 4 and mask is None:
+            mask = torch.zeros_like(image[..., 0])
+        elif model_patch.model.cond_in_channels != 4:
+            mask = None
+
+        model_sampling = model.get_model_object("model_sampling")
+        sigma_start = float(model_sampling.percent_to_sigma(start_percent))
+        sigma_end = float(model_sampling.percent_to_sigma(end_percent))
+        patch = comfy.ldm.anima.lllite.AnimaLLLitePatch(model_patch, image, mask, strength, sigma_start, sigma_end)
+        model_patched = model.clone()
+        model_patched.set_model_post_input_patch(patch)
+        model_patched.set_model_attn1_patch(comfy.ldm.anima.lllite.AnimaLLLiteAttentionPatch(
+            patch,
+            {"q": "self_attn_q_proj", "k": "self_attn_k_proj", "v": "self_attn_v_proj"},
+        ))
+        model_patched.set_model_attn2_patch(comfy.ldm.anima.lllite.AnimaLLLiteAttentionPatch(
+            patch,
+            {"q": "cross_attn_q_proj"},
+        ))
+        model_patched.set_model_patch(comfy.ldm.anima.lllite.AnimaLLLiteMLPPatch(patch), "mlp_patch")
+        return (model_patched,)
 
 
 class DiffSynthCnetPatch:
@@ -845,6 +892,7 @@ NODE_CLASS_MAPPINGS = {
     "WanUni3CControlnetApply": WanUni3CControlnetApply,
     "USOStyleReference": USOStyleReference,
     "SUPIRApply": SUPIRApply,
+    "AnimaLLLiteApply": AnimaLLLiteApply,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -854,4 +902,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WanUni3CControlnetApply": "Apply Wan Uni3C ControlNet",
     "USOStyleReference": "Apply USO Style Reference",
     "SUPIRApply": "Apply SUPIR Patch",
+    "AnimaLLLiteApply": "Apply Anima LLLite",
 }
