@@ -77,7 +77,8 @@ def get_mesh_batch_item(mesh, index):
 
 
 def save_glb(vertices, faces, filepath, metadata=None,
-             uvs=None, vertex_colors=None, texture_image=None, unlit=False):
+             uvs=None, vertex_colors=None, texture_image=None, unlit=False,
+             mr_texture_image=None):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -89,6 +90,8 @@ def save_glb(vertices, faces, filepath, metadata=None,
     uvs: torch.Tensor of shape (N, 2) - Optional per-vertex texture coordinates
     vertex_colors: torch.Tensor of shape (N, 3) or (N, 4) - Optional per-vertex colors in [0, 1]
     texture_image: PIL.Image - Optional baseColor texture, embedded as PNG
+    mr_texture_image: PIL.Image - Optional glTF-packed metallic-roughness texture
+        (G=roughness, B=metallic), embedded as PNG alongside the baseColor texture
     """
 
     # Convert tensors to numpy arrays
@@ -123,12 +126,18 @@ def save_glb(vertices, faces, filepath, metadata=None,
         buf = BytesIO()
         texture_image.save(buf, format="PNG")
         texture_png_bytes = buf.getvalue()
+    mr_texture_png_bytes = None
+    if mr_texture_image is not None:
+        buf = BytesIO()
+        mr_texture_image.save(buf, format="PNG")
+        mr_texture_png_bytes = buf.getvalue()
 
     vertices_buffer = vertices_np.tobytes()
     indices_buffer = faces_np.tobytes()
     uvs_buffer = uvs_np.tobytes() if uvs_np is not None else b""
     colors_buffer = colors_np.tobytes() if colors_np is not None else b""
     texture_buffer = texture_png_bytes if texture_png_bytes is not None else b""
+    mr_texture_buffer = mr_texture_png_bytes if mr_texture_png_bytes is not None else b""
 
     def pad_to_4_bytes(buffer):
         padding_length = (4 - (len(buffer) % 4)) % 4
@@ -139,6 +148,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     uvs_buffer_padded = pad_to_4_bytes(uvs_buffer)
     colors_buffer_padded = pad_to_4_bytes(colors_buffer)
     texture_buffer_padded = pad_to_4_bytes(texture_buffer)
+    mr_texture_buffer_padded = pad_to_4_bytes(mr_texture_buffer)
 
     buffer_data = b"".join([
         vertices_buffer_padded,
@@ -146,6 +156,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
         uvs_buffer_padded,
         colors_buffer_padded,
         texture_buffer_padded,
+        mr_texture_buffer_padded,
     ])
 
     vertices_byte_length = len(vertices_buffer)
@@ -155,6 +166,7 @@ def save_glb(vertices, faces, filepath, metadata=None,
     uvs_byte_offset = indices_byte_offset + len(indices_buffer_padded)
     colors_byte_offset = uvs_byte_offset + len(uvs_buffer_padded)
     texture_byte_offset = colors_byte_offset + len(colors_buffer_padded)
+    mr_texture_byte_offset = texture_byte_offset + len(texture_buffer_padded)
 
     buffer_views = [
         {
@@ -254,12 +266,25 @@ def save_glb(vertices, faces, filepath, metadata=None,
         images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
         samplers.append({"magFilter": 9729, "minFilter": 9729, "wrapS": 33071, "wrapT": 33071})
         textures.append({"source": 0, "sampler": 0})
+        pbr = {
+            "baseColorTexture": {"index": 0, "texCoord": 0},
+            "metallicFactor": 0.0,
+            "roughnessFactor": 1.0,
+        }
+        if mr_texture_png_bytes is not None:
+            # glTF metallicRoughnessTexture: roughness in G, metallic in B (factors gate them).
+            buffer_views.append({
+                "buffer": 0,
+                "byteOffset": mr_texture_byte_offset,
+                "byteLength": len(mr_texture_buffer),
+            })
+            images.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
+            textures.append({"source": len(images) - 1, "sampler": 0})
+            pbr["metallicRoughnessTexture"] = {"index": len(textures) - 1, "texCoord": 0}
+            pbr["metallicFactor"] = 1.0
+            pbr["roughnessFactor"] = 1.0
         materials.append({
-            "pbrMetallicRoughness": {
-                "baseColorTexture": {"index": 0, "texCoord": 0},
-                "metallicFactor": 0.0,
-                "roughnessFactor": 1.0,
-            },
+            "pbrMetallicRoughness": pbr,
             "doubleSided": True,
         })
         primitive["material"] = 0
@@ -385,18 +410,27 @@ class SaveGLB(IO.ComfyNode):
                 assert texture_np.ndim == 4 and texture_np.shape[-1] == 3, (
                     f"texture must be (B, H, W, 3) RGB, got shape {tuple(texture_np.shape)}"
                 )
+            mr_texture_b = getattr(mesh, "texture_mr", None)
+            mr_texture_np = None
+            if mr_texture_b is not None:
+                mr_texture_np = (mr_texture_b.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+                assert mr_texture_np.ndim == 4 and mr_texture_np.shape[-1] == 3, (
+                    f"texture_mr must be (B, H, W, 3) RGB, got shape {tuple(mr_texture_np.shape)}"
+                )
             for i in range(mesh.vertices.shape[0]):
                 vertices_i, faces_i, v_colors, uvs_i = get_mesh_batch_item(mesh, i)
                 if vertices_i.shape[0] == 0 or faces_i.shape[0] == 0:
                     logging.warning(f"SaveGLB: skipping empty mesh at batch index {i}")
                     continue
                 tex_img = Image.fromarray(texture_np[i], mode="RGB") if texture_np is not None else None
+                mr_img = Image.fromarray(mr_texture_np[i], mode="RGB") if mr_texture_np is not None else None
                 f = f"{filename}_{counter:05}_.glb"
                 save_glb(vertices_i, faces_i, os.path.join(full_output_folder, f), metadata,
                          uvs=uvs_i,
                          vertex_colors=v_colors,
                          texture_image=tex_img,
-                         unlit=getattr(mesh, "unlit", False))
+                         unlit=getattr(mesh, "unlit", False),
+                         mr_texture_image=mr_img)
                 results.append({
                     "filename": f,
                     "subfolder": subfolder,
