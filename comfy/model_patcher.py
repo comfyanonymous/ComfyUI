@@ -816,6 +816,7 @@ class ModelPatcher:
     def get_key_patches(self, filter_prefix=None):
         model_sd = self.model_state_dict()
         p = {}
+        skipped = []
         for k in model_sd:
             if filter_prefix is not None:
                 if not k.startswith(filter_prefix):
@@ -824,6 +825,7 @@ class ModelPatcher:
             hbk = self.hook_backup.get(k, None)
             weight, set_func, convert_func = get_key_weight(self.model, k)
             if weight is None:
+                skipped.append(k)
                 continue
             if bk is not None:
                 weight = bk.weight
@@ -836,6 +838,8 @@ class ModelPatcher:
                 p[k] = [(weight, convert_func)] + self.patches[k]
             else:
                 p[k] = [(weight, convert_func)]
+        if skipped:
+            logging.warning("Skipped %d key(s) in get_key_patches (weight not found on model): %s", len(skipped), ", ".join(skipped))
         return p
 
     def model_state_dict(self, filter_prefix=None):
@@ -850,6 +854,8 @@ class ModelPatcher:
 
     def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False, force_cast=False):
         weight, set_func, convert_func = get_key_weight(self.model, key)
+        if weight is None:
+            return None
         if key not in self.patches and not force_cast:
             return weight
 
@@ -881,6 +887,8 @@ class ModelPatcher:
 
     def pin_weight_to_device(self, key):
         weight, set_func, convert_func = get_key_weight(self.model, key)
+        if weight is None:
+            return
         if comfy.model_management.pin_memory(weight):
             self.pinned.add(key)
 
@@ -1597,6 +1605,8 @@ class ModelPatcher:
             return
 
         weight, set_func, convert_func = get_key_weight(self.model, key)
+        if weight is None:
+            return
         weight: torch.Tensor
         if key not in self.hook_backup:
             target_device = self.offload_device
