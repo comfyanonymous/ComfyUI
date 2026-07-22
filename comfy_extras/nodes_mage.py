@@ -8,15 +8,17 @@ from comfy_api.latest import ComfyExtension, io
 
 
 class TextEncodeMageFlowEdit(io.ComfyNode):
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="TextEncodeMageFlowEdit",
             category="model/conditioning/mage",
-            description="Encode an edit instruction with up to 3 reference images for Mage-Flow-Edit. Reference latents are resized to the output resolution (width/height, or the first image's size when 0)",
+            description="Encode an edit instruction with up to 3 reference images for Mage-Flow-Edit. Reference latents are resized to the output resolution (width/height, or the first image's size when 0). Use the latent output for sampling so the sizes always match.",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.String.Input("negative_prompt", multiline=True, dynamic_prompts=True, advanced=True),
                 io.Vae.Input("vae", optional=True),
                 io.Image.Input("image1", optional=True),
                 io.Image.Input("image2", optional=True),
@@ -26,19 +28,19 @@ class TextEncodeMageFlowEdit(io.ComfyNode):
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
             outputs=[
-                io.Conditioning.Output(),
-                io.Latent.Output(),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
             ],
         )
 
     @classmethod
-    def execute(cls, clip, prompt, vae=None, image1=None, image2=None, image3=None, width=0, height=0, batch_size=1) -> io.NodeOutput:
+    def execute(cls, clip, prompt, negative_prompt="", vae=None, image1=None, image2=None, image3=None, width=0, height=0, batch_size=1) -> io.NodeOutput:
         ref_latents = []
         images = [i for i in (image1, image2, image3) if i is not None]
         images_vl = []
 
-        # Output resolution: explicit width/height, else the primary reference's
-        # own size, floored to /16 (reference pipeline precedence).
+        # Output resolution: explicit width/height, else the primary reference's own size, floored to /16
         if width == 0 or height == 0:
             if len(images) > 0:
                 height, width = images[0].shape[1], images[0].shape[2]
@@ -68,12 +70,16 @@ class TextEncodeMageFlowEdit(io.ComfyNode):
                     s = samples
                 ref_latents.append(vae.encode(s.movedim(1, -1)[:, :, :, :3]))
 
-        tokens = clip.tokenize(prompt, images=images_vl)
-        conditioning = clip.encode_from_tokens_scheduled(tokens)
+        # Negative branch keeps the same reference images (VL tokens + ref latents), only the instruction differs.
+        positive = clip.encode_from_tokens_scheduled(clip.tokenize(prompt, images=images_vl))
+        negative = clip.encode_from_tokens_scheduled(clip.tokenize(negative_prompt if negative_prompt else " ", images=images_vl))
+
         if len(ref_latents) > 0:
-            conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": ref_latents}, append=True)
+            positive = node_helpers.conditioning_set_values(positive, {"reference_latents": ref_latents}, append=True)
+            negative = node_helpers.conditioning_set_values(negative, {"reference_latents": ref_latents}, append=True)
+
         latent = torch.zeros([batch_size, 128, height // 16, width // 16], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput(conditioning, {"samples": latent})
+        return io.NodeOutput(positive, negative, {"samples": latent})
 
 
 class MageExtension(ComfyExtension):
