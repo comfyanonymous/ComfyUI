@@ -1469,12 +1469,12 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 if layer_conf is not None:
                     layer_conf = json.loads(layer_conf.numpy().tobytes())
 
-                # Only fp8 makes sense for embeddings (per-row dequant via index select).
+                # Only fp8 and int8_tensorwise support per-row dequant via index select.
                 # Block-scaled formats (NVFP4, MXFP8) can't do per-row lookup efficiently.
                 quant_format = layer_conf.get("format") if layer_conf is not None else None
                 manually_loaded_keys = []
 
-                if quant_format in ("float8_e4m3fn", "float8_e5m2") and weight_key in state_dict:
+                if quant_format in ("float8_e4m3fn", "float8_e5m2", "int8_tensorwise") and weight_key in state_dict:
                     self.quant_format = quant_format
                     qconfig = QUANT_ALGOS[quant_format]
                     self.layout_type = qconfig["comfy_tensor_layout"]
@@ -1488,10 +1488,16 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         scale = scale.float()
                         manually_loaded_keys.append(scale_key)
 
+                    extra = {}
+                    if quant_format == "int8_tensorwise" and layer_conf.get("convrot", False):
+                        # rotated embedding table: record it so the forward un-rotates after lookup
+                        extra["convrot"] = True
+                        extra["convrot_groupsize"] = int(layer_conf.get("convrot_groupsize", 256))
                     params = layout_cls.Params(
                         scale=scale if scale is not None else torch.ones((), dtype=torch.float32),
                         orig_dtype=MixedPrecisionOps._compute_dtype,
                         orig_shape=(self.num_embeddings, self.embedding_dim),
+                        **extra,
                     )
                     self.weight = torch.nn.Parameter(
                         QuantizedTensor(weight.to(dtype=qconfig["storage_t"]), qconfig["comfy_tensor_layout"], params),
@@ -1513,14 +1519,22 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
             def forward_comfy_cast_weights(self, input, out_dtype=None):
                 weight = self.weight
 
-                # Optimized path: lookup in fp8, dequantize only the selected rows.
+                # Optimized path: lookup in fp8/int8, dequantize only the selected rows.
                 if isinstance(weight, QuantizedTensor) and len(self.weight_function) == 0:
                     qdata, _, offload_stream = cast_bias_weight(self, device=input.device, dtype=weight.dtype, offloadable=True)
                     if isinstance(qdata, QuantizedTensor):
-                        scale = qdata._params.scale
+                        params = qdata._params
+                        scale = params.scale
                         qdata = qdata._qdata
                     else:
+                        params = weight._params
                         scale = None
+
+                    # int8: per-row scale possible ConvRot, so let the layout do the gather
+                    if self.quant_format == "int8_tensorwise":
+                        x = get_layout_class(self.layout_type).dequantize_embedding(qdata, params, input)
+                        uncast_bias_weight(self, qdata, None, offload_stream)
+                        return x if out_dtype is None else x.to(dtype=out_dtype)
 
                     x = torch.nn.functional.embedding(
                         input, qdata, self.padding_idx, self.max_norm,
