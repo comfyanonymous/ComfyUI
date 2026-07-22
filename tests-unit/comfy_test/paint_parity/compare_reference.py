@@ -49,7 +49,8 @@ def main():
     model = patcher.model.diffusion_model  # the UNet2p5DConditionModel inside the BaseModel
     model.eval()
 
-    out, acts = harness.run_model(model, tensors, capture_blocks=True)
+    with torch.inference_mode():
+        out, acts = harness.run_model(model, tensors, capture_blocks=True)
     candidate = dict(acts)
     candidate["output/noise_pred"] = out
 

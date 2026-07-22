@@ -120,6 +120,11 @@ def view_matrix(elev, azim, camera_distance, device="cpu", dtype=torch.float32):
     lookat = lookat / lookat.norm()
     up = torch.tensor([0.0, 0.0, 1.0], device=device, dtype=dtype)
     right = torch.linalg.cross(lookat, up)
+    if right.norm() < 1e-6:
+        # Pole view (lookat parallel to +Z). Use the right vector the reference's
+        # residual float rounding resolves to, so top/bottom orientation matches
+        # hy3dpaint deterministically instead of hanging off a 1e-17 residual.
+        right = torch.tensor([-math.sin(ar), math.cos(ar), 0.0], device=device, dtype=dtype)
     right = right / right.norm()
     up = torch.linalg.cross(right, lookat)
     up = up / up.norm()
@@ -486,6 +491,12 @@ def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
     proj = orthographic_matrix(cameras.ortho_scale, cameras.near, cameras.far, device=device)
     color_acc = torch.zeros((T * T, C), dtype=torch.float32, device=device)
     weight_acc = torch.zeros((T * T, 1), dtype=torch.float32, device=device)
+
+    if V != len(cameras.elevs) or V != len(cameras.azims):
+        raise ValueError(
+            f"bake_multiview: {V} view images but "
+            f"{len(cameras.elevs)} elevations / {len(cameras.azims)} azimuths; "
+            "views and cameras must match one-to-one")
 
     for vi in range(V):
         elev, azim = cameras.elevs[vi], cameras.azims[vi]

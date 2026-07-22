@@ -85,7 +85,9 @@ def main():
             os.unlink(patched_path)
         return mod
 
-    cpu_patch = () if torch.cuda.is_available() else (('.to("cuda:0")', ""),)
+    # Always strip the reference's hard-coded device move: this capture path is
+    # CPU-only, and leaving it in on a CUDA machine mixes devices mid-forward.
+    cpu_patch = (('.to("cuda:0")', ""),)
     load_module("hunyuanpaintpbr.unet.attn_processor", "attn_processor.py", cpu_patch)
     ref_modules = load_module("hunyuanpaintpbr.unet.modules", "modules.py")
     UNet2p5DConditionModel = ref_modules.UNet2p5DConditionModel
@@ -95,9 +97,13 @@ def main():
 
     try:
         model = UNet2p5DConditionModel.from_pretrained(args.unet_dir, torch_dtype=torch.float32)
-    except TypeError:
-        # some diffusers versions reject the raw config's private keys; replicate
-        # the reference from_pretrained via from_config instead
+    except TypeError as exc:
+        # Only the known mismatch is recoverable: some diffusers versions reject
+        # the raw config's private keys as unexpected keyword arguments. Anything
+        # else is a real loader failure and must surface.
+        if "argument" not in str(exc):
+            raise
+        # replicate the reference from_pretrained via from_config instead
         from diffusers import UNet2DConditionModel
         base = UNet2DConditionModel.from_config(cfg)
         model = UNet2p5DConditionModel(base)
@@ -138,7 +144,7 @@ def main():
 
     handles = [model.get_submodule(n).register_forward_hook(make_hook(n)) for n in names]
 
-    with torch.no_grad():
+    with torch.inference_mode():
         out = model(
             tensors["input/sample"],
             tensors["input/timestep"],

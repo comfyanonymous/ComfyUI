@@ -82,6 +82,12 @@ def compare_tensors(reference, candidate, keys=None):
         keys = [k for k in reference if k in candidate]
     rows = []
     for k in sorted(keys):
+        if k not in reference or k not in candidate:
+            absent = "reference" if k not in reference else "candidate"
+            rows.append({"key": k, "shape": f"missing in {absent} capture",
+                         "max_abs": float("nan"), "mean_abs": float("nan"),
+                         "rel": float("nan")})
+            continue
         a = reference[k].float()
         b = candidate[k].float()
         if a.shape != b.shape:

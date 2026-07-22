@@ -10,7 +10,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
 
 import comfy.utils
 
@@ -200,25 +199,28 @@ class Basic2p5DTransformerBlock(nn.Module):
 
         # 1. material-dimension self attention
         if self.use_mda:
-            mda = rearrange(norm_hidden_states, "(b n_pbr n) l c -> b n_pbr n l c", n=num_in_batch, n_pbr=N_pbr)
+            mda = norm_hidden_states.reshape(
+                -1, N_pbr, num_in_batch, norm_hidden_states.shape[-2], norm_hidden_states.shape[-1])
             attn_output = t.attn1.forward_material_self(mda, self.pbr_setting)
-            attn_output = rearrange(attn_output, "b n_pbr n l c -> (b n_pbr n) l c")
+            attn_output = attn_output.flatten(0, 2)
         else:
             attn_output = t.attn1(norm_hidden_states)
         hidden_states = attn_output + hidden_states
 
         # reference write
         if mode is not None and "w" in mode:
-            condition_embed_dict[self.layer_name] = rearrange(
-                norm_hidden_states, "(b n) l c -> b (n l) c", n=num_in_batch)
+            condition_embed_dict[self.layer_name] = norm_hidden_states.reshape(
+                -1, num_in_batch * norm_hidden_states.shape[-2], norm_hidden_states.shape[-1])
 
         # reference read
         if mode is not None and "r" in mode and self.use_ra:
             condition_embed = condition_embed_dict[self.layer_name]
-            ref_norm = rearrange(norm_hidden_states, "(b n_pbr n) l c -> b n_pbr (n l) c",
-                                 n=num_in_batch, n_pbr=N_pbr)[:, 0, ...]
+            ref_norm = norm_hidden_states.reshape(
+                -1, N_pbr, num_in_batch * norm_hidden_states.shape[-2],
+                norm_hidden_states.shape[-1])[:, 0, ...]
             attn_output = self.attn_refview.forward_ref(ref_norm, condition_embed, self.pbr_setting)
-            attn_output = rearrange(attn_output, "b n_pbr (n l) c -> (b n_pbr n) l c", n=num_in_batch, n_pbr=N_pbr)
+            attn_output = attn_output.reshape(
+                -1, norm_hidden_states.shape[-2], attn_output.shape[-1])
             ref_scale_timing = ref_scale
             if isinstance(ref_scale, torch.Tensor):
                 ref_scale_timing = ref_scale.unsqueeze(1).repeat(1, num_in_batch * N_pbr).view(-1)
@@ -228,12 +230,14 @@ class Basic2p5DTransformerBlock(nn.Module):
 
         # multiview attention
         if num_in_batch > 1 and self.use_ma:
-            mv = rearrange(norm_hidden_states, "(b n_pbr n) l c -> (b n_pbr) (n l) c", n_pbr=N_pbr, n=num_in_batch)
+            mv = norm_hidden_states.reshape(
+                -1, num_in_batch * norm_hidden_states.shape[-2], norm_hidden_states.shape[-1])
             position_indices = None
             if position_voxel_indices is not None and mv.shape[1] in position_voxel_indices:
                 position_indices = position_voxel_indices[mv.shape[1]]
             attn_output = self.attn_multiview.forward_multiview(mv, position_indices=position_indices, n_pbrs=N_pbr)
-            attn_output = rearrange(attn_output, "(b n_pbr) (n l) c -> (b n_pbr n) l c", n_pbr=N_pbr, n=num_in_batch)
+            attn_output = attn_output.reshape(
+                -1, norm_hidden_states.shape[-2], attn_output.shape[-1])
             hidden_states = mva_scale * attn_output + hidden_states
 
         # cross attention (text / learned clip)
@@ -244,7 +248,7 @@ class Basic2p5DTransformerBlock(nn.Module):
         # dino attention
         if self.use_dino and dino_hidden_states is not None:
             dino = dino_hidden_states.unsqueeze(1).repeat(1, N_pbr * num_in_batch, 1, 1)
-            dino = rearrange(dino, "b n l c -> (b n) l c")
+            dino = dino.flatten(0, 1)
             attn_output = self.attn_dino(norm_hidden_states, dino)
             hidden_states = attn_output + hidden_states
 
@@ -552,10 +556,10 @@ class ImageProjModel(nn.Module):
         num_token = 1
         if embeds.dim() == 3:
             num_token = embeds.shape[1]
-            embeds = rearrange(embeds, "b n c -> (b n) c")
+            embeds = embeds.flatten(0, 1)
         tokens = self.proj(embeds).reshape(-1, self.clip_extra_context_tokens, self.cross_attention_dim)
         tokens = self.norm(tokens)
-        tokens = rearrange(tokens, "(b nt) n c -> b (nt n) c", nt=num_token)
+        tokens = tokens.reshape(-1, num_token * tokens.shape[-2], tokens.shape[-1])
         return tokens
 
 
@@ -636,7 +640,6 @@ class UNet2p5DConditionModel(nn.Module):
             context = context.to(dtype=dtype, device=device)
         return context.repeat(batch_size, 1, 1, 1)
 
-    @torch.no_grad()
     def compute_reference_bank(self, ref_latents):
         """Run the dual-stream reference UNet in write mode and collect the per-layer
         reference hidden states consumed by reference attention.
@@ -646,10 +649,10 @@ class UNet2p5DConditionModel(nn.Module):
         """
         condition_embed_dict = {}
         B, N_ref = ref_latents.shape[:2]
-        ref = rearrange(ref_latents, "b n c h w -> (b n) c h w")
+        ref = ref_latents.flatten(0, 1)
         enc_ref = self.unet.learned_text_clip_ref.to(dtype=ref.dtype, device=ref.device)
         enc_ref = enc_ref[None, None].repeat(B, N_ref, 1, 1)
-        enc_ref = rearrange(enc_ref, "b n l c -> (b n) l c")
+        enc_ref = enc_ref.flatten(0, 1)
         self.unet_dual(ref, 0, enc_ref, num_in_batch=N_ref, mode="w",
                        condition_embed_dict=condition_embed_dict)
         return condition_embed_dict
@@ -694,7 +697,7 @@ class UNet2p5DConditionModel(nn.Module):
         elif context.ndim == 3:
             context = context.reshape(B, N_pbr, -1, context.shape[-1])
         enc = context.unsqueeze(-3).repeat(1, 1, V, 1, 1)
-        enc = rearrange(enc, "b n_pbr n l c -> (b n_pbr n) l c")
+        enc = enc.flatten(0, 2)
 
         if not torch.is_tensor(timesteps):
             timesteps = torch.tensor([timesteps], dtype=torch.long, device=sample.device)
