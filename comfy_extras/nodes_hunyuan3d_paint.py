@@ -167,12 +167,16 @@ class Hunyuan3DBakeMultiView(IO.ComfyNode):
             display_name="Hunyuan3D Bake MultiView",
             category="model/hunyuan 3d",
             description=(
-                "Back-project multiview albedo + metallic-roughness images onto a UV atlas "
-                "(unwrapping the mesh if it lacks UVs) and attach the baked textures. Outputs "
-                "the UV-unwrapped textured mesh and the baked albedo/MR textures as images."
+                "Back-project multiview albedo + metallic-roughness images onto the mesh's UV "
+                "atlas and attach the baked textures. A mesh that already has UVs (artist-made "
+                "or from an unwrap node) is baked onto those UVs; a mesh without UVs falls back "
+                "to a built-in per-triangle atlas. Outputs the textured mesh and the baked "
+                "albedo/MR textures as images."
             ),
             inputs=[
-                IO.Mesh.Input("mesh", tooltip="The mesh that was painted (same one fed to the multiview node)."),
+                IO.Mesh.Input("mesh", tooltip="The mesh that was painted (same one fed to the multiview node). "
+                                              "Existing per-vertex UVs are used as the bake target; a mesh "
+                                              "without UVs gets a built-in per-triangle atlas."),
                 IO.Image.Input("albedo", tooltip="Per-view albedo images from the multiview node."),
                 IO.Image.Input("mr", tooltip="Per-view metallic-roughness images from the multiview node."),
                 CAMERAS.Input("cameras", tooltip="Cameras output by the multiview node."),
@@ -195,6 +199,9 @@ class Hunyuan3DBakeMultiView(IO.ComfyNode):
     def execute(cls, mesh, albedo, mr, cameras, texture_size, bake_exponent, fill_holes) -> IO.NodeOutput:
         vertices, faces, uvs = _first_mesh(mesh)
 
+        # A mesh that already carries per-vertex UVs (artist-authored or produced by an
+        # unwrap node) keeps them as the bake target; only UV-less meshes fall back to
+        # the built-in per-triangle atlas.
         if uvs is not None and uvs.shape[0] == vertices.shape[0]:
             v_uv, f_uv, uv = vertices, faces, uvs.float()
         else:
