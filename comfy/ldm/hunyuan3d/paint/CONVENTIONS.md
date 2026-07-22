@@ -18,8 +18,9 @@ winding. This is what core `MESH` tensors carry.
 ## 2. World (renderer) frame — `normalize_mesh()`
 
 `(x, y, z)_glb -> (-x, z, -y)_world`, then center on the bbox midpoint and
-scale so the max vertex radius is `MESH_SCALE_FACTOR = 1.15` (matches
-`MeshRender.set_mesh(auto_center=True)`).
+scale so the bounding-sphere *diameter* is `MESH_SCALE_FACTOR = 1.15`, i.e.
+max vertex radius 0.575 (matches `MeshRender.set_mesh(auto_center=True)`;
+this is what makes `0.5 - p / 1.15` land in `[0, 1]` for the position maps).
 
 Two properties to be aware of:
 

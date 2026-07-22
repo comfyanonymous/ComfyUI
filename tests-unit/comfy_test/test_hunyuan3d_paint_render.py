@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import inspect
 import json
+import math
 import struct
+from io import BytesIO
 
+import numpy as np
 import pytest
 import torch
+from PIL import Image
 
 from comfy.cli_args import args
 
@@ -120,7 +124,6 @@ def test_uv_unwrap_packs_all_triangles_non_overlapping():
     assert torch.equal(nf, torch.arange(3 * Fn).reshape(Fn, 3))
     assert float(uv.min()) >= 0.0 and float(uv.max()) <= 1.0
     # each triangle's UVs live in its own grid cell -> charts cannot overlap
-    import math
     g = int(math.ceil(math.sqrt(Fn)))
     cell = 1.0 / g
     tri_uv = uv.reshape(Fn, 3, 2)
@@ -392,8 +395,6 @@ def _read_glb(path):
 
 
 def _decode_glb_image(gltf, binary, image_index):
-    from io import BytesIO
-    from PIL import Image
     view = gltf["bufferViews"][gltf["images"][image_index]["bufferView"]]
     start = view.get("byteOffset", 0)
     png = binary[start:start + view["byteLength"]]
@@ -406,8 +407,6 @@ def test_glb_textures_round_trip_without_gamma_shift(tmp_path):
     and glTF defines baseColorTexture as sRGB, so a value ramp must survive
     identically; the MR texture is defined by glTF as linear, so applying an sRGB
     transfer anywhere would shift e.g. 0.8 -> ~0.91. Both are checked exactly."""
-    import numpy as np
-    from PIL import Image
     from comfy_extras.nodes_save_3d import save_glb
     v, f = _cube()
     nv, nf, uv = R.pack_per_triangle_uv(v, f)
@@ -519,7 +518,6 @@ def test_bake_node_uses_existing_mesh_uvs():
 
 
 def test_save_glb_writes_metallic_roughness_texture(tmp_path):
-    from PIL import Image
     from comfy_extras.nodes_save_3d import save_glb
     v, f = _cube()
     nv, nf, uv = R.pack_per_triangle_uv(v, f)
@@ -610,7 +608,6 @@ def test_conditioning_sampling_then_bake_end_to_end_with_random_model():
 
 
 def test_save_glb_without_mr_still_single_texture(tmp_path):
-    from PIL import Image
     from comfy_extras.nodes_save_3d import save_glb
     v, f = _cube()
     nv, nf, uv = R.pack_per_triangle_uv(v, f)
