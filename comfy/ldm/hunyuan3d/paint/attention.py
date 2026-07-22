@@ -213,27 +213,39 @@ class Attention(nn.Module):
     # -- reference attention (shared q/k, per-material v/out) -----------------
     def forward_ref(self, hidden_states, encoder_hidden_states, pbr_setting):
         # hidden_states: (b, n*l, c) albedo query ; encoder: (b, n_ref*l, c)
+        #
+        # Faithful to RefAttnProcessor2_0: ALL materials' value projections are
+        # concatenated channel-wise and reshaped into heads of width
+        # n_pbr*dim_head, so each attention head pairs its q/k slice with an
+        # interleaved mix of albedo/mr value channels (head h sees concat
+        # channels [h*n_pbr*dim_head, (h+1)*n_pbr*dim_head)). That scrambled
+        # packing is what the released weights were trained with - computing
+        # each material's attention separately with matched head slices is
+        # mathematically "cleaner" but weight-incompatible (verified against
+        # captured reference activations; see the paint parity harness).
         query = self.to_q(hidden_states)
         key = self.to_k(encoder_hidden_states)
+        values = [self.to_v(encoder_hidden_states)]
+        for token in pbr_setting:
+            if token != "albedo":
+                values.append(getattr(self.processor, f"to_v_{token}")(encoder_hidden_states))
+        value = torch.cat(values, dim=-1)  # (b, n_ref*l, n_pbr*inner_dim)
 
         b = query.shape[0]
+        n_pbr = len(pbr_setting)
         q = query.view(b, -1, self.heads, self.dim_head).transpose(1, 2)
         k = key.view(b, -1, self.heads, self.dim_head).transpose(1, 2)
+        v = value.view(b, -1, self.heads, n_pbr * self.dim_head).transpose(1, 2)
 
+        hidden = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, is_causal=False)
         outputs = []
-        for token in pbr_setting:
-            if token == "albedo":
-                v_lin, to_out = self.to_v, self.to_out
-            else:
-                v_lin = getattr(self.processor, f"to_v_{token}")
-                to_out = getattr(self.processor, f"to_out_{token}")
-            value = v_lin(encoder_hidden_states)
-            v = value.view(b, -1, self.heads, self.dim_head).transpose(1, 2)
-            hidden = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, is_causal=False)
-            hidden = hidden.transpose(1, 2).reshape(b, -1, self.heads * self.dim_head)
-            hidden = to_out[0](hidden)
-            hidden = to_out[1](hidden)
-            outputs.append(hidden)
+        for i, token in enumerate(pbr_setting):
+            to_out = self.to_out if token == "albedo" else getattr(self.processor, f"to_out_{token}")
+            chunk = hidden[..., i * self.dim_head:(i + 1) * self.dim_head]
+            chunk = chunk.transpose(1, 2).reshape(b, -1, self.heads * self.dim_head)
+            chunk = to_out[0](chunk)
+            chunk = to_out[1](chunk)
+            outputs.append(chunk)
         return torch.stack(outputs, dim=1)  # (b, n_pbr, n*l, c)
 
 
@@ -249,8 +261,14 @@ def _mean_voxel_indices(position_maps: torch.Tensor, grid_resolution: int = 8, v
     every channel is background. Cells whose valid coverage falls below 1/16 of
     the cell area are zeroed rather than averaged from a handful of edge pixels.
     Returns (B, N, 3, g, g) long indices into a ``voxel_resolution``-sized grid.
+
+    The pooling runs in float16 regardless of the model dtype, mirroring the
+    reference ``compute_discrete_voxel_indice`` (which casts to half before
+    averaging): the subsequent round() lands boundary cells on the same voxel
+    index the released weights were trained with, and keeps the indices
+    identical across fp16/bf16/fp32 inference.
     """
-    position_maps = position_maps.float()
+    position_maps = position_maps.half()
     b, n, channels, height, width = position_maps.shape
     g = grid_resolution
     assert height % g == 0 and width % g == 0
