@@ -198,6 +198,31 @@ def test_ddim_scheduler_zero_terminal_snr_and_trailing():
     assert sched.alphas_cumprod[-1].item() < 1e-6  # zero terminal SNR
 
 
+def test_ddim_schedule_matches_core_model_sampling():
+    """Rewire-parity contract: the bespoke DDIM v-pred/zero-SNR schedule must stay
+    interchangeable with core's ModelSamplingDiscrete(zsnr=True).
+
+    Same betas (scaled-linear 0.00085..0.012), same zero-terminal-SNR rescale; the
+    only intended difference is the terminal step, where core clamps
+    alpha_cumprod[-1] to 4.897e-8 (finite sigma_max ~4519) while the reference
+    scheduler keeps an exact 0 (infinite sigma). A full 15-step DDIM loop under
+    either convention agrees to ~2e-4 (see PR notes)."""
+    import comfy.model_sampling as cms
+
+    ms = cms.ModelSamplingDiscrete(model_config=None, zsnr=True)
+    sched = DDIMVScheduler()
+    ac = sched.alphas_cumprod
+    sigmas = ((1 - ac[:-1]) / ac[:-1]) ** 0.5
+    torch.testing.assert_close(ms.sigmas[:999].double(), sigmas, rtol=1e-6, atol=1e-4)
+    # documented divergence at the terminal step
+    assert float(ac[-1]) == 0.0
+    assert float(ms.sigmas[-1]) > 4000.0
+    # the trailing timesteps round-trip exactly through core's sigma<->timestep maps
+    ts = sched.set_timesteps(15).tolist()
+    rt = ms.timestep(ms.sigma(torch.tensor(ts, dtype=torch.float32))).tolist()
+    assert rt == ts
+
+
 def test_cam_mapping_view_scale():
     assert _cam_mapping(0) == pytest.approx(1.0)
     assert _cam_mapping(90) == pytest.approx(2.0)
