@@ -490,6 +490,7 @@ def test_bake_node_execute_attaches_textures_and_uvs():
     assert out_mesh.texture_mr is not None and out_mesh.texture_mr.shape == (1, 256, 256, 3)
     # native MR image output keeps R=metallic, G=roughness
     covered = alb_tex[0].abs().sum(-1) > 0
+    assert bool(covered.any()), "expected baked texture coverage"
     assert torch.allclose(mr_tex[0][covered][:, 0], torch.full((int(covered.sum()),), 0.2), atol=1e-3)
     # glTF-packed MR on the mesh: G=roughness, B=metallic
     packed = out_mesh.texture_mr[0]
