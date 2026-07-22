@@ -296,8 +296,6 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                                     'nodeId': node_id,
                                     'mediaType': media_type
                                 }
-                                if fallback_preview is None:
-                                    fallback_preview = enriched
                         continue
                     # normalize_output_item returned a dict (e.g. 3D file)
                     item = normalized
