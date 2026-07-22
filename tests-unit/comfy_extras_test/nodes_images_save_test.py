@@ -75,26 +75,43 @@ def test_save_image_advanced_schema_exposes_avif_quality():
     assert serialized_options["avif"]["required"]["quality"][:1] == ("INT",)
 
 
-def test_build_avif_xmp_escapes_and_preserves_prompt_and_workflow():
+def test_build_avif_xmp_escapes_and_preserves_comfyui_metadata():
     prompt = {"1": {"class_type": "KSampler", "inputs": {"text": "<tag> & value"}}}
     workflow = {"nodes": [{"id": 1, "title": 'Save "AVIF"'}], "version": 1}
+    extra_pnginfo = {"workflow": workflow, "custom metadata": {"value": "<one> & two"}}
 
-    xmp = nodes_images.build_avif_xmp(
-        prompt, {"workflow": workflow, "ignored": {"value": 1}}
-    )
+    xmp = nodes_images.build_avif_xmp(prompt, extra_pnginfo)
 
     assert xmp is not None
     root = ElementTree.fromstring(xmp)
     description = root.find(f".//{{{RDF_NAMESPACE}}}Description")
     workflow_element = root.find(f".//{{{COMFYUI_XMP_NAMESPACE}}}workflow")
+    extra_pnginfo_element = root.find(
+        f".//{{{COMFYUI_XMP_NAMESPACE}}}extra_pnginfo"
+    )
 
     assert description is not None
     assert workflow_element is not None
+    assert extra_pnginfo_element is not None
     assert description.attrib[f"{{{COMFYUI_XMP_NAMESPACE}}}prompt"] == json.dumps(
         prompt
     )
     assert workflow_element.text == json.dumps(workflow)
-    assert b"ignored" not in xmp
+    assert json.loads(extra_pnginfo_element.text) == extra_pnginfo
+
+
+def test_build_avif_xmp_preserves_extra_pnginfo_without_workflow():
+    extra_pnginfo = {"custom": {"value": 1}}
+
+    xmp = nodes_images.build_avif_xmp(None, extra_pnginfo)
+
+    assert xmp is not None
+    root = ElementTree.fromstring(xmp)
+    extra_pnginfo_element = root.find(
+        f".//{{{COMFYUI_XMP_NAMESPACE}}}extra_pnginfo"
+    )
+    assert extra_pnginfo_element is not None
+    assert json.loads(extra_pnginfo_element.text) == extra_pnginfo
 
 
 def test_encode_avif_image_passes_fixed_encoding_options(monkeypatch):
@@ -170,6 +187,7 @@ def test_save_image_advanced_writes_avif_batch_and_respects_metadata_setting(
 ):
     prompt = {"1": {"class_type": "KSampler"}}
     workflow = {"nodes": [], "version": 1}
+    extra_pnginfo = {"workflow": workflow, "custom": {"value": 1}}
     images = torch.from_numpy(
         np.random.default_rng(7).random((2, 12, 16, 3), dtype=np.float32)
     )
@@ -186,7 +204,7 @@ def test_save_image_advanced_writes_avif_batch_and_respects_metadata_setting(
     monkeypatch.setattr(
         nodes_images.SaveImageAdvanced,
         "hidden",
-        SimpleNamespace(prompt=prompt, extra_pnginfo={"workflow": workflow}),
+        SimpleNamespace(prompt=prompt, extra_pnginfo=extra_pnginfo),
     )
 
     output = nodes_images.SaveImageAdvanced.execute(
@@ -206,5 +224,5 @@ def test_save_image_advanced_writes_avif_batch_and_respects_metadata_setting(
                 assert "xmp" not in saved_image.info
             else:
                 assert saved_image.info["xmp"] == nodes_images.build_avif_xmp(
-                    prompt, {"workflow": workflow}
+                    prompt, extra_pnginfo
                 )

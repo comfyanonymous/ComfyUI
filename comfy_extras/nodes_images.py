@@ -947,9 +947,9 @@ def inject_png_metadata(png_bytes: bytes, prompt: dict | None, extra_pnginfo: di
 
 
 def build_avif_xmp(prompt: dict | None, extra_pnginfo: dict | None) -> bytes | None:
-    """Build the standard XMP item used to import ComfyUI AVIF workflows."""
+    """Build the XMP item used to preserve ComfyUI AVIF metadata."""
     workflow = extra_pnginfo.get("workflow") if extra_pnginfo else None
-    if prompt is None and workflow is None:
+    if prompt is None and not extra_pnginfo:
         return None
 
     prompt_attribute = ""
@@ -960,6 +960,14 @@ def build_avif_xmp(prompt: dict | None, extra_pnginfo: dict | None) -> bytes | N
     if workflow is not None:
         workflow_element = f"      <comfy:workflow>{escape(json.dumps(workflow))}</comfy:workflow>"
 
+    extra_pnginfo_element = ""
+    if extra_pnginfo:
+        extra_pnginfo_element = (
+            "      <comfy:extra_pnginfo>"
+            f"{escape(json.dumps(extra_pnginfo))}"
+            "</comfy:extra_pnginfo>"
+        )
+
     packet = [
         '<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>',
         '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
@@ -968,6 +976,8 @@ def build_avif_xmp(prompt: dict | None, extra_pnginfo: dict | None) -> bytes | N
     ]
     if workflow_element:
         packet.append(workflow_element)
+    if extra_pnginfo_element:
+        packet.append(extra_pnginfo_element)
     packet.extend([
         "    </rdf:Description>",
         "  </rdf:RDF>",
