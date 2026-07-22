@@ -22,6 +22,9 @@ def detect_paint_config(state_dict, prefix=""):
     """Return a UNet2p5DConditionModel config dict if ``state_dict`` looks like the
     Hunyuan3D 2.1 paint UNet, else ``None``. Everything derivable is read from tensor
     shapes; only the (weight-invisible) attention head dim and group count are assumed.
+
+    Raises ValueError (never KeyError) when the checkpoint matches the paint family
+    but is missing keys the config derivation needs (truncated / renamed weights).
     """
     ck = lambda k: f"{prefix}{k}"  # noqa: E731
     conv_in = ck("unet.conv_in.weight")
@@ -32,9 +35,18 @@ def detect_paint_config(state_dict, prefix=""):
     if ck("unet.learned_text_clip_albedo") not in state_dict:
         return None
 
+    def need(key):
+        full = ck(key)
+        if full not in state_dict:
+            raise ValueError(
+                f"checkpoint looks like a Hunyuan3D 2.1 paint UNet but is missing "
+                f"'{full}'; the file appears truncated or its keys were renamed "
+                f"(expected the hunyuan3d-paintpbr-v2-1 layout)")
+        return state_dict[full]
+
     in_channels = state_dict[conv_in].shape[1]
     ref_in_channels = state_dict[ck("unet_dual.conv_in.weight")].shape[1]
-    out_channels = state_dict[ck("unet.conv_out.weight")].shape[0]
+    out_channels = need("unet.conv_out.weight").shape[0]
 
     # block_out_channels from each down block's resnet output width
     block_out_channels = []
@@ -53,8 +65,14 @@ def detect_paint_config(state_dict, prefix=""):
     while ck(f"unet.down_blocks.0.attentions.0.transformer_blocks.{transformer_layers}.transformer.norm1.weight") in state_dict:
         transformer_layers += 1
 
-    cross_attention_dim = state_dict[
-        ck("unet.down_blocks.0.attentions.0.transformer_blocks.0.transformer.attn2.to_k.weight")].shape[1]
+    if not block_out_channels or layers_per_block == 0 or transformer_layers == 0:
+        raise ValueError(
+            "checkpoint looks like a Hunyuan3D 2.1 paint UNet but its down_blocks "
+            "layout is incomplete; the file appears truncated (expected the "
+            "hunyuan3d-paintpbr-v2-1 layout)")
+
+    cross_attention_dim = need(
+        "unet.down_blocks.0.attentions.0.transformer_blocks.0.transformer.attn2.to_k.weight").shape[1]
 
     num_attention_heads = [max(1, c // _HEAD_DIM) for c in block_out_channels]
 
@@ -86,12 +104,44 @@ def detect_paint_config(state_dict, prefix=""):
     }
 
 
+def _describe_checkpoint_family(state_dict):
+    """Best-effort guess at what an unrecognised checkpoint actually is, so loader
+    errors say "this looks like X" instead of a bare key dump."""
+    keys = list(state_dict.keys())
+
+    def has(prefix):
+        return any(k.startswith(prefix) for k in keys)
+
+    if has("unet.conv_in") and not has("unet_dual."):
+        return ("a single-stream 'unet.*' checkpoint without the paint model's "
+                "dual-stream reference UNet ('unet_dual.*')")
+    if has("model.diffusion_model."):
+        return ("a ComfyUI/LDM diffusion checkpoint ('model.diffusion_model.*') - "
+                "load it with the standard checkpoint/diffusion-model loader")
+    if has("double_blocks.") or has("single_blocks.") or has("joint_blocks."):
+        return "a DiT-style diffusion model (double/single/joint blocks)"
+    if has("down_blocks.") and has("conv_in."):
+        return ("a plain diffusers UNet (unprefixed 'down_blocks.*') without the "
+                "paint model's 'unet.*'/'unet_dual.*' dual-stream layout")
+    if has("decoder.") and has("encoder."):
+        return "a VAE (encoder/decoder) checkpoint"
+    sample = ", ".join(sorted(keys)[:3]) if keys else "no keys at all"
+    return f"an unrecognised checkpoint (first keys: {sample})"
+
+
 def load_paint_unet(state_dict, model_options={}):
     """Build a UNet2p5DConditionModel from a paint state_dict and wrap it in a
-    ModelPatcher. Returns ``(patcher, config)``."""
+    ModelPatcher. Returns ``(patcher, config)``.
+
+    Raises ValueError with a family diagnosis when the checkpoint is not a
+    hunyuan3d-paintpbr-v2-1 paint UNet, or when it matches the family but is
+    missing weights (truncated file)."""
     config = detect_paint_config(state_dict)
     if config is None:
-        raise RuntimeError("state_dict is not a recognised Hunyuan3D 2.1 paint UNet")
+        raise ValueError(
+            f"this looks like {_describe_checkpoint_family(state_dict)}; expected a "
+            f"Hunyuan3D 2.1 paint UNet (hunyuan3d-paintpbr-v2-1) with "
+            f"'unet.*'/'unet_dual.*' keys and learned_text_clip_* embeddings")
 
     load_device = comfy.model_management.get_torch_device()
     offload_device = comfy.model_management.unet_offload_device()
@@ -113,7 +163,10 @@ def load_paint_unet(state_dict, model_options={}):
     cast_sd = {k: v.to(unet_dtype) for k, v in state_dict.items()}
     missing, unexpected = model.load_state_dict(cast_sd, strict=False)
     if missing:
-        logging.warning("Hunyuan3D paint: %d missing keys (e.g. %s)", len(missing), missing[:3])
+        raise ValueError(
+            f"Hunyuan3D 2.1 paint checkpoint is missing {len(missing)} weights "
+            f"(e.g. {missing[:3]}); the file appears truncated or from a different "
+            f"model revision than hunyuan3d-paintpbr-v2-1")
     if unexpected:
         logging.warning("Hunyuan3D paint: %d unexpected keys (e.g. %s)", len(unexpected), unexpected[:3])
 
