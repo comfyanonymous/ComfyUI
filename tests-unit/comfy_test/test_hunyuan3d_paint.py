@@ -120,6 +120,51 @@ def test_detect_returns_none_for_non_paint_state_dict():
     assert detect_paint_config({}) is None
 
 
+def test_loader_rejects_ldm_checkpoint_with_family_diagnosis():
+    """A wrong-family checkpoint must fail with a clear "this looks like X, expected
+    hunyuan3d-paintpbr-v2-1" ValueError - never a KeyError."""
+    sd = {"model.diffusion_model.input_blocks.0.0.weight": torch.zeros(320, 4, 3, 3),
+          "model.diffusion_model.out.2.weight": torch.zeros(4, 320, 3, 3)}
+    with pytest.raises(ValueError, match=r"looks like a ComfyUI/LDM diffusion checkpoint"):
+        load_paint_unet(sd)
+
+
+def test_loader_rejects_plain_diffusers_unet_with_family_diagnosis():
+    sd = {"conv_in.weight": torch.zeros(320, 4, 3, 3),
+          "down_blocks.0.resnets.0.conv1.weight": torch.zeros(320, 320, 3, 3)}
+    with pytest.raises(ValueError, match="plain diffusers UNet"):
+        load_paint_unet(sd)
+
+
+def test_loader_rejects_single_stream_checkpoint():
+    """Paint-style keys without the dual-stream reference UNet are named as such."""
+    model, _ = _build()
+    sd = {k: v for k, v in model.state_dict().items() if not k.startswith("unet_dual.")}
+    with pytest.raises(ValueError, match="dual-stream reference UNet"):
+        load_paint_unet(sd)
+
+
+def test_loader_rejects_truncated_checkpoint_not_keyerror():
+    """A paint-family checkpoint missing derivation keys raises an informative
+    ValueError (truncated), not a KeyError from a raw dict lookup."""
+    model, _ = _build()
+    sd = dict(model.state_dict())
+    del sd["unet.conv_out.weight"]
+    with pytest.raises(ValueError, match="truncated"):
+        detect_paint_config(sd)
+
+
+def test_loader_rejects_checkpoint_with_missing_weights():
+    """Detection can pass while weights are still missing; the load must hard-fail
+    with a truncation message instead of silently leaving random weights."""
+    model, _ = _build()
+    sd = dict(model.state_dict())
+    # not read by detect_paint_config, but required by the model
+    del sd["unet.mid_block.resnets.0.conv1.weight"]
+    with pytest.raises(ValueError, match="missing 1 weights"):
+        load_paint_unet(sd, model_options={"dtype": torch.float32})
+
+
 def test_detected_config_rebuilds_with_strict_key_parity():
     """Detection -> config -> rebuild must reproduce the exact state_dict keys/shapes,
     and loading the weights must give a numerically identical model."""
