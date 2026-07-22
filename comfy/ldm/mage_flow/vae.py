@@ -10,12 +10,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import comfy.ops
+from comfy.ldm.modules.diffusionmodules.model import vae_attention
 
 ops = comfy.ops.disable_weight_init
 
 
 def nonlinearity(x):
-    return x * torch.sigmoid(x)
+    return torch.nn.functional.silu(x)
 
 
 def Normalize(in_channels):
@@ -35,22 +36,8 @@ class LayerNorm2d(ops.LayerNorm):
 
     def forward(self, x):
         x = x.permute(0, 2, 3, 1).contiguous()
-        x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+        x = super().forward(x)
         return x.permute(0, 3, 1, 2).contiguous()
-
-
-class RMSNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-6):
-        super().__init__()
-        self.weight = nn.Parameter(torch.empty(hidden_size))
-        self.variance_epsilon = eps
-
-    def forward(self, x):
-        in_dtype = x.dtype
-        x = x.to(torch.float32)
-        var = x.pow(2).mean(-1, keepdim=True)
-        x = x * torch.rsqrt(var + self.variance_epsilon)
-        return self.weight * x.to(in_dtype)
 
 
 class TimestepEmbedder(nn.Module):
@@ -175,7 +162,8 @@ class NerfEmbedder(nn.Module):
 
     def fetch_pos(self, patch_size, device, dtype):
         key = (patch_size, device, dtype)
-        if key not in self._pos_cache:
+        cached = self._pos_cache.get(key)
+        if cached is None:
             pos = torch.linspace(0, 1, patch_size, device=device, dtype=dtype)
             pos_y, pos_x = torch.meshgrid(pos, pos, indexing="ij")
             pos_x = pos_x.reshape(-1, 1, 1)
@@ -186,8 +174,9 @@ class NerfEmbedder(nn.Module):
             coeffs = (1 + fx * fy) ** -1
             dct_x = torch.cos(pos_x * fx * torch.pi)
             dct_y = torch.cos(pos_y * fy * torch.pi)
-            self._pos_cache = {key: (dct_x * dct_y * coeffs).view(1, -1, self.max_freqs ** 2)}  # size-1 cache
-        return self._pos_cache[key]
+            cached = (dct_x * dct_y * coeffs).view(1, -1, self.max_freqs ** 2)
+            self._pos_cache = {key: cached}  # keep only the latest device/dtype entry
+        return cached
 
     def forward(self, x):
         B, P2, _ = x.shape
@@ -199,7 +188,7 @@ class NerfEmbedder(nn.Module):
 class NerfFinalLayer(nn.Module):
     def __init__(self, hidden_size, out_channels):
         super().__init__()
-        self.norm = RMSNorm(hidden_size)
+        self.norm = ops.RMSNorm(hidden_size, eps=1e-6)
         self.linear = ops.Linear(hidden_size, out_channels, bias=True)
 
     def forward(self, x):
@@ -287,6 +276,8 @@ class AttnBlock(nn.Module):
         self.k = ops.Conv2d(in_channels, in_channels, 1)
         self.v = ops.Conv2d(in_channels, in_channels, 1)
         self.proj_out = ops.Conv2d(in_channels, in_channels, 1)
+        # VAE attention selection: full-precision backends only (no sage/quantized attention)
+        self.optimized_attention = vae_attention()
 
     def forward(self, x):
         h_ = self.norm(x)
@@ -311,13 +302,13 @@ class AttnBlock(nn.Module):
                     .permute(0, 2, 4, 1, 3, 5)
                     .reshape(b * np_, c, d * d))
 
+        # [b*np, c, d*d]: attention over the d*d spatial positions of each window
         Q = to_patches(Q)
         K = to_patches(K)
         V = to_patches(V)
 
-        w_ = torch.bmm(Q.permute(0, 2, 1), K) * (c ** -0.5)
-        w_ = F.softmax(w_, dim=2).permute(0, 2, 1)
-        h_ = torch.bmm(V, w_).reshape(b, nph, npw, c, d, d).permute(0, 3, 1, 4, 2, 5).reshape(b, c, H_pad, W_pad)
+        h_ = self.optimized_attention(Q, K, V)
+        h_ = h_.reshape(b, nph, npw, c, d, d).permute(0, 3, 1, 4, 2, 5).reshape(b, c, H_pad, W_pad)
         if pad_h or pad_w:
             h_ = h_[:, :, :H, :W]
         return x + self.proj_out(h_)
