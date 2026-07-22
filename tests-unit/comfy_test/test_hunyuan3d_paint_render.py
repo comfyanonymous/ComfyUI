@@ -3,8 +3,10 @@
 All CPU, no weights. Covers the barycentric z-buffer rasterizer (known triangle ->
 known pixels, occlusion), the geometry conditioning maps, the per-triangle UV atlas
 (non-overlapping charts, all triangles packed), the multiview baker (flat-colour
-round-trip + MR channel preservation), hole filling, and node schema/wiring including
-the textured-GLB write-back with a metallic-roughness texture.
+round-trip, MR channel preservation, per-view weight blending, cosine-exponent
+weighting, grazing-angle cutoff), the two-stage hole fill (gutter dilation +
+push-pull inpaint), and node schema/wiring including baking onto a mesh's existing
+UVs and the textured-GLB write-back with a metallic-roughness texture.
 """
 
 from __future__ import annotations
@@ -133,6 +135,12 @@ def test_uv_unwrap_packs_all_triangles_non_overlapping():
 # --------------------------------------------------------------------------- #
 # Multiview baker
 # --------------------------------------------------------------------------- #
+def _quad_y(y, half, base=0):
+    """Two triangles of an axis-aligned square at height ``y`` facing +/-Y, in the
+    renderer's own Z-up frame (for normalize=False tests)."""
+    v = torch.tensor([[-half, y, -half], [half, y, -half], [half, y, half], [-half, y, half]])
+    f = torch.tensor([[0, 1, 2], [0, 2, 3]]) + base
+    return v, f
 def _cube():
     v = torch.tensor([
         [-.5, -.5, -.5], [.5, -.5, -.5], [.5, .5, -.5], [-.5, .5, -.5],
@@ -173,14 +181,111 @@ def test_bake_channels_are_independent():
     assert torch.allclose(covered[:, 2], torch.zeros(covered.shape[0]), atol=1e-3)
 
 
+def _chart_centroid_texel(uv, tri, texture_size):
+    tri_uv = uv.reshape(-1, 3, 2)
+    c = tri_uv[tri].mean(dim=0)
+    return int(torch.round(c[1] * (texture_size - 1))), int(torch.round(c[0] * (texture_size - 1)))
+
+
+def test_bake_per_view_weights_bias_blend():
+    # A single quad facing +/-Y is seen head-on (|cos| = 1) by both the front view
+    # (weight 1.0) and the back view (weight 0.5) of the standard 6-view set, and
+    # only edge-on (past the grazing cutoff) by the other four. Front red + back
+    # green must blend to (1.0*red + 0.5*green) / 1.5.
+    v, f = _quad_y(0.0, 0.4)
+    nv, nf, uv = R.pack_per_triangle_uv(v, f)
+    cams = R.standard_cameras(6)
+    views = torch.zeros(6, 32, 32, 3)
+    views[0, ..., 0] = 1.0  # front view: red
+    views[2, ..., 1] = 1.0  # back view: green
+    tex, mask = R.bake_multiview(nv, nf, uv, views, cams, texture_size=64, normalize=False)
+    expected = torch.tensor([1.0 / 1.5, 0.5 / 1.5, 0.0])
+    for i in range(f.shape[0]):
+        row, col = _chart_centroid_texel(uv, i, 64)
+        assert bool(mask[row, col]), f"chart {i} centroid texel not covered"
+        assert torch.allclose(tex[row, col], expected, atol=0.05), (i, tex[row, col])
+
+
+def test_bake_cosine_exponent_suppresses_grazing_views():
+    # Front view sees the quad head-on (cos = 1, red); a second view 60 degrees
+    # off-axis (cos = 0.5, green) is damped by cos^bake_exp: with bake_exp=4 the
+    # green share at the chart centroid must be marginal, with bake_exp=1 it is
+    # a substantial minority share.
+    v, f = _quad_y(0.0, 0.4)
+    nv, nf, uv = R.pack_per_triangle_uv(v, f)
+    cams = R.Cameras(elevs=[0.0, 0.0], azims=[0.0, 60.0], weights=[1.0, 1.0])
+    views = torch.zeros(2, 32, 32, 3)
+    views[0, ..., 0] = 1.0
+    views[1, ..., 1] = 1.0
+
+    def centroid_color(bake_exp):
+        tex, mask = R.bake_multiview(nv, nf, uv, views, cams, texture_size=64,
+                                     normalize=False, bake_exp=bake_exp)
+        row, col = _chart_centroid_texel(uv, 0, 64)
+        assert bool(mask[row, col])
+        return tex[row, col]
+
+    sharp = centroid_color(4.0)
+    soft = centroid_color(1.0)
+    assert float(sharp[0]) > 0.9 and float(sharp[1]) < 0.08  # cos^4 = 0.0625
+    assert float(soft[1]) > 0.15  # cos^1 = 0.5 keeps a visible share
+
+
+def test_bake_skips_views_beyond_grazing_threshold():
+    # A single view 80 degrees off-axis is past the 75-degree grazing cutoff:
+    # it must contribute nothing at all.
+    v, f = _quad_y(0.0, 0.4)
+    nv, nf, uv = R.pack_per_triangle_uv(v, f)
+    cams = R.Cameras(elevs=[0.0], azims=[80.0], weights=[1.0])
+    views = torch.ones(1, 32, 32, 3)
+    _tex, mask = R.bake_multiview(nv, nf, uv, views, cams, texture_size=64, normalize=False)
+    assert not bool(mask.any())
+
+
+# --------------------------------------------------------------------------- #
+# Hole fill: gutter dilation + push-pull inpaint
+# --------------------------------------------------------------------------- #
 def test_fill_holes_fills_from_neighbors():
     tex = torch.zeros(16, 16, 3)
     mask = torch.zeros(16, 16, dtype=torch.bool)
     tex[8, 8] = torch.tensor([1.0, 0.0, 0.0])
     mask[8, 8] = True
-    filled = R.fill_holes(tex, mask, max_iters=32)
-    # the single valid red texel propagates outward to fill the whole map
-    assert float((filled.abs().sum(-1) > 0).float().mean()) > 0.9
+    filled = R.fill_holes(tex, mask)
+    # the single valid red texel fills the whole map (dilation + push-pull)
+    assert torch.allclose(filled, tex[8, 8].expand_as(filled), atol=1e-4)
+
+
+def test_fill_holes_preserves_valid_texels_and_fills_everything():
+    # Blue strip on the left, red strip on the right, a big hole in between.
+    tex = torch.zeros(64, 64, 3)
+    mask = torch.zeros(64, 64, dtype=torch.bool)
+    tex[:, :4, 2] = 1.0
+    mask[:, :4] = True
+    tex[:, 60:, 0] = 1.0
+    mask[:, 60:] = True
+    filled = R.fill_holes(tex, mask)
+    # valid texels come back exactly unchanged
+    assert torch.allclose(filled[mask], tex[mask], atol=1e-6)
+    # every hole texel is filled
+    assert bool((filled.abs().sum(-1) > 0).all())
+    # gutter dilation extends each strip with its exact color (2 texels out is
+    # only reachable from the blue strip)
+    assert torch.allclose(filled[:, 6], tex[:, 0].expand_as(filled[:, 6]), atol=1e-4)
+    # the deep-hole centre draws low-frequency color from both sides via push-pull
+    mid = filled[32, 32]
+    assert float(mid[0]) > 0.01 and float(mid[2]) > 0.01
+    assert float(filled.min()) >= 0.0 and float(filled.max()) <= 1.0 + 1e-5
+
+
+def test_fill_holes_reaches_beyond_dilation_distance():
+    # A hole far larger than the dilation reach must still be filled (push-pull),
+    # and with only one source color present the fill is exactly that color.
+    tex = torch.zeros(128, 128, 3)
+    mask = torch.zeros(128, 128, dtype=torch.bool)
+    tex[0, :, 1] = 1.0  # single green row at the top
+    mask[0, :] = True
+    filled = R.fill_holes(tex, mask, dilate_iters=2)
+    assert torch.allclose(filled[120], tex[0, 0].expand_as(filled[120]), atol=1e-3)
 
 
 # --------------------------------------------------------------------------- #
@@ -232,6 +337,26 @@ def test_bake_node_execute_attaches_textures_and_uvs():
     packed = out_mesh.texture_mr[0]
     assert torch.allclose(packed[covered][:, 1], torch.full((int(covered.sum()),), 0.8), atol=1e-3)
     assert torch.allclose(packed[covered][:, 2], torch.full((int(covered.sum()),), 0.2), atol=1e-3)
+
+
+def test_bake_node_uses_existing_mesh_uvs():
+    # A mesh that already carries per-vertex UVs (artist-authored or from an unwrap
+    # node) must be baked onto those UVs as-is: no re-unwrap, no unweld — the output
+    # mesh keeps the input vertices, faces and UVs.
+    from comfy_api.latest import Types
+    N = _load_nodes()
+    v, f = _cube()
+    torch.manual_seed(0)
+    uvs = torch.rand(v.shape[0], 2)
+    mesh = Types.MESH(v.unsqueeze(0), f.unsqueeze(0), uvs=uvs.unsqueeze(0))
+    cams = R.standard_cameras(6)
+    albedo = torch.full((6, 32, 32, 3), 0.5)
+    mr = torch.zeros(6, 32, 32, 3)
+    out_mesh, _alb_tex, _mr_tex, _av, _mv = N.Hunyuan3DBakeMultiView.execute(
+        mesh, albedo, mr, cams, 128, 4.0, False)
+    assert torch.allclose(out_mesh.vertices[0], v)
+    assert torch.equal(out_mesh.faces[0], f)
+    assert torch.allclose(out_mesh.uvs[0], uvs)
 
 
 def test_save_glb_writes_metallic_roughness_texture(tmp_path):
