@@ -6,12 +6,13 @@
 # The 1D rotary-embedding tables follow diffusers' (Apache-2.0) implementation,
 # which the reference model also uses.
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from einops import rearrange
+
+from comfy.ldm.modules import attention as comfy_attention
 
 
 # ---------------------------------------------------------------------------
@@ -56,23 +57,32 @@ def apply_rotary_emb(x: torch.Tensor, freqs_cis: Tuple[torch.Tensor, torch.Tenso
 
 
 def _sdpa(query, key, value, heads):
-    """Multi-head scaled dot product attention.
+    """Multi-head attention through comfy's optimized_attention (flash / sage /
+    xformers / pytorch SDPA with platform fallbacks).
 
-    query/key/value arrive as (B, L, inner_dim). The value projection may carry a
-    different inner width (used by the reference-attention material split), so its
-    head dim is derived independently.
+    query/key/value arrive as (B, L, inner_dim) with matching inner widths; the
+    head split/merge inside optimized_attention reproduces the reference reshape
+    (view(b, -1, heads, dim_head).transpose(1, 2)) exactly.
     """
-    b = query.shape[0]
-    head_dim = query.shape[-1] // heads
-    v_head_dim = value.shape[-1] // heads
+    return comfy_attention.optimized_attention(query, key, value, heads)
 
-    query = query.view(b, -1, heads, head_dim).transpose(1, 2)
-    key = key.view(b, -1, heads, head_dim).transpose(1, 2)
-    value = value.view(b, -1, heads, v_head_dim).transpose(1, 2)
 
-    hidden = F.scaled_dot_product_attention(query, key, value, dropout_p=0.0, is_causal=False)
-    hidden = hidden.transpose(1, 2).reshape(b, -1, heads * v_head_dim)
-    return hidden
+def _wide_value_attention(query, key, value, heads):
+    """Attention where the value heads are wider than the query/key heads
+    ((B, heads, L, dim_head) vs (B, heads, L, n_pbr*dim_head)), as used by the
+    reference-attention material packing.
+
+    Routed through optimized_attention with pre-split heads. Only the SDPA
+    kernel (attention_pytorch) is guaranteed to honour a value head width that
+    differs from the query's - the chunked kernels (basic/split/sub-quad) and
+    the fused backends derive the value width from the query and would mis-fold
+    the wide values - so any other selected backend falls back to it for this
+    one call. Returns (B, heads, L, value_head_dim), the raw SDPA layout.
+    """
+    fn = comfy_attention.optimized_attention
+    if query.shape[-1] != value.shape[-1] and fn is not comfy_attention.attention_pytorch:
+        fn = comfy_attention.attention_pytorch
+    return fn(query, key, value, heads, skip_reshape=True, skip_output_reshape=True)
 
 
 # ---------------------------------------------------------------------------
@@ -183,8 +193,7 @@ class Attention(nn.Module):
             query = apply_rotary_emb(query, image_rotary_emb)
             key = apply_rotary_emb(key, image_rotary_emb)
 
-        hidden = F.scaled_dot_product_attention(query, key, value, dropout_p=0.0, is_causal=False)
-        hidden = hidden.transpose(1, 2).reshape(b, -1, self.heads * self.dim_head)
+        hidden = comfy_attention.optimized_attention(query, key, value, self.heads, skip_reshape=True)
         hidden = self.to_out[0](hidden)
         hidden = self.to_out[1](hidden)
         return hidden
@@ -237,7 +246,7 @@ class Attention(nn.Module):
         k = key.view(b, -1, self.heads, self.dim_head).transpose(1, 2)
         v = value.view(b, -1, self.heads, n_pbr * self.dim_head).transpose(1, 2)
 
-        hidden = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, is_causal=False)
+        hidden = _wide_value_attention(q, k, v, self.heads)
         outputs = []
         for i, token in enumerate(pbr_setting):
             to_out = self.to_out if token == "albedo" else getattr(self.processor, f"to_out_{token}")
