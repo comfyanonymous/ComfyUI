@@ -30,6 +30,46 @@ STANDARD_VIEW_WEIGHTS = [1.0, 0.1, 0.5, 0.1, 0.05, 0.05]
 # z-buffer depth quantisation levels for the packed scatter-min resolve.
 _DEPTH_LEVELS = 1 << 24
 
+# Documented soft bounds for the pure-torch rasterizer/baker. Rasterization work is
+# chunked by cumulative bounding-box pixel area (see rasterize()), so face count and
+# resolution trade off against time, not peak memory. CPU envelope (see PR notes):
+# 100k faces @ 512 rasterize in well under a second; 1M faces in a few seconds.
+MAX_RESOLUTION = 8192
+MAX_FACES = 20_000_000
+
+
+def _validate_mesh(vertices, faces, where):
+    """Cheap input validation shared by the public renderer/baker entry points.
+
+    Raises ValueError (with the failing entry point named) for the malformed-input
+    classes that would otherwise surface as cryptic indexing errors or silent
+    garbage: wrong shapes, empty meshes, non-finite vertices, out-of-range or
+    negative face indices, and absurd face counts.
+    """
+    if vertices.ndim != 2 or vertices.shape[-1] != 3:
+        raise ValueError(f"{where}: vertices must be (N, 3), got {tuple(vertices.shape)}")
+    if faces.ndim != 2 or faces.shape[-1] != 3:
+        raise ValueError(f"{where}: faces must be (F, 3), got {tuple(faces.shape)}")
+    if vertices.shape[0] == 0 or faces.shape[0] == 0:
+        raise ValueError(f"{where}: mesh is empty ({vertices.shape[0]} vertices, "
+                         f"{faces.shape[0]} faces)")
+    if faces.shape[0] > MAX_FACES:
+        raise ValueError(f"{where}: mesh has {faces.shape[0]} faces "
+                         f"(max supported {MAX_FACES}); decimate the mesh first")
+    if not torch.isfinite(vertices).all():
+        raise ValueError(f"{where}: vertices contain NaN/Inf values")
+    fmin, fmax = int(faces.min()), int(faces.max())
+    if fmin < 0 or fmax >= vertices.shape[0]:
+        raise ValueError(f"{where}: face indices out of range [0, {vertices.shape[0]}) "
+                         f"(min {fmin}, max {fmax})")
+
+
+def _validate_resolution(value, name, where):
+    value = int(value)
+    if value < 1 or value > MAX_RESOLUTION:
+        raise ValueError(f"{where}: {name} must be in [1, {MAX_RESOLUTION}], got {value}")
+    return value
+
 
 class Cameras:
     """A set of V orthographic views sharing the paint model's intrinsics.
@@ -311,6 +351,8 @@ def render_geometry_maps(vertices, faces, cameras, resolution=512, scale_factor=
         positions: (V, H, W, 3) in [0, 1] with a white background.
         masks: (V, H, W) float, 1 where the mesh is visible.
     """
+    _validate_mesh(vertices, faces, "render_geometry_maps")
+    resolution = _validate_resolution(resolution, "resolution", "render_geometry_maps")
     device = vertices.device
     vtx = normalize_mesh(vertices, scale_factor) if normalize else vertices.to(torch.float32)
     faces = faces.long().to(device)
@@ -354,6 +396,7 @@ def pack_per_triangle_uv(vertices, faces, gutter=0.25):
         new_faces: (F, 3) long, referencing the unwelded vertices
         uvs: (3F, 2) in [0, 1]
     """
+    _validate_mesh(vertices, faces, "pack_per_triangle_uv")
     faces = faces.long()
     Fn = faces.shape[0]
     device = vertices.device
@@ -427,13 +470,17 @@ def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
         texture: (texture_size, texture_size, C) baked texture (holes left at 0).
         mask: (texture_size, texture_size) bool, True where a view contributed.
     """
+    _validate_mesh(vertices, faces, "bake_multiview")
+    T = _validate_resolution(texture_size, "texture_size", "bake_multiview")
+    if uvs.ndim != 2 or uvs.shape[0] != vertices.shape[0] or uvs.shape[-1] != 2:
+        raise ValueError(f"bake_multiview: uvs must be ({vertices.shape[0]}, 2) - one per "
+                         f"vertex - got {tuple(uvs.shape)}")
     device = vertices.device
     vtx = normalize_mesh(vertices, scale_factor) if normalize else vertices.to(torch.float32)
     faces = faces.long().to(device)
     uvs = uvs.to(device=device, dtype=torch.float32)
     views = views.to(device)
     V, vh, vw, C = views.shape
-    T = int(texture_size)
     cos_thresh = math.cos(math.radians(cos_thresh_deg))
 
     proj = orthographic_matrix(cameras.ortho_scale, cameras.near, cameras.far, device=device)
