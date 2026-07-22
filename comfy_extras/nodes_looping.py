@@ -49,8 +49,8 @@ class TensorLoopOpen(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="TensorLoopOpen",
-            display_name="Tensor Loop Open",
-            category="looping/accumulation",
+            display_name="Open Tensor Loop",
+            category="advanced/looping/accumulation",
             inputs=[
                 io.DynamicCombo.Input("mode", tooltip="Loop termination mode.", options=[
                     io.DynamicCombo.Option("iterations", [
@@ -132,8 +132,8 @@ class TensorLoopClose(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="TensorLoopClose",
-            display_name="Tensor Loop Close",
-            category="looping/accumulation",
+            display_name="Close Tensor Loop",
+            category="advanced/looping/accumulation",
             inputs=[
                 io.FlowControl.Input("flow_control", raw_link=True),
                 io.MatchType.Input("processed", template=cls.MATCHTYPE, raw_link=True, tooltip="Output generated this iteration."),
