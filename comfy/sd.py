@@ -1434,6 +1434,7 @@ class TEModel(Enum):
     GPT_OSS_20B = 33
     QWEN3VL_4B = 34
     QWEN3VL_8B = 35
+    GEMMA_4_12B = 36
 
 
 def detect_te_model(sd):
@@ -1463,6 +1464,9 @@ def detect_te_model(sd):
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         if 'model.layers.59.self_attn.q_norm.weight' in sd:
             return TEModel.GEMMA_4_31B
+        # Gemma4 12B Unified: 48 layers, encoder-free; global layers drop v_proj (attention_k_eq_v).
+        if 'model.layers.47.self_attn.q_norm.weight' in sd and 'model.layers.5.self_attn.v_proj.weight' not in sd:
+            return TEModel.GEMMA_4_12B
         if 'model.layers.41.self_attn.q_norm.weight' in sd and 'model.layers.47.self_attn.q_norm.weight' not in sd:
             return TEModel.GEMMA_4_E4B
         if 'model.layers.34.self_attn.q_norm.weight' in sd and 'model.layers.41.self_attn.q_norm.weight' not in sd:
@@ -1618,10 +1622,11 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.sa3.SAT5GemmaModel
             clip_target.tokenizer = comfy.text_encoders.sa3.SAT5GemmaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
-        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B):
+        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B, TEModel.GEMMA_4_12B):
             variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
                        TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
-                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B}[te_model]
+                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B,
+                       TEModel.GEMMA_4_12B: comfy.text_encoders.gemma4.Gemma4_12B}[te_model]
             clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
             clip_target.tokenizer = variant.tokenizer
             tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
