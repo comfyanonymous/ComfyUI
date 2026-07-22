@@ -289,6 +289,161 @@ def test_fill_holes_reaches_beyond_dilation_distance():
 
 
 # --------------------------------------------------------------------------- #
+# Input validation / robustness bounds
+# --------------------------------------------------------------------------- #
+def test_render_rejects_nonfinite_vertices():
+    v, f = _quad()
+    v = v.clone()
+    v[0, 0] = float("nan")
+    with pytest.raises(ValueError, match="NaN/Inf"):
+        R.render_geometry_maps(v, f, R.standard_cameras(1), resolution=16)
+
+
+def test_render_rejects_empty_mesh():
+    with pytest.raises(ValueError, match="empty"):
+        R.render_geometry_maps(torch.zeros(0, 3), torch.zeros(0, 3, dtype=torch.long),
+                               R.standard_cameras(1), resolution=16)
+    v, f = _quad()
+    with pytest.raises(ValueError, match="empty"):
+        R.render_geometry_maps(v, torch.zeros(0, 3, dtype=torch.long),
+                               R.standard_cameras(1), resolution=16)
+
+
+def test_render_rejects_out_of_range_face_indices():
+    v, f = _quad()
+    bad = f.clone()
+    bad[0, 0] = 99
+    with pytest.raises(ValueError, match="out of range"):
+        R.render_geometry_maps(v, bad, R.standard_cameras(1), resolution=16)
+    bad[0, 0] = -2
+    with pytest.raises(ValueError, match="out of range"):
+        R.render_geometry_maps(v, bad, R.standard_cameras(1), resolution=16)
+
+
+def test_render_rejects_bad_resolution():
+    v, f = _quad()
+    with pytest.raises(ValueError, match="resolution"):
+        R.render_geometry_maps(v, f, R.standard_cameras(1), resolution=0)
+    with pytest.raises(ValueError, match="resolution"):
+        R.render_geometry_maps(v, f, R.standard_cameras(1), resolution=R.MAX_RESOLUTION + 1)
+
+
+def test_bake_rejects_bad_inputs():
+    v, f = _cube()
+    nv, nf, uv = R.pack_per_triangle_uv(v, f)
+    views = torch.zeros(1, 8, 8, 3)
+    cams = R.Cameras([0.0], [0.0])
+    with pytest.raises(ValueError, match="uvs must be"):
+        R.bake_multiview(nv, nf, uv[:-1], views, cams, texture_size=32)
+    with pytest.raises(ValueError, match="texture_size"):
+        R.bake_multiview(nv, nf, uv, views, cams, texture_size=0)
+    with pytest.raises(ValueError, match="empty"):
+        R.bake_multiview(torch.zeros(0, 3), torch.zeros(0, 3, dtype=torch.long),
+                         torch.zeros(0, 2), views, cams, texture_size=32)
+
+
+def test_zero_area_triangles_render_cleanly():
+    # Degenerate (zero-area) triangles must neither win pixels nor poison the maps.
+    v, f = _quad()
+    v = torch.cat([v, torch.tensor([[0.1, 0.1, 0.2]])])  # vertex 4
+    degen = torch.tensor([[4, 4, 4], [0, 0, 1], [2, 2, 2]])
+    f = torch.cat([f, degen])
+    normals, positions, masks = R.render_geometry_maps(v, f, R.standard_cameras(6), resolution=32)
+    assert torch.isfinite(normals).all() and torch.isfinite(positions).all()
+    assert float(masks[0].mean()) > 0.1  # the real quad still renders
+
+    nv, nf, uv = R.pack_per_triangle_uv(v, f)
+    views = torch.full((1, 32, 32, 3), 0.5)
+    tex, mask = R.bake_multiview(nv, nf, uv, views, R.Cameras([0.0], [0.0]), texture_size=64)
+    assert torch.isfinite(tex).all()
+
+
+def test_large_mesh_renders_and_bakes():
+    # A ~180k-face displaced grid exercises the chunked rasterizer path end-to-end.
+    n = 300
+    ys, xs = torch.meshgrid(torch.linspace(-0.5, 0.5, n), torch.linspace(-0.5, 0.5, n),
+                            indexing="ij")
+    z = 0.1 * torch.sin(xs * 20.0) * torch.cos(ys * 20.0)
+    v = torch.stack([xs, ys, z], dim=-1).reshape(-1, 3)
+    idx = torch.arange(n * n).reshape(n, n)
+    a, b, c, d = idx[:-1, :-1], idx[:-1, 1:], idx[1:, :-1], idx[1:, 1:]
+    f = torch.cat([torch.stack([a, b, c], -1).reshape(-1, 3),
+                   torch.stack([b, d, c], -1).reshape(-1, 3)])
+    assert f.shape[0] == 2 * (n - 1) ** 2  # 178,802 faces
+    normals, _positions, masks = R.render_geometry_maps(v, f, R.Cameras([0.0], [0.0]),
+                                                        resolution=256)
+    assert float(masks[0].mean()) > 0.2
+    assert torch.isfinite(normals).all()
+
+
+# --------------------------------------------------------------------------- #
+# sRGB / linear audit: GLB embedding round-trip
+# --------------------------------------------------------------------------- #
+def _read_glb(path):
+    with open(path, "rb") as fh:
+        data = fh.read()
+    assert data[:4] == b"glTF"
+    jlen = struct.unpack("<I", data[12:16])[0]
+    gltf = json.loads(data[20:20 + jlen])
+    bin_off = 20 + jlen
+    blen = struct.unpack("<I", data[bin_off:bin_off + 4])[0]
+    assert data[bin_off + 4:bin_off + 8] == b"BIN\x00"
+    return gltf, data[bin_off + 8:bin_off + 8 + blen]
+
+
+def _decode_glb_image(gltf, binary, image_index):
+    from io import BytesIO
+    from PIL import Image
+    view = gltf["bufferViews"][gltf["images"][image_index]["bufferView"]]
+    start = view.get("byteOffset", 0)
+    png = binary[start:start + view["byteLength"]]
+    return Image.open(BytesIO(png))
+
+
+def test_glb_textures_round_trip_without_gamma_shift(tmp_path):
+    """sRGB/linear audit: the save path must embed texture values verbatim
+    (uint8-quantized only). The albedo IMAGE is already sRGB-encoded (VAE output)
+    and glTF defines baseColorTexture as sRGB, so a value ramp must survive
+    identically; the MR texture is defined by glTF as linear, so applying an sRGB
+    transfer anywhere would shift e.g. 0.8 -> ~0.91. Both are checked exactly."""
+    import numpy as np
+    from PIL import Image
+    from comfy_extras.nodes_save_3d import save_glb
+    v, f = _cube()
+    nv, nf, uv = R.pack_per_triangle_uv(v, f)
+
+    # float IMAGE tensors -> uint8 exactly as SaveGLB.execute converts them
+    ramp01 = torch.arange(256, dtype=torch.float32).view(1, 256, 1).expand(8, 256, 3) / 255.0
+    mr01 = torch.zeros(8, 256, 3)
+    mr01[..., 0] = 1.0
+    mr01[..., 1] = 0.8  # roughness -> G
+    mr01[..., 2] = 0.2  # metallic  -> B
+    albedo_arr = (ramp01.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+    mr_arr = (mr01.clamp(0.0, 1.0).cpu().numpy() * 255).astype(np.uint8)
+    assert int(mr_arr[0, 0, 1]) == 204 and int(mr_arr[0, 0, 2]) == 51  # no transfer curve
+    path = str(tmp_path / "roundtrip.glb")
+    save_glb(nv, nf, path, uvs=uv,
+             texture_image=Image.fromarray(albedo_arr, mode="RGB"),
+             mr_texture_image=Image.fromarray(mr_arr, mode="RGB"))
+
+    gltf, binary = _read_glb(path)
+    albedo_png = np.array(_decode_glb_image(gltf, binary, 0))
+    mr_png = np.array(_decode_glb_image(gltf, binary, 1))
+
+    # bit-exact round trip: no gamma / colorspace transform was applied
+    assert np.array_equal(albedo_png, albedo_arr)
+    assert np.array_equal(mr_png, mr_arr)
+    # an sRGB encode of linear 0.8 would be ~0.91 (232) and of 0.2 ~0.48 (124):
+    assert int(mr_png[0, 0, 1]) == 204 and int(mr_png[0, 0, 2]) == 51
+    # no color-profile chunks that could make a viewer re-interpret the MR data
+    info = _decode_glb_image(gltf, binary, 1).info
+    assert "icc_profile" not in info and "gamma" not in info
+    # material factors gate the MR texture at 1.0 (values used as-is, per spec)
+    pbr = gltf["materials"][0]["pbrMetallicRoughness"]
+    assert pbr["metallicFactor"] == 1.0 and pbr["roughnessFactor"] == 1.0
+
+
+# --------------------------------------------------------------------------- #
 # Node schema / wiring + textured-GLB write-back
 # --------------------------------------------------------------------------- #
 def _load_nodes():
