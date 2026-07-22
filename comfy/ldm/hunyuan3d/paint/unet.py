@@ -5,14 +5,14 @@
 # architecture, with module + parameter names matching that layout so the released
 # checkpoint state_dict loads directly.
 
-import copy
 import math
-from typing import List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+
+import comfy.utils
 
 from .attention import Attention, SelfAttnProcessor, RefAttnProcessor, multires_voxel_indices
 
@@ -562,6 +562,24 @@ class ImageProjModel(nn.Module):
 # ---------------------------------------------------------------------------
 # UNet2p5DConditionModel
 # ---------------------------------------------------------------------------
+class PaintReferenceBank:
+    """Per-layer reference hidden states from the dual-stream write pass.
+
+    Produced once per reference image by ``UNet2p5DConditionModel.compute_reference_bank``
+    and carried through conditioning as an opaque constant; identity equality keeps
+    comfy's cond-batching cheap (the same bank object rides every CFG cond).
+    """
+
+    def __init__(self, embeds):
+        self.embeds = embeds  # {layer_name: (B, N_ref*L, C)}
+
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return id(self)
+
+
 class UNet2p5DConditionModel(nn.Module):
     """Multiview PBR UNet: dual-stream reference + material/multiview/DINO attention."""
 
@@ -569,7 +587,7 @@ class UNet2p5DConditionModel(nn.Module):
                  block_out_channels=(320, 640, 1280, 1280), layers_per_block=2, cross_attention_dim=1024,
                  num_attention_heads=(5, 10, 20, 20), transformer_layers_per_block=1, norm_num_groups=32,
                  pbr_setting=("albedo", "mr"), pbr_token_channels=77, dino_embeddings_dim=1536,
-                 use_dino=True, dtype=None, device=None, operations=None):
+                 use_dino=True, image_model=None, dtype=None, device=None, operations=None):
         super().__init__()
         self.dtype = dtype
         self.pbr_setting = list(pbr_setting)
@@ -610,62 +628,111 @@ class UNet2p5DConditionModel(nn.Module):
                 cross_attention_dim=cross_attention_dim, clip_embeddings_dim=dino_embeddings_dim,
                 clip_extra_context_tokens=4, dtype=dtype, device=device, operations=operations)
 
-    def forward(self, sample, timestep, encoder_hidden_states, dino_hidden_states=None,
-                ref_latents=None, embeds_normal=None, embeds_position=None, position_maps=None,
-                mva_scale=1.0, ref_scale=1.0, cache=None):
-        """sample: (B, N_pbr, N_gen, C, H, W). encoder_hidden_states: (B, N_pbr, L, cross_dim)."""
-        B, N_pbr, N_gen, _, H, W = sample.shape
-        if cache is None:
-            cache = {}
+    def material_context(self, batch_size, dtype=None, device=None):
+        """Stack the learned per-material text-clip embeddings -> (B, N_pbr, L, cross)."""
+        tokens = [getattr(self.unet, f"learned_text_clip_{t}") for t in self.pbr_setting]
+        context = torch.stack(tokens, dim=0).unsqueeze(0)
+        if dtype is not None or device is not None:
+            context = context.to(dtype=dtype, device=device)
+        return context.repeat(batch_size, 1, 1, 1)
 
-        # concat control embeds along channel dim -> 12 channels
-        parts = [sample]
-        if embeds_normal is not None:
-            parts.append(embeds_normal.unsqueeze(1).repeat(1, N_pbr, 1, 1, 1, 1))
-        if embeds_position is not None:
-            parts.append(embeds_position.unsqueeze(1).repeat(1, N_pbr, 1, 1, 1, 1))
-        sample = torch.cat(parts, dim=-3)
-        sample = rearrange(sample, "b n_pbr n c h w -> (b n_pbr n) c h w")
+    @torch.no_grad()
+    def compute_reference_bank(self, ref_latents):
+        """Run the dual-stream reference UNet in write mode and collect the per-layer
+        reference hidden states consumed by reference attention.
 
-        encoder_hidden_states_gen = encoder_hidden_states.unsqueeze(-3).repeat(1, 1, N_gen, 1, 1)
-        encoder_hidden_states_gen = rearrange(encoder_hidden_states_gen, "b n_pbr n l c -> (b n_pbr n) l c")
+        ref_latents: (B, N_ref, C, H, W), already latent-format scaled.
+        Returns {layer_name: (B, N_ref*L, C)}.
+        """
+        condition_embed_dict = {}
+        B, N_ref = ref_latents.shape[:2]
+        ref = rearrange(ref_latents, "b n c h w -> (b n) c h w")
+        enc_ref = self.unet.learned_text_clip_ref.to(dtype=ref.dtype, device=ref.device)
+        enc_ref = enc_ref[None, None].repeat(B, N_ref, 1, 1)
+        enc_ref = rearrange(enc_ref, "b n l c -> (b n) l c")
+        self.unet_dual(ref, 0, enc_ref, num_in_batch=N_ref, mode="w",
+                       condition_embed_dict=condition_embed_dict)
+        return condition_embed_dict
+
+    def forward(self, x, timesteps, context=None, ref_bank=None, ref_latents=None,
+                dino_features=None, position_maps=None, ref_scale=1.0, mva_scale=1.0,
+                control=None, transformer_options={}, **kwargs):
+        """Denoise one packed multiview batch.
+
+        x: (B, C, N_pbr*V, H, W) - views ride a non-batch axis, packed
+           material-major (index p*V + v), so comfy's cond batching / CFG concat
+           along dim 0 can never sever a material/view group. C carries the
+           channel-concatenated [latent, normal, position] groups (12 = 4+4+4
+           for the released model; the geometry groups arrive via c_concat).
+        timesteps: () / (1,) / (B,) tensor of integer timesteps.
+        context: per-material text embeddings, (B, N_pbr, L, cross) or flattened
+           (B, N_pbr*L, cross) as carried by comfy conditioning; defaults to the
+           model's learned material embeddings.
+        ref_bank: PaintReferenceBank (or raw dict) from compute_reference_bank;
+           if absent and ref_latents (B, N_ref, C, H, W) is given, the write
+           pass runs inline.
+        dino_features: (B, T, dino_dim) raw DINO tokens (projected in here).
+        position_maps: (B, V, 3, Hp, Wp) canonical-coordinate renders in [0, 1]
+           for PoseRoPE.
+        ref_scale: float or (B,) tensor weighting the reference attention.
+
+        Returns (B, C_out, N_pbr*V, H, W).
+        """
+        B, C, frames, H, W = x.shape
+        N_pbr = len(self.pbr_setting)
+        if frames % N_pbr != 0:
+            raise ValueError(
+                f"packed view axis ({frames}) is not divisible by the number of "
+                f"pbr materials ({N_pbr}); expected material-major packing")
+        V = frames // N_pbr
+
+        sample = x.reshape(B, C, N_pbr, V, H, W).permute(0, 2, 3, 1, 4, 5)
+        sample = sample.reshape(B * N_pbr * V, C, H, W)
+
+        if context is None:
+            context = self.material_context(B, dtype=sample.dtype, device=sample.device)
+        elif context.ndim == 3:
+            context = context.reshape(B, N_pbr, -1, context.shape[-1])
+        enc = context.unsqueeze(-3).repeat(1, 1, V, 1, 1)
+        enc = rearrange(enc, "b n_pbr n l c -> (b n_pbr n) l c")
+
+        if not torch.is_tensor(timesteps):
+            timesteps = torch.tensor([timesteps], dtype=torch.long, device=sample.device)
+        t = timesteps.reshape(-1)
+        if t.shape[0] == B:
+            t = t.repeat_interleave(N_pbr * V)
 
         # position rope voxel indices
         position_voxel_indices = None
         if position_maps is not None:
-            if "position_voxel_indices" in cache:
-                position_voxel_indices = cache["position_voxel_indices"]
-            else:
-                position_voxel_indices = multires_voxel_indices(
-                    position_maps, grid_resolutions=[H, H // 2, H // 4, H // 8],
-                    voxel_resolutions=[H * 8, H * 4, H * 2, H])
-                cache["position_voxel_indices"] = position_voxel_indices
+            position_voxel_indices = multires_voxel_indices(
+                position_maps, grid_resolutions=[H, H // 2, H // 4, H // 8],
+                voxel_resolutions=[H * 8, H * 4, H * 2, H])
 
         # dino projection
         dino_proj = None
-        if self.use_dino and dino_hidden_states is not None:
-            if "dino_proj" in cache:
-                dino_proj = cache["dino_proj"]
-            else:
-                dino_proj = self.unet.image_proj_model_dino(dino_hidden_states)
-                cache["dino_proj"] = dino_proj
+        if self.use_dino and dino_features is not None:
+            dino_proj = self.unet.image_proj_model_dino(dino_features)
 
-        # reference dual-stream write pass
+        # reference hidden states: precomputed bank, or inline write pass
         condition_embed_dict = None
-        if self.use_ra and ref_latents is not None:
-            if "condition_embed_dict" in cache:
-                condition_embed_dict = cache["condition_embed_dict"]
-            else:
+        if self.use_ra:
+            if ref_bank is not None:
+                embeds = ref_bank.embeds if isinstance(ref_bank, PaintReferenceBank) else ref_bank
                 condition_embed_dict = {}
-                N_ref = ref_latents.shape[1]
-                ref = rearrange(ref_latents, "b n c h w -> (b n) c h w")
-                enc_ref = self.unet.learned_text_clip_ref.to(ref.dtype)[None, None].repeat(B, N_ref, 1, 1)
-                enc_ref = rearrange(enc_ref, "b n l c -> (b n) l c")
-                self.unet_dual(ref, 0, enc_ref, num_in_batch=N_ref, mode="w",
-                               condition_embed_dict=condition_embed_dict)
-                cache["condition_embed_dict"] = condition_embed_dict
+                for name, emb in embeds.items():
+                    emb = emb.to(dtype=sample.dtype, device=sample.device)
+                    if emb.shape[0] != B:
+                        emb = comfy.utils.repeat_to_batch_size(emb, B)
+                    condition_embed_dict[name] = emb
+            elif ref_latents is not None:
+                condition_embed_dict = self.compute_reference_bank(ref_latents)
 
-        out = self.unet(sample, timestep, encoder_hidden_states_gen, num_in_batch=N_gen, mode="r",
-                        mva_scale=mva_scale, ref_scale=ref_scale, condition_embed_dict=condition_embed_dict,
+        out = self.unet(sample, t, enc, num_in_batch=V,
+                        mode="r" if condition_embed_dict is not None else None,
+                        mva_scale=mva_scale, ref_scale=ref_scale,
+                        condition_embed_dict=condition_embed_dict,
                         dino_hidden_states=dino_proj, position_voxel_indices=position_voxel_indices)
-        return out
+        C_out = out.shape[1]
+        out = out.reshape(B, N_pbr, V, C_out, H, W).permute(0, 3, 1, 2, 4, 5)
+        return out.reshape(B, C_out, N_pbr * V, H, W)

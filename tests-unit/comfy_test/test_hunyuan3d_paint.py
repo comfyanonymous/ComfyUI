@@ -1,8 +1,9 @@
 """Unit tests for the native Hunyuan3D 2.1 PBR paint model port.
 
 These construct a small randomly-initialized UNet2p5DConditionModel (no weights
-required) and verify architecture, state_dict/detection parity, the DDIM
-v-prediction schedule, and the multiview diffusion driver's output shapes.
+required) and verify architecture, state_dict/detection parity through core model
+detection, the DDIM v-prediction schedule against core model sampling, the packed
+multiview forward, and an end-to-end run through core's standard sampling loop.
 """
 
 from __future__ import annotations
@@ -15,14 +16,11 @@ from comfy.cli_args import args
 if not torch.cuda.is_available():
     args.cpu = True
 
+import comfy.model_base  # noqa: E402
+import comfy.model_detection  # noqa: E402
 import comfy.ops as comfy_ops  # noqa: E402
-from comfy.ldm.hunyuan3d.paint.unet import UNet2p5DConditionModel  # noqa: E402
+from comfy.ldm.hunyuan3d.paint.unet import UNet2p5DConditionModel, PaintReferenceBank  # noqa: E402
 from comfy.ldm.hunyuan3d.paint.loader import detect_paint_config, load_paint_unet, _HEAD_DIM  # noqa: E402
-from comfy.ldm.hunyuan3d.paint.sampler import (  # noqa: E402
-    DDIMVScheduler,
-    generate_multiview,
-    _cam_mapping,
-)
 
 OPS = comfy_ops.disable_weight_init
 
@@ -43,26 +41,56 @@ def _build(dtype=torch.float32, device="cpu", **over):
     return UNet2p5DConditionModel(dtype=dtype, device=device, operations=OPS, **cfg), cfg
 
 
+def _init_weights(model, seed=0, scale=0.03):
+    """Small seeded init: disable_weight_init leaves parameters uninitialized
+    (torch.empty garbage), which is fine for shape tests but overflows through a
+    deep net; tests asserting finite numerics need real (small) weights."""
+    with torch.no_grad():
+        for name, p in sorted(model.named_parameters()):
+            g = torch.Generator().manual_seed(seed + (hash(name) % 65536))
+            p.copy_(torch.randn(p.shape, generator=g, dtype=torch.float32).to(p.dtype) * scale)
+    return model
+
+
 def _inputs(B, n_pbr, V, H, dtype=torch.float32, dino=True, position=True):
-    sample = torch.randn(B, n_pbr, V, 4, H, H, dtype=dtype)
-    enc = torch.randn(B, n_pbr, TOKENS, CROSS, dtype=dtype)
+    """Packed-layout forward inputs: x carries the channel-concatenated
+    [latent, normal, position] groups with views on the non-batch axis."""
+    x = torch.randn(B, 12, n_pbr * V, H, H, dtype=dtype)
+    context = torch.randn(B, n_pbr, TOKENS, CROSS, dtype=dtype)
     ref = torch.randn(B, 1, 4, H, H, dtype=dtype)
-    normal = torch.randn(B, V, 4, H, H, dtype=dtype)
-    pos_embed = torch.randn(B, V, 4, H, H, dtype=dtype)
     pos_map = torch.rand(B, V, 3, H, H, dtype=dtype) if position else None
     dino_h = torch.randn(B, 5, DINO_DIM, dtype=dtype) if dino else None
-    return sample, enc, ref, normal, pos_embed, pos_map, dino_h
+    return x, context, ref, pos_map, dino_h
+
+
+def _reference_alphas_cumprod():
+    """The paint scheduler's alphas_cumprod, re-derived with the diffusers formulas
+    (scaled-linear betas 0.00085..0.012, 1000 steps, rescale_zero_terminal_snr) -
+    the contract the deleted bespoke DDIM scheduler implemented."""
+    betas = torch.linspace(0.00085 ** 0.5, 0.012 ** 0.5, 1000, dtype=torch.float64) ** 2
+    alphas_cumprod = torch.cumprod(1.0 - betas, dim=0)
+    alphas_bar_sqrt = alphas_cumprod.sqrt()
+    a0 = alphas_bar_sqrt[0].clone()
+    aT = alphas_bar_sqrt[-1].clone()
+    alphas_bar_sqrt -= aT
+    alphas_bar_sqrt *= a0 / (a0 - aT)
+    return alphas_bar_sqrt ** 2
+
+
+def _nodes():
+    import comfy_extras.nodes_hunyuan3d_paint as N
+    return N
 
 
 def test_forward_output_shape_and_dtype():
     model, _ = _build()
     model.eval()
     B, n_pbr, V, H = 1, 2, 3, 16
-    sample, enc, ref, normal, pos_embed, pos_map, dino_h = _inputs(B, n_pbr, V, H)
+    x, context, ref, pos_map, dino_h = _inputs(B, n_pbr, V, H)
     with torch.no_grad():
-        out = model(sample, torch.tensor([500]), enc, dino_hidden_states=dino_h, ref_latents=ref,
-                    embeds_normal=normal, embeds_position=pos_embed, position_maps=pos_map)
-    assert tuple(out.shape) == (B * n_pbr * V, 4, H, H)
+        out = model(x, torch.tensor([500]), context=context, ref_latents=ref,
+                    dino_features=dino_h, position_maps=pos_map)
+    assert tuple(out.shape) == (B, 4, n_pbr * V, H, H)
     assert out.dtype == torch.float32
 
 
@@ -70,37 +98,54 @@ def test_forward_without_dino_or_position():
     model, _ = _build()
     model.eval()
     B, n_pbr, V, H = 1, 2, 3, 16
-    sample, enc, ref, normal, pos_embed, _, _ = _inputs(B, n_pbr, V, H, dino=False, position=False)
+    x, context, ref, _, _ = _inputs(B, n_pbr, V, H, dino=False, position=False)
     with torch.no_grad():
-        out = model(sample, torch.tensor([10]), enc, dino_hidden_states=None, ref_latents=ref,
-                    embeds_normal=normal, embeds_position=pos_embed, position_maps=None)
-    assert tuple(out.shape) == (B * n_pbr * V, 4, H, H)
+        out = model(x, torch.tensor([10]), context=context, ref_latents=ref,
+                    dino_features=None, position_maps=None)
+    assert tuple(out.shape) == (B, 4, n_pbr * V, H, H)
+
+
+def test_forward_flattened_context_matches_material_layout():
+    """comfy conditioning carries the per-material context flattened to
+    (B, n_pbr*L, cross); the forward must reproduce the 4D layout exactly."""
+    model, _ = _build()
+    _init_weights(model)
+    model.eval()
+    B, n_pbr, V, H = 1, 2, 2, 16
+    x, context, ref, pos_map, dino_h = _inputs(B, n_pbr, V, H)
+    with torch.no_grad():
+        a = model(x, torch.tensor([500]), context=context, ref_latents=ref,
+                  dino_features=dino_h, position_maps=pos_map)
+        b = model(x, torch.tensor([500]), context=context.reshape(B, n_pbr * TOKENS, CROSS),
+                  ref_latents=ref, dino_features=dino_h, position_maps=pos_map)
+    assert torch.equal(a, b)
 
 
 def test_forward_cfg_batch_with_tensor_ref_scale():
-    """Reference pipeline batches uncond/ref/full along B with a per-batch ref_scale."""
+    """Core CFG batches cond/uncond along B; a precomputed reference bank rides
+    both with a per-batch-item ref_scale tensor (0 on the uncond)."""
     model, _ = _build()
     model.eval()
     B, n_pbr, V, H = 3, 2, 2, 16
-    sample, enc, ref, normal, pos_embed, pos_map, dino_h = _inputs(B, n_pbr, V, H)
-    ref_scale = torch.tensor([0.0, 1.0, 1.0])
+    x, context, ref, pos_map, dino_h = _inputs(B, n_pbr, V, H)
     with torch.no_grad():
-        out = model(sample, torch.tensor([500]), enc, dino_hidden_states=dino_h, ref_latents=ref,
-                    embeds_normal=normal, embeds_position=pos_embed, position_maps=pos_map,
-                    ref_scale=ref_scale)
-    assert tuple(out.shape) == (B * n_pbr * V, 4, H, H)
+        bank = PaintReferenceBank(model.compute_reference_bank(ref[:1]))
+        out = model(x, torch.tensor([500]), context=context, ref_bank=bank,
+                    dino_features=dino_h, position_maps=pos_map,
+                    ref_scale=torch.tensor([0.0, 1.0, 1.0]))
+    assert tuple(out.shape) == (B, 4, n_pbr * V, H, H)
 
 
 def test_bfloat16_forward():
     model, _ = _build(dtype=torch.bfloat16)
     model.eval()
     B, n_pbr, V, H = 1, 2, 2, 16
-    sample, enc, ref, normal, pos_embed, pos_map, dino_h = _inputs(B, n_pbr, V, H, dtype=torch.bfloat16)
+    x, context, ref, pos_map, dino_h = _inputs(B, n_pbr, V, H, dtype=torch.bfloat16)
     with torch.no_grad():
-        out = model(sample, torch.tensor([500]), enc, dino_hidden_states=dino_h, ref_latents=ref,
-                    embeds_normal=normal, embeds_position=pos_embed, position_maps=pos_map)
+        out = model(x, torch.tensor([500]), context=context, ref_latents=ref,
+                    dino_features=dino_h, position_maps=pos_map)
     assert out.dtype == torch.bfloat16
-    assert tuple(out.shape) == (B * n_pbr * V, 4, H, H)
+    assert tuple(out.shape) == (B, 4, n_pbr * V, H, H)
 
 
 def test_detect_config_roundtrip():
@@ -118,6 +163,20 @@ def test_detect_config_roundtrip():
 def test_detect_returns_none_for_non_paint_state_dict():
     assert detect_paint_config({"foo.weight": torch.zeros(1)}) is None
     assert detect_paint_config({}) is None
+
+
+def test_core_model_detection_picks_paint_config():
+    """The paint checkpoint routes through comfy.model_detection into the
+    Hunyuan3DPaint model config: v-prediction, zsnr schedule, packed latents."""
+    import comfy.supported_models
+    model, cfg = _build()
+    sd = model.state_dict()
+    model_config = comfy.model_detection.model_config_from_unet(sd, "")
+    assert isinstance(model_config, comfy.supported_models.Hunyuan3DPaint)
+    assert model_config.unet_config["image_model"] == "hunyuan3d_paint"
+    assert model_config.unet_config["block_out_channels"] == cfg["block_out_channels"]
+    assert model_config.sampling_settings["zsnr"] is True
+    assert model_config.latent_format.latent_dimensions == 3  # packed view axis
 
 
 def test_loader_rejects_ldm_checkpoint_with_family_diagnosis():
@@ -191,28 +250,32 @@ def test_detected_config_rebuilds_with_strict_key_parity():
     assert unexpected == [], unexpected
 
     B, n_pbr, V, H = 1, 2, 2, 16
-    sample, enc, ref, normal, pos_embed, pos_map, dino_h = _inputs(B, n_pbr, V, H)
+    x, context, ref, pos_map, dino_h = _inputs(B, n_pbr, V, H)
     with torch.no_grad():
-        a = model(sample, torch.tensor([500]), enc, dino_hidden_states=dino_h, ref_latents=ref,
-                  embeds_normal=normal, embeds_position=pos_embed, position_maps=pos_map)
-        b = twin(sample, torch.tensor([500]), enc, dino_hidden_states=dino_h, ref_latents=ref,
-                 embeds_normal=normal, embeds_position=pos_embed, position_maps=pos_map)
+        a = model(x, torch.tensor([500]), context=context, ref_latents=ref,
+                  dino_features=dino_h, position_maps=pos_map)
+        b = twin(x, torch.tensor([500]), context=context, ref_latents=ref,
+                 dino_features=dino_h, position_maps=pos_map)
     # The rebuilt model must reproduce the reference exactly (equal_nan: random-init
     # deep nets can overflow, but both models must overflow identically).
     torch.testing.assert_close(a, b, rtol=1e-4, atol=1e-4, equal_nan=True)
 
 
-def test_load_paint_unet_returns_patcher_and_config():
-    """The core loader path builds a ModelPatcher-wrapped model with a detected config."""
+def test_load_paint_unet_returns_core_model_patcher():
+    """The loader goes through core's diffusion-model path: a ModelPatcher wrapping
+    a model_base.Hunyuan3DPaint (v-prediction + zsnr) around the UNet."""
     from comfy.model_patcher import ModelPatcher
     model, cfg = _build()
     sd = model.state_dict()
-    patcher, config = load_paint_unet(sd, model_options={"dtype": torch.float32})
+    patcher = load_paint_unet(sd, model_options={"dtype": torch.float32})
     assert isinstance(patcher, ModelPatcher)
-    assert isinstance(patcher.model, UNet2p5DConditionModel)
-    assert config["block_out_channels"] == cfg["block_out_channels"]
-    assert config["pbr_setting"] == cfg["pbr_setting"]
-    assert set(patcher.model.state_dict().keys()) == set(sd.keys())
+    assert isinstance(patcher.model, comfy.model_base.Hunyuan3DPaint)
+    assert patcher.model.model_type == comfy.model_base.ModelType.V_PREDICTION
+    assert isinstance(patcher.model.diffusion_model, UNet2p5DConditionModel)
+    assert set(patcher.model.diffusion_model.state_dict().keys()) == set(sd.keys())
+    # zsnr schedule: finite terminal sigma at core's universal clamp (~4519)
+    assert float(patcher.model.model_sampling.sigma_max) > 4000.0
+    assert patcher.model.latent_format.scale_factor == pytest.approx(0.18215)
 
 
 def test_state_dict_has_expected_special_keys():
@@ -234,74 +297,149 @@ def test_state_dict_has_expected_special_keys():
     assert model.state_dict()["unet_dual.conv_in.weight"].shape[1] == 4
 
 
-def test_ddim_scheduler_zero_terminal_snr_and_trailing():
-    sched = DDIMVScheduler()
-    ts = sched.set_timesteps(15)
+def test_trailing_timesteps_zero_terminal_snr():
+    N = _nodes()
+    ts = N.trailing_timesteps(15)
     assert len(ts) == 15
     assert int(ts[0]) == 999            # trailing spacing starts at the last train step
-    assert torch.all(ts[:-1] > ts[1:])  # strictly decreasing
-    assert sched.alphas_cumprod[-1].item() < 1e-6  # zero terminal SNR
+    assert all(int(a) > int(b) for a, b in zip(ts[:-1], ts[1:]))  # strictly decreasing
+    assert list(ts) == [999, 932, 866, 799, 732, 666, 599, 532, 466, 399, 332, 266, 199, 132, 66]
+    # the schedule the model was trained with is zero terminal SNR
+    assert _reference_alphas_cumprod()[-1].item() < 1e-6
 
 
 def test_ddim_schedule_matches_core_model_sampling():
-    """Rewire-parity contract: the bespoke DDIM v-pred/zero-SNR schedule must stay
-    interchangeable with core's ModelSamplingDiscrete(zsnr=True).
+    """Rewire-parity contract: core's ModelSamplingDiscrete(zsnr=True), which now
+    drives the paint model, must reproduce the reference DDIM v-pred/zero-SNR
+    schedule (diffusers scaled-linear 0.00085..0.012 + rescale_zero_terminal_snr).
 
-    Same betas (scaled-linear 0.00085..0.012), same zero-terminal-SNR rescale; the
-    only intended difference is the terminal step, where core clamps
+    The only intended difference is the terminal step, where core clamps
     alpha_cumprod[-1] to 4.897e-8 (finite sigma_max ~4519) while the reference
     scheduler keeps an exact 0 (infinite sigma). A full 15-step DDIM loop under
     either convention agrees to ~2e-4 (see PR notes)."""
     import comfy.model_sampling as cms
+    N = _nodes()
 
     ms = cms.ModelSamplingDiscrete(model_config=None, zsnr=True)
-    sched = DDIMVScheduler()
-    ac = sched.alphas_cumprod
+    ac = _reference_alphas_cumprod()
     sigmas = ((1 - ac[:-1]) / ac[:-1]) ** 0.5
     torch.testing.assert_close(ms.sigmas[:999].double(), sigmas, rtol=1e-6, atol=1e-4)
     # documented divergence at the terminal step
     assert float(ac[-1]) == 0.0
     assert float(ms.sigmas[-1]) > 4000.0
     # the trailing timesteps round-trip exactly through core's sigma<->timestep maps
-    ts = sched.set_timesteps(15).tolist()
+    ts = [int(t) for t in N.trailing_timesteps(15)]
     rt = ms.timestep(ms.sigma(torch.tensor(ts, dtype=torch.float32))).tolist()
     assert rt == ts
+    # the scheduler node emits exactly those sigmas (plus the terminal 0)
+    model, _ = _build()
+    patcher = load_paint_unet(model.state_dict(), model_options={"dtype": torch.float32})
+    node_sigmas = N.Hunyuan3DPaintScheduler.execute(patcher, 15)[0]
+    pm = patcher.model.model_sampling
+    torch.testing.assert_close(node_sigmas[:-1], pm.sigma(torch.tensor(ts, dtype=torch.float32)))
+    assert float(node_sigmas[-1]) == 0.0
 
 
 def test_cam_mapping_view_scale():
-    assert _cam_mapping(0) == pytest.approx(1.0)
-    assert _cam_mapping(90) == pytest.approx(2.0)
-    assert _cam_mapping(180) == pytest.approx(2.0)
-    assert _cam_mapping(360) == pytest.approx(1.0)
+    N = _nodes()
+    assert N.view_scale_mapping(0) == pytest.approx(1.0)
+    assert N.view_scale_mapping(90) == pytest.approx(2.0)
+    assert N.view_scale_mapping(180) == pytest.approx(2.0)
+    assert N.view_scale_mapping(360) == pytest.approx(1.0)
 
 
-def test_generate_multiview_end_to_end_shapes():
-    model, cfg = _build()
-    model.eval()
+def test_view_scale_pre_cfg_matches_reference_composition():
+    """The reference triple-batch CFG telescopes: uncond + s*vs*(ref - uncond) +
+    s*vs*(full - ref) == uncond + s*vs*(full - uncond) for ANY middle prediction.
+    The pre-CFG view-scale patch must reproduce that composition through core's
+    scalar cfg_function."""
+    N = _nodes()
+    azims = [0.0, 90.0, 180.0, 270.0]
+    n_pbr, scale = 2, 3.0
+    g = torch.Generator().manual_seed(3)
+    cond = torch.randn(1, 4, n_pbr * len(azims), 8, 8, generator=g, dtype=torch.float64)
+    uncond = torch.randn(1, 4, n_pbr * len(azims), 8, 8, generator=g, dtype=torch.float64)
+    ref_mid = torch.randn(1, 4, n_pbr * len(azims), 8, 8, generator=g, dtype=torch.float64)
+
+    out = N._view_scale_pre_cfg(azims)({"conds_out": [cond, uncond]})
+    # core cfg_function: uncond + (cond' - uncond) * scale
+    result = out[1] + (out[0] - out[1]) * scale
+
+    vs = torch.tensor([N.view_scale_mapping(a) for a in azims], dtype=torch.float64)
+    vs = vs.repeat(n_pbr).reshape(1, 1, -1, 1, 1)
+    reference = uncond + scale * vs * (ref_mid - uncond) + scale * vs * (cond - ref_mid)
+    torch.testing.assert_close(result, reference)
+    # cfg 1.0 path: uncond is skipped, conds pass through untouched
+    out = N._view_scale_pre_cfg(azims)({"conds_out": [cond, None]})
+    assert out[0] is cond and out[1] is None
+
+
+def _sampling_setup(patcher, V, H, dino=True, seed=0):
+    """Hand-build the conditioning the cond-prep node produces (random geometry)."""
+    base = patcher.model
+    dm = base.diffusion_model
+    n_pbr = len(dm.pbr_setting)
+    g = torch.Generator().manual_seed(seed)
+    normal = torch.randn(V, 4, H, H, generator=g)
+    position = torch.randn(V, 4, H, H, generator=g)
+    geo = torch.cat([normal, position], dim=1).movedim(0, 1).unsqueeze(0).repeat(1, 1, n_pbr, 1, 1)
+    ref = torch.randn(1, 1, 4, H, H, generator=g)
+    with torch.no_grad():
+        bank = PaintReferenceBank(dm.compute_reference_bank(base.process_latent_in(ref)))
+        context = dm.material_context(1).detach().float()
+    context = context.reshape(1, -1, context.shape[-1])
+    pos_maps = torch.rand(1, V, 3, H, H, generator=g)
+
+    cond = {"concat_latent_image": geo, "ref_bank": bank, "position_maps": pos_maps, "ref_scale": 1.0}
+    uncond = dict(cond)
+    uncond["ref_scale"] = 0.0
+    if dino:
+        d = torch.randn(1, 5, DINO_DIM, generator=g)
+        cond["dino_features"] = d
+        uncond["dino_features"] = torch.zeros_like(d)
+    positive = [[context, cond]]
+    negative = [[context, uncond]]
+    latent = torch.zeros(1, 4, n_pbr * V, H, H)
+    return positive, negative, latent
+
+
+def _core_sample(patcher, positive, negative, latent, steps, cfg, seed, azims=None):
+    import comfy.sample
+    import comfy.samplers
+    N = _nodes()
+    m = patcher.clone()
+    if azims is not None:
+        m.set_model_sampler_pre_cfg_function(N._view_scale_pre_cfg(azims))
+    noise = comfy.sample.prepare_noise(latent, seed)
+    sigmas = N.Hunyuan3DPaintScheduler.execute(m, steps)[0]
+    sampler = comfy.samplers.sampler_object("euler")
+    return comfy.sample.sample_custom(m, noise, cfg, sampler, sigmas, positive, negative,
+                                      latent, disable_pbar=True, seed=seed)
+
+
+def test_core_sampling_end_to_end_shapes():
+    """The standard comfy loop (prepare_noise -> euler -> CFG with the view-scale
+    patch) drives the paint model end to end; cond batching keeps the packed
+    material/view groups intact."""
+    model, _ = _build()
+    _init_weights(model)
+    patcher = load_paint_unet(model.state_dict(), model_options={"dtype": torch.float32})
     V, H = 4, 16
-    ref_latent = torch.randn(1, 4, H, H)
-    normal_latents = torch.randn(V, 4, H, H)
-    position_latents = torch.randn(V, 4, H, H)
-    position_maps = torch.rand(V, 3, H, H)
-    dino = torch.randn(1, 5, DINO_DIM)
-    out = generate_multiview(model, cfg, ref_latent, normal_latents, position_latents, position_maps,
-                             dino_features=dino, camera_azims=[0, 90, 180, 270],
-                             num_inference_steps=3, guidance_scale=3.0, seed=0, device="cpu")
-    assert set(out.keys()) == {"albedo", "mr"}
-    for v in out.values():
-        assert tuple(v.shape) == (V, 4, H, H)
+    positive, negative, latent = _sampling_setup(patcher, V, H, dino=True)
+    out = _core_sample(patcher, positive, negative, latent, steps=2, cfg=3.0, seed=0,
+                       azims=[0.0, 90.0, 180.0, 270.0])
+    assert tuple(out.shape) == (1, 4, 2 * V, H, H)
+    assert torch.isfinite(out).all()
 
 
-def test_generate_multiview_without_cfg_or_dino():
-    model, cfg = _build()
-    model.eval()
+def test_core_sampling_without_cfg_or_dino():
+    """cfg=1.0 skips the uncond batch entirely (core's optimization); the model
+    must run from the positive cond alone, without DINO features."""
+    model, _ = _build()
+    _init_weights(model)
+    patcher = load_paint_unet(model.state_dict(), model_options={"dtype": torch.float32})
     V, H = 2, 16
-    ref_latent = torch.randn(1, 4, H, H)
-    normal_latents = torch.randn(V, 4, H, H)
-    position_latents = torch.randn(V, 4, H, H)
-    position_maps = torch.rand(V, 3, H, H)
-    out = generate_multiview(model, cfg, ref_latent, normal_latents, position_latents, position_maps,
-                             dino_features=None, camera_azims=[0, 180],
-                             num_inference_steps=2, guidance_scale=1.0, seed=1, device="cpu")
-    for v in out.values():
-        assert tuple(v.shape) == (V, 4, H, H)
+    positive, negative, latent = _sampling_setup(patcher, V, H, dino=False, seed=1)
+    out = _core_sample(patcher, positive, negative, latent, steps=2, cfg=1.0, seed=1)
+    assert tuple(out.shape) == (1, 4, 2 * V, H, H)
+    assert torch.isfinite(out).all()

@@ -53,8 +53,15 @@ def build_tiny_model(seed=TINY_WEIGHT_SEED, config=None):
 def run_model(model, tensors, capture_blocks=False):
     """One denoise forward from bundle input tensors.
 
+    The bundle stores the reference pipeline's 6D layout (sample
+    (B, n_pbr, V, C, H, W) + separate normal/position embeds); the rewired
+    forward takes the comfy packing (B, C_total, n_pbr*V, H, W) with the
+    geometry groups channel-concatenated. The adapters below are pure
+    reshape/concat - bit-exact - so the committed goldens stay valid.
+
     Returns (noise_pred, activations) where activations is a dict of
-    ``act/<module path>`` -> float32 tensor (empty unless capture_blocks).
+    ``act/<module path>`` -> float32 tensor (empty unless capture_blocks),
+    with noise_pred in the bundle's (B*n_pbr*V, C, H, W) layout.
     """
     acts = {}
     handles = []
@@ -71,23 +78,34 @@ def run_model(model, tensors, capture_blocks=False):
         for name in names:
             handles.append(model.get_submodule(name).register_forward_hook(make_hook(name)))
 
+    sample = tensors["input/sample"]
+    b, n_pbr, views = sample.shape[:3]
+    parts = [
+        sample,
+        tensors["input/embeds_normal"].unsqueeze(1).repeat(1, n_pbr, 1, 1, 1, 1),
+        tensors["input/embeds_position"].unsqueeze(1).repeat(1, n_pbr, 1, 1, 1, 1),
+    ]
+    packed = torch.cat(parts, dim=3)  # (B, n_pbr, V, C_total, H, W)
+    channels, height, width = packed.shape[3:]
+    packed = packed.permute(0, 3, 1, 2, 4, 5).reshape(b, channels, n_pbr * views, height, width)
+
     try:
         with torch.no_grad():
             out = model(
-                tensors["input/sample"],
+                packed,
                 tensors["input/timestep"],
-                tensors["input/encoder_hidden_states"],
-                dino_hidden_states=tensors.get("input/dino_hidden_states"),
+                context=tensors["input/encoder_hidden_states"],
                 ref_latents=tensors["input/ref_latents"],
-                embeds_normal=tensors["input/embeds_normal"],
-                embeds_position=tensors["input/embeds_position"],
+                dino_features=tensors.get("input/dino_hidden_states"),
                 position_maps=tensors["input/position_maps"],
-                cache={},
             )
     finally:
         for h in handles:
             h.remove()
-    return out, acts
+
+    c_out = out.shape[1]
+    out = out.reshape(b, c_out, n_pbr, views, height, width).permute(0, 2, 3, 1, 4, 5)
+    return out.reshape(b * n_pbr * views, c_out, height, width), acts
 
 
 def make_tiny_golden(path):

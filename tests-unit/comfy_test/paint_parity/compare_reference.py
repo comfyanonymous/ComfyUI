@@ -45,8 +45,8 @@ def main():
 
     tensors, metadata = bundle_format.load_bundle(args.bundle)
     sd = _load_state_dict(args.weights)
-    patcher, config = load_paint_unet(sd, model_options={"dtype": torch.float32})
-    model = patcher.model
+    patcher = load_paint_unet(sd, model_options={"dtype": torch.float32})
+    model = patcher.model.diffusion_model  # the UNet2p5DConditionModel inside the BaseModel
     model.eval()
 
     out, acts = harness.run_model(model, tensors, capture_blocks=True)
@@ -63,8 +63,8 @@ def main():
            f"native torch: `{torch.__version__}`\n")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(md)
-    print(md)
-    print(f"wrote {args.out}")
+    sys.stdout.write(md + "\n")
+    sys.stdout.write(f"wrote {args.out}\n")
 
 
 if __name__ == "__main__":
