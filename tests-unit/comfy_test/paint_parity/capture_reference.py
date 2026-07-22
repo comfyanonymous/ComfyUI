@@ -46,13 +46,60 @@ def main():
     ap.add_argument("--fp16-activations", action="store_true")
     args = ap.parse_args()
 
-    sys.path.insert(0, os.path.join(args.reference_root, "hy3dpaint"))
-    from hunyuanpaintpbr.unet.modules import UNet2p5DConditionModel  # noqa: E402
+    # Import the reference modules.py without executing hunyuanpaintpbr/__init__.py,
+    # which drags in pytorch_lightning/torchvision that the pinned venv doesn't need.
+    # attn_processor.py hard-codes one `.to("cuda:0")` (a pure device move; its
+    # multi-GPU path is off) - patch it out IN MEMORY for CPU capture; the on-disk
+    # reference stays untouched and no math changes.
+    import importlib.util
+    import types
+    unet_dir_pkg = os.path.join(args.reference_root, "hy3dpaint", "hunyuanpaintpbr", "unet")
+    for pkg, path in (("hunyuanpaintpbr", os.path.dirname(unet_dir_pkg)),
+                      ("hunyuanpaintpbr.unet", unet_dir_pkg)):
+        if pkg not in sys.modules:
+            stub = types.ModuleType(pkg)
+            stub.__path__ = [path]
+            sys.modules[pkg] = stub
+
+    def load_module(name, filename, replacements=()):
+        path = os.path.join(unet_dir_pkg, filename)
+        with open(path, "r", encoding="utf-8") as f:
+            src = f.read()
+        for old, new in replacements:
+            assert old in src, f"expected to patch {old!r} in {filename}"
+            src = src.replace(old, new)
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod
+        exec(compile(src, path, "exec"), mod.__dict__)
+        return mod
+
+    cpu_patch = () if torch.cuda.is_available() else (('.to("cuda:0")', ""),)
+    load_module("hunyuanpaintpbr.unet.attn_processor", "attn_processor.py", cpu_patch)
+    ref_modules = load_module("hunyuanpaintpbr.unet.modules", "modules.py")
+    UNet2p5DConditionModel = ref_modules.UNet2p5DConditionModel
 
     with open(os.path.join(args.unet_dir, "config.json"), "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    model = UNet2p5DConditionModel.from_pretrained(args.unet_dir, torch_dtype=torch.float32)
+    try:
+        model = UNet2p5DConditionModel.from_pretrained(args.unet_dir, torch_dtype=torch.float32)
+    except TypeError:
+        # some diffusers versions reject the raw config's private keys; replicate
+        # the reference from_pretrained via from_config instead
+        from diffusers import UNet2DConditionModel
+        base = UNet2DConditionModel.from_config(cfg)
+        model = UNet2p5DConditionModel(base)
+        conv_in = base.conv_in
+        model.unet.conv_in = torch.nn.Conv2d(
+            12, conv_in.out_channels, kernel_size=conv_in.kernel_size,
+            stride=conv_in.stride, padding=conv_in.padding,
+            dilation=conv_in.dilation, groups=conv_in.groups,
+            bias=conv_in.bias is not None)
+        ckpt = torch.load(os.path.join(args.unet_dir, "diffusion_pytorch_model.bin"),
+                          map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt, strict=True)
+        model = model.float()
     model.eval()
 
     # the real checkpoint's dims: cross 1024, 77 learned tokens, dino-giant 1536
@@ -95,8 +142,11 @@ def main():
     for h in handles:
         h.remove()
 
-    sample = out.sample if hasattr(out, "sample") else out
-    tensors["output/noise_pred"] = sample.detach().float()
+    if hasattr(out, "sample"):
+        out = out.sample
+    elif isinstance(out, (tuple, list)):
+        out = out[0]
+    tensors["output/noise_pred"] = out.detach().float()
     tensors.update(acts)
     bundle_format.save_bundle(args.out, tensors, {
         "source": "reference",
@@ -105,6 +155,8 @@ def main():
                        "timestep": args.timestep},
         "torch_version": torch.__version__,
         "note": "encoder_hidden_states are the checkpoint's learned material tokens",
+        "cpu_patch": "removed hard-coded .to(\"cuda:0\") device move in attn_processor.py"
+                     if cpu_patch else "none",
     })
     print(f"wrote {args.out} ({os.path.getsize(args.out) / 1e6:.1f} MB, "
           f"{len(acts)} block activations)")
