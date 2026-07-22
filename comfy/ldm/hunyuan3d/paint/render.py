@@ -409,6 +409,12 @@ def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
                    bake_exp=4.0, cos_thresh_deg=75.0):
     """Back-project multiview images onto the UV atlas via angle-weighted blending.
 
+    Mirrors the reference pipeline's bake: each view is rasterized with the z-buffer
+    (so occluded surfaces never receive that view's colors) and every covered pixel
+    is splatted into UV space with weight ``view_weight * cos(view angle)**bake_exp``
+    (the reference's per-view weights and ``bake_exp=4``), then the per-texel
+    weighted average is taken across all views.
+
     Args:
         vertices: (N, 3) vertices (unwelded, carrying the UV atlas) in the GLB frame.
         faces: (F, 3) triangle indices.
@@ -470,14 +476,16 @@ def bake_multiview(vertices, faces, uvs, views, cameras, texture_size=1024,
     return texture.view(T, T, C), mask.view(T, T)
 
 
-def fill_holes(texture, mask, max_iters=64):
-    """Fill unseen texels by iterative 3x3 dilation of the nearest valid colors."""
-    T, _, C = texture.shape
-    device = texture.device
-    color = texture.permute(2, 0, 1).unsqueeze(0).clone()  # (1, C, T, T)
-    valid = mask.to(torch.float32).view(1, 1, T, T).clone()
-    kernel = torch.ones((1, 1, 3, 3), device=device, dtype=torch.float32)
-    for _ in range(max_iters):
+def _dilate_valid(color, valid, iters):
+    """Grow valid regions by ``iters`` 3x3 dilation passes (gutter fill).
+
+    color is (1, C, T, T), valid is (1, 1, T, T) in {0, 1}. Hole texels adjacent to
+    valid ones take the average of their valid neighbours; original valid texels are
+    never modified. Returns the updated (color, valid).
+    """
+    C = color.shape[1]
+    kernel = torch.ones((1, 1, 3, 3), device=color.device, dtype=torch.float32)
+    for _ in range(iters):
         holes = valid < 0.5
         if not holes.any():
             break
@@ -485,7 +493,48 @@ def fill_holes(texture, mask, max_iters=64):
         neigh_c = F.conv2d(color * valid, kernel.expand(C, 1, 3, 3), padding=1, groups=C)
         can_fill = holes & (neigh_w > 0)
         filled = neigh_c / neigh_w.clamp(min=1e-8)
-        cf = can_fill.expand(-1, C, -1, -1)
-        color = torch.where(cf, filled, color)
+        color = torch.where(can_fill.expand(-1, C, -1, -1), filled, color)
         valid = torch.where(can_fill, torch.ones_like(valid), valid)
+    return color, valid
+
+
+def _push_pull(color, valid):
+    """Fill every remaining hole texel with a push-pull image pyramid.
+
+    Pull: average premultiplied color + coverage down to 1x1. Push: walk back up,
+    keeping (partially) covered texels and filling the rest from the coarser level,
+    so arbitrarily large unseen regions inherit plausible low-frequency colors from
+    the nearest covered surface. Texels that were valid at full resolution are
+    returned exactly unchanged.
+    """
+    levels = []
+    c = color * valid
+    w = valid
+    while min(c.shape[-2:]) > 1:
+        levels.append((c, w))
+        c = F.avg_pool2d(c, 2, ceil_mode=True)
+        w = F.avg_pool2d(w, 2, ceil_mode=True)
+    out = torch.where(w > 0, c / w.clamp(min=1e-8), torch.zeros_like(c))
+    for cf, wf in reversed(levels):
+        up = F.interpolate(out, size=cf.shape[-2:], mode="bilinear", align_corners=False)
+        a = wf.clamp(0.0, 1.0)
+        out = a * torch.where(wf > 0, cf / wf.clamp(min=1e-8), torch.zeros_like(cf)) + (1.0 - a) * up
+    return out
+
+
+def fill_holes(texture, mask, dilate_iters=8):
+    """UV-space inpaint of texels no view contributed to.
+
+    Two stages, mirroring the reference pipeline's UV-space texture inpaint:
+    first ``dilate_iters`` gutter-dilation passes extend chart borders outward with
+    their exact nearest colors (protecting bilinear/mipmap sampling across seams),
+    then a push-pull pyramid fills every remaining texel — unseen interior regions
+    of any size and the atlas background — with low-frequency colors from the
+    nearest covered areas. Valid texels are returned unchanged.
+    """
+    T, _, C = texture.shape
+    color = texture.permute(2, 0, 1).unsqueeze(0).clone()  # (1, C, T, T)
+    valid = mask.to(torch.float32).view(1, 1, T, T).clone()
+    color, valid = _dilate_valid(color, valid, dilate_iters)
+    color = _push_pull(color, valid)
     return color.squeeze(0).permute(1, 2, 0).contiguous()
