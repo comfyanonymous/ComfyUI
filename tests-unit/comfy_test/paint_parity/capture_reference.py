@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 
 import torch
 
@@ -68,10 +69,20 @@ def main():
         for old, new in replacements:
             assert old in src, f"expected to patch {old!r} in {filename}"
             src = src.replace(old, new)
-        spec = importlib.util.spec_from_file_location(name, path)
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[name] = mod
-        exec(compile(src, path, "exec"), mod.__dict__)
+        # Import the patched source through the normal loader machinery from a
+        # temporary file rather than exec'ing a string.
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=f"-{filename}", delete=False, encoding="utf-8"
+        ) as handle:
+            handle.write(src)
+            patched_path = handle.name
+        try:
+            spec = importlib.util.spec_from_file_location(name, patched_path)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[name] = mod
+            spec.loader.exec_module(mod)
+        finally:
+            os.unlink(patched_path)
         return mod
 
     cpu_patch = () if torch.cuda.is_available() else (('.to("cuda:0")', ""),)
@@ -158,8 +169,8 @@ def main():
         "cpu_patch": "removed hard-coded .to(\"cuda:0\") device move in attn_processor.py"
                      if cpu_patch else "none",
     })
-    print(f"wrote {args.out} ({os.path.getsize(args.out) / 1e6:.1f} MB, "
-          f"{len(acts)} block activations)")
+    sys.stdout.write(f"wrote {args.out} ({os.path.getsize(args.out) / 1e6:.1f} MB, "
+                     f"{len(acts)} block activations)\n")
 
 
 if __name__ == "__main__":

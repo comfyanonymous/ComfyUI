@@ -1,12 +1,16 @@
 """Native ComfyUI nodes for Hunyuan3D 2.1 PBR paint (multiview texture generation).
 
-Given a mesh and a reference image, the multiview node renders the geometry conditioning
-(world-space normal + position maps) with a torch-native rasterizer, runs the
-hunyuan3d-paintpbr-v2-1 UNet to produce per-view albedo and metallic-roughness IMAGE
-batches, and the bake node back-projects those views onto a UV atlas to produce the
-albedo + metallic-roughness textures and a UV-unwrapped, textured mesh.
+The paint UNet is a first-class comfy model (detected by comfy.model_detection,
+sampled by the standard KSampler machinery). Given a mesh and a reference image,
+the conditioning node renders the geometry conditioning (world-space normal +
+position maps) with a torch-native rasterizer, precomputes the reference-attention
+bank, and emits standard CONDITIONING plus a packed multiview LATENT; after
+sampling, the split node unpacks per-view albedo and metallic-roughness latents
+for a standard VAEDecode, and the bake node back-projects the decoded views onto
+a UV atlas to produce the textured mesh.
 """
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from typing_extensions import override
@@ -16,11 +20,10 @@ import comfy.utils
 import folder_paths
 from comfy.ldm.hunyuan3d.paint import render as paint_render
 from comfy.ldm.hunyuan3d.paint.loader import load_paint_unet
-from comfy.ldm.hunyuan3d.paint.sampler import generate_multiview, SD_SCALING_FACTOR
+from comfy.ldm.hunyuan3d.paint.unet import PaintReferenceBank
 from comfy_extras.nodes_save_3d import get_mesh_batch_item
 from comfy_api.latest import ComfyExtension, IO, Types
 
-PAINT_MODEL = IO.Custom("HUNYUAN3D_PAINT_MODEL")
 DINO_FEATURES = IO.Custom("HY3D_DINO_FEATURES")
 CAMERAS = IO.Custom("HY3D_CAMERAS")
 
@@ -53,6 +56,47 @@ def _pack_mr_gltf(mr_native):
     return out
 
 
+def view_scale_mapping(azim):
+    """Per-view CFG multiplier from the reference pipeline (``cam_mapping``):
+    1.0 at the front view, ramping to 2.0 for side/back/top/bottom views."""
+    azim = float(azim) % 360.0
+    if 0 <= azim < 90:
+        return azim / 90.0 + 1.0
+    elif 90 <= azim < 330:
+        return 2.0
+    else:
+        return -azim / 90.0 + 5.0
+
+
+def trailing_timesteps(num_steps, num_train_timesteps=1000):
+    """DDIM "trailing" timestep spacing (diffusers ``timestep_spacing: trailing``),
+    e.g. [999, 932, ..., 66] for 15 steps over a 1000-step train schedule."""
+    step_ratio = num_train_timesteps / num_steps
+    return np.round(np.arange(num_train_timesteps, 0, -step_ratio)).astype(np.int64) - 1
+
+
+def _view_scale_pre_cfg(azims):
+    """Pre-CFG function applying the reference pipeline's per-view guidance scale.
+
+    The reference composes ``uncond + s*vs*(ref - uncond) + s*vs*(full - ref)``,
+    which telescopes exactly to ``uncond + s*vs*(full - uncond)`` (the ref-only
+    middle batch cancels; guidance_rescale defaults to 0 and is never set) - i.e.
+    standard 2-cond CFG with a per-view scale ``vs`` on the packed view axis.
+    Replacing cond with ``uncond + vs*(cond - uncond)`` before the scalar CFG
+    reproduces that composition and stays stackable with RescaleCFG."""
+    def pre_cfg(args):
+        conds_out = args["conds_out"]
+        if len(conds_out) < 2 or conds_out[1] is None:
+            return conds_out  # cfg == 1.0: no guidance to scale
+        cond, uncond = conds_out[0], conds_out[1]
+        if cond.ndim != 5 or cond.shape[2] % len(azims) != 0:
+            return conds_out
+        vs = torch.tensor([view_scale_mapping(a) for a in azims], device=cond.device, dtype=cond.dtype)
+        vs = vs.repeat(cond.shape[2] // len(azims)).reshape(1, 1, -1, 1, 1)
+        return [uncond + vs * (cond - uncond)] + list(conds_out[1:])
+    return pre_cfg
+
+
 class Hunyuan3DPaintModelLoader(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -60,12 +104,16 @@ class Hunyuan3DPaintModelLoader(IO.ComfyNode):
             node_id="Hunyuan3DPaintModelLoader",
             display_name="Hunyuan3D Paint Model Loader",
             category="loaders/hunyuan 3d",
-            description="Load a Hunyuan3D 2.1 PBR paint UNet (hunyuan3d-paintpbr-v2-1).",
+            description=(
+                "Load a Hunyuan3D 2.1 PBR paint UNet (hunyuan3d-paintpbr-v2-1) as a "
+                "standard MODEL. Equivalent to the generic diffusion-model loader, "
+                "with paint-specific error diagnosis for wrong-family checkpoints."
+            ),
             inputs=[
                 IO.Combo.Input("model_name", options=folder_paths.get_filename_list("diffusion_models")),
             ],
             outputs=[
-                PAINT_MODEL.Output(display_name="paint_model"),
+                IO.Model.Output(display_name="model"),
             ],
         )
 
@@ -73,23 +121,26 @@ class Hunyuan3DPaintModelLoader(IO.ComfyNode):
     def execute(cls, model_name) -> IO.NodeOutput:
         path = folder_paths.get_full_path_or_raise("diffusion_models", model_name)
         sd = comfy.utils.load_torch_file(path)
-        patcher, config = load_paint_unet(sd)
-        return IO.NodeOutput((patcher, config))
+        return IO.NodeOutput(load_paint_unet(sd))
 
 
-class Hunyuan3DPaintMultiView(IO.ComfyNode):
+class Hunyuan3DPaintConditioning(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="Hunyuan3DPaintMultiView",
-            display_name="Hunyuan3D Paint MultiView",
-            category="model/hunyuan 3d",
+            node_id="Hunyuan3DPaintConditioning",
+            display_name="Hunyuan3D Paint Conditioning",
+            category="conditioning/3d_models",
             description=(
-                "Render a mesh's geometry conditioning (normal + position maps) and run the "
-                "2.1 paint UNet to generate multiview albedo and metallic-roughness images."
+                "Prepare everything the 2.1 paint model needs for a standard KSampler run: "
+                "renders the mesh's geometry conditioning (normal + position maps), encodes "
+                "it with the VAE, precomputes the reference-attention bank from the reference "
+                "image (dual-stream write pass), and packs it all into CONDITIONING plus an "
+                "empty multiview LATENT. Also outputs the model with the reference pipeline's "
+                "per-view guidance scaling attached."
             ),
             inputs=[
-                PAINT_MODEL.Input("paint_model"),
+                IO.Model.Input("model", tooltip="The paint model (Hunyuan3D Paint Model Loader or Load Diffusion Model)."),
                 IO.Vae.Input("vae", tooltip="SD-2.x image VAE from the paint model (hunyuan3d-paintpbr-v2-1/vae)."),
                 IO.Mesh.Input("mesh", tooltip="Untextured mesh to paint (e.g. from Hunyuan3D 2.1 shape)."),
                 IO.Image.Input("reference_image", tooltip="Reference image; alpha is composited over white."),
@@ -97,15 +148,14 @@ class Hunyuan3DPaintMultiView(IO.ComfyNode):
                              tooltip="Number of standard views (front, right, back, left, top, bottom)."),
                 IO.Int.Input("resolution", default=512, min=256, max=1024, step=64,
                              tooltip="Per-view render/diffusion resolution."),
-                IO.Int.Input("steps", default=15, min=1, max=100),
-                IO.Float.Input("guidance_scale", default=3.0, min=0.0, max=30.0, step=0.1),
-                IO.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff),
                 DINO_FEATURES.Input("dino_features", optional=True,
                                     tooltip="Optional precomputed DINOv2 reference tokens (improves fidelity)."),
             ],
             outputs=[
-                IO.Image.Output(display_name="albedo"),
-                IO.Image.Output(display_name="mr"),
+                IO.Model.Output(display_name="model"),
+                IO.Conditioning.Output(display_name="positive"),
+                IO.Conditioning.Output(display_name="negative"),
+                IO.Latent.Output(display_name="latent"),
                 CAMERAS.Output(display_name="cameras"),
                 IO.Image.Output(display_name="normal_maps"),
                 IO.Image.Output(display_name="position_maps"),
@@ -113,50 +163,135 @@ class Hunyuan3DPaintMultiView(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, paint_model, vae, mesh, reference_image, num_views, resolution, steps,
-                guidance_scale, seed, dino_features=None) -> IO.NodeOutput:
-        patcher, config = paint_model
-        comfy.model_management.load_models_gpu([patcher])
-        model = patcher.model
-        device = patcher.load_device
-        dtype = getattr(model, "manual_cast_dtype", None) or next(model.parameters()).dtype
+    def execute(cls, model, vae, mesh, reference_image, num_views, resolution,
+                dino_features=None) -> IO.NodeOutput:
+        base = model.model  # comfy.model_base.Hunyuan3DPaint
+        dm = base.diffusion_model
+        n_pbr = len(dm.pbr_setting)
 
         vertices, faces, _uvs = _first_mesh(mesh)
         cameras = paint_render.standard_cameras(num_views)
 
         normal_maps, position_maps, _masks = paint_render.render_geometry_maps(
             vertices, faces, cameras, resolution=resolution)
-        # move to CPU float for the VAE, which handles its own device placement
+        # CPU float for the VAE, which handles its own device placement
         normal_maps = normal_maps.cpu().float()
         position_maps = position_maps.cpu().float()
 
         reference = _prep_reference(reference_image, resolution)
+        ref_latent = vae.encode(reference[:, :, :, :3])
+        normal_latents = vae.encode(normal_maps[:, :, :, :3])
+        position_latents = vae.encode(position_maps[:, :, :, :3])
 
-        def enc(image):
-            latent = vae.encode(image[:, :, :, :3])
-            return latent.to(device=device, dtype=dtype) * SD_SCALING_FACTOR
+        # reference-attention bank: one dual-stream write pass, reused every step
+        comfy.model_management.load_models_gpu([model])
+        device = model.load_device
+        dtype = base.get_dtype_inference()
+        ref_in = base.process_latent_in(ref_latent).unsqueeze(1).to(device=device, dtype=dtype)
+        bank = PaintReferenceBank(dm.compute_reference_bank(ref_in))
 
-        ref_latent = enc(reference)
-        normal_latents = enc(normal_maps)
-        position_latents = enc(position_maps)
-        pos_maps = position_maps[:, :, :, :3].permute(0, 3, 1, 2).contiguous().to(device=device, dtype=dtype)
+        # the model's learned per-material embeddings ride as regular cross attn
+        context = dm.material_context(1).detach().float().cpu()
+        context = context.reshape(1, -1, context.shape[-1])  # (1, n_pbr*L, cross)
 
-        dino = None
+        # geometry latents -> packed (1, 8, n_pbr*V, h, w), identical per material
+        geo = torch.cat([normal_latents.cpu().float(), position_latents.cpu().float()], dim=1)
+        geo = geo.movedim(0, 1).unsqueeze(0).repeat(1, 1, n_pbr, 1, 1)
+
+        pos_maps = position_maps[:, :, :, :3].permute(0, 3, 1, 2).unsqueeze(0).contiguous()
+
+        cond = {
+            "concat_latent_image": geo,
+            "ref_bank": bank,
+            "position_maps": pos_maps,
+            "ref_scale": 1.0,
+        }
+        uncond = dict(cond)
+        uncond["ref_scale"] = 0.0
         if dino_features is not None:
-            dino = dino_features.to(device=device, dtype=dtype)
+            dino = dino_features.detach().float().cpu()
+            cond["dino_features"] = dino
+            uncond["dino_features"] = torch.zeros_like(dino)
+        positive = [[context, cond]]
+        negative = [[context, uncond]]
 
-        out = generate_multiview(
-            model, config, ref_latent, normal_latents, position_latents, pos_maps,
-            dino_features=dino, camera_azims=cameras.azims, num_inference_steps=steps,
-            guidance_scale=guidance_scale, seed=seed, device=device, dtype=dtype)
+        latent = torch.zeros((1, 4, n_pbr * num_views, resolution // 8, resolution // 8),
+                             device=comfy.model_management.intermediate_device())
 
-        pbr = list(config["pbr_setting"])
-        albedo = vae.decode(out[pbr[0]] / SD_SCALING_FACTOR)
-        if "mr" in out:
-            mr = vae.decode(out["mr"] / SD_SCALING_FACTOR)
+        m = model.clone()
+        m.set_model_sampler_pre_cfg_function(_view_scale_pre_cfg(list(cameras.azims)))
+
+        return IO.NodeOutput(m, positive, negative, {"samples": latent}, cameras,
+                             normal_maps, position_maps)
+
+
+class Hunyuan3DPaintScheduler(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Hunyuan3DPaintScheduler",
+            display_name="Hunyuan3D Paint Scheduler",
+            category="sampling/custom_sampling/schedulers",
+            description=(
+                "Exact DDIM trailing-spacing sigmas for the paint model's zero-terminal-SNR "
+                "schedule (integer-timestep table lookups; sgm_uniform is a close but inexact "
+                "approximation). Use with SamplerCustomAdvanced/CFGGuider and an euler sampler "
+                "(DDIM eta=0 == Euler on this schedule)."
+            ),
+            inputs=[
+                IO.Model.Input("model"),
+                IO.Int.Input("steps", default=15, min=1, max=1000),
+            ],
+            outputs=[
+                IO.Sigmas.Output(display_name="sigmas"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, steps) -> IO.NodeOutput:
+        ms = model.get_model_object("model_sampling")
+        ts = trailing_timesteps(steps, num_train_timesteps=len(ms.sigmas))
+        sigmas = ms.sigma(torch.tensor(ts, dtype=torch.float32))
+        sigmas = torch.cat([sigmas.cpu(), torch.zeros(1)])
+        return IO.NodeOutput(sigmas)
+
+
+class Hunyuan3DPaintSplitLatent(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Hunyuan3DPaintSplitLatent",
+            display_name="Hunyuan3D Paint Split Latent",
+            category="latent/3d",
+            description=(
+                "Split a sampled packed multiview paint latent (B, 4, n_pbr*V, h, w) into "
+                "per-view albedo and metallic-roughness LATENT batches for VAEDecode."
+            ),
+            inputs=[
+                IO.Model.Input("model", tooltip="The paint model (defines the material packing)."),
+                IO.Latent.Input("samples"),
+            ],
+            outputs=[
+                IO.Latent.Output(display_name="albedo"),
+                IO.Latent.Output(display_name="mr"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, samples) -> IO.NodeOutput:
+        pbr_setting = list(model.model.diffusion_model.pbr_setting)
+        latent = samples["samples"]
+        if latent.ndim != 5 or latent.shape[2] % len(pbr_setting) != 0:
+            raise ValueError(
+                f"expected a packed paint latent (B, C, {len(pbr_setting)}*V, h, w), got {tuple(latent.shape)}")
+        views = latent.shape[2] // len(pbr_setting)
+        frames = latent[0].movedim(1, 0)  # (n_pbr*V, C, h, w), material-major
+        albedo = frames[:views]
+        if "mr" in pbr_setting:
+            mr = frames[pbr_setting.index("mr") * views:][:views]
         else:
             mr = torch.zeros_like(albedo)
-        return IO.NodeOutput(albedo, mr, cameras, normal_maps, position_maps)
+        return IO.NodeOutput({"samples": albedo}, {"samples": mr})
 
 
 class Hunyuan3DBakeMultiView(IO.ComfyNode):
@@ -174,12 +309,12 @@ class Hunyuan3DBakeMultiView(IO.ComfyNode):
                 "albedo/MR textures as images."
             ),
             inputs=[
-                IO.Mesh.Input("mesh", tooltip="The mesh that was painted (same one fed to the multiview node). "
+                IO.Mesh.Input("mesh", tooltip="The mesh that was painted (same one fed to the conditioning node). "
                                               "Existing per-vertex UVs are used as the bake target; a mesh "
                                               "without UVs gets a built-in per-triangle atlas."),
-                IO.Image.Input("albedo", tooltip="Per-view albedo images from the multiview node."),
-                IO.Image.Input("mr", tooltip="Per-view metallic-roughness images from the multiview node."),
-                CAMERAS.Input("cameras", tooltip="Cameras output by the multiview node."),
+                IO.Image.Input("albedo", tooltip="Per-view albedo images (VAE-decoded albedo latents)."),
+                IO.Image.Input("mr", tooltip="Per-view metallic-roughness images (VAE-decoded MR latents)."),
+                CAMERAS.Input("cameras", tooltip="Cameras output by the conditioning node."),
                 IO.Int.Input("texture_size", default=1024, min=256, max=4096, step=256),
                 IO.Float.Input("bake_exponent", default=4.0, min=1.0, max=16.0, step=0.5, advanced=True,
                                tooltip="Cosine weighting exponent; higher favours front-facing views."),
@@ -235,7 +370,9 @@ class Hunyuan3DPaintExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             Hunyuan3DPaintModelLoader,
-            Hunyuan3DPaintMultiView,
+            Hunyuan3DPaintConditioning,
+            Hunyuan3DPaintScheduler,
+            Hunyuan3DPaintSplitLatent,
             Hunyuan3DBakeMultiView,
         ]
 

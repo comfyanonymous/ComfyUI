@@ -26,7 +26,7 @@ from paint_parity import harness  # noqa: E402
 def main():
     out = os.path.join(_HERE, "goldens", "tiny_golden.safetensors")
     harness.make_tiny_golden(out)
-    print(f"wrote {out} ({os.path.getsize(out)} bytes)")
+    sys.stdout.write(f"wrote {out} ({os.path.getsize(out)} bytes)\n")
 
 
 if __name__ == "__main__":

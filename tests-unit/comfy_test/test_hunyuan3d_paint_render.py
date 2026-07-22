@@ -453,16 +453,20 @@ def _load_nodes():
 
 def test_node_schema_matches_execute_signature():
     N = _load_nodes()
-    for cls in (N.Hunyuan3DPaintModelLoader, N.Hunyuan3DPaintMultiView, N.Hunyuan3DBakeMultiView):
+    for cls in (N.Hunyuan3DPaintModelLoader, N.Hunyuan3DPaintConditioning,
+                N.Hunyuan3DPaintScheduler, N.Hunyuan3DPaintSplitLatent,
+                N.Hunyuan3DBakeMultiView):
         ids = [i.id for i in cls.define_schema().inputs]
         params = [p for p in inspect.signature(cls.execute).parameters if p != "cls"]
         assert ids == params, (cls.__name__, ids, params)
 
 
-def test_multiview_node_outputs_declared():
+def test_conditioning_node_outputs_declared():
     N = _load_nodes()
-    outs = [o.display_name for o in N.Hunyuan3DPaintMultiView.define_schema().outputs]
-    assert outs == ["albedo", "mr", "cameras", "normal_maps", "position_maps"]
+    outs = [o.display_name for o in N.Hunyuan3DPaintConditioning.define_schema().outputs]
+    assert outs == ["model", "positive", "negative", "latent", "cameras", "normal_maps", "position_maps"]
+    outs = [o.display_name for o in N.Hunyuan3DPaintSplitLatent.define_schema().outputs]
+    assert outs == ["albedo", "mr"]
     outs = [o.display_name for o in N.Hunyuan3DBakeMultiView.define_schema().outputs]
     assert outs == ["mesh", "albedo_texture", "mr_texture", "albedo_views", "mr_views"]
 
@@ -551,10 +555,13 @@ def _fake_vae():
     return FakeVAE()
 
 
-def test_multiview_then_bake_end_to_end_with_random_model():
-    """Exercise the full node glue: MESH + reference -> render -> multiview diffusion
-    -> VAE decode -> bake -> textured mesh, on a small random-init UNet + stub VAE."""
+def test_conditioning_sampling_then_bake_end_to_end_with_random_model():
+    """Exercise the full node glue: MESH + reference -> conditioning node (render +
+    reference bank + packed latent) -> core sampling loop -> split -> VAE decode ->
+    bake -> textured mesh, on a small random-init UNet + stub VAE."""
     import comfy.ops as comfy_ops
+    import comfy.sample
+    import comfy.samplers
     from comfy.ldm.hunyuan3d.paint.unet import UNet2p5DConditionModel
     from comfy.ldm.hunyuan3d.paint.loader import load_paint_unet
     from comfy_api.latest import Types
@@ -568,18 +575,32 @@ def test_multiview_then_bake_end_to_end_with_random_model():
     model = UNet2p5DConditionModel(dtype=torch.float32, device="cpu",
                                    operations=comfy_ops.disable_weight_init, **cfg)
     model.eval()
-    patcher, config = load_paint_unet(model.state_dict(), model_options={"dtype": torch.float32})
+    patcher = load_paint_unet(model.state_dict(), model_options={"dtype": torch.float32})
 
     v, f = _cube()
     mesh = Types.MESH(v.unsqueeze(0), f.unsqueeze(0))
     ref = torch.rand(1, 128, 128, 3)
 
-    albedo, mr, cams, normals, positions = N.Hunyuan3DPaintMultiView.execute(
-        (patcher, config), _fake_vae(), mesh, ref, 6, 128, 2, 3.0, 0)
-    assert albedo.shape == (6, 128, 128, 3)
-    assert mr.shape == (6, 128, 128, 3)
+    m, positive, negative, latent, cams, normals, positions = N.Hunyuan3DPaintConditioning.execute(
+        patcher, _fake_vae(), mesh, ref, 6, 128)
+    assert latent["samples"].shape == (1, 4, 12, 16, 16)
     assert normals.shape == (6, 128, 128, 3)
     assert len(cams) == 6
+
+    noise = comfy.sample.prepare_noise(latent["samples"], 0)
+    sigmas = N.Hunyuan3DPaintScheduler.execute(m, 2)[0]
+    sampler = comfy.samplers.sampler_object("euler")
+    samples = comfy.sample.sample_custom(m, noise, 3.0, sampler, sigmas, positive, negative,
+                                         latent["samples"], disable_pbar=True, seed=0)
+
+    albedo_lat, mr_lat = N.Hunyuan3DPaintSplitLatent.execute(m, {"samples": samples})
+    assert albedo_lat["samples"].shape == (6, 4, 16, 16)
+    assert mr_lat["samples"].shape == (6, 4, 16, 16)
+    vae = _fake_vae()
+    albedo = vae.decode(albedo_lat["samples"])
+    mr = vae.decode(mr_lat["samples"])
+    assert albedo.shape == (6, 128, 128, 3)
+    assert mr.shape == (6, 128, 128, 3)
 
     out_mesh, alb_tex, mr_tex, _av, _mv = N.Hunyuan3DBakeMultiView.execute(
         mesh, albedo, mr, cams, 256, 4.0, True)
