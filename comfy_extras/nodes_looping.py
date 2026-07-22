@@ -524,14 +524,14 @@ def _blend_overlap(items, overlap_frames, mode):
             if _is_nested(ps):
                 blended_tensors = []
                 for pt, ch in zip(ps.tensors, cs.tensors):
-                    w = t.to(pt.device).reshape([1] * dim + [overlap_frames] + [1] * (pt.ndim - dim - 1))
+                    w = t.to(pt).reshape([1] * dim + [overlap_frames] + [1] * (pt.ndim - dim - 1))
                     blended_tensors.append(pt * (1 - w) + ch * w)
                 blended["samples"] = NestedTensor(blended_tensors)
             else:
-                w = t.to(ps.device).reshape([1] * dim + [overlap_frames] + [1] * (ps.ndim - dim - 1))
+                w = t.to(ps).reshape([1] * dim + [overlap_frames] + [1] * (ps.ndim - dim - 1))
                 blended["samples"] = ps * (1 - w) + cs * w
         else:
-            w = t.to(prev_tail.device).reshape([1] * dim + [overlap_frames] + [1] * (prev_tail.ndim - dim - 1))
+            w = t.to(prev_tail).reshape([1] * dim + [overlap_frames] + [1] * (prev_tail.ndim - dim - 1))
             blended = prev_tail * (1 - w) + curr_head * w
 
         result = _concat_tensor(_concat_tensor(result_base, blended, dim), curr_rest, dim)
