@@ -61,7 +61,8 @@ def standard_cameras(num_views=6):
 
 
 # ---------------------------------------------------------------------------
-# Camera matrices (ported from hy3dpaint/DifferentiableRenderer/camera_utils.py)
+# Camera matrices (matches the reference camera conventions of
+# hy3dpaint/DifferentiableRenderer/camera_utils.py)
 # ---------------------------------------------------------------------------
 def view_matrix(elev, azim, camera_distance, device="cpu", dtype=torch.float32):
     """World->camera (4x4) look-at with a Z-up frame, matching get_mv_matrix."""
