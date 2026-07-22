@@ -146,7 +146,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         xfer_source = [ s.weight, s.bias ]
         subset = "weights"
         pin = comfy.pinned_memory.get_pin(s, subset=subset)
-        if pin is None:
+        if pin is None and not args.fast_disk:
             loaded_pin = comfy.pinned_memory.get_pin(s, subset="weights-loaded")
             if loaded_pin is not None or signature is not None:
                 subset = "weights-loaded"
@@ -187,8 +187,9 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             if pin is not None:
                 cast_maybe_lowvram_patch([pin], dest, offload_stream)
                 return
-            comfy.pinned_memory.pin_memory(m, subset=subset, size=size)
-            pin = comfy.pinned_memory.get_pin(m, subset=subset)
+            if signature is None or not args.fast_disk or args.high_ram:
+                comfy.pinned_memory.pin_memory(m, subset=subset, size=size)
+                pin = comfy.pinned_memory.get_pin(m, subset=subset)
             cast_maybe_lowvram_patch(source, pin, offload_stream, xfer_dest2=dest)
 
         handle_pin(s, pin, xfer_source, xfer_dest, subset=subset, size=dest_size)
@@ -203,7 +204,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
 
                 subset = "patches"
                 pin = comfy.pinned_memory.get_pin(lowvram_source, subset=subset)
-                if pin is None and signature is not None:
+                if pin is None and signature is not None and not args.fast_disk:
                     subset = "patches-loaded"
                     pin = comfy.pinned_memory.get_pin(lowvram_source, subset=subset)
                 handle_pin(lowvram_source, pin, lowvram_source, lowvram_dest, subset=subset, size=lowvram_size)
