@@ -10,7 +10,6 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 
 from comfy.ldm.modules import attention as comfy_attention
 
@@ -183,9 +182,10 @@ class Attention(nn.Module):
             if self.dim_head in position_indices:
                 image_rotary_emb = position_indices[self.dim_head]
             else:
+                voxel_indices = position_indices["voxel_indices"].unsqueeze(1)
+                voxel_indices = voxel_indices.repeat(1, n_pbrs, 1, 1).flatten(0, 1)
                 image_rotary_emb = get_3d_rotary_pos_embed(
-                    rearrange(position_indices["voxel_indices"].unsqueeze(1).repeat(1, n_pbrs, 1, 1),
-                              "b n_pbrs l c -> (b n_pbrs) l c"),
+                    voxel_indices,
                     self.dim_head,
                     voxel_resolution=position_indices["voxel_resolution"],
                 )
@@ -205,7 +205,7 @@ class Attention(nn.Module):
         pbr_hidden_states = torch.split(hidden_states, 1, dim=1)
         results = []
         for token, pbr_hs in zip(pbr_setting, pbr_hidden_states):
-            hs = rearrange(pbr_hs, "b n_pbrs n l c -> (b n_pbrs n) l c")
+            hs = pbr_hs.flatten(0, 2)
             if token == "albedo":
                 to_q, to_k, to_v, to_out = self.to_q, self.to_k, self.to_v, self.to_out
             else:
@@ -216,7 +216,7 @@ class Attention(nn.Module):
             out = _sdpa(to_q(hs), to_k(hs), to_v(hs), self.heads)
             out = to_out[0](out)
             out = to_out[1](out)
-            results.append(rearrange(out, "(b n_pbrs n) l c -> b n_pbrs n l c", b=b, n_pbrs=1))
+            results.append(out.reshape(b, 1, -1, out.shape[-2], out.shape[-1]))
         return torch.cat(results, dim=1)
 
     # -- reference attention (shared q/k, per-material v/out) -----------------
@@ -262,7 +262,6 @@ class Attention(nn.Module):
 # PoseRoPE position lookups: quantize each attention resolution's tokens to
 # voxel indices by averaging the canonical-coordinate render over grid cells.
 # ---------------------------------------------------------------------------
-@torch.no_grad()
 def _mean_voxel_indices(position_maps: torch.Tensor, grid_resolution: int = 8, voxel_resolution: int = 128):
     """Average valid position samples per grid cell and quantize to voxel indices.
 
@@ -298,7 +297,6 @@ def _mean_voxel_indices(position_maps: torch.Tensor, grid_resolution: int = 8, v
     return (means.clamp(0.0, 1.0) * (voxel_resolution - 1)).round().long()
 
 
-@torch.no_grad()
 def multires_voxel_indices(position_maps: torch.Tensor, grid_resolutions, voxel_resolutions):
     """Precompute the PoseRoPE lookup for each attention resolution, keyed by token count."""
     lookups = {}

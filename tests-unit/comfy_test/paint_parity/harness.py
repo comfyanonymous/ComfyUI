@@ -41,11 +41,10 @@ def build_tiny_model(seed=TINY_WEIGHT_SEED, config=None):
     model = UNet2p5DConditionModel(dtype=torch.float32, device="cpu",
                                    operations=comfy.ops.disable_weight_init,
                                    **(config or TINY_CONFIG))
-    with torch.no_grad():
-        for name, p in sorted(model.named_parameters()):
-            g = torch.Generator().manual_seed(
-                (int(seed) * 0x9E3779B1 + zlib.crc32(name.encode())) % (2 ** 63))
-            p.copy_(torch.randn(p.shape, generator=g, dtype=torch.float32) * 0.05)
+    for name, p in sorted(model.named_parameters()):
+        g = torch.Generator().manual_seed(
+            (int(seed) * 0x9E3779B1 + zlib.crc32(name.encode())) % (2 ** 63))
+        p.detach().copy_(torch.randn(p.shape, generator=g, dtype=torch.float32) * 0.05)
     model.eval()
     return model
 
@@ -90,15 +89,15 @@ def run_model(model, tensors, capture_blocks=False):
     packed = packed.permute(0, 3, 1, 2, 4, 5).reshape(b, channels, n_pbr * views, height, width)
 
     try:
-        with torch.no_grad():
-            out = model(
-                packed,
-                tensors["input/timestep"],
-                context=tensors["input/encoder_hidden_states"],
-                ref_latents=tensors["input/ref_latents"],
-                dino_features=tensors.get("input/dino_hidden_states"),
-                position_maps=tensors["input/position_maps"],
-            )
+        # Execution context (no_grad / inference_mode) is the caller's choice.
+        out = model(
+            packed,
+            tensors["input/timestep"],
+            context=tensors["input/encoder_hidden_states"],
+            ref_latents=tensors["input/ref_latents"],
+            dino_features=tensors.get("input/dino_hidden_states"),
+            position_maps=tensors["input/position_maps"],
+        )
     finally:
         for h in handles:
             h.remove()
