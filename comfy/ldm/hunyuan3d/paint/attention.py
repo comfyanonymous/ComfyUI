@@ -1,10 +1,10 @@
-# Torch-native reimplementation of the Hunyuan3D 2.1 paint (hunyuan3d-paintpbr-v2-1)
-# multiview attention stack. Ported from Tencent's hy3dpaint reference
-# (hunyuanpaintpbr/unet/attn_processor.py + modules.py) with no diffusers / xformers
-# dependency. Module and parameter names mirror the original diffusers layout so the
-# released checkpoint state_dict maps onto these modules.
-#
-# Reference: TENCENT HUNYUAN NON-COMMERCIAL LICENSE AGREEMENT.
+# Torch-native implementation of the Hunyuan3D 2.1 paint (hunyuan3d-paintpbr-v2-1)
+# multiview attention stack: reimplements the architecture the released checkpoint
+# was trained with (reference attention, material-dimension self attention, and 3D
+# PoseRoPE) without a diffusers/xformers dependency. Module and parameter names
+# follow the checkpoint's state_dict layout so the released weights load directly.
+# The 1D rotary-embedding tables follow diffusers' (Apache-2.0) implementation,
+# which the reference model also uses.
 
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -27,25 +27,23 @@ def get_1d_rotary_pos_embed(dim: int, pos: torch.Tensor, theta: float = 10000.0)
 
 
 def get_3d_rotary_pos_embed(position: torch.Tensor, embed_dim: int, voxel_resolution: int, theta: int = 10000):
+    """Per-token 3D RoPE tables. PoseRoPE splits the head dim 3:3:2 over x/y/z."""
     assert position.shape[-1] == 3
-    dim_xy = embed_dim // 8 * 3
-    dim_z = embed_dim // 8 * 2
+    axis_dims = (embed_dim // 8 * 3, embed_dim // 8 * 3, embed_dim // 8 * 2)
 
     grid = torch.arange(voxel_resolution, dtype=torch.float32, device=position.device)
-    xy_cos, xy_sin = get_1d_rotary_pos_embed(dim_xy, grid, theta=theta)
-    z_cos, z_sin = get_1d_rotary_pos_embed(dim_z, grid, theta=theta)
+    tables = {dim: get_1d_rotary_pos_embed(dim, grid, theta=theta) for dim in set(axis_dims)}
 
-    idx = position.view(-1, position.shape[-1])
-    x_cos = xy_cos[idx[:, 0], :]
-    x_sin = xy_sin[idx[:, 0], :]
-    y_cos = xy_cos[idx[:, 1], :]
-    y_sin = xy_sin[idx[:, 1], :]
-    zc = z_cos[idx[:, 2], :]
-    zs = z_sin[idx[:, 2], :]
+    flat = position.reshape(-1, 3)
+    cos_parts = []
+    sin_parts = []
+    for axis, dim in enumerate(axis_dims):
+        table_cos, table_sin = tables[dim]
+        cos_parts.append(table_cos[flat[:, axis]])
+        sin_parts.append(table_sin[flat[:, axis]])
 
-    cos = torch.cat((x_cos, y_cos, zc), dim=-1).view(*position.shape[:-1], embed_dim)
-    sin = torch.cat((x_sin, y_sin, zs), dim=-1).view(*position.shape[:-1], embed_dim)
-    return cos, sin
+    shape = (*position.shape[:-1], embed_dim)
+    return torch.cat(cos_parts, dim=-1).reshape(shape), torch.cat(sin_parts, dim=-1).reshape(shape)
 
 
 def apply_rotary_emb(x: torch.Tensor, freqs_cis: Tuple[torch.Tensor, torch.Tensor]):
@@ -240,42 +238,49 @@ class Attention(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Position -> voxel index helpers (multi resolution) for PoseRoPE
+# PoseRoPE position lookups: quantize each attention resolution's tokens to
+# voxel indices by averaging the canonical-coordinate render over grid cells.
 # ---------------------------------------------------------------------------
 @torch.no_grad()
-def compute_discrete_voxel_indice(position, grid_resolution=8, voxel_resolution=128):
-    position = position.float()
-    B, N, _, H, W = position.shape
-    assert H % grid_resolution == 0 and W % grid_resolution == 0
+def _mean_voxel_indices(position_maps: torch.Tensor, grid_resolution: int = 8, voxel_resolution: int = 128):
+    """Average valid position samples per grid cell and quantize to voxel indices.
 
-    valid_mask = (position != 1).all(dim=2, keepdim=True)
-    valid_mask = valid_mask.expand_as(position)
-    position = position.clone()
-    position[valid_mask == False] = 0
+    ``position_maps`` is (B, N, 3, H, W) in [0, 1], where a pixel equal to 1.0 in
+    every channel is background. Cells whose valid coverage falls below 1/16 of
+    the cell area are zeroed rather than averaged from a handful of edge pixels.
+    Returns (B, N, 3, g, g) long indices into a ``voxel_resolution``-sized grid.
+    """
+    position_maps = position_maps.float()
+    b, n, channels, height, width = position_maps.shape
+    g = grid_resolution
+    assert height % g == 0 and width % g == 0
+    cell_h, cell_w = height // g, width // g
 
-    position = rearrange(position, "b n c (num_h grid_h) (num_w grid_w) -> b n num_h num_w c grid_h grid_w",
-                         num_h=grid_resolution, num_w=grid_resolution)
-    valid_mask = rearrange(valid_mask, "b n c (num_h grid_h) (num_w grid_w) -> b n num_h num_w c grid_h grid_w",
-                           num_h=grid_resolution, num_w=grid_resolution)
+    valid = (position_maps != 1).all(dim=2, keepdim=True).to(position_maps.dtype)
 
-    grid_position = position.sum(dim=(-2, -1))
-    count_masked = valid_mask.sum(dim=(-2, -1))
+    def cell_sums(maps: torch.Tensor) -> torch.Tensor:
+        ch = maps.shape[2]
+        cells = maps.reshape(b, n, ch, g, cell_h, g, cell_w)
+        return cells.sum(dim=(4, 6))
 
-    grid_position = grid_position / count_masked.clamp(min=1)
-    voxel_mask_thres = (H // grid_resolution) * (W // grid_resolution) // (4 * 4)
-    grid_position[count_masked < voxel_mask_thres] = 0
+    sums = cell_sums(position_maps * valid)
+    counts = cell_sums(valid)
 
-    grid_position = grid_position.permute(0, 1, 4, 2, 3).clamp(0, 1)
-    voxel_indices = grid_position * (voxel_resolution - 1)
-    voxel_indices = torch.round(voxel_indices).long()
-    return voxel_indices
+    means = sums / counts.clamp(min=1)
+    means = means.masked_fill(counts < (cell_h * cell_w) // 16, 0.0)
+    return (means.clamp(0.0, 1.0) * (voxel_resolution - 1)).round().long()
 
 
-def calc_multires_voxel_idxs(position_maps, grid_resolutions, voxel_resolutions):
-    voxel_indices = {}
-    with torch.no_grad():
-        for grid_resolution, voxel_resolution in zip(grid_resolutions, voxel_resolutions):
-            voxel_indice = compute_discrete_voxel_indice(position_maps, grid_resolution, voxel_resolution)
-            voxel_indice = rearrange(voxel_indice, "b n c h w -> b (n h w) c")
-            voxel_indices[voxel_indice.shape[1]] = {"voxel_indices": voxel_indice, "voxel_resolution": voxel_resolution}
-    return voxel_indices
+@torch.no_grad()
+def multires_voxel_indices(position_maps: torch.Tensor, grid_resolutions, voxel_resolutions):
+    """Precompute the PoseRoPE lookup for each attention resolution, keyed by token count."""
+    lookups = {}
+    for grid_resolution, voxel_resolution in zip(grid_resolutions, voxel_resolutions):
+        indices = _mean_voxel_indices(position_maps, grid_resolution, voxel_resolution)
+        b, n = indices.shape[:2]
+        tokens = indices.permute(0, 1, 3, 4, 2).reshape(b, -1, 3)
+        lookups[tokens.shape[1]] = {
+            "voxel_indices": tokens,
+            "voxel_resolution": voxel_resolution,
+        }
+    return lookups

@@ -1,12 +1,9 @@
-# Torch-native reimplementation of the Hunyuan3D 2.1 paint (hunyuan3d-paintpbr-v2-1)
-# UNet2p5DConditionModel. Ported from Tencent's hy3dpaint reference
-# (hunyuanpaintpbr/unet/modules.py), which wraps a Stable-Diffusion-2 style
-# diffusers UNet2DConditionModel with multiview / reference / material / DINO
-# attention. No diffusers dependency: the SD2 UNet backbone is reimplemented here
-# with module + parameter names matching the diffusers layout so the released
-# checkpoint state_dict maps onto these modules.
-#
-# Reference: TENCENT HUNYUAN NON-COMMERCIAL LICENSE AGREEMENT.
+# Torch-native implementation of the Hunyuan3D 2.1 paint (hunyuan3d-paintpbr-v2-1)
+# UNet2p5DConditionModel: a Stable-Diffusion-2 style UNet2DConditionModel extended
+# with multiview / reference / material / DINO attention, reimplemented without a
+# diffusers dependency. The SD2 backbone follows the standard diffusers (Apache-2.0)
+# architecture, with module + parameter names matching that layout so the released
+# checkpoint state_dict loads directly.
 
 import copy
 import math
@@ -17,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from .attention import Attention, SelfAttnProcessor, RefAttnProcessor, calc_multires_voxel_idxs
+from .attention import Attention, SelfAttnProcessor, RefAttnProcessor, multires_voxel_indices
 
 
 # ---------------------------------------------------------------------------
@@ -639,7 +636,7 @@ class UNet2p5DConditionModel(nn.Module):
             if "position_voxel_indices" in cache:
                 position_voxel_indices = cache["position_voxel_indices"]
             else:
-                position_voxel_indices = calc_multires_voxel_idxs(
+                position_voxel_indices = multires_voxel_indices(
                     position_maps, grid_resolutions=[H, H // 2, H // 4, H // 8],
                     voxel_resolutions=[H * 8, H * 4, H * 2, H])
                 cache["position_voxel_indices"] = position_voxel_indices
