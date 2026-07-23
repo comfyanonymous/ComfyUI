@@ -366,6 +366,21 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
 
     comfy.model_management.sync_stream(device, offload_stream)
 
+    # GGUF quantized weights are stored as a custom GGMLTensor subclass rather
+    # than ComfyUI's QuantizedTensor, so the isinstance check in the block below
+    # misses them and the block-packed storage reaches F.linear with the wrong
+    # shape. The discriminator here is GGUF's own protocol marker (tensor_type,
+    # the GGUF quant type) -- NOT the presence of a dequantize() method: a plain
+    # torch.Tensor (including ordinary int8/uint8 weights) also exposes
+    # dequantize() and would fail at runtime if gated on that alone. tensor_type
+    # is set by GGMLTensor.__init__ and preserved by to()/new_empty(), and nothing
+    # else in the codebase assigns it, so only genuine GGMLTensor weights enter
+    # this branch and get dequantized. This is duck-typed: core never imports GGUF.
+    # Runs after sync_stream because cast_to above may use an offload stream and
+    # the async device copy must finish before we read the weight.
+    if not isinstance(weight, QuantizedTensor) and getattr(weight, "tensor_type", None) is not None:
+        weight = weight.dequantize()
+
     bias_a = bias
     weight_a = weight
 
