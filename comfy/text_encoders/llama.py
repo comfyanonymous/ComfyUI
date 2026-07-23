@@ -1,3 +1,6 @@
+import logging
+import warnings
+
 import torch
 import torch.nn as nn
 from dataclasses import dataclass
@@ -8,7 +11,9 @@ import comfy.utils
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
+import comfy.model_prefetch
 import comfy.ops
+import comfy.quant_ops
 import comfy.ldm.common_dit
 import comfy.clip_model
 
@@ -849,6 +854,147 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
+class _GraphDecodeState:
+    """Captures the single-token decode step (embed -> transformer -> logits) as a CUDA
+    graph over static buffers; replay reads the live contents of token/pos/mask/caches.
+
+    The state persists across generations (kept on the owner): destroying a graph frees
+    its captured allocations outside capture, which cudaMallocAsync flags every time.
+    Reuse also skips warmup+capture on repeat runs. Weight addresses baked into the
+    graph are validated via data_ptr sentinels; vbar modules are faulted in and pinned
+    per generation (stable virtual addresses) and unpinned in release()."""
+    WARMUP_STEPS = 2
+
+    def __init__(self, owner, past_key_values, bucket_len, device, execution_dtype):
+        self.owner = owner
+        self.device = device
+        self.dtype = execution_dtype
+        self.bucket_len = bucket_len
+        self.vbar_modules = []
+        self.token_buf = torch.zeros((1, 1), dtype=torch.long, device=device)
+        self.pos = torch.zeros((1,), dtype=torch.long, device=device)
+        self.pos_2d = self.pos.unsqueeze(0)
+        self.mask = torch.full((1, 1, 1, bucket_len), torch.finfo(execution_dtype).min,
+                               dtype=execution_dtype, device=device)
+        # sliding-window layers carry window-sized ring buffers: written at pos % window,
+        # slot order is irrelevant (keys are already rotated), the mask tracks validity
+        ring_lens = set(kv[0].shape[2] for kv in past_key_values if len(kv) == 3) - {bucket_len}
+        self.ring_len = ring_lens.pop() if ring_lens else None
+        if self.ring_len is not None:
+            self.ring_pos = torch.zeros((1,), dtype=torch.long, device=device)
+            self.ring_mask = torch.full((1, 1, 1, self.ring_len), torch.finfo(execution_dtype).min,
+                                        dtype=execution_dtype, device=device)
+        else:
+            self.ring_pos = None
+            self.ring_mask = None
+        self.caches = [(kv[0], kv[1], self.ring_pos if kv[0].shape[2] == self.ring_len else self.pos)
+                       if len(kv) == 3 else () for kv in past_key_values]
+        self.cache_pattern = [len(kv) == 3 for kv in past_key_values]
+        self.warmup = self.WARMUP_STEPS
+        self.graph = None
+        self.weight_ptrs = None
+        # warmup and capture share this stream so lazy per-stream inits (cuBLASLt
+        # workspaces for _scaled_mm etc.) happen before capture, not inside it
+        self.stream = torch.cuda.Stream(device)
+        # allocated outside capture: no capture-owned tensor may escape the graph.
+        # The graph ends at the final hidden state; logits run eager so the lm-head
+        # (format-dependent, potentially large transients) stays out of the capture.
+        self.hidden_out = torch.zeros((1, 1, owner.model.config.hidden_size), dtype=execution_dtype, device=device)
+
+    def _current_weight_ptrs(self):
+        return tuple(p.data_ptr() for p in self.owner.model.parameters())
+
+    def compatible(self, max_cache_len, device, execution_dtype):
+        if device != self.device or execution_dtype != self.dtype or max_cache_len > self.bucket_len:
+            return False
+        if self.weight_ptrs is not None and self.weight_ptrs != self._current_weight_ptrs():
+            return False
+        return True
+
+    def make_prefill_cache(self):
+        return [(kv[0], kv[1], 0) if is_cache else () for kv, is_cache in zip(self.caches, self.cache_pattern)]
+
+    def engage(self, cumulative_len):
+        try:
+            self.vbar_modules = [m for m in self.owner.model.modules() if hasattr(m, "_v")]
+            if self.vbar_modules:
+                offload_stream = comfy.ops.cast_modules_with_vbar(self.vbar_modules, None, self.device, None, True)
+                comfy.model_management.sync_stream(self.device, offload_stream)
+        except Exception:
+            logging.warning("TE graph decode: vbar prefetch failed, weights may be unpinned", exc_info=True)
+        if self.graph is not None and self.weight_ptrs != self._current_weight_ptrs():
+            # weights moved since capture: baked addresses are stale
+            self.destroy_graph()
+        self.pos.fill_(cumulative_len)
+        self.mask.fill_(torch.finfo(self.dtype).min)
+        self.mask[..., :cumulative_len] = 0.0
+        if self.ring_mask is not None:
+            self.ring_mask.fill_(torch.finfo(self.dtype).min)
+            self.ring_mask[..., :min(cumulative_len, self.ring_len)] = 0.0
+
+    def _step(self):
+        o = self.owner
+        self.mask.index_fill_(-1, self.pos, 0.0)
+        if self.ring_pos is not None:
+            torch.remainder(self.pos, self.ring_len, out=self.ring_pos)
+            self.ring_mask.index_fill_(-1, self.ring_pos, 0.0)
+        x, _, _ = o.model.forward(self.token_buf, attention_mask=None, past_key_values=self.caches,
+                                  input_ids=self.token_buf, position_ids=self.pos_2d,
+                                  dtype=self.dtype, decode_mask=self.mask, decode_mask_sliding=self.ring_mask)
+        self.hidden_out.copy_(x)
+        self.pos.add_(1)
+
+    def run(self, next_token):
+        self.token_buf.copy_(next_token)
+        if self.graph is not None:
+            self.graph.replay()
+        elif self.warmup > 0:
+            self.warmup -= 1
+            self.stream.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(self.stream):
+                self._step()
+            torch.cuda.current_stream().wait_stream(self.stream)
+        else:
+            try:
+                graph = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(graph, stream=self.stream):
+                    self._step()
+                self.graph = graph
+                self.weight_ptrs = self._current_weight_ptrs()
+                self.graph.replay()
+            except Exception:
+                logging.warning("TE CUDA graph capture failed, continuing eager", exc_info=True)
+                self.warmup = 1 << 30
+                self.graph = None
+                self._step()
+        return self.hidden_out
+
+    def release(self):
+        # end of one generation: drop the vbar pins, keep graph and buffers for reuse
+        if self.vbar_modules:
+            comfy.model_prefetch.cleanup_prefetched_modules(self.vbar_modules)
+            self.vbar_modules = []
+
+    def destroy_graph(self):
+        graph = self.graph
+        self.graph = None
+        self.weight_ptrs = None
+        self.warmup = self.WARMUP_STEPS
+        if graph is None:
+            return
+        # tear down via reset(): a bound call routes cudaMallocAsync's benign
+        # "uncaptured free" teardown notices through the python warnings machinery
+        # (plain `del` frees in the dealloc path, where they hit stderr unfiltered)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            graph.reset()
+
+    def destroy(self):
+        self.release()
+        self.destroy_graph()
+        self.caches = []
+
+
 class BaseGenerate:
     def logits(self, x):
         input = x[:, -1:]
@@ -876,6 +1022,28 @@ class BaseGenerate:
                                     torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
         return past_key_values
 
+    def _graph_decode_supported(self, device, batch, position_ids, execution_dtype):
+        if device.type != "cuda" or batch != 1 or position_ids is not None:
+            return False
+        if not getattr(self.model, "supports_graph_decode", False):
+            return False
+        # replay reads frozen addresses: vbar modules get faulted in and pinned at capture
+        # time (stable virtual addresses); anything else must already be resident.
+        # Manual-cast dtype mismatches are excluded: every layer would materialize a
+        # weight copy inside the capture. Quantized weights are fine — their kernels
+        # read storage in place (the lm-head, which can dequantize, runs outside the graph).
+        for module in self.model.modules():
+            vbar = hasattr(module, "_v")
+            for p in module.parameters(recurse=False):
+                if (not isinstance(p, comfy.quant_ops.QuantizedTensor)
+                        and p.is_floating_point() and p.dtype != execution_dtype):
+                    logging.debug("TE CUDA graph decode disabled: %s weights need per-step casting", p.dtype)
+                    return False
+                if not vbar and p.device != device:
+                    logging.debug("TE CUDA graph decode disabled: weights not resident on %s", device)
+                    return False
+        return True
+
     def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None, embeds_info=None):
         device = embeds.device
 
@@ -893,7 +1061,30 @@ class BaseGenerate:
             embeds = embeds.unsqueeze(0)
 
         max_cache_len = embeds.shape[1] + max_length
-        past_key_values = self.init_kv_cache(embeds.shape[0], max_cache_len, device, execution_dtype)
+        graph_ok = self._graph_decode_supported(device, embeds.shape[0], position_ids, execution_dtype)
+        graph_state = getattr(self, "_graph_decode_state", None) if graph_ok else None
+        if graph_state is not None and not graph_state.compatible(max_cache_len, device, execution_dtype):
+            graph_state.destroy()
+            graph_state = None
+            self._graph_decode_state = None
+
+        past_key_values = None
+        if graph_state is not None:
+            past_key_values = graph_state.make_prefill_cache()
+        elif graph_ok:
+            # static (fixed-address) caches only pay off when the graph consumes them;
+            # bucketed length lets repeat runs reuse the captured graph
+            self._allow_static_kv_cache = True
+            for bucket_len in (-(-max_cache_len // 256) * 256, max_cache_len):
+                proto = self.init_kv_cache(embeds.shape[0], bucket_len, device, execution_dtype)
+                if any(len(kv) == 3 for kv in proto):
+                    graph_state = _GraphDecodeState(self, proto, bucket_len, device, execution_dtype)
+                    self._graph_decode_state = graph_state
+                    past_key_values = proto
+                    break
+            self._allow_static_kv_cache = False
+        if past_key_values is None:
+            past_key_values = self.init_kv_cache(embeds.shape[0], max_cache_len, device, execution_dtype)
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
@@ -905,27 +1096,52 @@ class BaseGenerate:
 
         # Generation loop
         current_input_ids = initial_input_ids
-        for step in tqdm(range(max_length), desc="Generating tokens"):
-            # DeepStack visual features are injected on the prefill only; gemma4's forward lacks these kwargs.
-            extra = {}
-            if step == 0 and deepstack_embeds is not None:
-                extra["deepstack_embeds"] = deepstack_embeds
-                extra["visual_pos_masks"] = visual_pos_masks
-            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
-            logits = self.logits(x)[:, -1]
-            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
-            token_id = next_token[0].item()
-            generated_token_ids.append(token_id)
+        graph_decode = None
+        next_token = None
+        try:
+            for step in tqdm(range(max_length), desc="Generating tokens"):
+                if graph_decode is not None:
+                    logits = self.logits(graph_decode.run(next_token))[:, -1]
+                else:
+                    # DeepStack visual features are injected on the prefill only; gemma4's forward lacks these kwargs.
+                    extra = {}
+                    if step == 0 and deepstack_embeds is not None:
+                        extra["deepstack_embeds"] = deepstack_embeds
+                        extra["visual_pos_masks"] = visual_pos_masks
+                    x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
+                    logits = self.logits(x)[:, -1]
+                next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
+                token_id = next_token[0].item()
+                generated_token_ids.append(token_id)
 
-            embeds = self.model.embed_tokens(next_token).to(execution_dtype)
-            current_input_ids = next_token if initial_input_ids is not None else None
-            if next_pos is not None:  # advance MRoPE position for the next (decode) step
-                position_ids = torch.tensor([[next_pos]], device=device)
-                next_pos += 1
-            pbar.update(1)
+                if token_id in stop_tokens:
+                    pbar.update(1)
+                    break
 
-            if token_id in stop_tokens:
-                break
+                if graph_decode is None:
+                    embeds = self.model.embed_tokens(next_token).to(execution_dtype)
+                    current_input_ids = next_token if initial_input_ids is not None else None
+                    if step == 0 and graph_state is not None:
+                        # engage right after prefill: the int-index cache path never runs a
+                        # decode step, so wrapped ring state (long prompts) stays consistent
+                        cumulative_len = next((kv[2] for kv in past_key_values if len(kv) == 3), None)
+                        try:
+                            graph_state.engage(cumulative_len)
+                            graph_decode = graph_state
+                        except Exception:
+                            logging.warning("TE CUDA graph decode unavailable, staying eager", exc_info=True)
+                if next_pos is not None:  # advance MRoPE position for the next (decode) step
+                    position_ids = torch.tensor([[next_pos]], device=device)
+                    next_pos += 1
+                pbar.update(1)
+        finally:
+            if graph_decode is not None:
+                graph_decode.release()
+            if graph_state is not None:
+                # free the decode graph and its buffers as soon as generation ends;
+                # cudaMallocAsync prints benign "uncaptured free" notices for the graph teardown
+                graph_state.destroy()
+                self._graph_decode_state = None
 
         return generated_token_ids
 

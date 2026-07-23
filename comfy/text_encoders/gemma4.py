@@ -10,6 +10,7 @@ import math
 from comfy import sd1_clip
 import comfy.model_management
 import comfy.ops
+import comfy.quant_ops
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy.rmsnorm import rms_norm
 from comfy.text_encoders.llama import RMSNorm, MLP, BaseLlama, BaseGenerate, _make_scaled_embedding
@@ -109,7 +110,8 @@ class Gemma4_12B_Config(Gemma4Config):
     suppress_tokens = [258883, 258882]
 
 
-# unfused RoPE as addcmul_ RoPE diverges from reference code
+# unfused RoPE as addcmul_ RoPE diverges from reference code (vision only; text
+# layers use the kitchen split-half kernel, bitwise-equal to this with bf16 freqs)
 def _apply_rotary_pos_emb(x, freqs_cis):
     cos, sin = freqs_cis[0], freqs_cis[1]
     half = x.shape[-1] // 2
@@ -159,7 +161,7 @@ class Gemma4Attention(nn.Module):
         if shared_kv is not None:
             xk, xv = shared_kv
             # Apply RoPE to Q only (K already has RoPE from source layer)
-            xq = _apply_rotary_pos_emb(xq, freqs_cis)
+            xq = comfy.quant_ops.ck.apply_rope_split_half1(xq, freqs_cis)
             present_key_value = None
             shareable_kv = None
         else:
@@ -173,27 +175,64 @@ class Gemma4Attention(nn.Module):
             xv = rms_norm(xv)
             xk = xk.transpose(1, 2)
             xv = xv.transpose(1, 2)
-            xq = _apply_rotary_pos_emb(xq, freqs_cis)
-            xk = _apply_rotary_pos_emb(xk, freqs_cis)
+            xq = comfy.quant_ops.ck.apply_rope_split_half1(xq, freqs_cis)
+            xk = comfy.quant_ops.ck.apply_rope_split_half1(xk, freqs_cis)
 
             present_key_value = None
             if past_key_value is not None:
+                num_tokens = xk.shape[2]
                 cumulative_len = 0
+                past_key = None
                 if len(past_key_value) > 0:
                     past_key, past_value, cumulative_len = past_key_value
-                    xk = torch.cat((past_key, xk), dim=2)
-                    xv = torch.cat((past_value, xv), dim=2)
-                new_cumulative = cumulative_len + seq_length
-                if sliding_window is not None and xk.shape[2] > sliding_window - 1:
-                    cache_k = xk[:, :, -(sliding_window - 1):]
-                    cache_v = xv[:, :, -(sliding_window - 1):]
+                if past_key is not None and torch.is_tensor(cumulative_len):
+                    # graph mode: write at the device-side position, attend full-length (masked)
+                    past_key.index_copy_(2, cumulative_len, xk)
+                    past_value.index_copy_(2, cumulative_len, xv)
+                    xk = past_key
+                    xv = past_value
+                    present_key_value = past_key_value
+                elif past_key is not None and past_key.shape[2] >= cumulative_len + num_tokens:
+                    # static preallocated cache: in-place write, sliced view
+                    past_key[:, :, cumulative_len:cumulative_len + num_tokens] = xk
+                    past_value[:, :, cumulative_len:cumulative_len + num_tokens] = xv
+                    xk = past_key[:, :, :cumulative_len + num_tokens]
+                    xv = past_value[:, :, :cumulative_len + num_tokens]
+                    present_key_value = (past_key, past_value, cumulative_len + num_tokens)
+                elif past_key is not None and cumulative_len == 0 and torch.is_tensor(past_key):
+                    # prefill longer than the sliding ring: attend over the full local K/V
+                    # (per-query windows come from the prefill sliding mask), cache only the
+                    # last `ring` keys at their wrapped slots (position % ring)
+                    ring = past_key.shape[2]
+                    slots = torch.arange(num_tokens - ring, num_tokens, device=xk.device) % ring
+                    past_key.index_copy_(2, slots, xk[:, :, -ring:])
+                    past_value.index_copy_(2, slots, xv[:, :, -ring:])
+                    present_key_value = (past_key, past_value, num_tokens)
                 else:
-                    cache_k = xk
-                    cache_v = xv
-                present_key_value = (cache_k, cache_v, new_cumulative)
+                    if past_key is not None:
+                        xk = torch.cat((past_key, xk), dim=2)
+                        xv = torch.cat((past_value, xv), dim=2)
+                    new_cumulative = cumulative_len + seq_length
+                    if sliding_window is not None and xk.shape[2] > sliding_window - 1:
+                        cache_k = xk[:, :, -(sliding_window - 1):]
+                        cache_v = xv[:, :, -(sliding_window - 1):]
+                    else:
+                        cache_k = xk
+                        cache_v = xv
+                    present_key_value = (cache_k, cache_v, new_cumulative)
 
             # KV for sharing: full xk/xv that SDPA sees (not evicted cache)
             shareable_kv = (xk, xv)
+
+        if seq_length == 1 and attention_mask is not None and xk.shape[2] == attention_mask.shape[-1]:
+            # graph-mode decode: fixed-length masked attention, explicit math (SDPA leaves
+            # its fast path on broadcast-bias + GQA and costs ~0.5ms/layer)
+            groups = self.num_heads // self.num_kv_heads
+            q = xq.reshape(batch_size, self.num_kv_heads, groups, self.head_dim)
+            scores = q @ xk.transpose(-1, -2) + attention_mask
+            probs = torch.softmax(scores.float(), dim=-1).to(xq.dtype)
+            out = probs @ xv
+            return self.o_proj(out.reshape(batch_size, 1, self.inner_size)), present_key_value, shareable_kv
 
         # GQA: pass unexpanded KV with enable_gqa when no sliding mask,
         # expand heads when sliding mask is present
@@ -287,6 +326,8 @@ class TransformerBlockGemma4(nn.Module):
 
 
 class Gemma4Transformer(nn.Module):
+    supports_graph_decode = True
+
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
         self.config = config
@@ -329,12 +370,14 @@ class Gemma4Transformer(nn.Module):
         return 0
 
     def _freqs_from_inv(self, inv_freq, position_ids, device, dtype):
-        """Compute cos/sin from stored inv_freq"""
+        """Compute per-pair 2x2 rotation matrices [B, 1, S, d/2, 2, 2] from stored inv_freq"""
         inv_exp = inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1).to(device)
         pos_exp = position_ids[:, None, :].float()
         freqs = (inv_exp @ pos_exp).transpose(1, 2)
-        emb = torch.cat((freqs, freqs), dim=-1)
-        return emb.cos().unsqueeze(1).to(dtype), emb.sin().unsqueeze(1).to(dtype)
+        cos, sin = freqs.cos(), freqs.sin()
+        mat = torch.stack((torch.stack((cos, -sin), dim=-1),
+                           torch.stack((sin, cos), dim=-1)), dim=-2)
+        return mat.unsqueeze(1).to(dtype)
 
     def compute_freqs_cis(self, position_ids, device, dtype=None):
         global_freqs = self._freqs_from_inv(self._global_inv_freq, position_ids, device, dtype)
@@ -343,7 +386,7 @@ class Gemma4Transformer(nn.Module):
 
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None,
                 final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=None,
-                past_key_values=None, input_ids=None):
+                past_key_values=None, input_ids=None, decode_mask=None, decode_mask_sliding=None):
         if embeds is not None:
             x = embeds
         else:
@@ -359,7 +402,7 @@ class Gemma4Transformer(nn.Module):
 
         freqs_cis = self.compute_freqs_cis(position_ids, x.device, dtype=x.dtype)
 
-        mask = None
+        mask = decode_mask
         min_val = torch.finfo(x.dtype).min
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, seq_len, attention_mask.shape[-1])
@@ -433,7 +476,8 @@ class Gemma4Transformer(nn.Module):
                 if shared is not None:
                     layer_kwargs['shared_kv'] = shared
 
-            x, current_kv, shareable_kv = layer(x=x, attention_mask=mask, freqs_cis=freqs_cis, past_key_value=past_kv, **layer_kwargs)
+            layer_mask = decode_mask_sliding if (is_sliding and decode_mask_sliding is not None) else mask
+            x, current_kv, shareable_kv = layer(x=x, attention_mask=layer_mask, freqs_cis=freqs_cis, past_key_value=past_kv, **layer_kwargs)
 
             next_key_values.append(current_kv if current_kv is not None else ())
 
@@ -481,14 +525,37 @@ class Gemma4Base(BaseLlama, BaseGenerate, torch.nn.Module):
         if cap:
             logits = cap * torch.tanh(logits / cap)
         if self.model.config.suppress_tokens:
-            logits[..., self.model.config.suppress_tokens] = torch.finfo(logits.dtype).min
+            buf = getattr(self, "_suppress_buf", None)
+            if buf is None or buf.device != logits.device:
+                buf = torch.tensor(self.model.config.suppress_tokens, device=logits.device, dtype=torch.long)
+                self._suppress_buf = buf
+            logits.index_fill_(-1, buf, torch.finfo(logits.dtype).min)
         return logits
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
-        past_key_values = []
-        for _ in range(self.model.config.num_hidden_layers):
-            past_key_values.append(())
-        return past_key_values
+        cfg = self.model.config
+        windows = set(w for w in (cfg.sliding_attention or []) if w)
+        num_layers = cfg.num_hidden_layers
+        first_shared = num_layers - cfg.num_kv_shared_layers if cfg.num_kv_shared_layers > 0 else num_layers
+        # sliding layers use a window-sized ring (long prefills scatter their tail in wrapped)
+        sliding_len = min(min(windows), max_cache_len) if windows else max_cache_len
+        if not getattr(self, "_allow_static_kv_cache", False) or batch != 1 or len(windows) > 1:
+            # static cache only pays off under graph decode
+            return [() for _ in range(num_layers)]
+        caches = []
+        for i in range(num_layers):
+            if i >= first_shared:
+                caches.append(())
+                continue
+            sliding = cfg.sliding_attention[i % len(cfg.sliding_attention)] if cfg.sliding_attention else False
+            head_dim = cfg.head_dim if sliding else cfg.global_head_dim
+            k_eq_v = cfg.attention_k_eq_v and not sliding
+            kv_heads = cfg.num_global_key_value_heads if k_eq_v else cfg.num_key_value_heads
+            length = sliding_len if sliding else max_cache_len
+            # zero-init: graph mode attends full-length with masked tails, 0*0 stays finite
+            caches.append((torch.zeros((batch, kv_heads, length, head_dim), device=device, dtype=execution_dtype),
+                           torch.zeros((batch, kv_heads, length, head_dim), device=device, dtype=execution_dtype), 0))
+        return caches
 
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
