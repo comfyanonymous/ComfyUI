@@ -6,7 +6,6 @@ import math
 import torch
 import torch.nn as nn
 from typing import Optional, Tuple
-from einops import repeat
 
 from comfy.ldm.lightricks.model import TimestepEmbedding
 from comfy.ldm.flux.layers import EmbedND
@@ -91,7 +90,7 @@ class MageFlowTransformer2DModel(nn.Module):
         # offset by (n - n//2). Differs from Qwen-Image's -(n//2) for odd sizes.
         img_ids[:, :, 1] = img_ids[:, :, 1] + torch.arange(h, device=x.device)[:, None] - (h - h // 2)
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.arange(w, device=x.device)[None, :] - (w - w // 2)
-        return hidden_states, repeat(img_ids, "h w c -> b (h w) c", b=bs), (h, w)
+        return hidden_states, img_ids.reshape(h * w, 3).unsqueeze(0).expand(bs, -1, -1), (h, w)
 
     def forward(self, x, timestep, context, attention_mask=None, ref_latents=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(

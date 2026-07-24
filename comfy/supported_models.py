@@ -1894,7 +1894,7 @@ class MageFlow(supported_models_base.BASE):
         "shift": 6.0,
     }
 
-    memory_usage_factor = 0.9  #TODO
+    memory_usage_factor = 6.5
 
     unet_extra_config = {}
     latent_format = latent_formats.Flux2

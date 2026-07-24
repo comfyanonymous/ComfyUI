@@ -158,25 +158,19 @@ class NerfEmbedder(nn.Module):
         self.embedder = nn.Sequential(
             ops.Linear(in_channels + max_freqs ** 2, hidden_size_input, bias=True),
         )
-        self._pos_cache = {}
 
     def fetch_pos(self, patch_size, device, dtype):
-        key = (patch_size, device, dtype)
-        cached = self._pos_cache.get(key)
-        if cached is None:
-            pos = torch.linspace(0, 1, patch_size, device=device, dtype=dtype)
-            pos_y, pos_x = torch.meshgrid(pos, pos, indexing="ij")
-            pos_x = pos_x.reshape(-1, 1, 1)
-            pos_y = pos_y.reshape(-1, 1, 1)
-            freqs = torch.linspace(0, self.max_freqs, self.max_freqs, dtype=dtype, device=device)
-            fx = freqs[None, :, None]
-            fy = freqs[None, None, :]
-            coeffs = (1 + fx * fy) ** -1
-            dct_x = torch.cos(pos_x * fx * torch.pi)
-            dct_y = torch.cos(pos_y * fy * torch.pi)
-            cached = (dct_x * dct_y * coeffs).view(1, -1, self.max_freqs ** 2)
-            self._pos_cache = {key: cached}  # keep only the latest device/dtype entry
-        return cached
+        pos = torch.linspace(0, 1, patch_size, device=device, dtype=dtype)
+        pos_y, pos_x = torch.meshgrid(pos, pos, indexing="ij")
+        pos_x = pos_x.reshape(-1, 1, 1)
+        pos_y = pos_y.reshape(-1, 1, 1)
+        freqs = torch.linspace(0, self.max_freqs, self.max_freqs, dtype=dtype, device=device)
+        fx = freqs[None, :, None]
+        fy = freqs[None, None, :]
+        coeffs = (1 + fx * fy) ** -1
+        dct_x = torch.cos(pos_x * fx * torch.pi)
+        dct_y = torch.cos(pos_y * fy * torch.pi)
+        return (dct_x * dct_y * coeffs).view(1, -1, self.max_freqs ** 2)
 
     def forward(self, x):
         B, P2, _ = x.shape
@@ -242,7 +236,7 @@ class SimpleMLPAdaLN(nn.Module):
 class ResnetBlock(nn.Module):
     """GroupNorm + Conv ResBlock used by the CoD Decoder."""
 
-    def __init__(self, *, in_channels, out_channels=None, dropout=0.0):
+    def __init__(self, *, in_channels, out_channels=None):
         super().__init__()
         out_channels = out_channels or in_channels
         self.in_channels = in_channels
@@ -251,14 +245,13 @@ class ResnetBlock(nn.Module):
         self.norm1 = Normalize(in_channels)
         self.conv1 = ops.Conv2d(in_channels, out_channels, 3, padding=1)
         self.norm2 = Normalize(out_channels)
-        self.dropout = nn.Dropout(dropout)
         self.conv2 = ops.Conv2d(out_channels, out_channels, 3, padding=1)
         if in_channels != out_channels:
             self.nin_shortcut = ops.Conv2d(in_channels, out_channels, 1)
 
     def forward(self, x):
         h = self.conv1(nonlinearity(self.norm1(x)))
-        h = self.conv2(self.dropout(nonlinearity(self.norm2(h))))
+        h = self.conv2(nonlinearity(self.norm2(h)))
         if self.in_channels != self.out_channels:
             x = self.nin_shortcut(x)
         return x + h
