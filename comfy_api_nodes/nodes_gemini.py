@@ -60,6 +60,7 @@ GEMINI_INTERACTIONS_ENDPOINT = "/proxy/gemini-interactions"
 GEMINI_MAX_INPUT_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 GEMINI_URL_INPUT_BUDGET = 10
 GEMINI_MAX_INLINE_BYTES = 18 * 1024 * 1024
+GEMINI_INTERACTIONS_MAX_INLINE_BYTES = 90 * 1024 * 1024  # the Interactions API rejects requests over ~100MiB
 GEMINI_IMAGE_SYS_PROMPT = (
     "You are an expert image-generation engine. You must ALWAYS produce an image.\n"
     "Interpret all user input—regardless of "
@@ -469,9 +470,10 @@ async def build_gemini_media_parts(
         part, nbytes = _media_inline_part(kind, payload)
         inline_bytes += nbytes
         if inline_bytes > max_inline_bytes:
+            detail = f" after the first {url_budget} inputs are uploaded as URLs" if url_budget else ""
             raise ValueError(
-                f"Too much media to send inline (over {max_inline_bytes // (1024 * 1024)}MB after the first "
-                f"{url_budget} inputs are uploaded as URLs). Reduce the number or size of attached media."
+                f"Too much media to send inline (over {max_inline_bytes // (1024 * 1024)}MB{detail}). "
+                "Reduce the number or size of attached media."
             )
         parts.append(part)
     return parts
@@ -1738,7 +1740,14 @@ class GeminiVideoOmni(IO.ComfyNode):
 
         parts: list[GeminiInteractionTextPart | GeminiInteractionMediaPart] = []
         if images or videos:
-            media_parts = await build_gemini_media_parts(cls, images, [], videos)
+            # The Interactions API accepts video only inline or as a Files API URI, not as an HTTP URL.
+            media_parts = await build_gemini_media_parts(
+                cls, [], [], videos, url_budget=0, max_inline_bytes=GEMINI_INTERACTIONS_MAX_INLINE_BYTES
+            )
+            video_inline_bytes = sum(len(p.inlineData.data) for p in media_parts)
+            media_parts += await build_gemini_media_parts(
+                cls, images, [], [], max_inline_bytes=GEMINI_INTERACTIONS_MAX_INLINE_BYTES - video_inline_bytes
+            )
             parts.extend(to_interaction_media_part(p) for p in media_parts)
         parts.append(GeminiInteractionTextPart(text=prompt))
         interaction = await sync_op(
