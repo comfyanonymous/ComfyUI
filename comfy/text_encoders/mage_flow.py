@@ -27,6 +27,9 @@ class MageFlowTokenizer(comfy.text_encoders.qwen3vl.Qwen3VLTokenizer):
         self.llama_template_images = MAGE_EDIT_TEMPLATE
 
     def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, thinking=True, **kwargs):
+        image = kwargs.get("image", None)
+        if image is not None and len(images) == 0:
+            images = [image[i:i + 1] for i in range(image.shape[0])]
         if llama_template is None:
             if len(images) > 0:
                 # Training-time multi-reference body: "Image 1: <ph>Image 2: <ph>...{instruction}"
