@@ -524,6 +524,13 @@ class RAMPressureCache(LRUCache):
     def __init__(self, key_class, enable_providers=False):
         super().__init__(key_class, 0, enable_providers=enable_providers)
         self.timestamps = {}
+        self.active_evictions = False
+        self.full_evictions = False
+
+    async def set_prompt(self, dynprompt, node_ids, is_changed_cache):
+        self.active_evictions = False
+        self.full_evictions = False
+        await super().set_prompt(dynprompt, node_ids, is_changed_cache)
 
     def clean_unused(self):
         self._clean_subcaches()
@@ -588,4 +595,8 @@ class RAMPressureCache(LRUCache):
             self.timestamps.pop(key, None)
             self.children.pop(key, None)
             freed += ram_usage
+        if freed and free_active:
+            self.active_evictions = True
+            if min_entry_size == 0:
+                self.full_evictions = True
         return freed

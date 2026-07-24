@@ -22,6 +22,7 @@ import collections
 import inspect
 import logging
 import math
+import time
 import uuid
 from typing import Callable, Optional
 
@@ -37,6 +38,7 @@ import comfy.patcher_extension
 import comfy.utils
 import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.logging import detail
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
@@ -1935,10 +1937,25 @@ class ModelPatcherDynamic(ModelPatcher):
         assert self.load_device != torch.device("cpu")
 
         vbar = self._vbar_get()
-        freed = 0 if vbar is None else vbar.free_memory(memory_to_free)
+        vbar_freed = 0 if vbar is None else vbar.free_memory(memory_to_free)
+        freed = vbar_freed
 
+        backup_freed = 0
         if freed < memory_to_free:
-            freed += self.restore_loaded_backups()
+            backup_freed = self.restore_loaded_backups()
+            freed += backup_freed
+
+        method = "vbar+backups" if vbar_freed and backup_freed else "vbar" if vbar_freed else "backups" if backup_freed else "none"
+        free_methods = getattr(self, "_free_methods", {})
+        free_methods[method] = free_methods.get(method, 0) + 1
+        self._free_methods = free_methods
+        now = time.monotonic()
+        if now - getattr(self, "_last_free_log_time", 0) >= 5:
+            requested = "all" if memory_to_free >= 1e30 else f"{memory_to_free / (1024 ** 2):.1f}MB"
+            prevailing_method = max(free_methods, key=free_methods.get)
+            detail("AIMDO free: model=%s device=%s prevailing_method=%s methods=%s requested=%s vbar_mb=%.1f backups_mb=%.1f", self.model.__class__.__name__, self.load_device, prevailing_method, free_methods, requested, vbar_freed / (1024 ** 2), backup_freed / (1024 ** 2))
+            self._free_methods = {}
+            self._last_free_log_time = now
 
         return freed
 
