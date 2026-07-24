@@ -2024,11 +2024,11 @@ class WAN22_WanDancer(WAN21):
 
         fps = kwargs.get("fps", None)
         if fps is not None:
-            out['fps'] = comfy.conds.CONDRegular(torch.FloatTensor([fps]))
+            out['fps'] = comfy.conds.CONDConstant(fps)
 
         audio_inject_scale = kwargs.get("audio_inject_scale", None)
         if audio_inject_scale is not None:
-            out['audio_inject_scale'] = comfy.conds.CONDRegular(torch.FloatTensor([audio_inject_scale]))
+            out['audio_inject_scale'] = comfy.conds.CONDConstant(audio_inject_scale)
         return out
 
 class Hunyuan3Dv2(BaseModel):
@@ -2227,10 +2227,7 @@ class Omnigen2(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            latents = []
-            for lat in ref_latents:
-                latents.append(self.process_latent_in(lat))
-            out['ref_latents'] = comfy.conds.CONDList(latents)
+            out['ref_latents'] = comfy.conds.CONDList([self.process_latent_in(lat) for lat in ref_latents])
         return out
 
     def extra_conds_shapes(self, **kwargs):
@@ -2317,12 +2314,30 @@ class Ideogram4(BaseModel):
 class Krea2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.krea2.model.SingleStreamDiT)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            latents = []
+            for lat in ref_latents:
+                latents.append(self.process_latent_in(lat))
+            out['ref_latents'] = comfy.conds.CONDList(latents)
+
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
 
 class HunyuanImage21(BaseModel):

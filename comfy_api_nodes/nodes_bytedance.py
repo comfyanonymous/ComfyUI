@@ -2690,7 +2690,8 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                 "with ByteDance Seed Audio 1.0. Describe the voice(s), emotion, ambience, background music "
                 "and sound effects in the prompt, and include the lines to speak. Optionally pick a built-in "
                 "preset voice, clone voices from up to 3 reference clips (tagged @Audio1-3 in the prompt), "
-                "or derive a voice from a character image. Up to 2 minutes of audio per run."
+                "or derive a voice from a character image. Up to 2 minutes of audio per run. "
+                "The multilingual model supports 20 languages and timestamp-based timing control."
             ),
             inputs=[
                 IO.String.Input(
@@ -2701,7 +2702,9 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                         "Describe the voice(s), emotion, pacing, ambience, background music and sound "
                         "effects, and include the lines to speak (name characters inline for dialogue). "
                         "In 'audio reference' mode, refer to connected clips by order as @Audio1, @Audio2, "
-                        "@Audio3. Maximum 3000 characters."
+                        "@Audio3. With the multilingual model, a quoted line can start with a timestamp "
+                        'range that controls when and how long it is spoken, e.g. "[5.5s:8.0s] Wait for me!". '
+                        "Write the prompt in the same language as the lines to speak. Maximum 3000 characters."
                     ),
                 ),
                 IO.DynamicCombo.Input(
@@ -2796,6 +2799,19 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                     tooltip="Seed controls whether the node should re-run; "
                     "results are non-deterministic regardless of seed.",
                 ),
+                IO.Combo.Input(
+                    "model",
+                    options=["seed-audio-1.0-multilingual", "seed-audio-1.0"],
+                    default="seed-audio-1.0-multilingual",
+                    optional=True,
+                    tooltip=(
+                        "seed-audio-1.0-multilingual: 20 languages (English, Chinese, Japanese, Korean, "
+                        "Mexican & Castilian Spanish, Indonesian, German, Brazilian Portuguese, French, "
+                        "Thai, Vietnamese, Malay, Filipino, Italian, Russian, Dutch, Polish, Turkish, "
+                        'Swedish) plus per-sentence timing control via "[5.5s:8.0s] ..." timestamps. '
+                        "seed-audio-1.0: English and Chinese only, no timing control."
+                    ),
+                ),
             ],
             outputs=[IO.Audio.Output()],
             hidden=[
@@ -2819,6 +2835,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
         loudness_rate: int,
         pitch_rate: int,
         seed: int,
+        model: str = "seed-audio-1.0-multilingual",
     ) -> IO.NodeOutput:
         mode = reference_mode["reference_mode"]
         audio_indices = connected_audio_indices(reference_mode)
@@ -2845,6 +2862,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/byteplus/api/v3/tts/create", method="POST"),
             response_model=SeedAudioResponse,
             data=SeedAudioRequest(
+                model=model,
                 text_prompt=text_prompt,
                 references=references,
                 audio_config=SeedAudioConfig(
