@@ -12,6 +12,8 @@ from torch import nn
 import comfy.patcher_extension
 import comfy.ldm.modules.attention
 import comfy.ldm.common_dit
+import comfy.model_management
+import comfy.quant_ops
 
 from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
 
@@ -322,40 +324,42 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 def apply_rotary_emb(input_tensor, freqs_cis):
-    cos_freqs, sin_freqs = freqs_cis[0], freqs_cis[1]
-    split_pe = freqs_cis[2] if len(freqs_cis) > 2 else False
-    return (
-        apply_split_rotary_emb(input_tensor, cos_freqs, sin_freqs)
-        if split_pe else
-        apply_interleaved_rotary_emb(input_tensor, cos_freqs, sin_freqs)
+    rotation_matrix, split_pe = freqs_cis
+    original_shape = input_tensor.shape
+    input_tensor = input_tensor.reshape(
+        input_tensor.shape[0], input_tensor.shape[1], rotation_matrix.shape[2], -1
     )
 
-def apply_interleaved_rotary_emb(input_tensor, cos_freqs, sin_freqs):  # TODO: remove duplicate funcs and pick the best/fastest one
-    t_dup = rearrange(input_tensor, "... (d r) -> ... d r", r=2)
-    t1, t2 = t_dup.unbind(dim=-1)
-    t_dup = torch.stack((-t2, t1), dim=-1)
-    input_tensor_rot = rearrange(t_dup, "... d r -> ... (d r)")
+    if comfy.model_management.in_training:
+        if split_pe:
+            t = input_tensor.reshape(*input_tensor.shape[:-1], 2, -1).movedim(-2, -1).unsqueeze(-2)
+        else:
+            t = input_tensor.reshape(*input_tensor.shape[:-1], -1, 1, 2)
+        t = t.to(rotation_matrix.dtype)
+        output = rotation_matrix[..., 0] * t[..., 0] + rotation_matrix[..., 1] * t[..., 1]
+        if split_pe:
+            output = output.movedim(-1, -2)
+        output = output.reshape(input_tensor.shape).type_as(input_tensor)
+    elif split_pe:
+        output = comfy.quant_ops.ck.apply_rope_split_half1(input_tensor, rotation_matrix)
+    else:
+        output = comfy.quant_ops.ck.apply_rope1(input_tensor, rotation_matrix)
+    return output.reshape(original_shape)
 
-    out = input_tensor * cos_freqs + input_tensor_rot * sin_freqs
+def apply_rotary_emb_qk(q, k, freqs_cis):
+    if comfy.model_management.in_training:
+        return apply_rotary_emb(q, freqs_cis), apply_rotary_emb(k, freqs_cis)
 
-    return out
-
-def apply_split_rotary_emb(input_tensor, cos, sin):
-    needs_reshape = False
-    if input_tensor.ndim != 4 and cos.ndim == 4:
-        B, H, T, _ = cos.shape
-        input_tensor = input_tensor.reshape(B, T, H, -1).swapaxes(1, 2)
-        needs_reshape = True
-    split_input = rearrange(input_tensor, "... (d r) -> ... d r", d=2)
-    first_half_input = split_input[..., :1, :]
-    second_half_input = split_input[..., 1:, :]
-    output = split_input * cos.unsqueeze(-2)
-    first_half_output = output[..., :1, :]
-    second_half_output = output[..., 1:, :]
-    first_half_output.addcmul_(-sin.unsqueeze(-2), second_half_input)
-    second_half_output.addcmul_(sin.unsqueeze(-2), first_half_input)
-    output = rearrange(output, "... d r -> ... (d r)")
-    return output.swapaxes(1, 2).reshape(B, T, -1) if needs_reshape else output
+    rotation_matrix, split_pe = freqs_cis
+    q_shape = q.shape
+    k_shape = k.shape
+    q = q.reshape(q.shape[0], q.shape[1], rotation_matrix.shape[2], -1)
+    k = k.reshape(k.shape[0], k.shape[1], rotation_matrix.shape[2], -1)
+    if split_pe:
+        q, k = comfy.quant_ops.ck.apply_rope_split_half(q, k, rotation_matrix)
+    else:
+        q, k = comfy.quant_ops.ck.apply_rope(q, k, rotation_matrix)
+    return q.reshape(q_shape), k.reshape(k_shape)
 
 
 class GuideAttentionMask:
@@ -461,9 +465,13 @@ class CrossAttention(nn.Module):
         q = self.q_norm(q)
         k = self.k_norm(k)
 
+        # These norms span all heads, so the per-head RMS+RoPE kernel is not equivalent.
         if pe is not None:
-            q = apply_rotary_emb(q, pe)
-            k = apply_rotary_emb(k, pe if k_pe is None else k_pe)
+            if k_pe is None and q.shape == k.shape:
+                q, k = apply_rotary_emb_qk(q, k, pe)
+            else:
+                q = apply_rotary_emb(q, pe)
+                k = apply_rotary_emb(k, pe if k_pe is None else k_pe)
 
         if mask is None:
             out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
@@ -653,36 +661,23 @@ def generate_freqs(indices, indices_grid, max_pos, use_middle_indices_grid):
     )
     return freqs
 
-def interleaved_freqs_cis(freqs, pad_size):
-    cos_freq = freqs.cos().repeat_interleave(2, dim=-1)
-    sin_freq = freqs.sin().repeat_interleave(2, dim=-1)
-    if pad_size != 0:
-        cos_padding = torch.ones_like(cos_freq[:, :, : pad_size])
-        sin_padding = torch.zeros_like(cos_freq[:, :, : pad_size])
-        cos_freq = torch.cat([cos_padding, cos_freq], dim=-1)
-        sin_freq = torch.cat([sin_padding, sin_freq], dim=-1)
-    return cos_freq, sin_freq
+def freqs_cis_matrix(freqs, pad_size, split_mode, num_attention_heads, out_dtype):
+    cos_freq = freqs.cos().to(out_dtype)
+    sin_freq = freqs.sin().to(out_dtype)
+    if pad_size:
+        matrix_pad_size = pad_size if split_mode else pad_size // 2
+        cos_padding = torch.ones_like(cos_freq[:, :, :matrix_pad_size])
+        sin_padding = torch.zeros_like(sin_freq[:, :, :matrix_pad_size])
+        cos_freq = torch.cat((cos_padding, cos_freq), dim=-1)
+        sin_freq = torch.cat((sin_padding, sin_freq), dim=-1)
 
-def split_freqs_cis(freqs, pad_size, num_attention_heads):
-    cos_freq = freqs.cos()
-    sin_freq = freqs.sin()
-
-    if pad_size != 0:
-        cos_padding = torch.ones_like(cos_freq[:, :, :pad_size])
-        sin_padding = torch.zeros_like(sin_freq[:, :, :pad_size])
-
-        cos_freq = torch.concatenate([cos_padding, cos_freq], axis=-1)
-        sin_freq = torch.concatenate([sin_padding, sin_freq], axis=-1)
-
-    # Reshape freqs to be compatible with multi-head attention
-    B , T, half_HD = cos_freq.shape
-
-    cos_freq = cos_freq.reshape(B, T, num_attention_heads, half_HD // num_attention_heads)
-    sin_freq = sin_freq.reshape(B, T, num_attention_heads, half_HD // num_attention_heads)
-
-    cos_freq = torch.swapaxes(cos_freq, 1, 2)  # (B,H,T,D//2)
-    sin_freq = torch.swapaxes(sin_freq, 1, 2)  # (B,H,T,D//2)
-    return cos_freq, sin_freq
+    B, T, _ = cos_freq.shape
+    cos_freq = cos_freq.reshape(B, T, num_attention_heads, -1)
+    sin_freq = sin_freq.reshape(B, T, num_attention_heads, -1)
+    rotation_matrix = torch.stack(
+        (cos_freq, -sin_freq, sin_freq, cos_freq), dim=-1
+    )
+    return rotation_matrix.reshape(*rotation_matrix.shape[:-1], 2, 2), split_mode
 
 class LTXBaseModel(torch.nn.Module, ABC):
     """
@@ -885,12 +880,17 @@ class LTXBaseModel(torch.nn.Module, ABC):
             expected_freqs = dim // 2
             current_freqs = freqs.shape[-1]
             pad_size = expected_freqs - current_freqs
-            cos_freq, sin_freq = split_freqs_cis(freqs, pad_size, num_attention_heads)
         else:
             # 2 because of cos and sin by 3 for (t, x, y), 1 for temporal only
             n_elem = 2 * indices_grid.shape[1]
-            cos_freq, sin_freq = interleaved_freqs_cis(freqs, dim % n_elem)
-        return cos_freq.to(out_dtype), sin_freq.to(out_dtype), split_mode
+            pad_size = dim % n_elem
+        return freqs_cis_matrix(
+            freqs,
+            pad_size,
+            split_mode,
+            num_attention_heads,
+            out_dtype,
+        )
 
     def _prepare_positional_embeddings(self, pixel_coords, frame_rate, x_dtype):
         """Prepare positional embeddings."""
