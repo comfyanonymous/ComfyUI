@@ -58,6 +58,7 @@ import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.seedvr.model
 import comfy.ldm.boogu.model
 import comfy.ldm.qwen_image.model
+import comfy.ldm.mage_flow.model
 import comfy.ldm.joyimage.model
 import comfy.ldm.ideogram4.model
 import comfy.ldm.krea2.model
@@ -2243,8 +2244,8 @@ class Boogu(Omnigen2):
         self.memory_usage_factor_conds = ("ref_latents",)
 
 class QwenImage(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.qwen_image.model.QwenImageTransformer2DModel)
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.qwen_image.model.QwenImageTransformer2DModel):
+        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
         self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
@@ -2272,6 +2273,17 @@ class QwenImage(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+class MageFlow(QwenImage):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.mage_flow.model.MageFlowTransformer2DModel)
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 128, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 128])
         return out
 
 class JoyImage(BaseModel):
