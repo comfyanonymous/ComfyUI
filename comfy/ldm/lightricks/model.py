@@ -302,22 +302,22 @@ class NormSingleLinearTextProjection(nn.Module):
 
 
 class GELU_approx(nn.Module):
-    def __init__(self, dim_in, dim_out, dtype=None, device=None, operations=None):
+    def __init__(self, dim_in, dim_out, bias=True, dtype=None, device=None, operations=None):
         super().__init__()
-        self.proj = operations.Linear(dim_in, dim_out, dtype=dtype, device=device)
+        self.proj = operations.Linear(dim_in, dim_out, bias=bias, dtype=dtype, device=device)
 
     def forward(self, x):
         return torch.nn.functional.gelu(self.proj(x), approximate="tanh")
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out, mult=4, glu=False, dropout=0.0, dtype=None, device=None, operations=None):
+    def __init__(self, dim, dim_out, mult=4, glu=False, dropout=0.0, ff_bias=True, dtype=None, device=None, operations=None):
         super().__init__()
         inner_dim = int(dim * mult)
-        project_in = GELU_approx(dim, inner_dim, dtype=dtype, device=device, operations=operations)
+        project_in = GELU_approx(dim, inner_dim, bias=ff_bias, dtype=dtype, device=device, operations=operations)
 
         self.net = nn.Sequential(
-            project_in, nn.Dropout(dropout), operations.Linear(inner_dim, dim_out, dtype=dtype, device=device)
+            project_in, nn.Dropout(dropout), operations.Linear(inner_dim, dim_out, bias=ff_bias, dtype=dtype, device=device)
         )
 
     def forward(self, x):
@@ -457,28 +457,34 @@ class CrossAttention(nn.Module):
         )
 
     def forward(self, x, context=None, mask=None, pe=None, k_pe=None, transformer_options={}):
+        self_attn = context is None
         q = self.to_q(x)
         context = x if context is None else context
         k = self.to_k(context)
         v = self.to_v(context)
 
-        q = self.q_norm(q)
-        k = self.k_norm(k)
-
-        # These norms span all heads, so the per-head RMS+RoPE kernel is not equivalent.
-        if pe is not None:
-            if k_pe is None and q.shape == k.shape:
-                q, k = apply_rotary_emb_qk(q, k, pe)
-            else:
-                q = apply_rotary_emb(q, pe)
-                k = apply_rotary_emb(k, pe if k_pe is None else k_pe)
-
-        if mask is None:
-            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
-        elif isinstance(mask, GuideAttentionMask):
-            out = _attention_with_guide_mask(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+        # Spatio-Temporal Guidance (STG) perturbation: for the flagged self-attention
+        # layers, the attention degrades to a passthrough of the value projection (out = V).
+        if self_attn and transformer_options.get("stg_skip_self_attn", False):
+            out = v
         else:
-            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, mask=mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            q = self.q_norm(q)
+            k = self.k_norm(k)
+
+            # These norms span all heads, so the per-head RMS+RoPE kernel is not equivalent.
+            if pe is not None:
+                if k_pe is None and q.shape == k.shape:
+                    q, k = apply_rotary_emb_qk(q, k, pe)
+                else:
+                    q = apply_rotary_emb(q, pe)
+                    k = apply_rotary_emb(k, pe if k_pe is None else k_pe)
+
+            if mask is None:
+                out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            elif isinstance(mask, GuideAttentionMask):
+                out = _attention_with_guide_mask(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            else:
+                out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, mask=mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
 
         # Apply per-head gating if enabled
         if self.to_gate_logits is not None:
@@ -497,7 +503,7 @@ ADALN_CROSS_ATTN_PARAMS_COUNT = 9
 
 class BasicTransformerBlock(nn.Module):
     def __init__(
-        self, dim, n_heads, d_head, context_dim=None, attn_precision=None, cross_attention_adaln=False, dtype=None, device=None, operations=None
+        self, dim, n_heads, d_head, context_dim=None, attn_precision=None, cross_attention_adaln=False, ff_bias=True, dtype=None, device=None, operations=None
     ):
         super().__init__()
 
@@ -513,7 +519,7 @@ class BasicTransformerBlock(nn.Module):
             device=device,
             operations=operations,
         )
-        self.ff = FeedForward(dim, dim_out=dim, glu=True, dtype=dtype, device=device, operations=operations)
+        self.ff = FeedForward(dim, dim_out=dim, glu=True, ff_bias=ff_bias, dtype=dtype, device=device, operations=operations)
 
         self.attn2 = CrossAttention(
             query_dim=dim,
@@ -704,6 +710,8 @@ class LTXBaseModel(torch.nn.Module, ABC):
         caption_proj_before_connector=False,
         cross_attention_adaln=False,
         caption_projection_first_linear=True,
+        ff_bias=True,
+        use_prompt_adaln_single=True,
         dtype=None,
         device=None,
         operations=None,
@@ -733,6 +741,8 @@ class LTXBaseModel(torch.nn.Module, ABC):
         self.caption_proj_before_connector = caption_proj_before_connector
         self.cross_attention_adaln = cross_attention_adaln
         self.caption_projection_first_linear = caption_projection_first_linear
+        self.ff_bias = ff_bias
+        self.use_prompt_adaln_single = use_prompt_adaln_single
 
         # Common dimensions
         self.inner_dim = num_attention_heads * attention_head_dim
@@ -765,7 +775,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
             self.inner_dim, embedding_coefficient=embedding_coefficient, use_additional_conditions=False, dtype=dtype, device=device, operations=self.operations
         )
 
-        if self.cross_attention_adaln:
+        if self.cross_attention_adaln and self.use_prompt_adaln_single:
             self.prompt_adaln_single = AdaLayerNormSingle(
                 self.inner_dim, embedding_coefficient=2, use_additional_conditions=False, dtype=dtype, device=device, operations=self.operations
             )
@@ -1057,6 +1067,7 @@ class LTXVModel(LTXBaseModel):
                     self.attention_head_dim,
                     context_dim=self.cross_attention_dim,
                     cross_attention_adaln=self.cross_attention_adaln,
+                    ff_bias=self.ff_bias,
                     dtype=dtype,
                     device=device,
                     operations=self.operations,
