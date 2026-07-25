@@ -22,10 +22,9 @@ class MageTimestepProjEmbeddings(nn.Module):
         )
 
     def forward(self, timestep, hidden_states):
-        timestep = timestep.to(torch.bfloat16) # timesteps have to be rounded to bf16 for Mage-Flow's timestep frequency table.
         half_dim = 128
         exponent = -math.log(10000) * torch.arange(half_dim, dtype=torch.float32, device=timestep.device) / half_dim
-        emb = torch.exp(exponent).to(torch.bfloat16)
+        emb = torch.exp(exponent).to(timestep.dtype)
         emb = timestep[:, None].float() * emb[None, :]
         emb = 1000.0 * emb
         emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=-1)
