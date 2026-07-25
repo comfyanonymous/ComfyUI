@@ -1,3 +1,4 @@
+import re
 from comfy_api.latest import ComfyExtension, io
 from typing_extensions import override
 
@@ -167,11 +168,36 @@ class TextGenerateLTX2Prompt(TextGenerate):
 
     @classmethod
     def execute(cls, clip, prompt, max_length, sampling_mode, image=None, thinking=False, use_default_template=True, video=None, audio=None) -> io.NodeOutput:
-        if image is None:
-            formatted_prompt = f"<start_of_turn>system\n{LTX2_T2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
+        system = (LTX2_I2V_SYSTEM_PROMPT if image is not None else LTX2_T2V_SYSTEM_PROMPT).strip()
+
+        # Gemma 3 and Gemma 4 use different chat-turn markers and image tokens.
+        is_gemma4 = "gemma4" in getattr(clip.tokenizer, "clip_name", "")
+
+        if is_gemma4:
+            think_prefix = "<|think|>\n" if thinking else ""
+            model_open = "" if thinking else "<|channel>final\n"
+            media = "<|image><|image|><image|>\n\n" if image is not None else ""
+            formatted_prompt = (
+                f"<|turn>system\n{think_prefix}{system}<turn|>\n"
+                f"<|turn>user\n{media}User Raw Input Prompt: {prompt}.<turn|>\n"
+                f"<|turn>model\n{model_open}"
+            )
         else:
-            formatted_prompt = f"<start_of_turn>system\n{LTX2_I2V_SYSTEM_PROMPT.strip()}<end_of_turn>\n<start_of_turn>user\n\n<image_soft_token>\n\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n<start_of_turn>model\n"
-        return super().execute(clip, formatted_prompt, max_length, sampling_mode, image=image, thinking=thinking, use_default_template=use_default_template, video=video, audio=audio)
+            media = "\n<image_soft_token>\n" if image is not None else ""
+            formatted_prompt = (
+                f"<start_of_turn>system\n{system}<end_of_turn>\n"
+                f"<start_of_turn>user\n{media}\nUser Raw Input Prompt: {prompt}.<end_of_turn>\n"
+                f"<start_of_turn>model\n"
+            )
+
+        out = super().execute(clip, formatted_prompt, max_length, sampling_mode, image=image, thinking=thinking, use_default_template=use_default_template, video=video, audio=audio)
+
+        text = out.args[0]
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        if "</think>" in text:  # unclosed/truncated reasoning: keep what follows the last close
+            text = text.rsplit("</think>", 1)[-1]
+        text = re.sub(r"</?think>|<\|channel>\w*\n?|<channel\|>|<\|turn>\w*\n?", "", text).strip()
+        return io.NodeOutput(text)
 
 
 class TextgenExtension(ComfyExtension):
