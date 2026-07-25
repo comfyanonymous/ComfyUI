@@ -7,7 +7,6 @@ import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
-import math
 
 default_preview_method = args.preview_method
 
@@ -110,21 +109,24 @@ def get_previewer(device, latent_format):
                 previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors, latent_format.latent_rgb_factors_bias, latent_format.latent_rgb_factors_reshape)
     return previewer
 
-def prepare_callback(model, steps, x0_output_dict=None, shape=None):
+def prepare_callback(model, steps, x0_output_dict=None, latent_image=None):
     preview_format = "JPEG"
     if preview_format not in ["JPEG", "PNG"]:
         preview_format = "JPEG"
 
     previewer = get_previewer(model.load_device, model.model.latent_format)
 
+    latent_shapes = None
+    if latent_image is not None and latent_image.is_nested:
+        latent_shapes = [t.shape for t in latent_image.unbind()]
+
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
         if x0_output_dict is not None:
             x0_output_dict["x0"] = x0
 
-        if shape is not None:
-            cut = math.prod(shape[1:])
-            x0 = x0[:, :, :cut].reshape([x0.shape[0]] + list(shape)[1:])
+        if latent_shapes is not None:
+            x0 = comfy.utils.unpack_latents(x0, latent_shapes)[0]
 
         preview_bytes = None
         if previewer:
