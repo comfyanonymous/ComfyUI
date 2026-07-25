@@ -1807,9 +1807,30 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage
         elif clip_type == CLIPType.LTXV:
-            clip_target.clip = comfy.text_encoders.lt.ltxav_te(**llama_detect(clip_data), **comfy.text_encoders.lt.sd_detect(clip_data))
-            clip_target.tokenizer = comfy.text_encoders.lt.LTXAVGemmaTokenizer
-            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+            te_models = [detect_te_model(sd) for sd in clip_data]
+            gemma4_models = {
+                TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
+                TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
+                TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B,
+                TEModel.GEMMA_4_12B: comfy.text_encoders.gemma4.Gemma4_12B,
+            }
+            gemma4_type = next((model for model in te_models if model in gemma4_models), None)
+            if gemma4_type is None:
+                clip_target.clip = comfy.text_encoders.lt.ltxav_te(**llama_detect(clip_data), **comfy.text_encoders.lt.sd_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.lt.LTXAVGemmaTokenizer
+                gemma_sd = clip_data[te_models.index(TEModel.GEMMA_3_12B)] if TEModel.GEMMA_3_12B in te_models else clip_data[0]
+                tokenizer_data["spiece_model"] = gemma_sd.get("spiece_model", None)
+            else:
+                variant = gemma4_models[gemma4_type]
+                clip_target.clip = comfy.text_encoders.lt.ltxav_te(
+                    **llama_detect(clip_data),
+                    **comfy.text_encoders.lt.sd_detect(clip_data),
+                    text_encoder_model=comfy.text_encoders.gemma4.gemma4_text_encoder_model(variant),
+                    text_encoder_key="gemma4",
+                )
+                clip_target.tokenizer = comfy.text_encoders.lt.ltxav_gemma4_tokenizer(variant.tokenizer)
+                gemma_sd = clip_data[te_models.index(gemma4_type)]
+                tokenizer_data["tokenizer_json"] = gemma_sd.get("tokenizer_json", None)
         elif clip_type == CLIPType.NEWBIE:
             clip_target.clip = comfy.text_encoders.newbie.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.newbie.NewBieTokenizer
