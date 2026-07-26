@@ -669,7 +669,10 @@ def _render_mesh_mode_inputs():
                 "'depth' = linear gray."
             ),
         ),
-        io.Float.Input("opacity", default=1.0, min=0.0, max=1.0, step=0.01),
+        io.Float.Input(
+            "opacity", default=1.0, min=0.0, max=1.0, step=0.01,
+            tooltip="Mesh alpha over the background image, or over black when none is connected.",
+        ),
         io.Float.Input(
             "person_palette_falloff",
             default=0.6, min=0.1, max=1.0, step=0.05,

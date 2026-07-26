@@ -463,5 +463,7 @@ def render_pose_data_torch(
         if opacity != 1.0:
             a = a * float(opacity)
         rendered = torch.lerp(bg, rendered, a)
+    elif opacity != 1.0:
+        rendered = rendered * float(opacity)
 
     return rendered
