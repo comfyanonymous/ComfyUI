@@ -22,7 +22,6 @@ class MageTimestepProjEmbeddings(nn.Module):
         )
 
     def forward(self, timestep, hidden_states):
-        timestep = timestep.to(hidden_states.dtype)
         half_dim = 128
         exponent = -math.log(10000) * torch.arange(half_dim, dtype=torch.float32, device=timestep.device) / half_dim
         emb = torch.exp(exponent).to(timestep.dtype)

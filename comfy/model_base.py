@@ -2279,6 +2279,10 @@ class MageFlow(QwenImage):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.mage_flow.model.MageFlowTransformer2DModel)
 
+    def process_timestep(self, timestep, **kwargs):
+        # Mage runs in bf16 and rounds its timestep frequency table to the timestep dtype, keep that on fp32 devices.
+        return timestep.to(torch.bfloat16)
+
     def extra_conds_shapes(self, **kwargs):
         out = {}
         ref_latents = kwargs.get("reference_latents", None)
