@@ -471,27 +471,23 @@ def _compute_face_mask(model, disp_threshold_m: float = 1e-4) -> np.ndarray:
     device = head.scale_mean.device
     num_face = head.num_face_comps
 
-    zeros = lambda *s: torch.zeros(1, *s, device=device)
-    neutral_kw = dict(
+    # One batched forward over [neutral, axis_0 .. axis_71]
+    batch = num_face + 1
+    zeros = lambda *s: torch.zeros(batch, *s, device=device)
+    expr = torch.zeros(batch, num_face, device=device)
+    expr[1:] = torch.eye(num_face, device=device)
+    verts = head.mhr_forward(
         global_trans=zeros(3),
         global_rot=zeros(3),
         body_pose_params=zeros(130),
         hand_pose_params=zeros(head.num_hand_comps * 2),
         scale_params=zeros(head.num_scale_comps),
         shape_params=zeros(head.num_shape_comps),
-        expr_params=zeros(num_face),
-    )
-    v0 = head.mhr_forward(**neutral_kw).cpu().numpy()[0]  # (Nv, 3)
+        expr_params=expr,
+    ).cpu().numpy()  # (batch, Nv, 3)
 
-    face_mask = np.zeros(v0.shape[0], dtype=bool)
-    for axis in range(num_face):
-        expr = zeros(num_face)
-        expr[0, axis] = 1.0
-        kw = dict(neutral_kw)
-        kw["expr_params"] = expr
-        v = head.mhr_forward(**kw).cpu().numpy()[0]
-        face_mask |= (np.linalg.norm(v - v0, axis=1) > disp_threshold_m)
-    return face_mask
+    disp = np.linalg.norm(verts[1:] - verts[0][None], axis=2)  # (num_face, Nv)
+    return (disp > disp_threshold_m).any(axis=0)
 
 
 def jet_colormap(s: np.ndarray) -> np.ndarray:

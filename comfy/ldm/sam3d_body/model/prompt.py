@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 
 from comfy.ldm.cascade.common import LayerNorm2d_op
+from comfy.ops import cast_to_input
 from comfy.ldm.sam3.sam import PositionEmbeddingRandom
 
 from .transformer import TransformerDecoderLayer
@@ -77,11 +78,11 @@ class PromptEncoder(nn.Module):
         weight_dtype = self.invalid_point_embed.weight.dtype
         point_embedding = self.pe_layer._encode(points.to(torch.float)).to(weight_dtype)
         point_embedding[labels == -2] = 0.0  # invalid points
-        point_embedding[labels == -2] += self.invalid_point_embed.weight.to(point_embedding)
+        point_embedding[labels == -2] += cast_to_input(self.invalid_point_embed.weight, point_embedding)
         point_embedding[labels == -1] = 0.0
-        point_embedding[labels == -1] += self.not_a_point_embed.weight.to(point_embedding)
+        point_embedding[labels == -1] += cast_to_input(self.not_a_point_embed.weight, point_embedding)
         for i in range(self.num_body_joints):
-            point_embedding[labels == i] += self.point_embeddings[i].weight.to(point_embedding)
+            point_embedding[labels == i] += cast_to_input(self.point_embeddings[i].weight, point_embedding)
 
         point_mask = labels > -2
         return point_embedding, point_mask
@@ -136,7 +137,7 @@ class PromptEncoder(nn.Module):
 
     def get_mask_embeddings(self, masks: torch.Tensor, bs: int = 1, size: Tuple[int, int] = (16, 16)) -> torch.Tensor:
         """Embeds mask inputs. Caller casts both outputs to its working dtype."""
-        no_mask_embeddings = self.no_mask_embed.weight.reshape(1, -1, 1, 1).expand(bs, -1, size[0], size[1])
+        no_mask_embeddings = cast_to_input(self.no_mask_embed.weight, masks).reshape(1, -1, 1, 1).expand(bs, -1, size[0], size[1])
         mask_embeddings = self.mask_downscaling(masks)
         return mask_embeddings, no_mask_embeddings
 

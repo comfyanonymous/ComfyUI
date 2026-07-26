@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import comfy.model_management
+from comfy.ops import cast_to_input
 from comfy.ldm.sam3.sam import PositionEmbeddingRandom
 
 from comfy.image_encoders.dino3 import DINOV3_VITH_CONFIG, DINOv3ViTModel
@@ -330,7 +331,7 @@ class SAM3DBody(nn.Module):
         """Append a token block from `embedding_weight` (+ zero-block in
         token_augment). Returns (token_embeddings, token_augment, start_idx)."""
         start_idx = token_embeddings.shape[1]
-        block = embedding_weight.to(token_embeddings)[None, :, :].repeat(batch_size, 1, 1)
+        block = cast_to_input(embedding_weight, token_embeddings)[None, :, :].repeat(batch_size, 1, 1)
         token_embeddings = torch.cat([token_embeddings, block], dim=1)
         token_augment = torch.cat([token_augment, torch.zeros_like(block)], dim=1)
         return token_embeddings, token_augment, start_idx
@@ -388,10 +389,8 @@ class SAM3DBody(nn.Module):
 
         batch_size = image_embeddings.shape[0]
 
-        # .to(image_embeddings) moves weights CPU→GPU under dynamic loading
-        # (they stay on CPU until first use).
-        init_pose = init_pose_emb.weight.to(image_embeddings).expand(batch_size, -1).unsqueeze(1)
-        init_camera = init_camera_emb.weight.to(image_embeddings).expand(batch_size, -1).unsqueeze(1)
+        init_pose = cast_to_input(init_pose_emb.weight, image_embeddings).expand(batch_size, -1).unsqueeze(1)
+        init_camera = cast_to_input(init_camera_emb.weight, image_embeddings).expand(batch_size, -1).unsqueeze(1)
         init_estimate = torch.cat([init_pose, init_camera], dim=-1)  # B x 1 x (404 + 3)
 
         init_input = torch.cat([condition_info.view(batch_size, 1, -1), init_estimate], dim=-1)
