@@ -1400,6 +1400,27 @@ def detect_layer_quantization(state_dict, prefix):
             return {"mixed_ops": True}
     return None
 
+def _resolve_quant_metadata_layer_key(state_dict, layer_key, model_prefix):
+    # _quantization_metadata layer keys come from two different checkpoint
+    # export conventions in the wild: some store them with the full
+    # diffusion-model prefix (e.g. "model.diffusion_model.proj_in"), others
+    # already strip it (e.g. "proj_in"). convert_old_quants() can also be
+    # called before or after model_prefix is stripped from state_dict
+    # (comfy/sd.py calls it up to twice around that strip, see #13328), so a
+    # single fixed convention silently mismatches one case or the other and
+    # the layer never gets wrapped in a QuantizedTensor (see #11864). Match
+    # against state_dict's real keys instead of assuming a convention.
+    if "{}.weight".format(layer_key) in state_dict:
+        return layer_key
+    if model_prefix:
+        if layer_key.startswith(model_prefix):
+            candidate = layer_key[len(model_prefix):]
+        else:
+            candidate = "{}{}".format(model_prefix, layer_key)
+        if "{}.weight".format(candidate) in state_dict:
+            return candidate
+    return layer_key
+
 def convert_old_quants(state_dict, model_prefix="", metadata={}):
     if metadata is None:
         metadata = {}
@@ -1456,7 +1477,10 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
     if quant_metadata is not None:
         layers = quant_metadata["layers"]
         for k, v in layers.items():
-            state_dict["{}.comfy_quant".format(k)] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
+            resolved_key = _resolve_quant_metadata_layer_key(state_dict, k, model_prefix)
+            marker_key = "{}.comfy_quant".format(resolved_key)
+            if marker_key not in state_dict:  # idempotent: convert_old_quants may run twice on the same checkpoint
+                state_dict[marker_key] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
 
     return state_dict, metadata
 
