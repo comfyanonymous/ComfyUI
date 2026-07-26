@@ -52,6 +52,7 @@ class MHRHead(nn.Module):
         self.scale_mean = _p(68)
         self.scale_comps = _p(28, 68)
         self.register_buffer("faces", torch.empty(36874, 3, dtype=torch.int64))
+        self._faces_np = None
         self.hand_pose_mean = _p(54)
         self.hand_pose_comps = nn.Parameter(torch.eye(54), requires_grad=False)
         self.register_buffer("hand_joint_idxs_left", torch.empty(27, dtype=torch.int64))
@@ -92,6 +93,12 @@ class MHRHead(nn.Module):
             expr_params=expr,
         )  # single-tensor shape (1, N_v, 3) in meters
         return verts[0]
+
+    def faces_np(self):
+        """Static topology — cached so the per-layer pose_output doesn't force a D2H sync."""
+        if self._faces_np is None:
+            self._faces_np = self.faces.cpu().numpy()
+        return self._faces_np
 
     def replace_hands_in_pose(self, full_pose_params, hand_pose_params):
         assert full_pose_params.shape[1] == 136
@@ -325,7 +332,6 @@ class MHRHead(nn.Module):
             "pred_keypoints_3d": j3d.reshape(batch_size, -1, 3),
             "pred_vertices": verts.reshape(batch_size, -1, 3) if verts is not None else None,
             "pred_joint_coords": jcoords.reshape(batch_size, -1, 3) if jcoords is not None else None,
-            "faces": self.faces.cpu().numpy(),
             "joint_global_rots": joint_global_rots,
             "mhr_model_params": mhr_model_params,
         }

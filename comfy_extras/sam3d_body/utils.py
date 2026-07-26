@@ -388,7 +388,7 @@ def compute_canonical_colors(model) -> Dict[str, np.ndarray]:
     norm (Nv,3 in [0,1]), face_mask, head_mask, and face_region_rgb
     (per-region painted color from the .safetensors)."""
     verts = model.head_pose.canonical_vertices().float().cpu().numpy()
-    faces = model.head_pose.faces.cpu().numpy()
+    faces = model.head_pose.faces_np()
 
     v0 = verts[faces[:, 0]]
     v1 = verts[faces[:, 1]]

@@ -234,7 +234,7 @@ class SAM3DBody_Predict(io.ComfyNode):
 
         mhr_pose_data = {
             "frames": frames_out,
-            "faces": inner.head_pose.faces.cpu().numpy(),
+            "faces": inner.head_pose.faces_np(),
             "image_size": (int(H), int(W)),
             "canonical_colors": inner.canonical_colors,
             "hand_vert_mask": inner.hand_vert_mask,

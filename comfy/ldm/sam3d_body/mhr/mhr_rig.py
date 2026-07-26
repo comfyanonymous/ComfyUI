@@ -15,27 +15,66 @@ from .mhr_utils import batch6DFromXYZ
 
 _LN2 = 0.6931471824645996
 
+# Half-angle cos/sin are computed on the
+# whole (..., 3) at once and concatenated to [cr, cp, cy, sr, sp, sy]; _EQ_I then
+# picks the three factors of each term, reproducing:
+#   x = sr*cp*cy - cr*sp*sy      z = cr*cp*sy - sr*sp*cy
+#   y = cr*sp*cy + sr*cp*sy      w = cr*cp*cy + sr*sp*sy
+_EQ_I = (((3, 1, 2), (0, 4, 5)),
+         ((0, 4, 2), (3, 1, 5)),
+         ((0, 1, 5), (3, 4, 2)),
+         ((0, 1, 2), (3, 4, 5)))
+_EQ_S = (-1., 1., -1., 1.)
+_eq_tables: dict = {}
+
+
+def _euler_quat_tables(device, dtype):
+    key = (device, dtype)
+    cached = _eq_tables.get(key)
+    if cached is None:
+        cached = (torch.tensor(_EQ_I, device=device),
+                  torch.tensor(_EQ_S, device=device, dtype=dtype))
+        _eq_tables[key] = cached
+    return cached
+
+
 def _euler_xyz_to_quat(angles):
     """(roll, pitch, yaw) -> quaternion (x, y, z, w). Matches pymomentum.quaternion.euler_xyz_to_quaternion."""
-    roll, pitch, yaw = angles.unbind(-1)
-    cy, sy = torch.cos(yaw * 0.5), torch.sin(yaw * 0.5)
-    cp, sp = torch.cos(pitch * 0.5), torch.sin(pitch * 0.5)
-    cr, sr = torch.cos(roll * 0.5), torch.sin(roll * 0.5)
-    x = sr * cp * cy - cr * sp * sy
-    y = cr * sp * cy + sr * cp * sy
-    z = cr * cp * sy - sr * sp * cy
-    w = cr * cp * cy + sr * sp * sy
-    return torch.stack([x, y, z, w], dim=-1)
+    idx, sign = _euler_quat_tables(angles.device, angles.dtype)
+    half = angles * 0.5
+    cs = torch.cat([torch.cos(half), torch.sin(half)], dim=-1)
+    p = cs[..., idx]                                   # (..., 4, 2, 3)
+    term = p[..., 0] * p[..., 1] * p[..., 2]           # (..., 4, 2)
+    return term[..., 0] + term[..., 1] * sign
+
+
+# Hamilton product as gather + 3 adds. Each output component is a 4-term sum;
+# _QM_P1/_QM_P2 pick the operands and _QM_S the signs, reproducing:
+#   x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+#   y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+#   z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+#   w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+_QM_P1 = ((3, 0, 1, 2),) * 4
+_QM_P2 = ((0, 3, 2, 1), (1, 2, 3, 0), (2, 1, 0, 3), (3, 0, 1, 2))
+_QM_S = ((1., 1., 1., -1.), (1., -1., 1., 1.), (1., 1., -1., 1.), (1., -1., -1., -1.))
+_qm_tables: dict = {}
+
+
+def _quat_mul_tables(device, dtype):
+    key = (device, dtype)
+    cached = _qm_tables.get(key)
+    if cached is None:
+        cached = (torch.tensor(_QM_P1, device=device),
+                  torch.tensor(_QM_P2, device=device),
+                  torch.tensor(_QM_S, device=device, dtype=dtype))
+        _qm_tables[key] = cached
+    return cached
 
 
 def _quat_multiply(q1, q2):
-    x1, y1, z1, w1 = q1.unbind(-1)
-    x2, y2, z2, w2 = q2.unbind(-1)
-    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
-    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
-    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-    return torch.stack([x, y, z, w], dim=-1)
+    p1, p2, s = _quat_mul_tables(q1.device, q1.dtype)
+    t = q1[..., p1] * q2[..., p2] * s
+    return ((t[..., 0] + t[..., 1]) + t[..., 2]) + t[..., 3]
 
 
 def _quat_rotate(q, v):

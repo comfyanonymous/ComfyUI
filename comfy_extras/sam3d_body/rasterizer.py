@@ -18,6 +18,23 @@ _CANONICAL_PRESETS = {"rainbow", "rainbow_face_normal", "rainbow_face_semantic"}
 
 _rainbow_cache: dict = {}
 
+_faces_cache: dict = {}
+
+def _faces_to_device(faces, device) -> torch.Tensor:
+    """Device-side face indices. Topology is static per model, but the render
+    loop calls this once per frame, so keep the H2D copy out of the loop."""
+    key = (id(faces), device)
+    hit = _faces_cache.get(key)
+    if hit is not None:
+        return hit[1]
+    t = torch.as_tensor(np.asarray(faces, dtype=np.int64), device=device)
+    # Hold the source array too: id() alone could be recycled after a GC.
+    _faces_cache[key] = (faces, t)
+    if len(_faces_cache) > 4:
+        _faces_cache.pop(next(iter(_faces_cache)))
+    return t
+
+
 def rainbow_colors_from_canonical(
     positions: np.ndarray,
     tilt_x_deg: float = 0.0,
@@ -372,7 +389,7 @@ def render_pose_data_torch(
             return bg.clamp(0.0, 1.0)
         return torch.zeros((H, W, 3), device=device, dtype=torch.float32)
 
-    faces = torch.as_tensor(np.asarray(pose_data["faces"], dtype=np.int64), device=device)
+    faces = _faces_to_device(pose_data["faces"], device)
 
     canonical_colors = pose_data.get("canonical_colors")
     using_canonical = shader_preset in _CANONICAL_PRESETS
