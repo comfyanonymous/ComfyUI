@@ -57,6 +57,11 @@ ComfyUI is the AI creation engine for visual professionals who demand control ov
 #### [Manual Install](#manual-install-windows-linux)
 Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
 
+#### Third-Party Installers & Launchers
+
+- [LynxHub](https://github.com/KindaBrazy/LynxHub): Cross-platform visual management dashboard and terminal/browser for installing, configuring, and launching ComfyUI.
+
+
 ### Cloud
 
 #### [Comfy Cloud](https://www.comfy.org/cloud)
