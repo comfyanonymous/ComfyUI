@@ -884,6 +884,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             "selected_layer_index": selected_layer_index,
         }
 
+    if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys and '{}proj_out.weight'.format(key_prefix) in state_dict_keys and state_dict['{}txt_norm.weight'.format(key_prefix)].shape[0] == 2560 and state_dict['{}proj_out.weight'.format(key_prefix)].shape[0] == 128:  # Mage-Flow (Qwen Image txt_norm/proj_out are 3584/64)
+        dit_config = {}
+        dit_config["image_model"] = "mage_flow"
+        dit_config["in_channels"] = 128
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        return dit_config
+
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}
         dit_config["image_model"] = "qwen_image"
