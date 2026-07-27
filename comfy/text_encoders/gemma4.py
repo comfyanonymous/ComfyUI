@@ -224,7 +224,7 @@ class Gemma4Attention(nn.Module):
             # KV for sharing: full xk/xv that SDPA sees (not evicted cache)
             shareable_kv = (xk, xv)
 
-        if seq_length == 1 and attention_mask is not None and xk.shape[2] == attention_mask.shape[-1]:
+        if seq_length == 1 and past_key_value is not None and attention_mask is not None and xk.shape[2] == attention_mask.shape[-1]:
             # graph-mode decode: fixed-length masked attention, explicit math (SDPA leaves
             # its fast path on broadcast-bias + GQA and costs ~0.5ms/layer)
             groups = self.num_heads // self.num_kv_heads
