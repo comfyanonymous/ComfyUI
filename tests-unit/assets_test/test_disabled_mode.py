@@ -23,10 +23,12 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _wait_assets_disabled(base: str, timeout: float = 90.0) -> None:
+def _wait_assets_disabled(base: str, proc: subprocess.Popen, timeout: float = 90.0) -> None:
     start = time.time()
     last_err = None
     while time.time() - start < timeout:
+        if proc.poll() is not None:
+            raise RuntimeError(f"ComfyUI exited early with code {proc.returncode}")
         try:
             r = requests.get(base + "/api/assets", timeout=5)
             if r.status_code == 503:
@@ -57,33 +59,42 @@ def disabled_comfy(tmp_path_factory: pytest.TempPathFactory):
 
     comfy_root = Path(__file__).resolve().parent.parent.parent
     port = _free_port()
-    proc = subprocess.Popen(
-        args=[
-            sys.executable,
-            "main.py",
-            f"--base-directory={str(base_dir)}",
-            f"--database-url=sqlite:///{db_path}",
-            "--disable-assets",
-            "--listen",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--cpu",
-        ],
-        stdout=out_log,
-        stderr=err_log,
-        cwd=str(comfy_root),
-    )
+    try:
+        proc = subprocess.Popen(
+            args=[
+                sys.executable,
+                "main.py",
+                f"--base-directory={str(base_dir)}",
+                f"--database-url=sqlite:///{db_path}",
+                "--disable-assets",
+                "--listen",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--cpu",
+            ],
+            stdout=out_log,
+            stderr=err_log,
+            cwd=str(comfy_root),
+        )
+    except Exception:
+        out_log.close()
+        err_log.close()
+        raise
 
     base_url = f"http://127.0.0.1:{port}"
     try:
-        _wait_assets_disabled(base_url)
+        _wait_assets_disabled(base_url, proc)
         yield base_url, db_path
     finally:
         if proc.poll() is None:
             with contextlib.suppress(Exception):
                 proc.terminate()
-                proc.wait(timeout=15)
+                try:
+                    proc.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=15)
         out_log.close()
         err_log.close()
 

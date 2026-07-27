@@ -54,9 +54,19 @@ def _call(output_ui, *, disable_assets=False, file_exists=True, register_result=
 class TestEnrichOutputWithAssets(unittest.TestCase):
 
     def test_disabled_returns_unchanged(self):
+        register_mock = MagicMock(return_value=_make_register_result())
+        mocked = _mocked_modules(disable_assets=True, register_file_in_place=register_mock)
         output = {"images": [{"filename": "a.png", "subfolder": "", "type": "output"}]}
-        result = _call(output, disable_assets=True)
+
+        with patch.dict("sys.modules", mocked), \
+             patch("os.path.isfile", return_value=True):
+            import importlib
+            import comfy_execution.asset_enrichment as mod
+            importlib.reload(mod)
+            result = mod.enrich_output_with_assets(output)
+
         self.assertNotIn("id", result["images"][0])
+        register_mock.assert_not_called()
 
     def test_non_list_value_passed_through(self):
         output = {"text": "hello"}
