@@ -44,7 +44,7 @@ from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 from app.assets.seeder import asset_seeder
-from app.assets.api.routes import register_assets_routes
+from app.assets.api.routes import register_assets_routes, assets_enabled
 from app.assets.services.ingest import register_file_in_place
 from app.assets.services.path_utils import get_known_subfolder_tags
 from app.assets.services.asset_management import resolve_hash_to_path
@@ -523,6 +523,12 @@ class PromptServer():
                 # node preview, it constructs /view?filename=<asset_hash>, so this
                 # endpoint must resolve blake3 hashes to their on-disk file paths.
                 if filename.startswith("blake3:"):
+                    # Hash resolution requires the asset database. When assets
+                    # are disabled (--disable-assets) or unavailable (DB init
+                    # failure) the database was never initialized, so treat the
+                    # hash as unresolvable rather than erroring on a session.
+                    if not assets_enabled():
+                        return web.Response(status=404)
                     owner_id = self.user_manager.get_request_user_id(request)
                     result = resolve_hash_to_path(filename, owner_id=owner_id)
                     if result is None:

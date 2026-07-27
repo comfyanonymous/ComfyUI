@@ -13,7 +13,7 @@ def enrich_output_with_assets(output_ui: dict) -> dict:
     """
     from comfy.cli_args import args
     if args.disable_assets:
-        return output_ui
+        return dict(output_ui)
 
     import folder_paths
     from app.assets.services.ingest import register_file_in_place, DependencyMissingError

@@ -118,6 +118,12 @@ def test_seed_scan_rejected(disabled_comfy):
     assert r.status_code == 503
 
 
+def test_view_blake3_hash_returns_404(disabled_comfy):
+    base_url, _ = disabled_comfy
+    r = requests.get(base_url + "/view", params={"filename": "blake3:" + "0" * 64}, timeout=30)
+    assert r.status_code == 404
+
+
 def test_upload_image_skips_asset_registration(disabled_comfy):
     base_url, db_path = disabled_comfy
     files = {"image": ("disabled-mode-test.png", b"\x89PNG fake bytes", "image/png")}
