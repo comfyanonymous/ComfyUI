@@ -1,4 +1,6 @@
 """Simplified tests for WebSocket feature flags functionality."""
+from unittest.mock import patch
+
 from comfy_api import feature_flags
 
 
@@ -7,7 +9,8 @@ class TestWebSocketFeatureFlags:
 
     def test_server_feature_flags_response(self):
         """Test server feature flags are properly formatted."""
-        features = feature_flags.get_server_features()
+        with patch("app.assets.api.routes.assets_enabled", return_value=True):
+            features = feature_flags.get_server_features()
 
         # Check expected server features
         assert "supports_preview_metadata" in features
@@ -67,7 +70,8 @@ class TestWebSocketFeatureFlags:
         assert "supports_preview_metadata" in client_message["data"]
 
         # Server response format (what would be sent)
-        server_features = feature_flags.get_server_features()
+        with patch("app.assets.api.routes.assets_enabled", return_value=True):
+            server_features = feature_flags.get_server_features()
         server_message = {
             "type": "feature_flags",
             "data": server_features

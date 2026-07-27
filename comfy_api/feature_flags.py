@@ -172,4 +172,8 @@ def get_server_features() -> dict[str, Any]:
         features["assets"] = assets_enabled()
     except Exception:
         features["assets"] = False
+    if not features["assets"]:
+        # model_type tags are an assets-API capability; don't advertise them
+        # when the assets backend is disabled or unavailable.
+        features["supports_model_type_tags"] = False
     return features

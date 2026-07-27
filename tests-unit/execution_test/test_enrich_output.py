@@ -1,7 +1,14 @@
 """Tests for enrich_output_with_assets in comfy_execution/asset_enrichment.py."""
 import os
+import types
 import unittest
 from unittest.mock import MagicMock, patch
+
+
+def _make_args(disable_assets: bool):
+    a = types.SimpleNamespace()
+    a.disable_assets = disable_assets
+    return a
 
 
 def _make_register_result(ref_id="ref-id-2"):
@@ -15,8 +22,9 @@ def _make_register_result(ref_id="ref-id-2"):
 _DEFAULT_BASE = os.path.join(__import__("tempfile").gettempdir(), "asset-enrichment-test-base")
 
 
-def _mocked_modules(*, register_file_in_place=None, directory=_DEFAULT_BASE):
+def _mocked_modules(*, disable_assets=False, register_file_in_place=None, directory=_DEFAULT_BASE):
     return {
+        "comfy.cli_args": MagicMock(args=_make_args(disable_assets)),
         "folder_paths": MagicMock(get_directory_by_type=MagicMock(return_value=directory)),
         "app.assets.services.ingest": MagicMock(
             register_file_in_place=register_file_in_place or MagicMock(return_value=_make_register_result()),
@@ -25,9 +33,10 @@ def _mocked_modules(*, register_file_in_place=None, directory=_DEFAULT_BASE):
     }
 
 
-def _call(output_ui, *, file_exists=True, register_result=None, directory=_DEFAULT_BASE):
+def _call(output_ui, *, disable_assets=False, file_exists=True, register_result=None, directory=_DEFAULT_BASE):
     register_mock = MagicMock(return_value=register_result or _make_register_result())
     mocked = _mocked_modules(
+        disable_assets=disable_assets,
         register_file_in_place=register_mock,
         directory=directory,
     )
@@ -43,6 +52,11 @@ def _call(output_ui, *, file_exists=True, register_result=None, directory=_DEFAU
 
 
 class TestEnrichOutputWithAssets(unittest.TestCase):
+
+    def test_disabled_returns_unchanged(self):
+        output = {"images": [{"filename": "a.png", "subfolder": "", "type": "output"}]}
+        result = _call(output, disable_assets=True)
+        self.assertNotIn("id", result["images"][0])
 
     def test_non_list_value_passed_through(self):
         output = {"text": "hello"}
