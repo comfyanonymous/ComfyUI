@@ -898,13 +898,11 @@ class _GraphDecodeState:
         self.hidden_out = torch.zeros((1, 1, owner.model.config.hidden_size), dtype=execution_dtype, device=device)
 
     def engage(self, cumulative_len):
-        try:
-            self.vbar_modules = [m for m in self.owner.model.modules() if hasattr(m, "_v")]
-            if self.vbar_modules:
-                offload_stream = comfy.ops.cast_modules_with_vbar(self.vbar_modules, None, self.device, None, True)
-                comfy.model_management.sync_stream(self.device, offload_stream)
-        except Exception:
-            logging.warning("TE graph decode: vbar prefetch failed, weights may be unpinned", exc_info=True)
+        # pin before any capture: replay bakes addresses
+        self.vbar_modules = [m for m in self.owner.model.modules() if hasattr(m, "_v")]
+        if self.vbar_modules:
+            offload_stream = comfy.ops.cast_modules_with_vbar(self.vbar_modules, None, self.device, None, True)
+            comfy.model_management.sync_stream(self.device, offload_stream)
         self.pos.fill_(cumulative_len)
         self.mask.fill_(torch.finfo(self.dtype).min)
         self.mask[..., :cumulative_len] = 0.0
@@ -984,7 +982,7 @@ class BaseGenerate:
         comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
         return x
 
-    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
+    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype, allow_static=False):
         model_config = self.model.config
         past_key_values = []
         for x in range(model_config.num_hidden_layers):
@@ -1036,9 +1034,7 @@ class BaseGenerate:
         past_key_values = None
         if graph_ok:
             # static (fixed-address) caches only pay off when the graph consumes them
-            self._allow_static_kv_cache = True
-            proto = self.init_kv_cache(embeds.shape[0], max_cache_len, device, execution_dtype)
-            self._allow_static_kv_cache = False
+            proto = self.init_kv_cache(embeds.shape[0], max_cache_len, device, execution_dtype, allow_static=True)
             if any(len(kv) == 3 for kv in proto):
                 graph_state = _GraphDecodeState(self, proto, max_cache_len, device, execution_dtype)
                 past_key_values = proto

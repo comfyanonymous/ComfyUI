@@ -695,7 +695,7 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
         position_ids = comfy.text_encoders.qwen_vl.qwen2vl_mrope_position_ids(embeds_info, embeds.shape[1], embeds.device)
         return super().forward(x, attention_mask=attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=final_layer_norm_intermediate, dtype=dtype, position_ids=position_ids, past_key_values=past_key_values)
 
-    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
+    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype, allow_static=False):
         model_config = self.model.config
         past_key_values = []
         for i in range(model_config.num_hidden_layers):

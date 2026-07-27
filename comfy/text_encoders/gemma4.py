@@ -199,7 +199,7 @@ class Gemma4Attention(nn.Module):
                     xk = past_key[:, :, :cumulative_len + num_tokens]
                     xv = past_value[:, :, :cumulative_len + num_tokens]
                     present_key_value = (past_key, past_value, cumulative_len + num_tokens)
-                elif past_key is not None and cumulative_len == 0 and torch.is_tensor(past_key):
+                elif past_key is not None and cumulative_len == 0:
                     # prefill longer than the sliding ring: attend over the full local K/V
                     # (per-query windows come from the prefill sliding mask), cache only the
                     # last `ring` keys at their wrapped slots (position % ring)
@@ -351,6 +351,9 @@ class Gemma4Transformer(nn.Module):
 
         sliding_inv = 1.0 / (config.rope_theta[1] ** (torch.arange(0, config.head_dim, 2).float() / config.head_dim))
         self.register_buffer("_sliding_inv_freq", sliding_inv, persistent=False)
+
+        if config.suppress_tokens:
+            self.register_buffer("_suppress_tokens", torch.tensor(config.suppress_tokens, dtype=torch.long), persistent=False)
 
         # Per-layer input mechanism
         self.hidden_size_per_layer_input = config.hidden_size_per_layer_input
@@ -525,21 +528,17 @@ class Gemma4Base(BaseLlama, BaseGenerate, torch.nn.Module):
         if cap:
             logits = cap * torch.tanh(logits / cap)
         if self.model.config.suppress_tokens:
-            buf = getattr(self, "_suppress_buf", None)
-            if buf is None or buf.device != logits.device:
-                buf = torch.tensor(self.model.config.suppress_tokens, device=logits.device, dtype=torch.long)
-                self._suppress_buf = buf
-            logits.index_fill_(-1, buf, torch.finfo(logits.dtype).min)
+            logits.index_fill_(-1, self.model._suppress_tokens, torch.finfo(logits.dtype).min)
         return logits
 
-    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
+    def init_kv_cache(self, batch, max_cache_len, device, execution_dtype, allow_static=False):
         cfg = self.model.config
         windows = set(w for w in (cfg.sliding_attention or []) if w)
         num_layers = cfg.num_hidden_layers
         first_shared = num_layers - cfg.num_kv_shared_layers if cfg.num_kv_shared_layers > 0 else num_layers
         # sliding layers use a window-sized ring (long prefills scatter their tail in wrapped)
         sliding_len = min(min(windows), max_cache_len) if windows else max_cache_len
-        if not getattr(self, "_allow_static_kv_cache", False) or batch != 1 or len(windows) > 1:
+        if not allow_static or batch != 1 or len(windows) > 1:
             # static cache only pays off under graph decode
             return [() for _ in range(num_layers)]
         caches = []
