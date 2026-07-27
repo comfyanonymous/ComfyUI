@@ -1401,15 +1401,8 @@ def detect_layer_quantization(state_dict, prefix):
     return None
 
 def _resolve_quant_metadata_layer_key(state_dict, layer_key, model_prefix):
-    # _quantization_metadata layer keys come from two different checkpoint
-    # export conventions in the wild: some store them with the full
-    # diffusion-model prefix (e.g. "model.diffusion_model.proj_in"), others
-    # already strip it (e.g. "proj_in"). convert_old_quants() can also be
-    # called before or after model_prefix is stripped from state_dict
-    # (comfy/sd.py calls it up to twice around that strip, see #13328), so a
-    # single fixed convention silently mismatches one case or the other and
-    # the layer never gets wrapped in a QuantizedTensor (see #11864). Match
-    # against state_dict's real keys instead of assuming a convention.
+    # Metadata layer keys may use the full diffusion-model prefix or the
+    # already-stripped form, so resolve them against the state dict.
     if "{}.weight".format(layer_key) in state_dict:
         return layer_key
     if model_prefix:
@@ -1479,8 +1472,9 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
         for k, v in layers.items():
             resolved_key = _resolve_quant_metadata_layer_key(state_dict, k, model_prefix)
             marker_key = "{}.comfy_quant".format(resolved_key)
-            if marker_key not in state_dict:  # idempotent: convert_old_quants may run twice on the same checkpoint
-                state_dict[marker_key] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
+            marker = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
+            if marker_key not in state_dict or not torch.equal(state_dict[marker_key], marker):
+                state_dict[marker_key] = marker
 
     return state_dict, metadata
 
