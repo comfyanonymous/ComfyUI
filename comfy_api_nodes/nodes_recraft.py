@@ -399,7 +399,7 @@ class RecraftTextToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftTextToImageNode",
-            display_name="Recraft Text to Image",
+            display_name="Recraft V3 Text to Image",
             category="partner/image/Recraft",
             description="Generates images synchronously based on prompt and resolution.",
             inputs=[
@@ -511,7 +511,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftImageToImageNode",
-            display_name="Recraft Image to Image",
+            display_name="Recraft V3 Image to Image",
             category="partner/image/Recraft",
             description="Modify image based on prompt and strength.",
             inputs=[
@@ -731,7 +731,7 @@ class RecraftTextToVectorNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftTextToVectorNode",
-            display_name="Recraft Text to Vector",
+            display_name="Recraft V3 Text to Vector",
             category="partner/image/Recraft",
             description="Generates SVG synchronously based on prompt and resolution.",
             inputs=[
