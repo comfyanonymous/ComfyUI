@@ -1528,7 +1528,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     uncast_bias_weight(self, qdata, None, offload_stream)
                     target_dtype = out_dtype if out_dtype is not None else weight._params.orig_dtype
                     x = x.to(dtype=target_dtype)
-                    if scale is not None and scale != 1.0:
+                    if scale is not None:
                         x = x * scale.to(dtype=target_dtype)
                     return x
 

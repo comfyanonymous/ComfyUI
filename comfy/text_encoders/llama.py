@@ -1,3 +1,4 @@
+import gc
 import logging
 import warnings
 
@@ -934,9 +935,17 @@ class _GraphDecodeState:
             torch.cuda.current_stream().wait_stream(self.stream)
         else:
             try:
+                # thread_local + paused GC: stray frees during capture would invalidate it,
+                # and a failed capture under cudaMallocAsync poisons the allocator fatally
                 graph = torch.cuda.CUDAGraph()
-                with torch.cuda.graph(graph, stream=self.stream):
-                    self._step()
+                gc_enabled = gc.isenabled()
+                gc.disable()
+                try:
+                    with torch.cuda.graph(graph, stream=self.stream, capture_error_mode="thread_local"):
+                        self._step()
+                finally:
+                    if gc_enabled:
+                        gc.enable()
                 self.graph = graph
                 self.graph.replay()
             except Exception:
