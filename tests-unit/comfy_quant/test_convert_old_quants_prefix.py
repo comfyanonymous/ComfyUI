@@ -176,6 +176,7 @@ class TestConvertOldQuantsPrefixAware(unittest.TestCase):
 
                 self.assertIn("proj_in.comfy_quant", sd,
                                f"{convention} metadata convention did not resolve after the two-call dance")
+                self.assertNotIn("model.diffusion_model.proj_in.comfy_quant", sd)
                 self.assertEqual(marker_json(sd, "proj_in.comfy_quant")["format"], "float8_e4m3fn")
 
     # ---- extra: repeated calls with identical inputs don't duplicate/clobber ----

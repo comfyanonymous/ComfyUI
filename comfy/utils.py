@@ -1412,6 +1412,11 @@ def _resolve_quant_metadata_layer_key(state_dict, layer_key, model_prefix):
             candidate = "{}{}".format(model_prefix, layer_key)
         if "{}.weight".format(candidate) in state_dict:
             return candidate
+    parts = layer_key.split(".")
+    for i in range(1, len(parts)):
+        candidate = ".".join(parts[i:])
+        if "{}.weight".format(candidate) in state_dict and "{}.comfy_quant".format(candidate) in state_dict:
+            return candidate
     return layer_key
 
 def convert_old_quants(state_dict, model_prefix="", metadata={}):
