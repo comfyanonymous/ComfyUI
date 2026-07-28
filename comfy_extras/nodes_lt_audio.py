@@ -107,14 +107,17 @@ class LTXVEmptyLatentAudio(io.ComfyNode):
                     display_mode=io.NumberDisplay.number,
                     tooltip="Number of frames.",
                 ),
-                io.Int.Input(
-                    "frame_rate",
-                    default=25,
-                    min=1,
-                    max=1000,
-                    step=1,
-                    display_mode=io.NumberDisplay.number,
-                    tooltip="Number of frames per second.",
+                io.MultiType.Input(
+                    io.Float.Input(
+                        "frame_rate",
+                        default=25.0,
+                        min=1.0,
+                        max=1000.0,
+                        step=0.01,
+                        display_mode=io.NumberDisplay.number,
+                        tooltip="Number of frames per second.",
+                    ),
+                    [io.Int],
                 ),
                 io.Int.Input(
                     "batch_size",
@@ -137,7 +140,7 @@ class LTXVEmptyLatentAudio(io.ComfyNode):
     def execute(
         cls,
         frames_number: int,
-        frame_rate: int,
+        frame_rate: float,
         batch_size: int,
         audio_vae,
     ) -> io.NodeOutput:
