@@ -22,14 +22,18 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
-          # cloud-code-bot is the same App the cloud receiver already runs on:
-          # it authored the bump PRs, so its write access there is established
-          # rather than assumed.
-          app-id: ${{ vars.CLOUD_CODE_BOT_APP_ID }}
-          private-key: ${{ secrets.CLOUD_CODE_BOT_PRIVATE_KEY }}
-          # Cross-repo dispatch: create-github-app-token scopes to the current
-          # repository by default, so the org installation must be named
-          # explicitly or the POST to cloud would 403.
+          # A single-purpose App: installed only on Comfy-Org/cloud, holding
+          # only contents:write. Deliberately NOT cloud-code-bot, which is also
+          # entitled to cloud's production release and migration workflows --
+          # an App private key is not scoped, so any key stored here can mint a
+          # token for everything its App is entitled to, on every repo it is
+          # installed on. The owner/repositories inputs below are arguments,
+          # not a security boundary. Keeping this App minimal is what makes it
+          # safe to hold in a public repository.
+          app-id: ${{ vars.CORE_TO_CLOUD_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.CORE_TO_CLOUD_DISPATCH_PRIVATE_KEY }}
+          # create-github-app-token scopes to the current repository by
+          # default; this dispatch targets another repo.
           owner: Comfy-Org
           repositories: cloud
 
