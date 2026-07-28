@@ -167,7 +167,8 @@ class TestGetOutputsSummary:
         assert preview['filename'] == 'output.png'
 
     def test_preview_fallback_when_no_output_type(self):
-        """If no type='output', should use first previewable."""
+        """If no type='output', should use last previewable (overwrite
+        semantics so text fallbacks don't block images, #15039)."""
         outputs = {
             'node1': {
                 'images': [
@@ -177,7 +178,7 @@ class TestGetOutputsSummary:
             }
         }
         count, preview = get_outputs_summary(outputs)
-        assert preview['filename'] == 'temp1.png'
+        assert preview['filename'] == 'temp2.png'
 
     def test_non_previewable_media_types_counted_but_no_preview(self):
         """Non-previewable media types should be counted but not used as preview."""
@@ -279,6 +280,43 @@ class TestGetOutputsSummary:
         assert preview is not None
         assert preview['filename'] == 'model.glb'
         assert preview['mediaType'] == '3d'
+
+    def test_preview_text_does_not_block_image_preview(self):
+        """Regression: a Preview Text node must not occupy the fallback_preview
+        slot when a previewable image is also present. The image should win
+        regardless of dict iteration order (#15039)."""
+        # Text key iterates before images in CPython 3.12+ dict order.
+        outputs = {
+            'text_node': {
+                'text': ['some preview text']
+            },
+            'image_node': {
+                'images': [{'filename': 'generated.png', 'type': 'temp'}]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 1
+        assert preview is not None
+        # The preview must be the image, not the text
+        assert preview.get('filename') == 'generated.png', (
+            f"Expected image preview, got: {preview}"
+        )
+        assert preview.get('mediaType') == 'images'
+
+    def test_text_only_job_still_gets_text_preview(self):
+        """A job with only text outputs (no previewable media) should still
+        return the text as a fallback preview, preserving the previous
+        behavior for text-only workflows."""
+        outputs = {
+            'text_node': {
+                'text': ['some preview text']
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 0
+        assert preview is not None
+        assert preview.get('mediaType') == 'text'
+        assert 'content' in preview or 'text' in preview
 
 
 class TestHas3DExtension:

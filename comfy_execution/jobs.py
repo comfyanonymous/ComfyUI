@@ -263,8 +263,9 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
     2. Any previewable media
 
     Text content entries (strings under 'text') are preview-only metadata,
-    matching the frontend's METADATA_KEYS: they can serve as the fallback
-    preview but are not counted as outputs.
+    matching the frontend's METADATA_KEYS: they can serve as the lowest-priority
+    fallback preview but are not counted as outputs. Previewable media (images,
+    video, audio, 3D) always take precedence over text fallbacks.
     """
     count = 0
     preview_output = None
@@ -284,20 +285,17 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                     normalized = normalize_output_item(item)
                     if normalized is None:
                         # Not a 3D file string — check for text preview
-                        if media_type == 'text':
-                            if preview_output is None:
-                                if isinstance(item, tuple):
-                                    text_value = item[0] if item else ''
-                                else:
-                                    text_value = str(item)
-                                text_preview = _create_text_preview(text_value)
-                                enriched = {
-                                    **text_preview,
-                                    'nodeId': node_id,
-                                    'mediaType': media_type
-                                }
-                                if fallback_preview is None:
-                                    fallback_preview = enriched
+                        if media_type == 'text' and fallback_preview is None:
+                            if isinstance(item, tuple):
+                                text_value = str(item[0]) if item else ''
+                            else:
+                                text_value = str(item)
+                            text_preview = _create_text_preview(text_value)
+                            fallback_preview = {
+                                **text_preview,
+                                'nodeId': node_id,
+                                'mediaType': media_type
+                            }
                         continue
                     # normalize_output_item returned a dict (e.g. 3D file)
                     item = normalized
@@ -316,7 +314,9 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                         enriched['mediaType'] = media_type
                     if item.get('type') == 'output':
                         preview_output = enriched
-                    elif fallback_preview is None:
+                    else:
+                        # Always overwrite fallback_preview with previewable
+                        # media so text fallbacks don't block images (#15039).
                         fallback_preview = enriched
 
     return count, preview_output or fallback_preview
