@@ -16,6 +16,7 @@ import torch
 from comfy.cli_args import args
 import comfy.memory_management
 import comfy.model_management
+import comfy.model_patcher
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
 
@@ -664,6 +665,7 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
+        self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self.reset()
 
     def reset(self):
@@ -728,6 +730,7 @@ class PromptExecutor:
         set_preview_method(extra_data.get("preview_method"))
 
         nodes.interrupt_processing(False)
+        self.prompt_model_tracker.start()
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
@@ -770,7 +773,7 @@ class PromptExecutor:
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
                 ui_node_outputs = {}
                 executed = set()
-                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
+                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs, self.prompt_model_tracker.add)
                 current_outputs = self.caches.outputs.all_node_ids()
                 for node_id in list(execute_outputs):
                     execution_list.add_node(node_id)
@@ -833,6 +836,7 @@ class PromptExecutor:
                     comfy.model_management.unload_all_models()
         finally:
             comfy.memory_management.set_ram_cache_release_state(None, 0)
+            self.prompt_model_tracker.end()
             self._notify_prompt_lifecycle("end", prompt_id)
 
 

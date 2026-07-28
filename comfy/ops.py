@@ -144,8 +144,13 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         needs_cast = False
 
         xfer_source = [ s.weight, s.bias ]
-
-        pin = comfy.pinned_memory.get_pin(s)
+        subset = "weights"
+        pin = comfy.pinned_memory.get_pin(s, subset=subset)
+        if pin is None and not args.fast_disk:
+            loaded_pin = comfy.pinned_memory.get_pin(s, subset="weights-loaded")
+            if loaded_pin is not None or signature is not None:
+                subset = "weights-loaded"
+                pin = loaded_pin
         if pin is not None:
             xfer_source = [ pin ]
 
@@ -182,12 +187,12 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             if pin is not None:
                 cast_maybe_lowvram_patch([pin], dest, offload_stream)
                 return
-            if signature is None or args.high_ram:
+            if signature is None or not args.fast_disk or args.high_ram:
                 comfy.pinned_memory.pin_memory(m, subset=subset, size=size)
                 pin = comfy.pinned_memory.get_pin(m, subset=subset)
             cast_maybe_lowvram_patch(source, pin, offload_stream, xfer_dest2=dest)
 
-        handle_pin(s, pin, xfer_source, xfer_dest, size=dest_size)
+        handle_pin(s, pin, xfer_source, xfer_dest, subset=subset, size=dest_size)
 
         for param_key in ("weight", "bias"):
             lowvram_source = getattr(s, param_key + "_lowvram_function", None)
@@ -197,8 +202,16 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
                 lowvram_dest = get_cast_buffer(lowvram_size)
                 lowvram_source.prepare(lowvram_dest, None, copy=False, commit=True)
 
-                pin = comfy.pinned_memory.get_pin(lowvram_source, subset="patches")
-                handle_pin(lowvram_source, pin, lowvram_source, lowvram_dest, subset="patches", size=lowvram_size)
+                subset = "patches"
+                pin = comfy.pinned_memory.get_pin(lowvram_source, subset=subset)
+                if pin is None:
+                    loaded_pin = comfy.pinned_memory.get_pin(lowvram_source, subset="patches-loaded")
+                    if loaded_pin is not None:
+                        subset = "patches-loaded"
+                        pin = loaded_pin
+                    elif signature is not None and not args.fast_disk:
+                        subset = "patches-loaded"
+                handle_pin(lowvram_source, pin, lowvram_source, lowvram_dest, subset=subset, size=lowvram_size)
 
 
         prefetch["xfer_dest"] = xfer_dest
