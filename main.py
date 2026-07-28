@@ -17,7 +17,7 @@ import folder_paths
 import time
 from comfy.cli_args import enables_dynamic_vram
 from app.logger import setup_logger
-setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+setup_logger(log_level=args.verbose, use_stdout=False)
 
 from app.assets.seeder import asset_seeder
 from app.assets.services import register_output_files
