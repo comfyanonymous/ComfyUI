@@ -28,6 +28,7 @@ ANTHROPIC_IMAGE_MAX_PIXELS = 1568 * 1568
 CLAUDE_MAX_IMAGES = 20
 
 CLAUDE_MODELS: dict[str, str] = {
+    "Opus 5": "claude-opus-5",
     "Opus 4.8": "claude-opus-4-8",
     "Fable 5": "claude-fable-5",
     "Sonnet 5": "claude-sonnet-5",
@@ -42,9 +43,9 @@ _THINKING_UNSUPPORTED = {"Haiku 4.5"}
 # Models that use the newer "adaptive" thinking mode (Opus 4.7+ require it; older models keep the explicit budget API).
 # Anthropic decides the actual budget when adaptive is used, based on the `output_config.effort` hint.
 _ADAPTIVE_THINKING_MODELS = {"Opus 4.8", "Sonnet 5", "Opus 4.7", "Opus 4.6", "Sonnet 4.6"}
-_ALWAYS_THINKING_MODELS = {"Fable 5"}
+_ALWAYS_THINKING_MODELS = {"Opus 5", "Fable 5"}
 _EXPLICIT_THINKING_OFF_MODELS = {"Sonnet 5"}
-_NO_TEMPERATURE_MODELS = {"Opus 4.8", "Fable 5", "Sonnet 5"}
+_NO_TEMPERATURE_MODELS = {"Opus 5", "Opus 4.8", "Fable 5", "Sonnet 5"}
 
 # Budget mode (Sonnet 4.5): effort -> reasoning budget in tokens. Must be < max_tokens.
 # Sized so even the "high" budget fits comfortably under the default max_tokens=32768.
@@ -109,7 +110,7 @@ def _model_price_per_million(model: str) -> tuple[float, float] | None:
     """Return (input_per_1M, output_per_1M) USD for a Claude model, or None if unknown."""
     if "fable-5" in model:
         return 14.30, 71.50
-    if "opus-4-8" in model:
+    if "opus-5" in model or "opus-4-8" in model:
         return 7.15, 35.75
     if "sonnet-5" in model:
         return 2.86, 14.30
@@ -251,6 +252,11 @@ class ClaudeNode(IO.ComfyNode):
                   : $contains($m, "sonnet 5") ? {
                     "type": "list_usd",
                     "usd": [0.00286, 0.0143],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "opus 5") ? {
+                    "type": "list_usd",
+                    "usd": [0.00715, 0.03575],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : $contains($m, "opus") ? {
