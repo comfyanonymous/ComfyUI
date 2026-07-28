@@ -747,6 +747,7 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                                     max=3840,
                                     step=16,
                                     tooltip="Used only when `size` is 'Custom'. Must be a multiple of 16.",
+                                    optional=True,
                                 ),
                                 IO.Int.Input(
                                     "custom_height",
@@ -755,6 +756,7 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                                     max=3840,
                                     step=16,
                                     tooltip="Used only when `size` is 'Custom'. Must be a multiple of 16.",
+                                    optional=True,
                                 ),
                                 IO.Combo.Input(
                                     "background",
