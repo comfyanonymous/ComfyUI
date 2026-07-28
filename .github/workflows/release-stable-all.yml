@@ -20,7 +20,7 @@ jobs:
       git_tag: ${{ inputs.git_tag }}
       cache_tag: "cu130"
       python_minor: "13"
-      python_patch: "12"
+      python_patch: "14"
       rel_name: "nvidia"
       rel_extra_name: ""
       test_release: true
@@ -48,13 +48,13 @@ jobs:
       contents: "write"
       packages: "write"
       pull-requests: "read"
-    name: "Release AMD ROCm 7.2"
+    name: "Release AMD ROCm 7.14"
     uses: ./.github/workflows/stable-release.yml
     with:
       git_tag: ${{ inputs.git_tag }}
-      cache_tag: "rocm72"
-      python_minor: "12"
-      python_patch: "10"
+      cache_tag: "rocm714"
+      python_minor: "13"
+      python_patch: "14"
       rel_name: "amd"
       rel_extra_name: ""
       test_release: false
@@ -71,7 +71,7 @@ jobs:
       git_tag: ${{ inputs.git_tag }}
       cache_tag: "xpu"
       python_minor: "13"
-      python_patch: "12"
+      python_patch: "14"
       rel_name: "intel"
       rel_extra_name: ""
       test_release: true
