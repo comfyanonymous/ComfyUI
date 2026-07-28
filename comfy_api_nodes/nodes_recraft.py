@@ -1433,9 +1433,9 @@ class RecraftV4ImageToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftV4ImageToImageNode",
-            display_name="Recraft V4 Image to Image",
+            display_name="Recraft V4.1 Image to Image",
             category="partner/image/Recraft",
-            description="Modify image based on prompt and strength using Recraft V4 and V4.1 models.",
+            description="Modify image based on prompt and strength using Recraft V4.1 models.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.String.Input(
@@ -1450,19 +1450,18 @@ class RecraftV4ImageToImageNode(IO.ComfyNode):
                         "recraftv4_1_utility",
                         "recraftv4_1_pro",
                         "recraftv4_1_utility_pro",
-                        "recraftv4",
-                        "recraftv4_pro",
                     ],
                     tooltip="The model to use for generation.",
                 ),
                 IO.Float.Input(
                     "strength",
-                    default=0.5,
+                    default=0.1,
                     min=0.0,
                     max=1.0,
                     step=0.01,
                     tooltip="Defines the difference with the original image, should lie in [0, 1], "
-                    "where 0 means almost identical, and 1 means minimal similarity.",
+                    "where 0 means almost identical, and 1 means minimal similarity. "
+                    "Values above ~0.15 largely ignore the input image.",
                 ),
                 IO.Int.Input(
                     "n",
@@ -1503,9 +1502,7 @@ class RecraftV4ImageToImageNode(IO.ComfyNode):
                         "recraftv4_1": 0.035,
                         "recraftv4_1_utility": 0.035,
                         "recraftv4_1_pro": 0.21,
-                        "recraftv4_1_utility_pro": 0.21,
-                        "recraftv4": 0.04,
-                        "recraftv4_pro": 0.25
+                        "recraftv4_1_utility_pro": 0.21
                     };
                     {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
                 )
@@ -1553,10 +1550,10 @@ class RecraftV4ImageToVectorNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftV4ImageToVectorNode",
-            display_name="Recraft V4 Image to Vector",
+            display_name="Recraft V4.1 Image to Vector",
             category="partner/image/Recraft",
             description="Generates SVG from an input image based on prompt and strength "
-            "using Recraft V4 and V4.1 models.",
+            "using Recraft V4.1 models.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.String.Input(
@@ -1571,19 +1568,18 @@ class RecraftV4ImageToVectorNode(IO.ComfyNode):
                         "recraftv4_1_utility_vector",
                         "recraftv4_1_pro_vector",
                         "recraftv4_1_utility_pro_vector",
-                        "recraftv4_vector",
-                        "recraftv4_pro_vector",
                     ],
                     tooltip="The model to use for generation.",
                 ),
                 IO.Float.Input(
                     "strength",
-                    default=0.5,
+                    default=0.1,
                     min=0.0,
                     max=1.0,
                     step=0.01,
                     tooltip="Defines the difference with the original image, should lie in [0, 1], "
-                    "where 0 means almost identical, and 1 means minimal similarity.",
+                    "where 0 means almost identical, and 1 means minimal similarity. "
+                    "Values above ~0.15 largely ignore the input image.",
                 ),
                 IO.Int.Input(
                     "n",
@@ -1624,9 +1620,7 @@ class RecraftV4ImageToVectorNode(IO.ComfyNode):
                         "recraftv4_1_vector": 0.08,
                         "recraftv4_1_utility_vector": 0.08,
                         "recraftv4_1_pro_vector": 0.30,
-                        "recraftv4_1_utility_pro_vector": 0.30,
-                        "recraftv4_vector": 0.08,
-                        "recraftv4_pro_vector": 0.30
+                        "recraftv4_1_utility_pro_vector": 0.30
                     };
                     {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
                 )
