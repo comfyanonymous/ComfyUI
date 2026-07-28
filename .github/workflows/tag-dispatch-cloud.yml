@@ -8,16 +8,36 @@ on:
 jobs:
   dispatch-cloud:
     runs-on: ubuntu-latest
+    # No checkout and no use of GITHUB_TOKEN; the dispatch goes out on the App
+    # token generated below, which is scoped to Comfy-Org/cloud only.
+    permissions:
+      contents: read
     steps:
+      # A PAT was used here previously. It was silently regenerated upstream
+      # without the Actions secret being updated, so every tag from v0.25.0
+      # (2026-06-16) through v0.29.0 dispatched a 401 and no cloud bump PR was
+      # opened for six weeks. App installation tokens are minted per run and
+      # cannot drift out of sync with a stored copy.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ secrets.FEN_RELEASE_APP_ID }}
+          private-key: ${{ secrets.FEN_RELEASE_PRIVATE_KEY }}
+          # Cross-repo dispatch: without these the token is scoped to this
+          # repository and the POST to cloud would 403.
+          owner: Comfy-Org
+          repositories: cloud
+
       - name: Send repository dispatch to cloud
         env:
-          DISPATCH_TOKEN: ${{ secrets.CLOUD_REPO_DISPATCH_TOKEN }}
+          DISPATCH_TOKEN: ${{ steps.app-token.outputs.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
           if [ -z "${DISPATCH_TOKEN:-}" ]; then
-            echo "::error::CLOUD_REPO_DISPATCH_TOKEN is required but not set."
+            echo "::error::App token generation produced an empty token."
             exit 1
           fi
 
