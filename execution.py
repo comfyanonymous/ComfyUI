@@ -13,12 +13,13 @@ import asyncio
 
 import torch
 
-from comfy.cli_args import args
+from comfy.cli_args import args, get_console_log_level
 import comfy.memory_management
 import comfy.model_management
 import comfy.model_patcher
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
+from comfy.logging import detail
 
 from latent_preview import set_preview_method
 import nodes
@@ -544,7 +545,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
             finally:
                 if comfy.memory_management.aimdo_enabled:
-                    if args.verbose == "DEBUG":
+                    if get_console_log_level(args.verbose) == "DEBUG":
                         comfy_aimdo.control.analyze()
                     comfy.model_management.reset_cast_buffers()
                     comfy.model_prefetch.cleanup_prefetch_queues()
@@ -835,6 +836,8 @@ class PromptExecutor:
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
+            if self.cache_type == CacheType.RAM_PRESSURE:
+                detail("RAM cache evictions: prompt=%s active=%s full=%s", prompt_id, self.caches.outputs.active_evictions, self.caches.outputs.full_evictions)
             comfy.memory_management.set_ram_cache_release_state(None, 0)
             self.prompt_model_tracker.end()
             self._notify_prompt_lifecycle("end", prompt_id)

@@ -33,6 +33,31 @@ class EnumAction(argparse.Action):
         setattr(namespace, self.dest, value)
 
 
+LOG_LEVELS = ('DEBUG', 'DETAIL', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+
+
+class VerboseAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if len(values) == 0:
+            output = ('DEBUG', None)
+        elif len(values) == 1 and values[0] in LOG_LEVELS:
+            output = (values[0], None)
+        elif len(values) == 2 and values[0] in LOG_LEVELS:
+            output = tuple(values)
+        else:
+            parser.error(f"{option_string} expects no values, a console LEVEL, or LEVEL FILE")
+        setattr(namespace, self.dest, [*getattr(namespace, self.dest, []), output])
+
+
+def get_console_log_level(outputs):
+    console_levels = [level for level, path in outputs if path is None]
+    return min(console_levels, key=LOG_LEVELS.index, default='INFO')
+
+
+def get_file_log_outputs(outputs):
+    return [(level, path) for level, path in outputs if path is not None]
+
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0,::", help="Specify the IP address to listen on (default: 127.0.0.1). You can give a list of ip addresses by separating them with a comma like: 127.2.2.2,127.3.3.3 If --listen is provided without an argument, it defaults to 0.0.0.0,:: (listens on all ipv4 and ipv6)")
@@ -187,7 +212,7 @@ parser.add_argument("--disable-api-nodes", action="store_true", help="Disable lo
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
-parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
+parser.add_argument("--verbose", action=VerboseAction, nargs='*', default=[], metavar='LEVEL FILE', help='Set console logging with no values or LEVEL, or add a LEVEL FILE log output. May be repeated.')
 parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
 
 

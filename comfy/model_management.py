@@ -34,6 +34,7 @@ import comfy.utils
 import comfy.quant_ops
 import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
+from comfy.logging import detail
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -836,6 +837,8 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins_required=0, ram_required=0):
     cleanup_models_gc()
+    if not for_dynamic:
+        detail("Non dynamic memory free called! memory_required=%s pins_required=%s ram_required=%s", memory_required, pins_required, ram_required)
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -974,6 +977,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             lowvram_model_memory = 0.1
 
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
+        vram_used = 0 if is_device_cpu(torch_dev) else loaded_model.model_loaded_memory()
+        ram_used = model.loaded_ram_size() if model.is_dynamic() else loaded_model.model_memory() - vram_used
+        detail("Model loaded: patcher=%s model=%s ram_mb=%.1f vram_mb=%.1f", model.__class__.__name__, model.model.__class__.__name__, ram_used / (1024 ** 2), vram_used / (1024 ** 2))
         current_loaded_models.insert(0, loaded_model)
     return
 
