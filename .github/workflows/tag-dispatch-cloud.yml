@@ -22,10 +22,14 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
-          app-id: ${{ secrets.FEN_RELEASE_APP_ID }}
-          private-key: ${{ secrets.FEN_RELEASE_PRIVATE_KEY }}
-          # Cross-repo dispatch: without these the token is scoped to this
-          # repository and the POST to cloud would 403.
+          # cloud-code-bot is the same App the cloud receiver already runs on:
+          # it authored the bump PRs, so its write access there is established
+          # rather than assumed.
+          app-id: ${{ vars.CLOUD_CODE_BOT_APP_ID }}
+          private-key: ${{ secrets.CLOUD_CODE_BOT_PRIVATE_KEY }}
+          # Cross-repo dispatch: create-github-app-token scopes to the current
+          # repository by default, so the org installation must be named
+          # explicitly or the POST to cloud would 403.
           owner: Comfy-Org
           repositories: cloud
 
