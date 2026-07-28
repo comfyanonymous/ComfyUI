@@ -1,5 +1,6 @@
 from transformers import Qwen2Tokenizer, T5TokenizerFast
 import comfy.text_encoders.llama
+import comfy.text_encoders.anima_cache
 from comfy import sd1_clip
 import os
 import torch
@@ -40,10 +41,14 @@ class Qwen3_06BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_06B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
+    def transformer_forward(self, tokens, attention_mask, embeds, num_tokens, intermediate_output, embeds_info):
+        return comfy.text_encoders.anima_cache.forward(self.transformer, comfy.text_encoders.anima_cache.get_owner(self), tokens, attention_mask, embeds, num_tokens, intermediate_output, self.layer_norm_hidden_state, torch.float32, embeds_info)
+
 
 class AnimaTEModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__(device=device, dtype=dtype, name="qwen3_06b", clip_model=Qwen3_06BModel, model_options=model_options)
+        comfy.text_encoders.anima_cache.set_owner(self.qwen3_06b, self)
 
     def encode_token_weights(self, token_weight_pairs):
         out = super().encode_token_weights(token_weight_pairs)

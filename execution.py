@@ -10,6 +10,7 @@ import traceback
 from enum import Enum
 from typing import List, Literal, NamedTuple, Optional, Union
 import asyncio
+import contextlib
 
 import torch
 
@@ -40,7 +41,7 @@ from comfy_execution.graph import (
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
-from comfy_execution.utils import CurrentNodeContext
+from comfy_execution.utils import CurrentNodeContext, reset_current_client_id, set_current_client_id
 from comfy_execution.asset_enrichment import enrich_output_with_assets
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io, _io
@@ -112,38 +113,41 @@ class CacheType(Enum):
 
 
 class CacheSet:
-    def __init__(self, cache_type=None, cache_args={}):
+    def __init__(self, cache_type=None, cache_args={}, outputs=None):
         if cache_type == CacheType.NONE:
-            self.init_null_cache()
-            logging.info("Disabling intermediate node cache.")
+            self.init_null_cache(outputs)
+            if outputs is None:
+                logging.info("Disabling intermediate node cache.")
         elif cache_type == CacheType.RAM_PRESSURE:
             cache_ram = cache_args.get("ram", 16.0)
-            self.init_ram_cache(cache_ram)
-            logging.info("Using RAM pressure cache.")
+            self.init_ram_cache(cache_ram, outputs)
+            if outputs is None:
+                logging.info("Using RAM pressure cache.")
         elif cache_type == CacheType.LRU:
             cache_size = cache_args.get("lru", 0)
-            self.init_lru_cache(cache_size)
-            logging.info("Using LRU cache")
+            self.init_lru_cache(cache_size, outputs)
+            if outputs is None:
+                logging.info("Using LRU cache")
         else:
-            self.init_classic_cache()
+            self.init_classic_cache(outputs)
 
         self.all = [self.outputs, self.objects]
 
     # Performs like the old cache -- dump data ASAP
-    def init_classic_cache(self):
-        self.outputs = HierarchicalCache(CacheKeySetInputSignature, enable_providers=True)
+    def init_classic_cache(self, outputs=None):
+        self.outputs = outputs if outputs is not None else HierarchicalCache(CacheKeySetInputSignature, enable_providers=True)
         self.objects = HierarchicalCache(CacheKeySetID)
 
-    def init_lru_cache(self, cache_size):
-        self.outputs = LRUCache(CacheKeySetInputSignature, max_size=cache_size, enable_providers=True)
+    def init_lru_cache(self, cache_size, outputs=None):
+        self.outputs = outputs if outputs is not None else LRUCache(CacheKeySetInputSignature, max_size=cache_size, enable_providers=True)
         self.objects = HierarchicalCache(CacheKeySetID)
 
-    def init_ram_cache(self, min_headroom):
-        self.outputs = RAMPressureCache(CacheKeySetInputSignature, enable_providers=True)
+    def init_ram_cache(self, min_headroom, outputs=None):
+        self.outputs = outputs if outputs is not None else RAMPressureCache(CacheKeySetInputSignature, enable_providers=True)
         self.objects = HierarchicalCache(CacheKeySetID)
 
-    def init_null_cache(self):
-        self.outputs = NullCache()
+    def init_null_cache(self, outputs=None):
+        self.outputs = outputs if outputs is not None else NullCache()
         self.objects = NullCache()
 
     def recursive_debug_dump(self):
@@ -425,15 +429,15 @@ def _is_intermediate_output(dynprompt, node_id):
     return getattr(class_def, 'HAS_INTERMEDIATE_OUTPUT', False)
 
 
-def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
+def _send_cached_ui(server, client_id, node_id, display_node_id, cached, prompt_id, ui_outputs):
     if cached.ui is not None:
         ui_outputs[node_id] = cached.ui
-    if server.client_id is None:
+    if client_id is None:
         return
     cached_ui = cached.ui or {}
-    server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, server.client_id)
+    server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, client_id)
 
-async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
+async def execute(server, client_id, legacy_server_state, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -441,9 +445,12 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    prompt_queue = getattr(server, "prompt_queue", None)
+    if getattr(prompt_queue, "cooperative", False) and prompt_queue.is_cancelled(prompt_id):
+        return (ExecutionResult.FAILURE, {"node_id": real_node_id}, comfy.model_management.InterruptProcessingException())
     cached = await caches.outputs.get(unique_id)
     if cached is not None:
-        _send_cached_ui(server, unique_id, display_node_id, cached, prompt_id, ui_outputs)
+        _send_cached_ui(server, client_id, unique_id, display_node_id, cached, prompt_id, ui_outputs)
         get_progress_state().finish_progress(unique_id)
         execution_list.cache_update(unique_id, cached)
         return (ExecutionResult.SUCCESS, None, None)
@@ -489,9 +496,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
         else:
             get_progress_state().start_progress(unique_id)
             input_data_all, missing_keys, v3_data = get_input_data(inputs, class_def, unique_id, execution_list, dynprompt, extra_data)
-            if server.client_id is not None:
-                server.last_node_id = display_node_id
-                server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
+            if client_id is not None:
+                if legacy_server_state:
+                    server.last_node_id = display_node_id
+                server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, client_id)
 
             obj = await caches.objects.get(unique_id)
             if obj is None:
@@ -531,12 +539,11 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                         "current_inputs": [],
                         "current_outputs": [],
                     }
-                    server.send_sync("execution_error", mes, server.client_id)
+                    server.send_sync("execution_error", mes, client_id)
                     return ExecutionBlocker(None)
                 else:
                     return block
             def pre_execute_cb(call_index):
-                # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
 
             try:
@@ -572,8 +579,8 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 },
                 "output": output_ui
             }
-            if server.client_id is not None:
-                server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+            if client_id is not None:
+                server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, client_id)
         if has_subgraph:
             cached_outputs = []
             new_node_ids = []
@@ -660,16 +667,19 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     return (ExecutionResult.SUCCESS, None, None)
 
 class PromptExecutor:
-    def __init__(self, server, cache_type=False, cache_args=None):
+    def __init__(self, server, cache_type=False, cache_args=None, shared_outputs=None, legacy_server_state=False):
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
+        self.shared_outputs = shared_outputs
+        self.legacy_server_state = legacy_server_state
         self.reset()
 
     def reset(self):
-        self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
+        self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args, outputs=self.shared_outputs)
         self.status_messages = []
         self.success = True
+        self.client_id = None
 
     def add_message(self, event, data: dict, broadcast: bool):
         data = {
@@ -677,8 +687,8 @@ class PromptExecutor:
             "timestamp": int(time.time() * 1000),
         }
         self.status_messages.append((event, data))
-        if self.server.client_id is not None or broadcast:
-            self.server.send_sync(event, data, self.server.client_id)
+        if self.client_id is not None or broadcast:
+            self.server.send_sync(event, data, self.client_id)
 
     def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
         node_id = error["node_id"]
@@ -727,12 +737,15 @@ class PromptExecutor:
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         set_preview_method(extra_data.get("preview_method"))
 
-        nodes.interrupt_processing(False)
+        cooperative = getattr(getattr(self.server, "prompt_queue", None), "cooperative", False)
+        if not cooperative:
+            nodes.interrupt_processing(False)
+        legacy_server_state = not cooperative or self.legacy_server_state
 
-        if "client_id" in extra_data:
-            self.server.client_id = extra_data["client_id"]
-        else:
-            self.server.client_id = None
+        self.client_id = extra_data.get("client_id")
+        if legacy_server_state:
+            self.server.client_id = self.client_id
+        client_id_token = set_current_client_id(self.client_id)
 
         self.status_messages = []
         self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
@@ -741,13 +754,15 @@ class PromptExecutor:
         ram_headroom = int(self.cache_args["ram"] * (1024 ** 3))
         ram_inactive_headroom = int(self.cache_args["ram_inactive"] * (1024 ** 3))
         ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
-        comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
+        if not cooperative:
+            comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
         try:
-            with torch.inference_mode():
+            inference_context = contextlib.nullcontext() if cooperative else torch.inference_mode()
+            with inference_context:
                 dynamic_prompt = DynamicPrompt(prompt)
                 reset_progress_state(prompt_id, dynamic_prompt)
-                add_progress_handler(WebUIProgressHandler(self.server))
+                add_progress_handler(WebUIProgressHandler(self.server, self.client_id))
                 is_changed_cache = IsChangedCache(prompt_id, dynamic_prompt, self.caches.outputs)
                 for cache in self.caches.all:
                     await cache.set_prompt(dynamic_prompt, prompt.keys(), is_changed_cache)
@@ -782,7 +797,7 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
+                    result, error, ex = await execute(self.server, self.client_id, legacy_server_state, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -792,7 +807,7 @@ class PromptExecutor:
                     else: # result == ExecutionResult.SUCCESS:
                         execution_list.complete_node_execution()
 
-                    if self.cache_type == CacheType.RAM_PRESSURE:
+                    if self.cache_type == CacheType.RAM_PRESSURE and not cooperative:
                         ram_release_callback(ram_inactive_headroom)
                         ram_shortfall = ram_headroom - psutil.virtual_memory().available
                         if ram_shortfall > 0:
@@ -816,7 +831,7 @@ class PromptExecutor:
                         cached = await self.caches.outputs.get(node_id)
                         if cached is not None:
                             display_node_id = dynamic_prompt.get_display_node_id(node_id)
-                            _send_cached_ui(self.server, node_id, display_node_id, cached, prompt_id, ui_node_outputs)
+                            _send_cached_ui(self.server, self.client_id, node_id, display_node_id, cached, prompt_id, ui_node_outputs)
                     self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
                 ui_outputs = {}
@@ -828,12 +843,19 @@ class PromptExecutor:
                     "outputs": ui_outputs,
                     "meta": meta_outputs,
                 }
-                self.server.last_node_id = None
+                if legacy_server_state:
+                    self.server.last_node_id = None
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
-            comfy.memory_management.set_ram_cache_release_state(None, 0)
+            for cache in self.caches.all:
+                cache.release_prompt()
+            if legacy_server_state:
+                self.server.last_node_id = None
+            if not cooperative:
+                comfy.memory_management.set_ram_cache_release_state(None, 0)
             self._notify_prompt_lifecycle("end", prompt_id)
+            reset_current_client_id(client_id_token)
 
 
 async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
@@ -1249,6 +1271,9 @@ class PromptQueue:
         self.task_counter = 0
         self.queue = []
         self.currently_running = {}
+        self.cancelled_prompts = set()
+        self.cooperative = False
+        self.cooperative_drain = False
         self.history = {}
         self.flags = {}
 
@@ -1271,6 +1296,17 @@ class PromptQueue:
             self.server.queue_updated()
             return (item, i)
 
+    def get_if(self, predicate):
+        with self.mutex:
+            if self.cooperative_drain or len(self.queue) == 0 or not predicate(self.queue[0]):
+                return None
+            item = heapq.heappop(self.queue)
+            i = self.task_counter
+            self.currently_running[i] = copy.deepcopy(item)
+            self.task_counter += 1
+            self.server.queue_updated()
+            return (item, i)
+
     class ExecutionStatus(NamedTuple):
         status_str: Literal['success', 'error']
         completed: bool
@@ -1280,6 +1316,7 @@ class PromptQueue:
                   status: Optional['PromptQueue.ExecutionStatus'], process_item=None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
+            self.cancelled_prompts.discard(prompt[1])
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
                 self.history.pop(next(iter(self.history)))
 
@@ -1316,21 +1353,50 @@ class PromptQueue:
     def interrupt_if_running(self, prompt_id):
         """Interrupt the running prompt with this id, atomically.
 
-        Checks the live running set and signals the interrupt under the queue
-        mutex, so the worker cannot move the job to done (and start the next
-        prompt) in between. Returns True if a matching job was running and an
-        interrupt was signalled, False otherwise. The atomicity is what keeps a
-        cancel from landing on an unrelated prompt that started after a separate
-        is-running check: the global interrupt flag is reset at the start of
-        every prompt (execute_async), so a job that finishes before consuming
-        the flag cannot leak the interrupt onto its successor.
+        Cooperative workers use prompt-scoped cancellation when other prompts
+        are active. Serial execution and single-prompt cooperative execution can
+        safely use the global interrupt flag as well. Cancellation is best-effort:
+        if execution has already completed before observing the marker, task_done
+        records the completed result and clears the marker.
         """
         with self.mutex:
             for item in self.currently_running.values():
                 if item[1] == prompt_id:
-                    nodes.interrupt_processing()
+                    if self.cooperative:
+                        self.cancelled_prompts.add(prompt_id)
+                        if len(self.currently_running) == 1:
+                            self.cooperative_drain = True
+                            nodes.interrupt_processing()
+                    else:
+                        nodes.interrupt_processing()
                     return True
         return False
+
+    def interrupt_all_running(self):
+        with self.mutex:
+            if self.cooperative and self.currently_running:
+                self.cancelled_prompts.update(item[1] for item in self.currently_running.values())
+                self.cooperative_drain = True
+            nodes.interrupt_processing()
+
+    def finish_cooperative_drain(self):
+        with self.mutex:
+            self.cooperative_drain = False
+
+    def is_cooperative_draining(self):
+        with self.mutex:
+            return self.cooperative_drain
+
+    def set_cooperative(self, enabled):
+        with self.mutex:
+            self.cooperative = enabled
+            if not enabled:
+                self.cooperative_drain = False
+                self.cancelled_prompts.clear()
+
+    def is_cancelled(self, prompt_id):
+        with self.mutex:
+            return prompt_id in self.cancelled_prompts
 
     def get_tasks_remaining(self):
         with self.mutex:

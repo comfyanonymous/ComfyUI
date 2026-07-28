@@ -737,7 +737,7 @@ class Llama2_(nn.Module):
             mask = mask.masked_fill(mask.to(torch.bool), torch.finfo(x.dtype).min / 4)
 
         if seq_len > 1:
-            causal_mask = torch.empty(past_len + seq_len, past_len + seq_len, dtype=x.dtype, device=x.device).fill_(torch.finfo(x.dtype).min / 4).triu_(1)
+            causal_mask = torch.empty(seq_len, past_len + seq_len, dtype=x.dtype, device=x.device).fill_(torch.finfo(x.dtype).min / 4).triu_(past_len + 1)
             if mask is not None:
                 mask += causal_mask
             else:

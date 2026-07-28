@@ -1,3 +1,4 @@
+import contextvars
 from typing import TypedDict, Dict, Optional, Tuple
 from typing_extensions import override
 from PIL import Image
@@ -11,6 +12,7 @@ from protocol import BinaryEventTypes
 from comfy_api import feature_flags
 
 PreviewImageTuple = Tuple[str, Image.Image, Optional[int]]
+_client_id_unset = object()
 
 class NodeState(Enum):
     Pending = "pending"
@@ -150,9 +152,15 @@ class WebUIProgressHandler(ProgressHandler):
     Handler that sends progress updates to the WebUI via WebSockets.
     """
 
-    def __init__(self, server_instance):
+    def __init__(self, server_instance, client_id=_client_id_unset):
         super().__init__("webui")
         self.server_instance = server_instance
+        self.client_id = client_id
+
+    def _client_id(self):
+        if self.client_id is _client_id_unset:
+            return self.server_instance.client_id
+        return self.client_id
 
     def set_registry(self, registry: "ProgressRegistry"):
         self.registry = registry
@@ -178,10 +186,14 @@ class WebUIProgressHandler(ProgressHandler):
             if state["state"] != NodeState.Pending
         }
 
+        client_id = self._client_id()
+        if client_id is None:
+            return
+
         # Send a combined progress_state message with all node states
         # Include client_id to ensure message is only sent to the initiating client
         self.server_instance.send_sync(
-            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}, self.server_instance.client_id
+            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}, client_id
         )
 
     @override
@@ -207,7 +219,7 @@ class WebUIProgressHandler(ProgressHandler):
             # Only send new format if client supports it
             if feature_flags.supports_feature(
                 self.server_instance.sockets_metadata,
-                self.server_instance.client_id,
+                self._client_id(),
                 "supports_preview_metadata",
             ):
                 metadata = {
@@ -224,7 +236,7 @@ class WebUIProgressHandler(ProgressHandler):
                 self.server_instance.send_sync(
                     BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA,
                     (image, metadata),
-                    self.server_instance.client_id,
+                    self._client_id(),
                 )
 
     @override
@@ -317,18 +329,19 @@ class ProgressRegistry:
         for handler in self.handlers.values():
             handler.reset()
 
-# Global registry instance
-global_progress_registry: ProgressRegistry | None = None
+progress_registry: contextvars.ContextVar[ProgressRegistry | None] = contextvars.ContextVar("progress_registry", default=None)
+
+def set_progress_registry(registry: ProgressRegistry):
+    return progress_registry.set(registry)
+
+def reset_progress_registry(token) -> None:
+    progress_registry.reset(token)
 
 def reset_progress_state(prompt_id: str, dynprompt: "DynamicPrompt") -> None:
-    global global_progress_registry
-
-    # Reset existing handlers if registry exists
-    if global_progress_registry is not None:
-        global_progress_registry.reset_handlers()
-
-    # Create new registry
-    global_progress_registry = ProgressRegistry(prompt_id, dynprompt)
+    current = progress_registry.get()
+    if current is not None:
+        current.reset_handlers()
+    progress_registry.set(ProgressRegistry(prompt_id, dynprompt))
 
 
 def add_progress_handler(handler: ProgressHandler) -> None:
@@ -338,11 +351,12 @@ def add_progress_handler(handler: ProgressHandler) -> None:
 
 
 def get_progress_state() -> ProgressRegistry:
-    global global_progress_registry
-    if global_progress_registry is None:
+    registry = progress_registry.get()
+    if registry is None:
         from comfy_execution.graph import DynamicPrompt
 
-        global_progress_registry = ProgressRegistry(
+        registry = ProgressRegistry(
             prompt_id="", dynprompt=DynamicPrompt({})
         )
-    return global_progress_registry
+        progress_registry.set(registry)
+    return registry

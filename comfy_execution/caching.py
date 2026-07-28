@@ -1,12 +1,12 @@
 import asyncio
 import bisect
+import contextvars
 import itertools
 import psutil
 import time
 import torch
 from typing import Sequence, Mapping, Dict
 from comfy.model_patcher import ModelPatcher
-from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod
 
 import nodes
@@ -150,30 +150,66 @@ class CacheKeySetInputSignature(CacheKeySet):
 class BasicCache:
     def __init__(self, key_class, enable_providers=False):
         self.key_class = key_class
-        self.initialized = False
         self.enable_providers = enable_providers
-        self.dynprompt: DynamicPrompt
-        self.cache_key_set: CacheKeySet
+        self._prompt_context = contextvars.ContextVar("cache_prompt_context", default=None)
+        self._active_key_sets = set()
         self.cache = {}
         self.subcaches = {}
         self._pending_store_tasks: set = set()
 
     async def set_prompt(self, dynprompt, node_ids, is_changed_cache):
-        self.dynprompt = dynprompt
-        self.cache_key_set = self.key_class(dynprompt, node_ids, is_changed_cache)
-        await self.cache_key_set.add_keys(node_ids)
-        self.is_changed_cache = is_changed_cache
-        self.initialized = True
+        previous = self._prompt_context.get()
+        if previous is not None:
+            self._active_key_sets.discard(previous[1])
+        cache_key_set = self.key_class(dynprompt, node_ids, is_changed_cache)
+        await cache_key_set.add_keys(node_ids)
+        self._prompt_context.set((dynprompt, cache_key_set, is_changed_cache))
+        self._active_key_sets.add(cache_key_set)
+
+    @property
+    def initialized(self):
+        return self._prompt_context.get() is not None
+
+    @property
+    def dynprompt(self):
+        context = self._prompt_context.get()
+        return context[0] if context is not None else None
+
+    @property
+    def cache_key_set(self):
+        context = self._prompt_context.get()
+        return context[1] if context is not None else None
+
+    @property
+    def is_changed_cache(self):
+        context = self._prompt_context.get()
+        return context[2] if context is not None else None
+
+    def release_prompt(self):
+        context = self._prompt_context.get()
+        if context is None:
+            return
+        self._active_key_sets.discard(context[1])
+        self._prompt_context.set(None)
+        for subcache in self.subcaches.values():
+            subcache.release_prompt()
+
+    def _active_data_keys(self):
+        keys = set()
+        for key_set in self._active_key_sets:
+            keys.update(key_set.get_used_keys())
+        return keys
 
     def all_node_ids(self):
         assert self.initialized
         node_ids = self.cache_key_set.all_node_ids()
         for subcache in self.subcaches.values():
-            node_ids = node_ids.union(subcache.all_node_ids())
+            if subcache.initialized:
+                node_ids = node_ids.union(subcache.all_node_ids())
         return node_ids
 
     def _clean_cache(self):
-        preserve_keys = set(self.cache_key_set.get_used_keys())
+        preserve_keys = self._active_data_keys()
         to_remove = []
         for key in self.cache:
             if key not in preserve_keys:
@@ -182,7 +218,9 @@ class BasicCache:
             del self.cache[key]
 
     def _clean_subcaches(self):
-        preserve_subcaches = set(self.cache_key_set.get_used_subcache_keys())
+        preserve_subcaches = set()
+        for key_set in self._active_key_sets:
+            preserve_subcaches.update(key_set.get_used_subcache_keys())
 
         to_remove = []
         for key in self.subcaches:
@@ -418,6 +456,9 @@ class NullCache:
     def clean_unused(self):
         pass
 
+    def release_prompt(self):
+        pass
+
     def poll(self, **kwargs):
         pass
 
@@ -454,7 +495,8 @@ class LRUCache(BasicCache):
     def clean_unused(self):
         while len(self.cache) > self.max_size and self.min_generation < self.generation:
             self.min_generation += 1
-            to_remove = [key for key in self.cache if self.used_generation[key] < self.min_generation]
+            active_keys = self._active_data_keys()
+            to_remove = [key for key in self.cache if key not in active_keys and self.used_generation[key] < self.min_generation]
             for key in to_remove:
                 del self.cache[key]
                 del self.used_generation[key]
@@ -546,8 +588,9 @@ class RAMPressureCache(LRUCache):
 
         clean_list = []
 
+        active_keys = self._active_data_keys()
         for key, cache_entry in self.cache.items():
-            if not free_active and self.used_generation[key] == self.generation:
+            if not free_active and (key in active_keys or self.used_generation[key] == self.generation):
                 continue
 
             if all_outputs_dynamic(cache_entry.outputs) and self.used_generation[key] == self.generation:
