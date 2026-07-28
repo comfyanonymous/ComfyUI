@@ -4,7 +4,8 @@ import shutil
 from app.logger import log_startup_warning
 from utils.install_util import get_missing_requirements_message
 from filelock import FileLock, Timeout
-from comfy.cli_args import args
+# Import the module so tests that reload comfy.cli_args see the live object.
+import comfy.cli_args
 
 _DB_AVAILABLE = False
 Session = None
@@ -21,6 +22,7 @@ try:
 
     from app.database.models import Base
     import app.assets.database.models  # noqa: F401 — register models with Base.metadata
+    import app.model_downloader.database.models  # noqa: F401 — register models with Base.metadata
 
     _DB_AVAILABLE = True
 except ImportError as e:
@@ -57,13 +59,13 @@ def get_alembic_config():
 
     config = Config(config_path)
     config.set_main_option("script_location", scripts_path)
-    config.set_main_option("sqlalchemy.url", args.database_url)
+    config.set_main_option("sqlalchemy.url", comfy.cli_args.args.database_url)
 
     return config
 
 
 def get_db_path():
-    url = args.database_url
+    url = comfy.cli_args.args.database_url
     if url.startswith("sqlite:///"):
         return url.split("///")[1]
     else:
@@ -97,7 +99,7 @@ def _is_memory_db(db_url):
 
 
 def init_db():
-    db_url = args.database_url
+    db_url = comfy.cli_args.args.database_url
     logging.debug(f"Database URL: {db_url}")
 
     if _is_memory_db(db_url):
