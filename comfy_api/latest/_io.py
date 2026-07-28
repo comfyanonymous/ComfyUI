@@ -1651,6 +1651,15 @@ class Schema:
     Use this for nodes with interactive/operable UI regions that produce intermediate outputs
     (e.g., Image Crop, Painter) rather than final outputs (e.g., Save Image).
     """
+    lazy_outputs: bool=False
+    """When True, cache will invalidate when output connections change, and expected_outputs will be available.
+
+    Use this for nodes that can skip computing outputs that aren't connected downstream.
+    Check `comfy_execution.utils.is_output_needed(i)` inside execute() - False means output i is definitely unused
+    and safe to skip. Only nodes with this flag receive expected_outputs; all others see None.
+
+    Limitation: consumers must exist before this node runs - a subgraph expansion that
+    hand-builds a link to a pre-existing node's already-skipped output reads a stale value."""
 
     def validate(self):
         '''Validate the schema:
@@ -2108,6 +2117,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._ACCEPT_ALL_INPUTS
 
+    _LAZY_OUTPUTS = None
+    @final
+    @classproperty
+    def LAZY_OUTPUTS(cls):  # noqa
+        if cls._LAZY_OUTPUTS is None:
+            cls.GET_SCHEMA()
+        return cls._LAZY_OUTPUTS
+
     @final
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict]:
@@ -2152,6 +2169,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._NOT_IDEMPOTENT = schema.not_idempotent
         if cls._ACCEPT_ALL_INPUTS is None:
             cls._ACCEPT_ALL_INPUTS = schema.accept_all_inputs
+        if cls._LAZY_OUTPUTS is None:
+            cls._LAZY_OUTPUTS = schema.lazy_outputs
 
         if cls._RETURN_TYPES is None:
             output = []

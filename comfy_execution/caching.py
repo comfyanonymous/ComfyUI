@@ -6,7 +6,7 @@ import time
 import torch
 from typing import Sequence, Mapping, Dict
 from comfy.model_patcher import ModelPatcher
-from comfy_execution.graph import DynamicPrompt
+from comfy_execution.graph import DynamicPrompt, get_expected_outputs_for_node
 from abc import ABC, abstractmethod
 
 import nodes
@@ -116,6 +116,10 @@ class CacheKeySetInputSignature(CacheKeySet):
         signature = [class_type, await self.is_changed_cache.get(node_id)]
         if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
             signature.append(node_id)
+        # Include expected_outputs in cache key for nodes that opt in via LAZY_OUTPUTS
+        if hasattr(class_def, 'LAZY_OUTPUTS') and class_def.LAZY_OUTPUTS:
+            expected = get_expected_outputs_for_node(dynprompt, node_id)
+            signature.append(("expected_outputs", tuple(sorted(expected))))
         inputs = node["inputs"]
         for key in sorted(inputs.keys()):
             if is_link(inputs[key]):

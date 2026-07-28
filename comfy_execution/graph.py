@@ -18,6 +18,18 @@ class NodeInputError(Exception):
 class NodeNotFoundError(Exception):
     pass
 
+
+def get_expected_outputs_for_node(dynprompt, node_id: str) -> frozenset:
+    """Get the set of output indices that are connected downstream.
+    Returns outputs that MIGHT be used.
+    Outputs NOT in this set are DEFINITELY not used and safe to skip
+    (see Schema.lazy_outputs for the one expansion-related limitation).
+
+    Includes input links and consumers registered via add_output_consumer.
+    """
+    return dynprompt.get_expected_outputs_map().get(node_id, frozenset())
+
+
 class DynamicPrompt:
     def __init__(self, original_prompt):
         # The original prompt provided by the user
@@ -26,6 +38,9 @@ class DynamicPrompt:
         self.ephemeral_prompt = {}
         self.ephemeral_parents = {}
         self.ephemeral_display = {}
+        # Output sockets consumed outside of input links (subgraph expansions)
+        self._external_output_consumers = {}
+        self._expected_outputs_map = None
 
     def get_node(self, node_id):
         if node_id in self.ephemeral_prompt:
@@ -41,6 +56,7 @@ class DynamicPrompt:
         self.ephemeral_prompt[node_id] = node_info
         self.ephemeral_parents[node_id] = parent_id
         self.ephemeral_display[node_id] = display_id
+        self._expected_outputs_map = None
 
     def get_real_node_id(self, node_id):
         while node_id in self.ephemeral_parents:
@@ -57,6 +73,29 @@ class DynamicPrompt:
 
     def all_node_ids(self):
         return set(self.original_prompt.keys()).union(set(self.ephemeral_prompt.keys()))
+
+    def add_output_consumer(self, node_id, socket):
+        """Record an output socket consumed outside of input links, e.g. a subgraph
+        expansion mapping its parent's output to this node's output."""
+        self._external_output_consumers.setdefault(node_id, set()).add(socket)
+        self._expected_outputs_map = None
+
+    def _build_expected_outputs_map(self):
+        result = {}
+        for node_id in self.all_node_ids():
+            node_data = self.get_node(node_id)
+            for value in node_data.get("inputs", {}).values():
+                if is_link(value):
+                    from_node_id, from_socket = value
+                    result.setdefault(from_node_id, set()).add(from_socket)
+        for node_id, sockets in self._external_output_consumers.items():
+            result.setdefault(node_id, set()).update(sockets)
+        self._expected_outputs_map = {k: frozenset(v) for k, v in result.items()}
+
+    def get_expected_outputs_map(self):
+        if self._expected_outputs_map is None:
+            self._build_expected_outputs_map()
+        return self._expected_outputs_map
 
     def get_original_prompt(self):
         return self.original_prompt
