@@ -66,9 +66,13 @@ class LogInterceptor(io.TextIOWrapper):
         super().write(data)
 
     def flush(self):
-        super().flush()
+        try:
+            super().flush()
+        except (BrokenPipeError, OSError): pass
         for cb in self._flush_callbacks:
-            cb(self._logs_since_flush)
+            try:
+                cb(self._logs_since_flush)
+            except (BrokenPipeError, OSError): pass
             self._logs_since_flush = []
 
     def on_flush(self, callback):
