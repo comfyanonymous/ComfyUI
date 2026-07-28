@@ -159,12 +159,6 @@ def _build_model_options() -> list[IO.DynamicCombo.Option]:
     return [IO.DynamicCombo.Option(spec.slug, _inputs_for_model(spec)) for spec in MODELS]
 
 
-def _calculate_price(response: OpenRouterChatResponse) -> float | None:
-    if response.usage and response.usage.cost is not None:
-        return float(response.usage.cost) * 1.43
-    return None
-
-
 def _price_badge_jsonata() -> str:
     rates_pairs = []
     for spec in MODELS:
@@ -372,7 +366,6 @@ class OpenRouterLLMNode(IO.ComfyNode):
             ApiEndpoint(path=OPENROUTER_CHAT_ENDPOINT, method="POST"),
             response_model=OpenRouterChatResponse,
             data=request,
-            price_extractor=_calculate_price,
         )
         return IO.NodeOutput(_extract_text(response))
 
