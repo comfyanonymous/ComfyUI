@@ -42,6 +42,52 @@ from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
 import comfy_aimdo.model_vbar
 
+def is_model_patcher_output(output):
+    return isinstance(output, ModelPatcher) or isinstance(getattr(output, "patcher", None), ModelPatcher)
+
+class PromptModelTracker:
+    def __init__(self):
+        self.models = {}
+
+    def start(self):
+        self.end()
+
+    def add(self, outputs):
+        if isinstance(outputs, collections.abc.Mapping):
+            outputs = outputs.values()
+        elif not isinstance(outputs, (list, tuple)):
+            outputs = (outputs,)
+
+        for output in outputs:
+            if isinstance(output, (collections.abc.Mapping, list, tuple)):
+                self.add(output)
+                continue
+
+            models = []
+            if isinstance(output, ModelPatcher):
+                models.append(output)
+                models.extend(output.model_patches_models())
+                models.extend(output.get_nested_additional_models())
+            else:
+                patcher = getattr(output, "patcher", None)
+                if isinstance(patcher, ModelPatcher):
+                    models.append(patcher)
+                get_models = getattr(output, "get_models", None)
+                if callable(get_models):
+                    models.extend(get_models())
+
+            for model in models:
+                if not isinstance(model, ModelPatcher) or not model.is_dynamic():
+                    continue
+                key = (id(model.model), model.load_device)
+                self.models[key] = model
+                model.set_in_use_by_current_prompt(True)
+
+    def end(self):
+        for model in self.models.values():
+            model.set_in_use_by_current_prompt(False)
+        self.models.clear()
+
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
 

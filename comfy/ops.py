@@ -204,9 +204,13 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
 
                 subset = "patches"
                 pin = comfy.pinned_memory.get_pin(lowvram_source, subset=subset)
-                if pin is None and signature is not None and not args.fast_disk:
-                    subset = "patches-loaded"
-                    pin = comfy.pinned_memory.get_pin(lowvram_source, subset=subset)
+                if pin is None:
+                    loaded_pin = comfy.pinned_memory.get_pin(lowvram_source, subset="patches-loaded")
+                    if loaded_pin is not None:
+                        subset = "patches-loaded"
+                        pin = loaded_pin
+                    elif signature is not None and not args.fast_disk:
+                        subset = "patches-loaded"
                 handle_pin(lowvram_source, pin, lowvram_source, lowvram_dest, subset=subset, size=lowvram_size)
 
 

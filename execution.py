@@ -8,7 +8,7 @@ import threading
 import time
 import traceback
 from enum import Enum
-from typing import List, Literal, Mapping, NamedTuple, Optional, Union
+from typing import List, Literal, NamedTuple, Optional, Union
 import asyncio
 
 import torch
@@ -16,7 +16,7 @@ import torch
 from comfy.cli_args import args
 import comfy.memory_management
 import comfy.model_management
-from comfy.model_patcher import ModelPatcher
+import comfy.model_patcher
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
 
@@ -665,44 +665,8 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
-        self.current_prompt_models = {}
+        self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self.reset()
-
-    def _mark_current_prompt_models(self, outputs):
-        if isinstance(outputs, Mapping):
-            outputs = outputs.values()
-        elif not isinstance(outputs, (list, tuple)):
-            outputs = (outputs,)
-
-        for output in outputs:
-            if isinstance(output, (Mapping, list, tuple)):
-                self._mark_current_prompt_models(output)
-                continue
-
-            models = []
-            if isinstance(output, ModelPatcher):
-                models.append(output)
-                models.extend(output.model_patches_models())
-                models.extend(output.get_nested_additional_models())
-            else:
-                patcher = getattr(output, "patcher", None)
-                if isinstance(patcher, ModelPatcher):
-                    models.append(patcher)
-                get_models = getattr(output, "get_models", None)
-                if callable(get_models):
-                    models.extend(get_models())
-
-            for model in models:
-                if not isinstance(model, ModelPatcher) or not model.is_dynamic():
-                    continue
-                key = (id(model.model), model.load_device)
-                self.current_prompt_models[key] = model
-                model.set_in_use_by_current_prompt(True)
-
-    def _clear_current_prompt_models(self):
-        for model in self.current_prompt_models.values():
-            model.set_in_use_by_current_prompt(False)
-        self.current_prompt_models.clear()
 
     def reset(self):
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
@@ -766,7 +730,7 @@ class PromptExecutor:
         set_preview_method(extra_data.get("preview_method"))
 
         nodes.interrupt_processing(False)
-        self._clear_current_prompt_models()
+        self.prompt_model_tracker.start()
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
@@ -809,7 +773,7 @@ class PromptExecutor:
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
                 ui_node_outputs = {}
                 executed = set()
-                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs, self._mark_current_prompt_models)
+                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs, self.prompt_model_tracker.add)
                 current_outputs = self.caches.outputs.all_node_ids()
                 for node_id in list(execute_outputs):
                     execution_list.add_node(node_id)
@@ -872,7 +836,7 @@ class PromptExecutor:
                     comfy.model_management.unload_all_models()
         finally:
             comfy.memory_management.set_ram_cache_release_state(None, 0)
-            self._clear_current_prompt_models()
+            self.prompt_model_tracker.end()
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
