@@ -6,7 +6,7 @@ import os
 import sys
 import threading
 
-from comfy.logging import DETAIL
+import comfy.logging
 
 ANSI_NAMED_COLORS = {
     'black':   '\033[30m',
@@ -89,6 +89,11 @@ def on_flush(callback):
     if stderr_interceptor is not None:
         stderr_interceptor.on_flush(callback)
 
+
+def get_log_level(level):
+    return comfy.logging.DETAIL if level == "DETAIL" else logging.getLevelName(level)
+
+
 def setup_logger(log_level: str = 'INFO', file_outputs=None, capacity: int = 300, use_stdout: bool = False):
     global logs
     if logs:
@@ -106,8 +111,8 @@ def setup_logger(log_level: str = 'INFO', file_outputs=None, capacity: int = 300
     if file_outputs is None:
         file_outputs = [('DETAIL', 'comfyui_detail.log')]
     logger = logging.getLogger()
-    console_level = logging.getLevelName(log_level)
-    file_levels = [logging.getLevelName(level) for level, _ in file_outputs]
+    console_level = get_log_level(log_level)
+    file_levels = [get_log_level(level) for level, _ in file_outputs]
     logger.setLevel(min(console_level, *file_levels))
 
     formatter = ColoredFormatter("%(message)s")
@@ -136,7 +141,7 @@ def setup_logger(log_level: str = 'INFO', file_outputs=None, capacity: int = 300
         except OSError as e:
             logging.warning("Could not open %s log %s: %s", output_level, output_path, e)
             continue
-        output_handler.setLevel(logging.getLevelName(output_level))
+        output_handler.setLevel(get_log_level(output_level))
         output_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
         logger.addHandler(output_handler)
         logging.info("%s log: %s", output_level.title(), output_path)
