@@ -1974,7 +1974,13 @@ class LoadTrainingDataset(io.ComfyNode):
     @classmethod
     def execute(cls, folder_name):
         # Get dataset directory
-        dataset_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
+        output_dir = folder_paths.get_output_directory()
+        dataset_dir = os.path.join(output_dir, folder_name)
+        # Prevent path traversal (e.g. folder_name="../../etc")
+        real_output_dir = os.path.realpath(output_dir)
+        real_dataset_dir = os.path.realpath(dataset_dir)
+        if os.path.commonpath((real_output_dir, real_dataset_dir)) != real_output_dir:
+            raise ValueError(f"Invalid folder_name: path traversal detected")
 
         if not os.path.exists(dataset_dir):
             raise ValueError(f"Dataset directory not found: {dataset_dir}")
