@@ -7,10 +7,13 @@ import torch
 
 from comfy.cli_args import args as cli_args
 
+original_cpu_arg = cli_args.cpu
 if not torch.cuda.is_available():
     cli_args.cpu = True
 
 import comfy.model_management as model_management  # noqa: E402
+
+cli_args.cpu = original_cpu_arg
 
 
 MIXED_TOPOLOGY = {
@@ -171,7 +174,12 @@ def test_multiple_candidates_without_bdf_match_do_not_fall_back(monkeypatch):
 def test_non_amd_drm_candidate_is_ignored(monkeypatch):
     cards = {
         "card1": MIXED_TOPOLOGY["card1"],
-        "card2": {**MIXED_TOPOLOGY["card2"], "vendor": "0x10de"},
+        "card2": {
+            **MIXED_TOPOLOGY["card2"],
+            "vendor": "0x10de",
+            "vram": 1,
+            "gtt": 2,
+        },
     }
     install_fake_drm(monkeypatch, cards)
     monkeypatch.setattr(
