@@ -36,10 +36,10 @@ def install_fake_drm(monkeypatch, cards):
     files = {}
     realpaths = {}
     for card, values in cards.items():
-        device_dir = f"/sys/class/drm/{card}/device"
-        files[f"{device_dir}/vendor"] = values.get("vendor", "0x1002")
-        files[f"{device_dir}/mem_info_vram_total"] = str(values["vram"])
-        files[f"{device_dir}/mem_info_gtt_total"] = str(values["gtt"])
+        device_dir = model_management.os.path.join("/sys/class/drm", card, "device")
+        files[model_management.os.path.join(device_dir, "vendor")] = values.get("vendor", "0x1002")
+        files[model_management.os.path.join(device_dir, "mem_info_vram_total")] = str(values["vram"])
+        files[model_management.os.path.join(device_dir, "mem_info_gtt_total")] = str(values["gtt"])
         realpaths[device_dir] = values["realpath"]
 
     monkeypatch.setattr(
