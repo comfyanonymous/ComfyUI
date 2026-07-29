@@ -5,7 +5,7 @@ import psutil
 import time
 import torch
 from typing import Sequence, Mapping, Dict
-from comfy.model_patcher import ModelPatcher
+from comfy.model_patcher import is_model_patcher_output
 from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod
 
@@ -524,6 +524,13 @@ class RAMPressureCache(LRUCache):
     def __init__(self, key_class, enable_providers=False):
         super().__init__(key_class, 0, enable_providers=enable_providers)
         self.timestamps = {}
+        self.active_evictions = False
+        self.full_evictions = False
+
+    async def set_prompt(self, dynprompt, node_ids, is_changed_cache):
+        self.active_evictions = False
+        self.full_evictions = False
+        await super().set_prompt(dynprompt, node_ids, is_changed_cache)
 
     def clean_unused(self):
         self._clean_subcaches()
@@ -567,7 +574,7 @@ class RAMPressureCache(LRUCache):
                     elif isinstance(output, torch.Tensor) and output.device.type == 'cpu':
                         ram_usage += output.numel() * output.element_size()
                         oom_ram_usage += output.numel() * output.element_size()
-                    elif isinstance(output, ModelPatcher) and self.used_generation[key] != self.generation:
+                    elif is_model_patcher_output(output) and self.used_generation[key] != self.generation:
                         #old ModelPatchers are the first to go
                         oom_ram_usage = 1e30
             scan_list_for_ram_usage(cache_entry.outputs)
@@ -588,4 +595,8 @@ class RAMPressureCache(LRUCache):
             self.timestamps.pop(key, None)
             self.children.pop(key, None)
             freed += ram_usage
+        if freed and free_active:
+            self.active_evictions = True
+            if min_entry_size == 0:
+                self.full_evictions = True
         return freed

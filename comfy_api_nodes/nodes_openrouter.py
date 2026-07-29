@@ -45,6 +45,7 @@ class _ModelSpec:
 
 
 MODELS: list[_ModelSpec] = [
+    _ModelSpec("anthropic/claude-opus-5", "frontier_reasoning", 0.00000715, 0.00003575, max_images=20),
     _ModelSpec("anthropic/claude-opus-4.8", "frontier_reasoning", 0.00000715, 0.00003575, max_images=20),
     _ModelSpec("anthropic/claude-opus-4.7", "frontier_reasoning", 0.00000715, 0.00003575, max_images=20),
     _ModelSpec("anthropic/claude-fable-5", "frontier_reasoning", 0.0000143, 0.0000715, max_images=20),
@@ -156,12 +157,6 @@ def _inputs_for_model(spec: _ModelSpec) -> list:
 
 def _build_model_options() -> list[IO.DynamicCombo.Option]:
     return [IO.DynamicCombo.Option(spec.slug, _inputs_for_model(spec)) for spec in MODELS]
-
-
-def _calculate_price(response: OpenRouterChatResponse) -> float | None:
-    if response.usage and response.usage.cost is not None:
-        return float(response.usage.cost) * 1.43
-    return None
 
 
 def _price_badge_jsonata() -> str:
@@ -371,7 +366,6 @@ class OpenRouterLLMNode(IO.ComfyNode):
             ApiEndpoint(path=OPENROUTER_CHAT_ENDPOINT, method="POST"),
             response_model=OpenRouterChatResponse,
             data=request,
-            price_extractor=_calculate_price,
         )
         return IO.NodeOutput(_extract_text(response))
 
