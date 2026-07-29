@@ -344,8 +344,8 @@ class UserManager():
             # the content-type override and nosniff are defence in depth.
             content_type = mimetypes.guess_type(path)[0] or 'application/octet-stream'
 
-            # Strict check: allow inline loading only for the exact user.css file
-            is_user_css = os.path.basename(path) == "user.css"
+            user_root = self.get_request_user_filepath(request, None, create_dir=False)
+            is_user_css = path == os.path.abspath(os.path.join(user_root, "user.css"))
 
             if is_user_css:
                 content_type = "text/css"
