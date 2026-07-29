@@ -86,6 +86,7 @@ class WanSelfAttention(nn.Module):
             self.v(x).view(b, s, n * d),
             heads=self.num_heads,
             transformer_options=transformer_options,
+            is_self_attention=True,
         )
 
         if "attn1_patch" in patches:

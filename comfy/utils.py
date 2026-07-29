@@ -1056,11 +1056,17 @@ def bislerp(samples, width, height):
     result = result.reshape(n, h_new, w_new, c).movedim(-1, 1)
     return result.to(orig_dtype)
 
+def image_to_uint8(image):
+    i = image.cpu().numpy()
+    i = np.nan_to_num(i, nan=0.0, posinf=1.0, neginf=0.0)
+    return (np.clip(i, 0, 1) * 255.).astype(np.uint8)
+
+
 def lanczos(samples, width, height):
     #the below API is strict and expects grayscale to be squeezed
     if samples.ndim == 4:
         samples = samples.squeeze(1) if samples.shape[1] == 1 else samples.movedim(1, -1)
-    images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    images = [Image.fromarray(image_to_uint8(image)) for image in samples]
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
     images = [torch.from_numpy(t).movedim(-1, 0) if (t := np.array(image).astype(np.float32) / 255.0).ndim == 3 else torch.from_numpy(t) for image in images]
     result = torch.stack(images)

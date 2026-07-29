@@ -1,9 +1,11 @@
 from __future__ import annotations
+import logging
+import sys
 import torch
 
 import comfy.utils
 from comfy.patcher_extension import WrappersMP
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.patcher_extension import WrapperExecutor
@@ -11,6 +13,35 @@ if TYPE_CHECKING:
 
 COMPILE_KEY = "torch.compile"
 TORCH_COMPILE_KWARGS = "torch_compile_kwargs"
+WINDOWS_ROCM_INDUCTOR_OPTIONS = {
+    "triton.cudagraphs": False,
+    "triton.cudagraph_trees": False,
+}
+
+
+def _is_windows_rocm_inductor(backend: Optional[str]) -> bool:
+    return backend == "inductor" and sys.platform == "win32" and getattr(torch.version, "hip", None) is not None
+
+
+def normalize_torch_compile_kwargs(compile_kwargs: dict[str, Any]) -> dict[str, Any]:
+    compile_kwargs = dict(compile_kwargs)
+    if _is_windows_rocm_inductor(compile_kwargs.get("backend")) and compile_kwargs.get("mode") in (None, "", "default"):
+        options = dict(compile_kwargs.get("options") or {})
+        if set(options) <= {"guard_filter_fn"}:
+            compile_kwargs["mode"] = None
+            compile_kwargs["options"] = None
+            logging.info("torch.compile: using default mode for Windows ROCm inductor.")
+        else:
+            changed = False
+            for key, value in WINDOWS_ROCM_INDUCTOR_OPTIONS.items():
+                if options.get(key) is not value:
+                    options[key] = value
+                    changed = True
+            compile_kwargs["options"] = options
+            compile_kwargs["mode"] = None
+            if changed:
+                logging.info("torch.compile: disabled inductor cudagraphs for Windows ROCm.")
+    return compile_kwargs
 
 
 def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable]) -> Callable:
@@ -30,7 +61,7 @@ def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable]) -> Ca
     return apply_torch_compile_wrapper
 
 
-def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Optional[dict[str,str]]=None,
+def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Optional[dict[str, Any]]=None,
                               mode: Optional[str]=None, fullgraph=False, dynamic: Optional[bool]=None,
                               keys: list[str]=["diffusion_model"], *args, **kwargs):
     '''
@@ -52,6 +83,7 @@ def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Option
         "fullgraph": fullgraph,
         "dynamic": dynamic,
     }
+    compile_kwargs = normalize_torch_compile_kwargs(compile_kwargs)
     # get a dict of compiled keys
     compiled_modules = {}
     for key in keys:

@@ -844,6 +844,7 @@ class CrossAttention(nn.Module):
 
     def forward(self, x, context=None, value=None, mask=None, transformer_options={}):
         q = self.to_q(x)
+        is_self_attention = context is None and value is None
         context = default(context, x)
         k = self.to_k(context)
         if value is not None:
@@ -853,9 +854,9 @@ class CrossAttention(nn.Module):
             v = self.to_v(context)
 
         if mask is None:
-            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options, is_self_attention=is_self_attention)
         else:
-            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
+            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options, is_self_attention=is_self_attention)
         return self.to_out(out)
 
 

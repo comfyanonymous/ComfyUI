@@ -1119,6 +1119,8 @@ class VAE:
                 free_memory = self.patcher.get_free_memory(self.device)
                 batch_number = int(free_memory / memory_used)
                 batch_number = max(1, batch_number)
+                if model_management.pytorch_attention_vae_single_batch():
+                    batch_number = 1
 
                 # Pre-allocate output for VAEs that support direct buffer writes
                 preallocated = False
@@ -1987,10 +1989,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     if unet_dtype is None:
         unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype, weight_dtype=weight_dtype)
 
-    if model_config.quant_config is not None:
-        manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
-    else:
-        manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
+    manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype, device=load_device)
 
     if model_config.clip_vision_prefix is not None:
@@ -2128,10 +2127,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
     else:
         unet_dtype = dtype
 
-    if model_config.quant_config is not None:
-        manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
-    else:
-        manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
+    manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype, device=load_device)
 
     if custom_operations is not None:
