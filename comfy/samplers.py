@@ -20,6 +20,7 @@ import comfy.hooks
 import comfy.context_windows
 import comfy.multigpu
 import comfy.utils
+from comfy.logging import detail
 import scipy.stats
 import numpy
 
@@ -991,10 +992,15 @@ class KSAMPLER(Sampler):
 
         noise = model_wrap.inner_model.model_sampling.noise_scaling(sigmas[0], noise, latent_image, self.max_denoise(model_wrap, sigmas))
 
-        k_callback = None
         total_steps = len(sigmas) - 1
-        if callback is not None:
-            k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
+        first_step = True
+        def k_callback(x):
+            nonlocal first_step
+            if first_step:
+                detail("First sampler step: model=%s sampler=%s step=%s total_steps=%s cfg=%s seed=%s sigma=%s sigma_hat=%s latent_shape=%s denoised_shape=%s", model_wrap.model_patcher.model.__class__.__name__, self.sampler_function.__name__, x["i"], total_steps, model_wrap.cfg, extra_args.get("seed"), x.get("sigma"), x.get("sigma_hat"), tuple(x["x"].shape), tuple(x["denoised"].shape))
+                first_step = False
+            if callback is not None:
+                callback(x["i"], x["denoised"], x["x"], total_steps)
 
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
         samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
@@ -1270,10 +1276,13 @@ class CFGGuider:
             return latent_image
 
         if latent_image.is_nested:
+            sampler_shapes = [tuple(x.shape) for x in latent_image.unbind()]
             latent_image, latent_shapes = comfy.utils.pack_latents(latent_image.unbind())
             noise, _ = comfy.utils.pack_latents(noise.unbind())
         else:
             latent_shapes = [latent_image.shape]
+            sampler_shapes = [tuple(latent_image.shape)]
+        detail("Sampler: model=%s latent_shapes=%s", self.model_patcher.model.__class__.__name__, sampler_shapes)
 
         if denoise_mask is not None:
             if denoise_mask.is_nested:
