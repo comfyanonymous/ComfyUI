@@ -27,6 +27,8 @@ import comfy.text_encoders.z_image
 import comfy.text_encoders.ideogram4
 import comfy.text_encoders.boogu
 import comfy.text_encoders.krea2
+import comfy.text_encoders.mage_flow
+import comfy.text_encoders.joyimage
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
@@ -1685,6 +1687,40 @@ class Chroma(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.pixart_t5.PixArtTokenizer, comfy.text_encoders.pixart_t5.pixart_te(**t5_detect))
 
+class SeedVR2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "seedvr2"
+    }
+    unet_extra_config = {}
+    required_keys = {
+        "{}positive_conditioning",
+        "{}negative_conditioning",
+    }
+    latent_format = comfy.latent_formats.SeedVR2
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+    sampling_settings = {
+        "shift": 1.0,
+    }
+
+    def set_inference_dtype(self, dtype, manual_cast_dtype, device=None):
+        if (
+            dtype == torch.float16
+            and manual_cast_dtype is None
+            and comfy.model_management.should_use_bf16(device)
+        ):
+            manual_cast_dtype = torch.bfloat16
+        super().set_inference_dtype(dtype, manual_cast_dtype, device=device)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SeedVR2(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        return None
+
 class ChromaRadiance(Chroma):
     unet_config = {
         "image_model": "chroma_radiance",
@@ -1848,6 +1884,35 @@ class Krea2(supported_models_base.BASE):
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_4b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.krea2.Krea2Tokenizer, comfy.text_encoders.krea2.te(**hunyuan_detect))
 
+class MageFlow(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "mage_flow",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 6.0,
+    }
+
+    memory_usage_factor = 6.5
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux2
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.MageFlow(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_4b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.mage_flow.MageFlowTokenizer, comfy.text_encoders.mage_flow.te(**hunyuan_detect))
+
 class QwenImage(supported_models_base.BASE):
     unet_config = {
         "image_model": "qwen_image",
@@ -1876,6 +1941,38 @@ class QwenImage(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_7b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.qwen_image.QwenImageTokenizer, comfy.text_encoders.qwen_image.te(**hunyuan_detect))
+
+class JoyImage(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "joyimage",
+    }
+
+    sampling_settings = {
+        "multiplier": 1000,
+        "shift": 1.5,
+    }
+
+    memory_usage_factor = 1.8
+
+    unet_extra_config = {
+        "theta": 10000,
+        "rope_dim_list": [16, 56, 56],
+    }
+
+    latent_format = latent_formats.Wan21
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.JoyImage(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        qwen3vl_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.joyimage.JoyImageTokenizer, comfy.text_encoders.joyimage.te(**qwen3vl_detect))
 
 class HunyuanImage21(HunyuanVideo):
     unet_config = {
@@ -2348,12 +2445,15 @@ models = [
     HiDream,
     HiDreamO1,
     Chroma,
+    SeedVR2,
     ChromaRadiance,
     ACEStep,
     ACEStep15,
     Omnigen2,
     Boogu,
+    MageFlow,
     QwenImage,
+    JoyImage,
     Ideogram4,
     Krea2,
     Flux2,

@@ -81,7 +81,7 @@ class SaveVideo(io.ComfyNode):
             display_name="Save Video",
             category="video",
             essentials_category="Basics",
-            description="Saves the input images to your ComfyUI output directory.",
+            description="Saves the input videos to your ComfyUI output directory.",
             inputs=[
                 io.Video.Input("video", tooltip="The video to save."),
                 io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),

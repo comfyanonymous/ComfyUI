@@ -90,6 +90,27 @@ class Qwen3VL(BaseLlama, BaseQwen3, BaseGenerate, torch.nn.Module):
                 deepstack = [torch.cat([deepstack[i], ds[i]], dim=0) for i in range(len(ds))]
         return position_ids, visual_pos_masks, deepstack
 
+    def forward(self, input_ids, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, embeds_info=[], **kwargs):
+        position_ids = kwargs.pop("position_ids", None)
+        visual_pos_masks = kwargs.pop("visual_pos_masks", None)
+        deepstack_embeds = kwargs.pop("deepstack_embeds", None)
+        if embeds is not None and position_ids is None:
+            position_ids, visual_pos_masks, deepstack_embeds = self.build_image_inputs(embeds, embeds_info)
+        return self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            embeds=embeds,
+            num_tokens=num_tokens,
+            intermediate_output=intermediate_output,
+            final_layer_norm_intermediate=final_layer_norm_intermediate,
+            dtype=dtype,
+            position_ids=position_ids,
+            embeds_info=embeds_info,
+            visual_pos_masks=visual_pos_masks,
+            deepstack_embeds=deepstack_embeds,
+            **kwargs,
+        )
+
 
 def _make_qwen3vl_model(model_type):
     class Qwen3VL_(Qwen3VL):
@@ -137,12 +158,12 @@ class Qwen3VLTokenizer(sd1_clip.SD1Tokenizer):
         self.llama_template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
         self.llama_template_images = "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{}<|im_end|>\n<|im_start|>assistant\n"
 
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, thinking=False, **kwargs):
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, thinking=False, skip_template=False, **kwargs):
         image = kwargs.get("image", None)
         if image is not None and len(images) == 0:
             images = [image[i:i + 1] for i in range(image.shape[0])]
 
-        skip_template = text.startswith('<|im_start|>')
+        skip_template = skip_template or text.startswith('<|im_start|>')
         if prevent_empty_text and text == '':
             text = ' '
 

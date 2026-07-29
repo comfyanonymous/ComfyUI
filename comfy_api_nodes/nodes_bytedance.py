@@ -34,6 +34,7 @@ from comfy_api_nodes.apis.bytedance import (
     SeedanceVirtualLibraryCreateAssetRequest,
     Seedream4Options,
     Seedream4TaskCreationRequest,
+    Seedream5OptimizePromptOptions,
     TaskAudioContent,
     TaskAudioContentUrl,
     TaskCreationResponse,
@@ -875,6 +876,17 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     advanced=True,
                 ),
+                IO.Boolean.Input(
+                    "thinking",
+                    default=True,
+                    tooltip=(
+                        "Enable the model's prompt-optimization reasoning ('thinking') for better adherence. "
+                        "Can substantially increase generation time — notably on Seedream 5.0 Pro. "
+                        "Can only be disabled for text-to-image (not when reference images are provided)."
+                    ),
+                    optional=True,
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -920,6 +932,7 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         model: dict,
         seed: int = 0,
         watermark: bool = False,
+        thinking: bool = True,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_id = SEEDREAM_MODELS[model["model"]]
@@ -979,6 +992,10 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
             raise ValueError(
                 "The maximum number of generated images plus the number of reference images cannot exceed 15."
             )
+        if not thinking and n_input_images > 0:
+            raise ValueError(
+                "'thinking' can only be disabled for text-to-image; enable it when using reference images."
+            )
 
         reference_images_urls: list[str] = []
         if image_tensors:
@@ -992,6 +1009,9 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 wait_label="Uploading reference images",
             )
 
+        optimize_prompt_options = None
+        if n_input_images == 0:
+            optimize_prompt_options = Seedream5OptimizePromptOptions(thinking="enabled" if thinking else "disabled")
         response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
@@ -1005,6 +1025,7 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 sequential_image_generation=None if is_pro else sequential_image_generation,
                 sequential_image_generation_options=None if is_pro else Seedream4Options(max_images=max_images),
                 watermark=watermark,
+                optimize_prompt_options=optimize_prompt_options,
             ),
         )
         if len(response.data) == 1:
@@ -2669,7 +2690,8 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                 "with ByteDance Seed Audio 1.0. Describe the voice(s), emotion, ambience, background music "
                 "and sound effects in the prompt, and include the lines to speak. Optionally pick a built-in "
                 "preset voice, clone voices from up to 3 reference clips (tagged @Audio1-3 in the prompt), "
-                "or derive a voice from a character image. Up to 2 minutes of audio per run."
+                "or derive a voice from a character image. Up to 2 minutes of audio per run. "
+                "The multilingual model supports 20 languages and timestamp-based timing control."
             ),
             inputs=[
                 IO.String.Input(
@@ -2680,7 +2702,9 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                         "Describe the voice(s), emotion, pacing, ambience, background music and sound "
                         "effects, and include the lines to speak (name characters inline for dialogue). "
                         "In 'audio reference' mode, refer to connected clips by order as @Audio1, @Audio2, "
-                        "@Audio3. Maximum 3000 characters."
+                        "@Audio3. With the multilingual model, a quoted line can start with a timestamp "
+                        'range that controls when and how long it is spoken, e.g. "[5.5s:8.0s] Wait for me!". '
+                        "Write the prompt in the same language as the lines to speak. Maximum 3000 characters."
                     ),
                 ),
                 IO.DynamicCombo.Input(
@@ -2775,6 +2799,19 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                     tooltip="Seed controls whether the node should re-run; "
                     "results are non-deterministic regardless of seed.",
                 ),
+                IO.Combo.Input(
+                    "model",
+                    options=["seed-audio-1.0-multilingual", "seed-audio-1.0"],
+                    default="seed-audio-1.0-multilingual",
+                    optional=True,
+                    tooltip=(
+                        "seed-audio-1.0-multilingual: 20 languages (English, Chinese, Japanese, Korean, "
+                        "Mexican & Castilian Spanish, Indonesian, German, Brazilian Portuguese, French, "
+                        "Thai, Vietnamese, Malay, Filipino, Italian, Russian, Dutch, Polish, Turkish, "
+                        'Swedish) plus per-sentence timing control via "[5.5s:8.0s] ..." timestamps. '
+                        "seed-audio-1.0: English and Chinese only, no timing control."
+                    ),
+                ),
             ],
             outputs=[IO.Audio.Output()],
             hidden=[
@@ -2798,6 +2835,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
         loudness_rate: int,
         pitch_rate: int,
         seed: int,
+        model: str = "seed-audio-1.0-multilingual",
     ) -> IO.NodeOutput:
         mode = reference_mode["reference_mode"]
         audio_indices = connected_audio_indices(reference_mode)
@@ -2824,6 +2862,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/byteplus/api/v3/tts/create", method="POST"),
             response_model=SeedAudioResponse,
             data=SeedAudioRequest(
+                model=model,
                 text_prompt=text_prompt,
                 references=references,
                 audio_config=SeedAudioConfig(
