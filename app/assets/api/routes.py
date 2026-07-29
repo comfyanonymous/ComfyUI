@@ -40,6 +40,7 @@ from app.assets.services import (
     upload_from_temp_path,
 )
 from app.assets.services.cursor import InvalidCursorError
+from app.assets.services.path_utils import compute_display_name
 from app.assets.services.tagging import list_tag_histogram
 
 ROUTES = web.RouteTableDef()
@@ -161,11 +162,19 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
             preview_url = None
     else:
         preview_url = _build_preview_url_from_view(result.tags, result.ref.user_metadata)
+    if result.ref.file_path:
+        display_name = compute_display_name(result.ref.file_path)
+        # In-root loader path (model category dropped): what model loaders consume.
+        loader_path = result.ref.loader_path
+    else:
+        display_name, loader_path = None, None
     asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
         id=result.ref.id,
         name=result.ref.name,
         hash=asset_content_hash,
+        loader_path=loader_path,
+        display_name=display_name,
         asset_hash=asset_content_hash,
         size=int(result.asset.size_bytes) if result.asset else None,
         mime_type=result.asset.mime_type if result.asset else None,
@@ -306,12 +315,15 @@ async def download_asset_content(request: web.Request) -> web.Response:
             404, "FILE_NOT_FOUND", "Underlying file not found on disk."
         )
 
-    _DANGEROUS_MIME_TYPES = {
-        "text/html", "text/html-sandboxed", "application/xhtml+xml",
-        "text/javascript", "text/css",
-    }
-    if content_type in _DANGEROUS_MIME_TYPES:
+    # User-controlled asset content must never render inline in the app origin
+    # (stored XSS via SVG/HTML/XML). Force dangerous types to download and
+    # override any requested inline disposition. Centralised through
+    # folder_paths.is_dangerous_content_type so this can't drift from /view and
+    # /userdata (the previous inline set here omitted image/svg+xml and missed
+    # the charset/casing/+xml-dialect bypasses).
+    if folder_paths.is_dangerous_content_type(content_type):
         content_type = "application/octet-stream"
+        disposition = "attachment"
 
     safe_name = (filename or "").replace("\r", "").replace("\n", "")
     encoded = urllib.parse.quote(safe_name)
@@ -416,17 +428,6 @@ async def upload_asset(request: web.Request) -> web.Response:
             400, "INVALID_BODY", f"Validation failed: {ve.json()}"
         )
 
-    if spec.tags and spec.tags[0] == "models":
-        if (
-            len(spec.tags) < 2
-            or spec.tags[1] not in folder_paths.folder_names_and_paths
-        ):
-            delete_temp_file_if_exists(parsed.tmp_path)
-            category = spec.tags[1] if len(spec.tags) >= 2 else ""
-            return _build_error_response(
-                400, "INVALID_BODY", f"unknown models category '{category}'"
-            )
-
     try:
         # Fast path: hash exists, create AssetReference without writing anything
         if spec.hash and parsed.provided_hash_exists is True:
@@ -470,7 +471,7 @@ async def upload_asset(request: web.Request) -> web.Response:
         return _build_error_response(400, e.code, str(e))
     except ValueError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
-        return _build_error_response(400, "BAD_REQUEST", str(e))
+        return _build_error_response(400, "INVALID_BODY", str(e))
     except HashMismatchError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
         return _build_error_response(400, "HASH_MISMATCH", str(e))

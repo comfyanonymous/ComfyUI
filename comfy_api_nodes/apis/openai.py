@@ -128,7 +128,7 @@ class OpenAIResponse(ModelResponseProperties, ResponseProperties):
     parallel_tool_calls: bool | None = Field(True)
     status: str | None = Field(
         None,
-        description="One of `completed`, `failed`, `in_progress`, or `incomplete`.",
+        description="One of `completed`, `failed`, `in_progress`, `incomplete`, `queued`, or `cancelled`.",
     )
     usage: ResponseUsage | None = Field(None)
 

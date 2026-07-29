@@ -50,8 +50,8 @@ class GetICLoRAParameters(io.ComfyNode):
         factor = 1
         if metadata:
             try:
-                factor = max(1, round(float(metadata.get("reference_downscale_factor", 1))))
-            except (TypeError, ValueError):
+                factor = max(1, round(float(next(v for k, v in metadata.items() if k.endswith("reference_downscale_factor")))))
+            except (StopIteration, TypeError, ValueError):
                 factor = 1
         parameters = {"reference_downscale_factor": factor}
         return io.NodeOutput(parameters)

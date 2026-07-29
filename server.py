@@ -39,6 +39,7 @@ from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
 from comfy_api import feature_flags
+from comfy.comfy_api_env import get_environment_overrides
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
@@ -46,6 +47,7 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.assets.seeder import asset_seeder
 from app.assets.api.routes import register_assets_routes
 from app.assets.services.ingest import register_file_in_place
+from app.assets.services.path_utils import get_known_subfolder_tags
 from app.assets.services.asset_management import resolve_hash_to_path
 
 from app.user_manager import UserManager
@@ -126,6 +128,7 @@ def create_cors_middleware(allowed_origin: str):
         return response
 
     return cors_middleware
+
 
 def is_loopback(host):
     if host is None:
@@ -440,7 +443,9 @@ class PromptServer():
                 if args.enable_assets:
                     try:
                         tag = image_upload_type if image_upload_type in ("input", "output") else "input"
-                        result = register_file_in_place(abs_path=filepath, name=filename, tags=[tag])
+                        tags = [tag]
+                        tags.extend(get_known_subfolder_tags(subfolder))
+                        result = register_file_in_place(abs_path=filepath, name=filename, tags=tags)
                         resp["asset"] = {
                             "id": result.ref.id,
                             "name": result.ref.name,
@@ -616,15 +621,30 @@ class PromptServer():
                             or 'application/octet-stream'
                         )
 
-                        # For security, force certain mimetypes to download instead of display
-                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
-                            content_type = 'application/octet-stream'  # Forces download
+                        # For security, force renderable/active types (HTML, JS,
+                        # CSS, SVG, XML — anything that can carry inline <script>
+                        # and execute in the page origin) to download instead of
+                        # displaying inline, preventing stored XSS. The
+                        # attachment disposition is the load-bearing guard: a
+                        # bare filename= hint does not force a download per
+                        # RFC 6266, so we only attach it on the dangerous branch
+                        # to avoid breaking inline display of legitimate images.
+                        # Escape backslash/quote per RFC 6266 quoted-string so a
+                        # filename containing a double quote (which passes the
+                        # ".."/leading-slash filter above) can't break out of the
+                        # header's quoted-string and malform the disposition.
+                        safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+                        disposition = f"filename=\"{safe_filename}\""
+                        if folder_paths.is_dangerous_content_type(content_type):
+                            content_type = 'application/octet-stream'
+                            disposition = f"attachment; filename=\"{safe_filename}\""
 
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
-                                "Content-Type": content_type
+                                "Content-Disposition": disposition,
+                                "Content-Type": content_type,
+                                "X-Content-Type-Options": "nosniff"
                             }
                         )
 
@@ -708,7 +728,11 @@ class PromptServer():
 
         @routes.get("/features")
         async def get_features(request):
-            return web.json_response(feature_flags.get_server_features())
+            features = feature_flags.get_server_features()
+            overrides = get_environment_overrides()
+            if overrides:
+                features.update(overrides)
+            return web.json_response(features)
 
         @routes.get("/prompt")
         async def get_prompt(request):
