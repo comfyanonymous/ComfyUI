@@ -914,12 +914,51 @@ if CUBLAS_IS_AVAILABLE:
 # ==============================================================================
 # Mixed Precision Operations
 # ==============================================================================
+from . import quant_ops
 from .quant_ops import (
     QuantizedTensor,
     QUANT_ALGOS,
     TensorCoreFP8Layout,
+    TensorWiseINT8Layout,
     get_layout_class,
 )
+
+INPUT_ACT_EAGER = {
+    "gelu_tanh": lambda x: torch.nn.functional.gelu(x, approximate="tanh"),
+}
+
+
+def linear_input_act(linear, x, input_act):
+    """``linear(act(x))``, with ``act`` folded into an INT8 activation quantizer.
+
+    An INT8 linear quantizes its input anyway, so an elementwise activation can
+    ride along inside that kernel instead of writing a full-size intermediate to
+    HBM and reading it straight back. Worth it for an MLP's down-projection,
+    where the intermediate is several times the hidden size.
+
+    """
+    weight = linear.weight
+    if (comfy.model_management.in_training
+            or not isinstance(weight, QuantizedTensor)
+            or weight._layout_cls != "TensorWiseINT8Layout"
+            or getattr(weight._params, "transposed", False)):
+        return linear(INPUT_ACT_EAGER[input_act](x))
+
+    weight, bias, offload_stream = cast_bias_weight(linear, x, offloadable=True)
+    try:
+        if not isinstance(weight, QuantizedTensor):
+            # A LoRA weight_function, or activations whose dtype differs from the
+            # weight's, make the cast hand back a dequantized tensor.
+            return torch.nn.functional.linear(INPUT_ACT_EAGER[input_act](x), weight, bias)
+        qdata, scale = TensorWiseINT8Layout.get_plain_tensors(weight)
+        return quant_ops.ck.int8_linear(
+            x, qdata, scale, bias, x.dtype,
+            convrot=getattr(weight._params, "convrot", False),
+            convrot_groupsize=getattr(weight._params, "convrot_groupsize", 256),
+            input_act=input_act,
+        )
+    finally:
+        uncast_bias_weight(linear, weight, bias, offload_stream)
 
 
 class QuantLinearFunc(torch.autograd.Function):

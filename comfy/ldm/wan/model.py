@@ -11,6 +11,7 @@ from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.flux.math import apply_rope1, rope
 import comfy.ldm.common_dit
 import comfy.model_management
+import comfy.ops
 import comfy.patcher_extension
 
 
@@ -174,6 +175,13 @@ def repeat_e(e, x):
         return torch.repeat_interleave(e, repeats + 1, dim=1)[:, :x.size(1)]
 
 
+class WanFeedForward(nn.Sequential):
+    """[Linear, GELU(tanh), Linear], with the GELU folded into the down-projection."""
+
+    def forward(self, x):
+        return comfy.ops.linear_input_act(self[2], self[0](x), "gelu_tanh")
+
+
 class WanAttentionBlock(nn.Module):
 
     def __init__(self,
@@ -207,7 +215,7 @@ class WanAttentionBlock(nn.Module):
                                                                       qk_norm,
                                                                       eps, operation_settings=operation_settings)
         self.norm2 = operation_settings.get("operations").LayerNorm(dim, eps, elementwise_affine=False, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
-        self.ffn = nn.Sequential(
+        self.ffn = WanFeedForward(
             operation_settings.get("operations").Linear(dim, ffn_dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")), nn.GELU(approximate='tanh'),
             operation_settings.get("operations").Linear(ffn_dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")))
 
