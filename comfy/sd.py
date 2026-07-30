@@ -1637,12 +1637,21 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.tokenizer = comfy.text_encoders.sa3.SAT5GemmaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B, TEModel.GEMMA_4_12B):
-            variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
-                       TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
-                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B,
-                       TEModel.GEMMA_4_12B: comfy.text_encoders.gemma4.Gemma4_12B}[te_model]
-            clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
-            clip_target.tokenizer = variant.tokenizer
+            if te_model == TEModel.GEMMA_4_12B and "text_embedding_projection.video_aggregate_embed.weight" in clip_data[0]:
+                clip_target.clip = comfy.text_encoders.lt.ltxav_te(
+                    **llama_detect(clip_data),
+                    **comfy.text_encoders.lt.sd_detect(clip_data),
+                    text_encoder_model=comfy.text_encoders.gemma4.gemma4_text_encoder_model(comfy.text_encoders.gemma4.Gemma4_12B),
+                    text_encoder_key="gemma4",
+                )
+                clip_target.tokenizer = comfy.text_encoders.lt.ltxav_gemma4_tokenizer(comfy.text_encoders.gemma4.Gemma4_12B.tokenizer)
+            else:
+                variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
+                           TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
+                           TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B,
+                           TEModel.GEMMA_4_12B: comfy.text_encoders.gemma4.Gemma4_12B}[te_model]
+                clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
+                clip_target.tokenizer = variant.tokenizer
             tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
         elif te_model == TEModel.GEMMA_2_2B:
             if clip_type == CLIPType.PIXELDIT:

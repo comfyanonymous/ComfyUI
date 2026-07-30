@@ -209,34 +209,37 @@ class LTXAVTEModel(torch.nn.Module):
         return self.gemma3_12b.generate(tokens[self.text_encoder_key], do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty)
 
     def load_sd(self, sd):
+        missing_all = []
+        unexpected_all = []
+
         if "model.layers.0.self_attn.q_norm.weight" in sd:
-            return self.gemma3_12b.load_sd(sd)
-        else:
-            sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.": "text_embedding_projection.", "text_embedding_projection.": "text_embedding_projection."}, filter_keys=True)
-            if len(sdo) == 0:
-                sdo = sd
+            gemma_sd = {k: v for k, v in sd.items() if not k.startswith("text_embedding_projection.")}
+            missing, unexpected = self.gemma3_12b.load_sd(gemma_sd)
+            missing_all.extend(missing)
+            unexpected_all.extend(unexpected)
 
-            missing_all = []
-            unexpected_all = []
+        sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.": "text_embedding_projection.", "text_embedding_projection.": "text_embedding_projection."}, filter_keys=True)
+        if len(sdo) == 0:
+            sdo = sd
 
-            for prefix, component in [("text_embedding_projection.", self.text_embedding_projection)]:
-                component_sd = {k.replace(prefix, ""): v for k, v in sdo.items() if k.startswith(prefix)}
-                if component_sd:
-                    missing, unexpected = component.load_state_dict(component_sd, strict=False, assign=getattr(self, "can_assign_sd", False))
-                    missing_all.extend([f"{prefix}{k}" for k in missing])
-                    unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
+        for prefix, component in [("text_embedding_projection.", self.text_embedding_projection)]:
+            component_sd = {k.replace(prefix, ""): v for k, v in sdo.items() if k.startswith(prefix)}
+            if component_sd:
+                missing, unexpected = component.load_state_dict(component_sd, strict=False, assign=getattr(self, "can_assign_sd", False))
+                missing_all.extend([f"{prefix}{k}" for k in missing])
+                unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
 
-            if "model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.2.attn1.to_q.bias" not in sd:  # TODO: remove
-                ww = sd.get("model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.0.attn1.to_q.bias", None)
-                if ww is not None:
-                    if ww.shape[0] == 3840:
-                        self.enable_compat_mode()
-                        sdv = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.video_embeddings_connector.": ""}, filter_keys=True)
-                        self.video_embeddings_connector.load_state_dict(sdv, strict=False, assign=getattr(self, "can_assign_sd", False))
-                        sda = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.audio_embeddings_connector.": ""}, filter_keys=True)
-                        self.audio_embeddings_connector.load_state_dict(sda, strict=False, assign=getattr(self, "can_assign_sd", False))
+        if "model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.2.attn1.to_q.bias" not in sd:  # TODO: remove
+            ww = sd.get("model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.0.attn1.to_q.bias", None)
+            if ww is not None:
+                if ww.shape[0] == 3840:
+                    self.enable_compat_mode()
+                    sdv = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.video_embeddings_connector.": ""}, filter_keys=True)
+                    self.video_embeddings_connector.load_state_dict(sdv, strict=False, assign=getattr(self, "can_assign_sd", False))
+                    sda = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.audio_embeddings_connector.": ""}, filter_keys=True)
+                    self.audio_embeddings_connector.load_state_dict(sda, strict=False, assign=getattr(self, "can_assign_sd", False))
 
-            return (missing_all, unexpected_all)
+        return (missing_all, unexpected_all)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
         constant = 6.0
