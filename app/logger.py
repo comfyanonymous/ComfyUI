@@ -113,7 +113,7 @@ def setup_logger(log_level: str = 'INFO', file_outputs=None, capacity: int = 300
     logger = logging.getLogger()
     console_level = get_log_level(log_level)
     file_levels = [get_log_level(level) for level, _ in file_outputs]
-    logger.setLevel(min(console_level, *file_levels))
+    logger.setLevel(min([console_level, *file_levels]))
 
     formatter = ColoredFormatter("%(message)s")
 

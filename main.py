@@ -19,7 +19,7 @@ import time
 from comfy.cli_args import enables_dynamic_vram
 from app.logger import setup_logger
 console_log_level = get_console_log_level(args.verbose)
-file_log_outputs = [('DETAIL', 'comfyui_detail.log'), *get_file_log_outputs(args.verbose)]
+file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
 from app.assets.seeder import asset_seeder
