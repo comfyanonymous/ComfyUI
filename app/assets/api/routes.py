@@ -321,10 +321,23 @@ async def download_asset_content(request: web.Request) -> web.Response:
     # exempt, see renders_safely_as_image. Centralised through folder_paths so
     # this can't drift from /view and /userdata (the previous inline set here
     # omitted image/svg+xml and missed the charset/casing/+xml-dialect bypasses).
+    extra_headers = {}
     sec_fetch_dest = request.headers.get("Sec-Fetch-Dest")
-    if folder_paths.is_dangerous_content_type(content_type) and not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
-        content_type = "application/octet-stream"
-        disposition = "attachment"
+    if folder_paths.is_dangerous_content_type(content_type):
+        # This response now depends on a request header, so it must not be
+        # reused across destinations by a browser or intermediary cache: an
+        # inline SVG primed by an <img> fetch and replayed to a document
+        # navigation of the same URL would re-enable the stored XSS.
+        extra_headers["Vary"] = "Sec-Fetch-Dest"
+        extra_headers["Cache-Control"] = "no-store"
+        if not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
+            content_type = "application/octet-stream"
+            disposition = "attachment"
+
+    # mime_type is uploader-supplied and unvalidated, so it can carry
+    # parameters. aiohttp rejects a charset in the content_type argument with
+    # ValueError, which would turn a valid inline SVG into a 500.
+    content_type = content_type.split(";", 1)[0].strip() or "application/octet-stream"
 
     safe_name = (filename or "").replace("\r", "").replace("\n", "")
     encoded = urllib.parse.quote(safe_name)
@@ -357,6 +370,7 @@ async def download_asset_content(request: web.Request) -> web.Response:
             "Content-Disposition": cd,
             "Content-Length": str(file_size),
             "X-Content-Type-Options": "nosniff",
+            **extra_headers,
         },
     )
 

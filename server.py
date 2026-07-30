@@ -636,19 +636,27 @@ class PromptServer():
                         # header's quoted-string and malform the disposition.
                         safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
                         disposition = f"filename=\"{safe_filename}\""
+                        headers = {"X-Content-Type-Options": "nosniff"}
                         sec_fetch_dest = request.headers.get('Sec-Fetch-Dest')
-                        if folder_paths.is_dangerous_content_type(content_type) and not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
-                            content_type = 'application/octet-stream'
-                            disposition = f"attachment; filename=\"{safe_filename}\""
+                        if folder_paths.is_dangerous_content_type(content_type):
+                            # This response now depends on a request header, so
+                            # it must not be reused across destinations.
+                            # FileResponse emits Last-Modified/ETag and nothing
+                            # sets Cache-Control on /view, which makes it
+                            # heuristically cacheable: without these headers a
+                            # cache could replay the inline SVG served to an
+                            # <img> to a later document navigation of the same
+                            # URL and re-enable the stored XSS, or replay the
+                            # attachment to an <img> and re-break the preview.
+                            headers["Vary"] = "Sec-Fetch-Dest"
+                            headers["Cache-Control"] = "no-store"
+                            if not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
+                                content_type = 'application/octet-stream'
+                                disposition = f"attachment; filename=\"{safe_filename}\""
 
-                        return web.FileResponse(
-                            file,
-                            headers={
-                                "Content-Disposition": disposition,
-                                "Content-Type": content_type,
-                                "X-Content-Type-Options": "nosniff"
-                            }
-                        )
+                        headers["Content-Disposition"] = disposition
+                        headers["Content-Type"] = content_type
+                        return web.FileResponse(file, headers=headers)
 
             return web.Response(status=404)
 
