@@ -1,0 +1,12 @@
+--index-url https://repos.metax-tech.com/r/maca-pypi/simple
+--trusted-host repos.metax-tech.com
+
+-r requirements.txt
+
+# MXMACA 3.8.0.x, Python 3.10, Linux x86_64
+torch==2.10.0+metax3.8.0.7
+torchvision==0.25.0+metax3.8.0.7
+torchaudio==2.4.1+metax3.8.0.7
+triton==3.6.0+metax3.8.0.7
+xformers==0.0.22+metax3.8.0.7torch2.10
+flash-attn==2.6.3+metax3.8.0.7torch2.10
