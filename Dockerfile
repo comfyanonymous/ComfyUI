@@ -1,12 +1,11 @@
 # ComfyUI Docker 镜像
-# 默认构建 CPU 版本；构建 GPU 版本时请传入 TORCH_INDEX_URL 参数：
-#   docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 -t comfyui-sos:gpu .
+# RTX 50 系列（Blackwell）GPU 镜像
 
 ARG PYTHON_BASE_IMAGE=python:3.10-slim-bookworm
 FROM ${PYTHON_BASE_IMAGE} AS base
 
 # 构建参数
-ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu130
 ARG APT_MIRROR=
 ARG APT_SECURITY_MIRROR=
 ENV TORCH_INDEX_URL=${TORCH_INDEX_URL}
@@ -50,6 +49,13 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY docker-extra-requirements.txt /app/docker-extra-requirements.txt
 RUN pip install --no-cache-dir -r /app/docker-extra-requirements.txt
 
+# Triton 首次运行会即时编译 CUDA 驱动辅助模块，需要本地 C 工具链
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+ENV CC=/usr/bin/gcc
+
 # 复制项目源码
 COPY . /app
 
@@ -59,5 +65,5 @@ RUN mkdir -p /app/models /app/output /app/input /app/user /app/temp /app/custom_
 # 暴露 ComfyUI 默认端口
 EXPOSE 8188
 
-# 默认 CPU 模式监听所有接口，方便从容器外部访问
-CMD ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--cpu"]
+# GPU 模式监听所有接口，方便从容器外部访问
+CMD ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188"]
