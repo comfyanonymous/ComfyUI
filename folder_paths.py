@@ -44,6 +44,8 @@ folder_names_and_paths["latent_upscale_models"] = ([os.path.join(models_dir, "la
 
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 
+folder_names_and_paths["datasets"] = ([os.path.join(base_path, "datasets")], set())
+
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
 folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
@@ -302,6 +304,23 @@ def is_dangerous_content_type(content_type: str | None) -> bool:
     if normalized in DANGEROUS_CONTENT_TYPES:
         return True
     return normalized.endswith('+xml') or normalized.endswith('/xml')
+
+
+def renders_safely_as_image(content_type: str | None, sec_fetch_dest: str | None) -> bool:
+    """Return True if a dangerous `content_type` is safe to serve inline anyway.
+
+    An SVG referenced by an ``<img>`` is loaded in secure static mode: scripts
+    and external references are disabled, so the stored XSS that
+    ``is_dangerous_content_type`` guards against cannot fire. The attack needs
+    the SVG to become a document, which is a separate ``Sec-Fetch-Dest``.
+    Browsers set that header themselves and script cannot override it (the
+    ``Sec-`` prefix makes it a forbidden header name), so it is trustworthy for
+    this decision. Anything else, including a missing header from a non-browser
+    client or a proxy that strips it, fails closed.
+    """
+    if sec_fetch_dest != 'image':
+        return False
+    return (content_type or '').split(';', 1)[0].strip().lower() == 'image/svg+xml'
 
 
 def is_within_directory(directory: str, target: str) -> bool:

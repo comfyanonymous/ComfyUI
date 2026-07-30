@@ -195,9 +195,10 @@ class ExecutionList(TopologicalSort):
     ExecutionList implements a topological dissolve of the graph. After a node is staged for execution,
     it can still be returned to the graph after having further dependencies added.
     """
-    def __init__(self, dynprompt, output_cache):
+    def __init__(self, dynprompt, output_cache, output_link_callback=None):
         super().__init__(dynprompt)
         self.output_cache = output_cache
+        self.output_link_callback = output_link_callback
         self.staged_node_id = None
         self.execution_cache = {}
         self.execution_cache_listeners = {}
@@ -205,13 +206,16 @@ class ExecutionList(TopologicalSort):
     def is_cached(self, node_id):
         return self.output_cache.get_local(node_id) is not None
 
-    def cache_link(self, from_node_id, to_node_id):
+    def cache_link(self, from_node_id, to_node_id, from_socket=None):
         if to_node_id not in self.execution_cache:
             self.execution_cache[to_node_id] = {}
-        self.execution_cache[to_node_id][from_node_id] = self.output_cache.get_local(from_node_id)
+        value = self.output_cache.get_local(from_node_id)
+        self.execution_cache[to_node_id][from_node_id] = value
         if from_node_id not in self.execution_cache_listeners:
             self.execution_cache_listeners[from_node_id] = set()
-        self.execution_cache_listeners[from_node_id].add(to_node_id)
+        self.execution_cache_listeners[from_node_id].add((to_node_id, from_socket))
+        if value is not None and from_socket is not None and self.output_link_callback is not None:
+            self.output_link_callback(value.outputs[from_socket])
 
     def get_cache(self, from_node_id, to_node_id):
         if to_node_id not in self.execution_cache:
@@ -225,13 +229,15 @@ class ExecutionList(TopologicalSort):
 
     def cache_update(self, node_id, value):
         if node_id in self.execution_cache_listeners:
-            for to_node_id in self.execution_cache_listeners[node_id]:
+            for to_node_id, from_socket in self.execution_cache_listeners[node_id]:
                 if to_node_id in self.execution_cache:
                     self.execution_cache[to_node_id][node_id] = value
+                if from_socket is not None and self.output_link_callback is not None:
+                    self.output_link_callback(value.outputs[from_socket])
 
     def add_strong_link(self, from_node_id, from_socket, to_node_id):
         super().add_strong_link(from_node_id, from_socket, to_node_id)
-        self.cache_link(from_node_id, to_node_id)
+        self.cache_link(from_node_id, to_node_id, from_socket)
 
     async def stage_node_execution(self):
         assert self.staged_node_id is None

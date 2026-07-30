@@ -17,6 +17,7 @@ import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.seedvr.vae
+import comfy.ldm.mage_flow.vae
 import comfy.ldm.triposplat.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.cogvideo.vae
@@ -60,6 +61,7 @@ import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
 import comfy.text_encoders.krea2
+import comfy.text_encoders.mage_flow
 import comfy.text_encoders.ideogram4
 import comfy.text_encoders.ovis
 import comfy.text_encoders.kandinsky5
@@ -567,6 +569,17 @@ class VAE:
                 self.upscale_index_formula = (4, 8, 8)
                 self.process_input = lambda image: image * 2.0 - 1.0
                 self.crop_input = False
+            elif "student.dconv_encoder.proj_out.weight" in sd:  # Mage-VAE (one-step diffusion codec, Flux2-anchored 128ch/16x latents)
+                sd = comfy.utils.state_dict_prefix_replace(sd, {"student.dconv_encoder.": "dconv_encoder.", "pipeline.": "decoder_model."})
+                # Drop the unused Flux2-VAE anchor encoder carried in the checkpoint.
+                sd = {k: v for k, v in sd.items() if not k.startswith("decoder_model.y_embedder.encoder.") and not k.startswith("decoder_model.y_embedder.bottleneck.")}
+                self.first_stage_model = comfy.ldm.mage_flow.vae.MageVAE()
+                self.latent_channels = 128
+                self.downscale_ratio = 16
+                self.upscale_ratio = 16
+                self.working_dtypes = [torch.bfloat16, torch.float32]
+                self.memory_used_encode = lambda shape, dtype: (400 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * shape[3] * 16 * 16) * model_management.dtype_size(dtype)
             elif "decoder.conv_in.weight" in sd:
                 if sd['decoder.conv_in.weight'].shape[1] == 64:
                     ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}
@@ -1379,6 +1392,7 @@ class CLIPType(Enum):
     BOOGU = 31
     KREA2 = 32
     JOYIMAGE = 33
+    MAGE = 34
 
 
 
@@ -1434,6 +1448,7 @@ class TEModel(Enum):
     GPT_OSS_20B = 33
     QWEN3VL_4B = 34
     QWEN3VL_8B = 35
+    GEMMA_4_12B = 36
 
 
 def detect_te_model(sd):
@@ -1463,6 +1478,9 @@ def detect_te_model(sd):
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         if 'model.layers.59.self_attn.q_norm.weight' in sd:
             return TEModel.GEMMA_4_31B
+        # Gemma4 12B Unified: 48 layers, encoder-free; global layers drop v_proj (attention_k_eq_v).
+        if 'model.layers.47.self_attn.q_norm.weight' in sd and 'model.layers.5.self_attn.v_proj.weight' not in sd:
+            return TEModel.GEMMA_4_12B
         if 'model.layers.41.self_attn.q_norm.weight' in sd and 'model.layers.47.self_attn.q_norm.weight' not in sd:
             return TEModel.GEMMA_4_E4B
         if 'model.layers.34.self_attn.q_norm.weight' in sd and 'model.layers.41.self_attn.q_norm.weight' not in sd:
@@ -1618,10 +1636,11 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.sa3.SAT5GemmaModel
             clip_target.tokenizer = comfy.text_encoders.sa3.SAT5GemmaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
-        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B):
+        elif te_model in (TEModel.GEMMA_4_E4B, TEModel.GEMMA_4_E2B, TEModel.GEMMA_4_31B, TEModel.GEMMA_4_12B):
             variant = {TEModel.GEMMA_4_E4B: comfy.text_encoders.gemma4.Gemma4_E4B,
                        TEModel.GEMMA_4_E2B: comfy.text_encoders.gemma4.Gemma4_E2B,
-                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B}[te_model]
+                       TEModel.GEMMA_4_31B: comfy.text_encoders.gemma4.Gemma4_31B,
+                       TEModel.GEMMA_4_12B: comfy.text_encoders.gemma4.Gemma4_12B}[te_model]
             clip_target.clip = comfy.text_encoders.gemma4.gemma4_te(**llama_detect(clip_data), model_class=variant)
             clip_target.tokenizer = variant.tokenizer
             tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
@@ -1708,6 +1727,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.krea2.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.krea2.Krea2Tokenizer
+            elif clip_type == CLIPType.MAGE and te_model == TEModel.QWEN3VL_4B:  # Mage-Flow: full Qwen3-VL-4B, last hidden state, Qwen-Image-style templates.
+                clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
+                clip_target.clip = comfy.text_encoders.mage_flow.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.mage_flow.MageFlowTokenizer
             elif clip_type == CLIPType.JOYIMAGE and te_model == TEModel.QWEN3VL_8B:  # JoyImageEdit: full Qwen3-VL-8B, edit-conditioning template + drop_idx.
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.joyimage.te(**llama_detect(clip_data))
