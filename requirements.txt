@@ -1,10 +1,13 @@
 comfyui-frontend-package==1.47.10
 comfyui-workflow-templates==0.11.19
 comfyui-embedded-docs==0.5.9
-torch
+torch @ https://repos.metax-tech.com/r/maca-pypi/packages/torch/2.10.0+metax3.8.0.7/torch-2.10.0+metax3.8.0.7-cp310-cp310-linux_x86_64.whl
 torchsde
-torchvision
-torchaudio
+torchvision @ https://repos.metax-tech.com/r/maca-pypi/packages/torchvision/0.25.0+metax3.8.0.7/torchvision-0.25.0+metax3.8.0.7-cp310-cp310-linux_x86_64.whl
+torchaudio @ https://repos.metax-tech.com/r/maca-pypi/packages/torchaudio/2.4.1+metax3.8.0.7/torchaudio-2.4.1+metax3.8.0.7-cp310-cp310-linux_x86_64.whl
+triton @ https://repos.metax-tech.com/r/maca-pypi/packages/triton/3.6.0+metax3.8.0.7/triton-3.6.0+metax3.8.0.7-cp310-cp310-linux_x86_64.whl
+xformers @ https://repos.metax-tech.com/r/maca-pypi/packages/xformers/0.0.22+metax3.8.0.7torch2.10/xformers-0.0.22+metax3.8.0.7torch2.10-cp310-cp310-linux_x86_64.whl
+flash-attn @ https://repos.metax-tech.com/r/maca-pypi/packages/flash-attn/2.6.3+metax3.8.0.7torch2.10/flash_attn-2.6.3+metax3.8.0.7torch2.10-cp310-cp310-linux_x86_64.whl
 numpy>=1.25.0
 einops
 transformers>=4.50.3
