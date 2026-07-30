@@ -306,6 +306,23 @@ def is_dangerous_content_type(content_type: str | None) -> bool:
     return normalized.endswith('+xml') or normalized.endswith('/xml')
 
 
+def renders_safely_as_image(content_type: str | None, sec_fetch_dest: str | None) -> bool:
+    """Return True if a dangerous `content_type` is safe to serve inline anyway.
+
+    An SVG referenced by an ``<img>`` is loaded in secure static mode: scripts
+    and external references are disabled, so the stored XSS that
+    ``is_dangerous_content_type`` guards against cannot fire. The attack needs
+    the SVG to become a document, which is a separate ``Sec-Fetch-Dest``.
+    Browsers set that header themselves and script cannot override it (the
+    ``Sec-`` prefix makes it a forbidden header name), so it is trustworthy for
+    this decision. Anything else, including a missing header from a non-browser
+    client or a proxy that strips it, fails closed.
+    """
+    if sec_fetch_dest != 'image':
+        return False
+    return (content_type or '').split(';', 1)[0].strip().lower() == 'image/svg+xml'
+
+
 def is_within_directory(directory: str, target: str) -> bool:
     """Return True if `target` resolves to a path inside `directory`.
 

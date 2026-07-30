@@ -315,13 +315,14 @@ async def download_asset_content(request: web.Request) -> web.Response:
             404, "FILE_NOT_FOUND", "Underlying file not found on disk."
         )
 
-    # User-controlled asset content must never render inline in the app origin
+    # User-controlled asset content must not render inline in the app origin
     # (stored XSS via SVG/HTML/XML). Force dangerous types to download and
-    # override any requested inline disposition. Centralised through
-    # folder_paths.is_dangerous_content_type so this can't drift from /view and
-    # /userdata (the previous inline set here omitted image/svg+xml and missed
-    # the charset/casing/+xml-dialect bypasses).
-    if folder_paths.is_dangerous_content_type(content_type):
+    # override any requested inline disposition; SVG loaded into an <img> is
+    # exempt, see renders_safely_as_image. Centralised through folder_paths so
+    # this can't drift from /view and /userdata (the previous inline set here
+    # omitted image/svg+xml and missed the charset/casing/+xml-dialect bypasses).
+    sec_fetch_dest = request.headers.get("Sec-Fetch-Dest")
+    if folder_paths.is_dangerous_content_type(content_type) and not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
         content_type = "application/octet-stream"
         disposition = "attachment"
 

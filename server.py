@@ -624,8 +624,9 @@ class PromptServer():
                         # For security, force renderable/active types (HTML, JS,
                         # CSS, SVG, XML — anything that can carry inline <script>
                         # and execute in the page origin) to download instead of
-                        # displaying inline, preventing stored XSS. The
-                        # attachment disposition is the load-bearing guard: a
+                        # displaying inline, preventing stored XSS. SVG loaded
+                        # into an <img> is exempt, see renders_safely_as_image.
+                        # The attachment disposition is the load-bearing guard: a
                         # bare filename= hint does not force a download per
                         # RFC 6266, so we only attach it on the dangerous branch
                         # to avoid breaking inline display of legitimate images.
@@ -635,7 +636,8 @@ class PromptServer():
                         # header's quoted-string and malform the disposition.
                         safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
                         disposition = f"filename=\"{safe_filename}\""
-                        if folder_paths.is_dangerous_content_type(content_type):
+                        sec_fetch_dest = request.headers.get('Sec-Fetch-Dest')
+                        if folder_paths.is_dangerous_content_type(content_type) and not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
                             content_type = 'application/octet-stream'
                             disposition = f"attachment; filename=\"{safe_filename}\""
 
