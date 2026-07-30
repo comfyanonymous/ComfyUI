@@ -41,7 +41,7 @@ def scaled_dot_product_attention(q, k, v, *args, **kwargs):
 
 
 try:
-    if torch.cuda.is_available() and comfy.model_management.WINDOWS:
+    if torch.cuda.is_available():
         from torch.nn.attention import SDPBackend, sdpa_kernel
         import inspect
         if "set_priority" in inspect.signature(sdpa_kernel).parameters:
@@ -51,7 +51,10 @@ try:
                 SDPBackend.MATH,
             ]
 
-            SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
+            if comfy.model_management.WINDOWS:
+                SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
+            else:
+                SDPA_BACKEND_PRIORITY.insert(1, SDPBackend.CUDNN_ATTENTION)
 
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
                 if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
