@@ -2,10 +2,12 @@ import nodes
 import node_helpers
 import torch
 import torchaudio
+import comfy.ldm.lightricks.duration_head
 import comfy.model_management
 import comfy.model_sampling
 import comfy.samplers
 import comfy.utils
+import logging
 import math
 import re
 import numpy as np
@@ -1077,6 +1079,58 @@ class LTXVDualCFGGuider(io.ComfyNode):
         return io.NodeOutput(guider)
 
 
+class LTXVDurationPredictor(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LTXVDurationPredictor",
+            display_name="LTXV Duration Predictor",
+            category="conditioning/video_models",
+            description="Predicts the natural shot duration for a prompt using the duration head "
+                        "shipped in LTX 2.4+ checkpoints, and snaps it to the VAE's 8k+1 frame grid.",
+            search_aliases=["auto duration", "duration head", "num_frames"],
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("positive"),
+                io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
+                io.Float.Input("min_seconds", default=1.0, min=0.5, max=120.0, step=0.1),
+                io.Float.Input("max_seconds", default=20.0, min=0.5, max=120.0, step=0.1),
+            ],
+            outputs=[
+                io.Int.Output(display_name="num_frames"),
+                io.Float.Output(display_name="seconds", tooltip="Raw (unclamped) predicted duration."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, positive, frame_rate, min_seconds, max_seconds) -> io.NodeOutput:
+        dm = model.model.diffusion_model
+        head = getattr(dm, "duration_head", None)
+        if head is None:
+            raise ValueError("This model has no duration head (duration_head weights ship in "
+                             "LTX 2.4+ checkpoints).")
+
+        context = positive[0][0]
+        meta = positive[0][1]
+        if context.shape[0] != 1:
+            context = context[:1]
+
+        # Run the caption connectors exactly the way sampling does.
+        comfy.model_management.load_models_gpu([model])
+        device = model.load_device
+        with torch.no_grad():
+            context = context.to(device=device, dtype=model.model.get_dtype_inference())
+            processed = dm.preprocess_text_embeds(context, unprocessed=meta.get("unprocessed_ltxav_embeds", False))
+            video_tokens = processed[..., :dm.cross_attention_dim].float()
+            audio_tokens = processed[..., dm.cross_attention_dim:].float()
+            seconds = float(head(video_tokens, audio_tokens)[0])
+
+        num_frames = comfy.ldm.lightricks.duration_head.seconds_to_num_frames(
+            seconds, frame_rate, min_seconds, max_seconds)
+        logging.info("LTXV duration head predicted %.2fs -> %d frames @ %.2f fps", seconds, num_frames, frame_rate)
+        return io.NodeOutput(num_frames, seconds)
+
+
 class LtxvExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -1097,6 +1151,7 @@ class LtxvExtension(ComfyExtension):
             LTXVDualCFGGuider,
             LTXVModalityGuidance,
             LTXVSpatioTemporalGuidance,
+            LTXVDurationPredictor,
         ]
 
 

@@ -16,6 +16,7 @@ from comfy.ldm.lightricks.model import (
 from comfy.ldm.lightricks.symmetric_patchifier import AudioPatchifier
 from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
 import comfy.ldm.common_dit
+import comfy.ldm.lightricks.duration_head
 import comfy.model_prefetch
 
 class CompressedTimestep:
@@ -567,6 +568,9 @@ class LTXAVModel(LTXVModel):
             device=device,
             operations=self.operations,
         )
+
+        if kwargs.get("duration_head", False):
+            self.duration_head = comfy.ldm.lightricks.duration_head.DurationHead().eval()
 
     def preprocess_text_embeds(self, context, unprocessed=False):
         # LTXv2 fully processed context has dimension of self.caption_channels * 2
