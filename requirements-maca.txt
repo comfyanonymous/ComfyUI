@@ -1,12 +1,9 @@
---index-url https://repos.metax-tech.com/r/maca-pypi/simple
---trusted-host repos.metax-tech.com
-
 -r requirements.txt
 
 # MXMACA 3.8.0.x, Python 3.10, Linux x86_64
-torch==2.10.0+metax3.8.0.7
-torchvision==0.25.0+metax3.8.0.7
-torchaudio==2.4.1+metax3.8.0.7
-triton==3.6.0+metax3.8.0.7
-xformers==0.0.22+metax3.8.0.7torch2.10
-flash-attn==2.6.3+metax3.8.0.7torch2.10
+torch @ https://repos.metax-tech.com/r/maca-pypi/packages/torch/2.10.0+metax3.8.0.7/torch-2.10.0+metax3.8.0.7-cp310-cp310-linux_x86_64.whl#sha256=4e9b04b1b801b160a090037fdba4dbab33b9284a0967fb4c1c54c9aeaaab6eb7
+torchvision @ https://repos.metax-tech.com/r/maca-pypi/packages/torchvision/0.25.0+metax3.8.0.7/torchvision-0.25.0+metax3.8.0.7-cp310-cp310-linux_x86_64.whl#sha256=ee6cc9fdf083e3616758e4b3dd4c59392b7ad1f293949a831e912745bd597f1a
+torchaudio @ https://repos.metax-tech.com/r/maca-pypi/packages/torchaudio/2.4.1+metax3.8.0.7/torchaudio-2.4.1+metax3.8.0.7-cp310-cp310-linux_x86_64.whl#sha256=da93cb8d07da9e3b28782bf9e110f2c39664551baf5c3b307a625a2d0b527f15
+triton @ https://repos.metax-tech.com/r/maca-pypi/packages/triton/3.6.0+metax3.8.0.7/triton-3.6.0+metax3.8.0.7-cp310-cp310-linux_x86_64.whl#sha256=64940619e28d4583a20e0b48845aa951d4433640ea9903e1e65470e925a26606
+xformers @ https://repos.metax-tech.com/r/maca-pypi/packages/xformers/0.0.22+metax3.8.0.7torch2.10/xformers-0.0.22+metax3.8.0.7torch2.10-cp310-cp310-linux_x86_64.whl#sha256=d810dc6e2e76ea180a208c7349a51c7456c08adf1729a9224ecb440193b8f16c
+flash-attn @ https://repos.metax-tech.com/r/maca-pypi/packages/flash-attn/2.6.3+metax3.8.0.7torch2.10/flash_attn-2.6.3+metax3.8.0.7torch2.10-cp310-cp310-linux_x86_64.whl#sha256=c0bbbd49b0f4fb7e7d7ee4a0569e73a60e09868ba0373ede709d096142931245
