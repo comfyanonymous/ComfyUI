@@ -437,6 +437,19 @@ class LTXAV(LTXV):
         self.latent_rgb_factors = None
         self.latent_rgb_factors_bias = None
 
+class MiniMaxH3Video(LatentFormat):
+    latent_channels = 24
+    latent_dimensions = 3
+    spacial_downscale_ratio = 16
+    temporal_downscale_ratio = 4
+    scale_factor = 1.0
+
+class MiniMaxH3AV(MiniMaxH3Video):
+    # packed AV nested latent: no RGB preview of the flat tensor
+    def __init__(self):
+        self.latent_rgb_factors = None
+        self.latent_rgb_factors_bias = None
+
 class HunyuanVideo(LatentFormat):
     latent_channels = 16
     latent_dimensions = 3
