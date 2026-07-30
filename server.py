@@ -4,6 +4,9 @@ import sys
 import asyncio
 import traceback
 import time
+import hashlib
+import shutil
+import subprocess
 
 import nodes
 import folder_paths
@@ -69,6 +72,88 @@ if args.enable_manager:
 def _remove_sensitive_from_queue(queue: list) -> list:
     """Remove sensitive data (index 5) from queue item tuples."""
     return [item[:5] for item in queue]
+
+
+# ── Browser-playable video proxy for previews ─────────────────────────────────
+# HTML5 <video> only decodes a few codecs (H.264/VP8/VP9/AV1). Pipeline sources
+# in mpeg4 (DivX/Xvid), ProRes, DNxHD or (outside Safari) HEVC therefore show a
+# dead player in the node preview even though ComfyUI decodes them fine for the
+# graph. When /view serves such a file we transcode it once to a cached H.264
+# proxy in the temp dir and serve that instead. The original file is never
+# touched; on any failure (no ffmpeg, decode error) we serve the original.
+_BROWSER_VIDEO_CODECS = {"h264", "vp8", "vp9", "av1"}
+_playable_proxy_cache = {}
+
+
+def _video_codec_name(path):
+    try:
+        import av
+        with av.open(path) as c:
+            for s in c.streams:
+                if s.type == "video":
+                    return (s.codec_context.name or "").lower()
+    except Exception:
+        return None
+    return None
+
+
+def _make_playable_proxy(path):
+    """Return a browser-playable path for `path`. If the source codec is already
+    playable, returns it unchanged. Otherwise builds (once, cached) an H.264
+    proxy in the temp dir. Falls back to the original on any failure."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return path
+    key = os.path.realpath(path)
+    cached = _playable_proxy_cache.get(key)
+    if (cached and os.path.isfile(cached[0])
+            and cached[1] == st.st_mtime_ns and cached[2] == st.st_size):
+        return cached[0]
+    if _video_codec_name(path) in _BROWSER_VIDEO_CODECS:
+        _playable_proxy_cache[key] = (path, st.st_mtime_ns, st.st_size)
+        return path
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return path
+    digest = hashlib.sha1(
+        f"{key}:{st.st_mtime_ns}:{st.st_size}".encode()).hexdigest()[:16]
+    proxy_dir = os.path.join(folder_paths.get_temp_directory(), "playable_proxies")
+    os.makedirs(proxy_dir, exist_ok=True)
+    proxy = os.path.join(proxy_dir, digest + ".mp4")
+    if not os.path.isfile(proxy):
+        # Unique temp per call so concurrent requests for the same clip don't
+        # write the same file; os.replace then atomically publishes the proxy.
+        tmp = proxy + f".{uuid.uuid4().hex}.tmp.mp4"
+        # H.264 High / yuv420p is the universally browser-decodable combo;
+        # faststart moves the moov atom up so playback can start while streaming.
+        cmd = [ffmpeg, "-v", "error", "-y", "-i", path,
+               "-map", "0:v:0", "-map", "0:a?",
+               "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p",
+               "-crf", "20", "-preset", "veryfast",
+               "-c:a", "aac", "-b:a", "192k",
+               "-movflags", "+faststart", tmp]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                logging.warning("playable proxy transcode failed for %s: %s",
+                                os.path.basename(path), res.stderr.strip()[:300])
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                return path
+            os.replace(tmp, proxy)
+        except Exception as e:
+            logging.warning("playable proxy transcode error for %s: %s",
+                            os.path.basename(path), e)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            return path
+    _playable_proxy_cache[key] = (proxy, st.st_mtime_ns, st.st_size)
+    return proxy
 
 
 async def send_socket_catch_exception(function, message):
@@ -621,6 +706,17 @@ class PromptServer():
                             or 'application/octet-stream'
                         )
 
+                        # Serve a browser-playable H.264 proxy for videos whose
+                        # codec no <video> element can decode (mpeg4/ProRes/
+                        # DNxHD/HEVC), so the node preview actually plays. Built
+                        # once and cached; the original file is left untouched.
+                        if content_type.startswith('video/'):
+                            playable = await asyncio.get_event_loop().run_in_executor(
+                                None, _make_playable_proxy, file)
+                            if playable != file:
+                                file = playable
+                                content_type = 'video/mp4'
+
                         # For security, force renderable/active types (HTML, JS,
                         # CSS, SVG, XML — anything that can carry inline <script>
                         # and execute in the page origin) to download instead of
@@ -639,14 +735,19 @@ class PromptServer():
                             content_type = 'application/octet-stream'
                             disposition = f"attachment; filename=\"{safe_filename}\""
 
-                        return web.FileResponse(
-                            file,
-                            headers={
-                                "Content-Disposition": disposition,
-                                "Content-Type": content_type,
-                                "X-Content-Type-Options": "nosniff"
-                            }
-                        )
+                        resp_headers = {
+                            "Content-Disposition": disposition,
+                            "Content-Type": content_type,
+                            "X-Content-Type-Options": "nosniff"
+                        }
+                        # Force revalidation for video so re-uploading a clip
+                        # under the same name refreshes the preview instead of
+                        # replaying stale bytes from the browser cache. The
+                        # FileResponse still answers conditional GETs with 304
+                        # when the file is unchanged, so this costs no bandwidth.
+                        if content_type.startswith('video/'):
+                            resp_headers["Cache-Control"] = "no-cache"
+                        return web.FileResponse(file, headers=resp_headers)
 
             return web.Response(status=404)
 
