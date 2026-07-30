@@ -2,6 +2,8 @@ import nodes
 import node_helpers
 import torch
 import comfy.model_management
+import comfy.model_patcher
+import comfy.ops
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 from comfy.ldm.hunyuan_video.upsampler import HunyuanVideo15SRModel
@@ -217,8 +219,11 @@ class LatentUpscaleModelLoader(io.ComfyNode):
             model.load_sd(sd)
         elif "post_upsample_res_blocks.0.conv2.bias" in sd:
             config = json.loads(metadata["config"])
-            model = LatentUpsampler.from_config(config).to(dtype=comfy.model_management.vae_dtype(allowed_dtypes=[torch.bfloat16, torch.float32]))
-            model.load_state_dict(sd)
+            model = LatentUpsampler.from_config(config, operations=comfy.ops.disable_weight_init).to(dtype=comfy.model_management.vae_dtype(allowed_dtypes=[torch.bfloat16, torch.float32]))
+            comfy.model_management.archive_model_dtypes(model)
+            model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
+            model.load_state_dict(sd, assign=model_patcher.is_dynamic())
+            model = model_patcher
 
         return io.NodeOutput(model)
 
