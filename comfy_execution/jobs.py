@@ -330,9 +330,10 @@ def count_previewable_outputs(outputs: dict) -> int:
     Count only outputs that would actually render in the expanded asset view,
     i.e. items is_previewable() accepts (image/video/audio/3D/text). Kept
     separate from get_outputs_summary()'s outputs_count, which counts every
-    output item regardless of media type, so a job with non-previewable
-    outputs (e.g. a raw JSON blob from a custom node) alongside real media
-    doesn't inflate the Media Assets badge beyond what the expanded view shows.
+    output item regardless of media type, so a job with a non-previewable
+    saved file alongside real media (e.g. SaveLatent's .latent output next to
+    a SaveImage output) doesn't inflate the Media Assets badge beyond what
+    the expanded view shows.
     """
     count = 0
     for node_outputs in outputs.values():
