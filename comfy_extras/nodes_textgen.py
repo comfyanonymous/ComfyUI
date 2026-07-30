@@ -231,14 +231,18 @@ class TextGenerateLTX2Prompt(TextGenerate):
         is_gemma4 = "gemma4" in getattr(clip.tokenizer, "clip_name", "")
 
         if is_gemma4:
-            system = (LTX24_I2V_SYSTEM_PROMPT if image is not None else LTX24_T2V_SYSTEM_PROMPT).strip()
+            if image is not None:
+                system = LTX24_I2V_SYSTEM_PROMPT.strip()
+                user_text = f"User Raw Input Prompt: {prompt}."
+            else:
+                system = LTX24_T2V_SYSTEM_PROMPT.strip()
+                user_text = f"user prompt: {prompt}"
             think_prefix = "<|think|>\n" if thinking else ""
             model_open = "" if thinking else "<|channel>final\n"
             media = "<|image><|image|><image|>\n\n" if image is not None else ""
-            # The LTX 2.4 prompts already frame the turn as the user's request, so no label prefix.
             formatted_prompt = (
                 f"<|turn>system\n{think_prefix}{system}<turn|>\n"
-                f"<|turn>user\n{media}{prompt}<turn|>\n"
+                f"<|turn>user\n{media}{user_text}<turn|>\n"
                 f"<|turn>model\n{model_open}"
             )
         else:
