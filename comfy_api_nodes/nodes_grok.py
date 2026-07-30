@@ -155,7 +155,6 @@ class GrokImageNode(IO.ComfyNode):
                 resolution=resolution.lower(),
             ),
             response_model=ImageGenerationResponse,
-            price_extractor=_extract_grok_price,
         )
         if len(response.data) == 1:
             return IO.NodeOutput(await download_url_to_image_tensor(response.data[0].url))
@@ -351,7 +350,6 @@ class GrokImageEditNode(IO.ComfyNode):
                 aspect_ratio=None if aspect_ratio == "auto" else aspect_ratio,
             ),
             response_model=ImageGenerationResponse,
-            price_extractor=_extract_grok_price,
         )
         if len(response.data) == 1:
             return IO.NodeOutput(await download_url_to_image_tensor(response.data[0].url))
@@ -488,7 +486,6 @@ class GrokImageEditNodeV2(IO.ComfyNode):
                 aspect_ratio=None if aspect_ratio == "auto" else aspect_ratio,
             ),
             response_model=ImageGenerationResponse,
-            price_extractor=_extract_grok_price,
         )
         if len(response.data) == 1:
             return IO.NodeOutput(await download_url_to_image_tensor(response.data[0].url))

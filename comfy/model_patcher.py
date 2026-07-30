@@ -22,6 +22,7 @@ import collections
 import inspect
 import logging
 import math
+import time
 import uuid
 from typing import Callable, Optional
 
@@ -37,10 +38,57 @@ import comfy.patcher_extension
 import comfy.utils
 import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.logging import detail
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
 import comfy_aimdo.model_vbar
+
+def is_model_patcher_output(output):
+    return isinstance(output, ModelPatcher) or isinstance(getattr(output, "patcher", None), ModelPatcher)
+
+class PromptModelTracker:
+    def __init__(self):
+        self.models = {}
+
+    def start(self):
+        self.end()
+
+    def add(self, outputs):
+        if isinstance(outputs, collections.abc.Mapping):
+            outputs = outputs.values()
+        elif not isinstance(outputs, (list, tuple)):
+            outputs = (outputs,)
+
+        for output in outputs:
+            if isinstance(output, (collections.abc.Mapping, list, tuple)):
+                self.add(output)
+                continue
+
+            models = []
+            if isinstance(output, ModelPatcher):
+                models.append(output)
+                models.extend(output.model_patches_models())
+                models.extend(output.get_nested_additional_models())
+            else:
+                patcher = getattr(output, "patcher", None)
+                if isinstance(patcher, ModelPatcher):
+                    models.append(patcher)
+                get_models = getattr(output, "get_models", None)
+                if callable(get_models):
+                    models.extend(get_models())
+
+            for model in models:
+                if not isinstance(model, ModelPatcher) or not model.is_dynamic():
+                    continue
+                key = (id(model.model), model.load_device)
+                self.models[key] = model
+                model.set_in_use_by_current_prompt(True)
+
+    def end(self):
+        for model in self.models.values():
+            model.set_in_use_by_current_prompt(False)
+        self.models.clear()
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -1724,13 +1772,19 @@ class ModelPatcherDynamic(ModelPatcher):
             self.model.dynamic_pins[device] = {
                 "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
                 "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "weights-loaded": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "patches-loaded": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
                 "hostbufs_initialized": False,
                 "failed": False,
                 "active": False,
+                "current_prompt": False,
             }
 
     def is_dynamic(self):
         return True
+
+    def set_in_use_by_current_prompt(self, in_use):
+        self.model.dynamic_pins[self.load_device]["current_prompt"] = in_use
 
     def _vbar_get(self, create=False):
         if self.load_device == torch.device("cpu"):
@@ -1802,6 +1856,8 @@ class ModelPatcherDynamic(ModelPatcher):
                 hostbuf_size = comfy.model_management.pinned_hostbuf_size(self.model_size())
                 pin_state["weights"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
                 pin_state["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["weights-loaded"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["patches-loaded"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
                 pin_state["hostbufs_initialized"] = True
             pin_state["failed"] = False
             pin_state["active"] = True
@@ -1935,20 +1991,37 @@ class ModelPatcherDynamic(ModelPatcher):
         assert self.load_device != torch.device("cpu")
 
         vbar = self._vbar_get()
-        freed = 0 if vbar is None else vbar.free_memory(memory_to_free)
+        vbar_freed = 0 if vbar is None else vbar.free_memory(memory_to_free)
+        freed = vbar_freed
 
+        backup_freed = 0
         if freed < memory_to_free:
-            freed += self.restore_loaded_backups()
+            backup_freed = self.restore_loaded_backups()
+            freed += backup_freed
+
+        method = "vbar+backups" if vbar_freed and backup_freed else "vbar" if vbar_freed else "backups" if backup_freed else "none"
+        free_methods = getattr(self, "_free_methods", {})
+        free_methods[method] = free_methods.get(method, 0) + 1
+        self._free_methods = free_methods
+        now = time.monotonic()
+        if now - getattr(self, "_last_free_log_time", 0) >= 5:
+            requested = "all" if memory_to_free >= 1e30 else f"{memory_to_free / (1024 ** 2):.1f}MB"
+            prevailing_method = max(free_methods, key=free_methods.get)
+            detail("AIMDO free: model=%s device=%s prevailing_method=%s methods=%s requested=%s vbar_mb=%.1f backups_mb=%.1f", self.model.__class__.__name__, self.load_device, prevailing_method, free_methods, requested, vbar_freed / (1024 ** 2), backup_freed / (1024 ** 2))
+            self._free_methods = {}
+            self._last_free_log_time = now
 
         return freed
 
     def loaded_ram_size(self):
-        return (self.model.dynamic_pins[self.load_device]["weights"][0].size)
+        pin_state = self.model.dynamic_pins[self.load_device]
+        return pin_state["weights"][0].size + pin_state["weights-loaded"][0].size
 
     def pinned_memory_size(self):
-        return (self.model.dynamic_pins[self.load_device]["weights"][3][0])
+        pin_state = self.model.dynamic_pins[self.load_device]
+        return pin_state["weights"][3][0] + pin_state["weights-loaded"][3][0]
 
-    def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights", "patches" ]):
+    def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights-loaded", "patches-loaded", "weights", "patches" ]):
         freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
         for subset in subsets:
@@ -1956,15 +2029,17 @@ class ModelPatcherDynamic(ModelPatcher):
             split = stack_split[0]
             while split >= 0:
                 module, offset = stack[split]
+                module_pin = module._pins[subset]
                 split -= 1
                 stack_split[0] = split
-                if not module._pin_registered:
+                if not module_pin["registered"]:
                     continue
-                size = module._pin.numel() * module._pin.element_size()
-                if torch.cuda.cudart().cudaHostUnregister(module._pin.data_ptr()) != 0:
+                pin = module_pin["pin"]
+                size = pin.numel() * pin.element_size()
+                if torch.cuda.cudart().cudaHostUnregister(pin.data_ptr()) != 0:
                     comfy.model_management.discard_cuda_async_error()
                     continue
-                module._pin_registered = False
+                module_pin["registered"] = False
                 comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
                 pinned_size[0] = max(0, pinned_size[0] - size)
                 freed += size
@@ -1973,20 +2048,23 @@ class ModelPatcherDynamic(ModelPatcher):
                     return freed
         return freed
 
-    def partially_unload_ram(self, ram_to_unload, subsets=[ "weights", "patches" ]):
+    def partially_unload_ram(self, ram_to_unload, subsets=[ "weights-loaded", "patches-loaded", "weights", "patches" ]):
         freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
         for subset in subsets:
             hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
             while len(stack) > 0:
                 module, offset = stack.pop()
-                size = module._pin.numel() * module._pin.element_size()
-                module._pin_balancer_entry[-1] = None
-                del module._pin_balancer_entry
-                del module._pin
-                hostbuf.truncate(offset, do_unregister=module._pin_registered)
+                module_pin = module._pins[subset]
+                pin = module_pin["pin"]
+                size = pin.numel() * pin.element_size()
+                module_pin["balancer_entry"][-1] = None
+                del module_pin["balancer_entry"]
+                del module_pin["pin"]
+                registered = module_pin["registered"]
+                hostbuf.truncate(offset, do_unregister=registered)
                 stack_split[0] = min(stack_split[0], len(stack) - 1)
-                if module._pin_registered:
+                if registered:
                     comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
                     pinned_size[0] = max(0, pinned_size[0] - size)
                 freed += size

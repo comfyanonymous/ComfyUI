@@ -671,9 +671,9 @@ def freqs_cis_matrix(freqs, pad_size, split_mode, num_attention_heads, out_dtype
         cos_freq = torch.cat((cos_padding, cos_freq), dim=-1)
         sin_freq = torch.cat((sin_padding, sin_freq), dim=-1)
 
-    B, T, _ = cos_freq.shape
-    cos_freq = cos_freq.reshape(B, T, num_attention_heads, -1)
-    sin_freq = sin_freq.reshape(B, T, num_attention_heads, -1)
+    B, T, half_HD = cos_freq.shape
+    cos_freq = cos_freq.reshape(B, T, num_attention_heads, half_HD // num_attention_heads)
+    sin_freq = sin_freq.reshape(B, T, num_attention_heads, half_HD // num_attention_heads)
     rotation_matrix = torch.stack(
         (cos_freq, -sin_freq, sin_freq, cos_freq), dim=-1
     )
