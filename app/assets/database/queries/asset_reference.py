@@ -294,8 +294,7 @@ def list_references_page(
         escaped, esc = escape_sql_like_string(name_contains)
         base = base.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
 
-    # `is not None` (not truthiness): an explicit empty hash is an exact-match
-    # miss (empty page), while an omitted hash (None) disables the filter.
+    # Not truthiness: an empty hash matches nothing, an omitted one filters nothing
     if asset_hash is not None:
         base = base.where(Asset.hash == asset_hash)
 

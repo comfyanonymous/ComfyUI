@@ -54,16 +54,11 @@ class ListAssetsQuery(BaseModel):
     exclude_tags: list[str] = Field(default_factory=list)
     name_contains: str | None = None
 
-    # Filter to assets whose content hash matches exactly. Param name is `hash`
-    # per the projected openapi.yaml listAssets contract (the response-body field
-    # is `asset_hash`; the query param is `hash`).
+    # Filter by exact content hash (emitted as `asset_hash` in responses)
     hash: str | None = None
 
-    # Declared for cloud/core contract parity. In core, reads are owner-scoped
-    # (owner_id == "") and there is no separate shared/public pool for this flag
-    # to include or exclude, so it is inert here and intentionally not threaded
-    # into the query. Accepted (not rejected) so the FE needs no isCloud branch;
-    # cloud enforces the flag in its own service layer.
+    # Accepted for API compatibility; has no effect, as there is no shared
+    # asset pool to include or exclude
     include_public: bool = True
 
     # Accept either a JSON string (query param) or a dict
@@ -101,12 +96,7 @@ class ListAssetsQuery(BaseModel):
     @field_validator("hash", mode="before")
     @classmethod
     def _normalize_hash(cls, v):
-        # Normalize for an exact match against stored hashes (which are
-        # lowercase `blake3:<hex>`). Liberal in what we accept — no pattern
-        # enforcement; a non-matching value simply yields an empty page.
-        # An explicitly-supplied-but-empty value (`?hash=`) stays `""` so it
-        # is treated as an exact-match miss (empty page), not silently dropped
-        # to "no filter" — omit the param entirely to disable the filter.
+        # Stored hashes are lowercase `blake3:<hex>`; no pattern is enforced
         if isinstance(v, str):
             return v.strip().lower()
         return v

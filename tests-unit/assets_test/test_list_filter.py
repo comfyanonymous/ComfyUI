@@ -308,7 +308,7 @@ def test_list_assets_invalid_query_rejected(http: requests.Session, api_base: st
 
 def test_list_assets_display_name_emitted(http, api_base, asset_factory, make_asset_bytes):
     """`display_name` is emitted for every populated asset in list responses,
-    derived from the storage path (category prefix + hash-based stored filename)."""
+    derived from the storage path."""
     scope = f"lf-dispname-{uuid.uuid4().hex[:6]}"
     tags = ["models", "model_type:checkpoints", "unit-tests", scope]
     asset_factory("dn_a.safetensors", tags, {}, make_asset_bytes("dn_a", 700))
@@ -371,8 +371,7 @@ def test_list_assets_hash_filter_no_match(http, api_base, asset_factory, make_as
 def test_list_assets_hash_filter_normalizes_case_and_whitespace(
     http, api_base, asset_factory, make_asset_bytes
 ):
-    """`hash` is trimmed and lowercased before matching, so an upper-cased,
-    space-padded value still matches the stored lowercase hash."""
+    """An upper-cased, space-padded `hash` still matches the stored hash."""
     scope = f"lf-hashnorm-{uuid.uuid4().hex[:6]}"
     tags = ["models", "model_type:checkpoints", "unit-tests", scope]
     a = asset_factory("hnorm_a.safetensors", tags, {}, make_asset_bytes("hnorm_a", 1024))
@@ -396,8 +395,8 @@ def test_list_assets_hash_filter_normalizes_case_and_whitespace(
 def test_list_assets_hash_filter_empty_returns_empty_page(
     http, api_base, asset_factory, make_asset_bytes
 ):
-    """An explicitly-supplied but empty `hash` (`?hash=`) is an exact-match miss
-    and returns an empty page, rather than silently disabling the filter."""
+    """An empty `hash` matches nothing and returns an empty page, rather than
+    disabling the filter."""
     scope = f"lf-hashempty-{uuid.uuid4().hex[:6]}"
     tags = ["models", "model_type:checkpoints", "unit-tests", scope]
     asset_factory("he_a.safetensors", tags, {}, make_asset_bytes("he_a", 800))
@@ -414,8 +413,7 @@ def test_list_assets_hash_filter_empty_returns_empty_page(
 
 
 def test_list_assets_include_public_accepted(http, api_base, asset_factory, make_asset_bytes):
-    """`include_public` is accepted for contract parity; core results are always
-    the caller's own assets regardless of its value (the param is inert)."""
+    """`include_public` is accepted and does not change which assets come back."""
     scope = f"lf-incpub-{uuid.uuid4().hex[:6]}"
     tags = ["models", "model_type:checkpoints", "unit-tests", scope]
     a = asset_factory("ip_a.safetensors", tags, {}, make_asset_bytes("ip_a", 900))
@@ -429,7 +427,7 @@ def test_list_assets_include_public_accepted(http, api_base, asset_factory, make
         body = r.json()
         assert r.status_code == 200, body
         names = [x["name"] for x in body["assets"]]
-        assert a["name"] in names, f"caller's own asset must be returned (include_public={value})"
+        assert a["name"] in names, f"asset must be returned (include_public={value})"
 
 
 def test_list_assets_name_contains_literal_underscore(
