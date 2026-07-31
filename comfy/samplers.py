@@ -1264,38 +1264,41 @@ class CFGGuider:
     def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None, latent_shapes=None):
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
+        try:
+            multigpu_patchers = comfy.sampler_helpers.prepare_model_patcher_multigpu_clones(self.model_patcher, self.loaded_models, self.model_options)
 
-        multigpu_patchers = comfy.sampler_helpers.prepare_model_patcher_multigpu_clones(self.model_patcher, self.loaded_models, self.model_options)
+            # Create persistent thread pool for all GPU devices (main + extras)
+            if multigpu_patchers:
+                extra_devices = [p.load_device for p in multigpu_patchers]
+                all_devices = [device] + extra_devices
+                self.model_options["multigpu_thread_pool"] = comfy.multigpu.MultiGPUThreadPool(all_devices)
 
-        # Create persistent thread pool for all GPU devices (main + extras)
-        if multigpu_patchers:
-            extra_devices = [p.load_device for p in multigpu_patchers]
-            all_devices = [device] + extra_devices
-            self.model_options["multigpu_thread_pool"] = comfy.multigpu.MultiGPUThreadPool(all_devices)
+            with comfy.model_management.cuda_device_context(device):
+                try:
+                    noise = noise.to(device=device, dtype=torch.float32)
+                    latent_image = latent_image.to(device=device, dtype=torch.float32)
+                    sigmas = sigmas.to(device)
+                    cast_to_load_options(self.model_options, device=device, dtype=self.model_patcher.model_dtype())
 
-        with comfy.model_management.cuda_device_context(device):
+                    self.model_patcher.pre_run()
+                    for multigpu_patcher in multigpu_patchers:
+                        multigpu_patcher.pre_run()
+                    output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
+                finally:
+                    thread_pool = self.model_options.pop("multigpu_thread_pool", None)
+                    if thread_pool is not None:
+                        thread_pool.shutdown()
+                    self.model_patcher.cleanup()
+                    for multigpu_patcher in multigpu_patchers:
+                        multigpu_patcher.cleanup()
+
+            return output
+        finally:
             try:
-                noise = noise.to(device=device, dtype=torch.float32)
-                latent_image = latent_image.to(device=device, dtype=torch.float32)
-                sigmas = sigmas.to(device)
-                cast_to_load_options(self.model_options, device=device, dtype=self.model_patcher.model_dtype())
-
-                self.model_patcher.pre_run()
-                for multigpu_patcher in multigpu_patchers:
-                    multigpu_patcher.pre_run()
-                output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
+                comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
             finally:
-                thread_pool = self.model_options.pop("multigpu_thread_pool", None)
-                if thread_pool is not None:
-                    thread_pool.shutdown()
-                self.model_patcher.cleanup()
-                for multigpu_patcher in multigpu_patchers:
-                    multigpu_patcher.cleanup()
-
-        comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
-        del self.inner_model
-        del self.loaded_models
-        return output
+                del self.inner_model
+                del self.loaded_models
 
     def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
         if sigmas.shape[-1] == 0:
