@@ -39,41 +39,22 @@ LATENTS_STD = [
 
 class CausalConv3d(ops.Conv3d):
     # Reflect spatial padding, causal (zeros, front-only) temporal padding.
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0,
-                 padding_mode="reflect", causal=True):
-        super().__init__(in_channels, out_channels, kernel_size=kernel_size,
-                         stride=stride, padding=padding)
-        self.pad_mode = "constant" if padding_mode == "zeros" else padding_mode
-        self.causal = causal
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super().__init__(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
 
     def _apply_temporal_padding(self, x):
         if x.shape[2] > 1:
-            if self.causal:
-                pad = (0, 0, 0, 0, self.padding[0] * 2, 0)
-            else:
-                pad = (0, 0, 0, 0, self.padding[0], self.padding[0])
-            return F.pad(x, pad, mode="constant" if self.causal else "replicate")
-        else:
-            if self.causal:
-                zeros = torch.zeros_like(x[:, :, :1, :, :]).expand(
-                    -1, -1, self.kernel_size[0] - 1, -1, -1
-                )
-                return torch.cat([zeros, x], dim=2)
-            else:
-                return x.expand(-1, -1, self.kernel_size[0], -1, -1)
+            return F.pad(x, (0, 0, 0, 0, self.padding[0] * 2, 0), mode="constant")
+        zeros = torch.zeros_like(x[:, :, :1, :, :]).expand(-1, -1, self.kernel_size[0] - 1, -1, -1)
+        return torch.cat([zeros, x], dim=2)
 
     def forward(self, x):
         if sum(self.padding) == 0:
             return super().forward(x)
 
-        x = F.pad(
-            x,
-            (self.padding[2], self.padding[2], self.padding[1], self.padding[1], 0, 0),
-            mode=self.pad_mode,
-        )
+        x = F.pad(x, (self.padding[2], self.padding[2], self.padding[1], self.padding[1], 0, 0),  mode="reflect")
         x = self._apply_temporal_padding(x)
-        return F.conv3d(x, self.weight, self.bias, stride=self.stride,
-                        padding=0, dilation=self.dilation)
+        return F.conv3d(x, self.weight, self.bias, stride=self.stride, padding=0, dilation=self.dilation)
 
 
 class TemporalIsolatedGroupNorm(ops.GroupNorm):
@@ -92,8 +73,7 @@ def group_norm_3d(num_channels):
 
 
 class Downsample3D(nn.Module):
-    def __init__(self, in_channels, out_channels, time_stride=1, space_stride=2,
-                 padding_mode="reflect", causal=True):
+    def __init__(self, in_channels, out_channels, time_stride=1, space_stride=2):
         super().__init__()
         self.space_stride = space_stride
         self.conv = CausalConv3d(
@@ -102,19 +82,16 @@ class Downsample3D(nn.Module):
             kernel_size=3,
             padding=(1, 0, 0),
             stride=(time_stride, space_stride, space_stride),
-            padding_mode=padding_mode,
-            causal=causal,
         )
-        self.pad_mode = self.conv.pad_mode
 
     def forward(self, x):
         if self.space_stride == 2:
-            x = F.pad(x, (0, 1, 0, 1, 0, 0), mode=self.pad_mode)
+            x = F.pad(x, (0, 1, 0, 1, 0, 0), mode="reflect")
         return self.conv(x)
 
 
 class ResnetBlock3D(nn.Module):
-    def __init__(self, in_channels, out_channels=None, padding_mode="reflect", causal=True):
+    def __init__(self, in_channels, out_channels=None):
         super().__init__()
         self.in_channels = in_channels
         out_channels = in_channels if out_channels is None else out_channels
@@ -122,13 +99,10 @@ class ResnetBlock3D(nn.Module):
 
         self.norm1 = group_norm_3d(in_channels)
         self.norm2 = group_norm_3d(out_channels)
-        self.conv1 = CausalConv3d(in_channels, out_channels, kernel_size=3, padding=1,
-                                  padding_mode=padding_mode, causal=causal)
-        self.conv2 = CausalConv3d(out_channels, out_channels, kernel_size=3, padding=1,
-                                  padding_mode=padding_mode, causal=causal)
+        self.conv1 = CausalConv3d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.conv2 = CausalConv3d(out_channels, out_channels, kernel_size=3, padding=1)
         if in_channels != out_channels:
-            self.nin_shortcut = CausalConv3d(in_channels, out_channels, kernel_size=1,
-                                             padding_mode=padding_mode, causal=causal)
+            self.nin_shortcut = CausalConv3d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
         h = self.conv1(F.silu(self.norm1(x), inplace=True))
@@ -139,8 +113,7 @@ class ResnetBlock3D(nn.Module):
 
 
 class EncoderFCN3D(nn.Module):
-    def __init__(self, ch, ch_mult, space_down, time_down, num_res_blocks,
-                 in_channels, z_channels, double_z=True, padding_mode="reflect", causal=True):
+    def __init__(self, ch, ch_mult, space_down, time_down, num_res_blocks, in_channels, z_channels, double_z=True):
         super().__init__()
         self.num_levels = len(ch_mult)
         if isinstance(num_res_blocks, int):
@@ -151,8 +124,7 @@ class EncoderFCN3D(nn.Module):
         block_in = [block_mid[0]] + block_mid[:-1]
         block_out = block_mid
 
-        self.conv_in = CausalConv3d(in_channels, block_in[0], kernel_size=3, padding=1,
-                                    padding_mode=padding_mode, causal=causal)
+        self.conv_in = CausalConv3d(in_channels, block_in[0], kernel_size=3, padding=1)
 
         self.down = nn.ModuleList()
         for i_level in range(self.num_levels):
@@ -163,8 +135,6 @@ class EncoderFCN3D(nn.Module):
                     ResnetBlock3D(
                         in_channels=block_in[i_level] if i == 0 else block_mid[i_level],
                         out_channels=block_mid[i_level],
-                        padding_mode=padding_mode,
-                        causal=causal,
                     )
                 )
             if space_down[i_level] * time_down[i_level] > 1:
@@ -173,8 +143,6 @@ class EncoderFCN3D(nn.Module):
                     block_out[i_level],
                     time_stride=time_down[i_level],
                     space_stride=space_down[i_level],
-                    padding_mode=padding_mode,
-                    causal=causal,
                 )
             self.down.append(down)
 
@@ -184,8 +152,6 @@ class EncoderFCN3D(nn.Module):
             2 * z_channels if double_z else z_channels,
             kernel_size=3,
             padding=1,
-            padding_mode=padding_mode,
-            causal=causal,
         )
 
     def forward(self, x):
@@ -288,17 +254,13 @@ class TransformerBlock(nn.Module):
         self.ff = FeedForward(dim=dim, bias=bias)
         self.scale2 = nn.Parameter(torch.empty(dim))
 
-    def forward(self, hidden_states, rotary_pos_emb=None):
-        norm_hidden_states = comfy.rmsnorm.rms_norm(hidden_states, self.norm1.weight, self.norm1.eps)
-        hidden_states = hidden_states.addcmul_(self.attn(norm_hidden_states, rotary_pos_emb), self.scale1)
-
-        norm_hidden_states = comfy.rmsnorm.rms_norm(hidden_states, self.norm2.weight, self.norm2.eps)
-        return hidden_states.addcmul_(self.ff(norm_hidden_states), self.scale2)
+    def forward(self, x, rotary_pos_emb=None):
+        x = x.addcmul_(self.attn(comfy.rmsnorm.rms_norm(x, self.norm1.weight, self.norm1.eps), rotary_pos_emb), self.scale1)
+        return x.addcmul_(self.ff(comfy.rmsnorm.rms_norm(x, self.norm2.weight, self.norm2.eps)), self.scale2)
 
 
 class ViT3DDecoder(nn.Module):
-    def __init__(self, patch_size=16, patch_size_t=4, in_channels=24, out_channels=3,
-                 num_layers=36, heads=32, dim_head=64, rope_theta=100.0,
+    def __init__(self, patch_size=16, patch_size_t=4, in_channels=24, out_channels=3, num_layers=36, heads=32, dim_head=64, rope_theta=100.0,
                  rope_dim_ratio=0.75, bias=True, eps=1e-5, num_register_tokens=4):
         super().__init__()
         dim = heads * dim_head
@@ -310,7 +272,8 @@ class ViT3DDecoder(nn.Module):
         self.pos_embed = RotaryEmbeddingND(int(dim_head * rope_dim_ratio), rope_theta, n_dim=3)
         self.x_embedder = ops.Linear(in_channels, dim)
         self.register_tokens = nn.Parameter(torch.empty(1, num_register_tokens, dim))
-        self.register_buffer("mask_token", torch.zeros(1, 1, dim))
+        # unused at inference; kept so the checkpoint loads without leftover keys
+        self.register_buffer("mask_token", torch.empty(1, 1, dim))
 
         self.transformer_blocks = nn.ModuleList(
             [TransformerBlock(heads=heads, dim_head=dim_head, bias=bias, eps=eps)
@@ -323,17 +286,12 @@ class ViT3DDecoder(nn.Module):
     def forward(self, x):
         B, C, latent_T, latent_H, latent_W = x.shape
 
-        hidden_states = x.flatten(2).transpose(1, 2)  # [B, T*H*W, C]
+        h = self.x_embedder(x.flatten(2).transpose(1, 2))  # [B, T*H*W, C]
 
-        hidden_states = self.x_embedder(hidden_states)
-
-        num_patches = hidden_states.shape[1]
+        num_patches = h.shape[1]
         num_suffix = 1 + self.num_register_tokens
 
-        tokens = [hidden_states]
-        tokens.append(self.register_tokens.expand(B, -1, -1))
-        tokens.append(torch.zeros_like(hidden_states[:, 0:1, :]))
-        hidden_states = torch.cat(tokens, dim=1)
+        h = torch.cat([h, self.register_tokens.expand(B, -1, -1), torch.zeros_like(h[:, 0:1, :])], dim=1)
 
         img_ids = create_token_ids((latent_T, latent_H, latent_W), x.device, x.dtype).expand(B, -1, -1)
         suffix_ids = torch.zeros((B, num_suffix, 3), device=x.device, dtype=img_ids.dtype)
@@ -342,11 +300,9 @@ class ViT3DDecoder(nn.Module):
         rotary_pos_emb = self.pos_embed(img_ids)
 
         for block in self.transformer_blocks:
-            hidden_states = block(hidden_states, rotary_pos_emb)
+            h = block(h, rotary_pos_emb)
 
-        hidden_states = self.norm_out(hidden_states)
-
-        output = self.proj_out(hidden_states)
+        output = self.proj_out(self.norm_out(h))
 
         output = output[:, :num_patches, :]
 
@@ -378,8 +334,6 @@ class MiniMaxH3VideoVAE(nn.Module):
         num_res_blocks=2,
         space_down=(2, 2, 2, 2, 1, 1),
         time_down=(1, 2, 2, 1, 1, 1),
-        causal_encoder=True,
-        padding_mode="reflect",
         clip_length=17,
         token_drop=3,
         tile_size=256,
@@ -387,16 +341,12 @@ class MiniMaxH3VideoVAE(nn.Module):
         tiling=True,
     ):
         super().__init__()
-        self.z_channels = z_channels
-        self.causal_encoder = causal_encoder
-
         self.vae_ratio = int(math.prod(space_down))
         self.vae_ratio_t = int(math.prod(time_down))
 
         # temporal chunking parameters
         self.clip_length = clip_length
         self.token_drop = token_drop
-        self.frame_drop = token_drop * self.vae_ratio_t
         self.frame_pre_padding = (-clip_length) % self.vae_ratio_t
         self.tokens_chunk_size = math.ceil(clip_length / self.vae_ratio_t)
         self.token_overlap = (-token_drop) % self.tokens_chunk_size
@@ -416,8 +366,6 @@ class MiniMaxH3VideoVAE(nn.Module):
             in_channels=in_channels,
             z_channels=z_channels,
             double_z=True,
-            padding_mode=padding_mode,
-            causal=causal_encoder,
         )
         self.quant_conv = ops.Conv3d(z_channels * 2, 2 * embed_dim, 1)
         self.post_quant_conv = ops.Conv3d(embed_dim, z_channels, 1)
@@ -433,7 +381,7 @@ class MiniMaxH3VideoVAE(nn.Module):
         self.register_buffer("pixel_mean", torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1, 1), persistent=False)
         self.register_buffer("pixel_std", torch.tensor(IMAGENET_STD).view(1, 3, 1, 1, 1), persistent=False)
 
-    # ---------------- single-shot forward ----------------
+    # single-shot forward
 
     def _encode_moments(self, x):
         return self.quant_conv(self.encoder(x))
@@ -451,7 +399,7 @@ class MiniMaxH3VideoVAE(nn.Module):
             return self.tiled_decode(z)
         return self._decode_pixels(z)
 
-    # ---------------- spatial tiling ----------------
+    # spatial tiling
 
     def split_tiles(self, input_len):
         tile_size = self.tile_size
@@ -539,33 +487,39 @@ class MiniMaxH3VideoVAE(nn.Module):
         y_idx, y_len, y_overlap = self.split_tiles(height)
         x_idx, x_len, x_overlap = self.split_tiles(width)
 
-        rows = []
-        for i_pos, i_len in zip(y_idx, y_len):
-            i_pos, i_len = i_pos // self.vae_ratio, i_len // self.vae_ratio
-            row = []
-            for j_pos, j_len in zip(x_idx, x_len):
-                j_pos, j_len = j_pos // self.vae_ratio, j_len // self.vae_ratio
-                tile = z[..., i_pos:i_pos + i_len, j_pos:j_pos + j_len]
-                row.append(self._decode_pixels(tile))
-            rows.append(row)
-
-        result_rows = []
-        for i, row in enumerate(rows):
-            result_row = []
-            for j, tile in enumerate(row):
+        # Blended tiles are written straight into a pre-allocated canvas.
+        canvas = None
+        row_tails = []
+        out_y = 0
+        for i, (i_pos, i_len) in enumerate(zip(y_idx, y_len)):
+            zi, zl = i_pos // self.vae_ratio, i_len // self.vae_ratio
+            new_tails = []
+            left_tail = None
+            out_x = 0
+            for j, (j_pos, j_len) in enumerate(zip(x_idx, x_len)):
+                zj, zw = j_pos // self.vae_ratio, j_len // self.vae_ratio
+                tile = self._decode_pixels(z[..., zi:zi + zl, zj:zj + zw])
+                if i < len(y_idx) - 1:
+                    new_tails.append(tile[..., -y_overlap[i]:, :].clone())
+                next_left_tail = tile[..., :, -x_overlap[j]:].clone() if j < len(x_idx) - 1 else None
                 if i > 0:
-                    tile = self.blend(rows[i - 1][j], tile, y_overlap[i - 1], dim=-2)
+                    tile = self.blend(row_tails[j], tile, y_overlap[i - 1], dim=-2)
                 if j > 0:
-                    tile = self.blend(row[j - 1], tile, x_overlap[j - 1], dim=-1)
-                if i < len(rows) - 1:
+                    tile = self.blend(left_tail, tile, x_overlap[j - 1], dim=-1)
+                left_tail = next_left_tail
+                if i < len(y_idx) - 1:
                     tile = tile[..., :-y_overlap[i], :]
-                if j < len(row) - 1:
+                if j < len(x_idx) - 1:
                     tile = tile[..., :, :-x_overlap[j]]
-                result_row.append(tile)
-            result_rows.append(torch.cat(result_row, dim=-1))
-        return torch.cat(result_rows, dim=-2)
+                if canvas is None:
+                    canvas = torch.empty(*tile.shape[:-2], height, width, dtype=tile.dtype, device=tile.device)
+                canvas[..., out_y:out_y + tile.shape[-2], out_x:out_x + tile.shape[-1]].copy_(tile)
+                out_x += tile.shape[-1]
+            row_tails = new_tails
+            out_y += tile.shape[-2]
+        return canvas
 
-    # ---------------- temporal chunking ----------------
+    # temporal chunking
 
     def encode_temporal(self, x):
         if x.shape[2] % self.clip_length != 0:
@@ -621,8 +575,7 @@ class MiniMaxH3VideoVAE(nn.Module):
                     final_overlap_frames = chunk_frames
 
         total_frames += final_overlap_frames
-        pad_frames = self._decode_temporal_pad_frames(z_len, pad_tokens)
-        return total_frames, pad_frames, total_frames - pad_frames
+        return total_frames - self._decode_temporal_pad_frames(z_len, pad_tokens)
 
     def decode_temporal(self, z):
         chunk_dec = self.tokens_chunk_size * self.vae_ratio_t
@@ -646,9 +599,7 @@ class MiniMaxH3VideoVAE(nn.Module):
             pad_z = z[:, :, -1:, :, :].repeat(1, 1, pad_tokens, 1, 1)
             z = torch.cat([z, pad_z], dim=2)
 
-        total_frames, pad_frames, output_frames = self._decode_temporal_frame_plan(
-            z.shape[2], num_chunks, pad_tokens
-        )
+        output_frames = self._decode_temporal_frame_plan(z.shape[2], num_chunks, pad_tokens)
 
         dec = None
         dec_overlap = None
@@ -701,7 +652,6 @@ class MiniMaxH3VideoVAE(nn.Module):
 
         return dec
 
-    # ---------------- public interface ----------------
 
     def encode(self, x):
         # x: [B, 3, T, H, W] in [-1, 1] -> normalized latents [B, 24, T_lat, H/16, W/16]
