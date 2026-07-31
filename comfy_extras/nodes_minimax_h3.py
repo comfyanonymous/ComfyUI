@@ -30,7 +30,6 @@ REF_IMAGE_SHORT_EDGE = 2048
 FPS = 24
 AUDIO_LATENT_FPS = 40
 MODULATION_MODEL_KEY = "minimax_h3_modulation"
-MiniMaxH3Modulation = io.Custom("MINIMAX_H3_MODULATION")
 
 
 def _modulation_timesteps(modulation_model, model_call_sigmas, transformer_options):
@@ -308,27 +307,33 @@ class MiniMaxH3SigmaShift(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-class MiniMaxH3PrecomputeModulation(io.ComfyNode):
+class MiniMaxH3Modulation(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3PrecomputeModulation",
-            display_name="MiniMax H3 Precompute Modulation",
+            node_id="MiniMaxH3Modulation",
+            display_name="MiniMax H3 Modulation",
             category="advanced/model",
-            description="Project the complete sampling schedule and cache the resulting modulation tensors in VRAM.",
+            description="Precompute the sampling schedule's modulation tensors and attach them to the split transformer.",
             inputs=[
+                io.Model.Input("model"),
                 io.Model.Input("modulation_model"),
                 io.Sampler.Input("sampler"),
                 io.Sigmas.Input("sigmas"),
             ],
-            outputs=[MiniMaxH3Modulation.Output()],
+            outputs=[io.Model.Output()],
         )
 
     @classmethod
-    def execute(cls, modulation_model, sampler, sigmas) -> io.NodeOutput:
+    def execute(cls, model, modulation_model, sampler, sigmas) -> io.NodeOutput:
+        diffusion_model = model.model.diffusion_model
         modulation = modulation_model.model.diffusion_model
+        if not isinstance(diffusion_model, minimax_model.MiniMaxH3Model) or not diffusion_model.split_modulation:
+            raise ValueError("model must be a split MiniMax H3 transformer")
         if not isinstance(modulation, minimax_model.MiniMaxH3ModulationModel):
             raise ValueError("modulation_model must be a MiniMax H3 modulation model")
+        if len(diffusion_model.blocks) != len(modulation.blocks) or diffusion_model.hidden_size != modulation.blocks[0].adaln_proj.hidden:
+            raise ValueError("MiniMax H3 transformer and modulation model configurations do not match")
 
         model_wrap = types.SimpleNamespace(inner_model=types.SimpleNamespace(
             diffusion_model=modulation,
@@ -360,37 +365,10 @@ class MiniMaxH3PrecomputeModulation(io.ComfyNode):
         finally:
             modulation_model.cleanup()
             modulation_model.partially_unload(modulation_model.offload_device, 1e30)
-        return io.NodeOutput(minimax_model.MiniMaxH3ModulationCache(timesteps, blocks, final))
-
-
-class MiniMaxH3AttachModulation(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="MiniMaxH3AttachModulation",
-            display_name="MiniMax H3 Attach Modulation Model",
-            category="advanced/model",
-            description="Attach precomputed MiniMax H3 modulation tensors to the split transformer.",
-            inputs=[
-                io.Model.Input("model"),
-                MiniMaxH3Modulation.Input("modulation"),
-            ],
-            outputs=[io.Model.Output()],
-        )
-
-    @classmethod
-    def execute(cls, model, modulation) -> io.NodeOutput:
-        diffusion_model = model.model.diffusion_model
-        if not isinstance(diffusion_model, minimax_model.MiniMaxH3Model) or not diffusion_model.split_modulation:
-            raise ValueError("model must be a split MiniMax H3 transformer")
-        if not isinstance(modulation, minimax_model.MiniMaxH3ModulationCache):
-            raise ValueError("modulation must be precomputed MiniMax H3 modulation")
-        if len(diffusion_model.blocks) != modulation.blocks.shape[0] or diffusion_model.hidden_size != modulation.blocks.shape[-1]:
-            raise ValueError("MiniMax H3 transformer and modulation configurations do not match")
 
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
-        to[MODULATION_MODEL_KEY] = modulation
+        to[MODULATION_MODEL_KEY] = minimax_model.MiniMaxH3ModulationCache(timesteps, blocks, final)
         return io.NodeOutput(m)
 
 
@@ -423,8 +401,7 @@ class MiniMaxH3SeparateAVLatent(io.ComfyNode):
 class MiniMaxH3Extension(ComfyExtension):
     async def get_node_list(self):
         return [EmptyMiniMaxH3LatentAV, MiniMaxH3TextToVideo, MiniMaxH3ReferenceToVideo,
-                MiniMaxH3SigmaShift, MiniMaxH3PrecomputeModulation, MiniMaxH3AttachModulation,
-                MiniMaxH3SeparateAVLatent]
+                MiniMaxH3SigmaShift, MiniMaxH3Modulation, MiniMaxH3SeparateAVLatent]
 
 
 async def comfy_entrypoint() -> MiniMaxH3Extension:
