@@ -1755,6 +1755,9 @@ class ModelPatcherDynamic(ModelPatcher):
         self.register_load_device(self.load_device)
         self.non_dynamic_delegate_model = None
         assert load_device is not None
+        if not hasattr(self.model, "dynamic_patchers"):
+            self.model.dynamic_patchers = set()
+        self.model.dynamic_patchers.add(id(self))
 
     def register_load_device(self, device):
         """Ensure dynamic_pins has an entry for *device*.
@@ -1809,6 +1812,18 @@ class ModelPatcherDynamic(ModelPatcher):
 
     def unpin_all_weights(self):
         self.partially_unload_ram(1e32)
+
+    def __del__(self):
+        model = getattr(self, "model", None)
+        dynamic_patchers = getattr(model, "dynamic_patchers", None)
+        if dynamic_patchers is None or id(self) not in dynamic_patchers:
+            return
+        dynamic_patchers.discard(id(self))
+        try:
+            if not dynamic_patchers:
+                self.unpin_all_weights()
+        finally:
+            self.detach(unpatch_all=False)
 
     def memory_required(self, input_shape):
         #Pad this significantly. We are trying to get away from precise estimates. This
