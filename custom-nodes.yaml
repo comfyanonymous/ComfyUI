@@ -19,6 +19,8 @@ nodes:
 
   - repo: https://github.com/Gourieff/ComfyUI-ReActor
     commit: d2318ad140582c6d0b68c51df342319b502006ed
+    pip:
+      - onnxruntime-gpu>=1.16.2
 
   - repo: https://github.com/ssitu/ComfyUI_UltimateSDUpscale
     commit: a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df

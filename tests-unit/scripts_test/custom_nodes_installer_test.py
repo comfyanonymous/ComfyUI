@@ -18,13 +18,21 @@ class CustomNodeInstallerTest(unittest.TestCase):
             manifest.write_text(
                 "nodes:\n"
                 "  - repo: https://github.com/example/custom-node.git\n"
-                f"    commit: {'a' * 40}\n",
+                f"    commit: {'a' * 40}\n"
+                "    pip:\n"
+                "      - example-package>=1.0\n",
                 encoding="utf-8",
             )
 
             self.assertEqual(
                 INSTALLER.read_manifest(manifest),
-                [("https://github.com/example/custom-node.git", "a" * 40)],
+                [
+                    (
+                        "https://github.com/example/custom-node.git",
+                        "a" * 40,
+                        ["example-package>=1.0"],
+                    )
+                ],
             )
 
     def test_read_manifest_rejects_non_exact_commits(self):
@@ -61,7 +69,9 @@ class CustomNodeInstallerTest(unittest.TestCase):
                     (node_directory / "requirements.txt").touch()
 
             with patch.object(INSTALLER, "run", side_effect=fake_run) as run:
-                INSTALLER.install_node(repository, commit, destination)
+                INSTALLER.install_node(
+                    repository, commit, ["example-package>=1.0"], destination
+                )
 
             self.assertEqual(
                 run.call_args_list,
@@ -82,6 +92,14 @@ class CustomNodeInstallerTest(unittest.TestCase):
                         "install",
                         "-r",
                         str(node_directory / "requirements.txt"),
+                        cwd=node_directory,
+                    ),
+                    call(
+                        INSTALLER.sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        "example-package>=1.0",
                         cwd=node_directory,
                     ),
                 ],

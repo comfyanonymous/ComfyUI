@@ -30,30 +30,37 @@ def repository_name(repository: str) -> str:
     return name
 
 
-def read_manifest(path: Path) -> list[tuple[str, str]]:
+def read_manifest(path: Path) -> list[tuple[str, str, list[str]]]:
     with path.open(encoding="utf-8") as manifest_file:
         manifest = yaml.safe_load(manifest_file)
 
     if not isinstance(manifest, dict) or not isinstance(manifest.get("nodes"), list):
         raise ValueError("Manifest must contain a 'nodes' list")
 
-    nodes: list[tuple[str, str]] = []
+    nodes: list[tuple[str, str, list[str]]] = []
     for index, node in enumerate(manifest["nodes"], start=1):
         if not isinstance(node, dict):
             raise ValueError(f"Node {index} must be a mapping")
 
         repository = node.get("repo")
         commit = node.get("commit")
+        packages = node.get("pip", [])
         if not isinstance(repository, str) or not repository:
             raise ValueError(f"Node {index} has no valid repository URL")
         if not isinstance(commit, str) or not COMMIT_PATTERN.fullmatch(commit):
             raise ValueError(f"Node {index} must have a full 40-character Git commit")
-        nodes.append((repository, commit.lower()))
+        if not isinstance(packages, list) or not all(
+            isinstance(package, str) and package for package in packages
+        ):
+            raise ValueError(f"Node {index} 'pip' value must be a list of packages")
+        nodes.append((repository, commit.lower(), packages))
 
     return nodes
 
 
-def install_node(repository: str, commit: str, destination: Path) -> None:
+def install_node(
+    repository: str, commit: str, packages: list[str], destination: Path
+) -> None:
     node_directory = destination / repository_name(repository)
     if node_directory.exists():
         raise FileExistsError(f"Custom-node directory already exists: {node_directory}")
@@ -74,6 +81,9 @@ def install_node(repository: str, commit: str, destination: Path) -> None:
             cwd=node_directory,
         )
 
+    if packages:
+        run(sys.executable, "-m", "pip", "install", *packages, cwd=node_directory)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -84,8 +94,8 @@ def main() -> int:
     try:
         nodes = read_manifest(args.manifest)
         args.destination.mkdir(parents=True, exist_ok=True)
-        for repository, commit in nodes:
-            install_node(repository, commit, args.destination)
+        for repository, commit, packages in nodes:
+            install_node(repository, commit, packages, args.destination)
     except (OSError, subprocess.CalledProcessError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
