@@ -642,7 +642,8 @@ def models_for_pin_eviction(active, current_prompt=None):
         if model is None or not model.is_dynamic():
             continue
         pin_state = model.model.dynamic_pins[model.load_device]
-        if ((active is None or pin_state["active"] == active) and
+        pin_active = pin_state["active"] and not model.async_offload
+        if ((active is None or pin_active == active) and
             (current_prompt is None or pin_state["current_prompt"] == current_prompt)):
             yield model
 
