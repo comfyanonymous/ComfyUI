@@ -48,6 +48,12 @@ def time_shift_slope(sigma, from_shift, to_shift):
     return (to_shift * (1.0 + (from_shift - 1.0) * base) ** 2) / (from_shift * (1.0 + (to_shift - 1.0) * base) ** 2)
 
 
+def step_timesteps(sigma_v, shift_v, shift_a):
+    sigma_v = sigma_v.float().clamp(min=1e-6)
+    sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
+    return float(1.0 - sigma_v), float(1.0 - sigma_a), sigma_v, sigma_a
+
+
 def patchify_video(latent, patch_size=(1, 2, 2)):
     # [B, C, T, H, W] -> [B*t*h*w, C*pt*ph*pw]
     b, c, t_full, h_full, w_full = latent.shape
@@ -299,9 +305,12 @@ class ModulationBlock(nn.Module):
 class MiniMaxH3ModulationModel(nn.Module):
     def __init__(self, hidden_size=5376, num_layers=50, timestep_input_dim=256,
                  time_embed_hidden_size=5376, time_embed_dim=2688,
+                 sigma_shift_video=12.0, sigma_shift_audio=3.0,
                  dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.dtype = dtype
+        self.sigma_shift_video = sigma_shift_video
+        self.sigma_shift_audio = sigma_shift_audio
         self.time_embedder = TimeEmbedder(timestep_input_dim, time_embed_hidden_size, time_embed_dim,
                                           dtype=torch.float32, device=device, operations=operations)
         self.blocks = nn.ModuleList([
