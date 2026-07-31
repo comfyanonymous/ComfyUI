@@ -988,6 +988,67 @@ def euler_model_call_sigmas(model_wrap, sigmas, s_churn=0.0, s_tmin=0.0, s_tmax=
         planned[churn] *= gamma + 1
     return planned
 
+def multi_evaluation_model_call_sigmas(model_wrap, sigmas, sampler_name, eta=1.0, s_churn=0.0, s_tmin=0.0, s_tmax=float('inf'), **kwargs):
+    model_sampling = model_wrap.inner_model.model_sampling
+    if sampler_name in {"exp_heun_2_x0", "exp_heun_2_x0_sde"}:
+        sigmas = k_diffusion_sampling.offset_first_sigma_for_snr(sigmas, model_sampling)
+
+    planned = []
+    for i in range(len(sigmas) - 1):
+        sigma = sigmas[i]
+        sigma_next = sigmas[i + 1]
+
+        if sampler_name in {"heun", "heunpp2", "dpm_2"}:
+            use_churn = sampler_name == "heunpp2" or s_churn > 0
+            gamma = min(s_churn / (len(sigmas) - 1), 2 ** 0.5 - 1) if use_churn and s_tmin <= sigma <= s_tmax else 0.0
+            sigma = sigma * (gamma + 1)
+
+        planned.append(sigma)
+
+        if sampler_name == "heunpp2":
+            if sigma_next != sigmas[-1]:
+                planned.append(sigma_next)
+                if sigmas[i + 2] != sigmas[-1]:
+                    planned.append(sigmas[i + 2])
+        elif sampler_name == "heun":
+            if sigma_next != 0:
+                planned.append(sigma_next)
+        elif sampler_name in {"exp_heun_2_x0", "exp_heun_2_x0_sde"}:
+            if sigma_next != 0:
+                lambda_s = k_diffusion_sampling.sigma_to_half_log_snr(sigma, model_sampling)
+                lambda_t = k_diffusion_sampling.sigma_to_half_log_snr(sigma_next, model_sampling)
+                planned.append(k_diffusion_sampling.half_log_snr_to_sigma(torch.lerp(lambda_s, lambda_t, 1.0), model_sampling))
+        elif sampler_name == "dpm_2":
+            if sigma_next != 0:
+                planned.append(sigma.log().lerp(sigma_next.log(), 0.5).exp())
+        elif sampler_name == "dpm_2_ancestral":
+            if isinstance(model_sampling, comfy.model_sampling.CONST):
+                downstep_ratio = 1 + (sigma_next / sigma - 1) * eta
+                sigma_down = sigma_next * downstep_ratio
+            else:
+                sigma_down, _ = k_diffusion_sampling.get_ancestral_step(sigma, sigma_next, eta=eta)
+            if sigma_down != 0:
+                planned.append(sigma.log().lerp(sigma_down.log(), 0.5).exp())
+        elif sampler_name in {"dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp"}:
+            if sampler_name == "dpmpp_2s_ancestral" and isinstance(model_sampling, comfy.model_sampling.CONST):
+                if sigma_next != 0:
+                    downstep_ratio = 1 + (sigma_next / sigma - 1) * eta
+                    sigma_down = sigma_next * downstep_ratio
+                    if sigma == 1.0:
+                        planned.append(sigma.new_tensor(0.9999))
+                    else:
+                        lambda_sigma = ((1 - sigma) / sigma).log()
+                        lambda_down = ((1 - sigma_down) / sigma_down).log()
+                        planned.append((torch.exp(lambda_sigma + 0.5 * (lambda_down - lambda_sigma)) + 1) ** -1)
+            else:
+                sigma_down, _ = k_diffusion_sampling.get_ancestral_step(sigma, sigma_next, eta=eta)
+                if sigma_down != 0:
+                    t = sigma.log().neg()
+                    t_next = sigma_down.log().neg()
+                    planned.append((t + 0.5 * (t_next - t)).neg().exp())
+
+    return torch.stack(planned) if planned else sigmas[:0]
+
 FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "deis",
     "ddpm",
@@ -1044,6 +1105,17 @@ class KSAMPLER(Sampler):
 def ksampler(sampler_name, extra_options={}, inpaint_options={}):
     if sampler_name == "euler":
         model_call_sigmas = euler_model_call_sigmas
+    elif sampler_name in {
+        "dpm_2",
+        "dpm_2_ancestral",
+        "dpmpp_2s_ancestral",
+        "dpmpp_2s_ancestral_cfg_pp",
+        "exp_heun_2_x0",
+        "exp_heun_2_x0_sde",
+        "heun",
+        "heunpp2",
+    }:
+        model_call_sigmas = partial(multi_evaluation_model_call_sigmas, sampler_name=sampler_name)
     elif sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS:
         model_call_sigmas = fixed_step_model_call_sigmas
     else:
