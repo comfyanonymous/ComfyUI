@@ -339,6 +339,7 @@ class MiniMaxH3PrecomputeModulation(io.ComfyNode):
             raise RuntimeError("This sampler cannot precompute its model-call sigma schedule")
 
         transformer_options = modulation_model.model_options.get("transformer_options", {})
+        model_call_sigmas = model_call_sigmas.to(modulation_model.load_device)
         timesteps = _modulation_timesteps(modulation_model, model_call_sigmas, transformer_options)
         hidden = modulation.blocks[0].adaln_proj.hidden
         block_elements = len(modulation.blocks) * 6 * len(timesteps) * 3 * hidden
