@@ -977,6 +977,17 @@ KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_c
                   "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
                   "gradient_estimation", "gradient_estimation_cfg_pp", "er_sde", "seeds_2", "seeds_3", "sa_solver", "sa_solver_pece"]
 
+def fixed_step_model_call_sigmas(model_wrap, sigmas, **kwargs):
+    return sigmas[:-1]
+
+FIXED_STEP_MODEL_CALL_SAMPLERS = {
+    "ddpm",
+    "euler_ancestral",
+    "euler_ancestral_cfg_pp",
+    "lcm",
+    "lms",
+}
+
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}, model_call_sigmas=None):
         self.sampler_function = sampler_function
@@ -1017,6 +1028,7 @@ class KSAMPLER(Sampler):
 
 
 def ksampler(sampler_name, extra_options={}, inpaint_options={}):
+    model_call_sigmas = fixed_step_model_call_sigmas if sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS else None
     if sampler_name == "dpm_fast":
         def dpm_fast_function(model, noise, sigmas, extra_args, callback, disable):
             if len(sigmas) <= 1:
@@ -1041,7 +1053,7 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
     else:
         sampler_function = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))
 
-    return KSAMPLER(sampler_function, extra_options, inpaint_options)
+    return KSAMPLER(sampler_function, extra_options, inpaint_options, model_call_sigmas=model_call_sigmas)
 
 
 def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=None, seed=None, latent_shapes=None):
