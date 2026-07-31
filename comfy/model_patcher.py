@@ -558,12 +558,9 @@ class ModelPatcher:
             new_multigpu_models = []
             for mm in multigpu_models:
                 # clone main model, but bring over relevant props from existing multigpu clone
-                n = self.clone()
+                n = self.clone(model_override=mm.get_clone_model_override())
                 n.load_device = mm.load_device
-                n.backup = mm.backup
-                n.object_patches_backup = mm.object_patches_backup
                 n.hook_backup = mm.hook_backup
-                n.model = mm.model
                 n.is_multigpu_base_clone = mm.is_multigpu_base_clone
                 n.remove_additional_models("multigpu")
                 orig_additional_models: dict[str, list[ModelPatcher]] = comfy.patcher_extension.copy_nested_dicts(n.additional_models)
