@@ -963,6 +963,9 @@ class Sampler:
     def sample(self):
         pass
 
+    def get_model_call_sigmas(self, model_wrap, sigmas):
+        return None
+
     def max_denoise(self, model_wrap, sigmas):
         max_sigma = float(model_wrap.inner_model.model_sampling.sigma_max)
         sigma = float(sigmas[0])
@@ -975,10 +978,16 @@ KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_c
                   "gradient_estimation", "gradient_estimation_cfg_pp", "er_sde", "seeds_2", "seeds_3", "sa_solver", "sa_solver_pece"]
 
 class KSAMPLER(Sampler):
-    def __init__(self, sampler_function, extra_options={}, inpaint_options={}):
+    def __init__(self, sampler_function, extra_options={}, inpaint_options={}, model_call_sigmas=None):
         self.sampler_function = sampler_function
         self.extra_options = extra_options
         self.inpaint_options = inpaint_options
+        self.model_call_sigmas = model_call_sigmas
+
+    def get_model_call_sigmas(self, model_wrap, sigmas):
+        if self.model_call_sigmas is None:
+            return None
+        return self.model_call_sigmas(model_wrap, sigmas, **self.extra_options)
 
     def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
         extra_args["denoise_mask"] = denoise_mask
