@@ -967,15 +967,18 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (folder_paths.get_filename_list("diffusion_models"), ),
-                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"], {"advanced": True})
+                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"], {"advanced": True}),
+                             },
+                "optional": {
+                              "async_offload": ("BOOLEAN", {"default": False, "advanced": True}),
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
 
     CATEGORY = "model/loaders"
 
-    def load_unet(self, unet_name, weight_dtype):
-        model_options = {}
+    def load_unet(self, unet_name, weight_dtype, async_offload=False):
+        model_options = {"async_offload": async_offload}
         if weight_dtype == "fp8_e4m3fn":
             model_options["dtype"] = torch.float8_e4m3fn
         elif weight_dtype == "fp8_e4m3fn_fast":
@@ -996,6 +999,7 @@ class CLIPLoader:
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
+                              "async_offload": ("BOOLEAN", {"default": False, "advanced": True}),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -1004,10 +1008,10 @@ class CLIPLoader:
 
     DESCRIPTION = "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\njoyimage: qwen3-vl 8B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm"
 
-    def load_clip(self, clip_name, type="stable_diffusion", device="default"):
+    def load_clip(self, clip_name, type="stable_diffusion", device="default", async_offload=False):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
 
-        model_options = {}
+        model_options = {"async_offload": async_offload}
         if device == "cpu":
             model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
 

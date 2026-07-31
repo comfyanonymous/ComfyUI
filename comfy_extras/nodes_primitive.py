@@ -1,6 +1,7 @@
 import sys
 from typing_extensions import override
 
+import comfy.model_management
 from comfy_api.latest import ComfyExtension, io
 
 
@@ -93,6 +94,23 @@ class Boolean(io.ComfyNode):
         return io.NodeOutput(value)
 
 
+class GPUVRAM(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="GPUVRAM",
+            display_name="GPU VRAM",
+            category="utilities/system",
+            outputs=[io.Float.Output(display_name="VRAM (GB)")],
+        )
+
+    @classmethod
+    def execute(cls) -> io.NodeOutput:
+        device = comfy.model_management.get_torch_device()
+        vram_gb = comfy.model_management.get_total_memory(device) / (1024 ** 3)
+        return io.NodeOutput(vram_gb)
+
+
 class PrimitivesExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -102,6 +120,7 @@ class PrimitivesExtension(ComfyExtension):
             Int,
             Float,
             Boolean,
+            GPUVRAM,
         ]
 
 async def comfy_entrypoint() -> PrimitivesExtension:

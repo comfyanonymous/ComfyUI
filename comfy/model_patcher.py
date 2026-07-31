@@ -358,6 +358,7 @@ class ModelPatcher:
         self.offload_device = offload_device
         self.weight_inplace_update = weight_inplace_update
         self.force_cast_weights = False
+        self.async_offload = False
         self.patches_uuid = uuid.uuid4()
         self.parent = None
         self.pinned = set()
@@ -454,6 +455,7 @@ class ModelPatcher:
         n.parent = self
 
         n.force_cast_weights = self.force_cast_weights
+        n.async_offload = self.async_offload
 
         n.backup, n.backup_buffers, n.object_patches_backup, n.pinned = model_override[1]
 
@@ -1875,6 +1877,8 @@ class ModelPatcherDynamic(ModelPatcher):
             pin_state["active"] = True
             if vbar is not None:
                 vbar.prioritize()
+                if self.async_offload:
+                    vbar.set_watermark(0)
 
             loading = self._load_list(for_dynamic=True, default_device=device_to)
             loading.sort()

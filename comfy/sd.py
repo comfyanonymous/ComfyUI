@@ -261,6 +261,7 @@ class CLIP:
         te_disable_dynamic = disable_dynamic or getattr(self.cond_stage_model, "disable_offload", False)
         ModelPatcher = comfy.model_patcher.ModelPatcher if te_disable_dynamic else comfy.model_patcher.CoreModelPatcher
         self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        self.patcher.async_offload = model_options.get("async_offload", False)
         #Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
@@ -2040,6 +2041,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         ModelPatcher = comfy.model_patcher.ModelPatcher if disable_dynamic else comfy.model_patcher.CoreModelPatcher
         offload_device = model_options.get("offload_device", model_management.unet_offload_device())
         model_patcher = ModelPatcher(model, load_device=load_device, offload_device=offload_device)
+        model_patcher.async_offload = model_options.get("async_offload", False)
         model.load_model_weights(sd, diffusion_model_prefix, assign=model_patcher.is_dynamic())
 
     if output_vae:
@@ -2180,6 +2182,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
     model = model_config.get_model(new_sd, "")
     ModelPatcher = comfy.model_patcher.ModelPatcher if disable_dynamic else comfy.model_patcher.CoreModelPatcher
     model_patcher = ModelPatcher(model, load_device=load_device, offload_device=offload_device)
+    model_patcher.async_offload = model_options.get("async_offload", False)
     if not model_management.is_device_cpu(offload_device):
         model.to(offload_device)
     model.load_model_weights(new_sd, "", assign=model_patcher.is_dynamic())
