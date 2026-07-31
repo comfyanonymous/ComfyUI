@@ -1049,6 +1049,23 @@ def multi_evaluation_model_call_sigmas(model_wrap, sigmas, sampler_name, eta=1.0
 
     return torch.stack(planned) if planned else sigmas[:0]
 
+def snr_fixed_step_model_call_sigmas(model_wrap, sigmas, **kwargs):
+    model_sampling = model_wrap.inner_model.model_sampling
+    return k_diffusion_sampling.offset_first_sigma_for_snr(sigmas, model_sampling)[:-1]
+
+def dpmpp_sde_model_call_sigmas(model_wrap, sigmas, r=0.5, **kwargs):
+    model_sampling = model_wrap.inner_model.model_sampling
+    sigmas = k_diffusion_sampling.offset_first_sigma_for_snr(sigmas, model_sampling)
+    planned = []
+    for i in range(len(sigmas) - 1):
+        planned.append(sigmas[i])
+        if sigmas[i + 1] != 0:
+            lambda_s = k_diffusion_sampling.sigma_to_half_log_snr(sigmas[i], model_sampling)
+            lambda_t = k_diffusion_sampling.sigma_to_half_log_snr(sigmas[i + 1], model_sampling)
+            lambda_s_1 = lambda_s + r * (lambda_t - lambda_s)
+            planned.append(k_diffusion_sampling.half_log_snr_to_sigma(lambda_s_1, model_sampling))
+    return torch.stack(planned) if planned else sigmas[:0]
+
 FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "deis",
     "ddpm",
@@ -1116,6 +1133,17 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
         "heunpp2",
     }:
         model_call_sigmas = partial(multi_evaluation_model_call_sigmas, sampler_name=sampler_name)
+    elif sampler_name in {"dpmpp_sde", "dpmpp_sde_gpu"}:
+        model_call_sigmas = dpmpp_sde_model_call_sigmas
+    elif sampler_name in {
+        "dpmpp_2m_sde",
+        "dpmpp_2m_sde_gpu",
+        "dpmpp_2m_sde_heun",
+        "dpmpp_2m_sde_heun_gpu",
+        "dpmpp_3m_sde",
+        "dpmpp_3m_sde_gpu",
+    }:
+        model_call_sigmas = snr_fixed_step_model_call_sigmas
     elif sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS:
         model_call_sigmas = fixed_step_model_call_sigmas
     else:
