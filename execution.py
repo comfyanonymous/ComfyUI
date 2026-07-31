@@ -228,6 +228,12 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
 
 map_node_over_list = None #Don't hook this please
 
+# The event loop only keeps weak references to tasks. The completion waiter
+# created below is not awaited by anyone, so without a strong reference it can
+# be garbage collected before it calls unblock() — which leaves the execution
+# list blocked on that node forever.
+_completion_waiters: set[asyncio.Task] = set()
+
 async def resolve_map_node_over_list_results(results):
     remaining = [x for x in results if isinstance(x, asyncio.Task) and not x.done()]
     if len(remaining) == 0:
@@ -558,7 +564,9 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     tasks = [x for x in output_data if isinstance(x, asyncio.Task)]
                     await asyncio.gather(*tasks, return_exceptions=True)
                     unblock()
-                asyncio.create_task(await_completion())
+                waiter = asyncio.create_task(await_completion())
+                _completion_waiters.add(waiter)
+                waiter.add_done_callback(_completion_waiters.discard)
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
             # Enrich at output-processing time (not in the send path) so assets
