@@ -15,12 +15,13 @@ schedule map's derivative d(sigma_a)/d(sigma_v).
 
 import math
 
-import numpy as np
 import torch
 import torch.nn as nn
 
 import comfy.ldm.common_dit
+import comfy.model_management
 import comfy.model_prefetch
+import comfy.patcher_extension
 import comfy.quant_ops
 from comfy.ldm.modules.attention import optimized_attention
 
@@ -76,10 +77,17 @@ def unpack_audio(rows, ch=2):
 
 
 def _axis_from_sqrt_area(dim, patch, sqrt_area):
+    # linspace((1 - ratio) / 2, (1 + ratio) / 2, dim // patch, endpoint=False) * 32
     ratio = dim / sqrt_area
-    left = (1.0 - ratio) / 2.0
-    right = left + ratio
-    return np.linspace(left, right, dim // patch, endpoint=False) * 32.0
+    n = dim // patch
+    return (torch.arange(n, dtype=torch.float64) * (ratio / n) + (1.0 - ratio) / 2.0) * 32.0
+
+
+def _frame_grid(h, w):
+    # area-normalized (h, w) coordinates of one latent frame's 2x2-patch rows
+    area = math.sqrt(h * w)
+    hh, ww = torch.meshgrid(_axis_from_sqrt_area(h, 2, area), _axis_from_sqrt_area(w, 2, area), indexing="ij")
+    return torch.stack([hh.reshape(-1), ww.reshape(-1)], dim=-1), _axis_from_sqrt_area(w, 2, area)
 
 
 def _video_t_spans(n):
@@ -88,14 +96,24 @@ def _video_t_spans(n):
 
 def _video_t_grid(n, origin):
     # origin + exclusive cumsum
-    spans = torch.tensor([FRAME_RESCALE * FRAME_PER_TOKEN[k % 5] for k in range(n)], dtype=torch.float64)
-    grid = float(origin) + torch.cat([torch.zeros(1, dtype=torch.float64), spans[:-1].cumsum(0)])
-    return grid.numpy()
+    spans = torch.tensor(_video_t_spans(n), dtype=torch.float64)
+    return float(origin) + torch.cat([torch.zeros(1, dtype=torch.float64), spans[:-1].cumsum(0)])
 
 
-def _temporal_position_span(n):
-    # numpy pairwise summation on purpose to match the original code
-    return np.sum(np.array(_video_t_spans(n), dtype=np.float64))
+def _audio_grid(cursor, t, w_low, w_high):
+    # channel-major stereo rows: t advances per latent frame, w pinned to the grid extremes per stereo channel, h stays 0
+    g = torch.zeros(t * 2, 3, dtype=torch.float64)
+    g[:, 0] = (cursor + torch.arange(t, dtype=torch.float64)).repeat(2)
+    g[:t, 2] = w_low
+    g[t:, 2] = w_high
+    return g
+
+
+def _video_grid(vt, frame, cursor):
+    g = torch.empty(vt, frame.shape[0], 3, dtype=torch.float64)
+    g[:, :, 0] = _video_t_grid(vt, cursor)[:, None]
+    g[:, :, 1:] = frame[None]
+    return g.reshape(-1, 3)
 
 
 class TimeEmbedder(nn.Module):
@@ -147,8 +165,7 @@ class Attention(nn.Module):
         q = q.transpose(0, 1).unsqueeze(0)
         k = k.transpose(0, 1).unsqueeze(0)
         v = v.transpose(0, 1).unsqueeze(0)
-        out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True,
-                                  transformer_options=transformer_options)
+        out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
         return self.out_proj(out.squeeze(0))
 
 
@@ -173,8 +190,7 @@ class AdalnProj(nn.Module):
 
     def forward(self, t_emb):
         # [M, t_dim] -> expand tensors of [M*modalities, hidden]
-        x = nn.functional.silu(t_emb)
-        x = self.linear(x.to(self.linear.weight.dtype))
+        x = self.linear(nn.functional.silu(t_emb))
         x = x.view(x.shape[0] * self.modalities, self.expand * self.hidden)
         return x.chunk(self.expand, dim=-1)
 
@@ -246,8 +262,9 @@ class FinalLayer(nn.Module):
         super().__init__()
         self.norm = operations.RMSNorm(hidden, eps=eps, dtype=dtype, device=device)
         self.adaln_proj = AdalnProj(t_dim, hidden, 2, 1, dtype=dtype, device=device, operations=operations)
-        self.video_out = operations.Linear(hidden, video_dim, bias=True, dtype=dtype, device=device)
-        self.audio_out = operations.Linear(hidden, audio_dim, bias=True, dtype=dtype, device=device)
+        # output heads are the checkpoint's fp32 island; norm/adaln are stored at model dtype
+        self.video_out = operations.Linear(hidden, video_dim, bias=True, dtype=torch.float32, device=device)
+        self.audio_out = operations.Linear(hidden, audio_dim, bias=True, dtype=torch.float32, device=device)
 
     def forward(self, x, t_emb, video_seg, audio_seg):
         # video_seg / audio_seg: (start, stop, timestep_row) of the target streams
@@ -262,24 +279,14 @@ class FinalLayer(nn.Module):
 class PackedLayout:
     """Static packed-sequence structure for one shape/conditioning signature."""
 
-    def __init__(self, text_len, latent_t, latent_h, latent_w, audio_t,
-                 keyframes=None, refs=None, frame_count=None):
-        ph, pw = latent_h // 2, latent_w // 2
-        frame_rows = ph * pw
-        sqrt_area = math.sqrt(latent_h * latent_w)
-        h_grid = _axis_from_sqrt_area(latent_h, 2, sqrt_area)
-        w_grid = _axis_from_sqrt_area(latent_w, 2, sqrt_area)
-        hh, ww = np.meshgrid(h_grid, w_grid, indexing="ij")
-        frame = np.stack([hh.reshape(-1), ww.reshape(-1)], axis=-1)  # [frame_rows, 2]
+    def __init__(self, text_len, latent_t, latent_h, latent_w, audio_t, keyframes=None, refs=None, frame_count=None):
+        frame, w_grid = _frame_grid(latent_h, latent_w)
+        frame_rows = frame.shape[0]
 
-        segments = []  # (kind, n_rows) with kind in text/cond/ref_img/ref_audio/audio/video
-        pos = []       # per segment: [n, 3] float64 (t, h, w)
-        self.text_len = text_len
-
-        segments.append(("text", text_len))
-        g = np.zeros((text_len, 3), dtype=np.float64)
-        g[:, 0] = np.arange(text_len, dtype=np.float64)
-        pos.append(g)
+        segments = [("text", text_len)]  # (kind, n_rows)
+        g = torch.zeros(text_len, 3, dtype=torch.float64)
+        g[:, 0] = torch.arange(text_len, dtype=torch.float64)
+        pos = [g]  # per segment: [n, 3] float64 (t, h, w)
 
         img_pos, img_update = [], []
         audio_pos, audio_update = [], []
@@ -293,16 +300,16 @@ class PackedLayout:
                 if pixel_index == 0:
                     cond_t = float(text_len)
                 elif frame_count is not None and pixel_index == frame_count - 1:
-                    cond_t = float(text_len) + float(_temporal_position_span(latent_t)) - FRAME_RESCALE
+                    cond_t = float(text_len) + sum(_video_t_spans(latent_t)) - FRAME_RESCALE
                 else:
                     raise ValueError("only first/last keyframe anchors are supported")
-                g = np.empty((frame_rows, 3), dtype=np.float64)
+                g = torch.empty(frame_rows, 3, dtype=torch.float64)
                 g[:, 0] = cond_t
                 g[:, 1:] = frame
                 segments.append(("cond", frame_rows))
                 pos.append(g)
-                img_pos.append(np.arange(row, row + frame_rows))
-                img_update.append(np.zeros(frame_rows, dtype=bool))
+                img_pos.append(torch.arange(row, row + frame_rows))
+                img_update.append(torch.zeros(frame_rows, dtype=torch.bool))
                 row += frame_rows
 
         target_audio_w = (float(w_grid[0]), float(w_grid[-1]))
@@ -311,99 +318,66 @@ class PackedLayout:
             for blk in refs:
                 kind = blk["kind"]
                 if kind == "image":
-                    rh, rw = blk["latent_h"], blk["latent_w"]
-                    r_rows = (rh // 2) * (rw // 2)
-                    r_area = math.sqrt(rh * rw)
-                    rhg = _axis_from_sqrt_area(rh, 2, r_area)
-                    rwg = _axis_from_sqrt_area(rw, 2, r_area)
-                    rhh, rww = np.meshgrid(rhg, rwg, indexing="ij")
-                    g = np.empty((r_rows, 3), dtype=np.float64)
+                    r_frame, _ = _frame_grid(blk["latent_h"], blk["latent_w"])
+                    n = r_frame.shape[0]
+                    g = torch.empty(n, 3, dtype=torch.float64)
                     g[:, 0] = cursor
-                    g[:, 1] = rhh.reshape(-1)
-                    g[:, 2] = rww.reshape(-1)
-                    segments.append(("ref_img", r_rows))
+                    g[:, 1:] = r_frame
+                    segments.append(("ref_img", n))
                     pos.append(g)
-                    img_pos.append(np.arange(row, row + r_rows))
-                    img_update.append(np.zeros(r_rows, dtype=bool))
-                    row += r_rows
+                    img_pos.append(torch.arange(row, row + n))
+                    img_update.append(torch.zeros(n, dtype=torch.bool))
+                    row += n
                     cursor += 1.0
                 elif kind == "audio":
                     rt = blk["ref_audio_t"]
                     if rt > 0:
-                        n = rt * 2
-                        g = np.zeros((n, 3), dtype=np.float64)
-                        g[:, 0] = np.tile(cursor + np.arange(rt, dtype=np.float64), 2)
-                        g[:rt, 2] = target_audio_w[0]
-                        g[rt:, 2] = target_audio_w[1]
-                        segments.append(("ref_audio", n))
-                        pos.append(g)
-                        audio_pos.append(np.arange(row, row + n))
-                        audio_update.append(np.zeros(n, dtype=bool))
-                        row += n
+                        segments.append(("ref_audio", rt * 2))
+                        pos.append(_audio_grid(cursor, rt, *target_audio_w))
+                        audio_pos.append(torch.arange(row, row + rt * 2))
+                        audio_update.append(torch.zeros(rt * 2, dtype=torch.bool))
+                        row += rt * 2
                     cursor += float(rt)
                 elif kind in ("video", "video_audio"):
+                    # the block's audio rows pack immediately before its video
+                    # rows, both sharing the cursor origin
                     rt = blk["ref_audio_t"]
-                    vt, rh, rw = blk["latent_t"], blk["latent_h"], blk["latent_w"]
-                    r_frame_rows = (rh // 2) * (rw // 2)
-                    r_area = math.sqrt(rh * rw)
-                    rhg = _axis_from_sqrt_area(rh, 2, r_area)
-                    rwg = _axis_from_sqrt_area(rw, 2, r_area)
+                    vt = blk["latent_t"]
+                    r_frame, r_w_grid = _frame_grid(blk["latent_h"], blk["latent_w"])
                     if rt > 0:
-                        n = rt * 2
-                        g = np.zeros((n, 3), dtype=np.float64)
-                        g[:, 0] = np.tile(cursor + np.arange(rt, dtype=np.float64), 2)
-                        g[:rt, 2] = float(rwg[0])
-                        g[rt:, 2] = float(rwg[-1])
-                        segments.append(("ref_audio", n))
-                        pos.append(g)
-                        audio_pos.append(np.arange(row, row + n))
-                        audio_update.append(np.zeros(n, dtype=bool))
-                        row += n
-                    rhh, rww = np.meshgrid(rhg, rwg, indexing="ij")
-                    r_frame = np.stack([rhh.reshape(-1), rww.reshape(-1)], axis=-1)
-                    tg = _video_t_grid(vt, cursor)
-                    g = np.empty((vt, r_frame_rows, 3), dtype=np.float64)
-                    g[:, :, 0] = tg[:, None]
-                    g[:, :, 1:] = r_frame[None]
-                    n = vt * r_frame_rows
+                        segments.append(("ref_audio", rt * 2))
+                        pos.append(_audio_grid(cursor, rt, float(r_w_grid[0]), float(r_w_grid[-1])))
+                        audio_pos.append(torch.arange(row, row + rt * 2))
+                        audio_update.append(torch.zeros(rt * 2, dtype=torch.bool))
+                        row += rt * 2
+                    n = vt * r_frame.shape[0]
                     segments.append(("ref_img", n))
-                    pos.append(g.reshape(-1, 3))
-                    img_pos.append(np.arange(row, row + n))
-                    img_update.append(np.zeros(n, dtype=bool))
+                    pos.append(_video_grid(vt, r_frame, cursor))
+                    img_pos.append(torch.arange(row, row + n))
+                    img_update.append(torch.zeros(n, dtype=torch.bool))
                     row += n
-                    v_span = sum(_video_t_spans(vt))  # sequential sum
-                    cursor += max(float(rt), v_span)
+                    cursor += max(float(rt), sum(_video_t_spans(vt)))
 
-        # target audio
-        n_audio = audio_t * 2
-        g = np.zeros((n_audio, 3), dtype=np.float64)
-        g[:, 0] = np.tile(cursor + np.arange(audio_t, dtype=np.float64), 2)
-        g[:audio_t, 2] = target_audio_w[0]
-        g[audio_t:, 2] = target_audio_w[1]
-        segments.append(("audio", n_audio))
-        pos.append(g)
-        audio_pos.append(np.arange(row, row + n_audio))
-        audio_update.append(np.ones(n_audio, dtype=bool))
-        row += n_audio
+        # target audio then target video, always the last two segments
+        segments.append(("audio", audio_t * 2))
+        pos.append(_audio_grid(cursor, audio_t, *target_audio_w))
+        audio_pos.append(torch.arange(row, row + audio_t * 2))
+        audio_update.append(torch.ones(audio_t * 2, dtype=torch.bool))
+        row += audio_t * 2
 
-        # target video
         n_video = latent_t * frame_rows
-        tg = _video_t_grid(latent_t, cursor)
-        g = np.empty((latent_t, frame_rows, 3), dtype=np.float64)
-        g[:, :, 0] = tg[:, None]
-        g[:, :, 1:] = frame[None]
         segments.append(("video", n_video))
-        pos.append(g.reshape(-1, 3))
-        img_pos.append(np.arange(row, row + n_video))
-        img_update.append(np.ones(n_video, dtype=bool))
+        pos.append(_video_grid(latent_t, frame, cursor))
+        img_pos.append(torch.arange(row, row + n_video))
+        img_update.append(torch.ones(n_video, dtype=torch.bool))
         row += n_video
 
         self.seq_len = row
-        self.position_ids = torch.from_numpy(np.concatenate(pos, axis=0))  # [S, 3] float64
-        self.img_pos = torch.from_numpy(np.concatenate(img_pos)).long()
-        self.img_update = torch.from_numpy(np.concatenate(img_update))
-        self.audio_pos = torch.from_numpy(np.concatenate(audio_pos)).long()
-        self.audio_update = torch.from_numpy(np.concatenate(audio_update))
+        self.position_ids = torch.cat(pos)  # [S, 3] float64
+        self.img_pos = torch.cat(img_pos)
+        self.img_update = torch.cat(img_update)
+        self.audio_pos = torch.cat(audio_pos)
+        self.audio_update = torch.cat(audio_update)
         tags = torch.ones(self.seq_len, dtype=torch.long)  # text default
         tags[self.audio_pos] = 2
         tags[self.img_pos] = 0
@@ -418,7 +392,6 @@ class PackedLayout:
             seg_abs.append((off, off + n, kind))
             off += n
         self.segments = seg_abs
-        self.latent_t, self.latent_h, self.latent_w, self.audio_t = latent_t, latent_h, latent_w, audio_t
 
 
 class MiniMaxH3Model(nn.Module):
@@ -454,32 +427,24 @@ class MiniMaxH3Model(nn.Module):
                      time_embed_dim, norm_eps, qk_norm_eps, dtype=dtype, device=device, operations=operations)
             for _ in range(num_layers)])
         self.final_layer = FinalLayer(hidden_size, time_embed_dim, video_patch_dim, audio_latents_dim,
-                                      final_norm_eps, dtype=torch.float32, device=device, operations=operations)
+                                      final_norm_eps, dtype=dtype, device=device, operations=operations)
         self._layout_cache = {}
-
-    @staticmethod
-    def _step_timesteps(sigma_v, shift_v, shift_a):
-        # single source of truth for the per-step timestep pair so the schedule
-        # cache and the per-step path produce bit-identical values
-        sigma_v = sigma_v.float().clamp(min=1e-6)
-        sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
-        return float(1.0 - sigma_v), float(1.0 - sigma_a), sigma_v, sigma_a
 
     def preprocess_text_embeds(self, text_states):
         """[B, L, text_dim] Qwen states -> [B, L, hidden] refined text embeds.
 
-        Called once per sampling from extra_conds (the input never changes across
-        steps); forward accepts either form and only runs the refiner if needed.
+        Called once per sampling from extra_conds with the states already at the
+        model's compute dtype (the input never changes across steps); forward
+        accepts either form and only runs the refiner if needed.
         """
         if text_states.shape[-1] == self.hidden_size:
             return text_states
-        dtype = self.condition_proj.weight.dtype if self.condition_proj.weight.dtype.is_floating_point else text_states.dtype
-        return self.token_refiner(self.condition_proj(text_states[0].to(dtype))).unsqueeze(0)
+        return self.token_refiner(self.condition_proj(text_states[0])).unsqueeze(0)
 
     def rope_freqs(self, position_ids, device):
         # [S, 3] float64 -> [S, 96] fp32
-        pos = position_ids.to(device=device, dtype=torch.float32)
-        inv = self.rope.inv_freq.to(device)
+        pos = position_ids.to(torch.float32).to(device)
+        inv = comfy.model_management.cast_to(self.rope.inv_freq, device=device)
         per_axis = pos.unsqueeze(-1) * inv.view(1, 1, -1)      # [S, 3, 16]
         t_f, h_f, w_f = per_axis.unbind(dim=1)
         half = torch.cat((t_f, h_f, w_f), dim=-1)              # [S, 48]
@@ -529,6 +494,13 @@ class MiniMaxH3Model(nn.Module):
         return torch.cat(rows, dim=0) if rows else None
 
     def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload, **kwargs)
+
+    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
         video_x, audio_x = x[0], x[1]
         orig_t, orig_h, orig_w = video_x.shape[2], video_x.shape[3], video_x.shape[4]
         video_x = comfy.ldm.common_dit.pad_to_patch_size(video_x, self.patch_size)
@@ -536,7 +508,7 @@ class MiniMaxH3Model(nn.Module):
             raise ValueError("MiniMax H3 supports batch size 1")
         payload = minimax_payload or {}
         device = video_x.device
-        dtype = self.condition_proj.weight.dtype if self.condition_proj.weight.dtype.is_floating_point else torch.bfloat16
+        dtype = context.dtype  # model_base casts context to the compute dtype
 
         latent_t, lat_h, lat_w = video_x.shape[2], video_x.shape[3], video_x.shape[4]
         audio_t = audio_x.shape[-1]
@@ -546,7 +518,9 @@ class MiniMaxH3Model(nn.Module):
         # model_base passes model_sampling.timestep(sigma) = sigma * 1000
         shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
         shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
-        t_v, t_a, sigma_v, _ = self._step_timesteps(timestep.flatten()[0] / 1000.0, shift_v, shift_a)
+        sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
+        t_v = float(1.0 - sigma_v)
+        t_a = float(1.0 - time_shift_sigma(sigma_v, shift_v, shift_a))
 
         # distinct timesteps are known analytically: text/pad follow video, cond rows pin near 1
         vis_aug = float(payload.get("visual_cond_noise_aug", VISUAL_COND_TIMESTEP))
@@ -568,7 +542,7 @@ class MiniMaxH3Model(nn.Module):
             if kind == "text" and text_tags is not None:
                 # the presentation text span mixes tags (vision pads carry the
                 # video modality); split into tag runs
-                tags = text_tags.view(-1).long()
+                tags = text_tags.view(-1).tolist()
                 run_start = 0
                 for i in range(1, b - a + 1):
                     if i == b - a or tags[i] != tags[run_start]:
@@ -598,7 +572,7 @@ class MiniMaxH3Model(nn.Module):
 
         video_embed = self.video_patch_proj(all_video_rows).to(dtype)
         audio_embed = self.audio_patch_proj(all_audio_rows).to(dtype)
-        text_states = context[0].to(dtype)
+        text_states = context[0]
         if text_states.shape[-1] != self.hidden_size:
             text_states = self.token_refiner(self.condition_proj(text_states),
                                              transformer_options=transformer_options)
@@ -617,7 +591,7 @@ class MiniMaxH3Model(nn.Module):
                 h[a:b] = audio_embed[aoff:aoff + n]
                 aoff += n
 
-        t_emb = self.time_embedder(torch.tensor(unique_t, dtype=torch.float32, device=device))
+        t_emb = self.time_embedder(torch.tensor(unique_t, dtype=torch.float32, device=device)).to(dtype)
         # rotation table computed once per forward, consumed by the kitchen split-half rope
         rope_freqs = rope_rotation_table(self.rope_freqs(layout.position_ids, device), dtype)
 

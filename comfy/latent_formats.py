@@ -445,6 +445,9 @@ class MiniMaxH3Video(LatentFormat):
     scale_factor = 1.0
 
 class MiniMaxH3AV(MiniMaxH3Video):
+    # max channels across the two streams (video 24, audio 32) so per-stream slices keep both streams whole
+    latent_channels = 32
+
     # packed AV nested latent: no RGB preview of the flat tensor
     def __init__(self):
         self.latent_rgb_factors = None

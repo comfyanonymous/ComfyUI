@@ -233,7 +233,7 @@ class CausalAttention(nn.Module):
         self.qkv = ops.Linear(in_dim, in_dim * 3, bias=False)
         self.q_bias = nn.Parameter(torch.empty(in_dim))
         self.v_bias = nn.Parameter(torch.empty(in_dim))
-        self.register_buffer("zero_k_bias", torch.zeros(in_dim))
+        self.register_buffer("zero_k_bias", torch.empty(in_dim))
         self.proj = ops.Linear(out_dim, out_dim)
 
     def forward(self, x):
