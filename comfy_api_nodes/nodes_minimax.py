@@ -5,6 +5,16 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.apis.minimax import (
+    Hailuo03AudioContent,
+    Hailuo03AudioContentUrl,
+    Hailuo03ImageContent,
+    Hailuo03ImageContentUrl,
+    Hailuo03TaskCreationRequest,
+    Hailuo03TaskCreationResponse,
+    Hailuo03TaskQueryResponse,
+    Hailuo03TextContent,
+    Hailuo03VideoContent,
+    Hailuo03VideoContentUrl,
     MinimaxFileRetrieveResponse,
     MiniMaxModel,
     MinimaxTaskResultResponse,
@@ -17,7 +27,11 @@ from comfy_api_nodes.util import (
     download_url_to_video_output,
     poll_op,
     sync_op,
+    upload_audio_to_comfyapi,
     upload_images_to_comfyapi,
+    upload_video_to_comfyapi,
+    validate_image_aspect_ratio,
+    validate_image_dimensions,
     validate_string,
 )
 
@@ -293,9 +307,9 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="MinimaxHailuoVideoNode",
-            display_name="MiniMax Hailuo Video",
+            display_name="MiniMax Hailuo 02 Video",
             category="partner/video/MiniMax",
-            description="Generates videos from prompt, with optional start frame using the new MiniMax Hailuo-02 model.",
+            description="Generates videos from prompt, with optional start frame using the MiniMax Hailuo-02 model.",
             inputs=[
                 IO.String.Input(
                     "prompt_text",
@@ -437,6 +451,491 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(file_url))
 
 
+HAILUO_03_CREATE_ENDPOINT = "/proxy/minimax/v2/video_generation"
+HAILUO_03_QUERY_ENDPOINT = "/proxy/minimax/v2/query/video_generation"  # + /{task_id}
+HAILUO_03_MODELS = {"MiniMax H3": "MiniMax-H3"}
+HAILUO_03_FAILED_STATUSES = ["failed", "cancelled", "expired"]
+
+
+def _hailuo03_model_inputs(include_ratio: bool = True, allow_adaptive: bool = True):
+    inputs = [
+        IO.String.Input(
+            "prompt",
+            multiline=True,
+            default="",
+            tooltip="Text prompt for video generation.",
+        ),
+        IO.Combo.Input(
+            "resolution",
+            options=["2K"],
+            tooltip="Resolution of the output video.",
+        ),
+    ]
+    if include_ratio:
+        ratio_options = ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]
+        if allow_adaptive:
+            ratio_options.insert(0, "adaptive")
+        inputs.append(
+            IO.Combo.Input(
+                "ratio",
+                options=ratio_options,
+                default=ratio_options[0],
+                tooltip="Aspect ratio of the output video.",
+            )
+        )
+    inputs.append(
+        IO.Int.Input(
+            "duration",
+            default=5,
+            min=5,
+            max=15,
+            step=1,
+            tooltip="Duration of the output video in seconds (5-15).",
+            display_mode=IO.NumberDisplay.slider,
+        )
+    )
+    return inputs
+
+
+async def _hailuo03_run_task(
+    cls: type[IO.ComfyNode],
+    *,
+    model_id: str,
+    content: list,
+    resolution: str,
+    duration: int,
+    ratio: str | None,
+    seed: int,
+    watermark: bool,
+) -> IO.NodeOutput:
+    response = await sync_op(
+        cls,
+        ApiEndpoint(path=HAILUO_03_CREATE_ENDPOINT, method="POST"),
+        response_model=Hailuo03TaskCreationResponse,
+        data=Hailuo03TaskCreationRequest(
+            model=model_id,
+            content=content,
+            resolution=resolution,
+            duration=duration,
+            ratio=ratio,
+            seed=seed,
+            aigc_watermark=watermark,
+        ),
+    )
+    task_result = await poll_op(
+        cls,
+        ApiEndpoint(path=f"{HAILUO_03_QUERY_ENDPOINT}/{response.task_id}"),
+        response_model=Hailuo03TaskQueryResponse,
+        status_extractor=lambda r: r.task.status,
+        failed_statuses=HAILUO_03_FAILED_STATUSES,
+        poll_interval=15,
+    )
+    video_url = task_result.task.content.url if task_result.task.content else None
+    if not video_url:
+        raise Exception(f"No video URL in the response: {task_result.model_dump()}")
+    return IO.NodeOutput(await download_url_to_video_output(video_url))
+
+
+class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="MinimaxHailuo03TextToVideoNode",
+            display_name="MiniMax H3 Text to Video",
+            category="partner/video/MiniMax",
+            description="Generate video from a text prompt using the MiniMax H3 model.",
+            inputs=[
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[IO.DynamicCombo.Option("MiniMax H3", _hailuo03_model_inputs(allow_adaptive=False))],
+                    tooltip="Model to use for video generation.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=4294967295,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Random seed. The same request with the same seed gives similar, "
+                    "but not guaranteed identical, results.",
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=False,
+                    tooltip="Whether to add an AIGC watermark to the video.",
+                    advanced=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model.duration"]),
+                expr="""
+                (
+                  $dur := $lookup(widgets, "model.duration");
+                  {"type": "usd", "usd": $dur * 0.1859}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: dict,
+        seed: int,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(model["prompt"], strip_whitespace=True, min_length=1)
+        return await _hailuo03_run_task(
+            cls,
+            model_id=HAILUO_03_MODELS[model["model"]],
+            content=[Hailuo03TextContent(text=model["prompt"])],
+            resolution=model["resolution"],
+            duration=model["duration"],
+            ratio=model["ratio"],
+            seed=seed,
+            watermark=watermark,
+        )
+
+
+class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="MinimaxHailuo03FirstLastFrameNode",
+            display_name="MiniMax H3 First-Last-Frame to Video",
+            category="partner/video/MiniMax",
+            description="Generate video from a first frame image and an optional last frame image "
+            "using the MiniMax H3 model. The aspect ratio of the video follows the supplied images.",
+            inputs=[
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[IO.DynamicCombo.Option("MiniMax H3", _hailuo03_model_inputs(include_ratio=False))],
+                    tooltip="Model to use for video generation.",
+                ),
+                IO.Image.Input(
+                    "first_frame",
+                    tooltip="First frame image for the video.",
+                ),
+                IO.Image.Input(
+                    "last_frame",
+                    tooltip="Optional last frame image for the video.",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=4294967295,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Random seed. The same request with the same seed gives similar, "
+                    "but not guaranteed identical, results.",
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=False,
+                    tooltip="Whether to add an AIGC watermark to the video.",
+                    advanced=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model.duration"]),
+                expr="""
+                (
+                  $dur := $lookup(widgets, "model.duration");
+                  {"type": "usd", "usd": $dur * 0.1859}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: dict,
+        first_frame: torch.Tensor,
+        seed: int,
+        watermark: bool,
+        last_frame: torch.Tensor | None = None,
+    ) -> IO.NodeOutput:
+        validate_string(model["prompt"], strip_whitespace=True, min_length=1)
+        for frame in (first_frame, last_frame):
+            if frame is not None:
+                validate_image_aspect_ratio(frame, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+                validate_image_dimensions(frame, min_width=256, min_height=256)
+
+        content: list = [
+            Hailuo03TextContent(text=model["prompt"]),
+            Hailuo03ImageContent(
+                image_url=Hailuo03ImageContentUrl(
+                    url=(
+                        await upload_images_to_comfyapi(
+                            cls, first_frame, max_images=1, wait_label="Uploading first frame"
+                        )
+                    )[0],
+                ),
+                role="first_frame",
+            ),
+        ]
+        if last_frame is not None:
+            content.append(
+                Hailuo03ImageContent(
+                    image_url=Hailuo03ImageContentUrl(
+                        url=(
+                            await upload_images_to_comfyapi(
+                                cls, last_frame, max_images=1, wait_label="Uploading last frame"
+                            )
+                        )[0],
+                    ),
+                    role="last_frame",
+                )
+            )
+        return await _hailuo03_run_task(
+            cls,
+            model_id=HAILUO_03_MODELS[model["model"]],
+            content=content,
+            resolution=model["resolution"],
+            duration=model["duration"],
+            ratio=None,
+            seed=seed,
+            watermark=watermark,
+        )
+
+
+class MinimaxHailuo03ReferenceNode(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="MinimaxHailuo03ReferenceNode",
+            display_name="MiniMax H3 Reference to Video",
+            category="partner/video/MiniMax",
+            description="Generate video conditioned on reference images, videos, and audio using the "
+            "MiniMax H3 model. Refer to the references in the prompt by their order: "
+            "'Image 1', 'Image 2', 'Video 1', 'Audio 1', and so on.",
+            inputs=[
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "MiniMax H3",
+                            [
+                                *_hailuo03_model_inputs(),
+                                IO.Autogrow.Input(
+                                    "reference_images",
+                                    template=IO.Autogrow.TemplateNames(
+                                        IO.Image.Input("reference_image"),
+                                        names=[
+                                            "image_1",
+                                            "image_2",
+                                            "image_3",
+                                            "image_4",
+                                            "image_5",
+                                            "image_6",
+                                            "image_7",
+                                            "image_8",
+                                            "image_9",
+                                        ],
+                                        min=0,
+                                    ),
+                                    tooltip="Subject or style reference images, referred to in the prompt "
+                                    "as 'Image 1'..'Image 9' in connection order. Up to 9 images.",
+                                ),
+                                IO.Autogrow.Input(
+                                    "reference_videos",
+                                    template=IO.Autogrow.TemplateNames(
+                                        IO.Video.Input("reference_video"),
+                                        names=["video_1", "video_2", "video_3"],
+                                        min=0,
+                                    ),
+                                    tooltip="Motion or scene reference videos, referred to in the prompt "
+                                    "as 'Video 1'..'Video 3' in connection order. Up to 3 videos, "
+                                    "2-15 seconds each, 15 seconds in total.",
+                                ),
+                                IO.Autogrow.Input(
+                                    "reference_audios",
+                                    template=IO.Autogrow.TemplateNames(
+                                        IO.Audio.Input("reference_audio"),
+                                        names=["audio_1", "audio_2", "audio_3"],
+                                        min=0,
+                                    ),
+                                    tooltip="Audio references, referred to in the prompt as "
+                                    "'Audio 1'..'Audio 3' in connection order. Up to 3 clips, "
+                                    "2-15 seconds each, 15 seconds in total. Cannot be used without "
+                                    "a reference image or video.",
+                                ),
+                            ],
+                        )
+                    ],
+                    tooltip="Model to use for video generation.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=4294967295,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Random seed. The same request with the same seed gives similar, "
+                    "but not guaranteed identical, results.",
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=False,
+                    tooltip="Whether to add an AIGC watermark to the video.",
+                    advanced=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=["model.duration"],
+                    input_groups=["model.reference_images", "model.reference_videos"],
+                ),
+                expr="""
+                (
+                  $dur := $lookup(widgets, "model.duration");
+                  $imgsRaw := $lookup(inputGroups, "model.reference_images");
+                  $imgs := $imgsRaw ? $imgsRaw : 0;
+                  $vidsRaw := $lookup(inputGroups, "model.reference_videos");
+                  $vids := $vidsRaw ? $vidsRaw : 0;
+                  $base := $dur * 0.1859 + ($imgs > 5 ? ($imgs - 5) * 0.0572 : 0);
+                  $vids > 0
+                    ? {"type": "range_usd", "min_usd": $base + $vids * 2 * 0.1859,
+                       "max_usd": $base + 15 * 0.1859, "format": {"approximate": true}}
+                    : {"type": "usd", "usd": $base}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: dict,
+        seed: int,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(model["prompt"], strip_whitespace=True, min_length=1)
+
+        reference_images = model.get("reference_images", {})
+        reference_videos = model.get("reference_videos", {})
+        reference_audios = model.get("reference_audios", {})
+        if not reference_images and not reference_videos:
+            raise ValueError("At least one reference image or video is required.")
+
+        for image in reference_images.values():
+            validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+            validate_image_dimensions(image, min_width=256, min_height=256)
+
+        total_video_duration = 0.0
+        for i, video in enumerate(reference_videos.values(), 1):
+            try:
+                fps = float(video.get_frame_rate())
+            except Exception:
+                fps = 0.0
+            if fps and not (23.9 <= fps <= 60.5):
+                raise ValueError(f"Reference video {i} is {fps:.2f} FPS. Supported range is 23.976-60 FPS.")
+            try:
+                dur = video.get_duration()
+            except Exception:
+                continue
+            if dur < 1.8:
+                raise ValueError(f"Reference video {i} is too short: {dur:.1f}s. Minimum duration is 2 seconds.")
+            total_video_duration += dur
+        if total_video_duration > 15.1:
+            raise ValueError(
+                f"Total reference video duration is {total_video_duration:.1f}s. Maximum is 15 seconds."
+            )
+
+        total_audio_duration = 0.0
+        for i, audio in enumerate(reference_audios.values(), 1):
+            dur = int(audio["waveform"].shape[-1]) / int(audio["sample_rate"])
+            if dur < 1.8:
+                raise ValueError(f"Reference audio {i} is too short: {dur:.1f}s. Minimum duration is 2 seconds.")
+            total_audio_duration += dur
+        if total_audio_duration > 15.1:
+            raise ValueError(
+                f"Total reference audio duration is {total_audio_duration:.1f}s. Maximum is 15 seconds."
+            )
+
+        content: list = [Hailuo03TextContent(text=model["prompt"])]
+        for i, image in enumerate(reference_images.values(), 1):
+            content.append(
+                Hailuo03ImageContent(
+                    image_url=Hailuo03ImageContentUrl(
+                        url=(
+                            await upload_images_to_comfyapi(
+                                cls, image, max_images=1, wait_label=f"Uploading image {i}"
+                            )
+                        )[0],
+                    ),
+                    role="reference_image",
+                )
+            )
+        for i, video in enumerate(reference_videos.values(), 1):
+            content.append(
+                Hailuo03VideoContent(
+                    video_url=Hailuo03VideoContentUrl(
+                        url=await upload_video_to_comfyapi(cls, video, wait_label=f"Uploading video {i}"),
+                    ),
+                )
+            )
+        for audio in reference_audios.values():
+            content.append(
+                Hailuo03AudioContent(
+                    audio_url=Hailuo03AudioContentUrl(
+                        url=await upload_audio_to_comfyapi(
+                            cls,
+                            audio,
+                            container_format="mp3",
+                            codec_name="libmp3lame",
+                            mime_type="audio/mpeg",
+                        ),
+                    ),
+                )
+            )
+        return await _hailuo03_run_task(
+            cls,
+            model_id=HAILUO_03_MODELS[model["model"]],
+            content=content,
+            resolution=model["resolution"],
+            duration=model["duration"],
+            ratio=model["ratio"],
+            seed=seed,
+            watermark=watermark,
+        )
+
+
 class MinimaxExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -445,6 +944,9 @@ class MinimaxExtension(ComfyExtension):
             MinimaxImageToVideoNode,
             # MinimaxSubjectToVideoNode,
             MinimaxHailuoVideoNode,
+            MinimaxHailuo03TextToVideoNode,
+            MinimaxHailuo03FirstLastFrameNode,
+            MinimaxHailuo03ReferenceNode,
         ]
 
 
