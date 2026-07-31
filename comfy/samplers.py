@@ -1078,6 +1078,10 @@ FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "ipndm_v",
     "lcm",
     "lms",
+    "res_multistep",
+    "res_multistep_ancestral",
+    "res_multistep_ancestral_cfg_pp",
+    "res_multistep_cfg_pp",
 }
 
 class KSAMPLER(Sampler):
