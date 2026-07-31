@@ -206,6 +206,24 @@ def test_get_full_path_with_filename_on_another_drive(temp_dir):
         del folder_paths.folder_names_and_paths["test_folder"]
 
 
+def test_get_full_path_with_drive_relative_filename(temp_dir):
+    # "C:models/x" (no separator after the colon) is drive-relative on Windows.
+    # It used to resolve against the process working directory, so the lookup
+    # became <folder>/<cwd-without-drive>/models/x, which never matched. A
+    # filename is only ever relative to a registered folder, so drop the drive.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    try:
+        os.makedirs(os.path.join(temp_dir, "models"), exist_ok=True)
+        target = os.path.join(temp_dir, "models", "model.safetensors")
+        with open(target, "w") as f:
+            f.write("")
+
+        assert folder_paths.get_full_path("test_folder", "models/model.safetensors") == target
+        assert folder_paths.get_full_path("test_folder", "C:models/model.safetensors") == target
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
+
+
 def test_get_full_path_or_raise_on_another_drive(temp_dir):
     # The documented failure mode is FileNotFoundError; a ValueError from the
     # path normalization would bypass callers that catch the former.
