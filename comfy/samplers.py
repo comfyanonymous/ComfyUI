@@ -981,9 +981,14 @@ def fixed_step_model_call_sigmas(model_wrap, sigmas, **kwargs):
     return sigmas[:-1]
 
 FIXED_STEP_MODEL_CALL_SAMPLERS = {
+    "deis",
     "ddpm",
+    "dpmpp_2m",
+    "dpmpp_2m_cfg_pp",
     "euler_ancestral",
     "euler_ancestral_cfg_pp",
+    "ipndm",
+    "ipndm_v",
     "lcm",
     "lms",
 }
