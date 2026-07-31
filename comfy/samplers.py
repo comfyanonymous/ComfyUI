@@ -1066,6 +1066,32 @@ def dpmpp_sde_model_call_sigmas(model_wrap, sigmas, r=0.5, **kwargs):
             planned.append(k_diffusion_sampling.half_log_snr_to_sigma(lambda_s_1, model_sampling))
     return torch.stack(planned) if planned else sigmas[:0]
 
+def seeds_model_call_sigmas(model_wrap, sigmas, stages, r=0.5, r_1=1 / 3, r_2=2 / 3, **kwargs):
+    model_sampling = model_wrap.inner_model.model_sampling
+    sigmas = k_diffusion_sampling.offset_first_sigma_for_snr(sigmas, model_sampling)
+    stage_fractions = (r,) if stages == 2 else (r_1, r_2)
+    planned = []
+    for i in range(len(sigmas) - 1):
+        planned.append(sigmas[i])
+        if sigmas[i + 1] != 0:
+            lambda_s = k_diffusion_sampling.sigma_to_half_log_snr(sigmas[i], model_sampling)
+            lambda_t = k_diffusion_sampling.sigma_to_half_log_snr(sigmas[i + 1], model_sampling)
+            for fraction in stage_fractions:
+                stage_lambda = torch.lerp(lambda_s, lambda_t, fraction)
+                planned.append(k_diffusion_sampling.half_log_snr_to_sigma(stage_lambda, model_sampling))
+    return torch.stack(planned) if planned else sigmas[:0]
+
+def sa_solver_pece_model_call_sigmas(model_wrap, sigmas, corrector_order=4, **kwargs):
+    sigmas = k_diffusion_sampling.offset_first_sigma_for_snr(sigmas, model_wrap.inner_model.model_sampling)
+    if corrector_order <= 0:
+        return sigmas[:-1]
+    planned = []
+    for i in range(len(sigmas) - 1):
+        planned.append(sigmas[i])
+        if i > 0:
+            planned.append(sigmas[i])
+    return torch.stack(planned) if planned else sigmas[:0]
+
 FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "deis",
     "ddpm",
@@ -1074,6 +1100,8 @@ FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "euler_ancestral",
     "euler_ancestral_cfg_pp",
     "euler_cfg_pp",
+    "gradient_estimation",
+    "gradient_estimation_cfg_pp",
     "ipndm",
     "ipndm_v",
     "lcm",
@@ -1148,6 +1176,14 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
         "dpmpp_3m_sde_gpu",
     }:
         model_call_sigmas = snr_fixed_step_model_call_sigmas
+    elif sampler_name == "seeds_2":
+        model_call_sigmas = partial(seeds_model_call_sigmas, stages=2)
+    elif sampler_name == "seeds_3":
+        model_call_sigmas = partial(seeds_model_call_sigmas, stages=3)
+    elif sampler_name == "sa_solver":
+        model_call_sigmas = snr_fixed_step_model_call_sigmas
+    elif sampler_name == "sa_solver_pece":
+        model_call_sigmas = sa_solver_pece_model_call_sigmas
     elif sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS:
         model_call_sigmas = fixed_step_model_call_sigmas
     else:
