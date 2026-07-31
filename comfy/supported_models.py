@@ -983,6 +983,14 @@ class MiniMaxH3(supported_models_base.BASE):
         detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_32b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.minimax.MiniMaxH3Tokenizer, comfy.text_encoders.minimax.te(**detect))
 
+class MiniMaxH3Modulation(MiniMaxH3):
+    unet_config = {
+        "image_model": "minimax_h3_modulation",
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.MiniMaxH3Modulation(self, device=device)
+
 class HunyuanVideo(supported_models_base.BASE):
     unet_config = {
         "image_model": "hunyuan_video",
@@ -2436,6 +2444,7 @@ models = [
     LTXV,
     LTXAV,
     MiniMaxH3,
+    MiniMaxH3Modulation,
     HunyuanVideo15_SR_Distilled,
     HunyuanVideo15,
     HunyuanImage21Refiner,

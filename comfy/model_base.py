@@ -2107,6 +2107,10 @@ class MiniMaxH3(BaseModel):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
 
+class MiniMaxH3Modulation(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3ModulationModel)
+
 class TripoSplat(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.triposplat.model.LatentSeqMMFlowModel)

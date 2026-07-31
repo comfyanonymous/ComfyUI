@@ -188,9 +188,13 @@ class AdalnProj(nn.Module):
         self.hidden = hidden
         self.linear = operations.Linear(t_dim, expand * hidden * modalities, bias=True, dtype=dtype, device=device)
 
-    def forward(self, t_emb):
-        # [M, t_dim] -> expand tensors of [M*modalities, hidden]
+    def project(self, t_emb):
+        # [M, t_dim] -> [M, modalities, expand, hidden]
         x = self.linear(nn.functional.silu(t_emb))
+        return x.view(x.shape[0], self.modalities, self.expand, self.hidden)
+
+    def forward(self, t_emb):
+        x = self.project(t_emb)
         x = x.view(x.shape[0] * self.modalities, self.expand * self.hidden)
         return x.chunk(self.expand, dim=-1)
 
@@ -241,16 +245,21 @@ class TokenRefiner(nn.Module):
 
 class DiTBlock(nn.Module):
     def __init__(self, hidden, heads, head_dim, ffn, t_dim, eps, qk_eps,
-                 dtype=None, device=None, operations=None):
+                 dtype=None, device=None, operations=None, adaln=True):
         super().__init__()
+        self.hidden = hidden
         self.norm1 = operations.RMSNorm(hidden, eps=eps, dtype=dtype, device=device)
         self.norm2 = operations.RMSNorm(hidden, eps=eps, dtype=dtype, device=device)
         self.attn = Attention(hidden, heads, head_dim, qk_eps, dtype=dtype, device=device, operations=operations)
         self.mlp = MLP(hidden, ffn, dtype=dtype, device=device, operations=operations)
-        self.adaln_proj = AdalnProj(t_dim, hidden, 6, 3, dtype=dtype, device=device, operations=operations)
+        self.adaln_proj = AdalnProj(t_dim, hidden, 6, 3, dtype=dtype, device=device, operations=operations) if adaln else None
 
-    def forward(self, x, t_emb, mod_segments, rope_freqs, transformer_options={}):
-        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaln_proj(t_emb)
+    def forward(self, x, t_emb, mod_segments, rope_freqs, transformer_options={}, modulation=None):
+        if modulation is None:
+            mod_values = self.adaln_proj(t_emb)
+        else:
+            mod_values = (y.reshape(-1, self.hidden) for y in modulation.unbind(dim=0))
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = mod_values
         h = _mod_scale_shift(self.norm1(x), shift_msa, scale_msa, mod_segments)
         x = _mod_gate(x, gate_msa, self.attn(h, rope_freqs=rope_freqs, transformer_options=transformer_options), mod_segments)
         h = _mod_scale_shift(self.norm2(x), shift_mlp, scale_mlp, mod_segments)
@@ -258,22 +267,66 @@ class DiTBlock(nn.Module):
 
 
 class FinalLayer(nn.Module):
-    def __init__(self, hidden, t_dim, video_dim, audio_dim, eps, dtype=None, device=None, operations=None):
+    def __init__(self, hidden, t_dim, video_dim, audio_dim, eps, dtype=None, device=None, operations=None, adaln=True):
         super().__init__()
+        self.hidden = hidden
         self.norm = operations.RMSNorm(hidden, eps=eps, dtype=dtype, device=device)
-        self.adaln_proj = AdalnProj(t_dim, hidden, 2, 1, dtype=dtype, device=device, operations=operations)
+        self.adaln_proj = AdalnProj(t_dim, hidden, 2, 1, dtype=dtype, device=device, operations=operations) if adaln else None
         # output heads are the checkpoint's fp32 island; norm/adaln are stored at model dtype
         self.video_out = operations.Linear(hidden, video_dim, bias=True, dtype=torch.float32, device=device)
         self.audio_out = operations.Linear(hidden, audio_dim, bias=True, dtype=torch.float32, device=device)
 
-    def forward(self, x, t_emb, video_seg, audio_seg):
+    def forward(self, x, t_emb, video_seg, audio_seg, modulation=None):
         # video_seg / audio_seg: (start, stop, timestep_row) of the target streams
-        shift, scale = self.adaln_proj(t_emb)
+        if modulation is None:
+            mod_values = self.adaln_proj(t_emb)
+        else:
+            mod_values = (y.reshape(-1, self.hidden) for y in modulation.unbind(dim=0))
+        shift, scale = mod_values
         va, vb, vrow = video_seg
         aa, ab, arow = audio_seg
         hv = (self.norm(x[va:vb]) * (1.0 + scale[vrow]) + shift[vrow]).to(torch.float32)
         ha = (self.norm(x[aa:ab]) * (1.0 + scale[arow]) + shift[arow]).to(torch.float32)
         return self.video_out(hv), self.audio_out(ha)
+
+
+class ModulationBlock(nn.Module):
+    def __init__(self, t_dim, hidden, expand, modalities, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.adaln_proj = AdalnProj(t_dim, hidden, expand, modalities, dtype=dtype, device=device, operations=operations)
+
+
+class MiniMaxH3ModulationModel(nn.Module):
+    def __init__(self, hidden_size=5376, num_layers=50, timestep_input_dim=256,
+                 time_embed_hidden_size=5376, time_embed_dim=2688,
+                 dtype=None, device=None, operations=None, **kwargs):
+        super().__init__()
+        self.dtype = dtype
+        self.time_embedder = TimeEmbedder(timestep_input_dim, time_embed_hidden_size, time_embed_dim,
+                                          dtype=torch.float32, device=device, operations=operations)
+        self.blocks = nn.ModuleList([
+            ModulationBlock(time_embed_dim, hidden_size, 6, 3, dtype=dtype, device=device, operations=operations)
+            for _ in range(num_layers)
+        ])
+        self.final_layer = ModulationBlock(time_embed_dim, hidden_size, 2, 1,
+                                           dtype=torch.float32, device=device, operations=operations)
+
+    def forward(self, timesteps, transformer_options={}):
+        t_emb = self.time_embedder(timesteps).to(self.dtype)
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.blocks), timesteps.device, transformer_options)
+        modulation = None
+        for i, block in enumerate(self.blocks):
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, timesteps.device, block)
+            projected = block.adaln_proj.project(t_emb)
+            if modulation is None:
+                modulation = torch.empty((len(self.blocks), projected.shape[2], projected.shape[0], projected.shape[1], projected.shape[3]),
+                                         dtype=projected.dtype, device=projected.device)
+            modulation[i].copy_(projected.permute(2, 0, 1, 3))
+            del projected
+        if prefetch_queue is not None:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, timesteps.device, None)
+        final_modulation = self.final_layer.adaln_proj.project(t_emb).permute(2, 0, 1, 3).contiguous()
+        return modulation, final_modulation
 
 
 class PackedLayout:
@@ -401,10 +454,11 @@ class MiniMaxH3Model(nn.Module):
                  timestep_input_dim=256, time_embed_hidden_size=5376, time_embed_dim=2688,
                  rope_inv_freq_len=16, norm_eps=1e-5, qk_norm_eps=1e-5, final_norm_eps=1e-5,
                  sigma_shift_video=12.0, sigma_shift_audio=3.0,
-                 image_model=None, dtype=None, device=None, operations=None, **kwargs):
+                 image_model=None, split_modulation=False, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.dtype = dtype
         self.hidden_size = hidden_size
+        self.split_modulation = split_modulation
         self.patch_size = tuple(patch_size)
         self.latents_dim = latents_dim
         self.audio_latents_dim = audio_latents_dim
@@ -415,8 +469,9 @@ class MiniMaxH3Model(nn.Module):
         self.video_patch_proj = operations.Linear(video_patch_dim, hidden_size, bias=True, dtype=torch.float32, device=device)
         self.audio_patch_proj = operations.Linear(audio_latents_dim, hidden_size, bias=True, dtype=torch.float32, device=device)
         self.condition_proj = operations.Linear(text_dim, hidden_size, bias=True, dtype=dtype, device=device)
-        self.time_embedder = TimeEmbedder(timestep_input_dim, time_embed_hidden_size, time_embed_dim,
-                                          dtype=torch.float32, device=device, operations=operations)
+        self.time_embedder = None if split_modulation else TimeEmbedder(
+            timestep_input_dim, time_embed_hidden_size, time_embed_dim,
+            dtype=torch.float32, device=device, operations=operations)
         self.rope = nn.Module()
         self.rope.register_buffer("inv_freq", torch.empty(rope_inv_freq_len, dtype=torch.float32))
         self.token_refiner = TokenRefiner(token_refiner_num_layers, hidden_size, num_attention_heads,
@@ -424,10 +479,12 @@ class MiniMaxH3Model(nn.Module):
                                           final_norm_eps, dtype=dtype, device=device, operations=operations)
         self.blocks = nn.ModuleList([
             DiTBlock(hidden_size, num_attention_heads, attention_head_dim, ffn_hidden_size,
-                     time_embed_dim, norm_eps, qk_norm_eps, dtype=dtype, device=device, operations=operations)
+                     time_embed_dim, norm_eps, qk_norm_eps, dtype=dtype, device=device, operations=operations,
+                     adaln=not split_modulation)
             for _ in range(num_layers)])
         self.final_layer = FinalLayer(hidden_size, time_embed_dim, video_patch_dim, audio_latents_dim,
-                                      final_norm_eps, dtype=dtype, device=device, operations=operations)
+                                      final_norm_eps, dtype=dtype, device=device, operations=operations,
+                                      adaln=not split_modulation)
         self._layout_cache = {}
 
     def preprocess_text_embeds(self, text_states):
@@ -591,7 +648,18 @@ class MiniMaxH3Model(nn.Module):
                 h[a:b] = audio_embed[aoff:aoff + n]
                 aoff += n
 
-        t_emb = self.time_embedder(torch.tensor(unique_t, dtype=torch.float32, device=device)).to(dtype)
+        timestep_values = torch.tensor(unique_t, dtype=torch.float32, device=device)
+        modulation_provider = transformer_options.get("minimax_h3_modulation", None)
+        if modulation_provider is None:
+            if self.split_modulation:
+                raise RuntimeError("MiniMax H3 split transformer requires its modulation model")
+            t_emb = self.time_embedder(timestep_values).to(dtype)
+            block_modulation = final_modulation = None
+        else:
+            if transformer_options.get("patches_replace", {}).get("dit", {}):
+                raise RuntimeError("MiniMax H3 split modulation does not support block replacement patches")
+            t_emb = None
+            block_modulation, final_modulation = modulation_provider(timestep_values)
         # rotation table computed once per forward, consumed by the kitchen split-half rope
         rope_freqs = rope_rotation_table(self.rope_freqs(layout.position_ids, device), dtype)
 
@@ -604,13 +672,14 @@ class MiniMaxH3Model(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     return {"img": block(args["img"], args["t_emb"], args["mod_segments"], args["rope_freqs"],
-                                         transformer_options=args["transformer_options"])}
+                                         transformer_options=args["transformer_options"], modulation=None)}
                 h = blocks_replace[("double_block", i)](
                     {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "rope_freqs": rope_freqs,
                      "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
-                h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
+                modulation = None if block_modulation is None else block_modulation[i]
+                h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options, modulation=modulation)
         if prefetch_queue is not None:
             # drain: unpin the last block's prefetched weights (the queue only
             # cleans an entry when the following pop consumes it)
@@ -619,7 +688,7 @@ class MiniMaxH3Model(nn.Module):
         # target streams are single contiguous segments (audio then video, last two)
         video_seg = next((a, b, t_row[seg_t["video"]]) for a, b, k in layout.segments if k == "video")
         audio_seg = next((a, b, t_row[seg_t["audio"]]) for a, b, k in layout.segments if k == "audio")
-        v, a = self.final_layer(h, t_emb, video_seg, audio_seg)
+        v, a = self.final_layer(h, t_emb, video_seg, audio_seg, modulation=final_modulation)
 
         video_out = unpatchify_video(v, latent_t, lat_h // 2, lat_w // 2, self.latents_dim, self.patch_size)
         video_out = video_out[:, :, :orig_t, :orig_h, :orig_w]

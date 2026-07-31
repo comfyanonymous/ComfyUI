@@ -359,10 +359,33 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         # PixArt diffusers
         return None
 
-    if '{}video_patch_proj.weight'.format(key_prefix) in state_dict_keys and '{}audio_patch_proj.weight'.format(key_prefix) in state_dict_keys and '{}blocks.0.adaln_proj.linear.weight'.format(key_prefix) in state_dict_keys: #MiniMax H3
+    minimax_main = ('{}video_patch_proj.weight'.format(key_prefix) in state_dict_keys
+                    and '{}audio_patch_proj.weight'.format(key_prefix) in state_dict_keys)
+    minimax_time_in = '{}time_embedder.proj_in.weight'.format(key_prefix) in state_dict_keys
+    minimax_time_out = '{}time_embedder.proj_out.weight'.format(key_prefix) in state_dict_keys
+    minimax_final_adaln = '{}final_layer.adaln_proj.linear.weight'.format(key_prefix) in state_dict_keys
+    minimax_metadata_config = {}
+    if (minimax_main or minimax_time_in) and metadata is not None and "config" in metadata:
+        minimax_metadata_config = json.loads(metadata["config"]).get("transformer", {})
+
+    if minimax_main: #MiniMax H3
+        num_layers = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        block_adaln = ['{}blocks.{}.adaln_proj.linear.weight'.format(key_prefix, i) in state_dict_keys for i in range(num_layers)]
+        any_block_adaln = any(k.startswith('{}blocks.'.format(key_prefix)) and '.adaln_proj.' in k for k in state_dict_keys)
+        any_final_adaln = any(k.startswith('{}final_layer.adaln_proj.'.format(key_prefix)) for k in state_dict_keys)
+        monolithic = all(block_adaln) and minimax_final_adaln and minimax_time_in and minimax_time_out
+        no_adaln = not any_block_adaln and not any_final_adaln and not minimax_time_in and not minimax_time_out
+        split = (no_adaln and minimax_metadata_config.get("image_model") == "minimax_h3"
+                 and minimax_metadata_config.get("split_modulation", False))
+        required = ('{}blocks.0.attn.q_norm.weight'.format(key_prefix),
+                    '{}blocks.0.attn.qkv_proj.weight'.format(key_prefix),
+                    '{}blocks.0.mlp.fc2.weight'.format(key_prefix),
+                    '{}condition_proj.weight'.format(key_prefix),
+                    '{}rope.inv_freq'.format(key_prefix))
+        if not (monolithic or split) or not all(k in state_dict_keys for k in required):
+            return None
+
         dit_config = {}
-        dit_config["image_model"] = "minimax_h3"
-        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
         dit_config["token_refiner_num_layers"] = count_blocks(state_dict_keys, '{}token_refiner.blocks.'.format(key_prefix) + '{}.')
         vp = state_dict['{}video_patch_proj.weight'.format(key_prefix)].shape
         dit_config["hidden_size"] = vp[0]
@@ -373,13 +396,33 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_attention_heads"] = qkv.shape[0] // (3 * dit_config["attention_head_dim"])
         dit_config["ffn_hidden_size"] = state_dict['{}blocks.0.mlp.fc2.weight'.format(key_prefix)].shape[1]
         dit_config["text_dim"] = state_dict['{}condition_proj.weight'.format(key_prefix)].shape[1]
-        te = state_dict['{}time_embedder.proj_in.weight'.format(key_prefix)]
-        dit_config["timestep_input_dim"] = te.shape[1]
-        dit_config["time_embed_hidden_size"] = te.shape[0]
-        dit_config["time_embed_dim"] = state_dict['{}time_embedder.proj_out.weight'.format(key_prefix)].shape[0]
+        if minimax_time_in:
+            te = state_dict['{}time_embedder.proj_in.weight'.format(key_prefix)]
+            dit_config["timestep_input_dim"] = te.shape[1]
+            dit_config["time_embed_hidden_size"] = te.shape[0]
+            dit_config["time_embed_dim"] = state_dict['{}time_embedder.proj_out.weight'.format(key_prefix)].shape[0]
         dit_config["rope_inv_freq_len"] = state_dict['{}rope.inv_freq'.format(key_prefix)].shape[0]
-        if metadata is not None and "config" in metadata:
-            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+        dit_config.update(minimax_metadata_config)
+        dit_config["image_model"] = "minimax_h3"
+        dit_config["num_layers"] = num_layers
+        dit_config["split_modulation"] = split
+        return dit_config
+
+    modulation_layers = minimax_metadata_config.get("num_layers", 0)
+    modulation_blocks = ['{}blocks.{}.adaln_proj.linear.weight'.format(key_prefix, i) in state_dict_keys for i in range(modulation_layers)]
+    minimax_modulation = (not minimax_main and minimax_time_in and minimax_time_out and minimax_final_adaln
+                          and modulation_layers > 0 and all(modulation_blocks))
+    if minimax_modulation:
+        dit_config = {}
+        adaln = state_dict['{}blocks.0.adaln_proj.linear.weight'.format(key_prefix)].shape
+        dit_config["hidden_size"] = adaln[0] // 18
+        te = state_dict['{}time_embedder.proj_in.weight'.format(key_prefix)].shape
+        dit_config["timestep_input_dim"] = te[1]
+        dit_config["time_embed_hidden_size"] = te[0]
+        dit_config["time_embed_dim"] = state_dict['{}time_embedder.proj_out.weight'.format(key_prefix)].shape[0]
+        dit_config.update(minimax_metadata_config)
+        dit_config["image_model"] = "minimax_h3_modulation"
+        dit_config["num_layers"] = modulation_layers
         return dit_config
 
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
