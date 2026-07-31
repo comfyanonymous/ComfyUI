@@ -21,7 +21,7 @@ import comfy.nested_tensor
 import comfy.utils
 from comfy.ldm.minimax import model as minimax_model
 import node_helpers
-from comfy_api.latest import ComfyExtension, io
+from comfy_api.latest import ComfyExtension, io, ui
 
 CANVAS_MULTIPLE = 32
 BASE_SHORT_EDGE = 768
@@ -376,7 +376,9 @@ class MiniMaxH3Modulation(io.ComfyNode):
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
         to[MODULATION_MODEL_KEY] = minimax_model.MiniMaxH3ModulationCache(timesteps, blocks, final)
-        return io.NodeOutput(m)
+        cached_bytes = sum(x.numel() * x.element_size() for x in (timesteps, blocks, final))
+        preview = f"Cached {cached_bytes / 1024 ** 3:.2f} GiB of modulation data in {cache_location.upper()}."
+        return io.NodeOutput(m, ui=ui.PreviewText(preview))
 
 
 class MiniMaxH3SeparateAVLatent(io.ComfyNode):
