@@ -21,9 +21,11 @@ RUN pip install torch torchvision torchaudio --index-url https://download.pytorc
 
 WORKDIR /srv/app
 
-COPY requirements.txt custom-nodes.yaml ./
-COPY scripts/install_custom_nodes.py /usr/local/bin/install-custom-nodes
+COPY requirements.txt ./
 RUN pip install -r requirements.txt
+
+COPY custom-nodes.yaml ./
+COPY scripts/install_custom_nodes.py /usr/local/bin/install-custom-nodes
 RUN python /usr/local/bin/install-custom-nodes --manifest custom-nodes.yaml --destination custom_nodes
 
 COPY . .
