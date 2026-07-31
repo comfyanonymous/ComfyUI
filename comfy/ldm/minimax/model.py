@@ -329,6 +329,25 @@ class MiniMaxH3ModulationModel(nn.Module):
         return modulation, final_modulation
 
 
+class MiniMaxH3ModulationCache:
+    def __init__(self, timesteps, blocks, final):
+        self.blocks = blocks
+        self.final = final
+        self.timestep_rows = {float(t): i for i, t in enumerate(timesteps)}
+
+    def __call__(self, timesteps):
+        try:
+            rows = [self.timestep_rows[float(t)] for t in timesteps]
+        except KeyError as e:
+            raise RuntimeError(f"MiniMax H3 modulation cache does not contain timestep {e.args[0]}") from None
+        rows = torch.tensor(rows, dtype=torch.long, device=self.blocks.device)
+
+        def block(index):
+            return self.blocks[index].index_select(1, rows)
+
+        return block, self.final.index_select(1, rows)
+
+
 class PackedLayout:
     """Static packed-sequence structure for one shape/conditioning signature."""
 
@@ -678,7 +697,7 @@ class MiniMaxH3Model(nn.Module):
                      "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
-                modulation = None if block_modulation is None else block_modulation[i]
+                modulation = None if block_modulation is None else block_modulation(i)
                 h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options, modulation=modulation)
         if prefetch_queue is not None:
             # drain: unpin the last block's prefetched weights (the queue only
