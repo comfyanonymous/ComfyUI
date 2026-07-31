@@ -1081,9 +1081,9 @@ def seeds_model_call_sigmas(model_wrap, sigmas, stages, r=0.5, r_1=1 / 3, r_2=2 
                 planned.append(k_diffusion_sampling.half_log_snr_to_sigma(stage_lambda, model_sampling))
     return torch.stack(planned) if planned else sigmas[:0]
 
-def sa_solver_pece_model_call_sigmas(model_wrap, sigmas, corrector_order=4, **kwargs):
+def sa_solver_model_call_sigmas(model_wrap, sigmas, corrector_order=4, use_pece=False, **kwargs):
     sigmas = k_diffusion_sampling.offset_first_sigma_for_snr(sigmas, model_wrap.inner_model.model_sampling)
-    if corrector_order <= 0:
+    if not use_pece or corrector_order <= 0:
         return sigmas[:-1]
     planned = []
     for i in range(len(sigmas) - 1):
@@ -1091,6 +1091,35 @@ def sa_solver_pece_model_call_sigmas(model_wrap, sigmas, corrector_order=4, **kw
         if i > 0:
             planned.append(sigmas[i])
     return torch.stack(planned) if planned else sigmas[:0]
+
+def dpm_fast_model_call_sigmas(model_wrap, sigmas, **kwargs):
+    if len(sigmas) <= 1:
+        return sigmas[:0]
+
+    sigma_min = sigmas[-1]
+    if sigma_min == 0:
+        sigma_min = sigmas[-2]
+    nfe = len(sigmas) - 1
+    t_start = sigmas[0].detach().clone().log().neg()
+    t_end = sigma_min.detach().clone().log().neg()
+    interval_count = math.floor(nfe / 3) + 1
+    timesteps = torch.linspace(t_start, t_end, interval_count + 1, device=sigmas.device)
+    if nfe % 3 == 0:
+        orders = [3] * (interval_count - 2) + [2, 1]
+    else:
+        orders = [3] * (interval_count - 1) + [nfe % 3]
+
+    planned = []
+    for i, order in enumerate(orders):
+        t = timesteps[i]
+        h = timesteps[i + 1] - t
+        planned.append(t.neg().exp())
+        if order == 2:
+            planned.append((t + 0.5 * h).neg().exp())
+        elif order == 3:
+            planned.append((t + (1 / 3) * h).neg().exp())
+            planned.append((t + (2 / 3) * h).neg().exp())
+    return torch.stack(planned)
 
 FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "deis",
@@ -1181,9 +1210,13 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
     elif sampler_name == "seeds_3":
         model_call_sigmas = partial(seeds_model_call_sigmas, stages=3)
     elif sampler_name == "sa_solver":
-        model_call_sigmas = snr_fixed_step_model_call_sigmas
+        model_call_sigmas = sa_solver_model_call_sigmas
     elif sampler_name == "sa_solver_pece":
-        model_call_sigmas = sa_solver_pece_model_call_sigmas
+        model_call_sigmas = partial(sa_solver_model_call_sigmas, use_pece=True)
+    elif sampler_name == "dpm_fast":
+        model_call_sigmas = dpm_fast_model_call_sigmas
+    elif sampler_name == "er_sde":
+        model_call_sigmas = snr_fixed_step_model_call_sigmas
     elif sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS:
         model_call_sigmas = fixed_step_model_call_sigmas
     else:
@@ -1560,9 +1593,9 @@ def calculate_sigmas(model_sampling: object, scheduler_name: str, steps: int) ->
 
 def sampler_object(name):
     if name == "uni_pc":
-        sampler = KSAMPLER(uni_pc.sample_unipc)
+        sampler = KSAMPLER(uni_pc.sample_unipc, model_call_sigmas=fixed_step_model_call_sigmas)
     elif name == "uni_pc_bh2":
-        sampler = KSAMPLER(uni_pc.sample_unipc_bh2)
+        sampler = KSAMPLER(uni_pc.sample_unipc_bh2, model_call_sigmas=fixed_step_model_call_sigmas)
     elif name == "ddim":
         sampler = ksampler("euler", inpaint_options={"random": True})
     else:
