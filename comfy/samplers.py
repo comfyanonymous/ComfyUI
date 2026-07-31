@@ -980,6 +980,14 @@ KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_c
 def fixed_step_model_call_sigmas(model_wrap, sigmas, **kwargs):
     return sigmas[:-1]
 
+def euler_model_call_sigmas(model_wrap, sigmas, s_churn=0.0, s_tmin=0.0, s_tmax=float('inf'), **kwargs):
+    planned = sigmas[:-1].clone()
+    if s_churn > 0.0 and len(planned) > 0:
+        gamma = min(s_churn / len(planned), 2 ** 0.5 - 1)
+        churn = (planned >= s_tmin) & (planned <= s_tmax)
+        planned[churn] *= gamma + 1
+    return planned
+
 FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "deis",
     "ddpm",
@@ -987,6 +995,7 @@ FIXED_STEP_MODEL_CALL_SAMPLERS = {
     "dpmpp_2m_cfg_pp",
     "euler_ancestral",
     "euler_ancestral_cfg_pp",
+    "euler_cfg_pp",
     "ipndm",
     "ipndm_v",
     "lcm",
@@ -1033,7 +1042,12 @@ class KSAMPLER(Sampler):
 
 
 def ksampler(sampler_name, extra_options={}, inpaint_options={}):
-    model_call_sigmas = fixed_step_model_call_sigmas if sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS else None
+    if sampler_name == "euler":
+        model_call_sigmas = euler_model_call_sigmas
+    elif sampler_name in FIXED_STEP_MODEL_CALL_SAMPLERS:
+        model_call_sigmas = fixed_step_model_call_sigmas
+    else:
+        model_call_sigmas = None
     if sampler_name == "dpm_fast":
         def dpm_fast_function(model, noise, sigmas, extra_args, callback, disable):
             if len(sigmas) <= 1:
