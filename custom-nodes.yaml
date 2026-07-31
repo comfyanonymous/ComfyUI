@@ -1,0 +1,24 @@
+nodes:
+  - repo: https://github.com/sipherxyz/comfyui-art-venture
+    commit: 746c1cefbd082bc2ee5f92bc17043af55b81e1a6
+
+  - repo: https://github.com/Fannovel16/comfyui_controlnet_aux
+    commit: 59b027e088c1c8facf7258f6e392d16d204b4d27
+
+  - repo: https://github.com/city96/ComfyUI-GGUF
+    commit: cf0573351ac260d629d460d97f09b09ac17d3726
+
+  - repo: https://github.com/john-mnz/ComfyUI-Inspyrenet-Rembg
+    commit: 87ac452ef1182e8f35f59b04010158d74dcefd06
+
+  - repo: https://github.com/cubiq/ComfyUI_IPAdapter_plus
+    commit: a0f451a5113cf9becb0847b92884cb10cbdec0ef
+
+  - repo: https://github.com/ltdrdata/ComfyUI-Manager.git
+    commit: ae66bd0e31da253acd2468e94ea018ea6c201f77
+
+  - repo: https://github.com/Gourieff/ComfyUI-ReActor
+    commit: d2318ad140582c6d0b68c51df342319b502006ed
+
+  - repo: https://github.com/ssitu/ComfyUI_UltimateSDUpscale
+    commit: a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df

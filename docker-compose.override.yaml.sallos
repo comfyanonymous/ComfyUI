@@ -4,7 +4,6 @@ services:
       - /srv/comfyui/models:/srv/app/models
       - /srv/comfyui/input:/srv/app/input
       - /srv/comfyui/output:/srv/app/output
-      - /srv/comfyui/custom_nodes:/srv/app/custom_nodes
     deploy:
       resources:
         reservations:

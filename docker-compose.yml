@@ -9,7 +9,6 @@ services:
       - /mnt/models/ComfyUI/models:/srv/app/models
       - /mnt/data/comfyui/input:/srv/app/input
       - /mnt/data/comfyui/output:/srv/app/output
-      - /srv/comfyui/custom_nodes:/srv/app/custom_nodes
     restart: unless-stopped
     deploy:
       resources:

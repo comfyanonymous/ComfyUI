@@ -17,13 +17,15 @@ RUN pyenv global ${PYTHON_VERSION}
 
 
 RUN pip install --upgrade pip
-RUN pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
 WORKDIR /srv/app
 
-COPY . .
-
+COPY requirements.txt custom-nodes.yaml ./
+COPY scripts/install_custom_nodes.py /usr/local/bin/install-custom-nodes
 RUN pip install -r requirements.txt
-RUN pip install -r requirements-extra.txt
+RUN python /usr/local/bin/install-custom-nodes --manifest custom-nodes.yaml --destination custom_nodes
+
+COPY . .
 
 CMD python main.py --listen 0.0.0.0
