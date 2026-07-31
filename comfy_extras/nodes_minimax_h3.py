@@ -320,12 +320,13 @@ class MiniMaxH3Modulation(io.ComfyNode):
                 io.Model.Input("modulation_model"),
                 io.Sampler.Input("sampler"),
                 io.Sigmas.Input("sigmas"),
+                io.Combo.Input("cache_location", options=["auto", "ram", "vram"], default="auto"),
             ],
             outputs=[io.Model.Output()],
         )
 
     @classmethod
-    def execute(cls, model, modulation_model, sampler, sigmas) -> io.NodeOutput:
+    def execute(cls, model, modulation_model, sampler, sigmas, cache_location="auto") -> io.NodeOutput:
         diffusion_model = model.model.diffusion_model
         modulation = modulation_model.model.diffusion_model
         if not isinstance(diffusion_model, minimax_model.MiniMaxH3Model) or not diffusion_model.split_modulation:
@@ -364,6 +365,13 @@ class MiniMaxH3Modulation(io.ComfyNode):
             blocks, final = modulation(timesteps, transformer_options=modulation_options)
         finally:
             modulation_model.cleanup()
+
+        if cache_location == "auto":
+            cache_location = "vram" if modulation_model.load_device.type != "cpu" and comfy.model_management.get_total_memory(modulation_model.load_device) > 40 * 1024 ** 3 else "ram"
+        if cache_location == "ram":
+            timesteps = timesteps.cpu()
+            blocks = blocks.cpu()
+            final = final.cpu()
 
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()

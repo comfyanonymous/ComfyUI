@@ -350,11 +350,12 @@ class MiniMaxH3ModulationCache:
         except KeyError as e:
             raise RuntimeError(f"MiniMax H3 modulation cache does not contain timestep {e.args[0]}") from None
         rows = torch.tensor(rows, dtype=torch.long, device=self.blocks.device)
+        device = timesteps.device
 
         def block(index):
-            return self.blocks[index].index_select(1, rows)
+            return self.blocks[index].index_select(1, rows).to(device)
 
-        return block, self.final.index_select(1, rows)
+        return block, self.final.index_select(1, rows).to(device)
 
 
 class PackedLayout:
