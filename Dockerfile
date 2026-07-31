@@ -25,6 +25,7 @@ COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY custom-nodes.yaml ./
+COPY patches/ ./patches/
 COPY scripts/install_custom_nodes.py /usr/local/bin/install-custom-nodes
 RUN python /usr/local/bin/install-custom-nodes --manifest custom-nodes.yaml --destination custom_nodes
 

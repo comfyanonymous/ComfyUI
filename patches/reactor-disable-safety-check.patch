@@ -1,0 +1,17 @@
+diff --git a/scripts/reactor_sfw.py b/scripts/reactor_sfw.py
+index 524b074..6e7be1d 100644
+--- a/scripts/reactor_sfw.py
++++ b/scripts/reactor_sfw.py
+@@ -7,7 +7,8 @@ SCORE = 0.965 # 0.965 and less - is safety content
+ logging.getLogger('transformers').setLevel(logging.ERROR)
+ 
+ def nsfw_image(img_path: str, model_path: str):
+-    with Image.open(img_path) as img:
+-        predict = pipeline("image-classification", model=model_path)
+-        result = predict(img)
+-        return True if result[0]["score"] > SCORE else False
++    return False
++    # with Image.open(img_path) as img:
++    #     predict = pipeline("image-classification", model=model_path)
++    #     result = predict(img)
++    #     return True if result[0]["score"] > SCORE else False

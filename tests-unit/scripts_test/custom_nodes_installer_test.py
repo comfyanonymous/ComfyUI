@@ -15,12 +15,16 @@ class CustomNodeInstallerTest(unittest.TestCase):
     def test_read_manifest(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             manifest = Path(temporary_directory) / "custom-nodes.yaml"
+            patch_file = Path(temporary_directory) / "node.patch"
+            patch_file.touch()
             manifest.write_text(
                 "nodes:\n"
                 "  - repo: https://github.com/example/custom-node.git\n"
                 f"    commit: {'a' * 40}\n"
                 "    pip:\n"
-                "      - example-package>=1.0\n",
+                "      - example-package>=1.0\n"
+                "    patches:\n"
+                "      - node.patch\n",
                 encoding="utf-8",
             )
 
@@ -31,6 +35,7 @@ class CustomNodeInstallerTest(unittest.TestCase):
                         "https://github.com/example/custom-node.git",
                         "a" * 40,
                         ["example-package>=1.0"],
+                        [patch_file],
                     )
                 ],
             )
@@ -62,6 +67,8 @@ class CustomNodeInstallerTest(unittest.TestCase):
             destination = Path(temporary_directory) / "custom_nodes"
             destination.mkdir()
             node_directory = destination / "custom-node"
+            patch_file = Path(temporary_directory) / "node.patch"
+            patch_file.touch()
 
             def fake_run(*command, cwd=None):
                 if command[:2] == ("git", "clone"):
@@ -70,7 +77,11 @@ class CustomNodeInstallerTest(unittest.TestCase):
 
             with patch.object(INSTALLER, "run", side_effect=fake_run) as run:
                 INSTALLER.install_node(
-                    repository, commit, ["example-package>=1.0"], destination
+                    repository,
+                    commit,
+                    ["example-package>=1.0"],
+                    [patch_file],
+                    destination,
                 )
 
             self.assertEqual(
@@ -85,6 +96,14 @@ class CustomNodeInstallerTest(unittest.TestCase):
                         str(node_directory),
                     ),
                     call("git", "checkout", "--detach", commit, cwd=node_directory),
+                    call(
+                        "git",
+                        "apply",
+                        "--check",
+                        str(patch_file),
+                        cwd=node_directory,
+                    ),
+                    call("git", "apply", str(patch_file), cwd=node_directory),
                     call(
                         INSTALLER.sys.executable,
                         "-m",

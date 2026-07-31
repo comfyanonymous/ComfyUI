@@ -19,6 +19,8 @@ nodes:
 
   - repo: https://github.com/Gourieff/ComfyUI-ReActor
     commit: d2318ad140582c6d0b68c51df342319b502006ed
+    patches:
+      - patches/reactor-disable-safety-check.patch
     pip:
       - onnxruntime-gpu>=1.16.2
 

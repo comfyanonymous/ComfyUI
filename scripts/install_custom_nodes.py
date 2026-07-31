@@ -30,14 +30,15 @@ def repository_name(repository: str) -> str:
     return name
 
 
-def read_manifest(path: Path) -> list[tuple[str, str, list[str]]]:
+def read_manifest(path: Path) -> list[tuple[str, str, list[str], list[Path]]]:
     with path.open(encoding="utf-8") as manifest_file:
         manifest = yaml.safe_load(manifest_file)
 
     if not isinstance(manifest, dict) or not isinstance(manifest.get("nodes"), list):
         raise ValueError("Manifest must contain a 'nodes' list")
 
-    nodes: list[tuple[str, str, list[str]]] = []
+    manifest_directory = path.resolve().parent
+    nodes: list[tuple[str, str, list[str], list[Path]]] = []
     for index, node in enumerate(manifest["nodes"], start=1):
         if not isinstance(node, dict):
             raise ValueError(f"Node {index} must be a mapping")
@@ -45,6 +46,7 @@ def read_manifest(path: Path) -> list[tuple[str, str, list[str]]]:
         repository = node.get("repo")
         commit = node.get("commit")
         packages = node.get("pip", [])
+        patch_names = node.get("patches", [])
         if not isinstance(repository, str) or not repository:
             raise ValueError(f"Node {index} has no valid repository URL")
         if not isinstance(commit, str) or not COMMIT_PATTERN.fullmatch(commit):
@@ -53,13 +55,25 @@ def read_manifest(path: Path) -> list[tuple[str, str, list[str]]]:
             isinstance(package, str) and package for package in packages
         ):
             raise ValueError(f"Node {index} 'pip' value must be a list of packages")
-        nodes.append((repository, commit.lower(), packages))
+        if not isinstance(patch_names, list) or not all(
+            isinstance(patch_name, str) and patch_name for patch_name in patch_names
+        ):
+            raise ValueError(f"Node {index} 'patches' value must be a list of paths")
+
+        patches = [(manifest_directory / patch_name).resolve() for patch_name in patch_names]
+        if any(manifest_directory not in patch.parents for patch in patches):
+            raise ValueError(f"Node {index} patch path must stay inside the manifest directory")
+        nodes.append((repository, commit.lower(), packages, patches))
 
     return nodes
 
 
 def install_node(
-    repository: str, commit: str, packages: list[str], destination: Path
+    repository: str,
+    commit: str,
+    packages: list[str],
+    patches: list[Path],
+    destination: Path,
 ) -> None:
     node_directory = destination / repository_name(repository)
     if node_directory.exists():
@@ -68,6 +82,12 @@ def install_node(
     print(f"Installing {repository} at {commit}", flush=True)
     run("git", "clone", "--filter=blob:none", "--no-checkout", repository, str(node_directory))
     run("git", "checkout", "--detach", commit, cwd=node_directory)
+
+    for patch in patches:
+        if not patch.is_file():
+            raise FileNotFoundError(f"Custom-node patch does not exist: {patch}")
+        run("git", "apply", "--check", str(patch), cwd=node_directory)
+        run("git", "apply", str(patch), cwd=node_directory)
 
     requirements = (node_directory / "requirements.txt").resolve()
     if requirements.is_file():
@@ -94,8 +114,8 @@ def main() -> int:
     try:
         nodes = read_manifest(args.manifest)
         args.destination.mkdir(parents=True, exist_ok=True)
-        for repository, commit, packages in nodes:
-            install_node(repository, commit, packages, args.destination)
+        for repository, commit, packages, patches in nodes:
+            install_node(repository, commit, packages, patches, args.destination)
     except (OSError, subprocess.CalledProcessError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
