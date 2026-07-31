@@ -231,6 +231,25 @@ class IdeogramV3Request(BaseModel):
     )
 
 
+class IdeogramPImageRequest(BaseModel):
+    prompt: str = Field(
+        ...,
+        description="The text prompt, or an Ideogram 4.0 structured JSON caption "
+        "(used verbatim when prompt_upsampling is 'OFF').",
+    )
+    quality: str | None = Field(
+        None, description="Generation tier: 'VERY_LOW', 'LOW', 'MEDIUM' or 'HIGH'."
+    )
+    resolution: str | None = Field(None, description="Output size class: '1K' or '2K'.")
+    aspect_ratio: str | None = Field(
+        None, description="Aspect ratio in WxH format", examples=['16x9']
+    )
+    prompt_upsampling: str | None = Field(
+        None, description="Prompt expansion: 'AUTO', 'ON' or 'OFF'."
+    )
+    seed: int | None = Field(None, ge=0, le=2147483647)
+
+
 class IdeogramV4Request(BaseModel):
     text_prompt: str | None = Field(
         None,
