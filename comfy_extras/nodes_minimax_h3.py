@@ -10,6 +10,7 @@ audio stream's shifted schedule internally).
 """
 
 import math
+import types
 
 import torch
 import torchaudio
@@ -17,7 +18,6 @@ import torchaudio
 import comfy.model_management
 import comfy.model_sampling
 import comfy.nested_tensor
-import comfy.patcher_extension
 import comfy.utils
 from comfy.ldm.minimax import model as minimax_model
 import node_helpers
@@ -30,63 +30,19 @@ REF_IMAGE_SHORT_EDGE = 2048
 FPS = 24
 AUDIO_LATENT_FPS = 40
 MODULATION_MODEL_KEY = "minimax_h3_modulation"
+MiniMaxH3Modulation = io.Custom("MINIMAX_H3_MODULATION")
 
 
-def _modulation_timesteps(model_wrap, model_call_sigmas, transformer_options):
-    main_model = model_wrap.inner_model
-    diffusion_model = main_model.diffusion_model
-    timesteps = main_model.model_sampling.timestep(model_call_sigmas).flatten()
+def _modulation_timesteps(model, model_call_sigmas, transformer_options):
+    diffusion_model = model.model.diffusion_model
+    timesteps = model.get_model_object("model_sampling").timestep(model_call_sigmas).flatten()
     shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", diffusion_model.sigma_shift_video))
     shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", diffusion_model.sigma_shift_audio))
     values = {minimax_model.VISUAL_COND_TIMESTEP, minimax_model.AUDIO_COND_TIMESTEP}
     for timestep in timesteps:
         t_v, t_a, _, _ = diffusion_model._step_timesteps(timestep / 1000.0, shift_v, shift_a)
         values.update((t_v, t_a))
-
-    for conds in model_wrap.conds.values():
-        for cond in conds:
-            payload = cond.get("model_conds", {}).get("minimax_payload", None)
-            payload = getattr(payload, "cond", {})
-            values.add(float(payload.get("visual_cond_noise_aug", minimax_model.VISUAL_COND_TIMESTEP)))
-            values.add(float(payload.get("audio_cond_noise_aug", minimax_model.AUDIO_COND_TIMESTEP)))
     return torch.tensor(sorted(values), dtype=torch.float32, device=model_call_sigmas.device)
-
-
-def _minimax_modulation_sampler_wrapper(executor, model_wrap, sigmas, extra_args, *args, **kwargs):
-    modulation_models = model_wrap.model_patcher.get_additional_models_with_key(MODULATION_MODEL_KEY)
-    if len(modulation_models) != 1:
-        raise RuntimeError("MiniMax H3 split transformer requires exactly one modulation model")
-
-    model_call_sigmas = executor.class_obj.get_model_call_sigmas(model_wrap, sigmas)
-    if model_call_sigmas is None:
-        raise RuntimeError("This sampler cannot precompute its model-call sigma schedule")
-
-    modulation_patcher = modulation_models[0]
-    transformer_options = extra_args["model_options"].setdefault("transformer_options", {})
-    timesteps = _modulation_timesteps(model_wrap, model_call_sigmas, transformer_options)
-    modulation_model = modulation_patcher.model.diffusion_model
-    hidden = modulation_model.blocks[0].adaln_proj.hidden
-    block_elements = len(modulation_model.blocks) * 6 * len(timesteps) * 3 * hidden
-    final_elements = 2 * len(timesteps) * hidden
-    block_dtype = modulation_model.blocks[0].adaln_proj.linear.bias.dtype
-    final_dtype = modulation_model.final_layer.adaln_proj.linear.bias.dtype
-    cache_memory = (block_elements * comfy.model_management.dtype_size(block_dtype)
-                    + final_elements * comfy.model_management.dtype_size(final_dtype))
-    block_scratch = block_elements // len(modulation_model.blocks) * comfy.model_management.dtype_size(block_dtype)
-    timestep_scratch = len(timesteps) * modulation_model.time_embedder.proj_out.out_features * 4
-    comfy.model_management.load_models_gpu([model_wrap.model_patcher, modulation_patcher],
-                                           memory_required=cache_memory + block_scratch + timestep_scratch)
-    modulation_patcher.pre_run()
-    modulation_options = {"prefetch_dynamic_vbars": modulation_patcher.is_dynamic()}
-    blocks, final = modulation_model(timesteps, transformer_options=modulation_options)
-    cache = minimax_model.MiniMaxH3ModulationCache(timesteps, blocks, final)
-    modulation_patcher.partially_unload(modulation_patcher.offload_device, 1e30)
-
-    transformer_options[MODULATION_MODEL_KEY] = cache
-    try:
-        return executor(model_wrap, sigmas, extra_args, *args, **kwargs)
-    finally:
-        transformer_options.pop(MODULATION_MODEL_KEY, None)
 
 
 def align_frame_count(n):
@@ -352,23 +308,25 @@ class MiniMaxH3SigmaShift(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-class MiniMaxH3AttachModulation(io.ComfyNode):
+class MiniMaxH3PrecomputeModulation(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3AttachModulation",
-            display_name="MiniMax H3 Attach Modulation Model",
+            node_id="MiniMaxH3PrecomputeModulation",
+            display_name="MiniMax H3 Precompute Modulation",
             category="advanced/model",
-            description="Attach the split MiniMax H3 modulation model and precompute its outputs for the sampling schedule.",
+            description="Project the complete sampling schedule and cache the resulting modulation tensors in VRAM.",
             inputs=[
                 io.Model.Input("model"),
                 io.Model.Input("modulation_model"),
+                io.Sampler.Input("sampler"),
+                io.Sigmas.Input("sigmas"),
             ],
-            outputs=[io.Model.Output()],
+            outputs=[MiniMaxH3Modulation.Output()],
         )
 
     @classmethod
-    def execute(cls, model, modulation_model) -> io.NodeOutput:
+    def execute(cls, model, modulation_model, sampler, sigmas) -> io.NodeOutput:
         diffusion_model = model.model.diffusion_model
         modulation = modulation_model.model.diffusion_model
         if not isinstance(diffusion_model, minimax_model.MiniMaxH3Model) or not diffusion_model.split_modulation:
@@ -378,10 +336,62 @@ class MiniMaxH3AttachModulation(io.ComfyNode):
         if len(diffusion_model.blocks) != len(modulation.blocks) or diffusion_model.hidden_size != modulation.blocks[0].adaln_proj.hidden:
             raise ValueError("MiniMax H3 transformer and modulation model configurations do not match")
 
+        model_wrap = types.SimpleNamespace(inner_model=types.SimpleNamespace(
+            diffusion_model=diffusion_model,
+            model_sampling=model.get_model_object("model_sampling"),
+        ))
+        model_call_sigmas = sampler.get_model_call_sigmas(model_wrap, sigmas)
+        if model_call_sigmas is None:
+            raise RuntimeError("This sampler cannot precompute its model-call sigma schedule")
+
+        transformer_options = model.model_options.get("transformer_options", {})
+        timesteps = _modulation_timesteps(model, model_call_sigmas, transformer_options)
+        hidden = modulation.blocks[0].adaln_proj.hidden
+        block_elements = len(modulation.blocks) * 6 * len(timesteps) * 3 * hidden
+        final_elements = 2 * len(timesteps) * hidden
+        block_dtype = modulation.blocks[0].adaln_proj.linear.bias.dtype
+        final_dtype = modulation.final_layer.adaln_proj.linear.bias.dtype
+        cache_memory = (block_elements * comfy.model_management.dtype_size(block_dtype)
+                        + final_elements * comfy.model_management.dtype_size(final_dtype))
+        block_scratch = block_elements // len(modulation.blocks) * comfy.model_management.dtype_size(block_dtype)
+        timestep_scratch = len(timesteps) * modulation.time_embedder.proj_out.out_features * 4
+        comfy.model_management.load_models_gpu([modulation_model],
+                                               memory_required=cache_memory + block_scratch + timestep_scratch)
+        timesteps = timesteps.to(modulation_model.load_device)
+        modulation_model.pre_run()
+        try:
+            modulation_options = {"prefetch_dynamic_vbars": modulation_model.is_dynamic()}
+            blocks, final = modulation(timesteps, transformer_options=modulation_options)
+        finally:
+            modulation_model.cleanup()
+            modulation_model.partially_unload(modulation_model.offload_device, 1e30)
+        return io.NodeOutput(minimax_model.MiniMaxH3ModulationCache(timesteps, blocks, final))
+
+
+class MiniMaxH3AttachModulation(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MiniMaxH3AttachModulation",
+            display_name="MiniMax H3 Attach Modulation Model",
+            category="advanced/model",
+            description="Attach precomputed MiniMax H3 modulation tensors to the split transformer.",
+            inputs=[
+                io.Model.Input("model"),
+                MiniMaxH3Modulation.Input("modulation"),
+            ],
+            outputs=[io.Model.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model, modulation) -> io.NodeOutput:
+        diffusion_model = model.model.diffusion_model
+        if not isinstance(diffusion_model, minimax_model.MiniMaxH3Model) or not diffusion_model.split_modulation:
+            raise ValueError("model must be a split MiniMax H3 transformer")
+
         m = model.clone()
-        m.set_additional_models(MODULATION_MODEL_KEY, [modulation_model])
-        m.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE,
-                               MODULATION_MODEL_KEY, _minimax_modulation_sampler_wrapper)
+        to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
+        to[MODULATION_MODEL_KEY] = modulation
         return io.NodeOutput(m)
 
 
@@ -414,7 +424,8 @@ class MiniMaxH3SeparateAVLatent(io.ComfyNode):
 class MiniMaxH3Extension(ComfyExtension):
     async def get_node_list(self):
         return [EmptyMiniMaxH3LatentAV, MiniMaxH3TextToVideo, MiniMaxH3ReferenceToVideo,
-                MiniMaxH3SigmaShift, MiniMaxH3AttachModulation, MiniMaxH3SeparateAVLatent]
+                MiniMaxH3SigmaShift, MiniMaxH3PrecomputeModulation, MiniMaxH3AttachModulation,
+                MiniMaxH3SeparateAVLatent]
 
 
 async def comfy_entrypoint() -> MiniMaxH3Extension:
