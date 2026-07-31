@@ -364,7 +364,6 @@ class MiniMaxH3Modulation(io.ComfyNode):
             blocks, final = modulation(timesteps, transformer_options=modulation_options)
         finally:
             modulation_model.cleanup()
-            modulation_model.partially_unload(modulation_model.offload_device, 1e30)
 
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
