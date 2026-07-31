@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import comfy.ops
+import comfy.quant_ops
 import comfy.rmsnorm
 from comfy.ldm.modules.attention import optimized_attention
 
@@ -130,11 +131,11 @@ class ResnetBlock3D(nn.Module):
                                              padding_mode=padding_mode, causal=causal)
 
     def forward(self, x):
-        h = self.conv1(F.silu(self.norm1(x)))
-        h = self.conv2(F.silu(self.norm2(h)))
+        h = self.conv1(F.silu(self.norm1(x), inplace=True))
+        h = self.conv2(F.silu(self.norm2(h), inplace=True))
         if self.in_channels != self.out_channels:
             x = self.nin_shortcut(x)
-        return x + h
+        return h.add_(x)
 
 
 class EncoderFCN3D(nn.Module):
@@ -211,26 +212,6 @@ def create_token_ids(patch_dims, device, dtype):
     return coords.flatten(0, len(patch_dims) - 1).unsqueeze(0)
 
 
-def _rotate_half(x):
-    x1, x2 = torch.chunk(x, 2, dim=-1)
-    return torch.cat((-x2, x1), dim=-1)
-
-
-def apply_rotary_pos_emb(t, rotary_pos_emb):
-    cos, sin = rotary_pos_emb
-    cos = cos.to(t.dtype)
-    sin = sin.to(t.dtype)
-
-    rot_dim = cos.shape[-1]
-    if rot_dim < t.shape[-1]:
-        t_rot, t_pass = t[..., :rot_dim], t[..., rot_dim:]
-        t_rot = (t_rot * cos) + (_rotate_half(t_rot) * sin)
-        t = torch.cat((t_rot, t_pass), dim=-1)
-    else:
-        t = (t * cos) + (_rotate_half(t) * sin)
-    return t
-
-
 class RotaryEmbeddingND(nn.Module):
     def __init__(self, dim, rotary_base=100.0, n_dim=3):
         super().__init__()
@@ -240,18 +221,16 @@ class RotaryEmbeddingND(nn.Module):
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
     def forward(self, img_ids):
-        with torch.autocast("cuda", enabled=False):
-            angles = (
-                self.angle_scale
-                * img_ids[:, :, :, None]
-                * self.inv_freq.to(img_ids.device)[None, None, None, :]
-            )
-            angles = angles.flatten(2, 3)
-            angles = angles.tile(2)
-            angles = angles.unsqueeze(2)
-            cos = torch.cos(angles)
-            sin = torch.sin(angles)
-        return cos.to(dtype=img_ids.dtype), sin.to(dtype=img_ids.dtype)
+        # [B, S, n_dim] -> [B, S, 1, pairs, 2, 2] rotation table for the kitchen split-half rope
+        angles = (
+            self.angle_scale
+            * img_ids[:, :, :, None].float()
+            * self.inv_freq.to(img_ids.device)[None, None, None, :]
+        )
+        angles = angles.flatten(2, 3)
+        c, s = torch.cos(angles), torch.sin(angles)
+        table = torch.stack([c, -s, s, c], dim=-1).reshape(*angles.shape[:2], 1, angles.shape[-1], 2, 2)
+        return table.to(img_ids.dtype)
 
 
 class FeedForward(nn.Module):
@@ -263,10 +242,8 @@ class FeedForward(nn.Module):
         self.w2 = ops.Linear(inner_dim, dim, bias=bias)
 
     def forward(self, x):
-        x = self.w1(x)
-        gate, x = x.chunk(2, dim=-1)
-        x = F.silu(gate) * x
-        return self.w2(x)
+        gate, x = self.w1(x).chunk(2, dim=-1)
+        return self.w2(F.silu(gate).mul_(x))
 
 
 class Attention(nn.Module):
@@ -291,11 +268,12 @@ class Attention(nn.Module):
         key = comfy.rmsnorm.rms_norm(key, self.norm_k.weight, self.norm_k.eps)
 
         if rotary_pos_emb is not None:
-            query = apply_rotary_pos_emb(query, rotary_pos_emb)
-            key = apply_rotary_pos_emb(key, rotary_pos_emb)
+            rot = rotary_pos_emb.shape[-3] * 2
+            query[..., :rot], key[..., :rot] = comfy.quant_ops.ck.apply_rope_split_half(
+                query[..., :rot], key[..., :rot], rotary_pos_emb)
 
         out = optimized_attention(query.transpose(1, 2), key.transpose(1, 2), value.transpose(1, 2),
-                                  self.heads, skip_reshape=True).nan_to_num(0.0)
+                                  self.heads, skip_reshape=True).nan_to_num_(0.0)
         return self.to_out(out)
 
 
@@ -312,11 +290,10 @@ class TransformerBlock(nn.Module):
 
     def forward(self, hidden_states, rotary_pos_emb=None):
         norm_hidden_states = comfy.rmsnorm.rms_norm(hidden_states, self.norm1.weight, self.norm1.eps)
-        hidden_states = hidden_states + self.attn(norm_hidden_states, rotary_pos_emb) * self.scale1
+        hidden_states = hidden_states.addcmul_(self.attn(norm_hidden_states, rotary_pos_emb), self.scale1)
 
         norm_hidden_states = comfy.rmsnorm.rms_norm(hidden_states, self.norm2.weight, self.norm2.eps)
-        hidden_states = hidden_states + self.ff(norm_hidden_states) * self.scale2
-        return hidden_states
+        return hidden_states.addcmul_(self.ff(norm_hidden_states), self.scale2)
 
 
 class ViT3DDecoder(nn.Module):
@@ -348,11 +325,7 @@ class ViT3DDecoder(nn.Module):
 
         hidden_states = x.flatten(2).transpose(1, 2)  # [B, T*H*W, C]
 
-        with torch.autocast("cuda", enabled=False):
-            in_dtype = hidden_states.dtype
-            hidden_states = self.x_embedder(
-                hidden_states.to(self.x_embedder.weight.dtype)
-            ).to(in_dtype)
+        hidden_states = self.x_embedder(hidden_states)
 
         num_patches = hidden_states.shape[1]
         num_suffix = 1 + self.num_register_tokens
@@ -373,11 +346,7 @@ class ViT3DDecoder(nn.Module):
 
         hidden_states = self.norm_out(hidden_states)
 
-        with torch.autocast("cuda", enabled=False):
-            in_dtype = hidden_states.dtype
-            output = self.proj_out(
-                hidden_states.to(self.proj_out.weight.dtype)
-            ).to(in_dtype)
+        output = self.proj_out(hidden_states)
 
         output = output[:, :num_patches, :]
 
@@ -739,8 +708,7 @@ class MiniMaxH3VideoVAE(nn.Module):
         if x.ndim == 4:
             x = x.unsqueeze(2)
 
-        x = (x + 1.0) / 2.0
-        x = (x - self.pixel_mean.to(x)) / self.pixel_std.to(x)
+        x = x.add(1.0).mul_(0.5).sub_(self.pixel_mean.to(x)).div_(self.pixel_std.to(x))
 
         if x.shape[2] == 1:
             moments = self._adaptive_encode(x)
@@ -767,5 +735,5 @@ class MiniMaxH3VideoVAE(nn.Module):
             dec = self.decode_temporal(z)
 
         dec = dec.float()
-        dec = dec * self.pixel_std.to(dec) + self.pixel_mean.to(dec)
-        return dec.clamp(0.0, 1.0) * 2.0 - 1.0
+        dec.mul_(self.pixel_std.to(dec)).add_(self.pixel_mean.to(dec)).clamp_(0.0, 1.0).mul_(2.0).sub_(1.0)
+        return dec
