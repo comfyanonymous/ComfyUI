@@ -62,7 +62,7 @@ def install_node(repository: str, commit: str, destination: Path) -> None:
     run("git", "clone", "--filter=blob:none", "--no-checkout", repository, str(node_directory))
     run("git", "checkout", "--detach", commit, cwd=node_directory)
 
-    requirements = node_directory / "requirements.txt"
+    requirements = (node_directory / "requirements.txt").resolve()
     if requirements.is_file():
         run(
             sys.executable,
