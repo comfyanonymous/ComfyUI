@@ -464,8 +464,7 @@ class disable_weight_init:
 
         def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
             # don't trust subclasses that BYO state dict loader to call us.
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 super().__init__(in_features, out_features, bias, device, dtype)
                 return
@@ -487,8 +486,7 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
@@ -716,8 +714,7 @@ class disable_weight_init:
                      norm_type=2.0, scale_grad_by_freq=False, sparse=False, _weight=None,
                      _freeze=False, device=None, dtype=None):
             # don't trust subclasses that BYO state dict loader to call us.
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
                 super().__init__(num_embeddings, embedding_dim, padding_idx, max_norm,
                                  norm_type, scale_grad_by_freq, sparse, _weight,
@@ -744,8 +741,7 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
