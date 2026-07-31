@@ -447,7 +447,9 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
     if folder_name not in folder_names_and_paths:
         return None
     folders = folder_names_and_paths[folder_name]
-    filename = os.path.relpath(os.path.join("/", filename), "/")
+    # Drop any drive or UNC prefix first. On Windows such a filename shares no
+    # mount with "/", so relpath raises ValueError instead of normalizing.
+    filename = os.path.relpath(os.path.join("/", os.path.splitdrive(filename)[1]), "/")
     for x in folders[0]:
         full_path = os.path.join(x, filename)
         if os.path.isfile(full_path):

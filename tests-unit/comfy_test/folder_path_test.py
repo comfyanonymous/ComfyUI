@@ -180,3 +180,38 @@ def test_models_directory_cli_and_getters(temp_dir):
             reload(comfy.cli_args)
             reload(folder_paths)
 
+
+
+def test_get_full_path_rejects_absolute_filename(temp_dir):
+    # A filename is always treated as relative to the registered folders, so an
+    # absolute one must resolve to "not found" rather than escaping the folder.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    try:
+        assert folder_paths.get_full_path("test_folder", "/etc/passwd") is None
+        assert folder_paths.get_full_path("test_folder", "../../etc/passwd") is None
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
+
+
+def test_get_full_path_with_filename_on_another_drive(temp_dir):
+    # os.path.relpath raises ValueError when the two paths share no mount, which
+    # on Windows is any filename carrying a different drive letter or a UNC
+    # prefix. get_full_path should report "not found", not raise.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    try:
+        assert folder_paths.get_full_path("test_folder", "D:/models/model.safetensors") is None
+        assert folder_paths.get_full_path("test_folder", r"Z:\models\model.safetensors") is None
+        assert folder_paths.get_full_path("test_folder", r"\\server\share\model.safetensors") is None
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
+
+
+def test_get_full_path_or_raise_on_another_drive(temp_dir):
+    # The documented failure mode is FileNotFoundError; a ValueError from the
+    # path normalization would bypass callers that catch the former.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    try:
+        with pytest.raises(FileNotFoundError):
+            folder_paths.get_full_path_or_raise("test_folder", "D:/models/model.safetensors")
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
