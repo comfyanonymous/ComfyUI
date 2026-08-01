@@ -129,12 +129,18 @@ class TimeEmbedder(nn.Module):
         self.proj_in = operations.Linear(freq_dim, hidden, bias=True, dtype=dtype, device=device)
         self.proj_out = operations.Linear(hidden, out, bias=True, dtype=dtype, device=device)
 
-    def forward(self, t):
+    def forward(self, t, frame_rate=None):
         # t: [M] in [0, 1]; fp32 throughout, cos before sin
         half = self.freq_dim // 2
         freqs = torch.exp(-math.log(10000.0) * torch.arange(half, dtype=torch.float32, device=t.device) / half)
         args = t.to(torch.float32)[:, None] * freqs[None]
         emb = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+        if frame_rate is not None:
+            frame_rate = torch.as_tensor(frame_rate, dtype=torch.float32, device=t.device).flatten()
+            if frame_rate.shape[0] == 1:
+                frame_rate = frame_rate.expand(t.shape[0])
+            fps_args = frame_rate[:, None] * freqs[None]
+            emb.add_(torch.cat([torch.cos(fps_args), torch.sin(fps_args)], dim=-1))
         return self.proj_out(nn.functional.silu(self.proj_in(emb)))
 
 
@@ -321,7 +327,8 @@ class MiniMaxH3ModulationModel(nn.Module):
                                            dtype=torch.float32, device=device, operations=operations)
 
     def forward(self, timesteps, transformer_options={}):
-        t_emb = self.time_embedder(timesteps).to(self.dtype)
+        frame_rate = transformer_options.get("minimax_h3_frame_rate", None)
+        t_emb = self.time_embedder(timesteps, frame_rate=frame_rate).to(self.dtype)
         prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.blocks), timesteps.device, transformer_options)
         modulation = None
         for i, block in enumerate(self.blocks):
@@ -682,7 +689,8 @@ class MiniMaxH3Model(nn.Module):
         if modulation_provider is None:
             if self.split_modulation:
                 raise RuntimeError("MiniMax H3 split transformer requires its modulation model")
-            t_emb = self.time_embedder(timestep_values).to(dtype)
+            frame_rate = transformer_options.get("minimax_h3_frame_rate", None)
+            t_emb = self.time_embedder(timestep_values, frame_rate=frame_rate).to(dtype)
             block_modulation = final_modulation = None
         else:
             if transformer_options.get("patches_replace", {}).get("dit", {}):

@@ -307,6 +307,31 @@ class MiniMaxH3SigmaShift(io.ComfyNode):
         return io.NodeOutput(m)
 
 
+class MiniMaxH3FrameRate(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MiniMaxH3FrameRate",
+            description="Experimentally add frame-rate conditioning to the MiniMax H3 timestep embedding.",
+            display_name="MiniMax H3 Frame Rate",
+            category="advanced/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
+            ],
+            outputs=[io.Model.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model, frame_rate) -> io.NodeOutput:
+        m = model.clone()
+        to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
+        if MODULATION_MODEL_KEY in to:
+            raise ValueError("MiniMax H3 Frame Rate must be connected before MiniMax H3 Modulation")
+        to["minimax_h3_frame_rate"] = frame_rate
+        return io.NodeOutput(m)
+
+
 class MiniMaxH3Modulation(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -345,7 +370,7 @@ class MiniMaxH3Modulation(io.ComfyNode):
         if model_call_sigmas is None:
             raise RuntimeError("This sampler cannot precompute its model-call sigma schedule")
 
-        transformer_options = modulation_model.model_options.get("transformer_options", {})
+        transformer_options = model.model_options.get("transformer_options", {})
         timesteps = _modulation_timesteps(modulation_model, model_call_sigmas, transformer_options)
         hidden = modulation.blocks[0].adaln_proj.hidden
         block_elements = len(modulation.blocks) * 6 * len(timesteps) * 3 * hidden
@@ -361,7 +386,8 @@ class MiniMaxH3Modulation(io.ComfyNode):
         timesteps = timesteps.to(modulation_model.load_device)
         modulation_model.pre_run()
         try:
-            modulation_options = {"prefetch_dynamic_vbars": modulation_model.is_dynamic()}
+            modulation_options = transformer_options.copy()
+            modulation_options["prefetch_dynamic_vbars"] = modulation_model.is_dynamic()
             blocks, final = modulation(timesteps, transformer_options=modulation_options)
         finally:
             modulation_model.cleanup()
@@ -410,7 +436,7 @@ class MiniMaxH3SeparateAVLatent(io.ComfyNode):
 class MiniMaxH3Extension(ComfyExtension):
     async def get_node_list(self):
         return [EmptyMiniMaxH3LatentAV, MiniMaxH3TextToVideo, MiniMaxH3ReferenceToVideo,
-                MiniMaxH3SigmaShift, MiniMaxH3Modulation, MiniMaxH3SeparateAVLatent]
+                MiniMaxH3SigmaShift, MiniMaxH3FrameRate, MiniMaxH3Modulation, MiniMaxH3SeparateAVLatent]
 
 
 async def comfy_entrypoint() -> MiniMaxH3Extension:
