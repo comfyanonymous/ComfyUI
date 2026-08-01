@@ -1284,6 +1284,14 @@ class CFGGuider:
             sampler_shapes = [tuple(latent_image.shape)]
         detail("Sampler: model=%s latent_shapes=%s", self.model_patcher.model.__class__.__name__, sampler_shapes)
 
+        if len(latent_shapes) > 1 and callback is not None:
+            # samplers run on the flat pack, hand callbacks (previews, x0 output) the nested view
+            packed_callback = callback
+            def callback(step, x0, x, total_steps):
+                x0 = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0, latent_shapes))
+                x = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x, latent_shapes))
+                return packed_callback(step, x0, x, total_steps)
+
         if denoise_mask is not None:
             if denoise_mask.is_nested:
                 denoise_masks = denoise_mask.unbind()
