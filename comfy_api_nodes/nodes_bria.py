@@ -289,7 +289,7 @@ class BriaRemoveVideoBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.005,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.05,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -357,7 +357,7 @@ class BriaVideoGreenScreen(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.005,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.05,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -433,7 +433,7 @@ class BriaVideoReplaceBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.005,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.05,"format":{"suffix":"/second"}}""",
             ),
         )
 
@@ -533,7 +533,7 @@ class BriaTransparentVideoBackground(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.005,"format":{"suffix":"/second"}}""",
+                expr="""{"type":"usd","usd":0.05,"format":{"suffix":"/second"}}""",
             ),
         )
 
