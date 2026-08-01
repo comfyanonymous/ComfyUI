@@ -1,3 +1,5 @@
+import re
+
 import torch
 from typing_extensions import override
 
@@ -12,6 +14,7 @@ from comfy_api_nodes.apis.grok import (
     VideoGenerationRequest,
     VideoGenerationResponse,
     VideoStatusResponse,
+    VoiceReferenceObject,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -32,6 +35,75 @@ from comfy_api_nodes.util import (
 _GROK_VIDEO_MODEL_API_IDS = {
     "grok-imagine-video-1.5": "grok-imagine-video-1.5",
 }
+
+_GROK_VOICE_OPTIONS = [
+    "none",
+    "ara",
+    "eve",
+    "leo",
+    "rex",
+    "sal",
+    "carina",
+    "zagan",
+    "helix",
+    "orion",
+    "luna",
+    "iris",
+    "altair",
+    "zenith",
+    "perseus",
+    "helios",
+    "lux",
+    "kepler",
+    "rigel",
+    "cosmo",
+    "celeste",
+    "ursa",
+    "sirius",
+    "lumen",
+    "castor",
+    "naksh",
+    "atlas",
+]
+
+
+_GROK_REF_TAG_RE = re.compile(r"(?<!\w)@(image|audio)(?P<idx>\d*)(?!\w)", re.IGNORECASE | re.ASCII)
+
+
+def _normalize_grok_reference_prompt(prompt: str, total_images: int, voices: list[str]) -> str:
+    """Rewrite @Image1/@Audio1 style references (1-based, shared partner-node syntax)
+    into Grok's native <IMAGE_0>/<AUDIO_0> tags; an unnumbered @image/@audio means the first one.
+    Native tags pass through untouched. @ImageN refers to the Nth reference image overall, in
+    input order — a batched input contributes one number per image. @AudioN refers to the
+    'voice_N' widget; the API only accepts compact arrays, so voices are remapped to array
+    positions and 'none' slots between selected voices are harmless. Substitution repeats until
+    stable so adjacent tags like '@Image1@Image2' all resolve."""
+    audio_indices: dict[int, int] = {}
+    for slot, voice in enumerate(voices, start=1):
+        if voice != "none":
+            audio_indices[slot] = len(audio_indices)
+
+    def repl(match: re.Match) -> str:
+        kind = match.group(1).lower()
+        idx = int(match.group("idx") or 1)
+        if kind == "image":
+            if not 1 <= idx <= total_images:
+                raise ValueError(
+                    f"The prompt references @Image{idx}, but only {total_images} "
+                    f"reference images are connected (a batched input counts once per image)."
+                )
+            return f"<IMAGE_{idx - 1}>"
+        if idx not in audio_indices:
+            if 1 <= idx <= len(voices):
+                raise ValueError(f"The prompt references @Audio{idx}, but 'voice_{idx}' is set to 'none'.")
+            raise ValueError(f"The prompt references @Audio{idx}, but only voices 1..{len(voices)} exist.")
+        return f"<AUDIO_{audio_indices[idx]}>"
+
+    prev = None
+    while prev != prompt:
+        prev = prompt
+        prompt = _GROK_REF_TAG_RE.sub(repl, prompt)
+    return prompt
 
 
 def _extract_grok_price(response) -> float | None:
@@ -509,12 +581,13 @@ class GrokVideoNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model",
                     options=["grok-imagine-video", "grok-imagine-video-1.5"],
-                    tooltip="grok-imagine-video-1.5 currently always requires an input image.",
+                    tooltip="The model to use for video generation.",
                 ),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
-                    tooltip="Text description of the desired video.",
+                    tooltip="Text description of the desired video. "
+                    "Optional for grok-imagine-video-1.5 when an input image is provided.",
                 ),
                 IO.Combo.Input(
                     "resolution",
@@ -549,7 +622,7 @@ class GrokVideoNode(IO.ComfyNode):
                 IO.Image.Input(
                     "image",
                     optional=True,
-                    tooltip="Optional starting image for grok-imagine-video. Required for grok-imagine-video-1.5.",
+                    tooltip="Optional starting image. If omitted, the video is generated from the text prompt alone.",
                 ),
             ],
             outputs=[
@@ -589,8 +662,6 @@ class GrokVideoNode(IO.ComfyNode):
         seed: int,
         image: Input.Image | None = None,
     ) -> IO.NodeOutput:
-        if image is None and model == "grok-imagine-video-1.5":
-            raise ValueError(f"The '{model}' model requires an input image; connect one to the 'image' input.")
         if resolution == "1080p" and model != "grok-imagine-video-1.5":
             raise ValueError(f"1080p resolution is only available for grok-imagine-video-1.5, not '{model}'.")
         image_url = None
@@ -598,7 +669,8 @@ class GrokVideoNode(IO.ComfyNode):
             if get_number_of_images(image) != 1:
                 raise ValueError("Only one input image is supported.")
             image_url = InputUrlObject(url=f"data:image/png;base64,{tensor_to_base64_string(image)}")
-        validate_string(prompt, strip_whitespace=True, min_length=1)
+        if image is None or model != "grok-imagine-video-1.5":
+            validate_string(prompt, strip_whitespace=True, min_length=1)
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/xai/v1/videos/generations", method="POST"),
@@ -709,7 +781,7 @@ class GrokVideoReferenceNode(IO.ComfyNode):
             node_id="GrokVideoReferenceNode",
             display_name="Grok Reference-to-Video",
             category="partner/video/Grok",
-            description="Generate video guided by reference images as style and content references.",
+            description="Generate video guided by reference images, with optional preset voice references.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -719,6 +791,57 @@ class GrokVideoReferenceNode(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "grok-imagine-video-1.5",
+                            [
+                                IO.Autogrow.Input(
+                                    "reference_images",
+                                    template=IO.Autogrow.TemplateNames(
+                                        IO.Image.Input("image"),
+                                        names=[f"reference_{i}" for i in range(1, 8)],
+                                        min=1,
+                                    ),
+                                    tooltip="Up to 7 reference images to guide the video generation. "
+                                    "Refer to them in the prompt as @Image1 ... @Image7, numbered "
+                                    "in input order; a batched input counts once per image.",
+                                ),
+                                IO.Combo.Input(
+                                    "voice_1",
+                                    options=_GROK_VOICE_OPTIONS,
+                                    tooltip="Optional preset voice reference; refer to it in the prompt as @Audio1. "
+                                    "The API supports only these preset voices, not custom audio.",
+                                ),
+                                IO.Combo.Input(
+                                    "voice_2",
+                                    options=_GROK_VOICE_OPTIONS,
+                                    tooltip="Optional second voice reference; @Audio2 in the prompt.",
+                                ),
+                                IO.Combo.Input(
+                                    "voice_3",
+                                    options=_GROK_VOICE_OPTIONS,
+                                    tooltip="Optional third voice reference; @Audio3 in the prompt.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["480p", "720p"],
+                                    tooltip="The resolution of the output video.",
+                                ),
+                                IO.Combo.Input(
+                                    "aspect_ratio",
+                                    options=["16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"],
+                                    tooltip="The aspect ratio of the output video.",
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=6,
+                                    min=1,
+                                    max=15,
+                                    step=1,
+                                    tooltip="The duration of the output video in seconds.",
+                                    display_mode=IO.NumberDisplay.slider,
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "grok-imagine-video",
                             [
@@ -779,16 +902,20 @@ class GrokVideoReferenceNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(
-                    widgets=["model.duration", "model.resolution"],
+                    widgets=["model", "model.duration", "model.resolution"],
                     input_groups=["model.reference_images"],
                 ),
                 expr="""
                 (
+                  $is15 := $contains(widgets.model, "1.5");
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
                   $refs := $lookup(inputGroups, "model.reference_images");
-                  $rate := $res = "720p" ? 0.07 : 0.05;
-                  $price := ($rate * $dur + 0.002 * $refs) * 1.43;
+                  $rate := $is15
+                    ? ($res = "720p" ? 0.14 : 0.08)
+                    : ($res = "720p" ? 0.07 : 0.05);
+                  $imgCost := $is15 ? 0.01 : 0.002;
+                  $price := ($rate * $dur + $imgCost * $refs) * 1.43;
                   {"type":"usd","usd": $price}
                 )
                 """,
@@ -803,6 +930,14 @@ class GrokVideoReferenceNode(IO.ComfyNode):
         seed: int,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
+        total_images = sum(get_number_of_images(t) for t in model["reference_images"].values())
+        if total_images > 7:
+            raise ValueError(f"A maximum of 7 reference images is supported; {total_images} are connected.")
+        reference_audios = None
+        if model["model"] == "grok-imagine-video-1.5":
+            voices = [model.get(f"voice_{i}", "none") for i in range(1, 4)]
+            reference_audios = [VoiceReferenceObject(voice_id=v) for v in voices if v != "none"] or None
+            prompt = _normalize_grok_reference_prompt(prompt, total_images=total_images, voices=voices)
         ref_image_urls = await upload_images_to_comfyapi(
             cls,
             list(model["reference_images"].values()),
@@ -814,8 +949,9 @@ class GrokVideoReferenceNode(IO.ComfyNode):
             cls,
             ApiEndpoint(path="/proxy/xai/v1/videos/generations", method="POST"),
             data=VideoGenerationRequest(
-                model=model["model"],
+                model=_GROK_VIDEO_MODEL_API_IDS.get(model["model"], model["model"]),
                 reference_images=[InputUrlObject(url=i) for i in ref_image_urls],
+                reference_audios=reference_audios,
                 prompt=prompt,
                 resolution=model["resolution"],
                 duration=model["duration"],
