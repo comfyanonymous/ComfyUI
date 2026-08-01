@@ -620,10 +620,11 @@ class MiniMaxH3Model(nn.Module):
         aud_aug = float(payload.get("audio_cond_noise_aug", AUDIO_COND_TIMESTEP))
         has_vis_cond = any(k in ("cond", "ref_img") for _, _, k in layout.segments)
         has_aud_cond = any(k == "ref_audio" for _, _, k in layout.segments)
-        seg_t = {"text": t_v, "video": t_v, "audio": t_a,
+        video_t = VISUAL_COND_TIMESTEP if transformer_options.get("minimax_h3_clean_video", False) else t_v
+        seg_t = {"text": t_v, "video": video_t, "audio": t_a,
                  "cond": max(t_v, vis_aug), "ref_img": max(t_v, vis_aug),
                  "ref_audio": max(t_a, aud_aug)}
-        unique_t = sorted({t_v, t_a} | ({seg_t["cond"]} if has_vis_cond else set())
+        unique_t = sorted({t_v, t_a, video_t} | ({seg_t["cond"]} if has_vis_cond else set())
                           | ({seg_t["ref_audio"]} if has_aud_cond else set()))
         t_row = {t: i for i, t in enumerate(unique_t)}
         seg_tag = {"text": 1, "video": 0, "audio": 2, "cond": 0, "ref_img": 0, "ref_audio": 2}
@@ -700,7 +701,8 @@ class MiniMaxH3Model(nn.Module):
         # rotation table computed once per forward, consumed by the kitchen split-half rope
         position_ids = layout.position_ids
         rope_frame_rate = transformer_options.get("minimax_h3_rope_frame_rate", None)
-        if rope_frame_rate is not None and rope_frame_rate != 24.0:
+        rope_end_timestep = transformer_options.get("minimax_h3_rope_end_timestep", 1.0)
+        if rope_frame_rate is not None and rope_frame_rate != 24.0 and t_v <= rope_end_timestep:
             position_ids = position_ids.clone()
             position_ids[layout.token_tags == 0, 0] *= 24.0 / rope_frame_rate
         rope_freqs = rope_rotation_table(self.rope_freqs(position_ids, device), dtype)

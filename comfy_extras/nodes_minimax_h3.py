@@ -321,12 +321,13 @@ class MiniMaxH3FrameRate(io.ComfyNode):
                 io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
                 io.Boolean.Input("adaln", default=True),
                 io.Boolean.Input("temporal_rope", default=False),
+                io.Float.Input("rope_end_timestep", default=1.0, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[io.Model.Output()],
         )
 
     @classmethod
-    def execute(cls, model, frame_rate, adaln=True, temporal_rope=False) -> io.NodeOutput:
+    def execute(cls, model, frame_rate, adaln=True, temporal_rope=False, rope_end_timestep=1.0) -> io.NodeOutput:
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
         if MODULATION_MODEL_KEY in to:
@@ -335,6 +336,29 @@ class MiniMaxH3FrameRate(io.ComfyNode):
             to["minimax_h3_frame_rate"] = frame_rate
         if temporal_rope:
             to["minimax_h3_rope_frame_rate"] = frame_rate
+            to["minimax_h3_rope_end_timestep"] = rope_end_timestep
+        return io.NodeOutput(m)
+
+
+class MiniMaxH3VideoToAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MiniMaxH3VideoToAudio",
+            display_name="MiniMax H3 Video to Audio",
+            category="advanced/model",
+            description="Treat the target video as clean conditioning while denoising audio.",
+            inputs=[io.Model.Input("model")],
+            outputs=[io.Model.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model) -> io.NodeOutput:
+        m = model.clone()
+        to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
+        if MODULATION_MODEL_KEY in to:
+            raise ValueError("MiniMax H3 Video to Audio must be connected before MiniMax H3 Modulation")
+        to["minimax_h3_clean_video"] = True
         return io.NodeOutput(m)
 
 
@@ -439,10 +463,40 @@ class MiniMaxH3SeparateAVLatent(io.ComfyNode):
         return io.NodeOutput(video_out, audio_out)
 
 
+class MiniMaxH3CombineAVLatent(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MiniMaxH3CombineAVLatent",
+            display_name="MiniMax H3 Combine AV Latent",
+            category="latent/video",
+            inputs=[
+                io.Latent.Input("video_latent"),
+                io.Int.Input("frame_count", default=247, min=1, max=7200),
+                io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
+                io.Boolean.Input("denoise_video", default=False),
+            ],
+            outputs=[io.Latent.Output(display_name="av_latent")],
+        )
+
+    @classmethod
+    def execute(cls, video_latent, frame_count, frame_rate, denoise_video=False) -> io.NodeOutput:
+        video = video_latent["samples"]
+        audio_t = round(frame_count / frame_rate * AUDIO_LATENT_FPS)
+        audio = torch.zeros([video.shape[0], 32, 2, audio_t], dtype=video.dtype, device=video.device)
+        video_mask = torch.ones_like(video) if denoise_video else torch.zeros_like(video)
+        audio_mask = torch.ones_like(audio)
+        output = {k: v for k, v in video_latent.items() if k not in ("samples", "noise_mask")}
+        output["samples"] = comfy.nested_tensor.NestedTensor((video, audio))
+        output["noise_mask"] = comfy.nested_tensor.NestedTensor((video_mask, audio_mask))
+        return io.NodeOutput(output)
+
+
 class MiniMaxH3Extension(ComfyExtension):
     async def get_node_list(self):
         return [EmptyMiniMaxH3LatentAV, MiniMaxH3TextToVideo, MiniMaxH3ReferenceToVideo,
-                MiniMaxH3SigmaShift, MiniMaxH3FrameRate, MiniMaxH3Modulation, MiniMaxH3SeparateAVLatent]
+                MiniMaxH3SigmaShift, MiniMaxH3FrameRate, MiniMaxH3VideoToAudio, MiniMaxH3Modulation,
+                MiniMaxH3SeparateAVLatent, MiniMaxH3CombineAVLatent]
 
 
 async def comfy_entrypoint() -> MiniMaxH3Extension:
