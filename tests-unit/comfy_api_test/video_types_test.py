@@ -240,6 +240,24 @@ def test_duration_consistency(video_components):
     assert duration == pytest.approx(manual_duration)
 
 
+def test_save_to_h264_crf_controls_quality(tmp_path):
+    generator = torch.Generator().manual_seed(7)
+    components = VideoComponents(
+        images=torch.rand(12, 64, 64, 3, generator=generator),
+        frame_rate=Fraction(30),
+    )
+    high_quality = str(tmp_path / "high_quality.mp4")
+    low_quality = str(tmp_path / "low_quality.mp4")
+    transcoded = str(tmp_path / "transcoded.mp4")
+
+    VideoFromComponents(components).save_to(high_quality, codec=VideoCodec.H264, crf=0)
+    VideoFromComponents(components).save_to(low_quality, codec=VideoCodec.H264, crf=51)
+    assert os.path.getsize(high_quality) > os.path.getsize(low_quality)
+
+    VideoFromFile(high_quality).save_to(transcoded, codec=VideoCodec.H264, crf=51)
+    assert os.path.getsize(transcoded) < os.path.getsize(high_quality)
+
+
 def create_transcode_source(
     width=64, height=64, frames=30, fps=30, audio_streams=1, undecodable_audio=0, rotation=False,
     container_format="mov", audio_codec="pcm_s16le",
