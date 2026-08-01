@@ -67,15 +67,17 @@ _GROK_VOICE_OPTIONS = [
 ]
 
 
-_GROK_REF_TAG_RE = re.compile(r"(?<!\w)@(image|audio)(?P<idx>\d*)(?!\w)", re.IGNORECASE)
+_GROK_REF_TAG_RE = re.compile(r"(?<!\w)@(image|audio)(?P<idx>\d*)(?!\w)", re.IGNORECASE | re.ASCII)
 
 
-def _normalize_grok_reference_prompt(prompt: str, n_images: int, voices: list[str]) -> str:
+def _normalize_grok_reference_prompt(prompt: str, total_images: int, voices: list[str]) -> str:
     """Rewrite @Image1/@Audio1 style references (1-based, shared partner-node syntax)
     into Grok's native <IMAGE_0>/<AUDIO_0> tags; an unnumbered @image/@audio means the first one.
-    Native tags pass through untouched. @AudioN refers to the 'voice_N' widget; the API only
-    accepts a compact voice array, so tags are remapped to each voice's position in it and
-    'none' slots between selected voices are harmless."""
+    Native tags pass through untouched. @ImageN refers to the Nth reference image overall, in
+    input order — a batched input contributes one number per image. @AudioN refers to the
+    'voice_N' widget; the API only accepts compact arrays, so voices are remapped to array
+    positions and 'none' slots between selected voices are harmless. Substitution repeats until
+    stable so adjacent tags like '@Image1@Image2' all resolve."""
     audio_indices: dict[int, int] = {}
     for slot, voice in enumerate(voices, start=1):
         if voice != "none":
@@ -85,9 +87,10 @@ def _normalize_grok_reference_prompt(prompt: str, n_images: int, voices: list[st
         kind = match.group(1).lower()
         idx = int(match.group("idx") or 1)
         if kind == "image":
-            if not 1 <= idx <= n_images:
+            if not 1 <= idx <= total_images:
                 raise ValueError(
-                    f"The prompt references @Image{idx}, but only {n_images} reference images are connected."
+                    f"The prompt references @Image{idx}, but only {total_images} "
+                    f"reference images are connected (a batched input counts once per image)."
                 )
             return f"<IMAGE_{idx - 1}>"
         if idx not in audio_indices:
@@ -96,7 +99,11 @@ def _normalize_grok_reference_prompt(prompt: str, n_images: int, voices: list[st
             raise ValueError(f"The prompt references @Audio{idx}, but only voices 1..{len(voices)} exist.")
         return f"<AUDIO_{audio_indices[idx]}>"
 
-    return _GROK_REF_TAG_RE.sub(repl, prompt)
+    prev = None
+    while prev != prompt:
+        prev = prompt
+        prompt = _GROK_REF_TAG_RE.sub(repl, prompt)
+    return prompt
 
 
 def _extract_grok_price(response) -> float | None:
@@ -795,7 +802,8 @@ class GrokVideoReferenceNode(IO.ComfyNode):
                                         min=1,
                                     ),
                                     tooltip="Up to 7 reference images to guide the video generation. "
-                                    "Refer to them in the prompt as @Image1 ... @Image7.",
+                                    "Refer to them in the prompt as @Image1 ... @Image7, numbered "
+                                    "in input order; a batched input counts once per image.",
                                 ),
                                 IO.Combo.Input(
                                     "voice_1",
@@ -922,9 +930,14 @@ class GrokVideoReferenceNode(IO.ComfyNode):
         seed: int,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
-        voices = [model.get(f"voice_{i}", "none") for i in range(1, 4)]
-        reference_audios = [VoiceReferenceObject(voice_id=v) for v in voices if v != "none"] or None
-        prompt = _normalize_grok_reference_prompt(prompt, n_images=len(model["reference_images"]), voices=voices)
+        total_images = sum(get_number_of_images(t) for t in model["reference_images"].values())
+        if total_images > 7:
+            raise ValueError(f"A maximum of 7 reference images is supported; {total_images} are connected.")
+        reference_audios = None
+        if model["model"] == "grok-imagine-video-1.5":
+            voices = [model.get(f"voice_{i}", "none") for i in range(1, 4)]
+            reference_audios = [VoiceReferenceObject(voice_id=v) for v in voices if v != "none"] or None
+            prompt = _normalize_grok_reference_prompt(prompt, total_images=total_images, voices=voices)
         ref_image_urls = await upload_images_to_comfyapi(
             cls,
             list(model["reference_images"].values()),
