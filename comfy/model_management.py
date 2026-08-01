@@ -1966,7 +1966,7 @@ def supports_nvfp4_compute(device=None):
     # cuBLAS FP4 matmul kernels require CUDA 13+, see #11864
     try:
         cuda_version_major = int(torch.version.cuda.split(".")[0])
-    except:
+    except (AttributeError, ValueError):
         return False
     if cuda_version_major < 13:
         return False
