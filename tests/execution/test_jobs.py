@@ -280,6 +280,86 @@ class TestGetOutputsSummary:
         assert preview['filename'] == 'model.glb'
         assert preview['mediaType'] == '3d'
 
+    def test_media_preview_preferred_over_text(self):
+        """A visual output wins the preview even when a text node is iterated
+        first (regression: text could mask a later temp/preview image)."""
+        outputs = {
+            'text_node': {'text': ['a caption']},
+            'image_node': {'images': [{'filename': 'preview.png', 'type': 'temp'}]},
+        }
+        count, preview = get_outputs_summary(outputs)
+        # Text is preview-only metadata and not counted; only the image counts.
+        assert count == 1
+        assert preview['filename'] == 'preview.png'
+        assert preview['mediaType'] == 'images'
+
+    def test_text_used_as_preview_when_no_media(self):
+        """Text is the preview only when the job produced no media output."""
+        outputs = {
+            'text_node': {'text': ['hello world']},
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 0  # text entries are not counted as outputs
+        assert preview['mediaType'] == 'text'
+        assert preview['content'] == 'hello world'
+
+    def test_media_preview_preferred_over_saved_text_file(self):
+        """A visual output wins the preview over a saved text file (SaveText),
+        even a temp/preview image iterated after the text node."""
+        outputs = {
+            'save_text': {
+                'text': ['the text'],
+                'files': [{'filename': 'ComfyUI_00001.txt', 'subfolder': '', 'type': 'output'}],
+            },
+            'preview_image': {'images': [{'filename': 'preview.png', 'type': 'temp'}]},
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 2  # the .txt file and the image; raw text is metadata
+        assert preview['filename'] == 'preview.png'
+        assert preview['mediaType'] == 'images'
+
+    def test_saved_media_preferred_over_saved_text_file(self):
+        outputs = {
+            'save_text': {
+                'text': ['the text'],
+                'files': [{'filename': 'ComfyUI_00001.txt', 'subfolder': '', 'type': 'output'}],
+            },
+            'save_image': {'images': [{'filename': 'result.png', 'type': 'output'}]},
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 2
+        assert preview['filename'] == 'result.png'
+
+    def test_mime_format_file_preferred_over_saved_text_file(self):
+        """Custom-node outputs previewable via MIME format (e.g. VHS videos
+        under arbitrary keys) rank as visual media, above saved text files."""
+        outputs = {
+            'save_text': {
+                'files': [{'filename': 'notes.md', 'subfolder': '', 'type': 'output'}],
+            },
+            'video_node': {
+                'files': [{'filename': 'clip.webm', 'format': 'video/webm', 'type': 'output'}],
+            },
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 2
+        assert preview['filename'] == 'clip.webm'
+
+
+    def test_saved_text_file_preferred_over_raw_text(self):
+        """With no media in the job, the saved text file (a real, counted
+        output) is the preview rather than the raw text metadata."""
+        outputs = {
+            'save_text': {
+                'text': ['the text'],
+                'files': [{'filename': 'ComfyUI_00001.txt', 'subfolder': '', 'type': 'output'}],
+            },
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 1
+        assert preview['filename'] == 'ComfyUI_00001.txt'
+        assert preview['mediaType'] == 'files'
+
 
 class TestHas3DExtension:
     """Unit tests for has_3d_extension()"""

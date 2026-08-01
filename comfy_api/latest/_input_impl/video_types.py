@@ -36,13 +36,15 @@ def get_open_write_kwargs(
     dest: str | io.BytesIO, container_format: str, to_format: str | None
 ) -> dict:
     """Get kwargs for writing a `VideoFromFile` to a file/stream with `av.open`"""
+    is_write_to_buffer = isinstance(dest, io.BytesIO)
+    is_mp4_file = not is_write_to_buffer and os.path.splitext(dest)[1].lower() == ".mp4"
+    movflags = "use_metadata_tags+faststart" if is_mp4_file else "use_metadata_tags"
     open_kwargs = {
         "mode": "w",
         # If isobmff, preserve custom metadata tags (workflow, prompt, extra_pnginfo)
-        "options": {"movflags": "use_metadata_tags"},
+        "options": {"movflags": movflags},
     }
 
-    is_write_to_buffer = isinstance(dest, io.BytesIO)
     if is_write_to_buffer:
         # Set output format explicitly, since it cannot be inferred from file extension
         if to_format == VideoContainer.AUTO:
@@ -103,7 +105,9 @@ def mp4_output_open_kwargs(path: str | io.BytesIO, format: VideoContainer, codec
         raise ValueError("Only MP4 format is supported for now")
     if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
         raise ValueError("Only H264 codec is supported for now")
-    open_kwargs = {"mode": "w", "options": {"movflags": "use_metadata_tags"}}
+    # FFmpeg's faststart pass reopens the output by filename, so it cannot be used with file-like objects.
+    movflags = "use_metadata_tags+faststart" if isinstance(path, (str, os.PathLike)) else "use_metadata_tags"
+    open_kwargs = {"mode": "w", "options": {"movflags": movflags}}
     if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
         open_kwargs["format"] = format.value
     elif isinstance(path, io.BytesIO):
@@ -460,6 +464,7 @@ class VideoFromFile(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
         bit_depth: int | None = None,
+        crf: float | None = None,
     ):
         if isinstance(self.__file, io.BytesIO):
             self.__file.seek(0)  # Reset the BytesIO object to the beginning
@@ -475,13 +480,15 @@ class VideoFromFile(VideoInput):
                 reuse_streams = False
             if bit_depth is not None and video_encoding is not None and bit_depth != source_bit_depth:
                 reuse_streams = False
+            if crf is not None:
+                reuse_streams = False
             if self.__start_time or self.__duration:
                 reuse_streams = False
 
             if not reuse_streams:
                 if bit_depth is None:
                     bit_depth = source_bit_depth
-                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth)
+                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf)
 
             streams = container.streams
 
@@ -514,6 +521,7 @@ class VideoFromFile(VideoInput):
         codec: VideoCodec,
         metadata: dict | None,
         bit_depth: int,
+        crf: float | None = None,
     ):
         """Re-encode to H.264/AAC one frame at a time; peak memory does not scale with video length."""
         open_kwargs = mp4_output_open_kwargs(path, format, codec)
@@ -659,6 +667,8 @@ class VideoFromFile(VideoInput):
                             out_video.width = out_width
                             out_video.height = out_height
                             out_video.pix_fmt = pix_fmt
+                            if crf is not None:
+                                out_video.options = {"crf": str(crf)}
                             # source pts pass through (rebased to 0), so variable frame rate survives
                             out_video.codec_context.time_base = video_stream.time_base
                             if audio_stream is not None:
@@ -827,6 +837,7 @@ class VideoFromComponents(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
         bit_depth: int | None = None,
+        crf: float | None = None,
     ):
         """Save the video to a file path or BytesIO buffer."""
         open_kwargs = mp4_output_open_kwargs(path, format, codec)
@@ -847,6 +858,8 @@ class VideoFromComponents(VideoInput):
             video_stream.width = self.__components.images.shape[2]
             video_stream.height = self.__components.images.shape[1]
             video_stream.pix_fmt = pix_fmt
+            if crf is not None:
+                video_stream.options = {"crf": str(crf)}
 
             # Create an audio stream
             audio_sample_rate = 1

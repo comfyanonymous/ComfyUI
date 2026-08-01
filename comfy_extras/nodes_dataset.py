@@ -43,6 +43,98 @@ def load_and_process_images(image_files, input_dir):
     return output_images
 
 
+def secure_subfolder_path(base_dir, folder_name):
+    """Resolve folder_name inside base_dir, rejecting anything that escapes it.
+
+    Blocks '..', absolute paths, drive letters and symlink escapes using the
+    same realpath containment check as the core file endpoints.
+    """
+    target = os.path.abspath(os.path.join(base_dir, folder_name))
+    if not folder_paths.is_within_directory(base_dir, target):
+        raise ValueError(f"Invalid folder name {folder_name!r}: resolves outside of {base_dir}")
+    return target
+
+
+def list_dataset_folders():
+    """Relative paths of dataset folders found under all dataset roots.
+
+    Any subfolder containing a metadata.json or *.safetensors shard counts as
+    a dataset; the walk doesn't descend into matched folders.
+
+    Symlinked directories are followed, but symlink loops are avoided.
+    """
+    found = set()
+
+    for root in folder_paths.get_folder_paths("datasets"):
+        if not os.path.isdir(root):
+            continue
+
+        root = os.path.abspath(root)
+        seen_dirs = set()
+
+        for dirpath, subdirs, filenames in os.walk(root, followlinks=True):
+            try:
+                st = os.stat(dirpath)  # follows symlinks
+            except OSError:
+                subdirs[:] = []
+                continue
+
+            dir_key = (st.st_dev, st.st_ino)
+            if dir_key in seen_dirs:
+                subdirs[:] = []
+                continue
+
+            seen_dirs.add(dir_key)
+
+            if dirpath != root and (
+                "metadata.json" in filenames
+                or any(f.endswith(".safetensors") for f in filenames)
+            ):
+                found.add(os.path.relpath(dirpath, root).replace(os.sep, "/"))
+                subdirs[:] = []
+                continue
+
+            kept_subdirs = []
+            for name in subdirs:
+                child = os.path.join(dirpath, name)
+                try:
+                    child_st = os.stat(child)  # follows symlinks
+                except OSError:
+                    continue
+
+                child_key = (child_st.st_dev, child_st.st_ino)
+                if child_key not in seen_dirs:
+                    kept_subdirs.append(name)
+
+            subdirs[:] = kept_subdirs
+
+    return sorted(found)
+
+
+def get_dataset_save_dir(folder_name):
+    """Resolve the folder to save a new dataset into, inside the default root.
+
+    The folder is not created here; callers makedirs after validation.
+    """
+    root = folder_paths.get_folder_paths("datasets")[0]
+    target = secure_subfolder_path(root, folder_name)
+    if os.path.realpath(target) == os.path.realpath(root):
+        raise ValueError("folder_name must name a subfolder of the datasets directory, e.g. 'my_dataset'.")
+    return target
+
+
+def get_dataset_dir(folder_name):
+    """Find an existing dataset folder by relative name across all dataset roots."""
+    roots = folder_paths.get_folder_paths("datasets")
+    for root in roots:
+        target = secure_subfolder_path(root, folder_name)
+        if os.path.realpath(target) == os.path.realpath(root):
+            raise ValueError("folder_name must name a subfolder of the datasets directory, e.g. 'my_dataset'.")
+        if os.path.isdir(target):
+            return target
+    raise ValueError(f"Dataset folder {folder_name!r} not found in: {', '.join(roots)}")
+
+
 VALID_VIDEO_EXTENSIONS = [".mp4", ".avi", ".mov", ".webm", ".mkv", ".flv"]
 
 
@@ -395,7 +487,7 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
         filename_prefix = filename_prefix[0]
         mode = mode[0]
 
-        output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
+        output_dir = secure_subfolder_path(folder_paths.get_output_directory(), folder_name)
         saved_files = save_images_to_folder(images, output_dir, filename_prefix, mode=='overwrite')
 
         logging.info(f"Saved {len(saved_files)} images to {output_dir}.")
@@ -449,7 +541,7 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
         filename_prefix = filename_prefix[0]
         mode = mode[0]
 
-        output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
+        output_dir = secure_subfolder_path(folder_paths.get_output_directory(), folder_name)
         saved_files = save_images_to_folder(images, output_dir, filename_prefix, mode=='overwrite')
 
         # Save captions
@@ -1861,7 +1953,7 @@ class SaveTrainingDataset(io.ComfyNode):
                 io.String.Input(
                     "folder_name",
                     default="training_dataset",
-                    tooltip="Name of folder to save dataset (inside output directory).",
+                    tooltip="Name of folder to save the dataset into, inside the datasets directory. Subfolders like 'project/run1' are allowed.",
                 ),
                 io.Int.Input(
                     "shard_size",
@@ -1891,8 +1983,8 @@ class SaveTrainingDataset(io.ComfyNode):
                 f"Something went wrong in dataset preparation."
             )
 
-        # Create output directory
-        output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
+        # Create output directory (inside the datasets root, traversal-safe)
+        output_dir = get_dataset_save_dir(folder_name)
         os.makedirs(output_dir, exist_ok=True)
 
         # Prepare data pairs
@@ -1951,10 +2043,10 @@ class LoadTrainingDataset(io.ComfyNode):
             description="Load encoded training dataset (latents + conditioning) from disk for use in training.",
             is_experimental=True,
             inputs=[
-                io.String.Input(
+                io.Combo.Input(
                     "folder_name",
-                    default="training_dataset",
-                    tooltip="Name of folder containing the saved dataset (inside output directory).",
+                    options=list_dataset_folders(),
+                    tooltip="Saved dataset to load, from the datasets directory.",
                 ),
             ],
             outputs=[
@@ -1973,11 +2065,8 @@ class LoadTrainingDataset(io.ComfyNode):
 
     @classmethod
     def execute(cls, folder_name):
-        # Get dataset directory
-        dataset_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
-
-        if not os.path.exists(dataset_dir):
-            raise ValueError(f"Dataset directory not found: {dataset_dir}")
+        # Get dataset directory (searched across all dataset roots, traversal-safe)
+        dataset_dir = get_dataset_dir(folder_name)
 
         # Find all shard files
         shard_files = sorted(
