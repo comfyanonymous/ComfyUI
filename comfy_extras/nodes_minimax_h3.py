@@ -318,7 +318,7 @@ class MiniMaxH3FrameRate(io.ComfyNode):
             category="advanced/model",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("frame_rate", default=24.0, min=-10.0, max=120.0, step=0.01),
+                io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
                 io.Boolean.Input("adaln", default=True),
                 io.Boolean.Input("temporal_rope", default=False),
             ],
