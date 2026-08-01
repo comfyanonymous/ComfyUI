@@ -698,7 +698,12 @@ class MiniMaxH3Model(nn.Module):
             t_emb = None
             block_modulation, final_modulation = modulation_provider(timestep_values)
         # rotation table computed once per forward, consumed by the kitchen split-half rope
-        rope_freqs = rope_rotation_table(self.rope_freqs(layout.position_ids, device), dtype)
+        position_ids = layout.position_ids
+        rope_frame_rate = transformer_options.get("minimax_h3_rope_frame_rate", None)
+        if rope_frame_rate is not None and rope_frame_rate != 24.0:
+            position_ids = position_ids.clone()
+            position_ids[layout.token_tags == 0, 0] *= 24.0 / rope_frame_rate
+        rope_freqs = rope_rotation_table(self.rope_freqs(position_ids, device), dtype)
 
         # ---- blocks ----
         patches_replace = transformer_options.get("patches_replace", {})

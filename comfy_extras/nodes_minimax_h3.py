@@ -54,9 +54,9 @@ def video_latent_t(frame_count):
     return 2 if frame_count <= 5 else ((frame_count - 5) // 17) * 5 + 2
 
 
-def temporal_shape(length):
+def temporal_shape(length, frame_rate=FPS):
     frame_count = align_frame_count(max(5, length))
-    duration = frame_count / FPS
+    duration = frame_count / frame_rate
     return frame_count, video_latent_t(frame_count), round(duration * AUDIO_LATENT_FPS)
 
 
@@ -81,8 +81,8 @@ def _resize(image, width, height, crop):
     return samples.movedim(1, -1)
 
 
-def _empty_av_latent(width, height, length, batch_size=1):
-    frame_count, latent_t, audio_t = temporal_shape(length)
+def _empty_av_latent(width, height, length, frame_rate=FPS, batch_size=1):
+    frame_count, latent_t, audio_t = temporal_shape(length, frame_rate)
     video = torch.zeros([batch_size, 24, latent_t, height // 16, width // 16],
                         device=comfy.model_management.intermediate_device())
     audio = torch.zeros([batch_size, 32, 2, audio_t],
@@ -102,13 +102,14 @@ class EmptyMiniMaxH3LatentAV(io.ComfyNode):
                 io.Int.Input("width", default=1344, min=32, max=2048, step=32),
                 io.Int.Input("height", default=768, min=32, max=2048, step=32),
                 io.Int.Input("length", default=124, min=5, max=3600, step=17, tooltip="Frame count at 24 fps, snapped up to the model's 17k+5 grid (124 = ~5s; trained range is ~124-362, longer is untested)"),
+                io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
             ],
             outputs=[io.Latent.Output()],
         )
 
     @classmethod
-    def execute(cls, width, height, length) -> io.NodeOutput:
-        latent, _ = _empty_av_latent(width, height, length)
+    def execute(cls, width, height, length, frame_rate=FPS) -> io.NodeOutput:
+        latent, _ = _empty_av_latent(width, height, length, frame_rate)
         return io.NodeOutput(latent)
 
 
@@ -318,17 +319,22 @@ class MiniMaxH3FrameRate(io.ComfyNode):
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
+                io.Boolean.Input("adaln", default=True),
+                io.Boolean.Input("temporal_rope", default=False),
             ],
             outputs=[io.Model.Output()],
         )
 
     @classmethod
-    def execute(cls, model, frame_rate) -> io.NodeOutput:
+    def execute(cls, model, frame_rate, adaln=True, temporal_rope=False) -> io.NodeOutput:
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
         if MODULATION_MODEL_KEY in to:
             raise ValueError("MiniMax H3 Frame Rate must be connected before MiniMax H3 Modulation")
-        to["minimax_h3_frame_rate"] = frame_rate
+        if adaln:
+            to["minimax_h3_frame_rate"] = frame_rate
+        if temporal_rope:
+            to["minimax_h3_rope_frame_rate"] = frame_rate
         return io.NodeOutput(m)
 
 
