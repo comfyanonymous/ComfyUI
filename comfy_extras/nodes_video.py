@@ -97,7 +97,7 @@ class SaveVideo(io.ComfyNode):
                                     "encoding",
                                     display_name="encoding mode",
                                     options=[
-                                        io.DynamicCombo.Option("automatic", []),
+                                        io.DynamicCombo.Option("auto", []),
                                         io.DynamicCombo.Option(
                                             "re-encode",
                                             [io.Float.Input("crf", default=23.0, min=0.0, max=51.0, step=1.0, tooltip="Lower values produce higher quality and larger files.")],
