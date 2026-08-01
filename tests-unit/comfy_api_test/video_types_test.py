@@ -258,6 +258,18 @@ def test_save_to_h264_crf_controls_quality(tmp_path):
     assert os.path.getsize(transcoded) < os.path.getsize(high_quality)
 
 
+def test_save_to_mp4_writes_metadata_before_media(video_components, tmp_path):
+    encoded = tmp_path / "encoded.mp4"
+    remuxed = tmp_path / "remuxed.mp4"
+
+    VideoFromComponents(video_components).save_to(str(encoded), metadata={"prompt": {"test": "value"}})
+    VideoFromFile(str(encoded)).save_to(str(remuxed), metadata={"prompt": {"test": "value"}})
+
+    for path in (encoded, remuxed):
+        data = path.read_bytes()
+        assert data.index(b"moov") < data.index(b"mdat")
+
+
 def create_transcode_source(
     width=64, height=64, frames=30, fps=30, audio_streams=1, undecodable_audio=0, rotation=False,
     container_format="mov", audio_codec="pcm_s16le",
