@@ -534,12 +534,14 @@ class MiniMaxH3Model(nn.Module):
             return text_states
         return self.token_refiner(self.condition_proj(text_states[0])).unsqueeze(0)
 
-    def rope_freqs(self, position_ids, device):
+    def rope_freqs(self, position_ids, device, video_rows=None, temporal_scale=1.0, low_frequency_count=16):
         # [S, 3] float64 -> [S, 96] fp32
         pos = position_ids.to(torch.float32).to(device)
         inv = comfy.model_management.cast_to(self.rope.inv_freq, device=device)
         per_axis = pos.unsqueeze(-1) * inv.view(1, 1, -1)      # [S, 3, 16]
         t_f, h_f, w_f = per_axis.unbind(dim=1)
+        if video_rows is not None and temporal_scale != 1.0 and low_frequency_count > 0:
+            t_f[video_rows, -low_frequency_count:] *= temporal_scale
         half = torch.cat((t_f, h_f, w_f), dim=-1)              # [S, 48]
         return torch.cat((half, half), dim=-1)                 # [S, 96]
 
@@ -699,13 +701,19 @@ class MiniMaxH3Model(nn.Module):
             t_emb = None
             block_modulation, final_modulation = modulation_provider(timestep_values)
         # rotation table computed once per forward, consumed by the kitchen split-half rope
-        position_ids = layout.position_ids
         rope_frame_rate = transformer_options.get("minimax_h3_rope_frame_rate", None)
         rope_end_timestep = transformer_options.get("minimax_h3_rope_end_timestep", 1.0)
+        rope_scale = 1.0
         if rope_frame_rate is not None and rope_frame_rate != 24.0 and t_v <= rope_end_timestep:
-            position_ids = position_ids.clone()
-            position_ids[layout.token_tags == 0, 0] *= 24.0 / rope_frame_rate
-        rope_freqs = rope_rotation_table(self.rope_freqs(position_ids, device), dtype)
+            rope_scale = 24.0 / rope_frame_rate
+            if transformer_options.get("minimax_h3_rope_smooth_taper", False) and rope_end_timestep > 0.0:
+                rope_scale = 1.0 + (rope_scale - 1.0) * (1.0 - t_v / rope_end_timestep)
+        rope_freqs = rope_rotation_table(self.rope_freqs(
+            layout.position_ids, device,
+            video_rows=(layout.token_tags == 0).to(device),
+            temporal_scale=rope_scale,
+            low_frequency_count=transformer_options.get("minimax_h3_rope_low_frequency_count", 16),
+        ), dtype)
 
         # ---- blocks ----
         patches_replace = transformer_options.get("patches_replace", {})
