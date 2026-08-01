@@ -534,14 +534,20 @@ class MiniMaxH3Model(nn.Module):
             return text_states
         return self.token_refiner(self.condition_proj(text_states[0])).unsqueeze(0)
 
-    def rope_freqs(self, position_ids, device, video_rows=None, temporal_scale=1.0, low_frequency_count=16):
+    def rope_freqs(self, position_ids, device, video_rows=None, temporal_scale=1.0,
+                   low_frequency_count=16, frequency_profile="hard"):
         # [S, 3] float64 -> [S, 96] fp32
         pos = position_ids.to(torch.float32).to(device)
         inv = comfy.model_management.cast_to(self.rope.inv_freq, device=device)
         per_axis = pos.unsqueeze(-1) * inv.view(1, 1, -1)      # [S, 3, 16]
         t_f, h_f, w_f = per_axis.unbind(dim=1)
         if video_rows is not None and temporal_scale != 1.0 and low_frequency_count > 0:
-            t_f[video_rows, -low_frequency_count:] *= temporal_scale
+            weights = torch.ones(low_frequency_count, dtype=torch.float32, device=device)
+            if frequency_profile != "hard":
+                weights = torch.linspace(0.0, 1.0, low_frequency_count + 1, dtype=torch.float32, device=device)[1:]
+                if frequency_profile == "smoothstep":
+                    weights = weights.square() * (3.0 - 2.0 * weights)
+            t_f[video_rows, -low_frequency_count:] *= 1.0 + (temporal_scale - 1.0) * weights
         half = torch.cat((t_f, h_f, w_f), dim=-1)              # [S, 48]
         return torch.cat((half, half), dim=-1)                 # [S, 96]
 
@@ -706,13 +712,19 @@ class MiniMaxH3Model(nn.Module):
         rope_scale = 1.0
         if rope_frame_rate is not None and rope_frame_rate != 24.0 and t_v <= rope_end_timestep:
             rope_scale = 24.0 / rope_frame_rate
-            if transformer_options.get("minimax_h3_rope_smooth_taper", False) and rope_end_timestep > 0.0:
-                rope_scale = 1.0 + (rope_scale - 1.0) * (1.0 - t_v / rope_end_timestep)
+            sigma_profile = transformer_options.get("minimax_h3_rope_sigma_profile", "constant")
+            if sigma_profile != "constant":
+                sigma_end = transformer_options.get("minimax_h3_rope_sigma_end", 0.0)
+                sigma_weight = max(0.0, min(1.0, (float(sigma_v) - sigma_end) / (1.0 - sigma_end)))
+                if sigma_profile == "smoothstep":
+                    sigma_weight = sigma_weight * sigma_weight * (3.0 - 2.0 * sigma_weight)
+                rope_scale = 1.0 + (rope_scale - 1.0) * sigma_weight
         rope_freqs = rope_rotation_table(self.rope_freqs(
             layout.position_ids, device,
             video_rows=(layout.token_tags == 0).to(device),
             temporal_scale=rope_scale,
             low_frequency_count=transformer_options.get("minimax_h3_rope_low_frequency_count", 16),
+            frequency_profile=transformer_options.get("minimax_h3_rope_frequency_profile", "hard"),
         ), dtype)
 
         # ---- blocks ----

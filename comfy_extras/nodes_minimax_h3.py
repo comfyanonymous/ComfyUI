@@ -323,14 +323,17 @@ class MiniMaxH3FrameRate(io.ComfyNode):
                 io.Boolean.Input("temporal_rope", default=False),
                 io.Float.Input("rope_end_timestep", default=1.0, min=0.0, max=1.0, step=0.01),
                 io.Int.Input("rope_low_frequency_count", default=16, min=0, max=16),
-                io.Boolean.Input("rope_smooth_taper", default=False),
+                io.Combo.Input("rope_frequency_profile", options=["hard", "linear", "smoothstep"]),
+                io.Combo.Input("rope_sigma_profile", options=["constant", "linear", "smoothstep"]),
+                io.Float.Input("rope_sigma_end", default=0.0, min=0.0, max=0.99, step=0.01),
             ],
             outputs=[io.Model.Output()],
         )
 
     @classmethod
     def execute(cls, model, frame_rate, adaln=True, temporal_rope=False, rope_end_timestep=1.0,
-                rope_low_frequency_count=16, rope_smooth_taper=False) -> io.NodeOutput:
+                rope_low_frequency_count=16, rope_frequency_profile="hard",
+                rope_sigma_profile="constant", rope_sigma_end=0.0) -> io.NodeOutput:
         m = model.clone()
         to = m.model_options["transformer_options"] = m.model_options.get("transformer_options", {}).copy()
         if MODULATION_MODEL_KEY in to:
@@ -341,7 +344,9 @@ class MiniMaxH3FrameRate(io.ComfyNode):
             to["minimax_h3_rope_frame_rate"] = frame_rate
             to["minimax_h3_rope_end_timestep"] = rope_end_timestep
             to["minimax_h3_rope_low_frequency_count"] = rope_low_frequency_count
-            to["minimax_h3_rope_smooth_taper"] = rope_smooth_taper
+            to["minimax_h3_rope_frequency_profile"] = rope_frequency_profile
+            to["minimax_h3_rope_sigma_profile"] = rope_sigma_profile
+            to["minimax_h3_rope_sigma_end"] = rope_sigma_end
         return io.NodeOutput(m)
 
 
