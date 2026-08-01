@@ -205,7 +205,7 @@ class SaveAnimatedWEBP(IO.ComfyNode):
             category="image",
             inputs=[
                 IO.Image.Input("images"),
-                IO.String.Input("filename_prefix", default="ComfyUI"),
+                IO.String.Input("filename_prefix", default="%date:yyyy-MM-dd%/ComfyUI"),
                 IO.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
                 IO.Boolean.Input("lossless", default=True),
                 IO.Int.Input("quality", default=80, min=0, max=100),
@@ -243,7 +243,7 @@ class SaveAnimatedPNG(IO.ComfyNode):
             category="image",
             inputs=[
                 IO.Image.Input("images"),
-                IO.String.Input("filename_prefix", default="ComfyUI"),
+                IO.String.Input("filename_prefix", default="%date:yyyy-MM-dd%/ComfyUI"),
                 IO.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
                 IO.Int.Input("compress_level", default=4, min=0, max=9, advanced=True),
             ],
