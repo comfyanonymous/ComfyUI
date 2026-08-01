@@ -105,8 +105,8 @@ def mp4_output_open_kwargs(path: str | io.BytesIO, format: VideoContainer, codec
         raise ValueError("Only MP4 format is supported for now")
     if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
         raise ValueError("Only H264 codec is supported for now")
-    # FFmpeg's faststart pass reopens the output by filename, so it cannot be used with BytesIO.
-    movflags = "use_metadata_tags" if isinstance(path, io.BytesIO) else "use_metadata_tags+faststart"
+    # FFmpeg's faststart pass reopens the output by filename, so it cannot be used with file-like objects.
+    movflags = "use_metadata_tags+faststart" if isinstance(path, (str, os.PathLike)) else "use_metadata_tags"
     open_kwargs = {"mode": "w", "options": {"movflags": movflags}}
     if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
         open_kwargs["format"] = format.value
