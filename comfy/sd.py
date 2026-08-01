@@ -950,6 +950,7 @@ class VAE:
                 self.downscale_ratio = (lambda a: max(1, (a - 5) // 17 * 5 + 2) if a > 1 else 1, 16, 16)
                 self.downscale_index_formula = (4, 16, 16)
                 self.working_dtypes = [torch.float16, torch.float32]
+                self.disable_offload = True
                 # internal 256px spatial tiling + 17/5 temporal chunking bound activations measured ~1-2GB over weights at 640x384x5s
                 self.memory_used_encode = lambda shape, dtype: (1500 * shape[2] * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (4000 * shape[2] * shape[3] * shape[4]) * model_management.dtype_size(dtype)
