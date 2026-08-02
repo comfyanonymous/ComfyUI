@@ -244,7 +244,7 @@ class CausalAttention(nn.Module):
         q, k, v = qkv.reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4).unbind(0)
 
         # mean over heads then pool down to the latent width (in_dim >> out_dim)
-        x = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        x = comfy.ops.scaled_dot_product_attention(q, k, v, is_causal=True)
         x = F.adaptive_avg_pool1d(torch.mean(x, dim=1), self.out_dim)
         return self.proj(x)
 
