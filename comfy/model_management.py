@@ -684,7 +684,11 @@ def should_free_pins_for_ram_pressure(shortfall):
         return True
     if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
         return True
-    return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+    try:
+        return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+    except RuntimeError as err:
+        logging.warning("Could not read Windows swap usage; falling back to RAM-pressure pin eviction: %s", err)
+        return True
 
 def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.high_ram:
