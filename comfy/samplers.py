@@ -20,7 +20,7 @@ import comfy.hooks
 import comfy.context_windows
 import comfy.multigpu
 import comfy.utils
-from comfy.logging import detail
+from comfy.internal_logging import detail
 import scipy.stats
 import numpy
 
