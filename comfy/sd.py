@@ -951,8 +951,12 @@ class VAE:
                 self.working_dtypes = [torch.float16, torch.float32]
                 # the model tiles internally (256px spatial, 17-frame temporal chunks)
                 self.handles_tiling = True
-                self.memory_used_encode = lambda shape, dtype: (3 * shape[1] * shape[2] * shape[3] * shape[4] + 1_200_000_000) * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: (4000 * shape[2] * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                def estimate_memory(frames, height, width, dtype):
+                    fixed = 84_500_000 if frames == 1 else 1_390_000_000
+                    return (9 * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
+
+                self.memory_used_encode = lambda shape, dtype: estimate_memory(shape[2], shape[3], shape[4], dtype)
+                self.memory_used_decode = lambda shape, dtype: estimate_memory(self.upscale_ratio[0](shape[2]), shape[3] * self.upscale_ratio[1], shape[4] * self.upscale_ratio[2], dtype)
             elif "pre_block.attn.zero_k_bias" in sd:  # MiniMax H3 audio VAE (DAC encoder + BigVGAN decoder)
                 self.first_stage_model = comfy.ldm.minimax.audio_vae.MiniMaxH3AudioVAE()
                 self.latent_channels = 32
