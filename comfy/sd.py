@@ -970,8 +970,11 @@ class VAE:
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float32]
                 # encode gets the waveform shape [B, 2, samples], decode the latent shape [B, 32, 2, T]
-                self.memory_used_encode = lambda shape, dtype: (shape[2] * 600) * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: (shape[-1] * 800 * 600) * model_management.dtype_size(dtype)
+                def estimate_memory(samples, dtype):
+                    return (900 * samples + 30_000_000) * model_management.dtype_size(dtype) * 1.03
+
+                self.memory_used_encode = lambda shape, dtype: estimate_memory(shape[2], dtype)
+                self.memory_used_decode = lambda shape, dtype: estimate_memory(shape[-1] * self.upscale_ratio, dtype)
             elif "gs.base_offset_scale" in sd and "octree.out_proj.weight" in sd:  # TripoSplat octree gaussian decoder
                 self.first_stage_model = comfy.ldm.triposplat.vae.OctreeGaussianDecoder()
                 self.latent_channels = 16
