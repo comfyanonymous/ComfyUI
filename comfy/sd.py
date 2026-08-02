@@ -806,7 +806,7 @@ class VAE:
                     self.memory_used_encode = lambda shape, dtype: (700 * (max(1, (shape[-3] ** 0.66 * 0.11)) * shape[-2] * shape[-1]) * model_management.dtype_size(dtype))
                     self.memory_used_decode = lambda shape, dtype: (50 * (max(1, (shape[-3] ** 0.65 * 0.26)) * shape[-2] * shape[-1] * 32 * 32) * model_management.dtype_size(dtype))
             else:
-                logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
+                logging.warning("WARNING: No VAE weights detected, VAE not initialized.")
                 self.first_stage_model = None
                 return
         else:
