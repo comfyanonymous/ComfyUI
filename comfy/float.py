@@ -14,6 +14,8 @@ if not _CK_STOCHASTIC_ROUNDING_AVAILABLE:
     def _ck_stochastic_rounding_fp8(value, rng, dtype):
         raise NotImplementedError("comfy_kitchen does not support stochastic FP8 rounding")
 
+CK_SLICE_NUMEL = 4096 * 4096
+
 
 def calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, generator=None):
     mantissa_scaled = torch.where(
@@ -73,17 +75,24 @@ def stochastic_rounding(value, dtype, seed=0):
         generator = torch.Generator(device=value.device)
         generator.manual_seed(seed)
 
+        if _CK_STOCHASTIC_ROUNDING_AVAILABLE:
+            def ck_round(chunk):
+                rng = torch.randint(0, 256, chunk.size(), dtype=torch.uint8, layout=chunk.layout, device=chunk.device, generator=generator)
+                return _ck_stochastic_rounding_fp8(chunk, rng, dtype)
+
+            if value.numel() <= CK_SLICE_NUMEL:
+                return ck_round(value)
+
+            num_slices = value.numel() / CK_SLICE_NUMEL
+            slice_size = max(1, round(value.shape[0] / num_slices))
+            output = torch.empty_like(value, dtype=dtype)
+            for i in range(0, value.shape[0], slice_size):
+                output[i:i+slice_size].copy_(ck_round(value[i:i+slice_size]))
+            return output
+
         output = torch.empty_like(value, dtype=dtype)
         num_slices = max(1, (value.numel() / (4096 * 4096)))
         slice_size = max(1, round(value.shape[0] / num_slices))
-
-        if _CK_STOCHASTIC_ROUNDING_AVAILABLE:
-            for i in range(0, value.shape[0], slice_size):
-                chunk = value[i:i+slice_size]
-                rng = torch.randint(0, 256, chunk.size(), dtype=torch.uint8, layout=chunk.layout, device=chunk.device, generator=generator)
-                output[i:i+slice_size].copy_(_ck_stochastic_rounding_fp8(chunk, rng, dtype))
-            return output
-
         for i in range(0, value.shape[0], slice_size):
             output[i:i+slice_size].copy_(manual_stochastic_round_to_float8(value[i:i+slice_size], dtype, generator=generator))
         return output
