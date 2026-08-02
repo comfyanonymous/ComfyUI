@@ -2102,6 +2102,13 @@ class MiniMaxH3(BaseModel):
         if kwargs.get("minimax_audio_cond_noise_aug", None) is not None:
             payload["audio_cond_noise_aug"] = kwargs["minimax_audio_cond_noise_aug"]
         payload["seed"] = kwargs.get("seed", 0)
+        if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
+            # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
+            vs = latent_shapes[0]
+            payload["layout"] = comfy.ldm.minimax.model.PackedLayout(
+                cross_attn.shape[1], vs[2], (vs[3] + 1) // 2 * 2, (vs[4] + 1) // 2 * 2,
+                latent_shapes[1][-1], keyframes=payload.get("keyframes"),
+                refs=payload.get("refs"), frame_count=payload.get("frame_count"))
         out['minimax_payload'] = comfy.conds.CONDConstant(payload)
         return out
 

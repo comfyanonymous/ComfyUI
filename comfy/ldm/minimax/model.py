@@ -396,10 +396,7 @@ class PackedLayout:
         self.img_update = torch.cat(img_update)
         self.audio_pos = torch.cat(audio_pos)
         self.audio_update = torch.cat(audio_update)
-        tags = torch.ones(self.seq_len, dtype=torch.long)  # text default
-        tags[self.audio_pos] = 2
-        tags[self.img_pos] = 0
-        self.token_tags = tags
+        self.signature = (text_len, latent_t, latent_h, latent_w, audio_t)
         # contiguous segment table (start, stop, kind)
         # kinds: text / cond / ref_img / ref_audio / audio / video
         # the packed sequence is uniform per segment in (modality tag, timestep class),
@@ -454,7 +451,6 @@ class MiniMaxH3Model(nn.Module):
             for _ in range(num_layers)])
         self.final_layer = FinalLayer(hidden_size, time_embed_dim, video_patch_dim, audio_latents_dim,
                                       final_norm_eps, **curve, dtype=dtype, device=device, operations=operations)
-        self._layout_cache = {}
 
     def preprocess_text_embeds(self, text_states):
         """[B, L, text_dim] Qwen states -> [B, L, hidden] refined text embeds."""
@@ -470,21 +466,6 @@ class MiniMaxH3Model(nn.Module):
         t_f, h_f, w_f = per_axis.unbind(dim=1)
         half = torch.cat((t_f, h_f, w_f), dim=-1)              # [S, 48]
         return torch.cat((half, half), dim=-1)                 # [S, 96]
-
-    def _layout(self, text_len, latent_t, latent_h, latent_w, audio_t, payload):
-        keyframes = payload.get("keyframes")
-        refs = payload.get("refs")
-        key = (text_len, latent_t, latent_h, latent_w, audio_t,
-               tuple((kf["resolved_frame_index"]) for kf in keyframes) if keyframes else None,
-               tuple((b["kind"], b.get("latent_t", 0), b.get("latent_h", 0), b.get("latent_w", 0),
-                      b.get("ref_audio_t", 0)) for b in refs) if refs else None)
-        layout = self._layout_cache.get(key)
-        if layout is None:
-            layout = PackedLayout(text_len, latent_t, latent_h, latent_w, audio_t,
-                                  keyframes=keyframes, refs=refs,
-                                  frame_count=payload.get("frame_count"))
-            self._layout_cache = {key: layout}  # keep exactly one
-        return layout
 
     def _cond_video_rows(self, payload, device):
         """Concatenated visual condition rows (normalized latents -> patchified), with condition noise augmentation."""
@@ -534,7 +515,13 @@ class MiniMaxH3Model(nn.Module):
         latent_t, lat_h, lat_w = video_x.shape[2], video_x.shape[3], video_x.shape[4]
         audio_t = audio_x.shape[-1]
         text_len = context.shape[1]
-        layout = self._layout(text_len, latent_t, lat_h, lat_w, audio_t, payload)
+        # extra_conds prebuilds the layout once per sampling run
+        layout = payload.get("layout")
+        if layout is None or layout.signature != (text_len, latent_t, lat_h, lat_w, audio_t):
+            layout = PackedLayout(text_len, latent_t, lat_h, lat_w, audio_t,
+                                  keyframes=payload.get("keyframes"),
+                                  refs=payload.get("refs"),
+                                  frame_count=payload.get("frame_count"))
 
         # model_base passes model_sampling.timestep(sigma) = sigma * 1000
         shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
