@@ -82,7 +82,7 @@ class EmptyMiniMaxH3LatentAV(io.ComfyNode):
         return io.Schema(
             node_id="EmptyMiniMaxH3LatentAV",
             display_name="Empty MiniMax H3 AV Latent",
-            category="latent/video",
+            category="model/latent/minimax",
             description="Joint video+audio latent for MiniMax H3. Duration snaps to the model's 17k+5 frame grid at 24 fps.",
             inputs=[
                 io.Int.Input("width", default=1344, min=32, max=nodes.MAX_RESOLUTION, step=32),
@@ -106,7 +106,7 @@ class MiniMaxH3ImageToVideo(io.ComfyNode):
         return io.Schema(
             node_id="MiniMaxH3ImageToVideo",
             display_name="MiniMax H3 Image to Video",
-            category="conditioning/video_models",
+            category="model/conditioning/minimax",
             inputs=[
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),
@@ -166,7 +166,7 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
             node_id="MiniMaxH3ReferenceToVideo",
             description="<Picture i> / <Video k> / <Audio j> reference conditioning for MiniMax H3. Use the same tags when prompting.",
             display_name="MiniMax H3 Reference to Video",
-            category="conditioning/video_models",
+            category="model/conditioning/minimax",
             inputs=[
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),
@@ -241,7 +241,9 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
             if frames.shape[0] > frame_count:
                 frames = frames[:frame_count]
             n = frames.shape[0]
-            while n % 17 != 5 and n > 5:
+            if n < 5:
+                raise ValueError("MiniMax H3 reference videos need at least 5 frames (~0.2s at 24 fps)")
+            while n % 17 != 5:
                 n -= 1
             frames = frames[:n]
             z = vae.encode(frames)
@@ -287,7 +289,7 @@ class MiniMaxH3SigmaShift(io.ComfyNode):
             node_id="MiniMaxH3SigmaShift",
             description="Set the video/audio flow shifts.",
             display_name="MiniMax H3 Sigma Shift",
-            category="advanced/model",
+            category="model/patch/minimax",
             inputs=[
                 io.Model.Input("model"),
                 io.Float.Input("shift_video", default=12.0, min=0.01, max=100.0, step=0.01),
