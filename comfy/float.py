@@ -78,10 +78,6 @@ def stochastic_rounding(value, dtype, seed=0):
         slice_size = max(1, round(value.shape[0] / num_slices))
 
         if _CK_STOCHASTIC_ROUNDING_AVAILABLE:
-            # Slice the same way as the fallback below: the rng buffer is one
-            # uint8 per element, so allocating it for the whole tensor at once
-            # adds transient VRAM proportional to the weight being rounded.
-            # That is enough to OOM a 24GB card while loading a 14B fp8 expert.
             for i in range(0, value.shape[0], slice_size):
                 chunk = value[i:i+slice_size]
                 rng = torch.randint(0, 256, chunk.size(), dtype=torch.uint8, layout=chunk.layout, device=chunk.device, generator=generator)
