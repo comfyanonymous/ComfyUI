@@ -951,12 +951,17 @@ class VAE:
                 self.working_dtypes = [torch.float16, torch.float32]
                 # the model tiles internally (256px spatial, 17-frame temporal chunks)
                 self.handles_tiling = True
-                def estimate_memory(frames, height, width, dtype):
-                    fixed = 84_500_000 if frames == 1 else 1_390_000_000
-                    return (9 * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
+                def estimate_encode_memory(frames, height, width, dtype):
+                    fixed = 110_000_000 if frames == 1 else 1_300_000_000
+                    elements_per_pixel = 7 if frames == 1 else 9.5
+                    return (elements_per_pixel * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
 
-                self.memory_used_encode = lambda shape, dtype: estimate_memory(shape[2], shape[3], shape[4], dtype)
-                self.memory_used_decode = lambda shape, dtype: estimate_memory(self.upscale_ratio[0](shape[2]), shape[3] * self.upscale_ratio[1], shape[4] * self.upscale_ratio[2], dtype)
+                def estimate_decode_memory(frames, height, width, dtype):
+                    fixed = 110_000_000 if frames <= 22 else 270_000_000
+                    return (9.5 * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
+
+                self.memory_used_encode = lambda shape, dtype: estimate_encode_memory(shape[2], shape[3], shape[4], dtype)
+                self.memory_used_decode = lambda shape, dtype: estimate_decode_memory(self.upscale_ratio[0](shape[2]), shape[3] * self.upscale_ratio[1], shape[4] * self.upscale_ratio[2], dtype)
             elif "pre_block.attn.zero_k_bias" in sd:  # MiniMax H3 audio VAE (DAC encoder + BigVGAN decoder)
                 self.first_stage_model = comfy.ldm.minimax.audio_vae.MiniMaxH3AudioVAE()
                 self.latent_channels = 32
@@ -970,8 +975,14 @@ class VAE:
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float32]
                 # encode gets the waveform shape [B, 2, samples], decode the latent shape [B, 32, 2, T]
-                self.memory_used_encode = lambda shape, dtype: (shape[2] * 600) * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: (shape[-1] * 800 * 600) * model_management.dtype_size(dtype)
+                def estimate_encode_memory(samples, dtype):
+                    return (900 * samples + 105_000_000) * model_management.dtype_size(dtype) * 1.03
+
+                def estimate_decode_memory(samples, dtype):
+                    return max(42_000_000, 220 * samples + 20_000_000) * model_management.dtype_size(dtype) * 1.03
+
+                self.memory_used_encode = lambda shape, dtype: estimate_encode_memory(shape[2], dtype)
+                self.memory_used_decode = lambda shape, dtype: estimate_decode_memory(shape[-1] * self.upscale_ratio, dtype)
             elif "gs.base_offset_scale" in sd and "octree.out_proj.weight" in sd:  # TripoSplat octree gaussian decoder
                 self.first_stage_model = comfy.ldm.triposplat.vae.OctreeGaussianDecoder()
                 self.latent_channels = 16
