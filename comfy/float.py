@@ -14,6 +14,8 @@ if not _CK_STOCHASTIC_ROUNDING_AVAILABLE:
     def _ck_stochastic_rounding_fp8(value, rng, dtype):
         raise NotImplementedError("comfy_kitchen does not support stochastic FP8 rounding")
 
+_CK_SLICE_NUMEL = 4096 * 4096
+
 
 def _ck_stochastic_round_slice(value, dtype, generator):
     rng = torch.randint(0, 256, value.size(), dtype=torch.uint8, layout=value.layout, device=value.device, generator=generator)
@@ -79,14 +81,19 @@ def stochastic_rounding(value, dtype, seed=0):
         generator.manual_seed(seed)
 
         if _CK_STOCHASTIC_ROUNDING_AVAILABLE:
-            if value.numel() <= 4096 * 4096:
+            if value.numel() <= _CK_SLICE_NUMEL:
                 return _ck_stochastic_round_slice(value, dtype, generator)
 
-            num_slices = value.numel() / (4096 * 4096)
-            slice_size = max(1, round(value.shape[0] / num_slices))
             output = torch.empty_like(value, dtype=dtype)
-            for i in range(0, value.shape[0], slice_size):
-                output[i:i+slice_size].copy_(_ck_stochastic_round_slice(value[i:i+slice_size], dtype, generator))
+            rows_per_slice = _CK_SLICE_NUMEL // (value.numel() // value.shape[0])
+            if rows_per_slice > 0:
+                for i in range(0, value.shape[0], rows_per_slice):
+                    output[i:i+rows_per_slice].copy_(_ck_stochastic_round_slice(value[i:i+rows_per_slice], dtype, generator))
+            else:
+                flat_value = value.reshape(-1)
+                flat_output = output.reshape(-1)
+                for i in range(0, flat_value.numel(), _CK_SLICE_NUMEL):
+                    flat_output[i:i+_CK_SLICE_NUMEL].copy_(_ck_stochastic_round_slice(flat_value[i:i+_CK_SLICE_NUMEL], dtype, generator))
             return output
 
         output = torch.empty_like(value, dtype=dtype)
