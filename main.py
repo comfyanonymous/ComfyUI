@@ -19,7 +19,7 @@ import time
 from comfy.cli_args import enables_dynamic_vram
 from app.logger import setup_logger
 console_log_level = get_console_log_level(args.verbose)
-file_log_outputs = [('DETAIL', 'comfyui_detail.log'), *get_file_log_outputs(args.verbose)]
+file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
 from app.assets.seeder import asset_seeder
@@ -58,11 +58,16 @@ if __name__ == "__main__" and args.debug_hang:
 import comfy_aimdo.control
 
 if enables_dynamic_vram():
+    simple_vram_headroom = None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3)
     try:
-        comfy_aimdo.control.init(simple_vram_headroom=None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3))
+        comfy_aimdo.control.init(simple_vram_headroom=simple_vram_headroom, nvml_pressure=not args.disable_nvml_pressure)
     except TypeError:
-        # comfy-aimdo 0.4.9 protocol.
-        comfy_aimdo.control.init()
+        # comfy-aimdo 0.4.10 protocol.
+        try:
+            comfy_aimdo.control.init(simple_vram_headroom=simple_vram_headroom)
+        except TypeError:
+            # comfy-aimdo 0.4.9 protocol.
+            comfy_aimdo.control.init()
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
