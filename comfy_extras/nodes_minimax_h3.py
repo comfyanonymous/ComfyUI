@@ -175,6 +175,8 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
                 io.Int.Input("width", default=1344, min=32, max=nodes.MAX_RESOLUTION, step=32),
                 io.Int.Input("height", default=768, min=32, max=nodes.MAX_RESOLUTION, step=32),
                 io.Int.Input("length", default=124, min=5, max=3600, step=17, tooltip="Frame count at 24 fps, (124 = ~5s, trained range is ~124-362)"),
+                io.Combo.Input("ref_image_size", options=["match", "max"], default="match",
+                    tooltip="Reference image sizing. 'match' scales each ref (down only, keeping aspect) to the generation's pixel area; 'max' uses the reference pipeline's 2048px short edge for best identity fidelity. Reference tokens ride through every sampling step, so 'max' can be several times slower."),
                 io.Autogrow.Input("ref_images", optional=True,
                     template=io.Autogrow.TemplatePrefix(
                         input=io.Image.Input("ref_image", tooltip="Reference image (downscaled to 2048 short edge if larger, never upscaled)"),
@@ -206,7 +208,7 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
         return z, z.shape[-1]
 
     @classmethod
-    def execute(cls, clip, vae, audio_vae, prompt, width, height, length,
+    def execute(cls, clip, vae, audio_vae, prompt, width, height, length, ref_image_size="match",
                 ref_images=None, ref_videos=None, ref_video_audios=None, ref_audios=None) -> io.NodeOutput:
         latent, frame_count = _empty_av_latent(width, height, length)
 
@@ -217,8 +219,11 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
             if img is None:
                 continue
             h, w = img.shape[1], img.shape[2]
-            # downscale large refs to the reference canvas
-            scale = min(1.0, REF_IMAGE_SHORT_EDGE / min(w, h))
+            if ref_image_size == "match":
+                # aspect-preserving scale (down only) to the generation's pixel area
+                scale = min(1.0, math.sqrt((width * height) / (w * h)))
+            else:
+                scale = min(1.0, REF_IMAGE_SHORT_EDGE / min(w, h))
             tw = max(CANVAS_MULTIPLE, round(w * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
             th = max(CANVAS_MULTIPLE, round(h * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
             resized = _resize(img[:1], tw, th, "disabled")
