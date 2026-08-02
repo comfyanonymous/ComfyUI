@@ -1169,11 +1169,67 @@ class VAE:
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
 
+    def _tiled_shape_candidates(self, shape, dims, tile_x, tile_y, tile_t):
+        """Per-tile shapes the tiled path can actually feed the first stage model.
+
+        comfy.utils.tiled_scale / tiled_scale_multidim narrow every tiled axis to
+        min(tile, dim) before invoking the model, so the activation workspace
+        scales with the tile rather than with the whole tensor.
+
+        decode_tiled_ / encode_tiled_ blend three passes with different tile
+        geometries -- (tx, ty), (tx * 2, ty // 2) and (tx // 2, ty * 2) -- so all
+        of them are returned and the caller takes the largest estimate. Clamping
+        to (tx, ty) alone would under-estimate when one axis is smaller than its
+        tile while the other is not.
+
+        An empty list means no tile-aware estimate is available.
+        """
+        s = list(shape)
+        if dims == 3:
+            # tiled_scale_multidim is called with tile=(tile_t, tile_x, tile_y)
+            geometries = [(tile_t, tile_x, tile_y)]
+            axes = (2, 3, 4)
+        elif dims == 2:
+            # tiled_scale forwards (tile_y, tile_x) to tiled_scale_multidim
+            def scaled(t, mul, div):
+                return None if t is None else max(1, t * mul // div)
+            geometries = [(tile_y, tile_x),
+                          (scaled(tile_y, 1, 2), scaled(tile_x, 2, 1)),
+                          (scaled(tile_y, 2, 1), scaled(tile_x, 1, 2))]
+            axes = (2, 3)
+        elif dims == 1:
+            geometries = [(tile_x,)]
+            axes = (2,)
+        else:
+            return []
+
+        out = []
+        for geom in geometries:
+            c = list(s)
+            for axis, tile in zip(axes, geom):
+                if tile is not None and axis < len(c):
+                    c[axis] = min(c[axis], max(1, int(tile)))
+            out.append(tuple(c))
+        return out
+
+    def _tiled_memory_used(self, shape, dims, tile_x, tile_y, tile_t, encode=False):
+        """Largest reservation any single tile of this tiled run can need."""
+        fn = self.memory_used_encode if encode else self.memory_used_decode
+        candidates = self._tiled_shape_candidates(shape, dims, tile_x, tile_y, tile_t)
+        if not candidates:
+            return fn(shape, self.vae_dtype)
+        return max(fn(c, self.vae_dtype) for c in candidates)
+
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
         self.throw_exception_if_invalid()
-        memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
-        model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
         dims = samples.ndim - 2
+        if self.handles_tiling or dims == 1 or self.extra_1d_channel is not None:
+            # Model-owned tilers pick their own chunking and the 1d path reshapes
+            # before tiling, so keep the conservative full-shape estimate.
+            memory_used = self.memory_used_decode(samples.shape, self.vae_dtype)
+        else:
+            memory_used = self._tiled_memory_used(samples.shape, dims, tile_x, tile_y, tile_t)
+        model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
         args = {}
         if tile_x is not None:
             args["tile_x"] = tile_x
@@ -1270,7 +1326,12 @@ class VAE:
             else:
                 pixel_samples = pixel_samples.unsqueeze(2)
 
-        memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)  # TODO: calculate mem required for tile
+        if self.handles_tiling or dims == 1:
+            # Model-owned tilers pick their own chunking and the 1d path reshapes
+            # before tiling, so keep the conservative full-shape estimate.
+            memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
+        else:
+            memory_used = self._tiled_memory_used(pixel_samples.shape, dims, tile_x, tile_y, tile_t, encode=True)
         model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
 
         args = {}
