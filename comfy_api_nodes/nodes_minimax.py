@@ -467,7 +467,7 @@ def _hailuo03_model_inputs(include_ratio: bool = True, allow_adaptive: bool = Tr
         ),
         IO.Combo.Input(
             "resolution",
-            options=["2K"],
+            options=["768P", "2K"],
             tooltip="Resolution of the output video.",
         ),
     ]
@@ -578,11 +578,12 @@ class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model.duration"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model.resolution", "model.duration"]),
                 expr="""
                 (
                   $dur := $lookup(widgets, "model.duration");
-                  {"type": "usd", "usd": $dur * 0.1859}
+                  $rate := $lookup(widgets, "model.resolution") = "768p" ? 0.1287 : 0.1859;
+                  {"type": "usd", "usd": $dur * $rate}
                 )
                 """,
             ),
@@ -660,11 +661,12 @@ class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model.duration"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model.resolution", "model.duration"]),
                 expr="""
                 (
                   $dur := $lookup(widgets, "model.duration");
-                  {"type": "usd", "usd": $dur * 0.1859}
+                  $rate := $lookup(widgets, "model.resolution") = "768p" ? 0.1287 : 0.1859;
+                  {"type": "usd", "usd": $dur * $rate}
                 )
                 """,
             ),
@@ -818,20 +820,21 @@ class MinimaxHailuo03ReferenceNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(
-                    widgets=["model.duration"],
+                    widgets=["model.resolution", "model.duration"],
                     input_groups=["model.reference_images", "model.reference_videos"],
                 ),
                 expr="""
                 (
                   $dur := $lookup(widgets, "model.duration");
+                  $rate := $lookup(widgets, "model.resolution") = "768p" ? 0.1287 : 0.1859;
                   $imgsRaw := $lookup(inputGroups, "model.reference_images");
                   $imgs := $imgsRaw ? $imgsRaw : 0;
                   $vidsRaw := $lookup(inputGroups, "model.reference_videos");
                   $vids := $vidsRaw ? $vidsRaw : 0;
-                  $base := $dur * 0.1859 + ($imgs > 5 ? ($imgs - 5) * 0.0572 : 0);
+                  $base := $dur * $rate + ($imgs > 5 ? ($imgs - 5) * 0.0572 : 0);
                   $vids > 0
-                    ? {"type": "range_usd", "min_usd": $base + $vids * 2 * 0.1859,
-                       "max_usd": $base + 15 * 0.1859, "format": {"approximate": true}}
+                    ? {"type": "range_usd", "min_usd": $base + $vids * 2 * $rate,
+                       "max_usd": $base + 15 * $rate, "format": {"approximate": true}}
                     : {"type": "usd", "usd": $base}
                 )
                 """,

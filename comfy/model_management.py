@@ -671,6 +671,19 @@ def pin_eviction_tiers(loaded, evict_active):
             tiers.append((PIN_SUBSETS, True, True))
     return tiers
 
+def registration_eviction_tiers(evict_active):
+    subsets = PIN_SUBSETS + LOADED_PIN_SUBSETS
+    tiers = [
+        (subsets, False, False),
+        (subsets, True, False),
+    ]
+    if evict_active:
+        tiers.extend([
+            (subsets, False, True),
+            (subsets, True, True),
+        ])
+    return tiers
+
 def free_pins(size, evict_active=False, loaded=False):
     freed = 0
     for subsets, current_prompt, active in pin_eviction_tiers(loaded, evict_active):
@@ -703,19 +716,19 @@ def ensure_pin_budget(size, evict_active=False, loaded=False):
     to_free = shortfall + PIN_PRESSURE_HYSTERESIS
     return free_pins(to_free, evict_active=evict_active, loaded=loaded) >= shortfall
 
-def free_registrations(shortfall, evict_active=True, loaded=False):
+def free_registrations(shortfall, evict_active=True):
     if MAX_PINNED_MEMORY <= 0:
         return False
     if shortfall <= 0:
         return True
 
     shortfall += REGISTERABLE_PIN_HYSTERESIS
-    for subsets, current_prompt, active in pin_eviction_tiers(loaded, evict_active):
+    for subsets, current_prompt, active in registration_eviction_tiers(evict_active):
         shortfall -= free_model_pins(shortfall, subsets, current_prompt, active, registrations=True)
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
-def ensure_pin_registerable(size, evict_active=True, loaded=False):
-    return free_registrations(TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY, evict_active=evict_active, loaded=loaded)
+def ensure_pin_registerable(size, evict_active=True):
+    return free_registrations(TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY, evict_active=evict_active)
 
 class LoadedModel:
     def __init__(self, model: ModelPatcher):
