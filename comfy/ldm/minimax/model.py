@@ -1,8 +1,7 @@
 """MiniMax H3 audio-video DiT.
 
 Single-stream packed-token transformer denoising video (24ch, patch 1x2x2) and
-stereo audio (32ch, 40 Hz) latents jointly, conditioned on Qwen3-VL layer-50
-hidden states. 
+stereo audio (32ch, 40 Hz) latents jointly, conditioned on Qwen3-VL layer-50 hidden states.
 The packed sequence is:
 [text | cond rows | audio | video] for t2va/fl2va
 [text | reference blocks | audio | video] for ref2va
