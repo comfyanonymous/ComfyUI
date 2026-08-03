@@ -21,6 +21,7 @@ import comfy.ldm.hunyuan3dv2_1.hunyuandit
 import torch
 import logging
 import comfy.ldm.lightricks.av_model
+import comfy.ldm.minimax.model
 import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
@@ -2062,6 +2063,57 @@ class Hunyuan3Dv2_1(BaseModel):
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+
+class MiniMaxH3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3Model)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            # run condition_proj + token refiner once per sampling instead of per step
+            cross_attn = self.diffusion_model.preprocess_text_embeds(
+                cross_attn.to(device=kwargs["device"], dtype=self.get_dtype_inference()))
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        latent_shapes = kwargs.get("latent_shapes", None)
+        if latent_shapes is not None:
+            out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+
+        # Everything H3-specific rides in one dict so _apply_model's dtype cast
+        # (which would flatten fp32 cond latents and long tags to bf16) skips it.
+        payload = {}
+        tags = kwargs.get("minimax_token_tags", None)
+        if tags is not None:
+            payload["text_token_tags"] = tags
+        keyframes = kwargs.get("minimax_keyframes", None)
+        if keyframes is not None:
+            payload["keyframes"] = keyframes
+            payload["frame_count"] = kwargs.get("minimax_frame_count", None)
+            payload["cond_video_latents"] = [kf["latent"] for kf in keyframes]
+        refs = kwargs.get("minimax_refs", None)
+        if refs is not None:
+            payload["refs"] = refs
+            payload["cond_video_latents"] = [r["latent"] for r in refs if "latent" in r]
+            payload["cond_audio_latents"] = [r["audio_latent"] for r in refs if r.get("audio_latent") is not None]
+        if kwargs.get("minimax_visual_cond_noise_aug", None) is not None:
+            payload["visual_cond_noise_aug"] = kwargs["minimax_visual_cond_noise_aug"]
+        if kwargs.get("minimax_audio_cond_noise_aug", None) is not None:
+            payload["audio_cond_noise_aug"] = kwargs["minimax_audio_cond_noise_aug"]
+        payload["seed"] = kwargs.get("seed", 0)
+        if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
+            # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
+            vs = latent_shapes[0]
+            payload["layout"] = comfy.ldm.minimax.model.PackedLayout(
+                cross_attn.shape[1], vs[2], (vs[3] + 1) // 2 * 2, (vs[4] + 1) // 2 * 2,
+                latent_shapes[1][-1], keyframes=payload.get("keyframes"),
+                refs=payload.get("refs"), frame_count=payload.get("frame_count"))
+        out['minimax_payload'] = comfy.conds.CONDConstant(payload)
+        return out
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        return latent_image
 
 class TripoSplat(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

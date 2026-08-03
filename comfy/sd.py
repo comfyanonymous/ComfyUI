@@ -72,6 +72,9 @@ import comfy.text_encoders.ace15
 import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
 import comfy.text_encoders.qwen3vl
+import comfy.text_encoders.minimax
+import comfy.ldm.minimax.vae
+import comfy.ldm.minimax.audio_vae
 import comfy.text_encoders.boogu
 import comfy.text_encoders.ernie
 import comfy.text_encoders.gemma4
@@ -936,6 +939,50 @@ class VAE:
                 #Force cast it for --disable-dynamic-vram users until there is a true core fix.
                 if not comfy.memory_management.aimdo_enabled:
                     self.disable_offload = True
+            elif "decoder.transformer_blocks.0.scale1" in sd and "encoder.down.5.block.0.conv1.weight" in sd:  # MiniMax H3 video VAE
+                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE()
+                self.latent_channels = 24
+                self.latent_dim = 3
+                # frames 17k+5 <-> latents 5k+2, 16x spatial
+                self.upscale_ratio = (lambda a: max(1, (a - 2) // 5 * 17 + 5), 16, 16)
+                self.upscale_index_formula = (4, 16, 16)
+                self.downscale_ratio = (lambda a: max(1, (a - 5) // 17 * 5 + 2) if a > 1 else 1, 16, 16)
+                self.downscale_index_formula = (4, 16, 16)
+                self.working_dtypes = [torch.float16, torch.float32]
+                # the model tiles internally (256px spatial, 17-frame temporal chunks)
+                self.handles_tiling = True
+                def estimate_encode_memory(frames, height, width, dtype):
+                    fixed = 110_000_000 if frames == 1 else 1_300_000_000
+                    elements_per_pixel = 7 if frames == 1 else 9.5
+                    return (elements_per_pixel * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
+
+                def estimate_decode_memory(frames, height, width, dtype):
+                    fixed = 110_000_000 if frames <= 22 else 270_000_000
+                    return (9.5 * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
+
+                self.memory_used_encode = lambda shape, dtype: estimate_encode_memory(shape[2], shape[3], shape[4], dtype)
+                self.memory_used_decode = lambda shape, dtype: estimate_decode_memory(self.upscale_ratio[0](shape[2]), shape[3] * self.upscale_ratio[1], shape[4] * self.upscale_ratio[2], dtype)
+            elif "pre_block.attn.zero_k_bias" in sd:  # MiniMax H3 audio VAE (DAC encoder + BigVGAN decoder)
+                self.first_stage_model = comfy.ldm.minimax.audio_vae.MiniMaxH3AudioVAE()
+                self.latent_channels = 32
+                self.output_channels = 2
+                self.pad_channel_value = "replicate"
+                self.audio_sample_rate = 32000
+                self.upscale_ratio = 800
+                self.downscale_ratio = 800
+                self.latent_dim = 2  # [B, 32, stereo 2, T]
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float32]
+                # encode gets the waveform shape [B, 2, samples], decode the latent shape [B, 32, 2, T]
+                def estimate_encode_memory(samples, dtype):
+                    return (900 * samples + 105_000_000) * model_management.dtype_size(dtype) * 1.03
+
+                def estimate_decode_memory(samples, dtype):
+                    return max(42_000_000, 220 * samples + 20_000_000) * model_management.dtype_size(dtype) * 1.03
+
+                self.memory_used_encode = lambda shape, dtype: estimate_encode_memory(shape[2], dtype)
+                self.memory_used_decode = lambda shape, dtype: estimate_decode_memory(shape[-1] * self.upscale_ratio, dtype)
             elif "gs.base_offset_scale" in sd and "octree.out_proj.weight" in sd:  # TripoSplat octree gaussian decoder
                 self.first_stage_model = comfy.ldm.triposplat.vae.OctreeGaussianDecoder()
                 self.latent_channels = 16
@@ -1393,6 +1440,7 @@ class CLIPType(Enum):
     KREA2 = 32
     JOYIMAGE = 33
     MAGE = 34
+    MINIMAX = 35
 
 
 
@@ -1449,6 +1497,7 @@ class TEModel(Enum):
     QWEN3VL_4B = 34
     QWEN3VL_8B = 35
     GEMMA_4_12B = 36
+    QWEN3VL_32B = 37
 
 
 def detect_te_model(sd):
@@ -1515,6 +1564,9 @@ def detect_te_model(sd):
         return TEModel.QWEN35_2B
     if "model.visual.deepstack_merger_list.0.norm.weight" in sd:  # DeepStack is unique to Qwen3-VL
         return TEModel.QWEN3VL_4B if sd["model.visual.merger.linear_fc2.weight"].shape[0] == 2560 else TEModel.QWEN3VL_8B
+    if "visual.deepstack_merger_list.0.norm.weight" in sd and "model.layers.49.self_attn.q_proj.weight" in sd:
+        # MiniMax H3 conditioning encoder: Qwen3-VL-32B, truncated to 50 layers
+        return TEModel.QWEN3VL_32B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         weight = sd['model.layers.0.post_attention_layernorm.weight']
         if 'model.layers.0.self_attn.q_norm.weight' in sd:
@@ -1744,6 +1796,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 qwen3vl_type = {TEModel.QWEN3VL_4B: "qwen3vl_4b", TEModel.QWEN3VL_8B: "qwen3vl_8b"}[te_model]
                 clip_target.clip = comfy.text_encoders.qwen3vl.te(**llama_detect(clip_data), model_type=qwen3vl_type)
                 clip_target.tokenizer = comfy.text_encoders.qwen3vl.tokenizer(model_type=qwen3vl_type)
+        elif te_model == TEModel.QWEN3VL_32B:
+            clip_target.clip = comfy.text_encoders.minimax.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.minimax.MiniMaxH3Tokenizer
         elif te_model == TEModel.QWEN3_06B:
             clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.anima.AnimaTokenizer
