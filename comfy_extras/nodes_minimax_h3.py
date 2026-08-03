@@ -280,20 +280,21 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
         return io.NodeOutput(cond, latent)
 
 
-class MiniMaxH3SigmaShift(io.ComfyNode):
+class ModelSamplingMiniMaxH3(io.ComfyNode):
     """Set the video/audio flow shifts coherently.
 
-    The video shift drives the sampler's sigma schedule; both values are also
-    handed to the DiT, which inverts the video schedule to the shared base grid
-    and derives the audio schedule from it.
+    The video shift drives the sampler's sigma schedule (ModelSamplingAV); both
+    values are also handed to the DiT, which inverts the video schedule to the
+    shared base grid and derives the audio schedule from it.
     """
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3SigmaShift",
+            node_id="ModelSamplingMiniMaxH3",
             description="Set the video/audio flow shifts.",
-            display_name="MiniMax H3 Sigma Shift",
+            display_name="ModelSamplingMiniMaxH3",
+            search_aliases=["sigma shift", "minimax shift"],
             category="model/patch/minimax",
             inputs=[
                 io.Model.Input("model"),
@@ -307,12 +308,13 @@ class MiniMaxH3SigmaShift(io.ComfyNode):
     def execute(cls, model, shift_video, shift_audio) -> io.NodeOutput:
         m = model.clone()
 
-        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingDiscreteFlow, comfy.model_sampling.CONST):
+        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingAV, comfy.model_sampling.CONST):
             pass
 
         original = m.get_model_object("model_sampling")
+        # ModelSamplingAV keeps per-stream (audio schedule) noise handling intact
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_parameters(shift=shift_video)
+        model_sampling.set_parameters(shift=shift_video, audio_shift=shift_audio)
         if hasattr(original, "noise_scale"):
             model_sampling.set_noise_scale(original.noise_scale)
         m.add_object_patch("model_sampling", model_sampling)
@@ -329,7 +331,7 @@ class MiniMaxH3Extension(ComfyExtension):
             EmptyMiniMaxH3LatentAV,
             MiniMaxH3ImageToVideo,
             MiniMaxH3ReferenceToVideo,
-            MiniMaxH3SigmaShift
+            ModelSamplingMiniMaxH3,
             ]
 
 

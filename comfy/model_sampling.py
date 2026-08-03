@@ -325,6 +325,59 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
             return 0.0
         return time_snr_shift(self.shift, 1.0 - percent)
 
+class ModelSamplingAV(ModelSamplingDiscreteFlow):
+    """Flow sampling for packed audio-video latents where the audio stream runs on
+    its own flow shift (sampling_settings "audio_shift"). The model's extra_conds
+    stashes latent_shapes each run; each stream is then noised at its own sigma."""
+    def __init__(self, model_config=None):
+        super().__init__(model_config)
+        sampling_settings = model_config.sampling_settings if model_config is not None else {}
+        self.audio_shift = sampling_settings.get("audio_shift", None)
+        self.latent_shapes = None
+
+    def set_parameters(self, shift=1.0, audio_shift=None, timesteps=1000, multiplier=1000):
+        self.audio_shift = audio_shift
+        super().set_parameters(shift=shift, timesteps=timesteps, multiplier=multiplier)
+
+    def audio_sigma(self, sigma):
+        """The audio stream's sigma at the sampler's (video) sigma."""
+        shift_a = self.shift if self.audio_shift is None else self.audio_shift
+        base = float(sigma) / (self.shift + float(sigma) * (1.0 - self.shift))
+        return shift_a * base / (1.0 + (shift_a - 1.0) * base)
+
+    def _column_sigmas(self, sigma, device):
+        # [1, 1, N]: video columns get the sampler's sigma, audio columns their own
+        cols = [torch.full((math.prod(s[1:]),), v, device=device) for s, v in zip(self.latent_shapes, (float(sigma), self.audio_sigma(sigma)))]
+        return torch.cat(cols).reshape(1, 1, -1)
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        if self.latent_shapes is None:  # not sampling the packed AV latent
+            return super().noise_scaling(sigma, noise, latent_image, max_denoise)
+        sigmas = self._column_sigmas(sigma, noise.device)
+        return sigmas * (self.noise_scale * noise) + (1.0 - sigmas) * latent_image
+
+    def inverse_noise_scaling(self, sigma, latent):
+        if self.latent_shapes is None:
+            return super().inverse_noise_scaling(sigma, latent)
+        return latent / (1.0 - self._column_sigmas(sigma, latent.device))
+
+    def scale_stochastic_noise(self, noise, sigma, sigma_next):
+        # per-stream / sampler-schedule ratio of RF-ancestral noise magnitudes;
+        # exact for euler_ancestral, first order for the other stochastic samplers
+        s_from, s_to = float(sigma), float(sigma_next)
+        if self.latent_shapes is None or s_to <= 0.0 or s_from <= s_to:
+            return noise
+
+        def coeff_sq(sf, st):
+            sigma_down = st * st / sf
+            return st ** 2 - sigma_down ** 2 * (1.0 - st) ** 2 / (1.0 - sigma_down) ** 2
+
+        base = coeff_sq(s_from, s_to)
+        if base <= 0.0:
+            return noise
+        cols = coeff_sq(self._column_sigmas(s_from, noise.device), self._column_sigmas(s_to, noise.device))
+        return noise * (cols.clamp(min=0.0).sqrt() / base ** 0.5)
+
 class StableCascadeSampling(ModelSamplingDiscrete):
     def __init__(self, model_config=None):
         super().__init__()

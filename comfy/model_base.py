@@ -100,6 +100,7 @@ class ModelType(Enum):
     FLOW_COSMOS = 10
     IMG_TO_IMG_FLOW = 11
     V_PREDICTION_DDPM = 12
+    FLOW_AV = 13
 
 
 def model_sampling(model_config, model_type):
@@ -136,6 +137,9 @@ def model_sampling(model_config, model_type):
         c = comfy.model_sampling.IMG_TO_IMG_FLOW
     elif model_type == ModelType.V_PREDICTION_DDPM:
         c = comfy.model_sampling.V_PREDICTION_DDPM
+    elif model_type == ModelType.FLOW_AV:
+        c = comfy.model_sampling.CONST
+        s = comfy.model_sampling.ModelSamplingAV
 
     class ModelSampling(s, c):
         pass
@@ -2065,7 +2069,7 @@ class Hunyuan3Dv2_1(BaseModel):
         return out
 
 class MiniMaxH3(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+    def __init__(self, model_config, model_type=ModelType.FLOW_AV, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3Model)
 
     def extra_conds(self, **kwargs):
@@ -2080,6 +2084,8 @@ class MiniMaxH3(BaseModel):
         latent_shapes = kwargs.get("latent_shapes", None)
         if latent_shapes is not None:
             out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+
+        self.model_sampling.latent_shapes = latent_shapes
 
         # Everything H3-specific rides in one dict so _apply_model's dtype cast
         # (which would flatten fp32 cond latents and long tags to bf16) skips it.

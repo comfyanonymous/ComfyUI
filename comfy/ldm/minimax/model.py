@@ -9,8 +9,9 @@ The packed sequence is:
 Timestep domain: the model receives the *video* sigma from the sampler and
 derives per-token timesteps t = 1 - sigma internally; the audio stream runs on
 its own shifted schedule (sigma_shift video 12.0 / audio 3.0), mapped from the
-video sigma in closed form. The audio velocity is returned scaled by the
-schedule map's derivative d(sigma_a)/d(sigma_v).
+video sigma in closed form. _forward returns raw per-stream velocity; forward()
+scales the audio velocity by d(sigma_a)/d(sigma_v) so stock samplers can
+integrate the flat pack on the video schedule.
 """
 
 import math
@@ -496,11 +497,19 @@ class MiniMaxH3Model(nn.Module):
         return torch.cat(rows, dim=0) if rows else None
 
     def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
-        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+        out = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload, **kwargs)
+        # scale the audio velocity by d(sigma_a)/d(sigma_v) so the flat ODE on video
+        # sigmas integrates the audio stream correctly; done outside the wrappers so
+        # they see the raw velocity
+        shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
+        shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
+        sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
+        out[1] = out[1] * time_shift_slope(sigma_v, shift_v, shift_a).to(out[1].dtype)
+        return out
 
     def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
         video_x, audio_x = x[0], x[1]
@@ -639,8 +648,4 @@ class MiniMaxH3Model(nn.Module):
         video_out = video_out[:, :, :orig_t, :orig_h, :orig_w]
         audio_out = unpack_audio(a)
 
-        # The sampler integrates the flat ODE dX/dsigma_v = (X - denoised)/sigma_v.
-        # Scaling the audio velocity by d(sigma_a)/d(sigma_v) makes that ODE equal
-        # to the audio stream's true ODE on its own shifted schedule.
-        slope_a = time_shift_slope(sigma_v, shift_v, shift_a).to(audio_out.dtype)
-        return [-video_out.to(video_x.dtype), (-slope_a) * audio_out.to(audio_x.dtype)]
+        return [-video_out.to(video_x.dtype), -audio_out.to(audio_x.dtype)]
