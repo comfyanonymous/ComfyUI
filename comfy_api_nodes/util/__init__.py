@@ -6,6 +6,7 @@ from .client import (
     sync_op,
     sync_op_raw,
 )
+from .common_exceptions import TaskFailedError
 from .conversions import (
     audio_bytes_to_audio_input,
     audio_input_to_mp3,
@@ -67,6 +68,7 @@ __all__ = [
     "poll_op_raw",
     "sync_op",
     "sync_op_raw",
+    "TaskFailedError",
     # Upload helpers
     "upload_3d_model_to_comfyapi",
     "upload_audio_to_comfyapi",

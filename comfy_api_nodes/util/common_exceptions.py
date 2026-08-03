@@ -12,3 +12,11 @@ class ApiServerError(NetworkError):
 
 class ProcessingInterrupted(Exception):
     """Operation was interrupted by user/runtime via processing_interrupted()."""
+
+
+class TaskFailedError(Exception):
+    """A polled remote task finished with a failed status. Carries the raw response payload."""
+
+    def __init__(self, message: str, response: dict):
+        super().__init__(message)
+        self.response = response

@@ -2,7 +2,7 @@ import torch
 import asyncio
 from typing import Dict
 from comfy.utils import ProgressBar
-from comfy_execution.graph_utils import GraphBuilder
+from comfy_execution.graph_utils import GraphBuilder, RecoverableNodeError
 from comfy.comfy_types.node_typing import ComfyNodeABC
 from comfy.comfy_types import IO
 
@@ -133,6 +133,190 @@ class TestSyncError(ComfyNodeABC):
 
     def sync_error(self, value):
         raise RuntimeError("Intentional sync execution error for testing")
+
+
+class TestRecoverableSyncError(ComfyNodeABC):
+    """Test node that raises RecoverableNodeError synchronously."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": (IO.ANY, {}),
+            },
+        }
+
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "sync_error"
+    CATEGORY = "experimental/async"
+
+    def sync_error(self, value):
+        raise RecoverableNodeError("Intentional recoverable sync error for testing")
+
+
+class TestRecoverableAsyncError(ComfyNodeABC):
+    """Test node that raises RecoverableNodeError during async execution."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": (IO.ANY, {}),
+                "error_after": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 10.0}),
+            },
+        }
+
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "error_execution"
+    CATEGORY = "experimental/async"
+
+    async def error_execution(self, value, error_after):
+        await asyncio.sleep(error_after)
+        raise RecoverableNodeError("Intentional recoverable async error for testing")
+
+
+class TestOOMError(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"value": (IO.ANY, {})}}
+
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "oom_error"
+    CATEGORY = "experimental/async"
+
+    def oom_error(self, value):
+        raise torch.OutOfMemoryError("Intentional out of memory error for testing")
+
+
+class TestMixedExpansionFailure(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"value": ("INT", {}), "recoverable": ("BOOLEAN", {"default": False})}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "expand"
+    CATEGORY = "experimental/async"
+
+    def expand(self, value, recoverable):
+        image = torch.zeros([1, 32, 32, 3])
+        if value == 0:
+            return (image,)
+
+        graph = GraphBuilder()
+        error_class = "TestRecoverableSyncError" if recoverable else "TestSyncError"
+        error = graph.node(error_class, value=image)
+        return {
+            "result": (error.out(0),),
+            "expand": graph.finalize(),
+        }
+
+
+class TestMalformedExpansion(ComfyNodeABC):
+    """Expands to a graph referencing a missing node class, so the failure
+    happens in the executor after the node function has returned."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"value": (IO.ANY, {})}}
+
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "expand"
+    CATEGORY = "experimental/async"
+
+    def expand(self, value):
+        graph = GraphBuilder()
+        missing = graph.node("TestNodeClassThatDoesNotExist", value=value)
+        return {
+            "result": (missing.out(0),),
+            "expand": graph.finalize(),
+        }
+
+
+class TestMalformedResult(ComfyNodeABC):
+    """Returns a non-tuple result so the failure happens while the executor
+    merges results, after the node function has returned."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"value": (IO.ANY, {})}}
+
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "run"
+    CATEGORY = "experimental/async"
+
+    def run(self, value):
+        return 5
+
+
+class TestCyclicExpansion(ComfyNodeABC):
+    """Expands to an output node that consumes this node's own pending output,
+    forming a cycle through the expansion completion link."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {"value": (IO.ANY, {})},
+            "hidden": {"unique_id": "UNIQUE_ID"},
+        }
+
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "expand"
+    CATEGORY = "experimental/async"
+
+    def expand(self, value, unique_id):
+        graph = GraphBuilder()
+        graph.node("TestAsyncOutput", value=[unique_id, 0], seconds=0.0)
+        return {
+            "result": (value,),
+            "expand": graph.finalize(),
+        }
+
+
+class TestExpansionWithFailingOutput(ComfyNodeABC):
+    """Expands to a subgraph whose result succeeds while a side branch ending
+    in an output node fails."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"image": (IO.IMAGE, {}), "recoverable": ("BOOLEAN", {"default": False})}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "expand"
+    CATEGORY = "experimental/async"
+
+    def expand(self, image, recoverable):
+        graph = GraphBuilder()
+        error_class = "TestRecoverableSyncError" if recoverable else "TestSyncError"
+        error = graph.node(error_class, value=image)
+        graph.node("PreviewImage", images=error.out(0))
+        passthrough = graph.node("StubImage", content="WHITE", height=32, width=32, batch_size=1)
+        return {
+            "result": (passthrough.out(0),),
+            "expand": graph.finalize(),
+        }
+
+
+class TestAsyncOutput(ComfyNodeABC):
+    """Async output node with no return sockets, used to test partial failure
+    handling across pending async invocations."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": (IO.ANY, {}),
+                "seconds": (IO.FLOAT, {"default": 0.1}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "experimental/async"
+
+    async def run(self, value, seconds=0.1):
+        await asyncio.sleep(seconds)
+        return {"ui": {"values": [1]}}
 
 
 class TestAsyncLazyCheck(ComfyNodeABC):
@@ -322,6 +506,15 @@ ASYNC_TEST_NODE_CLASS_MAPPINGS = {
     "TestAsyncValidationError": TestAsyncValidationError,
     "TestAsyncTimeout": TestAsyncTimeout,
     "TestSyncError": TestSyncError,
+    "TestRecoverableSyncError": TestRecoverableSyncError,
+    "TestRecoverableAsyncError": TestRecoverableAsyncError,
+    "TestOOMError": TestOOMError,
+    "TestMixedExpansionFailure": TestMixedExpansionFailure,
+    "TestMalformedExpansion": TestMalformedExpansion,
+    "TestMalformedResult": TestMalformedResult,
+    "TestCyclicExpansion": TestCyclicExpansion,
+    "TestExpansionWithFailingOutput": TestExpansionWithFailingOutput,
+    "TestAsyncOutput": TestAsyncOutput,
     "TestAsyncLazyCheck": TestAsyncLazyCheck,
     "TestDynamicAsyncGeneration": TestDynamicAsyncGeneration,
     "TestAsyncResourceUser": TestAsyncResourceUser,
@@ -335,6 +528,15 @@ ASYNC_TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestAsyncValidationError": "Test Async Validation Error",
     "TestAsyncTimeout": "Test Async Timeout",
     "TestSyncError": "Test Sync Error",
+    "TestRecoverableSyncError": "Test Recoverable Sync Error",
+    "TestRecoverableAsyncError": "Test Recoverable Async Error",
+    "TestOOMError": "Test OOM Error",
+    "TestMixedExpansionFailure": "Test Mixed Expansion Failure",
+    "TestMalformedExpansion": "Test Malformed Expansion",
+    "TestMalformedResult": "Test Malformed Result",
+    "TestCyclicExpansion": "Test Cyclic Expansion",
+    "TestExpansionWithFailingOutput": "Test Expansion With Failing Output",
+    "TestAsyncOutput": "Test Async Output",
     "TestAsyncLazyCheck": "Test Async Lazy Check",
     "TestDynamicAsyncGeneration": "Test Dynamic Async Generation",
     "TestAsyncResourceUser": "Test Async Resource User",

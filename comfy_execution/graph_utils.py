@@ -153,3 +153,18 @@ class ExecutionBlocker:
     """
     def __init__(self, message):
         self.message = message
+
+
+class ExecutionFailureBlocker(ExecutionBlocker):
+    def __init__(self, node_id):
+        super().__init__(None)
+        self.node_id = node_id
+
+
+class RecoverableNodeError(Exception):
+    """
+    Raise this from a node to mark the failure as local to that node. Independent parts of the
+    workflow keep executing, nodes depending on the failed node are blocked, and the failure is
+    reported per node. Only raise it when the failure cannot affect other branches, for example a
+    remote API rejecting one specific generation request.
+    """

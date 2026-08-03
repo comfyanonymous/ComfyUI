@@ -10,6 +10,7 @@ from typing_extensions import override
 
 from comfy.utils import common_upscale
 from comfy_api.latest import IO, ComfyExtension, Input, Types
+from comfy_execution.graph_utils import RecoverableNodeError
 from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS,
     RECOMMENDED_PRESETS_SEEDREAM_4,
@@ -60,6 +61,7 @@ from comfy_api_nodes.util import (
     image_tensor_pair_to_batch,
     poll_op,
     sync_op,
+    TaskFailedError,
     tensor_to_base64_string,
     upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
@@ -404,6 +406,30 @@ def _seedance2_price_extractor(model_id: str, has_video_input: bool, resolution:
         return response.usage.total_tokens * 1.43 * rate / 1_000.0
 
     return extractor
+
+
+# Failure codes that only affect this one generation request: the failure is reported for the
+# node, but independent parts of the workflow keep running instead of aborting the whole prompt.
+_SEEDANCE2_RECOVERABLE_ERROR_CODES = frozenset({
+    "OutputVideoSensitiveContentDetected.PolicyViolation",
+})
+
+
+async def _poll_seedance2_task(cls: type[IO.ComfyNode], task_id: str, price_extractor) -> TaskStatusResponse:
+    try:
+        return await poll_op(
+            cls,
+            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: r.status,
+            price_extractor=price_extractor,
+            poll_interval=9,
+        )
+    except TaskFailedError as e:
+        error = e.response.get("error")
+        if isinstance(error, dict) and error.get("code") in _SEEDANCE2_RECOVERABLE_ERROR_CODES:
+            raise RecoverableNodeError(str(e)) from e
+        raise
 
 
 def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
@@ -1789,13 +1815,10 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
             ),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
+        response = await _poll_seedance2_task(
             cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
-            poll_interval=9,
+            initial_response.id,
+            _seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -2009,13 +2032,10 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
             ),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
+        response = await _poll_seedance2_task(
             cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
-            poll_interval=9,
+            initial_response.id,
+            _seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -2367,15 +2387,10 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             ),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
+        response = await _poll_seedance2_task(
             cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(
-                model_id, has_video_input=has_video_input, resolution=model["resolution"]
-            ),
-            poll_interval=9,
+            initial_response.id,
+            _seedance2_price_extractor(model_id, has_video_input=has_video_input, resolution=model["resolution"]),
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 

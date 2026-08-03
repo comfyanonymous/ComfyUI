@@ -30,7 +30,7 @@ from ._helpers import (
     is_processing_interrupted,
     sleep_with_interrupt,
 )
-from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
+from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted, TaskFailedError
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -430,7 +430,7 @@ async def poll_op_raw(
             if status in failed_states:
                 msg = f"Task failed: {json.dumps(resp_json)}"
                 logging.error(msg)
-                raise Exception(msg)
+                raise TaskFailedError(msg, resp_json)
 
             try:
                 await sleep_with_interrupt(poll_interval, cls, None, None, None)
@@ -458,7 +458,7 @@ async def poll_op_raw(
         )
     except ProcessingInterrupted:
         raise
-    except (LocalNetworkError, ApiServerError):
+    except (LocalNetworkError, ApiServerError, TaskFailedError):
         raise
     except Exception as e:
         raise Exception(f"Polling aborted due to error: {e}") from e
