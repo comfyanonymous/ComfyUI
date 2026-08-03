@@ -154,6 +154,7 @@ class Attention(nn.Module):
         self.out_proj = operations.Linear(inner, hidden, bias=False, dtype=dtype, device=device)
 
     def forward(self, x, rope_freqs=None, transformer_options={}):
+        patches = transformer_options.get("patches", {})
         s = x.shape[0]
         q, k, v = self.qkv_proj(x).split(self.heads * self.head_dim, dim=-1)
         v = v.view(s, self.heads, self.head_dim)
@@ -179,6 +180,11 @@ class Attention(nn.Module):
         k = k.transpose(0, 1).unsqueeze(0)
         v = v.transpose(0, 1).unsqueeze(0)
         out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
+
+        if "attn1_patch" in patches:
+            for p in patches["attn1_patch"]:
+                out = p({"x": out, "q": q, "k": k, "transformer_options": transformer_options})
+
         return self.out_proj(out.squeeze(0))
 
 
@@ -615,7 +621,10 @@ class MiniMaxH3Model(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.blocks), device, transformer_options)
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
