@@ -176,14 +176,34 @@ class Attention(nn.Module):
         else:
             q = self.q_norm(q.view(s, self.heads, self.head_dim))
             k = self.k_norm(k.view(s, self.heads, self.head_dim))
-        q = q.transpose(0, 1).unsqueeze(0)
-        k = k.transpose(0, 1).unsqueeze(0)
-        v = v.transpose(0, 1).unsqueeze(0)
-        out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
+        extra_options = None
+        if "attn1_patch" in patches or "attn1_output_patch" in patches:
+            extra_options = {
+                key: value
+                for key, value in transformer_options.items()
+                if key not in ("patches", "patches_replace")
+            }
+            extra_options["n_heads"] = self.heads
+            extra_options["dim_head"] = self.head_dim
 
         if "attn1_patch" in patches:
+            q = q.reshape(1, s, -1)
+            k = k.reshape(1, s, -1)
+            v = v.reshape(1, s, -1)
             for p in patches["attn1_patch"]:
-                out = p({"x": out, "q": q, "k": k, "transformer_options": transformer_options})
+                q, k, v = p(q, k, v, extra_options)
+            q = q.view(q.shape[0], q.shape[1], self.heads, self.head_dim).transpose(1, 2)
+            k = k.view(k.shape[0], k.shape[1], self.heads, self.head_dim).transpose(1, 2)
+            v = v.view(v.shape[0], v.shape[1], self.heads, self.head_dim).transpose(1, 2)
+        else:
+            q = q.transpose(0, 1).unsqueeze(0)
+            k = k.transpose(0, 1).unsqueeze(0)
+            v = v.transpose(0, 1).unsqueeze(0)
+        out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
+
+        if "attn1_output_patch" in patches:
+            for p in patches["attn1_output_patch"]:
+                out = p(out, extra_options)
 
         return self.out_proj(out.squeeze(0))
 
