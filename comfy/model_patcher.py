@@ -38,7 +38,7 @@ import comfy.patcher_extension
 import comfy.utils
 import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
-from comfy.logging import detail
+from comfy.internal_logging import detail
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
