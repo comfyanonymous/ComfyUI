@@ -818,6 +818,30 @@ class TestExecution:
         except urllib.error.HTTPError:
             pass  # Expected behavior
 
+    def test_cached_outputs_in_job_without_client_id(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        image = g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+        output = g.node("SaveImage", images=image.out(0))
+
+        # Prime the cache with a normal run.
+        client.run(g)
+
+        # Resubmit anonymously (no client_id) so output nodes are cache hits with no websocket client.
+        data = json.dumps({"prompt": g.finalize()}).encode('utf-8')
+        req = urllib.request.Request(f"http://{client.server_address}/prompt", data=data)
+        prompt_id = json.loads(urllib.request.urlopen(req).read())['prompt_id']
+
+        for _ in range(100):
+            job = client.get_job(prompt_id)
+            if job is not None and job['status'] not in ('pending', 'in_progress'):
+                break
+            time.sleep(0.1)
+        else:
+            raise AssertionError("Prompt did not complete in time")
+
+        assert job['status'] == 'completed'
+        assert output.id in job['outputs'], "Cached outputs must appear in job outputs without a client_id"
+
     def _create_history_item(self, client, builder):
         g = GraphBuilder(prefix="offset_test")
         input_node = g.node(

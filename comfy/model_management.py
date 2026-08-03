@@ -34,6 +34,7 @@ import comfy.utils
 import comfy.quant_ops
 import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
+from comfy.internal_logging import detail
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -481,7 +482,7 @@ except:
 
 SUPPORT_FP8_OPS = args.supports_fp8_compute
 
-AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]
+AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1035", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]
 AMD_ENABLE_MIOPEN_ENV = 'COMFYUI_ENABLE_MIOPEN'
 
 try:
@@ -624,6 +625,8 @@ PIN_PRESSURE_HYSTERESIS = 256 * 1024 * 1024
 #Freeing registerables on pressure does imply a GPU sync, so go big on
 #the hysteresis so each expensive sync gives us back a good chunk.
 REGISTERABLE_PIN_HYSTERESIS = 2048 * 1024 * 1024
+WINDOWS_PIN_EVICTION_SWAP_PERCENT = 5.0
+WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE = 512 * 1024 ** 2
 
 def module_size(module):
     module_mem = 0
@@ -638,19 +641,77 @@ def mark_mmap_dirty(storage):
     if mmap_refs is not None:
         DIRTY_MMAPS.add(mmap_refs[0])
 
-def free_pins(size, evict_active=False):
+PIN_SUBSETS = [ "weights", "patches" ]
+LOADED_PIN_SUBSETS = [ "weights-loaded", "patches-loaded" ]
+
+def models_for_pin_eviction(active, current_prompt=None):
+    for loaded_model in current_loaded_models:
+        model = loaded_model.model
+        if model is None or not model.is_dynamic():
+            continue
+        pin_state = model.model.dynamic_pins[model.load_device]
+        if ((active is None or pin_state["active"] == active) and
+            (current_prompt is None or pin_state["current_prompt"] == current_prompt)):
+            yield model
+
+def free_model_pins(size, subsets, current_prompt, active, registrations=False):
     freed_total = 0
-    for loaded_model in reversed(current_loaded_models):
+    for model in models_for_pin_eviction(active, current_prompt=current_prompt):
         if size <= 0:
             return freed_total
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
-            freed = model.partially_unload_ram(size)
-            freed_total += freed
-            size -= freed
+        if registrations:
+            freed = model.unregister_inactive_pins(size, subsets=subsets)
+        else:
+            freed = model.partially_unload_ram(size, subsets=subsets)
+        freed_total += freed
+        size -= freed
     return freed_total
 
-def ensure_pin_budget(size, evict_active=False):
+def pin_eviction_tiers(loaded, evict_active):
+    tiers = [
+        (PIN_SUBSETS, False, None),
+        (LOADED_PIN_SUBSETS, False, None),
+        (LOADED_PIN_SUBSETS, True, None),
+    ]
+    if not loaded:
+        tiers.append((PIN_SUBSETS, True, False))
+        if evict_active:
+            tiers.append((PIN_SUBSETS, True, True))
+    return tiers
+
+def registration_eviction_tiers(evict_active):
+    subsets = PIN_SUBSETS + LOADED_PIN_SUBSETS
+    tiers = [
+        (subsets, False, False),
+        (subsets, True, False),
+    ]
+    if evict_active:
+        tiers.extend([
+            (subsets, False, True),
+            (subsets, True, True),
+        ])
+    return tiers
+
+def free_pins(size, evict_active=False, loaded=False):
+    freed = 0
+    for subsets, current_prompt, active in pin_eviction_tiers(loaded, evict_active):
+        freed += free_model_pins(size - freed, subsets, current_prompt, active)
+    return freed
+
+def should_free_pins_for_ram_pressure(shortfall):
+    if shortfall <= 0:
+        return False
+    if not WINDOWS:
+        return True
+    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+        return True
+    try:
+        return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+    except RuntimeError as err:
+        logging.warning("Could not read Windows swap usage; falling back to RAM-pressure pin eviction: %s", err)
+        return True
+
+def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.high_ram:
         return True
     if args.fast_disk:
@@ -661,7 +722,7 @@ def ensure_pin_budget(size, evict_active=False):
         return True
 
     to_free = shortfall + PIN_PRESSURE_HYSTERESIS
-    return free_pins(to_free, evict_active=evict_active) >= shortfall
+    return free_pins(to_free, evict_active=evict_active, loaded=loaded) >= shortfall
 
 def free_registrations(shortfall, evict_active=True):
     if MAX_PINNED_MEMORY <= 0:
@@ -670,19 +731,8 @@ def free_registrations(shortfall, evict_active=True):
         return True
 
     shortfall += REGISTERABLE_PIN_HYSTERESIS
-    for loaded_model in reversed(current_loaded_models):
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and not model.model.dynamic_pins[model.load_device]["active"]:
-            shortfall -= model.unregister_inactive_pins(shortfall)
-            if shortfall <= 0:
-                return True
-    if evict_active:
-        for loaded_model in current_loaded_models:
-            model = loaded_model.model
-            if model is not None and model.is_dynamic() and model.model.dynamic_pins[model.load_device]["active"]:
-                shortfall -= model.unregister_inactive_pins(shortfall)
-                if shortfall <= 0:
-                    return True
+    for subsets, current_prompt, active in registration_eviction_tiers(evict_active):
+        shortfall -= free_model_pins(shortfall, subsets, current_prompt, active, registrations=True)
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
 def ensure_pin_registerable(size, evict_active=True):
@@ -812,6 +862,8 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins_required=0, ram_required=0):
     cleanup_models_gc()
+    if not for_dynamic:
+        detail("Non dynamic memory free called! memory_required=%s pins_required=%s ram_required=%s", memory_required, pins_required, ram_required)
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -957,6 +1009,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         )
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
         logging.info(f"Loading model {model_name} complete")
+        vram_used = 0 if is_device_cpu(torch_dev) else loaded_model.model_loaded_memory()
+        ram_used = model.loaded_ram_size() if model.is_dynamic() else loaded_model.model_memory() - vram_used
+        detail("Model loaded: patcher=%s model=%s ram_mb=%.1f vram_mb=%.1f", model.__class__.__name__, model.model.__class__.__name__, ram_used / (1024 ** 2), vram_used / (1024 ** 2))
         current_loaded_models.insert(0, loaded_model)
     return
 
@@ -1383,15 +1438,17 @@ def reset_cast_buffers():
             pin_state = model.model.dynamic_pins[model.load_device]
 
             if pin_state["active"]:
-                *_, buckets = pin_state["weights"]
-                for size, bucket in list(buckets.items()):
-                    bucket[:] = [ entry for entry in bucket if entry[-1] is not None ]
-                    if not bucket:
-                        del buckets[size]
+                for subset in ("weights", "weights-loaded"):
+                    *_, buckets = pin_state[subset]
+                    for size, bucket in list(buckets.items()):
+                        bucket[:] = [ entry for entry in bucket if entry[-1] is not None ]
+                        if not bucket:
+                            del buckets[size]
 
             pin_state["active"] = False
-            model.partially_unload_ram(1e30, subsets=[ "patches" ])
-            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0], [0], {})
+            model.partially_unload_ram(1e30, subsets=[ "patches", "patches-loaded" ])
+            for subset in ("patches", "patches-loaded"):
+                pin_state[subset] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0], [0], {})
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
