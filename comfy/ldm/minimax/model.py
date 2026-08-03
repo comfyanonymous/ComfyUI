@@ -191,7 +191,11 @@ class Attention(nn.Module):
             k = k.reshape(1, s, -1)
             v = v.reshape(1, s, -1)
             for p in patches["attn1_patch"]:
-                q, k, v = p(q, k, v, extra_options)
+                out = p(q, k, v, extra_options=extra_options)
+                if isinstance(out, dict):
+                    q, k, v = out.get("q", q), out.get("k", k), out.get("v", v)
+                else:
+                    q, k, v = out
             q = q.view(q.shape[0], q.shape[1], self.heads, self.head_dim).transpose(1, 2)
             k = k.view(k.shape[0], k.shape[1], self.heads, self.head_dim).transpose(1, 2)
             v = v.view(v.shape[0], v.shape[1], self.heads, self.head_dim).transpose(1, 2)
