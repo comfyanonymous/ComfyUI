@@ -42,6 +42,8 @@ ComfyUI is the AI creation engine for visual professionals who demand control ov
 - The most sophisticated workflows can be exposed through a simple UI thanks to App Mode.
 - It integrates seamlessly into production pipelines with our API endpoints.
 
+> **Note:** The same OpenAI Python client also works with OpenAI-compatible multi-model gateways when you are not self-hosting — for example [DaoXE](https://daoxe.com?utm_source=github&utm_medium=pr&utm_campaign=dao-xe-docs) at `https://api.daoxe.com/v1`.
+
 ## Get Started
 
 ### Local
