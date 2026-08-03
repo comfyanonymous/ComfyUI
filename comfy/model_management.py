@@ -29,6 +29,7 @@ import weakref
 import gc
 import os
 from contextlib import contextmanager, nullcontext
+import comfy.cgroup_memory
 import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
@@ -318,7 +319,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
+        mem_total = comfy.cgroup_memory.virtual_memory_total()
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -361,7 +362,7 @@ def mac_version():
         return None
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
-total_ram = psutil.virtual_memory().total / (1024 * 1024)
+total_ram = comfy.cgroup_memory.virtual_memory_total() / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
 
 try:
@@ -703,7 +704,7 @@ def should_free_pins_for_ram_pressure(shortfall):
         return False
     if not WINDOWS:
         return True
-    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+    if comfy.cgroup_memory.virtual_memory_available() < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
         return True
     try:
         return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
@@ -717,7 +718,7 @@ def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.fast_disk:
         shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     else:
-        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - psutil.virtual_memory().available
+        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - comfy.cgroup_memory.virtual_memory_available()
     if shortfall <= 0:
         return True
 
@@ -1751,7 +1752,7 @@ def get_free_memory(dev=None, torch_free_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_free_total = psutil.virtual_memory().available
+        mem_free_total = comfy.cgroup_memory.virtual_memory_available()
         mem_free_torch = mem_free_total
     else:
         if directml_enabled:
