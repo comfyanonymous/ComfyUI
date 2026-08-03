@@ -1549,13 +1549,16 @@ def get_disk_swap_total():
         return 0
 
     total = 0
-    with open("/proc/swaps", encoding="utf-8") as swaps:
-        next(swaps, None)
-        for line in swaps:
-            filename, _, size, _, _ = line.rsplit(maxsplit=4)
-            if os.path.basename(os.path.realpath(filename)).startswith("zram"):
-                continue
-            total += int(size) * 1024
+    try:
+        with open("/proc/swaps", encoding="utf-8") as swaps:
+            next(swaps, None)
+            for line in swaps:
+                filename, _, size, _, _ = line.rsplit(maxsplit=4)
+                if os.path.basename(os.path.realpath(filename)).startswith("zram"):
+                    continue
+                total += int(size) * 1024
+    except:
+        logging.warning("Could not get amount of swap memory on system.")
     return total
 
 if not args.disable_pinned_memory:
