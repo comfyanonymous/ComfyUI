@@ -1,3 +1,5 @@
+import math
+
 import torch
 from pydantic import BaseModel
 from typing_extensions import override
@@ -1062,12 +1064,15 @@ def _flux3_parse_times(value: str, image_count: int, duration: int | str) -> lis
         times = [float(part) for part in parts]
     except ValueError as exc:
         raise ValueError(f"Keyframe times must be numbers in seconds, comma-separated; got '{value}'.") from exc
+    if not all(math.isfinite(time) for time in times):
+        raise ValueError(f"Keyframe times must be finite numbers in seconds; got '{value}'.")
     if any(later <= earlier for earlier, later in zip(times, times[1:])):
         raise ValueError(f"Keyframe times must increase; got {times}.")
     if times[0] < 0:
         raise ValueError(f"Keyframe times cannot be negative; got {times[0]}.")
-    if isinstance(duration, int) and times[-1] > duration:
-        raise ValueError(f"Keyframe time {times[-1]}s is past the end of a {duration}s clip.")
+    cap = _FLUX3_MAX_DURATION if duration == "auto" else int(duration)
+    if times[-1] > cap:
+        raise ValueError(f"Keyframe time {times[-1]}s is past the end of a {cap}s clip.")
     return times
 
 
