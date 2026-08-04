@@ -21,6 +21,8 @@ PRIMING = [gemma4.Gemma4_31B, gemma4.Gemma4_12B]
 
 class _CaptureTemplate:
     """Stands in for SDTokenizer.tokenize_with_weights so the built template is checked without model files."""
+    llama_text = ""
+
     def tokenize_with_weights(self, text, return_word_ids=False, **kwargs):
         self.llama_text = text
         return {}
