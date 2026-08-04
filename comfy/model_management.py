@@ -374,8 +374,8 @@ except:
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
-    OOM_EXCEPTION = Exception
+except Exception:
+    OOM_EXCEPTION = MemoryError
 
 try:
     ACCELERATOR_ERROR = torch.AcceleratorError
@@ -1760,9 +1760,12 @@ def get_free_memory(dev=None, torch_free_too=False):
             mem_free_total = mem_free_mlu + mem_free_torch
         else:
             stats = torch.cuda.memory_stats(dev)
-            mem_active = stats['active_bytes.all.current']
-            mem_reserved = stats['reserved_bytes.all.current']
-            mem_free_cuda, _ = torch.cuda.mem_get_info(dev)
+            mem_active = stats.get('active_bytes.all.current', 0)
+            mem_reserved = stats.get('reserved_bytes.all.current', 0)
+            try:
+                mem_free_cuda, _ = torch.cuda.mem_get_info(dev)
+            except Exception:
+                mem_free_cuda = 0
             mem_free_torch = mem_reserved - mem_active
             mem_free_total = mem_free_cuda + mem_free_torch
 
