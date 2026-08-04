@@ -46,7 +46,8 @@ def is_nvfp4_layer(metadata, layer_name):
 
     NVFP4 qdata has half the columns of the original weight; model config
     detection must double the dims of such layers or the architecture is
-    built with wrong sizes.
+    built with wrong sizes. Malformed quantization metadata raises a clear
+    error instead of silently deriving wrong dimensions.
     """
     if not metadata:
         return False
@@ -54,10 +55,17 @@ def is_nvfp4_layer(metadata, layer_name):
     if not qm:
         return False
     try:
-        layers = json.loads(qm).get("layers", {})
-    except Exception:
+        parsed = json.loads(qm)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError(f"Invalid _quantization_metadata in model metadata: {e}") from e
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("layers"), dict):
+        raise ValueError('Invalid _quantization_metadata: expected an object with a "layers" object')
+    layer_conf = parsed["layers"].get(layer_name)
+    if layer_conf is None:
         return False
-    return layers.get(layer_name, {}).get("format") == "nvfp4"
+    if not isinstance(layer_conf, dict):
+        raise ValueError(f"Invalid _quantization_metadata: layer {layer_name!r} is not an object")
+    return layer_conf.get("format") == "nvfp4"
 
 
 def detect_unet_config(state_dict, key_prefix, metadata=None):
