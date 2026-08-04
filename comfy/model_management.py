@@ -2050,11 +2050,18 @@ def unload_text_encoders_for_sampling(loading_models):
     if loading_models and all(m.is_clip for m in loading_models):
         return
 
+    requested_clip_uuids = set()
+    for m in loading_models or []:
+        if m.is_clip:
+            requested_clip_uuids.add(m.clone_base_uuid)
+
     freed_bytes = 0.0
     unloaded = False
     for i in range(len(current_loaded_models) - 1, -1, -1):
         loaded = current_loaded_models[i]
         if loaded.is_dead() or not loaded.model.is_clip:
+            continue
+        if loaded.model.clone_base_uuid in requested_clip_uuids:
             continue
         freed_bytes += loaded.model_loaded_memory()
         loaded.model_unload()
