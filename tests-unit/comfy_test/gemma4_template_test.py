@@ -1,8 +1,13 @@
+"""Gemma4 chat template regression tests."""
+
+import torch
+
 from comfy.cli_args import args
 
-args.cpu = True  # importing comfy.model_management probes the torch device at import time
+if not torch.cuda.is_available():
+    args.cpu = True
 
-from comfy.text_encoders.gemma4 import Gemma4_Tokenizer
+from comfy.text_encoders.gemma4 import Gemma4_Tokenizer  # noqa: E402
 
 PROMPT = "describe a cute anime girl with fennec ears"
 
