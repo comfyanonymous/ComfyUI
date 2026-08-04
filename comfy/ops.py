@@ -73,6 +73,8 @@ try:
             ]
 
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
+                    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
                 attn_mask = args[0] if len(args) > 0 else kwargs.get("attn_mask")
                 if kwargs.get("enable_gqa", False) and attn_mask is not None and not comfy.model_management.is_nvidia():
                     k, v = repeat_kv_for_gqa(k, v, q.shape[-3], -3)
