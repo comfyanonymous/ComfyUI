@@ -51,21 +51,23 @@ def is_nvfp4_layer(metadata, layer_name):
     """
     if not metadata:
         return False
-    qm = metadata.get("_quantization_metadata")
-    if not qm:
+    if "_quantization_metadata" not in metadata:
         return False
+    qm = metadata["_quantization_metadata"]
     try:
         parsed = json.loads(qm)
     except (json.JSONDecodeError, TypeError) as e:
         raise ValueError(f"Invalid _quantization_metadata in model metadata: {e}") from e
     if not isinstance(parsed, dict) or not isinstance(parsed.get("layers"), dict):
         raise ValueError('Invalid _quantization_metadata: expected an object with a "layers" object')
-    layer_conf = parsed["layers"].get(layer_name)
-    if layer_conf is None:
+    if layer_name not in parsed["layers"]:
         return False
-    if not isinstance(layer_conf, dict):
+    layer_conf = parsed["layers"][layer_name]
+    if layer_conf is None or not isinstance(layer_conf, dict):
         raise ValueError(f"Invalid _quantization_metadata: layer {layer_name!r} is not an object")
-    return layer_conf.get("format") == "nvfp4"
+    if not isinstance(layer_conf.get("format"), str):
+        raise ValueError(f"Invalid _quantization_metadata: layer {layer_name!r} has no format")
+    return layer_conf["format"] == "nvfp4"
 
 
 def detect_unet_config(state_dict, key_prefix, metadata=None):
