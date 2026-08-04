@@ -917,6 +917,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             models_temp[mm] = None
 
     models = list(models_temp)
+    unload_text_encoders_for_sampling(models)
     models.reverse()
 
     models_to_load = []
@@ -2039,6 +2040,35 @@ def soft_empty_cache(force=False):
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+
+def unload_text_encoders_for_sampling(loading_models):
+    # Release CLIP / text encoder weights before loading diffusion models.
+    # Conditioning is already tensors; keeping TE on GPU starves the UNet on ~16GB cards.
+    if vram_state == VRAMState.HIGH_VRAM or cpu_mode():
+        return
+    # Prompt encoding loads CLIP/T5 only — keep them resident.
+    if loading_models and all(m.is_clip for m in loading_models):
+        return
+
+    freed_bytes = 0.0
+    unloaded = False
+    for i in range(len(current_loaded_models) - 1, -1, -1):
+        loaded = current_loaded_models[i]
+        if loaded.is_dead() or not loaded.model.is_clip:
+            continue
+        freed_bytes += loaded.model_loaded_memory()
+        loaded.model_unload()
+        current_loaded_models.pop(i)
+        unloaded = True
+
+    if not unloaded:
+        return
+
+    soft_empty_cache()
+    logging.info(
+        "Unloaded text encoders before diffusion sampling: %.2f MB VRAM freed",
+        freed_bytes / (1024 * 1024),
+    )
 
 def unload_all_models():
     for device in get_all_torch_devices():
