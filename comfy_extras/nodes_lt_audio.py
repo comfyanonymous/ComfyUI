@@ -6,6 +6,11 @@ import torch
 from comfy_api.latest import ComfyExtension, io
 from comfy_extras.nodes_audio import VAEEncodeAudio
 
+
+def get_audio_vae_names():
+    return list(dict.fromkeys(folder_paths.get_filename_list("vae") + folder_paths.get_filename_list("checkpoints")))
+
+
 class LTXVAudioVAELoader(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -16,8 +21,8 @@ class LTXVAudioVAELoader(io.ComfyNode):
             inputs=[
                 io.Combo.Input(
                     "ckpt_name",
-                    options=folder_paths.get_filename_list("checkpoints"),
-                    tooltip="Audio VAE checkpoint to load.",
+                    options=get_audio_vae_names(),
+                    tooltip="Audio VAE file to load. Refresh after adding a model.",
                 )
             ],
             outputs=[io.Vae.Output(display_name="Audio VAE")],
@@ -25,7 +30,9 @@ class LTXVAudioVAELoader(io.ComfyNode):
 
     @classmethod
     def execute(cls, ckpt_name: str) -> io.NodeOutput:
-        ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
+        ckpt_path = folder_paths.get_full_path("vae", ckpt_name)
+        if ckpt_path is None:
+            ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
         sd, metadata = comfy.utils.load_torch_file(ckpt_path, return_metadata=True)
         sd = comfy.utils.state_dict_prefix_replace(sd, {"audio_vae.": "autoencoder.", "vocoder.": "vocoder."}, filter_keys=True)
         vae = comfy.sd.VAE(sd=sd, metadata=metadata)
@@ -81,6 +88,8 @@ class LTXVAudioVAEDecode(io.ComfyNode):
         if audio_latent.is_nested:
             audio_latent = audio_latent.unbind()[-1]
         audio = audio_vae.decode(audio_latent).movedim(-1, 1).to(audio_latent.device)
+        # LTX audio occasionally decodes non-finite samples, which AAC cannot mux.
+        audio = torch.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
         output_audio_sample_rate = audio_vae.first_stage_model.output_sample_rate
         return io.NodeOutput(
             {
@@ -185,7 +194,7 @@ class LTXAVTextEncoderLoader(io.ComfyNode):
                 ),
                 io.Combo.Input(
                     "device",
-                    options=["default", "cpu"],
+                    options=["default", "cpu"] + [f"cuda:{i}" for i in range(torch.cuda.device_count())],
                     advanced=True,
                 )
             ],
@@ -200,8 +209,9 @@ class LTXAVTextEncoderLoader(io.ComfyNode):
         clip_path2 = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
 
         model_options = {}
-        if device == "cpu":
-            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+        if device != "default":
+            model_options["load_device"] = torch.device(device)
+            model_options["offload_device"] = torch.device("cpu")
 
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
         return io.NodeOutput(clip)
