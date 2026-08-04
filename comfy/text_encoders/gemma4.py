@@ -1310,7 +1310,9 @@ class Gemma4_Tokenizer():
             if llama_template is not None:
                 llama_text = llama_template.format(text)
             else:
-                # Build template from modalities present
+                # Build template from modalities present.
+                # <|think|> in the system turn is the only thought channel switch. Priming a closed
+                # thought block on the model turn does not disable it, the model reasons inline instead.
                 system = "<|turn>system\n<|think|>\n<turn|>\n" if thinking else ""
                 media = ""
                 if len(images) > 0:
@@ -1333,9 +1335,7 @@ class Gemma4_Tokenizer():
                     num_samples = int(waveform.shape[-1] * 16000 / sample_rate) if sample_rate != 16000 else waveform.shape[-1]
                     n_audio_tokens = self._audio_token_count(num_samples)
                     media += "<|audio>" + "<|audio|>" * n_audio_tokens + "<audio|>"
-                # Non-thinking mode primes an empty thought channel so the model answers directly.
-                model_open = "" if thinking else "<|channel>thought\n<channel|>"
-                llama_text = f"{system}<|turn>user\n{text}{media}<turn|>\n<|turn>model\n{model_open}"
+                llama_text = f"{system}<|turn>user\n{text}{media}<turn|>\n<|turn>model\n"
 
         text_tokens = super().tokenize_with_weights(llama_text, return_word_ids)
 
