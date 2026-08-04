@@ -178,7 +178,7 @@ class Attention(nn.Module):
         q = q.transpose(0, 1).unsqueeze(0)
         k = k.transpose(0, 1).unsqueeze(0)
         v = v.transpose(0, 1).unsqueeze(0)
-        out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
+        out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, low_precision_attention=False, transformer_options=transformer_options)
         return self.out_proj(out.squeeze(0))
 
 
