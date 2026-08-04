@@ -56,14 +56,14 @@ class ModelResponseProperties(BaseModel):
     instructions: str | None = Field(None)
     max_output_tokens: int | None = Field(None)
     model: str | None = Field(None)
-    temperature: float | None = Field(1, description="Controls randomness in the response", ge=0.0, le=2.0)
+    temperature: float | None = Field(None, description="Controls randomness in the response", ge=0.0, le=2.0)
     top_p: float | None = Field(
-        1,
+        None,
         description="Controls diversity of the response via nucleus sampling",
         ge=0.0,
         le=1.0,
     )
-    truncation: str | None = Field("disabled", description="Allowed values: 'auto' or 'disabled'")
+    truncation: str | None = Field(None, description="Allowed values: 'auto' or 'disabled'")
 
 
 class ResponseProperties(BaseModel):
@@ -128,7 +128,7 @@ class OpenAIResponse(ModelResponseProperties, ResponseProperties):
     parallel_tool_calls: bool | None = Field(True)
     status: str | None = Field(
         None,
-        description="One of `completed`, `failed`, `in_progress`, or `incomplete`.",
+        description="One of `completed`, `failed`, `in_progress`, `incomplete`, `queued`, or `cancelled`.",
     )
     usage: ResponseUsage | None = Field(None)
 

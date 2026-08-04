@@ -25,6 +25,7 @@ class ReferenceData:
     preview_id: str | None
     created_at: datetime
     updated_at: datetime
+    loader_path: str | None = None
     system_metadata: dict[str, Any] | None = None
     job_id: str | None = None
     last_access_time: datetime | None = None
@@ -56,7 +57,6 @@ class IngestResult:
 
 class TagUsage(NamedTuple):
     name: str
-    tag_type: str
     count: int
 
 
@@ -71,6 +71,7 @@ class AssetSummaryData:
 class ListAssetsResult:
     items: list[AssetSummaryData]
     total: int
+    next_cursor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,7 @@ def extract_reference_data(ref: AssetReference) -> ReferenceData:
         id=ref.id,
         name=ref.name,
         file_path=ref.file_path,
+        loader_path=ref.loader_path,
         user_metadata=ref.user_metadata,
         preview_id=ref.preview_id,
         system_metadata=ref.system_metadata,

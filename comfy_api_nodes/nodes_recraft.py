@@ -178,7 +178,7 @@ class RecraftColorRGBNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftColorRGB",
             display_name="Recraft Color RGB",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Create Recraft Color by choosing specific RGB values.",
             inputs=[
                 IO.Int.Input("r", default=0, min=0, max=255, tooltip="Red value of color."),
@@ -204,7 +204,7 @@ class RecraftControlsNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftControls",
             display_name="Recraft Controls",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Create Recraft Controls for customizing Recraft generation.",
             inputs=[
                 IO.Custom(RecraftIO.COLOR).Input("colors", optional=True),
@@ -228,7 +228,7 @@ class RecraftStyleV3RealisticImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftStyleV3RealisticImage",
             display_name="Recraft Style - Realistic Image",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Select realistic_image style and optional substyle.",
             inputs=[
                 IO.Combo.Input("substyle", options=get_v3_substyles(cls.RECRAFT_STYLE)),
@@ -253,7 +253,7 @@ class RecraftStyleV3DigitalIllustrationNode(RecraftStyleV3RealisticImageNode):
         return IO.Schema(
             node_id="RecraftStyleV3DigitalIllustration",
             display_name="Recraft Style - Digital Illustration",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Select realistic_image style and optional substyle.",
             inputs=[
                 IO.Combo.Input("substyle", options=get_v3_substyles(cls.RECRAFT_STYLE)),
@@ -272,7 +272,7 @@ class RecraftStyleV3VectorIllustrationNode(RecraftStyleV3RealisticImageNode):
         return IO.Schema(
             node_id="RecraftStyleV3VectorIllustrationNode",
             display_name="Recraft Style - Realistic Image",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Select realistic_image style and optional substyle.",
             inputs=[
                 IO.Combo.Input("substyle", options=get_v3_substyles(cls.RECRAFT_STYLE)),
@@ -291,7 +291,7 @@ class RecraftStyleV3LogoRasterNode(RecraftStyleV3RealisticImageNode):
         return IO.Schema(
             node_id="RecraftStyleV3LogoRaster",
             display_name="Recraft Style - Logo Raster",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Select realistic_image style and optional substyle.",
             inputs=[
                 IO.Combo.Input("substyle", options=get_v3_substyles(cls.RECRAFT_STYLE, include_none=False)),
@@ -308,7 +308,7 @@ class RecraftStyleInfiniteStyleLibrary(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftStyleV3InfiniteStyleLibrary",
             display_name="Recraft Style - Infinite Style Library",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Choose style based on preexisting UUID from Recraft's Infinite Style Library.",
             inputs=[
                 IO.String.Input("style_id", default="", tooltip="UUID of style from Infinite Style Library."),
@@ -331,7 +331,7 @@ class RecraftCreateStyleNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftCreateStyleNode",
             display_name="Recraft Create Style",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Create a custom style from reference images. "
             "Upload 1-5 images to use as style references. "
             "Total size of all images is limited to 5 MB.",
@@ -399,8 +399,8 @@ class RecraftTextToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftTextToImageNode",
-            display_name="Recraft Text to Image",
-            category="api node/image/Recraft",
+            display_name="Recraft V3 Text to Image",
+            category="partner/image/Recraft",
             description="Generates images synchronously based on prompt and resolution.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, default="", tooltip="Prompt for the image generation."),
@@ -511,8 +511,8 @@ class RecraftImageToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftImageToImageNode",
-            display_name="Recraft Image to Image",
-            category="api node/image/Recraft",
+            display_name="Recraft V3 Image to Image",
+            category="partner/image/Recraft",
             description="Modify image based on prompt and strength.",
             inputs=[
                 IO.Image.Input("image"),
@@ -630,7 +630,7 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftImageInpaintingNode",
             display_name="Recraft Image Inpainting",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Modify image based on prompt and mask.",
             inputs=[
                 IO.Image.Input("image"),
@@ -731,8 +731,8 @@ class RecraftTextToVectorNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftTextToVectorNode",
-            display_name="Recraft Text to Vector",
-            category="api node/image/Recraft",
+            display_name="Recraft V3 Text to Vector",
+            category="partner/image/Recraft",
             description="Generates SVG synchronously based on prompt and resolution.",
             inputs=[
                 IO.String.Input("prompt", default="", tooltip="Prompt for the image generation.", multiline=True),
@@ -832,7 +832,7 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftVectorizeImageNode",
             display_name="Recraft Vectorize Image",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             essentials_category="Image Tools",
             description="Generates SVG synchronously from an input image.",
             inputs=[
@@ -876,7 +876,7 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftReplaceBackgroundNode",
             display_name="Recraft Replace Background",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Replace background on image, based on provided prompt.",
             inputs=[
                 IO.Image.Input("image"),
@@ -963,7 +963,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftRemoveBackgroundNode",
             display_name="Recraft Remove Background",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             essentials_category="Image Tools",
             description="Remove background from image, and return processed image and mask.",
             inputs=[
@@ -1012,7 +1012,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftCrispUpscaleNode",
             display_name="Recraft Crisp Upscale Image",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Upscale image synchronously.\n"
             "Enhances a given raster image using ‘crisp upscale’ tool, "
             "increasing image resolution, making the image sharper and cleaner.",
@@ -1058,7 +1058,7 @@ class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
         return IO.Schema(
             node_id="RecraftCreativeUpscaleNode",
             display_name="Recraft Creative Upscale Image",
-            category="api node/image/Recraft",
+            category="partner/image/Recraft",
             description="Upscale image synchronously.\n"
             "Enhances a given raster image using ‘creative upscale’ tool, "
             "boosting resolution with a focus on refining small details and faces.",
@@ -1086,8 +1086,8 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftV4TextToImageNode",
             display_name="Recraft V4 Text to Image",
-            category="api node/image/Recraft",
-            description="Generates images using Recraft V4 or V4 Pro models.",
+            category="partner/image/Recraft",
+            description="Generates images using Recraft V4 and V4.1 models.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -1097,11 +1097,56 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
                 IO.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    tooltip="An optional text description of undesired elements on an image.",
+                    tooltip="This input is ignored: negative prompt is not supported by "
+                    "Recraft V4 and V4.1 models.",
                 ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_pro",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility_pro",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "recraftv4",
                             [
@@ -1162,7 +1207,14 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "n"]),
                 expr="""
                 (
-                    $prices := {"recraftv4": 0.04, "recraftv4_pro": 0.25};
+                    $prices := {
+                        "recraftv4_1": 0.035,
+                        "recraftv4_1_utility": 0.035,
+                        "recraftv4_1_pro": 0.21,
+                        "recraftv4_1_utility_pro": 0.21,
+                        "recraftv4": 0.04,
+                        "recraftv4_pro": 0.25
+                    };
                     {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
                 )
                 """,
@@ -1179,14 +1231,13 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
         seed: int,
         recraft_controls: RecraftControls | None = None,
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
+        validate_string(prompt, strip_whitespace=True, min_length=1, max_length=10000)
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
                 model=model["model"],
                 size=model["size"],
                 n=n,
@@ -1210,8 +1261,8 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
         return IO.Schema(
             node_id="RecraftV4TextToVectorNode",
             display_name="Recraft V4 Text to Vector",
-            category="api node/image/Recraft",
-            description="Generates SVG using Recraft V4 or V4 Pro models.",
+            category="partner/image/Recraft",
+            description="Generates SVG using Recraft V4 and V4.1 models.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -1221,11 +1272,56 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
                 IO.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    tooltip="An optional text description of undesired elements on an image.",
+                    tooltip="This input is ignored: negative prompt is not supported by "
+                    "Recraft V4 and V4.1 models.",
                 ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_pro_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility_pro_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "recraftv4",
                             [
@@ -1286,7 +1382,14 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "n"]),
                 expr="""
                 (
-                    $prices := {"recraftv4": 0.08, "recraftv4_pro": 0.30};
+                    $prices := {
+                        "recraftv4_1_vector": 0.08,
+                        "recraftv4_1_utility_vector": 0.08,
+                        "recraftv4_1_pro_vector": 0.30,
+                        "recraftv4_1_utility_pro_vector": 0.30,
+                        "recraftv4": 0.08,
+                        "recraftv4_pro": 0.30
+                    };
                     {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
                 )
                 """,
@@ -1303,18 +1406,17 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
         seed: int,
         recraft_controls: RecraftControls | None = None,
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
+        validate_string(prompt, strip_whitespace=True, min_length=1, max_length=10000)
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
                 model=model["model"],
                 size=model["size"],
                 n=n,
-                style="vector_illustration",
+                style=None if model["model"].endswith("_vector") else "vector_illustration",
                 substyle=None,
                 controls=recraft_controls.create_api_model() if recraft_controls else None,
             ),

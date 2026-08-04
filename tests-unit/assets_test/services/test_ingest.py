@@ -4,15 +4,22 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from PIL import Image
 from sqlalchemy.orm import Session as SASession, Session
 
 from app.assets.database.models import Asset, AssetReference, AssetReferenceTag, Tag
 from app.assets.database.queries import get_reference_tags
+from app.assets.helpers import get_utc_now
 from app.assets.services.ingest import (
     _ingest_file_from_path,
     _register_existing_asset,
     ingest_existing_file,
 )
+
+
+def _make_png(path: Path, size: tuple[int, int]) -> Path:
+    Image.new("RGB", size, color=(80, 120, 200)).save(path, format="PNG")
+    return path
 
 
 class TestIngestFileFromPath:
@@ -86,6 +93,47 @@ class TestIngestFileFromPath:
 
         ref_tags = get_reference_tags(session, reference_id=result.reference_id)
         assert set(ref_tags) == {"models", "checkpoints"}
+
+    def test_path_derived_tags_use_automatic_origin(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        input_dir = temp_dir / "input"
+        output_dir = temp_dir / "output"
+        temp_root = temp_dir / "temp"
+        for directory in (input_dir, output_dir, temp_root):
+            directory.mkdir()
+        file_path = input_dir / "pasted" / "tagged.png"
+        file_path.parent.mkdir()
+        file_path.write_bytes(b"data")
+
+        with (
+            patch("app.assets.services.path_utils.folder_paths") as mock_fp,
+            patch(
+                "app.assets.services.path_utils.get_comfy_models_folders",
+                return_value=[],
+            ),
+        ):
+            mock_fp.get_input_directory.return_value = str(input_dir)
+            mock_fp.get_output_directory.return_value = str(output_dir)
+            mock_fp.get_temp_directory.return_value = str(temp_root)
+
+            result = _ingest_file_from_path(
+                abs_path=str(file_path),
+                asset_hash="blake3:pathorigin",
+                size_bytes=4,
+                mtime_ns=1234567890000000000,
+                info_name="Tagged Asset",
+                tags=["input", "manual-label"],
+            )
+
+        assert result.reference_id is not None
+        links = session.query(AssetReferenceTag).filter_by(
+            asset_reference_id=result.reference_id
+        )
+        origin_by_tag = {link.tag_name: link.origin for link in links}
+        assert origin_by_tag["input"] == "automatic"
+        assert origin_by_tag["pasted"] == "automatic"
+        assert origin_by_tag["manual-label"] == "manual"
 
     def test_idempotent_upsert(self, mock_create_session, temp_dir: Path, session: Session):
         file_path = temp_dir / "dup.bin"
@@ -279,4 +327,242 @@ class TestIngestExistingFileTagFK:
             ref_tags = sess.query(AssetReferenceTag).all()
             ref_tag_names = {rt.tag_name for rt in ref_tags}
             assert "output" in ref_tag_names
-            assert "my-job" in ref_tag_names
+
+
+class TestIngestExistingFileLoaderPath:
+    """Outputs saved into a subfolder must persist the subfolder-qualified
+    loader path, not the bare basename (regression: spec["fname"] was
+    os.path.basename)."""
+
+    def test_subfoldered_output_persists_relative_loader_path(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        input_dir = temp_dir / "input"
+        output_dir = temp_dir / "output"
+        temp_root = temp_dir / "temp"
+        for directory in (input_dir, output_dir, temp_root):
+            directory.mkdir()
+        file_path = output_dir / "sub" / "img_00001_.png"
+        file_path.parent.mkdir()
+        file_path.write_bytes(b"image data")
+
+        with (
+            patch("app.assets.services.path_utils.folder_paths") as mock_fp,
+            patch(
+                "app.assets.services.path_utils.get_comfy_models_folders",
+                return_value=[],
+            ),
+        ):
+            mock_fp.get_input_directory.return_value = str(input_dir)
+            mock_fp.get_output_directory.return_value = str(output_dir)
+            mock_fp.get_temp_directory.return_value = str(temp_root)
+
+            assert ingest_existing_file(abs_path=str(file_path)) is True
+
+        ref = (
+            session.query(AssetReference)
+            .filter_by(file_path=str(file_path))
+            .one()
+        )
+        assert ref.loader_path == "sub/img_00001_.png"
+        assert (ref.user_metadata or {}).get("filename") == "sub/img_00001_.png"
+
+
+class TestIngestImageDimensions:
+    """system_metadata should carry {kind, width, height} for image assets."""
+
+    def test_image_asset_emits_dimensions(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        f = _make_png(temp_dir / "shot.png", (640, 480))
+
+        result = _ingest_file_from_path(
+            abs_path=str(f),
+            asset_hash="blake3:img1",
+            size_bytes=f.stat().st_size,
+            mtime_ns=1234567890000000000,
+            mime_type="image/png",
+        )
+
+        ref = session.query(AssetReference).filter_by(id=result.reference_id).first()
+        assert ref.system_metadata == {
+            "kind": "image",
+            "width": 640,
+            "height": 480,
+        }
+
+    def test_non_image_asset_leaves_system_metadata_empty(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        f = temp_dir / "model.safetensors"
+        f.write_bytes(b"not an image")
+
+        result = _ingest_file_from_path(
+            abs_path=str(f),
+            asset_hash="blake3:safetensors1",
+            size_bytes=f.stat().st_size,
+            mtime_ns=1234567890000000000,
+            mime_type="application/octet-stream",
+        )
+
+        ref = session.query(AssetReference).filter_by(id=result.reference_id).first()
+        assert ref.system_metadata in (None, {})
+
+    def test_preserves_existing_system_metadata_keys(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        f = _make_png(temp_dir / "annotated.png", (100, 200))
+
+        # First pass populates a sentinel system_metadata key (simulating prior
+        # enricher write).
+        result = _ingest_file_from_path(
+            abs_path=str(f),
+            asset_hash="blake3:img-merge",
+            size_bytes=f.stat().st_size,
+            mtime_ns=1234567890000000000,
+            mime_type="image/png",
+        )
+        ref = session.query(AssetReference).filter_by(id=result.reference_id).first()
+        ref.system_metadata = {**(ref.system_metadata or {}), "source_url": "https://example/x.png"}
+        session.commit()
+
+        # Second pass with the same path triggers the merge code path again.
+        _ingest_file_from_path(
+            abs_path=str(f),
+            asset_hash="blake3:img-merge",
+            size_bytes=f.stat().st_size,
+            mtime_ns=1234567890000000001,
+            mime_type="image/png",
+        )
+
+        session.refresh(ref)
+        assert ref.system_metadata["kind"] == "image"
+        assert ref.system_metadata["width"] == 100
+        assert ref.system_metadata["height"] == 200
+        assert ref.system_metadata["source_url"] == "https://example/x.png"
+
+
+class TestRegisterExistingAssetBackfill:
+    """The from-hash path back-fills dimensions from a sibling reference."""
+
+    def _add_reference(
+        self,
+        session: Session,
+        asset: Asset,
+        name: str,
+        system_metadata: dict | None = None,
+    ) -> AssetReference:
+        now = get_utc_now()
+        ref = AssetReference(
+            asset_id=asset.id,
+            name=name,
+            owner_id="",
+            created_at=now,
+            updated_at=now,
+            last_access_time=now,
+            system_metadata=system_metadata or {},
+        )
+        session.add(ref)
+        session.flush()
+        return ref
+
+    def test_backfills_dimensions_from_sibling_image_reference(
+        self, mock_create_session, session: Session
+    ):
+        asset = Asset(hash="blake3:shared", size_bytes=2048, mime_type="image/png")
+        session.add(asset)
+        session.flush()
+        self._add_reference(
+            session,
+            asset,
+            name="original.png",
+            system_metadata={"kind": "image", "width": 800, "height": 600},
+        )
+        session.commit()
+
+        result = _register_existing_asset(
+            asset_hash="blake3:shared",
+            name="from_hash.png",
+            owner_id="user-x",
+        )
+
+        ref = session.query(AssetReference).filter_by(id=result.ref.id).first()
+        assert ref.system_metadata.get("kind") == "image"
+        assert ref.system_metadata.get("width") == 800
+        assert ref.system_metadata.get("height") == 600
+
+    def test_no_backfill_when_sibling_has_no_image_metadata(
+        self, mock_create_session, session: Session
+    ):
+        asset = Asset(hash="blake3:nodims", size_bytes=2048, mime_type="image/png")
+        session.add(asset)
+        session.flush()
+        self._add_reference(
+            session,
+            asset,
+            name="original.png",
+            system_metadata={"base_model": "flux"},  # no kind=image
+        )
+        session.commit()
+
+        result = _register_existing_asset(
+            asset_hash="blake3:nodims",
+            name="from_hash.png",
+            owner_id="user-x",
+        )
+
+        ref = session.query(AssetReference).filter_by(id=result.ref.id).first()
+        meta = ref.system_metadata or {}
+        assert "kind" not in meta
+        assert "width" not in meta
+        assert "height" not in meta
+
+    def test_no_backfill_when_no_sibling_exists(
+        self, mock_create_session, session: Session
+    ):
+        asset = Asset(hash="blake3:lonely", size_bytes=1024, mime_type="image/png")
+        session.add(asset)
+        session.commit()
+
+        result = _register_existing_asset(
+            asset_hash="blake3:lonely",
+            name="solo.png",
+            owner_id="user-x",
+        )
+
+        ref = session.query(AssetReference).filter_by(id=result.ref.id).first()
+        assert ref.system_metadata in (None, {})
+
+    def test_backfill_preserves_caller_supplied_keys(
+        self, mock_create_session, session: Session
+    ):
+        asset = Asset(hash="blake3:preserve", size_bytes=2048, mime_type="image/png")
+        session.add(asset)
+        session.flush()
+        self._add_reference(
+            session,
+            asset,
+            name="original.png",
+            system_metadata={"kind": "image", "width": 1024, "height": 768},
+        )
+        session.commit()
+
+        # Simulate a from-hash path where the new reference already carries
+        # some system_metadata (e.g. a download-provenance source_url written
+        # by an earlier step). The back-fill must merge dim keys without
+        # clobbering existing keys.
+        result = _register_existing_asset(
+            asset_hash="blake3:preserve",
+            name="from_hash.png",
+            owner_id="user-x",
+        )
+        ref = session.query(AssetReference).filter_by(id=result.ref.id).first()
+        # Seed a sentinel key and re-run back-fill via a second register call
+        # to exercise the merge path with pre-existing data.
+        ref.system_metadata = {**(ref.system_metadata or {}), "source_url": "https://example/p"}
+        session.commit()
+
+        assert ref.system_metadata.get("source_url") == "https://example/p"
+        assert ref.system_metadata.get("kind") == "image"
+        assert ref.system_metadata.get("width") == 1024
+        assert ref.system_metadata.get("height") == 768

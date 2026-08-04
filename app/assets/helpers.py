@@ -41,10 +41,10 @@ def get_utc_now() -> datetime:
 def normalize_tags(tags: list[str] | None) -> list[str]:
     """
     Normalize a list of tags by:
-      - Stripping whitespace and converting to lowercase.
-      - Removing duplicates.
+      - Stripping whitespace.
+      - Removing exact duplicates while preserving order and case.
     """
-    return list(dict.fromkeys(t.strip().lower() for t in (tags or []) if (t or "").strip()))
+    return list(dict.fromkeys(t.strip() for t in (tags or []) if (t or "").strip()))
 
 
 def validate_blake3_hash(s: str) -> str:

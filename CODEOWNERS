@@ -1,2 +1,6 @@
-# Admins
-* @comfyanonymous @kosinkadink @guill
+* @comfyanonymous @kosinkadink @guill @alexisrolland @rattus128 @kijai
+
+/CODEOWNERS @comfyanonymous
+/AGENTS.md @comfyanonymous
+/.ci/ @comfyanonymous
+/.github/ @comfyanonymous

@@ -62,13 +62,6 @@ def _postprocessing_inputs():
     ]
 
 
-def _reve_price_extractor(headers: dict) -> float | None:
-    credits_used = headers.get("x-reve-credits-used")
-    if credits_used is not None:
-        return float(credits_used) / 524.48
-    return None
-
-
 def _reve_response_header_validator(headers: dict) -> None:
     error_code = headers.get("x-reve-error-code")
     if error_code:
@@ -109,7 +102,7 @@ class ReveImageCreateNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ReveImageCreateNode",
             display_name="Reve Image Create",
-            category="api node/image/Reve",
+            category="partner/image/Reve",
             description="Generate images from text descriptions using Reve.",
             inputs=[
                 IO.String.Input(
@@ -180,7 +173,6 @@ class ReveImageCreateNode(IO.ComfyNode):
                 headers={"Accept": "image/webp"},
             ),
             as_binary=True,
-            price_extractor=_reve_price_extractor,
             response_header_validator=_reve_response_header_validator,
             data=ReveImageCreateRequest(
                 prompt=prompt,
@@ -200,7 +192,7 @@ class ReveImageEditNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ReveImageEditNode",
             display_name="Reve Image Edit",
-            category="api node/image/Reve",
+            category="partner/image/Reve",
             description="Edit images using natural language instructions with Reve.",
             inputs=[
                 IO.Image.Input("image", tooltip="The image to edit."),
@@ -279,7 +271,6 @@ class ReveImageEditNode(IO.ComfyNode):
                 headers={"Accept": "image/webp"},
             ),
             as_binary=True,
-            price_extractor=_reve_price_extractor,
             response_header_validator=_reve_response_header_validator,
             data=ReveImageEditRequest(
                 edit_instruction=edit_instruction,
@@ -300,7 +291,7 @@ class ReveImageRemixNode(IO.ComfyNode):
         return IO.Schema(
             node_id="ReveImageRemixNode",
             display_name="Reve Image Remix",
-            category="api node/image/Reve",
+            category="partner/image/Reve",
             description="Combine reference images with text prompts to create new images using Reve.",
             inputs=[
                 IO.Autogrow.Input(
@@ -396,7 +387,6 @@ class ReveImageRemixNode(IO.ComfyNode):
                 headers={"Accept": "image/webp"},
             ),
             as_binary=True,
-            price_extractor=_reve_price_extractor,
             response_header_validator=_reve_response_header_validator,
             data=ReveImageRemixRequest(
                 prompt=prompt,

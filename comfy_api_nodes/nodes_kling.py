@@ -60,6 +60,12 @@ from comfy_api_nodes.apis.kling import (
     OmniProImageRequest,
     OmniProReferences2VideoRequest,
     OmniProText2VideoRequest,
+    Kling3TurboSettings,
+    Kling3TurboText2VideoRequest,
+    Kling3TurboContent,
+    Kling3TurboImage2VideoRequest,
+    Kling3TurboCreateResponse,
+    Kling3TurboQueryResponse,
     TaskStatusResponse,
     TextToVideoWithAudioRequest,
 )
@@ -436,7 +442,7 @@ async def execute_text2video(
             negative_prompt=negative_prompt if negative_prompt else None,
             duration=KlingVideoGenDuration(duration),
             mode=KlingVideoGenMode(model_mode),
-            model_name=KlingVideoGenModelName(model_name),
+            model_name=model_name,
             cfg_scale=cfg_scale,
             aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
             camera_control=camera_control,
@@ -642,7 +648,7 @@ class KlingCameraControls(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingCameraControls",
             display_name="Kling Camera Controls",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Allows specifying configuration options for Kling Camera Controls and motion control effects.",
             inputs=[
                 IO.Combo.Input("camera_control_type", options=KlingCameraControlType),
@@ -762,7 +768,7 @@ class KlingTextToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingTextToVideoNode",
             display_name="Kling Text to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Kling Text to Video Node",
             inputs=[
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -849,7 +855,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProTextToVideoNode",
             display_name="Kling 3.0 Omni Text to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Use text prompts to generate videos with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -862,7 +868,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
                 IO.Int.Input("duration", default=5, min=3, max=15, display_mode=IO.NumberDisplay.slider),
-                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
+                IO.Combo.Input("resolution", options=["4k", "1080p", "720p"], default="1080p", optional=True),
                 IO.DynamicCombo.Input(
                     "storyboards",
                     options=[
@@ -904,12 +910,13 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution", "model_name", "generate_audio"]),
                 expr="""
                 (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $res := widgets.resolution;
+                  $mode := $res = "4k" ? "4k" : ($res = "720p" ? "std" : "pro");
                   $isV3 := $contains(widgets.model_name, "v3");
                   $audio := $isV3 and widgets.generate_audio;
                   $rates := $audio
-                    ? {"std": 0.112, "pro": 0.14}
-                    : {"std": 0.084, "pro": 0.112};
+                    ? {"std": 0.112, "pro": 0.14, "4k": 0.42}
+                    : {"std": 0.084, "pro": 0.112, "4k": 0.42};
                   {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
                 )
                 """,
@@ -934,6 +941,8 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 raise ValueError("kling-video-o1 only supports durations of 5 or 10 seconds.")
             if generate_audio:
                 raise ValueError("kling-video-o1 does not support audio generation.")
+            if resolution == "4k":
+                raise ValueError("kling-video-o1 does not support 4k resolution.")
         stories_enabled = storyboards is not None and storyboards["storyboards"] != "disabled"
         if stories_enabled and model_name == "kling-video-o1":
             raise ValueError("kling-video-o1 does not support storyboards.")
@@ -963,6 +972,12 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                     f"must equal the global duration ({duration}s)."
                 )
 
+        if resolution == "4k":
+            mode = "4k"
+        elif resolution == "1080p":
+            mode = "pro"
+        else:
+            mode = "std"
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
@@ -972,7 +987,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 duration=str(duration),
-                mode="pro" if resolution == "1080p" else "std",
+                mode=mode,
                 multi_shot=multi_shot,
                 multi_prompt=multi_prompt_list,
                 shot_type="customize" if multi_shot else None,
@@ -989,7 +1004,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProFirstLastFrameNode",
             display_name="Kling 3.0 Omni First-Last-Frame to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Use a start frame, an optional end frame, or reference images with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -1014,7 +1029,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                     optional=True,
                     tooltip="Up to 6 additional reference images.",
                 ),
-                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
+                IO.Combo.Input("resolution", options=["4k", "1080p", "720p"], default="1080p", optional=True),
                 IO.DynamicCombo.Input(
                     "storyboards",
                     options=[
@@ -1061,12 +1076,13 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution", "model_name", "generate_audio"]),
                 expr="""
                 (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $res := widgets.resolution;
+                  $mode := $res = "4k" ? "4k" : ($res = "720p" ? "std" : "pro");
                   $isV3 := $contains(widgets.model_name, "v3");
                   $audio := $isV3 and widgets.generate_audio;
                   $rates := $audio
-                    ? {"std": 0.112, "pro": 0.14}
-                    : {"std": 0.084, "pro": 0.112};
+                    ? {"std": 0.112, "pro": 0.14, "4k": 0.42}
+                    : {"std": 0.084, "pro": 0.112, "4k": 0.42};
                   {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
                 )
                 """,
@@ -1093,6 +1109,8 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
             if generate_audio:
                 raise ValueError("kling-video-o1 does not support audio generation.")
+            if resolution == "4k":
+                raise ValueError("kling-video-o1 does not support 4k resolution.")
         stories_enabled = storyboards is not None and storyboards["storyboards"] != "disabled"
         if stories_enabled and model_name == "kling-video-o1":
             raise ValueError("kling-video-o1 does not support storyboards.")
@@ -1161,6 +1179,12 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
             for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference frame(s)"):
                 image_list.append(OmniParamImage(image_url=i))
+        if resolution == "4k":
+            mode = "4k"
+        elif resolution == "1080p":
+            mode = "pro"
+        else:
+            mode = "std"
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
@@ -1170,7 +1194,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 prompt=prompt,
                 duration=str(duration),
                 image_list=image_list,
-                mode="pro" if resolution == "1080p" else "std",
+                mode=mode,
                 sound="on" if generate_audio else "off",
                 multi_shot=multi_shot,
                 multi_prompt=multi_prompt_list,
@@ -1187,7 +1211,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProImageToVideoNode",
             display_name="Kling 3.0 Omni Image to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Use up to 7 reference images to generate a video with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -1204,7 +1228,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                     "reference_images",
                     tooltip="Up to 7 reference images.",
                 ),
-                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
+                IO.Combo.Input("resolution", options=["4k", "1080p", "720p"], default="1080p", optional=True),
                 IO.DynamicCombo.Input(
                     "storyboards",
                     options=[
@@ -1251,12 +1275,13 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution", "model_name", "generate_audio"]),
                 expr="""
                 (
-                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $res := widgets.resolution;
+                  $mode := $res = "4k" ? "4k" : ($res = "720p" ? "std" : "pro");
                   $isV3 := $contains(widgets.model_name, "v3");
                   $audio := $isV3 and widgets.generate_audio;
                   $rates := $audio
-                    ? {"std": 0.112, "pro": 0.14}
-                    : {"std": 0.084, "pro": 0.112};
+                    ? {"std": 0.112, "pro": 0.14, "4k": 0.42}
+                    : {"std": 0.084, "pro": 0.112, "4k": 0.42};
                   {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
                 )
                 """,
@@ -1282,6 +1307,8 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
             if generate_audio:
                 raise ValueError("kling-video-o1 does not support audio generation.")
+            if resolution == "4k":
+                raise ValueError("kling-video-o1 does not support 4k resolution.")
         stories_enabled = storyboards is not None and storyboards["storyboards"] != "disabled"
         if stories_enabled and model_name == "kling-video-o1":
             raise ValueError("kling-video-o1 does not support storyboards.")
@@ -1320,6 +1347,12 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         image_list: list[OmniParamImage] = []
         for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
             image_list.append(OmniParamImage(image_url=i))
+        if resolution == "4k":
+            mode = "4k"
+        elif resolution == "1080p":
+            mode = "pro"
+        else:
+            mode = "std"
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
@@ -1330,7 +1363,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 aspect_ratio=aspect_ratio,
                 duration=str(duration),
                 image_list=image_list,
-                mode="pro" if resolution == "1080p" else "std",
+                mode=mode,
                 sound="on" if generate_audio else "off",
                 multi_shot=multi_shot,
                 multi_prompt=multi_prompt_list,
@@ -1347,7 +1380,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProVideoToVideoNode",
             display_name="Kling 3.0 Omni Video to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Use a video and up to 4 reference images to generate a video with the latest Kling model.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-video-o1"]),
@@ -1458,7 +1491,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProEditVideoNode",
             display_name="Kling 3.0 Omni Edit Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             essentials_category="Video Generation",
             description="Edit an existing video with the latest model from Kling.",
             inputs=[
@@ -1566,7 +1599,7 @@ class OmniProImageNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingOmniProImageNode",
             display_name="Kling 3.0 Omni Image",
-            category="api node/image/Kling",
+            category="partner/image/Kling",
             description="Create or edit images with the latest model from Kling.",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v3-omni", "kling-image-o1"]),
@@ -1694,7 +1727,7 @@ class KlingCameraControlT2VNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingCameraControlT2VNode",
             display_name="Kling Text to Video (Camera Control)",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Transform text into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original text.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -1756,7 +1789,7 @@ class KlingImage2VideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingImage2VideoNode",
             display_name="Kling Image(First Frame) to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.Image.Input("start_frame", tooltip="The reference image used to generate the video."),
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -1855,7 +1888,7 @@ class KlingCameraControlI2VNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingCameraControlI2VNode",
             display_name="Kling Image to Video (Camera Control)",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Transform still images into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original image.",
             inputs=[
                 IO.Image.Input(
@@ -1926,7 +1959,7 @@ class KlingStartEndFrameNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingStartEndFrameNode",
             display_name="Kling Start-End Frame to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Generate a video sequence that transitions between your provided start and end images. The node creates all frames in between, producing a smooth transformation from the first frame to the last.",
             inputs=[
                 IO.Image.Input(
@@ -2020,7 +2053,7 @@ class KlingVideoExtendNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingVideoExtendNode",
             display_name="Kling Video Extend",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Kling Video Extend Node. Extend videos made by other Kling nodes. The video_id is created by using other Kling Nodes.",
             inputs=[
                 IO.String.Input(
@@ -2101,7 +2134,7 @@ class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingDualCharacterVideoEffectNode",
             display_name="Kling Dual Character Video Effects",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Achieve different special effects when generating a video based on the effect_scene. First image will be positioned on left side, second on right side of the composite.",
             inputs=[
                 IO.Image.Input("image_left", tooltip="Left side image"),
@@ -2191,7 +2224,7 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingSingleImageVideoEffectNode",
             display_name="Kling Video Effects",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Achieve different special effects when generating a video based on the effect_scene.",
             inputs=[
                 IO.Image.Input(
@@ -2264,7 +2297,7 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingLipSyncAudioToVideoNode",
             display_name="Kling Lip Sync Video with Audio",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             essentials_category="Video Generation",
             description="Kling Lip Sync Audio to Video Node. Syncs mouth movements in a video file to the audio content of an audio file. When using, ensure that the audio contains clearly distinguishable vocals and that the video contains a distinct face. The audio file should not be larger than 5MB. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length.",
             inputs=[
@@ -2316,7 +2349,7 @@ class KlingLipSyncTextToVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingLipSyncTextToVideoNode",
             display_name="Kling Lip Sync Video with Text",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Kling Lip Sync Text to Video Node. Syncs mouth movements in a video file to a text prompt. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length.",
             inputs=[
                 IO.Video.Input("video"),
@@ -2384,7 +2417,7 @@ class KlingVirtualTryOnNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingVirtualTryOnNode",
             display_name="Kling Virtual Try On",
-            category="api node/image/Kling",
+            category="partner/image/Kling",
             description="Kling Virtual Try On Node. Input a human image and a cloth image to try on the cloth on the human. You can merge multiple clothing item pictures into one image with a white background.",
             inputs=[
                 IO.Image.Input("human_image"),
@@ -2451,7 +2484,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingImageGenerationNode",
             display_name="Kling 3.0 Image",
-            category="api node/image/Kling",
+            category="partner/image/Kling",
             description="Kling Image Generation Node. Generate an image from a text prompt with an optional reference image.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -2588,7 +2621,7 @@ class TextToVideoWithAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingTextToVideoWithAudio",
             display_name="Kling 2.6 Text to Video with Audio",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v2-6"]),
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt."),
@@ -2656,7 +2689,7 @@ class ImageToVideoWithAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingImageToVideoWithAudio",
             display_name="Kling 2.6 Image(First Frame) to Video with Audio",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.Combo.Input("model_name", options=["kling-v2-6"]),
                 IO.Image.Input("start_frame"),
@@ -2726,7 +2759,7 @@ class MotionControl(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingMotionControl",
             display_name="Kling Motion Control",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             inputs=[
                 IO.String.Input("prompt", multiline=True),
                 IO.Image.Input("reference_image"),
@@ -2760,11 +2793,15 @@ class MotionControl(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model"]),
                 expr="""
                 (
-                  $prices := {"std": 0.07, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
+                  $prices := {
+                    "kling-v3": {"std": 0.126, "pro": 0.168},
+                    "kling-v2-6": {"std": 0.07, "pro": 0.112}
+                  };
+                  $modelPrices := $lookup($prices, widgets.model);
+                  {"type":"usd","usd": $lookup($modelPrices, widgets.mode), "format":{"suffix":"/second"}}
                 )
                 """,
             ),
@@ -2816,6 +2853,67 @@ class MotionControl(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
+def build_turbo_shot_prompt(multi_prompt: list[MultiPromptEntry]) -> str:
+    """Render storyboard entries into the Turbo multi-shot prompt 'shot n, m, words; ...'."""
+    return "; ".join(f"shot {i}, {int(e.duration)}, {e.prompt}" for i, e in enumerate(multi_prompt, 1)) + ";"
+
+
+def _turbo_video_url(response: Kling3TurboQueryResponse) -> str:
+    """Extract the result video URL from a /tasks response (data[].outputs[] where type == 'video')."""
+    task = response.data[0] if response.data else None
+    if task and task.outputs:
+        for output in task.outputs:
+            if output.type == "video" and output.url:
+                return output.url
+    raise RuntimeError(f"Kling 3.0 Turbo task finished without a video output: {response.model_dump()}")
+
+
+async def execute_kling_turbo(
+    cls: type[IO.ComfyNode],
+    *,
+    prompt: str,
+    resolution: str,
+    aspect_ratio: str,
+    duration: int,
+    start_frame: torch.Tensor | None,
+) -> IO.NodeOutput:
+    """Create + poll a Kling 3.0 Turbo task. Image-to-video when start_frame is given, else text-to-video."""
+    if start_frame is not None:
+        validate_image_dimensions(start_frame, min_width=300, min_height=300)
+        validate_image_aspect_ratio(start_frame, (1, 2.5), (2.5, 1))
+        contents = [Kling3TurboContent(type="first_frame", url=tensor_to_base64_string(start_frame))]
+        if prompt:
+            contents.insert(0, Kling3TurboContent(type="prompt", text=prompt))
+        create = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/image-to-video/kling-3.0-turbo", method="POST"),
+            response_model=Kling3TurboCreateResponse,
+            data=Kling3TurboImage2VideoRequest(
+                contents=contents,
+                settings=Kling3TurboSettings(resolution=resolution, duration=duration),  # i2v: no aspect_ratio
+            ),
+        )
+    else:
+        create = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/text-to-video/kling-3.0-turbo", method="POST"),
+            response_model=Kling3TurboCreateResponse,
+            data=Kling3TurboText2VideoRequest(
+                prompt=prompt,
+                settings=Kling3TurboSettings(resolution=resolution, aspect_ratio=aspect_ratio, duration=duration),
+            ),
+        )
+    if not (create.data and create.data.id):
+        raise RuntimeError(f"Kling 3.0 Turbo create failed. Code: {create.code}, Message: {create.message}")
+    final_response = await poll_op(
+        cls,
+        ApiEndpoint(path="/proxy/kling/tasks", query_params={"task_ids": create.data.id}),
+        response_model=Kling3TurboQueryResponse,
+        status_extractor=lambda r: (r.data[0].status if r.data else None),
+    )
+    return IO.NodeOutput(await download_url_to_video_output(_turbo_video_url(final_response)))
+
+
 class KlingVideoNode(IO.ComfyNode):
 
     @classmethod
@@ -2823,7 +2921,7 @@ class KlingVideoNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingVideoNode",
             display_name="Kling 3.0 Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Generate videos with Kling V3. "
             "Supports text-to-video and image-to-video with optional storyboard multi-prompt and audio generation.",
             inputs=[
@@ -2853,14 +2951,29 @@ class KlingVideoNode(IO.ComfyNode):
                     ],
                     tooltip="Generate a series of video segments with individual prompts and durations.",
                 ),
-                IO.Boolean.Input("generate_audio", default=True),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=True,
+                    tooltip="'kling-3.0-turbo' always generates native audio, so the audio toggle is ignored.",
+                ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
                             "kling-v3",
                             [
-                                IO.Combo.Input("resolution", options=["1080p", "720p"]),
+                                IO.Combo.Input("resolution", options=["4k", "1080p", "720p"], default="1080p"),
+                                IO.Combo.Input(
+                                    "aspect_ratio",
+                                    options=["16:9", "9:16", "1:1"],
+                                    tooltip="Ignored in image-to-video mode.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "kling-3.0-turbo",
+                            [
+                                IO.Combo.Input("resolution", options=["1080p", "720p"], default="720p"),
                                 IO.Combo.Input(
                                     "aspect_ratio",
                                     options=["16:9", "9:16", "1:1"],
@@ -2899,6 +3012,7 @@ class KlingVideoNode(IO.ComfyNode):
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(
                     widgets=[
+                        "model",
                         "model.resolution",
                         "generate_audio",
                         "multi_shot",
@@ -2913,10 +3027,7 @@ class KlingVideoNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $rates := {"1080p": {"off": 0.112, "on": 0.168}, "720p": {"off": 0.084, "on": 0.126}};
                   $res := $lookup(widgets, "model.resolution");
-                  $audio := widgets.generate_audio ? "on" : "off";
-                  $rate := $lookup($lookup($rates, $res), $audio);
                   $ms := widgets.multi_shot;
                   $isSb := $ms != "disabled";
                   $n := $isSb ? $number($substring($ms, 0, 1)) : 0;
@@ -2927,7 +3038,18 @@ class KlingVideoNode(IO.ComfyNode):
                   $d5 := $n >= 5 ? $lookup(widgets, "multi_shot.storyboard_5_duration") : 0;
                   $d6 := $n >= 6 ? $lookup(widgets, "multi_shot.storyboard_6_duration") : 0;
                   $dur := $isSb ? $d1 + $d2 + $d3 + $d4 + $d5 + $d6 : $lookup(widgets, "multi_shot.duration");
-                  {"type":"usd","usd": $rate * $dur}
+                  widgets.model = "kling-3.0-turbo"
+                    ? {"type":"usd","usd": ($res = "1080p" ? 0.14 : 0.112) * $dur}
+                    : (
+                        $rates := {
+                          "4k": {"off": 0.42, "on": 0.42},
+                          "1080p": {"off": 0.112, "on": 0.168},
+                          "720p": {"off": 0.084, "on": 0.126}
+                        };
+                        $audio := widgets.generate_audio ? "on" : "off";
+                        $rate := $lookup($lookup($rates, $res), $audio);
+                        {"type":"usd","usd": $rate * $dur}
+                      )
                 )
                 """,
             ),
@@ -2943,7 +3065,12 @@ class KlingVideoNode(IO.ComfyNode):
         start_frame: Input.Image | None = None,
     ) -> IO.NodeOutput:
         _ = seed
-        mode = "pro" if model["resolution"] == "1080p" else "std"
+        if model["resolution"] == "4k":
+            mode = "4k"
+        elif model["resolution"] == "1080p":
+            mode = "pro"
+        else:
+            mode = "std"
         custom_multi_shot = False
         if multi_shot["multi_shot"] == "disabled":
             shot_type = None
@@ -2974,6 +3101,17 @@ class KlingVideoNode(IO.ComfyNode):
         else:
             duration = multi_shot["duration"]
             validate_string(multi_shot["prompt"], min_length=1, max_length=2500)
+
+        if model["model"] == "kling-3.0-turbo":
+            turbo_prompt = build_turbo_shot_prompt(multi_prompt_list) if custom_multi_shot else multi_shot["prompt"]
+            return await execute_kling_turbo(
+                cls,
+                prompt=turbo_prompt,
+                resolution=model["resolution"],
+                aspect_ratio=model["aspect_ratio"],
+                duration=duration,
+                start_frame=start_frame,
+            )
 
         if start_frame is not None:
             validate_image_dimensions(start_frame, min_width=300, min_height=300)
@@ -3037,7 +3175,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingFirstLastFrameNode",
             display_name="Kling 3.0 First-Last-Frame to Video",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Generate videos with Kling V3 using first and last frames.",
             inputs=[
                 IO.String.Input("prompt", multiline=True, default=""),
@@ -3057,7 +3195,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
                         IO.DynamicCombo.Option(
                             "kling-v3",
                             [
-                                IO.Combo.Input("resolution", options=["1080p", "720p"]),
+                                IO.Combo.Input("resolution", options=["4k", "1080p", "720p"], default="1080p"),
                             ],
                         ),
                     ],
@@ -3089,7 +3227,11 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $rates := {"1080p": {"off": 0.112, "on": 0.168}, "720p": {"off": 0.084, "on": 0.126}};
+                  $rates := {
+                    "4k": {"off": 0.42, "on": 0.42},
+                    "1080p": {"off": 0.112, "on": 0.168},
+                    "720p": {"off": 0.084, "on": 0.126}
+                  };
                   $res := $lookup(widgets, "model.resolution");
                   $audio := widgets.generate_audio ? "on" : "off";
                   $rate := $lookup($lookup($rates, $res), $audio);
@@ -3118,6 +3260,12 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         validate_image_aspect_ratio(end_frame, (1, 2.5), (2.5, 1))
         image_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame")
         image_tail_url = await upload_image_to_comfyapi(cls, end_frame, wait_label="Uploading end frame")
+        if model["resolution"] == "4k":
+            mode = "4k"
+        elif model["resolution"] == "1080p":
+            mode = "pro"
+        else:
+            mode = "std"
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/image2video", method="POST"),
@@ -3127,7 +3275,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
                 image=image_url,
                 image_tail=image_tail_url,
                 prompt=prompt,
-                mode="pro" if model["resolution"] == "1080p" else "std",
+                mode=mode,
                 duration=str(duration),
                 sound="on" if generate_audio else "off",
             ),
@@ -3152,7 +3300,7 @@ class KlingAvatarNode(IO.ComfyNode):
         return IO.Schema(
             node_id="KlingAvatarNode",
             display_name="Kling Avatar 2.0",
-            category="api node/video/Kling",
+            category="partner/video/Kling",
             description="Generate broadcast-style digital human videos from a single photo and an audio file.",
             inputs=[
                 IO.Image.Input(

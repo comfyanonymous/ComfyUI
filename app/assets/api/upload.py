@@ -140,7 +140,6 @@ async def parse_multipart_upload(
             provided_mime_type = ((await field.text()) or "").strip() or None
         elif fname == "preview_id":
             provided_preview_id = ((await field.text()) or "").strip() or None
-
     if not file_present and not (provided_hash and provided_hash_exists):
         raise UploadError(
             400, "MISSING_FILE", "Form must include a 'file' part or a known 'hash'."
