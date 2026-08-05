@@ -85,8 +85,6 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
 - Configure additional model locations with [`extra_model_paths.yaml`](extra_model_paths.yaml.example).
 
 
-Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
-
 ## Release Process
 
 ComfyUI follows a weekly release cycle targeting Monday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
