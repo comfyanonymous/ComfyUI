@@ -172,8 +172,7 @@ def main():
                        "timestep": args.timestep},
         "torch_version": torch.__version__,
         "note": "encoder_hidden_states are the checkpoint's learned material tokens",
-        "cpu_patch": "removed hard-coded .to(\"cuda:0\") device move in attn_processor.py"
-                     if cpu_patch else "none",
+        "cpu_patch": "removed hard-coded .to(\"cuda:0\") device move in attn_processor.py",
     })
     sys.stdout.write(f"wrote {args.out} ({os.path.getsize(args.out) / 1e6:.1f} MB, "
                      f"{len(acts)} block activations)\n")
