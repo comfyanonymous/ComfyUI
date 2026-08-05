@@ -1211,6 +1211,24 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
                 "quant_group_size": 64,
                 "linear_dtype": layer_conf.get("linear_dtype", params_conf.get("linear_dtype", "int4")),
             }
+        elif module.quant_format == "asym_w4a8_int8":
+            # int4 weight (packed int8 [N,K/2]) + fp8 per-group scale (weight_s_rel),
+            # fp32 per-channel scale (weight_s_channel) + optional Lloyd-Max codebook.
+            scale = pop_scale("weight_s_rel", torch.float8_e4m3fn)
+            if scale is None:
+                raise ValueError(f"Missing W4A8 group scale (weight_s_rel) for layer {layer_name}")
+            params_conf = layer_conf.get("params", {})
+            if not isinstance(params_conf, dict):
+                params_conf = {}
+            scales = {
+                "scale": scale,
+                "s_channel": pop_scale("weight_s_channel"),
+                "codebook": pop_scale("weight_codebook"),
+                "group_size": int(layer_conf.get("group_size", params_conf.get("group_size", 16))),
+                "convrot_groupsize": int(
+                    layer_conf.get("convrot_groupsize", params_conf.get("convrot_groupsize", 256))
+                ),
+            }
         else:
             raise ValueError(f"Unsupported quantization format: {module.quant_format}")
 

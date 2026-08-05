@@ -101,6 +101,18 @@ if not _CK_MXFP8_AVAILABLE:
     class _CKMxfp8Layout:
         pass
 
+_CK_W4A8_AVAILABLE = False
+if _CK_AVAILABLE:
+    try:
+        from comfy_kitchen.tensor import AsymW4A8Int8Layout as _CKAsymW4A8Int8Layout
+        _CK_W4A8_AVAILABLE = True
+    except ImportError:
+        logging.warning("comfy_kitchen does not support asym_w4a8_int8, please update comfy_kitchen.")
+
+if not _CK_W4A8_AVAILABLE:
+    class _CKAsymW4A8Int8Layout:
+        pass
+
 import comfy.float
 
 # ==============================================================================
@@ -212,7 +224,7 @@ class TensorCoreFP8E5M2Layout(_TensorCoreFP8LayoutBase):
 TensorCoreFP8Layout = TensorCoreFP8E4M3Layout
 TensorWiseINT8Layout = _CKTensorWiseINT8Layout
 TensorCoreConvRotW4A4Layout = _CKTensorCoreConvRotW4A4Layout
-
+AsymW4A8Int8Layout = _CKAsymW4A8Int8Layout
 
 # ==============================================================================
 # Registry
@@ -226,6 +238,8 @@ register_layout_class("TensorWiseINT8Layout", _CKTensorWiseINT8Layout)
 register_layout_class("TensorCoreConvRotW4A4Layout", _CKTensorCoreConvRotW4A4Layout)
 if _CK_MXFP8_AVAILABLE:
     register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
+if _CK_W4A8_AVAILABLE:
+    register_layout_class("AsymW4A8Int8Layout", _CKAsymW4A8Int8Layout)
 
 QUANT_ALGOS = {
     "float8_e4m3fn": {
@@ -267,6 +281,14 @@ QUANT_ALGOS["convrot_w4a4"] = {
     "comfy_tensor_layout": "TensorCoreConvRotW4A4Layout",
     "quantize_input": False,
 }
+
+if _CK_W4A8_AVAILABLE:
+    QUANT_ALGOS["asym_w4a8_int8"] = {
+        "storage_t": torch.int8,
+        "parameters": {"weight_scale"},
+        "comfy_tensor_layout": "AsymW4A8Int8Layout",
+        "quantize_input": False,
+    }
 
 
 # ==============================================================================
