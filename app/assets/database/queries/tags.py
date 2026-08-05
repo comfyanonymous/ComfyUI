@@ -337,6 +337,7 @@ def list_tag_counts_for_filtered_assets(
     owner_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
+    any_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
     metadata_filter: dict | None = None,
     limit: int = 100,
@@ -359,7 +360,7 @@ def list_tag_counts_for_filtered_assets(
         escaped, esc = escape_sql_like_string(name_contains)
         ref_sq = ref_sq.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
 
-    ref_sq = apply_tag_filters(ref_sq, include_tags, exclude_tags)
+    ref_sq = apply_tag_filters(ref_sq, include_tags, exclude_tags, any_tags)
     ref_sq = apply_metadata_filter(ref_sq, metadata_filter)
     ref_sq = ref_sq.subquery()
 

@@ -263,6 +263,7 @@ def list_references_page(
     name_contains: str | None = None,
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
+    any_tags: Sequence[str] | None = None,
     metadata_filter: dict | None = None,
     sort: str | None = None,
     order: str | None = None,
@@ -293,7 +294,7 @@ def list_references_page(
         escaped, esc = escape_sql_like_string(name_contains)
         base = base.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
 
-    base = apply_tag_filters(base, include_tags, exclude_tags)
+    base = apply_tag_filters(base, include_tags, exclude_tags, any_tags)
     base = apply_metadata_filter(base, metadata_filter)
 
     sort = (sort or "created_at").lower()
@@ -345,7 +346,7 @@ def list_references_page(
         count_stmt = count_stmt.where(
             AssetReference.name.ilike(f"%{escaped}%", escape=esc)
         )
-    count_stmt = apply_tag_filters(count_stmt, include_tags, exclude_tags)
+    count_stmt = apply_tag_filters(count_stmt, include_tags, exclude_tags, any_tags)
     count_stmt = apply_metadata_filter(count_stmt, metadata_filter)
 
     total = int(session.execute(count_stmt).scalar_one() or 0)

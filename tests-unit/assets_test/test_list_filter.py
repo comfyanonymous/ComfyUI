@@ -337,3 +337,246 @@ def test_list_assets_name_contains_literal_underscore(
     assert b["name"] not in names, "Underscore must be escaped — should not match 'fooxbar'"
     assert c["name"] not in names, "Underscore must be escaped — should not match 'foobar'"
     assert body["total"] == 1
+
+
+def test_list_assets_tags_any_alone(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-any-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    a = asset_factory("any_a.safetensors", [*t, f"{scope}-alpha"], {}, make_asset_bytes("any_a"))
+    b = asset_factory("any_b.safetensors", [*t, f"{scope}-beta"], {}, make_asset_bytes("any_b"))
+    c = asset_factory("any_c.safetensors", [*t, f"{scope}-gamma"], {}, make_asset_bytes("any_c"))
+
+    r = http.get(
+        api_base + "/api/assets",
+        params={"tags_any": f"{scope}-alpha,{scope}-beta", "limit": "50"},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    names = [x["name"] for x in body["assets"]]
+    assert a["name"] in names
+    assert b["name"] in names
+    assert c["name"] not in names
+
+
+def test_list_assets_tags_any_with_tags_all(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-anyall-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    x = asset_factory("aa_x.safetensors", [*t, alpha], {}, make_asset_bytes("aa_x"))
+    y = asset_factory("aa_y.safetensors", [*t, beta], {}, make_asset_bytes("aa_y"))
+    w = asset_factory("aa_w.safetensors", t, {}, make_asset_bytes("aa_w"))
+    d = asset_factory(
+        "aa_d.safetensors",
+        ["models", "model_type:checkpoints", "unit-tests", f"{scope}-other", alpha],
+        {},
+        make_asset_bytes("aa_d"),
+    )
+
+    r = http.get(
+        api_base + "/api/assets",
+        params={"tags_all": f"unit-tests,{scope}", "tags_any": f"{alpha},{beta}", "limit": "50"},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    names = [a["name"] for a in body["assets"]]
+    assert x["name"] in names
+    assert y["name"] in names
+    assert w["name"] not in names, "asset matching tags_all but not tags_any must be excluded"
+    assert d["name"] not in names, "asset matching tags_any but not tags_all must be excluded"
+
+
+def test_list_assets_tags_none_wins_over_tags_any(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-nonewins-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    x = asset_factory("nw_x.safetensors", [*t, alpha], {}, make_asset_bytes("nw_x"))
+    y = asset_factory("nw_y.safetensors", [*t, alpha, beta], {}, make_asset_bytes("nw_y"))
+
+    r = http.get(
+        api_base + "/api/assets",
+        params={"tags_any": alpha, "tags_none": beta, "limit": "50"},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    names = [a["name"] for a in body["assets"]]
+    assert x["name"] in names
+    assert y["name"] not in names, "tags_none must exclude an asset even when it matches tags_any"
+
+
+def test_list_assets_empty_tag_filter_lists_behave_as_absent(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-empty-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    a = asset_factory("em_a.safetensors", t, {}, make_asset_bytes("em_a"))
+    b = asset_factory("em_b.safetensors", t, {}, make_asset_bytes("em_b"))
+    expected = {a["name"], b["name"]}
+
+    # Empty new-name lists impose no constraint.
+    r1 = http.get(
+        api_base + "/api/assets",
+        params={"tags_all": f"unit-tests,{scope}", "tags_any": "", "tags_none": ""},
+        timeout=120,
+    )
+    b1 = r1.json()
+    assert r1.status_code == 200, b1
+    assert {x["name"] for x in b1["assets"]} == expected
+
+    # An empty new-name param alongside old names must not trigger validation.
+    r2 = http.get(
+        api_base + "/api/assets",
+        params={"include_tags": f"unit-tests,{scope}", "tags_any": ""},
+        timeout=120,
+    )
+    b2 = r2.json()
+    assert r2.status_code == 200, b2
+    assert {x["name"] for x in b2["assets"]} == expected
+
+    # An empty tags_all next to include_tags is not a mixed-spelling conflict.
+    r3 = http.get(
+        api_base + "/api/assets",
+        params={"include_tags": f"unit-tests,{scope}", "tags_all": ""},
+        timeout=120,
+    )
+    b3 = r3.json()
+    assert r3.status_code == 200, b3
+    assert {x["name"] for x in b3["assets"]} == expected
+
+
+def test_list_assets_old_names_match_new_names(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-alias-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    asset_factory("al_a.safetensors", [*t, alpha], {}, make_asset_bytes("al_a"))
+    asset_factory("al_b.safetensors", [*t, beta], {}, make_asset_bytes("al_b"))
+
+    def names_for(params: dict) -> tuple[list, int]:
+        r = http.get(api_base + "/api/assets", params={**params, "sort": "name", "order": "asc"}, timeout=120)
+        body = r.json()
+        assert r.status_code == 200, body
+        return [x["name"] for x in body["assets"]], body["total"]
+
+    # include_tags ≡ tags_all
+    old_names, old_total = names_for({"include_tags": f"unit-tests,{scope}"})
+    new_names, new_total = names_for({"tags_all": f"unit-tests,{scope}"})
+    assert old_names == new_names
+    assert old_total == new_total
+
+    # exclude_tags ≡ tags_none (and old/new spellings mix across slots)
+    old_names, old_total = names_for({"include_tags": f"unit-tests,{scope}", "exclude_tags": alpha})
+    new_names, new_total = names_for({"tags_all": f"unit-tests,{scope}", "tags_none": alpha})
+    mixed_names, mixed_total = names_for({"include_tags": f"unit-tests,{scope}", "tags_none": alpha})
+    assert old_names == new_names == mixed_names == ["al_b.safetensors"]
+    assert old_total == new_total == mixed_total == 1
+
+
+@pytest.mark.parametrize(
+    "params,expected_parameters",
+    [
+        ({"include_tags": "mx-x", "tags_all": "mx-y"}, ["include_tags", "tags_all"]),
+        ({"exclude_tags": "mx-x", "tags_none": "mx-y"}, ["exclude_tags", "tags_none"]),
+    ],
+    ids=["include_tags_with_tags_all", "exclude_tags_with_tags_none"],
+)
+def test_list_assets_mixed_tag_spellings_rejected(http, api_base, params, expected_parameters):
+    r = http.get(api_base + "/api/assets", params=params, timeout=120)
+    body = r.json()
+    assert r.status_code == 400, body
+    assert body["error"]["code"] == "INVALID_TAG_FILTER"
+    assert body["error"]["details"]["parameters"] == expected_parameters
+
+
+@pytest.mark.parametrize(
+    "params,conflicting,parameters",
+    [
+        (
+            {"tags_all": "cf-x", "tags_none": "cf-x"},
+            ["cf-x"],
+            ["tags_all", "tags_none"],
+        ),
+        (
+            {"include_tags": "cf-x", "tags_none": "cf-x"},
+            ["cf-x"],
+            ["include_tags", "tags_none"],
+        ),
+        (
+            {"tags_all": "cf-a,cf-b", "tags_none": "cf-b,cf-c"},
+            ["cf-b"],
+            ["tags_all", "tags_none"],
+        ),
+    ],
+    ids=["new_names", "include_tags_remapped", "partial_overlap"],
+)
+def test_list_assets_all_none_conflict_rejected(http, api_base, params, conflicting, parameters):
+    r = http.get(api_base + "/api/assets", params=params, timeout=120)
+    body = r.json()
+    assert r.status_code == 400, body
+    assert body["error"]["code"] == "INVALID_TAG_FILTER"
+    assert body["error"]["details"]["conflicting_tags"] == conflicting
+    assert body["error"]["details"]["parameters"] == parameters
+
+
+def test_list_assets_any_none_overlap_accepted(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-deadterm-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    x = asset_factory("dt_x.safetensors", [*t, alpha], {}, make_asset_bytes("dt_x"))
+    y = asset_factory("dt_y.safetensors", [*t, beta], {}, make_asset_bytes("dt_y"))
+
+    # alpha is a dead term (in both tags_any and tags_none) but the query is valid.
+    r = http.get(
+        api_base + "/api/assets",
+        params={"tags_any": f"{alpha},{beta}", "tags_none": alpha, "limit": "50"},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    names = [a["name"] for a in body["assets"]]
+    assert y["name"] in names
+    assert x["name"] not in names
+
+
+def test_list_assets_legacy_include_exclude_conflict_still_200(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-legacy-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    asset_factory("lg_a.safetensors", t, {}, make_asset_bytes("lg_a"))
+
+    # Old names only: the self-contradictory query stays an empty 200, never a 400.
+    r = http.get(
+        api_base + "/api/assets",
+        params={"include_tags": scope, "exclude_tags": scope},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    assert body["assets"] == []
+
+
+def test_tags_refine_new_tag_filters(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"rf-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    asset_factory("rf_a.safetensors", [*t, alpha], {}, make_asset_bytes("rf_a"))
+    asset_factory("rf_b.safetensors", [*t, beta], {}, make_asset_bytes("rf_b"))
+
+    r = http.get(
+        api_base + "/api/assets/tags/refine",
+        params={"tags_any": f"{alpha},{beta}", "tags_none": alpha},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    counts = body["tag_counts"]
+    assert counts.get(beta) == 1
+    assert alpha not in counts
+
+    r2 = http.get(
+        api_base + "/api/assets/tags/refine",
+        params={"tags_all": "rf-x", "tags_none": "rf-x"},
+        timeout=120,
+    )
+    body2 = r2.json()
+    assert r2.status_code == 400, body2
+    assert body2["error"]["code"] == "INVALID_TAG_FILTER"
+    assert body2["error"]["details"]["conflicting_tags"] == ["rf-x"]
