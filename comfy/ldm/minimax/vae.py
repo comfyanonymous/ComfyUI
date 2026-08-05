@@ -253,8 +253,8 @@ class TransformerBlock(nn.Module):
         self.scale2 = nn.Parameter(torch.empty(dim))
 
     def forward(self, x, rotary_pos_emb=None):
-        x = x.addcmul_(self.attn(comfy.rmsnorm.rms_norm(x, self.norm1.weight, self.norm1.eps), rotary_pos_emb), self.scale1)
-        return x.addcmul_(self.ff(comfy.rmsnorm.rms_norm(x, self.norm2.weight, self.norm2.eps)), self.scale2)
+        x = x.addcmul_(self.attn(comfy.rmsnorm.rms_norm(x, self.norm1.weight, self.norm1.eps), rotary_pos_emb), comfy.ops.cast_to_input(self.scale1, x))
+        return x.addcmul_(self.ff(comfy.rmsnorm.rms_norm(x, self.norm2.weight, self.norm2.eps)), comfy.ops.cast_to_input(self.scale2, x))
 
 
 class ViT3DDecoder(nn.Module):
@@ -289,7 +289,7 @@ class ViT3DDecoder(nn.Module):
         num_patches = h.shape[1]
         num_suffix = 1 + self.num_register_tokens
 
-        h = torch.cat([h, self.register_tokens.expand(B, -1, -1), torch.zeros_like(h[:, 0:1, :])], dim=1)
+        h = torch.cat([h, comfy.ops.cast_to_input(self.register_tokens, h).expand(B, -1, -1), torch.zeros_like(h[:, 0:1, :])], dim=1)
 
         img_ids = create_token_ids((latent_T, latent_H, latent_W), x.device, x.dtype).expand(B, -1, -1)
         suffix_ids = torch.zeros((B, num_suffix, 3), device=x.device, dtype=img_ids.dtype)
