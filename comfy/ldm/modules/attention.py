@@ -90,22 +90,6 @@ def default(val, d):
         return val
     return d
 
-def _gqa_repeat_factor(query_heads, key_heads, value_heads):
-    if key_heads != value_heads:
-        raise ValueError(f"Key/value head count mismatch for GQA: {key_heads} != {value_heads}")
-    if query_heads == key_heads:
-        return 1
-    if query_heads % key_heads != 0:
-        raise ValueError(f"Query heads must be divisible by key/value heads for GQA: {query_heads} vs {key_heads}")
-    return query_heads // key_heads
-
-def _repeat_kv_for_gqa(k, v, query_heads, head_dim):
-    n_rep = _gqa_repeat_factor(query_heads, k.shape[head_dim], v.shape[head_dim])
-    if n_rep > 1:
-        k = k.repeat_interleave(n_rep, dim=head_dim)
-        v = v.repeat_interleave(n_rep, dim=head_dim)
-    return k, v
-
 def _heads_from_dim(tensor, dim_head, name):
     inner_dim = tensor.shape[-1]
     if inner_dim % dim_head != 0:
@@ -122,10 +106,8 @@ def _reshape_qkv_to_heads(q, k, v, b, heads, dim_head, enable_gqa=False, expand_
         value_heads = heads
     k = k.unsqueeze(3).reshape(b, -1, key_heads, dim_head)
     v = v.unsqueeze(3).reshape(b, -1, value_heads, dim_head)
-    if enable_gqa:
-        _gqa_repeat_factor(heads, key_heads, value_heads)
-        if expand_kv:
-            k, v = _repeat_kv_for_gqa(k, v, heads, -2)
+    if enable_gqa and expand_kv:
+        k, v = comfy.ops.repeat_kv_for_gqa(k, v, heads, -2)
     return q, k, v
 
 
@@ -196,7 +178,7 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     h = heads
     if skip_reshape:
         if kwargs.get("enable_gqa", False):
-            k, v = _repeat_kv_for_gqa(k, v, q.shape[-3], -3)
+            k, v = comfy.ops.repeat_kv_for_gqa(k, v, q.shape[-3], -3)
         q, k, v = map(
             lambda t: t.reshape(b * heads, -1, dim_head),
             (q, k, v),
@@ -262,7 +244,7 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
 
     if skip_reshape:
         if kwargs.get("enable_gqa", False):
-            key, value = _repeat_kv_for_gqa(key, value, query.shape[-3], -3)
+            key, value = comfy.ops.repeat_kv_for_gqa(key, value, query.shape[-3], -3)
         query = query.reshape(b * heads, -1, dim_head)
         value = value.reshape(b * heads, -1, dim_head)
         key = key.reshape(b * heads, -1, dim_head).movedim(1, 2)
@@ -338,7 +320,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     if skip_reshape:
         if kwargs.get("enable_gqa", False):
-            k, v = _repeat_kv_for_gqa(k, v, q.shape[-3], -3)
+            k, v = comfy.ops.repeat_kv_for_gqa(k, v, q.shape[-3], -3)
         q, k, v = map(
             lambda t: t.reshape(b * heads, -1, dim_head),
             (q, k, v),
@@ -476,7 +458,7 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
             (q, k, v),
         )
         if kwargs.get("enable_gqa", False):
-            k, v = _repeat_kv_for_gqa(k, v, q.shape[-2], -2)
+            k, v = comfy.ops.repeat_kv_for_gqa(k, v, q.shape[-2], -2)
     # actually do the reshaping
     else:
         dim_head //= heads
@@ -573,7 +555,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
         b, _, _, dim_head = q.shape
         tensor_layout = "HND"
         if kwargs.get("enable_gqa", False):
-            k, v = _repeat_kv_for_gqa(k, v, q.shape[-3], -3)
+            k, v = comfy.ops.repeat_kv_for_gqa(k, v, q.shape[-3], -3)
     else:
         b, _, dim_head = q.shape
         dim_head //= heads
@@ -671,7 +653,7 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     if skip_reshape:
         q_s = q
         if kwargs.get("enable_gqa", False):
-            k_s, v_s = _repeat_kv_for_gqa(k, v, H, -3)
+            k_s, v_s = comfy.ops.repeat_kv_for_gqa(k, v, H, -3)
         else:
             k_s, v_s = k, v
     else:
