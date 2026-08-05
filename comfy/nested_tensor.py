@@ -51,6 +51,9 @@ class NestedTensor:
     def float(self):
         return self.to(dtype=torch.float)
 
+    def cpu(self):
+        return self.to(device="cpu")
+
     def chunk(self, *args, **kwargs):
         return self.apply_operation(None, lambda x, y: x.chunk(*args, **kwargs))
 

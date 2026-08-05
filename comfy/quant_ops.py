@@ -240,7 +240,7 @@ QUANT_ALGOS = {
     },
     "nvfp4": {
         "storage_t": torch.uint8,
-        "parameters": {"weight_scale", "weight_scale_2", "input_scale"},
+        "parameters": {"weight_scale", "weight_scale_2", "input_scale", "pre_quant_scale"},
         "comfy_tensor_layout": "TensorCoreNVFP4Layout",
         "group_size": 16,
     },

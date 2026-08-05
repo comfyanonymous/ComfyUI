@@ -15,6 +15,7 @@ import comfy.text_encoders.flux
 import comfy.text_encoders.genmo
 import comfy.text_encoders.lt
 import comfy.text_encoders.hunyuan_video
+import comfy.text_encoders.minimax
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
@@ -954,6 +955,33 @@ class LTXAV(LTXV):
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.LTXAV(self, device=device)
         return out
+
+class MiniMaxH3(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "minimax_h3",
+    }
+
+    sampling_settings = {
+        "shift": 12.0,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.MiniMaxH3AV
+
+    memory_usage_factor = 0.114
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.MiniMaxH3(self, device=device)
+
+    def clip_target(self, state_dict={}, prefix=""):
+        pref = self.text_encoder_key_prefix[0]
+        detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_32b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.minimax.MiniMaxH3Tokenizer, comfy.text_encoders.minimax.te(**detect))
 
 class HunyuanVideo(supported_models_base.BASE):
     unet_config = {
@@ -2407,6 +2435,7 @@ models = [
     GenmoMochi,
     LTXV,
     LTXAV,
+    MiniMaxH3,
     HunyuanVideo15_SR_Distilled,
     HunyuanVideo15,
     HunyuanImage21Refiner,

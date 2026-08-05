@@ -86,7 +86,31 @@ class SaveVideo(io.ComfyNode):
                 io.Video.Input("video", tooltip="The video to save."),
                 io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
                 io.Combo.Input("format", options=Types.VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
-                io.Combo.Input("codec", options=Types.VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+                io.DynamicCombo.Input(
+                    "codec",
+                    options=[
+                        io.DynamicCombo.Option("auto", []),
+                        io.DynamicCombo.Option(
+                            "h264",
+                            [
+                                io.DynamicCombo.Input(
+                                    "encoding",
+                                    display_name="encoding mode",
+                                    options=[
+                                        io.DynamicCombo.Option("auto", []),
+                                        io.DynamicCombo.Option(
+                                            "re-encode",
+                                            [io.Float.Input("crf", default=23.0, min=0.0, max=51.0, step=1.0, tooltip="Lower values produce higher quality and larger files.")],
+                                        ),
+                                    ],
+                                    optional=True,
+                                    tooltip="Automatic preserves compatible H.264 streams. Re-encode applies a custom CRF.",
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip="The codec to use for the video.",
+                ),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
@@ -94,7 +118,9 @@ class SaveVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, video: Input.Video, filename_prefix, format: str, codec) -> io.NodeOutput:
+    def execute(cls, video: Input.Video, filename_prefix, format: str, codec: io.DynamicCombo.Type) -> io.NodeOutput:
+        codec_name = codec["codec"]
+        encoding = codec.get("encoding") or {}
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix,
@@ -115,8 +141,9 @@ class SaveVideo(io.ComfyNode):
         video.save_to(
             os.path.join(full_output_folder, file),
             format=Types.VideoContainer(format),
-            codec=codec,
-            metadata=saved_metadata
+            codec=codec_name,
+            metadata=saved_metadata,
+            crf=encoding.get("crf"),
         )
 
         return io.NodeOutput(video, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
