@@ -90,7 +90,11 @@ def _view_scale_pre_cfg(azims):
             return conds_out  # cfg == 1.0: no guidance to scale
         cond, uncond = conds_out[0], conds_out[1]
         if cond.ndim != 5 or cond.shape[2] % len(azims) != 0:
-            return conds_out
+            raise ValueError(
+                f"Hunyuan3D paint: expected a packed 5D latent whose view axis is a multiple of "
+                f"{len(azims)} (the camera count), got shape {tuple(cond.shape)}. Falling back to "
+                f"scalar CFG here would silently drop per-view guidance and skew the result."
+            )
         vs = torch.tensor([view_scale_mapping(a) for a in azims], device=cond.device, dtype=cond.dtype)
         vs = vs.repeat(cond.shape[2] // len(azims)).reshape(1, 1, -1, 1, 1)
         return [uncond + vs * (cond - uncond)] + list(conds_out[1:])
