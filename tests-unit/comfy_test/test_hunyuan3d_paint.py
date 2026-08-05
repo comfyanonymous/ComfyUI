@@ -46,8 +46,11 @@ def _init_weights(model, seed=0, scale=0.03):
     (torch.empty garbage), which is fine for shape tests but overflows through a
     deep net; tests asserting finite numerics need real (small) weights."""
     with torch.no_grad():
-        for name, p in sorted(model.named_parameters()):
-            g = torch.Generator().manual_seed(seed + (hash(name) % 65536))
+        # Index into the sorted parameter list, not hash(name): str hashing is salted per
+        # process unless PYTHONHASHSEED is pinned, which would make these weights - and so
+        # any numerics failure below - differ from run to run.
+        for i, (_, p) in enumerate(sorted(model.named_parameters())):
+            g = torch.Generator().manual_seed(seed + i)
             p.copy_(torch.randn(p.shape, generator=g, dtype=torch.float32).to(p.dtype) * scale)
     return model
 

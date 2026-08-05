@@ -15,6 +15,7 @@ import os
 import sys
 
 import torch
+from safetensors.torch import load_file
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))          # comfy_test/ (for paint_parity pkg)
@@ -31,7 +32,6 @@ from comfy.ldm.hunyuan3d.paint.loader import load_paint_unet  # noqa: E402
 
 def _load_state_dict(path):
     if path.endswith(".safetensors"):
-        from safetensors.torch import load_file
         return load_file(path)
     return torch.load(path, map_location="cpu", weights_only=True)
 
