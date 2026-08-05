@@ -1593,7 +1593,10 @@ def discard_cuda_async_error():
         synchronize()
     except RuntimeError:
         #Dump it! We already know about it from the synchronous return
-        pass
+        try:
+            synchronize()
+        except RuntimeError:
+            pass
 
 def pin_memory(tensor):
     global TOTAL_PINNED_MEMORY
