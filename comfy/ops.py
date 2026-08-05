@@ -19,6 +19,7 @@
 import torch
 import logging
 import contextlib
+import inspect
 import comfy.model_management
 from comfy.cli_args import args, PerformanceFeature
 import comfy.float
@@ -36,30 +37,61 @@ def run_every_op():
 
     comfy.model_management.throw_exception_if_processing_interrupted()
 
+def gqa_repeat_factor(query_heads, key_heads, value_heads):
+    if key_heads != value_heads:
+        raise ValueError(f"Key/value head count mismatch for GQA: {key_heads} != {value_heads}")
+    if query_heads == key_heads:
+        return 1
+    if query_heads % key_heads != 0:
+        raise ValueError(f"Query heads must be divisible by key/value heads for GQA: {query_heads} vs {key_heads}")
+    return query_heads // key_heads
+
+def repeat_kv_for_gqa(k, v, query_heads, head_dim):
+    n_rep = gqa_repeat_factor(query_heads, k.shape[head_dim], v.shape[head_dim])
+    if n_rep > 1:
+        k = k.repeat_interleave(n_rep, dim=head_dim)
+        v = v.repeat_interleave(n_rep, dim=head_dim)
+    return k, v
+
 def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+    attn_mask = args[0] if len(args) > 0 else kwargs.get("attn_mask")
+    if kwargs.get("enable_gqa", False) and attn_mask is not None:
+        k, v = repeat_kv_for_gqa(k, v, q.shape[-3], -3)
+        kwargs["enable_gqa"] = False
     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
 
 
 try:
     if torch.cuda.is_available():
         from torch.nn.attention import SDPBackend, sdpa_kernel
-        import inspect
         if "set_priority" in inspect.signature(sdpa_kernel).parameters:
             SDPA_BACKEND_PRIORITY = [
                 SDPBackend.FLASH_ATTENTION,
+                SDPBackend.CUDNN_ATTENTION,
                 SDPBackend.EFFICIENT_ATTENTION,
                 SDPBackend.MATH,
             ]
 
-            if comfy.model_management.WINDOWS:
-                SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
-            else:
-                SDPA_BACKEND_PRIORITY.insert(1, SDPBackend.CUDNN_ATTENTION)
-
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
                 if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
                     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+                attn_mask = args[0] if len(args) > 0 else kwargs.get("attn_mask")
+                if kwargs.get("enable_gqa", False) and attn_mask is not None and not comfy.model_management.is_nvidia():
+                    k, v = repeat_kv_for_gqa(k, v, q.shape[-3], -3)
+                    kwargs["enable_gqa"] = False
                 with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
+                    if kwargs.get("enable_gqa", False) and attn_mask is not None and q.shape[-3] != k.shape[-3]:
+                        dropout_p = args[1] if len(args) > 1 else kwargs.get("dropout_p", 0.0)
+                        is_causal = args[2] if len(args) > 2 else kwargs.get("is_causal", False)
+                        params = torch.backends.cuda.SDPAParams(q, k, v, attn_mask, dropout_p, is_causal, True)
+                        supports_native_gqa = (
+                            torch.backends.cuda.can_use_flash_attention(params)
+                            or torch.backends.cuda.can_use_cudnn_attention(params)
+                            or torch.backends.cuda.can_use_efficient_attention(params)
+                        )
+                        if not supports_native_gqa:
+                            k, v = repeat_kv_for_gqa(k, v, q.shape[-3], -3)
+                            kwargs["enable_gqa"] = False
                     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
         else:
             logging.warning("Torch version too old to set sdpa backend priority.")
@@ -464,8 +496,7 @@ class disable_weight_init:
 
         def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
             # don't trust subclasses that BYO state dict loader to call us.
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 super().__init__(in_features, out_features, bias, device, dtype)
                 return
@@ -487,8 +518,7 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Linear._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
@@ -716,8 +746,7 @@ class disable_weight_init:
                      norm_type=2.0, scale_grad_by_freq=False, sparse=False, _weight=None,
                      _freeze=False, device=None, dtype=None):
             # don't trust subclasses that BYO state dict loader to call us.
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
                 super().__init__(num_embeddings, embedding_dim, padding_idx, max_norm,
                                  norm_type, scale_grad_by_freq, sparse, _weight,
@@ -744,8 +773,7 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if (not comfy.model_management.WINDOWS
-                or not comfy.memory_management.aimdo_enabled
+            if (not comfy.memory_management.aimdo_enabled
                 or type(self)._load_from_state_dict is not disable_weight_init.Embedding._load_from_state_dict):
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
@@ -917,12 +945,60 @@ if CUBLAS_IS_AVAILABLE:
 # ==============================================================================
 # Mixed Precision Operations
 # ==============================================================================
+from . import quant_ops
 from .quant_ops import (
     QuantizedTensor,
     QUANT_ALGOS,
     TensorCoreFP8Layout,
+    TensorWiseINT8Layout,
     get_layout_class,
 )
+
+def _swiglu_eager(x):
+    gate, up = x.chunk(2, dim=-1)
+    return torch.nn.functional.silu(gate).mul_(up)
+
+
+INPUT_ACT_EAGER = {
+    "gelu_tanh": lambda x: torch.nn.functional.gelu(x, approximate="tanh"),
+    "swiglu": _swiglu_eager,
+}
+
+
+def linear_input_act(linear, x, input_act):
+    """``linear(act(x))``, with ``act`` folded into an INT8 activation quantizer.
+
+    An INT8 linear quantizes its input anyway, so an elementwise activation can
+    ride along inside that kernel instead of writing a full-size intermediate to
+    HBM and reading it straight back. Worth it for an MLP's down-projection,
+    where the intermediate is several times the hidden size.
+
+    """
+    weight = linear.weight
+    if (comfy.model_management.in_training
+            or not isinstance(weight, QuantizedTensor)
+            or weight._layout_cls != "TensorWiseINT8Layout"
+            or getattr(weight._params, "transposed", False)):
+        return linear(INPUT_ACT_EAGER[input_act](x))
+
+    # want_requant keeps a vbar-streamed layer on the INT8 path when a LoRA is
+    # patched in on the fly; without it the cast hands back a dequantized weight.
+    weight, bias, offload_stream = cast_bias_weight(
+        linear, x, offloadable=True, compute_dtype=x.dtype, want_requant=True)
+    try:
+        if not isinstance(weight, QuantizedTensor):
+            # A LoRA weight_function, or activations whose dtype differs from the
+            # weight's, make the cast hand back a dequantized tensor.
+            return torch.nn.functional.linear(INPUT_ACT_EAGER[input_act](x), weight, bias)
+        qdata, scale = TensorWiseINT8Layout.get_plain_tensors(weight)
+        return quant_ops.ck.int8_linear(
+            x, qdata, scale, bias, x.dtype,
+            convrot=getattr(weight._params, "convrot", False),
+            convrot_groupsize=getattr(weight._params, "convrot_groupsize", 256),
+            input_act=input_act,
+        )
+    finally:
+        uncast_bias_weight(linear, weight, bias, offload_stream)
 
 
 class QuantLinearFunc(torch.autograd.Function):
@@ -1233,7 +1309,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):
                 sd = destination if destination is not None else {}
-                return _quantized_weight_state_dict(self, sd, prefix, extra_quant_params=("input_scale",))
+                return _quantized_weight_state_dict(self, sd, prefix, extra_quant_params=("input_scale", "pre_quant_scale"))
 
             def _forward(self, input, weight, bias):
                 return torch.nn.functional.linear(input, weight, bias)
@@ -1271,6 +1347,11 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def forward(self, input, *args, **kwargs):
                 run_every_op()
+
+                # ModelOpt AWQ-style smoothing
+                pre_quant_scale = getattr(self, 'pre_quant_scale', None)
+                if pre_quant_scale is not None:
+                    input = input * comfy.model_management.cast_to_device(pre_quant_scale, input.device, input.dtype)
 
                 input_shape = input.shape
                 reshaped_nd = False

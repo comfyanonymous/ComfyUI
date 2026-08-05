@@ -29,11 +29,13 @@ class VideoInput(ABC):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None,
         bit_depth: int | None = None,
+        crf: float | None = None,
     ):
         """
         Abstract method to save the video input to a file.
 
         bit_depth selects the encoded bit depth; None keeps the video's native depth.
+        crf selects the H.264 constant rate factor; None uses the encoder default.
         """
         pass
 
