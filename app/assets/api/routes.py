@@ -125,6 +125,13 @@ class InvalidTagFilterError(Exception):
         self.details = details
 
 
+# Applies to every tag-filter list, legacy spellings included — unlike the
+# combination validation below, which only runs when a new-name parameter is
+# present. Deliberate exception to legacy byte-identity (decision 2026-08-05):
+# an unbounded list fans out into one EXISTS per tag on page and count queries.
+MAX_TAG_FILTER_TAGS = 100
+
+
 def _resolve_tag_filters(
     q: schemas_in.ListAssetsQuery | schemas_in.TagsRefineQuery,
 ) -> tuple[list[str], list[str], list[str]]:
@@ -145,6 +152,24 @@ def _resolve_tag_filters(
     tags_all = normalize_tags(q.tags_all)
     tags_any = normalize_tags(q.tags_any)
     tags_none = normalize_tags(q.tags_none)
+
+    for param_name, values in (
+        ("include_tags", include_tags),
+        ("exclude_tags", exclude_tags),
+        ("tags_all", tags_all),
+        ("tags_any", tags_any),
+        ("tags_none", tags_none),
+    ):
+        if len(values) > MAX_TAG_FILTER_TAGS:
+            raise InvalidTagFilterError(
+                f"'{param_name}' lists {len(values)} tags; the maximum is "
+                f"{MAX_TAG_FILTER_TAGS}.",
+                {
+                    "parameter": param_name,
+                    "count": len(values),
+                    "max": MAX_TAG_FILTER_TAGS,
+                },
+            )
 
     if not (tags_all or tags_any or tags_none):
         return include_tags, [], exclude_tags

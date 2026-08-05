@@ -719,6 +719,28 @@ def test_list_assets_tag_values_case_sensitive(http, api_base, asset_factory, ma
     assert names_for({"tags_all": f"unit-tests,{scope},{upper}", "tags_none": lower}) == {a["name"]}
 
 
+def test_tag_list_cap_applies_to_all_spellings(http, api_base):
+    """The 100-tag cap covers legacy spellings too — the one deliberate
+    exception to legacy byte-identity (decision 2026-08-05)."""
+    big = ",".join(f"cap-{i}" for i in range(101))
+    for param in ("tags_any", "include_tags"):
+        r = http.get(api_base + "/api/assets", params={param: big}, timeout=120)
+        body = r.json()
+        assert r.status_code == 400, body
+        assert body["error"]["code"] == "INVALID_TAG_FILTER"
+        assert body["error"]["details"]["parameter"] == param
+        assert body["error"]["details"]["max"] == 100
+
+    exact = ",".join(f"cap-{i}" for i in range(100))
+    r = http.get(api_base + "/api/assets", params={"tags_any": exact}, timeout=120)
+    assert r.status_code == 200, r.json()
+
+    # The cap counts normalized (deduped) tags, not raw CSV items.
+    dups = ",".join("cap-dup" for _ in range(150))
+    r = http.get(api_base + "/api/assets", params={"tags_any": dups}, timeout=120)
+    assert r.status_code == 200, r.json()
+
+
 def test_resolve_tag_filters_no_deprecation_warning():
     """The deprecated-field warning is for API clients; the server's own remap
     shim must not fire it on every request."""
