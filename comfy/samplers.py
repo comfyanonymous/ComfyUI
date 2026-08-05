@@ -1307,6 +1307,8 @@ class CFGGuider:
             for i in range(len(denoise_masks)):
                 denoise_masks[i] = comfy.sampler_helpers.prepare_mask(denoise_masks[i], latent_shapes[i], self.model_patcher.load_device)
 
+            denoise_masks = self.model_patcher.model.process_denoise_mask(denoise_masks)
+
             if len(denoise_masks) > 1:
                 denoise_mask, _ = comfy.utils.pack_latents(denoise_masks)
             else:
