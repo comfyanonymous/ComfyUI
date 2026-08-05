@@ -5,6 +5,8 @@ import pytest
 import requests
 from helpers import assert_hash_fields_consistent
 
+from app.assets.api import schemas_in
+
 
 def test_list_assets_paging_and_sort(http: requests.Session, api_base: str, asset_factory, make_asset_bytes):
     names = ["a1_u.safetensors", "a2_u.safetensors", "a3_u.safetensors"]
@@ -716,8 +718,6 @@ def test_list_assets_tag_values_case_sensitive(http, api_base, asset_factory, ma
 
 
 def test_tag_filter_alias_fields_marked_deprecated():
-    from app.assets.api import schemas_in
-
     for model in (schemas_in.ListAssetsQuery, schemas_in.TagsRefineQuery):
         props = model.model_json_schema()["properties"]
         for field in ("include_tags", "exclude_tags"):
