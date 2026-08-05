@@ -1,10 +1,12 @@
 import time
 import uuid
+import warnings
 
 import pytest
 import requests
 from helpers import assert_hash_fields_consistent
 
+from app.assets.api import routes as assets_routes
 from app.assets.api import schemas_in
 
 
@@ -715,6 +717,18 @@ def test_list_assets_tag_values_case_sensitive(http, api_base, asset_factory, ma
     assert names_for({"tags_any": lower, "limit": "50"}) == {b["name"]}
     # Case-distinct all/none pair is NOT a conflict — byte-exact comparison.
     assert names_for({"tags_all": f"unit-tests,{scope},{upper}", "tags_none": lower}) == {a["name"]}
+
+
+def test_resolve_tag_filters_no_deprecation_warning():
+    """The deprecated-field warning is for API clients; the server's own remap
+    shim must not fire it on every request."""
+    for q in (
+        schemas_in.ListAssetsQuery(tags_all="a", tags_none="b"),
+        schemas_in.TagsRefineQuery(tags_any="c"),
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            assets_routes._resolve_tag_filters(q)
 
 
 def test_tag_filter_alias_fields_marked_deprecated():

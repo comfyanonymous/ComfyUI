@@ -136,8 +136,12 @@ def _resolve_tag_filters(
     the legacy names keep their historical behaviour, including degenerate
     combinations like include_tags=a&exclude_tags=a.
     """
-    include_tags = normalize_tags(q.include_tags)
-    exclude_tags = normalize_tags(q.exclude_tags)
+    # model_dump instead of attribute access: the fields are deprecated, and
+    # pydantic's per-access DeprecationWarning is aimed at API clients, not at
+    # this remap shim reading them on every request.
+    legacy = q.model_dump(include={"include_tags", "exclude_tags"})
+    include_tags = normalize_tags(legacy["include_tags"])
+    exclude_tags = normalize_tags(legacy["exclude_tags"])
     tags_all = normalize_tags(q.tags_all)
     tags_any = normalize_tags(q.tags_any)
     tags_none = normalize_tags(q.tags_none)
