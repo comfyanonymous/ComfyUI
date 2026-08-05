@@ -263,12 +263,13 @@ def list_references_page(
     name_contains: str | None = None,
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
-    any_tags: Sequence[str] | None = None,
     metadata_filter: dict | None = None,
     sort: str | None = None,
     order: str | None = None,
     after_cursor_value: object | None = None,
     after_cursor_id: str | None = None,
+    # Appended last so pre-existing positional callers keep binding correctly.
+    any_tags: Sequence[str] | None = None,
 ) -> tuple[list[AssetReference], dict[str, list[str]], int]:
     """List references with pagination, filtering, and sorting.
 

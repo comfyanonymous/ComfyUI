@@ -82,10 +82,11 @@ def list_tag_histogram(
     owner_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
-    any_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
     metadata_filter: dict | None = None,
     limit: int = 100,
+    # Appended last so pre-existing positional callers keep binding correctly.
+    any_tags: Sequence[str] | None = None,
 ) -> dict[str, int]:
     with create_session() as session:
         return list_tag_counts_for_filtered_assets(

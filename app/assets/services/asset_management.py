@@ -272,7 +272,6 @@ def list_assets_page(
     owner_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
-    any_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
     metadata_filter: dict | None = None,
     limit: int = 20,
@@ -280,6 +279,8 @@ def list_assets_page(
     sort: str = "created_at",
     order: str = "desc",
     after: str | None = None,
+    # Appended last so pre-existing positional callers keep binding correctly.
+    any_tags: Sequence[str] | None = None,
 ) -> ListAssetsResult:
     """List assets with optional cursor pagination.
 

@@ -580,3 +580,125 @@ def test_tags_refine_new_tag_filters(http, api_base, asset_factory, make_asset_b
     assert r2.status_code == 400, body2
     assert body2["error"]["code"] == "INVALID_TAG_FILTER"
     assert body2["error"]["details"]["conflicting_tags"] == ["rf-x"]
+
+
+def test_list_assets_cross_slot_old_new_combinations(http, api_base, asset_factory, make_asset_bytes):
+    """Old and new spellings of *different* slots combine freely; only
+    same-slot mixing is rejected."""
+    scope = f"lf-cross-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    a = asset_factory("cs_a.safetensors", [*t, alpha], {}, make_asset_bytes("cs_a"))
+    b = asset_factory("cs_b.safetensors", [*t, beta], {}, make_asset_bytes("cs_b"))
+
+    def names_for(params: dict) -> set:
+        r = http.get(api_base + "/api/assets", params=params, timeout=120)
+        body = r.json()
+        assert r.status_code == 200, body
+        return {x["name"] for x in body["assets"]}
+
+    assert names_for(
+        {"include_tags": f"unit-tests,{scope}", "tags_any": alpha}
+    ) == {a["name"]}
+    assert names_for(
+        {"tags_all": f"unit-tests,{scope}", "exclude_tags": alpha}
+    ) == {b["name"]}
+    assert names_for(
+        {"tags_any": f"{alpha},{beta}", "exclude_tags": alpha}
+    ) == {b["name"]}
+
+
+def test_list_assets_repeated_query_keys_concatenate(http, api_base, asset_factory, make_asset_bytes):
+    """Core concatenates repeated occurrences of a tag param before the CSV
+    split. (Contract note: repeated keys are outside the cross-platform
+    contract; this pins Core's own behavior.)"""
+    scope = f"lf-repeat-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha, beta = f"{scope}-alpha", f"{scope}-beta"
+    a = asset_factory("rp_a.safetensors", [*t, alpha], {}, make_asset_bytes("rp_a"))
+    b = asset_factory("rp_b.safetensors", [*t, beta], {}, make_asset_bytes("rp_b"))
+
+    # requests encodes a list value as repeated keys: tags_any=<alpha>&tags_any=<beta>
+    r = http.get(
+        api_base + "/api/assets",
+        params={"tags_any": [alpha, beta], "limit": "50"},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 200, body
+    names = {x["name"] for x in body["assets"]}
+    assert {a["name"], b["name"]} <= names
+
+
+def test_list_assets_tags_any_cursor_pagination_consistent(http, api_base, asset_factory, make_asset_bytes):
+    scope = f"lf-anypage-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    alpha = f"{scope}-alpha"
+    expected = set()
+    for i in range(3):
+        made = asset_factory(f"pg_{i}.safetensors", [*t, alpha], {}, make_asset_bytes(f"pg_{i}"))
+        expected.add(made["name"])
+
+    r1 = http.get(
+        api_base + "/api/assets",
+        params={"tags_any": alpha, "limit": "2", "sort": "name", "order": "asc"},
+        timeout=120,
+    )
+    b1 = r1.json()
+    assert r1.status_code == 200, b1
+    assert b1["total"] == 3
+    assert b1["has_more"] is True
+    assert b1.get("next_cursor"), "expected a keyset cursor on the first page"
+
+    r2 = http.get(
+        api_base + "/api/assets",
+        params={
+            "tags_any": alpha,
+            "limit": "2",
+            "sort": "name",
+            "order": "asc",
+            "after": b1["next_cursor"],
+        },
+        timeout=120,
+    )
+    b2 = r2.json()
+    assert r2.status_code == 200, b2
+    assert b2["has_more"] is False
+
+    page1 = {x["name"] for x in b1["assets"]}
+    page2 = {x["name"] for x in b2["assets"]}
+    assert not page1 & page2, "cursor pages must not overlap"
+    assert page1 | page2 == expected
+
+
+def test_tags_refine_mixed_spellings_rejected_and_legacy_conflict_kept(http, api_base):
+    r = http.get(
+        api_base + "/api/assets/tags/refine",
+        params={"include_tags": "rfmx-x", "tags_all": "rfmx-y"},
+        timeout=120,
+    )
+    body = r.json()
+    assert r.status_code == 400, body
+    assert body["error"]["code"] == "INVALID_TAG_FILTER"
+    assert body["error"]["details"]["parameters"] == ["include_tags", "tags_all"]
+
+    # Old names only: the refine route keeps legacy behaviour too.
+    r2 = http.get(
+        api_base + "/api/assets/tags/refine",
+        params={"include_tags": "rfmx-z", "exclude_tags": "rfmx-z"},
+        timeout=120,
+    )
+    body2 = r2.json()
+    assert r2.status_code == 200, body2
+    assert body2["tag_counts"] == {}
+
+
+def test_tag_filter_alias_fields_marked_deprecated():
+    from app.assets.api import schemas_in
+
+    for model in (schemas_in.ListAssetsQuery, schemas_in.TagsRefineQuery):
+        props = model.model_json_schema()["properties"]
+        for field in ("include_tags", "exclude_tags"):
+            assert props[field].get("deprecated") is True, (model.__name__, field)
+        for field in ("tags_all", "tags_any", "tags_none"):
+            assert "deprecated" not in props[field], (model.__name__, field)

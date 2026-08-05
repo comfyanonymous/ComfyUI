@@ -51,8 +51,8 @@ class ParsedUpload:
 
 class ListAssetsQuery(BaseModel):
     # Deprecated spellings: include_tags ≡ tags_all, exclude_tags ≡ tags_none.
-    include_tags: list[str] = Field(default_factory=list)
-    exclude_tags: list[str] = Field(default_factory=list)
+    include_tags: list[str] = Field(default_factory=list, deprecated=True)
+    exclude_tags: list[str] = Field(default_factory=list, deprecated=True)
     tags_all: list[str] = Field(default_factory=list)
     tags_any: list[str] = Field(default_factory=list)
     tags_none: list[str] = Field(default_factory=list)
@@ -162,8 +162,8 @@ class CreateFromHashBody(BaseModel):
 
 class TagsRefineQuery(BaseModel):
     # Deprecated spellings: include_tags ≡ tags_all, exclude_tags ≡ tags_none.
-    include_tags: list[str] = Field(default_factory=list)
-    exclude_tags: list[str] = Field(default_factory=list)
+    include_tags: list[str] = Field(default_factory=list, deprecated=True)
+    exclude_tags: list[str] = Field(default_factory=list, deprecated=True)
     tags_all: list[str] = Field(default_factory=list)
     tags_any: list[str] = Field(default_factory=list)
     tags_none: list[str] = Field(default_factory=list)
