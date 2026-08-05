@@ -34,10 +34,10 @@ class MESH:
                  uvs: torch.Tensor | None = None,
                  vertex_colors: torch.Tensor | None = None,
                  texture: torch.Tensor | None = None,
-                 texture_mr: torch.Tensor | None = None,
                  vertex_counts: torch.Tensor | None = None,
                  face_counts: torch.Tensor | None = None,
-                 unlit: bool = False):
+                 unlit: bool = False,
+                 texture_mr: torch.Tensor | None = None):
 
         assert (vertex_counts is None) == (face_counts is None), \
             "vertex_counts and face_counts must be provided together (both or neither)"
