@@ -693,6 +693,28 @@ def test_tags_refine_mixed_spellings_rejected_and_legacy_conflict_kept(http, api
     assert body2["tag_counts"] == {}
 
 
+def test_list_assets_tag_values_case_sensitive(http, api_base, asset_factory, make_asset_bytes):
+    """Tag values are opaque byte-strings: case-distinct tags are distinct
+    (prod carries live pairs like SEEDVR2/seedvr2 that resolve differently),
+    and the all/none conflict check is byte-exact, not case-folded."""
+    scope = f"lf-case-{uuid.uuid4().hex[:6]}"
+    t = ["models", "model_type:checkpoints", "unit-tests", scope]
+    upper, lower = f"{scope}-ALPHA", f"{scope}-alpha"
+    a = asset_factory("cx_a.safetensors", [*t, upper], {}, make_asset_bytes("cx_a"))
+    b = asset_factory("cx_b.safetensors", [*t, lower], {}, make_asset_bytes("cx_b"))
+
+    def names_for(params: dict) -> set:
+        r = http.get(api_base + "/api/assets", params=params, timeout=120)
+        body = r.json()
+        assert r.status_code == 200, body
+        return {x["name"] for x in body["assets"]}
+
+    assert names_for({"tags_all": f"unit-tests,{scope},{upper}"}) == {a["name"]}
+    assert names_for({"tags_any": lower, "limit": "50"}) == {b["name"]}
+    # Case-distinct all/none pair is NOT a conflict — byte-exact comparison.
+    assert names_for({"tags_all": f"unit-tests,{scope},{upper}", "tags_none": lower}) == {a["name"]}
+
+
 def test_tag_filter_alias_fields_marked_deprecated():
     from app.assets.api import schemas_in
 
