@@ -619,13 +619,15 @@ class UNet2p5DConditionModel(nn.Module):
             in_channels=ref_in_channels, out_channels=out_channels,
             block_ctor=_plain_block_ctor, block_kwargs={}, **common)
 
-        # learned material text-clip embeddings (registered on inner unet to match keys)
+        # learned material text-clip embeddings (registered on inner unet to match keys).
+        # Always supplied by the checkpoint - the loader rejects a file missing any of
+        # them - so there is no fallback value to fill in here.
         for token in self.pbr_setting:
             self.unet.register_parameter(
                 f"learned_text_clip_{token}",
-                nn.Parameter(torch.zeros(pbr_token_channels, cross_attention_dim, dtype=dtype, device=device)))
+                nn.Parameter(torch.empty(pbr_token_channels, cross_attention_dim, dtype=dtype, device=device)))
         self.unet.learned_text_clip_ref = nn.Parameter(
-            torch.zeros(pbr_token_channels, cross_attention_dim, dtype=dtype, device=device))
+            torch.empty(pbr_token_channels, cross_attention_dim, dtype=dtype, device=device))
 
         if self.use_dino:
             self.unet.image_proj_model_dino = ImageProjModel(
