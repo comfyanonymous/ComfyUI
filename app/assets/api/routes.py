@@ -125,10 +125,7 @@ class InvalidTagFilterError(Exception):
         self.details = details
 
 
-# Applies to every tag-filter list, legacy spellings included — unlike the
-# combination validation below, which only runs when a new-name parameter is
-# present. Deliberate exception to legacy byte-identity (decision 2026-08-05):
-# an unbounded list fans out into one EXISTS per tag on page and count queries.
+# Caps the per-tag EXISTS fan-out; deliberately covers the legacy spellings too.
 MAX_TAG_FILTER_TAGS = 100
 
 
@@ -143,9 +140,7 @@ def _resolve_tag_filters(
     the legacy names keep their historical behaviour, including degenerate
     combinations like include_tags=a&exclude_tags=a.
     """
-    # model_dump instead of attribute access: the fields are deprecated, and
-    # pydantic's per-access DeprecationWarning is aimed at API clients, not at
-    # this remap shim reading them on every request.
+    # model_dump, not attribute access: deprecated fields warn on every attribute read.
     legacy = q.model_dump(include={"include_tags", "exclude_tags"})
     include_tags = normalize_tags(legacy["include_tags"])
     exclude_tags = normalize_tags(legacy["exclude_tags"])

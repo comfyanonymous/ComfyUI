@@ -613,9 +613,8 @@ def test_list_assets_cross_slot_old_new_combinations(http, api_base, asset_facto
 
 
 def test_list_assets_repeated_query_keys_concatenate(http, api_base, asset_factory, make_asset_bytes):
-    """Core concatenates repeated occurrences of a tag param before the CSV
-    split. (Contract note: repeated keys are outside the cross-platform
-    contract; this pins Core's own behavior.)"""
+    """Repeated occurrences of a tag param concatenate before the CSV split
+    (Core-local behavior, not a cross-platform guarantee)."""
     scope = f"lf-repeat-{uuid.uuid4().hex[:6]}"
     t = ["models", "model_type:checkpoints", "unit-tests", scope]
     alpha, beta = f"{scope}-alpha", f"{scope}-beta"
@@ -698,9 +697,7 @@ def test_tags_refine_mixed_spellings_rejected_and_legacy_conflict_kept(http, api
 
 
 def test_list_assets_tag_values_case_sensitive(http, api_base, asset_factory, make_asset_bytes):
-    """Tag values are opaque byte-strings: case-distinct tags are distinct
-    (prod carries live pairs like SEEDVR2/seedvr2 that resolve differently),
-    and the all/none conflict check is byte-exact, not case-folded."""
+    """Case-distinct tags are distinct; the all/none conflict check is byte-exact."""
     scope = f"lf-case-{uuid.uuid4().hex[:6]}"
     t = ["models", "model_type:checkpoints", "unit-tests", scope]
     upper, lower = f"{scope}-ALPHA", f"{scope}-alpha"
@@ -720,8 +717,7 @@ def test_list_assets_tag_values_case_sensitive(http, api_base, asset_factory, ma
 
 
 def test_tag_list_cap_applies_to_all_spellings(http, api_base):
-    """The 100-tag cap covers legacy spellings too — the one deliberate
-    exception to legacy byte-identity (decision 2026-08-05)."""
+    """The cap covers the legacy spellings too."""
     big = ",".join(f"cap-{i}" for i in range(101))
     for param in ("tags_any", "include_tags"):
         r = http.get(api_base + "/api/assets", params={param: big}, timeout=120)
