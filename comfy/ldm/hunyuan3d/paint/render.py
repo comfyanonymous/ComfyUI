@@ -31,9 +31,12 @@ STANDARD_VIEW_WEIGHTS = [1.0, 0.1, 0.5, 0.1, 0.05, 0.05]
 _DEPTH_LEVELS = 1 << 24
 
 # Documented soft bounds for the pure-torch rasterizer/baker. Rasterization work is
-# chunked by cumulative bounding-box pixel area (see rasterize()), so face count and
-# resolution trade off against time, not peak memory. CPU envelope (see PR notes):
-# 100k faces @ 512 rasterize in well under a second; 1M faces in a few seconds.
+# chunked by cumulative bounding-box pixel area (see rasterize()), so across a typical
+# mesh face count and resolution trade off against time rather than peak memory. The
+# budget is applied at face boundaries, so this does not bound a single triangle: one
+# whose bounding box covers much of the frame is still expanded in one go, and peak
+# memory then follows that box rather than the chunk budget. CPU envelope (see PR
+# notes): 100k faces @ 512 rasterize in well under a second; 1M faces in a few seconds.
 MAX_RESOLUTION = 8192
 MAX_FACES = 20_000_000
 
@@ -241,22 +244,27 @@ def rasterize(verts_ndc, faces, height, width, chunk_area=4_000_000):
     chunk_id = torch.div(excl, budget, rounding_mode="floor")
     n_chunks = int(chunk_id[-1].item()) + 1 if Fn > 0 else 0
 
+    # chunk_id comes from a cumulative sum, so it is non-decreasing and every chunk is a
+    # contiguous face range. Locating the boundaries once keeps this loop linear in Fn;
+    # testing chunk_id == c per chunk would rescan all faces n_chunks times.
+    bounds = torch.searchsorted(chunk_id, torch.arange(n_chunks + 1, device=device)).tolist()
+
     for c in range(n_chunks):
-        sel = torch.nonzero(chunk_id == c, as_tuple=False).squeeze(1)
-        if sel.numel() == 0:
+        start, end = bounds[c], bounds[c + 1]
+        if end <= start:
             continue
-        a_s = area[sel]
+        a_s = area[start:end]
         total = int(a_s.sum().item())
         if total == 0:
             continue
-        bw_s = bw[sel]
+        bw_s = bw[start:end]
         # per-sample -> local face index within the chunk
-        local = torch.repeat_interleave(torch.arange(sel.numel(), device=device), a_s)
+        local = torch.repeat_interleave(torch.arange(end - start, device=device), a_s)
         off = torch.arange(total, device=device) - (torch.cumsum(a_s, 0) - a_s)[local]
         lw = bw_s[local]
-        px = xmin[sel][local] + (off % lw)
-        py = ymin[sel][local] + torch.div(off, lw, rounding_mode="floor")
-        fg = sel[local]  # global face index per sample
+        px = xmin[start:end][local] + (off % lw)
+        py = ymin[start:end][local] + torch.div(off, lw, rounding_mode="floor")
+        fg = start + local  # global face index per sample
 
         cx = px.to(torch.float32) + 0.5
         cy = py.to(torch.float32) + 0.5
