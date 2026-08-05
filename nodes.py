@@ -2492,6 +2492,7 @@ async def init_builtin_extra_nodes():
         "nodes_math.py",
         "nodes_number_convert.py",
         "nodes_painter.py",
+        "nodes_compositor.py",
         "nodes_curve.py",
         "nodes_bg_removal.py",
         "nodes_rtdetr.py",
