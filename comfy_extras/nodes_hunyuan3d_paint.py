@@ -349,14 +349,18 @@ class Hunyuan3DBakeMultiView(IO.ComfyNode):
         albedo_views = albedo[..., :3].float()
         mr_views = mr[..., :3].float()
 
-        albedo_tex, mask_a = paint_render.bake_multiview(
-            v_uv, f_uv, uv, albedo_views, cameras, texture_size=texture_size, bake_exp=bake_exponent)
-        mr_tex, mask_mr = paint_render.bake_multiview(
-            v_uv, f_uv, uv, mr_views, cameras, texture_size=texture_size, bake_exp=bake_exponent)
+        # Bake both maps in one pass over the stacked channels. Rasterization and UV
+        # interpolation depend only on the geometry and cameras, which are shared, so
+        # baking albedo and MR separately repeats the expensive half of the work; the
+        # accumulators are per-channel, so splitting the result afterwards is exact.
+        baked, mask = paint_render.bake_multiview(
+            v_uv, f_uv, uv, torch.cat([albedo_views, mr_views], dim=-1),
+            cameras, texture_size=texture_size, bake_exp=bake_exponent)
+        albedo_tex, mr_tex = baked[..., :3], baked[..., 3:]
 
         if fill_holes:
-            albedo_tex = paint_render.fill_holes(albedo_tex, mask_a)
-            mr_tex = paint_render.fill_holes(mr_tex, mask_mr)
+            albedo_tex = paint_render.fill_holes(albedo_tex, mask)
+            mr_tex = paint_render.fill_holes(mr_tex, mask)
 
         albedo_tex = albedo_tex.clamp(0.0, 1.0)
         mr_tex = mr_tex.clamp(0.0, 1.0)
