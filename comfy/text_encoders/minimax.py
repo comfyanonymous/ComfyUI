@@ -122,7 +122,9 @@ class MiniMaxH3TEModel(comfy.sd1_clip.SD1ClipModel):
                          clip_model=MiniMaxH3ClipModel, model_options=model_options)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
-        constant = 0.72
+        text = 1024 * 1024 * 1024
+
+        constant = 0.25
         image_dim = 0
 
         token_weight_pairs: list[list[tuple[int | dict, float]]] = token_weight_pairs.get("qwen3vl_32b", [])
@@ -134,7 +136,7 @@ class MiniMaxH3TEModel(comfy.sd1_clip.SD1ClipModel):
                     tensor: torch.Tensor = token["data"]
                     image_dim += tensor.numel()
 
-        return image_dim * constant * 1024
+        return image_dim * constant * 1024 + text
 
 
 class MiniMaxH3Tokenizer(comfy.sd1_clip.SD1Tokenizer):
