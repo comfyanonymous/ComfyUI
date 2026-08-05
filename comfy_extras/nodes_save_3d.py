@@ -127,7 +127,10 @@ def save_glb(vertices, faces, filepath, metadata=None,
         texture_image.save(buf, format="PNG")
         texture_png_bytes = buf.getvalue()
     mr_texture_png_bytes = None
-    if mr_texture_image is not None:
+    # glTF hangs metallicRoughness off the same material as baseColor, so an MR map with no
+    # base texture has nothing to reference it; encoding it anyway would pad the BIN chunk
+    # with bytes no viewer can reach.
+    if mr_texture_image is not None and texture_png_bytes is not None:
         buf = BytesIO()
         mr_texture_image.save(buf, format="PNG")
         mr_texture_png_bytes = buf.getvalue()
