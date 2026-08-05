@@ -1486,7 +1486,7 @@ FILE_READ_PANIC_RELEASE_MEMORY = 1024 * 1024 * 1024
 
 def panic_recover_memory(device):
     discard_cuda_async_error()
-    free_memory(FILE_READ_PANIC_RELEASE_MEMORY, device)
+    free_pins(FILE_READ_PANIC_RELEASE_MEMORY, evict_active=True)
     ensure_pin_registerable(FILE_READ_PANIC_RELEASE_MEMORY)
 
 
