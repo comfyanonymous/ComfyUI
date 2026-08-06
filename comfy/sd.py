@@ -100,9 +100,10 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
         if isinstance(model.model, comfy.model_base.MiniMaxH3):
-            use_curves = bool(getattr(model.model.diffusion_model, "use_adaln_curves", False))
+            use_curves = bool(model.model.diffusion_model.use_adaln_curves)
             has_pruned_adaln = (
                 "adaln_t_table" in lora
+                or "diffusion_model.adaln_t_table" in lora
                 or any(
                     ".adaln_proj.linear.weight" in k
                     or ".adaln_proj.linear.bias" in k
@@ -118,6 +119,21 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
 
     lora = comfy.lora_convert.convert_lora(lora)
     loaded = comfy.lora.load_lora(lora, key_map)
+    if model is not None and isinstance(model.model, comfy.model_base.MiniMaxH3):
+        if model.model.diffusion_model.use_adaln_curves:
+            incompatible_adaln = {}
+            for target, patch in loaded.items():
+                if target.endswith(".adaln_proj.linear.weight") and not (
+                    isinstance(patch, tuple) and patch and patch[0] == "set"
+                ):
+                    incompatible_adaln[target] = patch
+            if incompatible_adaln:
+                for target in incompatible_adaln:
+                    loaded.pop(target)
+                logging.warning(
+                    "MiniMax H3 pruned: incompatible 2688-dim AdaLN LoRA "
+                    "patches skipped; use a complete pruned LoRA or bake it "
+                    "into table/projection.")
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
