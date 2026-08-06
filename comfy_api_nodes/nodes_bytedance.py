@@ -97,10 +97,7 @@ SEEDREAM_PRESETS = {
     "seedream-4-0-250828": RECOMMENDED_PRESETS_SEEDREAM_4_0,
 }
 
-# TEMPORARY (ephemeral testing): the layer-separation preview is only proven on the dola-
-# deployment (account behind the staging BYTEPLUS_API_KEY); switch back to
-# "seedream-5-0-pro-260628" once the production endpoint is confirmed layer-capable.
-SEEDREAM_LAYER_SEPARATION_MODEL = "dola-seedream-5-0-pro-260628"
+SEEDREAM_LAYER_SEPARATION_MODEL = "seedream-5-0-pro-260628"
 
 # Long-running tasks endpoints(e.g., video)
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
@@ -1185,12 +1182,10 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
         validate_image_aspect_ratio(image, (1, 16), (16, 1))
         validate_image_dimensions(image, min_width=512, min_height=512)
 
-        image_payload = await upload_image_to_comfyapi(cls, image)
-
         request = Seedream5LayerSeparationRequest(
             model=SEEDREAM_LAYER_SEPARATION_MODEL,
             prompt=prompt.strip() or None,
-            image=image_payload,
+            image=await upload_image_to_comfyapi(cls, image),
             size=size,
             seed=seed,
             watermark=watermark,
