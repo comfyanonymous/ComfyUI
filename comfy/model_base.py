@@ -22,6 +22,7 @@ import torch
 import logging
 import comfy.ldm.lightricks.av_model
 import comfy.ldm.minimax.model
+import comfy.nested_tensor
 import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
@@ -2072,6 +2073,26 @@ class MiniMaxH3(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW_AV, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3Model)
 
+    def _scale_audio_slice(self, latent, scale):
+        # the sampler carries the audio stream scaled onto the video schedule
+        if scale == 1.0:
+            return latent
+        if getattr(latent, "is_nested", False):  # x0 output hands back the unpacked view
+            streams = latent.unbind()
+            return comfy.nested_tensor.NestedTensor([streams[0], streams[1] * scale] + list(streams[2:]))
+        n = self.model_sampling.video_numel()
+        if n is None or latent.ndim != 3 or latent.shape[-1] <= n:
+            return latent  # not the flat pack
+        latent = latent.clone()
+        latent[..., n:] *= scale
+        return latent
+
+    def process_latent_in(self, latent):
+        return self._scale_audio_slice(super().process_latent_in(latent), self.model_sampling.audio_scale)
+
+    def process_latent_out(self, latent):
+        return super().process_latent_out(self._scale_audio_slice(latent, 1.0 / self.model_sampling.audio_scale))
+
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
@@ -2084,8 +2105,6 @@ class MiniMaxH3(BaseModel):
         latent_shapes = kwargs.get("latent_shapes", None)
         if latent_shapes is not None:
             out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
-
-        self.model_sampling.latent_shapes = latent_shapes
 
         # Everything H3-specific rides in one dict so _apply_model's dtype cast
         # (which would flatten fp32 cond latents and long tags to bf16) skips it.

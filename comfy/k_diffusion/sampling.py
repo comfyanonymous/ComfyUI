@@ -75,15 +75,7 @@ def get_ancestral_step(sigma_from, sigma_to, eta=1.):
     return sigma_down, sigma_up
 
 
-def model_noise_rescaler(model):
-    # models with multiple sigma schedules in one packed latent expose
-    # scale_stochastic_noise on their model_sampling (see ModelSamplingAV)
-    if model is None:
-        return None
-    return getattr(model.inner_model.inner_model.model_sampling, "scale_stochastic_noise", None)
-
-
-def default_noise_sampler(x, seed=None, model=None):
+def default_noise_sampler(x, seed=None):
     if seed is not None:
         if x.device == torch.device("cpu"):
             seed += 1
@@ -93,12 +85,7 @@ def default_noise_sampler(x, seed=None, model=None):
     else:
         generator = None
 
-    rescale = model_noise_rescaler(model)
-
-    def noise_sampler(sigma, sigma_next):
-        noise = torch.randn(x.size(), dtype=x.dtype, layout=x.layout, device=x.device, generator=generator)
-        return noise if rescale is None else rescale(noise, sigma, sigma_next)
-    return noise_sampler
+    return lambda sigma, sigma_next: torch.randn(x.size(), dtype=x.dtype, layout=x.layout, device=x.device, generator=generator)
 
 
 class BatchedBrownianTree:
@@ -152,16 +139,14 @@ class BrownianTreeNoiseSampler:
             internal timestep.
     """
 
-    def __init__(self, x, sigma_min, sigma_max, seed=None, transform=lambda x: x, cpu=False, model=None):
+    def __init__(self, x, sigma_min, sigma_max, seed=None, transform=lambda x: x, cpu=False):
         self.transform = transform
-        self.rescale = model_noise_rescaler(model)
         t0, t1 = self.transform(torch.as_tensor(sigma_min)), self.transform(torch.as_tensor(sigma_max))
         self.tree = BatchedBrownianTree(x, t0, t1, seed, cpu=cpu)
 
     def __call__(self, sigma, sigma_next):
         t0, t1 = self.transform(torch.as_tensor(sigma)), self.transform(torch.as_tensor(sigma_next))
-        noise = self.tree(t0, t1) / (t1 - t0).abs().sqrt()
-        return noise if self.rescale is None else self.rescale(noise, sigma, sigma_next)
+        return self.tree(t0, t1) / (t1 - t0).abs().sqrt()
 
 
 def sigma_to_half_log_snr(sigma, model_sampling):
@@ -234,7 +219,7 @@ def sample_euler_ancestral(model, x, sigmas, extra_args=None, callback=None, dis
     """Ancestral sampling with Euler method steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
@@ -256,7 +241,7 @@ def sample_euler_ancestral_RF(model, x, sigmas, extra_args=None, callback=None, 
     """Ancestral sampling with Euler method steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
@@ -359,7 +344,7 @@ def sample_dpm_2_ancestral(model, x, sigmas, extra_args=None, callback=None, dis
     """Ancestral sampling with DPM-Solver second-order steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
@@ -388,7 +373,7 @@ def sample_dpm_2_ancestral_RF(model, x, sigmas, extra_args=None, callback=None, 
     """Ancestral sampling with DPM-Solver second-order steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
@@ -540,7 +525,7 @@ class DPMSolver(nn.Module):
         return x_3, eps_cache
 
     def dpm_solver_fast(self, x, t_start, t_end, nfe, eta=0., s_noise=1., noise_sampler=None):
-        noise_sampler = default_noise_sampler(x, seed=self.extra_args.get("seed", None), model=self.model) if noise_sampler is None else noise_sampler
+        noise_sampler = default_noise_sampler(x, seed=self.extra_args.get("seed", None)) if noise_sampler is None else noise_sampler
         if not t_end > t_start and eta:
             raise ValueError('eta must be 0 for reverse sampling')
 
@@ -579,7 +564,7 @@ class DPMSolver(nn.Module):
         return x
 
     def dpm_solver_adaptive(self, x, t_start, t_end, order=3, rtol=0.05, atol=0.0078, h_init=0.05, pcoeff=0., icoeff=1., dcoeff=0., accept_safety=0.81, eta=0., s_noise=1., noise_sampler=None):
-        noise_sampler = default_noise_sampler(x, seed=self.extra_args.get("seed", None), model=self.model) if noise_sampler is None else noise_sampler
+        noise_sampler = default_noise_sampler(x, seed=self.extra_args.get("seed", None)) if noise_sampler is None else noise_sampler
         if order not in {2, 3}:
             raise ValueError('order should be 2 or 3')
         forward = t_end > t_start
@@ -667,7 +652,7 @@ def sample_dpmpp_2s_ancestral(model, x, sigmas, extra_args=None, callback=None, 
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
     sigma_fn = lambda t: t.neg().exp()
     t_fn = lambda sigma: sigma.log().neg()
@@ -702,7 +687,7 @@ def sample_dpmpp_2s_ancestral_RF(model, x, sigmas, extra_args=None, callback=Non
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
     s_in = x.new_ones([x.shape[0]])
     sigma_fn = lambda lbda: (lbda.exp() + 1) ** -1
@@ -758,7 +743,7 @@ def sample_dpmpp_sde(model, x, sigmas, extra_args=None, callback=None, disable=N
     extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     seed = extra_args.get("seed", None)
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -845,7 +830,7 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -903,7 +888,7 @@ def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -962,7 +947,7 @@ def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
         return x
     extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_3m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler)
 
 
@@ -972,7 +957,7 @@ def sample_dpmpp_2m_sde_heun_gpu(model, x, sigmas, extra_args=None, callback=Non
         return x
     extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_2m_sde_heun(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
 
 
@@ -982,7 +967,7 @@ def sample_dpmpp_2m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
         return x
     extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_2m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
 
 
@@ -992,7 +977,7 @@ def sample_dpmpp_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disab
         return x
     extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
-    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, r=r)
 
 
@@ -1009,7 +994,7 @@ def DDPMSampler_step(x, sigma, sigma_prev, noise, noise_sampler):
 def generic_step_sampler(model, x, sigmas, extra_args=None, callback=None, disable=None, noise_sampler=None, step_function=None):
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     for i in trange(len(sigmas) - 1, disable=disable):
@@ -1034,7 +1019,7 @@ def sample_lcm(model, x, sigmas, extra_args=None, callback=None, disable=None, n
 
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
     n_steps = max(1, len(sigmas) - 1)
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1282,7 +1267,7 @@ def sample_euler_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=No
     """Ancestral sampling with Euler method steps (CFG++)."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
 
     model_sampling = model.inner_model.model_patcher.get_model_object("model_sampling")
     lambda_fn = partial(sigma_to_half_log_snr, model_sampling=model_sampling)
@@ -1333,7 +1318,7 @@ def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
 
     temp = [0]
@@ -1409,7 +1394,7 @@ def sample_dpmpp_2m_cfg_pp(model, x, sigmas, extra_args=None, callback=None, dis
 def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None, eta=1., cfg_pp=False):
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
     s_in = x.new_ones([x.shape[0]])
     sigma_fn = lambda t: t.neg().exp()
@@ -1543,7 +1528,7 @@ def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None
     """
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_noise = s_noise * getattr(model.inner_model.model_patcher.get_model_object('model_sampling'), "noise_scale", 1.0)
     s_in = x.new_ones([x.shape[0]])
 
@@ -1613,7 +1598,7 @@ def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=Non
 
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1685,7 +1670,7 @@ def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=Non
     """
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1752,7 +1737,7 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
         return x
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
-    noise_sampler = default_noise_sampler(x, seed=seed, model=model) if noise_sampler is None else noise_sampler
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object("model_sampling")
@@ -1852,7 +1837,7 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
 
 @torch.no_grad()
 def sample_sa_solver_pece(model, x, sigmas, extra_args=None, callback=None, disable=False, tau_func=None, s_noise=1.0, noise_sampler=None, predictor_order=3, corrector_order=4, simple_order_2=False):
-    """Stochastic Adams Solver with PECE (Predictâ€“Evaluateâ€“Correctâ€“Evaluate) mode (NeurIPS 2023)."""
+    """Stochastic Adams Solver with PECE (Predict–Evaluate–Correct–Evaluate) mode (NeurIPS 2023)."""
     return sample_sa_solver(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, tau_func=tau_func, s_noise=s_noise, noise_sampler=noise_sampler, predictor_order=predictor_order, corrector_order=corrector_order, use_pece=True, simple_order_2=simple_order_2)
 
 
@@ -1886,7 +1871,7 @@ def sample_ar_video(model, x, sigmas, extra_args=None, callback=None, disable=No
         raise TypeError(
             "ar_video sampler requires a Causal-WAN compatible model whose diffusion_model "
             "exposes init_kv_caches() and init_crossattn_caches(). The loaded checkpoint "
-            "does not support this interface â€” choose a different sampler."
+            "does not support this interface — choose a different sampler."
         )
 
     seed = extra_args.get("seed", 0)
