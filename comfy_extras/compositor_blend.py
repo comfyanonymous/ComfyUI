@@ -214,7 +214,6 @@ def _from_space(rgb: np.ndarray, space: str) -> np.ndarray:
 class EffectiveMode(NamedTuple):
     blend: str
     blend_space: str
-    composite_space: str
     composite: str
 
 
@@ -253,7 +252,6 @@ def resolve_mode(blend: str = "normal") -> EffectiveMode:
     return EffectiveMode(
         blend=blend,
         blend_space=blend_space,
-        composite_space="linear",
         composite=composite,
     )
 
@@ -273,20 +271,7 @@ def blend_composite(
     layer_b = _to_space(layer[..., :3], mode.blend_space)
     comp = _from_space(blend_pixel(mode.blend, in_b, layer_b), mode.blend_space)
 
-    if mode.composite_space == "linear":
-        return run_composite(mode.composite, backdrop, layer, comp, cov)
-
-    in_c = np.concatenate(
-        [_to_space(backdrop[..., :3], mode.composite_space), backdrop[..., 3:4]],
-        axis=-1,
-    )
-    layer_c = np.concatenate(
-        [_to_space(layer[..., :3], mode.composite_space), layer[..., 3:4]], axis=-1
-    )
-    comp_c = _to_space(comp, mode.composite_space)
-    out = run_composite(mode.composite, in_c, layer_c, comp_c, cov)
-    rgb = _from_space(out[..., :3], mode.composite_space)
-    return np.concatenate([rgb, out[..., 3:4]], axis=-1)
+    return run_composite(mode.composite, backdrop, layer, comp, cov)
 
 
 def placed_bounds(

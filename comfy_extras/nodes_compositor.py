@@ -16,6 +16,7 @@ from comfy_extras.compositor_blend import (
 )
 from comfy_extras.color_util import hex_to_rgb
 from comfy_extras.nodes_bounding_boxes import boxes_from_input
+from nodes import MAX_RESOLUTION
 from typing_extensions import override
 
 
@@ -216,13 +217,14 @@ def _parse_background(entry) -> dict | None:
     }
 
 
-def _parse_order(value) -> list[int] | None:
+def _parse_order(value, layer_count: int) -> list[int] | None:
     if not isinstance(value, list) or not value:
         return None
     if not all(
-        isinstance(item, int) and not isinstance(item, bool) and item >= 0
-        for item in value
+        isinstance(item, int) and not isinstance(item, bool) for item in value
     ):
+        return None
+    if sorted(value) != list(range(layer_count)):
         return None
     return value
 
@@ -267,7 +269,7 @@ def parse_layer_state(raw) -> dict | None:
         "layers": layers,
         "inputs": inputs,
         "background": _parse_background(state.get("background")),
-        "order": _parse_order(state.get("order")),
+        "order": _parse_order(state.get("order"), len(layers)),
     }
 
 
@@ -357,6 +359,11 @@ def composite_from_state(
     alphas: list[torch.Tensor | None],
 ) -> torch.Tensor:
     cw, ch = state["canvas"]
+    if cw > MAX_RESOLUTION or ch > MAX_RESOLUTION:
+        raise ValueError(
+            f"Compositor canvas {cw}x{ch} exceeds the maximum supported size of "
+            f"{MAX_RESOLUTION}x{MAX_RESOLUTION}"
+        )
     canvas = np.zeros((ch, cw, 4), dtype=np.float32)
     background = state.get("background")
     if background is not None and background["visible"] and background["opacity"] > 0:
