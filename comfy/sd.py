@@ -591,8 +591,8 @@ class VAE:
                 self.first_stage_model = comfy.ldm.lightricks.vae.na_diffusion_decoder.CausalDiffusionVAE(config=vae_config)
                 self.latent_channels = sd["decoder.conv_in.weight"].shape[1]
                 self.latent_dim = 3
-                # Measured: ~3.0 MB activations per latent voxel at bf16
-                self.memory_used_decode = lambda shape, dtype: (2900 * shape[2] * shape[3] * shape[4] * (8 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.disable_offload = True
+                self.memory_used_decode = lambda shape, dtype: (1700 * shape[2] * shape[3] * shape[4] * (8 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.memory_used_encode = lambda shape, dtype: (80 * max(shape[2], 7) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.upscale_ratio = (lambda a: max(0, a * 8 - 7), 32, 32)
                 self.upscale_index_formula = (8, 32, 32)
@@ -1178,9 +1178,6 @@ class VAE:
         with model_management.cuda_device_context(self.device):
             try:
                 memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
-                if memory_used + self.patcher.model_size() > model_management.get_total_memory(self.device) * 0.9:
-                    # The device can never fit an untiled decode no matter what, go straight to tiling.
-                    raise model_management.OOM_EXCEPTION("VAE decode requires tiling")
                 model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
                 free_memory = self.patcher.get_free_memory(self.device)
                 batch_number = int(free_memory / memory_used)

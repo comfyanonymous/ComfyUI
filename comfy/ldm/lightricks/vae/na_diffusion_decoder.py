@@ -27,10 +27,12 @@ from .causal_video_autoencoder import Encoder, processor
 
 try:
     import comfy_kitchen
-    # Fused NA in comfy_kitchen
+    # Fused NA and fused RMSNorm+RoPE in comfy_kitchen
     _kitchen_na3d = getattr(comfy_kitchen, "na3d", None)
+    _kitchen_rms_rope_ = getattr(comfy_kitchen, "rms_rope_", None)
 except ImportError:
     _kitchen_na3d = None
+    _kitchen_rms_rope_ = None
 
 # Target element count for one NA tile's [Nq, Nk] attention mask. Bounds both
 # the mask allocation (~64 MB bf16 at 2**25) and, on CPU, the math-backend
@@ -141,31 +143,46 @@ def _rot_axis_tables(xc, cos, sin, axis):
     return torch.stack([re, ro], dim=-1).reshape(xc.shape).to(out_dtype)
 
 
-def _rope_full(x, rope_split, inv_freqs):
-    """Absolute RoPE over the full ``(B,T,H,W,NH,HD)`` tensor with global
-    0-based positions, chunked over T to bound the fp32 transients."""
-    batch, t, h, w, nh, hd = x.shape
-    d_t, d_h, d_w = rope_split
+def _rope_tables(lengths, inv_freqs, device):
+    """Precompute per-axis fp32 cos/sin tables for global 0-based positions."""
     tables = []
-    for length, inv in zip((t, h, w), inv_freqs):
-        pos = torch.arange(length, dtype=torch.float32, device=x.device)
+    for length, inv in zip(lengths, inv_freqs):
+        pos = torch.arange(length, dtype=torch.float32, device=device)
         ang = pos[:, None] * inv[None, :]
         tables.append((ang.cos(), ang.sin()))
-    per_frame = h * w * nh * hd
-    chunk = max(1, (2 ** 26) // max(per_frame, 1))
-    out = torch.empty_like(x)
-    for t0 in range(0, t, chunk):
-        t1 = min(t0 + chunk, t)
-        sl = x[:, t0:t1]
-        parts = []
-        if d_t:
-            parts.append(_rot_axis_tables(sl[..., :d_t], tables[0][0][t0:t1], tables[0][1][t0:t1], axis=1))
-        if d_h:
-            parts.append(_rot_axis_tables(sl[..., d_t:d_t + d_h], tables[1][0], tables[1][1], axis=2))
-        if d_w:
-            parts.append(_rot_axis_tables(sl[..., d_t + d_h:], tables[2][0], tables[2][1], axis=3))
-        out[:, t0:t1] = parts[0] if len(parts) == 1 else torch.cat(parts, dim=-1)
-    return out
+    return tables
+
+
+def _rope_matrices_slice(tables, t0, t1, h, w):
+    """Per-token rotation matrices ``(1, ts*h*w, 1, hd/2, 2, 2)`` fp32 for
+    ``comfy_kitchen.rms_rope_`` (interleaved-pair convention), covering global
+    frames ``[t0, t1)`` of the axis-factorized tables."""
+    parts = []
+    for (c, s), sl in zip(tables, (slice(t0, t1), slice(None), slice(None))):
+        c, s = c[sl], s[sl]
+        parts.append(torch.stack([c, -s, s, c], dim=-1).reshape(c.shape[0], 1, 1, c.shape[1], 2, 2))
+    ts = t1 - t0
+    freqs = torch.cat([
+        parts[0].expand(ts, h, w, -1, 2, 2),
+        parts[1].transpose(0, 1).expand(ts, h, w, -1, 2, 2),
+        parts[2].movedim(0, 2).expand(ts, h, w, -1, 2, 2),
+    ], dim=3)
+    return freqs.reshape(1, ts * h * w, 1, -1, 2, 2)
+
+
+def _rope_apply(x, rope_split, tables, t0=0):
+    """Absolute RoPE on a ``(B,Ts,H,W,NH,HD)`` slice whose temporal origin is
+    global frame ``t0`` (tables span the full axes)."""
+    d_t, d_h, d_w = rope_split
+    t1 = t0 + x.shape[1]
+    parts = []
+    if d_t:
+        parts.append(_rot_axis_tables(x[..., :d_t], tables[0][0][t0:t1], tables[0][1][t0:t1], axis=1))
+    if d_h:
+        parts.append(_rot_axis_tables(x[..., d_t:d_t + d_h], tables[1][0], tables[1][1], axis=2))
+    if d_w:
+        parts.append(_rot_axis_tables(x[..., d_t + d_h:], tables[2][0], tables[2][1], axis=3))
+    return parts[0] if len(parts) == 1 else torch.cat(parts, dim=-1)
 
 
 def _pick_tiles(dims, kernels):
@@ -294,21 +311,56 @@ class NeighborhoodAttention3D(nn.Module):
         self.q_norm = RMSNorm(head_dim, eps=1e-6)
         self.k_norm = RMSNorm(head_dim, eps=1e-6)
 
-    def forward(self, x):
+    def forward(self, x, pre=None, add_to=None):
+        """``pre`` (per-token norm/modulate) is applied slice-wise so the full
+        pre-attention tensor is never materialized; ``add_to`` streams the
+        output projection into it in place (residual add) and returns it.
+        Both bound peak memory without changing results."""
         batch, t, h, w, _ = x.shape
-        q, k, v = self.qkv(x).chunk(3, dim=-1)
-        shape = (batch, t, h, w, self.num_heads, self.head_dim)
-        q = self.q_norm(q.reshape(shape)) * self.scale
-        k = self.k_norm(k.reshape(shape))
-        v = v.reshape(shape)
         inv_freqs = tuple(rope_inv_freqs(d, self.rope_base, device=x.device) for d in self.rope_split)
-        q = _rope_full(q, self.rope_split, inv_freqs)
-        k = _rope_full(k, self.rope_split, inv_freqs)
+        tables = _rope_tables((t, h, w), inv_freqs, x.device)
+        shape = (batch, t, h, w, self.num_heads, self.head_dim)
+        q = torch.empty(shape, dtype=x.dtype, device=x.device)
+        k = torch.empty(shape, dtype=x.dtype, device=x.device)
+        v = torch.empty(shape, dtype=x.dtype, device=x.device)
+        fused_pre = _kitchen_rms_rope_ is not None and x.is_cuda and x.dtype in (torch.float16, torch.bfloat16)
+        if fused_pre:
+            q_weight = (self.q_norm.weight.detach() * self.scale).to(x.dtype)  # scale commutes with the rotation
+            k_weight = self.k_norm.weight.detach().to(x.dtype)
+        chunk = max(1, (2 ** 25) // max(h * w * self.dim, 1))
+        for t0 in range(0, t, chunk):
+            t1 = min(t0 + chunk, t)
+            sl = x[:, t0:t1] if pre is None else pre(x[:, t0:t1])
+            qc, kc, vc = self.qkv(sl).chunk(3, dim=-1)
+            cshape = (batch, t1 - t0, h, w, self.num_heads, self.head_dim)
+            v[:, t0:t1] = vc.reshape(cshape)
+            if fused_pre:
+                q[:, t0:t1] = qc.reshape(cshape)
+                k[:, t0:t1] = kc.reshape(cshape)
+                freqs = _rope_matrices_slice(tables, t0, t1, h, w)
+                nt = (t1 - t0) * h * w
+                for b in range(batch):
+                    _kitchen_rms_rope_(
+                        q[b, t0:t1].view(1, nt, self.num_heads, self.head_dim),
+                        k[b, t0:t1].view(1, nt, self.num_heads, self.head_dim),
+                        freqs, q_weight, k_weight)
+            else:
+                q[:, t0:t1] = _rope_apply(self.q_norm(qc.reshape(cshape)) * self.scale, self.rope_split, tables, t0)
+                k[:, t0:t1] = _rope_apply(self.k_norm(kc.reshape(cshape)), self.rope_split, tables, t0)
         if _kitchen_na3d is not None:
             out = _kitchen_na3d(q, k, v, list(self.kernel_size), None, 1.0)
         else:
             out = na3d(q, k, v, self.kernel_size)
-        return self.proj(out.reshape(batch, t, h, w, self.dim))
+        del q, k, v
+        out = out.reshape(batch, t, h, w, self.dim)
+        res = add_to if add_to is not None else torch.empty_like(out)
+        for t0 in range(0, t, chunk):
+            t1 = min(t0 + chunk, t)
+            if add_to is not None:
+                res[:, t0:t1] += self.proj(out[:, t0:t1])
+            else:
+                res[:, t0:t1] = self.proj(out[:, t0:t1])
+        return res
 
 
 class SwiGLU(nn.Module):
@@ -321,14 +373,20 @@ class SwiGLU(nn.Module):
         self.w_gate = nn.Linear(dim, hidden_dim, bias=False)
         self.w_down = nn.Linear(hidden_dim, dim, bias=False)
 
-    def forward(self, x):
-        shape = x.shape
-        x_flat = x.reshape(-1, shape[-1])
-        out = torch.empty_like(x_flat)
-        for i in range(0, x_flat.shape[0], MLP_TOKEN_CHUNK):
-            chunk = x_flat[i:i + MLP_TOKEN_CHUNK]
-            out[i:i + MLP_TOKEN_CHUNK] = self.w_down(F.silu(self.w_gate(chunk)) * self.w_up(chunk))
-        return out.reshape(shape)
+    def forward(self, x, pre=None, add_to=None):
+        """``pre``/``add_to`` as in ``NeighborhoodAttention3D.forward``."""
+        _, t, h, w, _ = x.shape
+        chunk = max(1, MLP_TOKEN_CHUNK // max(h * w, 1))
+        out = add_to if add_to is not None else torch.empty_like(x)
+        for t0 in range(0, t, chunk):
+            t1 = min(t0 + chunk, t)
+            sl = x[:, t0:t1] if pre is None else pre(x[:, t0:t1])
+            y = self.w_down(F.silu(self.w_gate(sl)) * self.w_up(sl))
+            if add_to is not None:
+                out[:, t0:t1] += y
+            else:
+                out[:, t0:t1] = y
+        return out
 
 
 class NABlock(nn.Module):
@@ -343,9 +401,8 @@ class NABlock(nn.Module):
         self.mlp = SwiGLU(dim, hidden)
 
     def forward(self, x):
-        x = x + self.attn(self.norm1(x))
-        x = x + self.mlp(self.norm2(x))
-        return x
+        x = self.attn(x, pre=self.norm1, add_to=x)
+        return self.mlp(x, pre=self.norm2, add_to=x)
 
 
 def modulate(x, scale, shift):
@@ -383,10 +440,11 @@ class DiffusionNABlock(nn.Module):
         scale_msa, shift_msa, _, scale_mlp, shift_mlp, _, _ = [
             modulation[i] + self.scale_shift_table[i].view(1, 1, 1, 1, -1) for i in range(AdaLNZero.NUM_CHUNKS)
         ]
-        x = x + self.context_proj(latent_context)
-        x = x + self.attn(modulate(self.norm1(x), scale_msa, shift_msa))
-        x = x + self.mlp(modulate(self.norm2(x), scale_mlp, shift_mlp))
-        return x
+        chunk = max(1, MLP_TOKEN_CHUNK // max(x.shape[2] * x.shape[3], 1))
+        for t0 in range(0, x.shape[1], chunk):
+            x[:, t0:t0 + chunk] += self.context_proj(latent_context[:, t0:t0 + chunk])
+        x = self.attn(x, pre=lambda s: modulate(self.norm1(s), scale_msa, shift_msa), add_to=x)
+        return self.mlp(x, pre=lambda s: modulate(self.norm2(s), scale_mlp, shift_mlp), add_to=x)
 
 
 class LinearPixelShuffleUpsample(nn.Module):
@@ -400,15 +458,20 @@ class LinearPixelShuffleUpsample(nn.Module):
         self.proj = nn.Linear(in_channels, proj_out_channels, bias=True)
 
     def forward(self, x, drop_leading_frame=True):
-        x = self.proj(x)
-        x = rearrange(
-            x, "b t h w (c p1 p2 p3) -> b (t p1) (h p2) (w p3) c",
-            p1=self.stride[0], p2=self.stride[1], p3=self.stride[2],
-        )
-        if self.stride[0] == 2 and drop_leading_frame:
+        batch, t, h, w, _ = x.shape
+        p1, p2, p3 = self.stride
+        out = torch.empty((batch, t * p1, h * p2, w * p3, self.out_channels), dtype=x.dtype, device=x.device)
+        chunk = max(1, MLP_TOKEN_CHUNK // max(h * w, 1))
+        for t0 in range(0, t, chunk):
+            t1 = min(t0 + chunk, t)
+            out[:, t0 * p1:t1 * p1] = rearrange(
+                self.proj(x[:, t0:t1]), "b t h w (c p1 p2 p3) -> b (t p1) (h p2) (w p3) c",
+                p1=p1, p2=p2, p3=p3,
+            )
+        if p1 == 2 and drop_leading_frame:
             # The causal temporal pixel-shuffle duplicates the leading frame.
-            x = x[:, 1:]
-        return x
+            out = out[:, 1:]
+        return out
 
 
 class TimestepEmbedder(nn.Module):
