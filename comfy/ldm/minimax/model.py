@@ -39,11 +39,6 @@ def time_shift_sigma(sigma, from_shift, to_shift):
     return to_shift * base / (1.0 + (to_shift - 1.0) * base)
 
 
-def audio_stream_scale(from_shift, to_shift):
-    # a shift is a pure scale on lambda = sigma/(1-sigma), so the schedules differ by this constant
-    return from_shift / to_shift
-
-
 def patchify_video(latent, patch_size=(1, 2, 2)):
     # [B, C, T, H, W] -> [B*t*h*w, C*pt*ph*pw]
     b, c, t_full, h_full, w_full = latent.shape
@@ -497,7 +492,7 @@ class MiniMaxH3Model(nn.Module):
         shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
         sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
         sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
-        scale = audio_stream_scale(shift_v, shift_a)
+        scale = float((minimax_payload or {}).get("audio_scale", 1.0))
 
         audio_x = x[1]
         if scale != 1.0:

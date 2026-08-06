@@ -2073,6 +2073,12 @@ class MiniMaxH3(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW_AV, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3Model)
 
+    def audio_scale(self):
+        """Scale the sampler carries the audio stream at, 1.0 when not sampling the packed latent."""
+        if self.model_sampling.video_numel() is None:
+            return 1.0
+        return self.model_sampling.audio_scale
+
     def _scale_audio_slice(self, latent, scale):
         # the sampler carries the audio stream scaled onto the video schedule
         if scale == 1.0:
@@ -2088,10 +2094,10 @@ class MiniMaxH3(BaseModel):
         return latent
 
     def process_latent_in(self, latent):
-        return self._scale_audio_slice(super().process_latent_in(latent), self.model_sampling.audio_scale)
+        return self._scale_audio_slice(super().process_latent_in(latent), self.audio_scale())
 
     def process_latent_out(self, latent):
-        return super().process_latent_out(self._scale_audio_slice(latent, 1.0 / self.model_sampling.audio_scale))
+        return super().process_latent_out(self._scale_audio_slice(latent, 1.0 / self.audio_scale()))
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -2127,6 +2133,8 @@ class MiniMaxH3(BaseModel):
         if kwargs.get("minimax_audio_cond_noise_aug", None) is not None:
             payload["audio_cond_noise_aug"] = kwargs["minimax_audio_cond_noise_aug"]
         payload["seed"] = kwargs.get("seed", 0)
+        # same value process_latent_in/out used, so the model never undoes a scale that was not applied
+        payload["audio_scale"] = self.audio_scale()
         if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
             # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
             vs = latent_shapes[0]

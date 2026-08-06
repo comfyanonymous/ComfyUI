@@ -328,7 +328,7 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
 class ModelSamplingAV(ModelSamplingDiscreteFlow):
     """Flow sampling for packed audio-video latents whose audio stream has its own flow shift.
 
-    Carrying the audio latent scaled by sigma / audio_sigma makes the pack an ordinary
+    Carrying the audio latent scaled onto the video schedule makes the pack an ordinary
     single-schedule flow latent whose audio target is scaled by audio_scale.
     """
     def __init__(self, model_config=None):
@@ -340,12 +340,6 @@ class ModelSamplingAV(ModelSamplingDiscreteFlow):
     def set_parameters(self, shift=1.0, audio_shift=None, timesteps=1000, multiplier=1000):
         self.audio_shift = audio_shift
         super().set_parameters(shift=shift, timesteps=timesteps, multiplier=multiplier)
-
-    def audio_sigma(self, sigma):
-        """The audio stream's sigma at the sampler's (video) sigma."""
-        shift_a = self.shift if self.audio_shift is None else self.audio_shift
-        base = float(sigma) / (self.shift + float(sigma) * (1.0 - self.shift))
-        return shift_a * base / (1.0 + (shift_a - 1.0) * base)
 
     @property
     def audio_scale(self):
