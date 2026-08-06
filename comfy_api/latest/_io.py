@@ -853,6 +853,7 @@ class Compositor(ComfyTypeIO):
         canvas: dict
         background: NotRequired[dict]
         inputs: NotRequired[list[str]]
+        order: NotRequired[list[int]]
         layers: list[dict]
 
     Type = LayerState
