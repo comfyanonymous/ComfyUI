@@ -120,20 +120,32 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
     lora = comfy.lora_convert.convert_lora(lora)
     loaded = comfy.lora.load_lora(lora, key_map)
     if model is not None and isinstance(model.model, comfy.model_base.MiniMaxH3):
-        if model.model.diffusion_model.use_adaln_curves:
-            incompatible_adaln = {}
-            for target, patch in loaded.items():
-                if target.endswith(".adaln_proj.linear.weight") and not (
-                    isinstance(patch, tuple) and patch and patch[0] == "set"
-                ):
-                    incompatible_adaln[target] = patch
-            if incompatible_adaln:
-                for target in incompatible_adaln:
+        use_curves = bool(model.model.diffusion_model.use_adaln_curves)
+        model_sd = model.model.state_dict()
+        removed_incompatible = False
+        for target, patch in list(loaded.items()):
+            is_adaln_replacement = (
+                target.endswith(".adaln_proj.linear.weight")
+                or target.endswith(".adaln_proj.linear.bias")
+                or target.endswith("adaln_t_table")
+            )
+            if not use_curves:
+                if (is_adaln_replacement
+                        and isinstance(patch, tuple)
+                        and patch and patch[0] == "set"):
                     loaded.pop(target)
-                logging.warning(
-                    "MiniMax H3 pruned: incompatible 2688-dim AdaLN LoRA "
-                    "patches skipped; use a complete pruned LoRA or bake it "
-                    "into table/projection.")
+                    removed_incompatible = True
+            elif target.endswith(".adaln_proj.linear.weight") and target in model_sd:
+                weights = getattr(patch, "weights", None)
+                if (weights and len(weights) >= 2
+                        and weights[1].shape[-1] != model_sd[target].shape[-1]):
+                    loaded.pop(target)
+                    removed_incompatible = True
+        if use_curves and removed_incompatible:
+            logging.warning(
+                "MiniMax H3 pruned: incompatible 2688-dim AdaLN LoRA "
+                "patches skipped; use a complete pruned LoRA or bake it "
+                "into table/projection.")
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
