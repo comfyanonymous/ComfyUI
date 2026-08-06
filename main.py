@@ -68,6 +68,9 @@ if enables_dynamic_vram():
         except TypeError:
             # comfy-aimdo 0.4.9 protocol.
             comfy_aimdo.control.init()
+    except Exception as e:
+        logging.getLogger(__name__).error("Dynamic VRAM initialization failed: %s", e, exc_info=True)
+        logging.getLogger(__name__).warning("Dynamic VRAM will be disabled due to initialization error.")
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
