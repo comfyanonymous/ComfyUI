@@ -280,7 +280,7 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
         return io.NodeOutput(cond, latent)
 
 
-class ModelSamplingMiniMaxH3(io.ComfyNode):
+class MiniMaxH3SigmaShift(io.ComfyNode):
     """Set the video/audio flow shifts coherently.
 
     The video shift drives the sampler's sigma schedule (ModelSamplingAV); both
@@ -291,7 +291,7 @@ class ModelSamplingMiniMaxH3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="ModelSamplingMiniMaxH3",
+            node_id="MiniMaxH3SigmaShift",
             description="Set the video/audio flow shifts.",
             display_name="ModelSamplingMiniMaxH3",
             search_aliases=["sigma shift", "minimax shift"],
@@ -312,7 +312,6 @@ class ModelSamplingMiniMaxH3(io.ComfyNode):
             pass
 
         original = m.get_model_object("model_sampling")
-        # ModelSamplingAV keeps per-stream (audio schedule) noise handling intact
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
         model_sampling.set_parameters(shift=shift_video, audio_shift=shift_audio)
         if hasattr(original, "noise_scale"):
@@ -331,7 +330,7 @@ class MiniMaxH3Extension(ComfyExtension):
             EmptyMiniMaxH3LatentAV,
             MiniMaxH3ImageToVideo,
             MiniMaxH3ReferenceToVideo,
-            ModelSamplingMiniMaxH3,
+            MiniMaxH3SigmaShift,
             ]
 
 
