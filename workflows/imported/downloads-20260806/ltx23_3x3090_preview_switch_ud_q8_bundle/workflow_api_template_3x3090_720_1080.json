@@ -1,0 +1,908 @@
+{
+  "1": {
+    "class_type": "UnetLoaderGGUFAdvancedDisTorch2MultiGPU",
+    "inputs": {
+      "unet_name": "eros_14.gguf",
+      "dequant_dtype": "default",
+      "patch_dtype": "default",
+      "patch_on_device": false,
+      "compute_device": "cuda:0",
+      "virtual_vram_gb": 0.0,
+      "donor_device": "cpu",
+      "expert_mode_allocations": "cuda:0,50%;cuda:1,50%",
+      "eject_models": false
+    },
+    "_meta": {
+      "title": "UNet — Q8 fallback; MCP auto-selects same-family UD/Q8"
+    }
+  },
+  "2": {
+    "class_type": "LTXReferenceEnable",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "zero_ref_timesteps": false,
+      "verbose": false
+    },
+    "_meta": {
+      "title": "Enable LTX reference tokens"
+    }
+  },
+  "3": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "2",
+        0
+      ],
+      "lora_name": "LTX2-i2v-OralSuite.safetensors",
+      "strength_model": 1.0
+    },
+    "_meta": {
+      "title": "Motion LoRA"
+    }
+  },
+  "4": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "3",
+        0
+      ],
+      "lora_name": "ltx-2.3-22b-distilled-lora-1.1_rank96_energy.safetensors",
+      "strength_model": 1.0
+    },
+    "_meta": {
+      "title": "Distilled LoRA"
+    }
+  },
+  "5": {
+    "class_type": "LTXAVTextEncoderLoader",
+    "inputs": {
+      "text_encoder": "gemma-3-12b-it-orthogonal-reflection-bounded-ablation-v4-12B-fp4_mixed.safetensors",
+      "ckpt_name": "ltx-2.3-22b-dev_embeddings_connectors.safetensors",
+      "device": "cuda:2"
+    },
+    "_meta": {
+      "title": "Text Encoder — GPU2; MCP auto-selects compatible UD/Q8"
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "5",
+        0
+      ],
+      "text": "Use the supplied image exactly as frame 0.\n\nMedium cinematic shot, a slow gentle push-in, no cuts. Preserve the subject's identity, body, clothing, lighting, and setting. Natural coherent motion with stable anatomy and temporal consistency.\n\nAudio: soft natural ambience only unless dialogue is explicitly requested.\n\nNo new people, no scene change, no text, no subtitles, no overlays, no transformation."
+    },
+    "_meta": {
+      "title": "Positive prompt"
+    }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "5",
+        0
+      ],
+      "text": "blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, flickering, motion blur, distorted proportions, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, artifacts, text, subtitles, captions, watermark, logo, static image, camera shake, inconsistent lighting, color banding, cartoon, 3D CGI, uncanny valley, wrong identity, wrong clothing, scene change, new people, transformation, off-sync audio, robotic voice, background noise, AI artifacts"
+    },
+    "_meta": {
+      "title": "Negative prompt"
+    }
+  },
+  "8": {
+    "class_type": "LTXVConditioning",
+    "inputs": {
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "frame_rate": 24.0
+    },
+    "_meta": {
+      "title": "LTX AV conditioning"
+    }
+  },
+  "9": {
+    "class_type": "VAELoaderMultiGPU",
+    "inputs": {
+      "vae_name": "ltx-2.3-22b-dev_video_vae.safetensors",
+      "device": "cuda:2"
+    },
+    "_meta": {
+      "title": "Local LTX 2.3 Dev video VAE"
+    }
+  },
+  "10": {
+    "class_type": "LTXVAudioVAELoader",
+    "inputs": {
+      "ckpt_name": "sulphur_dev_fp8mixed.safetensors"
+    },
+    "_meta": {
+      "title": "Audio VAE"
+    }
+  },
+  "11": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "ltx_agent/input.png"
+    },
+    "_meta": {
+      "title": "Uploaded input image"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": [
+        "11",
+        0
+      ],
+      "width": 1280,
+      "height": 704,
+      "upscale_method": "bicubic",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 64,
+      "device": "cpu"
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize uploaded/continued frame — 720 stage"
+    }
+  },
+  "13": {
+    "inputs": {
+      "image": [
+        "12",
+        0
+      ],
+      "width": 640,
+      "height": 352,
+      "upscale_method": "area",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 32,
+      "device": "cpu"
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Half-resolution first-pass frame"
+    }
+  },
+  "14": {
+    "class_type": "LTXVPreprocess",
+    "inputs": {
+      "image": [
+        "13",
+        0
+      ],
+      "img_compression": 35
+    },
+    "_meta": {
+      "title": "LTX image preprocess"
+    }
+  },
+  "15": {
+    "class_type": "EmptyLTXVLatentVideo",
+    "inputs": {
+      "width": 352,
+      "height": 480,
+      "length": 361,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Half-resolution video latent"
+    }
+  },
+  "16": {
+    "class_type": "LTXVEmptyLatentAudio",
+    "inputs": {
+      "audio_vae": [
+        "10",
+        0
+      ],
+      "frames_number": 361,
+      "frame_rate": 24,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Empty audio latent"
+    }
+  },
+  "17": {
+    "class_type": "LTXVImgToVideoInplace",
+    "inputs": {
+      "vae": [
+        "9",
+        0
+      ],
+      "image": [
+        "14",
+        0
+      ],
+      "latent": [
+        "15",
+        0
+      ],
+      "strength": 1.0,
+      "bypass": false
+    },
+    "_meta": {
+      "title": "Apply frame 0 — first pass"
+    }
+  },
+  "18": {
+    "class_type": "LTXReferenceConditioning",
+    "inputs": {
+      "model": [
+        "4",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "image": [
+        "14",
+        0
+      ],
+      "target_latent": [
+        "17",
+        0
+      ],
+      "strength": 1.0,
+      "position_mode": "reference",
+      "verbose": false
+    },
+    "_meta": {
+      "title": "Reference conditioning — first pass"
+    }
+  },
+  "19": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "17",
+        0
+      ],
+      "audio_latent": [
+        "16",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Combine AV — first pass"
+    }
+  },
+  "20": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler_ancestral"
+    },
+    "_meta": {
+      "title": "First-pass sampler"
+    }
+  },
+  "21": {
+    "class_type": "ManualSigmas",
+    "inputs": {
+      "sigmas": "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "_meta": {
+      "title": "8-step distilled schedule"
+    }
+  },
+  "22": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "18",
+        0
+      ],
+      "positive": [
+        "8",
+        0
+      ],
+      "negative": [
+        "8",
+        1
+      ],
+      "sampler": [
+        "20",
+        0
+      ],
+      "sigmas": [
+        "21",
+        0
+      ],
+      "latent_image": [
+        "19",
+        0
+      ],
+      "add_noise": true,
+      "noise_seed": 42,
+      "cfg": 1.0
+    },
+    "_meta": {
+      "title": "First pass — 8 distilled steps"
+    }
+  },
+  "23": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "22",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Split first-pass AV"
+    }
+  },
+  "24": {
+    "class_type": "LatentUpscaleModelLoader",
+    "inputs": {
+      "model_name": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
+    },
+    "_meta": {
+      "title": "Existing x2 latent upscaler"
+    }
+  },
+  "25": {
+    "class_type": "LTXVLatentUpsamplerTiled",
+    "inputs": {
+      "samples": [
+        "23",
+        0
+      ],
+      "upscale_model": [
+        "24",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "tile_size": 11,
+      "overlap": 6,
+      "max_size_for_no_tile": 22,
+      "rotate_for_landscape": false,
+      "debug": false
+    },
+    "_meta": {
+      "title": "Learned x2 latent upscale to 720 stage"
+    }
+  },
+  "26": {
+    "class_type": "LTXVImgToVideoInplace",
+    "inputs": {
+      "vae": [
+        "9",
+        0
+      ],
+      "image": [
+        "12",
+        0
+      ],
+      "latent": [
+        "25",
+        0
+      ],
+      "strength": 1.0,
+      "bypass": false
+    },
+    "_meta": {
+      "title": "Re-anchor frame 0 — 720 stage"
+    }
+  },
+  "27": {
+    "class_type": "LTXReferenceConditioning",
+    "inputs": {
+      "model": [
+        "4",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "image": [
+        "12",
+        0
+      ],
+      "target_latent": [
+        "26",
+        0
+      ],
+      "strength": 1.0,
+      "position_mode": "reference",
+      "verbose": false
+    },
+    "_meta": {
+      "title": "Reference conditioning — 720 stage"
+    }
+  },
+  "28": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "26",
+        0
+      ],
+      "audio_latent": [
+        "23",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Combine AV — 720 refinement"
+    }
+  },
+  "29": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "_meta": {
+      "title": "720 refinement sampler"
+    }
+  },
+  "30": {
+    "class_type": "ManualSigmas",
+    "inputs": {
+      "sigmas": "0.625, 0.4, 0.0"
+    },
+    "_meta": {
+      "title": "2-step 720 distilled refinement"
+    }
+  },
+  "31": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "27",
+        0
+      ],
+      "positive": [
+        "8",
+        0
+      ],
+      "negative": [
+        "8",
+        1
+      ],
+      "sampler": [
+        "29",
+        0
+      ],
+      "sigmas": [
+        "30",
+        0
+      ],
+      "latent_image": [
+        "28",
+        0
+      ],
+      "add_noise": true,
+      "noise_seed": 42,
+      "cfg": 1.0
+    },
+    "_meta": {
+      "title": "720 refinement — 2 steps"
+    }
+  },
+  "32": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "31",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Split 720p AV — preview + optional 1080 branch"
+    }
+  },
+  "33": {
+    "inputs": {
+      "samples": [
+        "32",
+        0
+      ],
+      "upscale_method": "bicubic",
+      "width": 480,
+      "height": 272,
+      "crop": "disabled"
+    },
+    "class_type": "LatentUpscale",
+    "_meta": {
+      "title": "1080 ONLY — Core 5D latent resize — 720 stage to 1080 internal"
+    }
+  },
+  "34": {
+    "inputs": {
+      "image": [
+        "11",
+        0
+      ],
+      "width": 1920,
+      "height": 1088,
+      "upscale_method": "bicubic",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 64,
+      "device": "cpu"
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "1080 ONLY — Resize start frame — 1080 internal reference"
+    }
+  },
+  "35": {
+    "class_type": "LTXVImgToVideoInplace",
+    "inputs": {
+      "vae": [
+        "9",
+        0
+      ],
+      "image": [
+        "34",
+        0
+      ],
+      "latent": [
+        "33",
+        0
+      ],
+      "strength": 1.0,
+      "bypass": false
+    },
+    "_meta": {
+      "title": "1080 ONLY — Re-anchor frame 0 — 1080 internal"
+    }
+  },
+  "36": {
+    "inputs": {
+      "samples": [
+        "32",
+        1
+      ],
+      "mask": [
+        "47",
+        0
+      ]
+    },
+    "class_type": "SetLatentNoiseMask",
+    "_meta": {
+      "title": "1080 ONLY — Preserve audio during 1080 video refinement"
+    }
+  },
+  "37": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "35",
+        0
+      ],
+      "audio_latent": [
+        "36",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "1080 ONLY — Combine AV — 1080 finish"
+    }
+  },
+  "38": {
+    "class_type": "LTXReferenceConditioning",
+    "inputs": {
+      "model": [
+        "4",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "image": [
+        "34",
+        0
+      ],
+      "target_latent": [
+        "35",
+        0
+      ],
+      "strength": 1.0,
+      "position_mode": "reference",
+      "verbose": false
+    },
+    "_meta": {
+      "title": "1080 ONLY — Reference conditioning — 1080 finish"
+    }
+  },
+  "39": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "_meta": {
+      "title": "1080 ONLY — 1080 finishing sampler"
+    }
+  },
+  "40": {
+    "class_type": "ManualSigmas",
+    "inputs": {
+      "sigmas": "0.4, 0.0"
+    },
+    "_meta": {
+      "title": "1080 ONLY — 1-step 1080 finishing schedule"
+    }
+  },
+  "41": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "38",
+        0
+      ],
+      "positive": [
+        "8",
+        0
+      ],
+      "negative": [
+        "8",
+        1
+      ],
+      "sampler": [
+        "39",
+        0
+      ],
+      "sigmas": [
+        "40",
+        0
+      ],
+      "latent_image": [
+        "37",
+        0
+      ],
+      "add_noise": true,
+      "noise_seed": 42,
+      "cfg": 1.0
+    },
+    "_meta": {
+      "title": "1080 ONLY — 1080 finishing refinement"
+    }
+  },
+  "42": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "41",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "1080 ONLY — Split final AV"
+    }
+  },
+  "43": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": [
+        "42",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "tile_size": 1024,
+      "overlap": 64,
+      "temporal_size": 32,
+      "temporal_overlap": 8
+    },
+    "_meta": {
+      "title": "1080 ONLY — Tiled 1080 VAE decode"
+    }
+  },
+  "44": {
+    "class_type": "LTXVAudioVAEDecode",
+    "inputs": {
+      "samples": [
+        "42",
+        1
+      ],
+      "audio_vae": [
+        "10",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "1080 ONLY — Decode preserved audio"
+    }
+  },
+  "45": {
+    "inputs": {
+      "image": [
+        "43",
+        0
+      ],
+      "width": 1920,
+      "height": 1080,
+      "upscale_method": "bicubic",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu"
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "1080 ONLY — Exact output resize — 1920×1080"
+    }
+  },
+  "46": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": [
+        "52",
+        0
+      ],
+      "audio": [
+        "53",
+        0
+      ],
+      "frame_rate": 24.0,
+      "loop_count": 0,
+      "filename_prefix": "Eros/Agent_SELECTED_1080p",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 17,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true
+    },
+    "_meta": {
+      "title": "FINAL SELECTED VIDEO PREVIEW + SAVED MP4 — 720p / 1080p"
+    }
+  },
+  "47": {
+    "inputs": {
+      "value": 0.0,
+      "width": 1,
+      "height": 1
+    },
+    "class_type": "SolidMask",
+    "_meta": {
+      "title": "Zero mask for preserved audio"
+    }
+  },
+  "48": {
+    "inputs": {
+      "samples": [
+        "32",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "tile_size": 768,
+      "overlap": 64,
+      "temporal_size": 32,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "Actual 720p stage preview — tiled decode"
+    }
+  },
+  "49": {
+    "inputs": {
+      "samples": [
+        "32",
+        1
+      ],
+      "audio_vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "Actual 720p stage preview — audio decode"
+    }
+  },
+  "50": {
+    "inputs": {
+      "image": [
+        "48",
+        0
+      ],
+      "width": 1280,
+      "height": 720,
+      "upscale_method": "bicubic",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu"
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Actual 720p stage preview — exact output resize"
+    }
+  },
+  "51": {
+    "inputs": {
+      "images": [
+        "50",
+        0
+      ],
+      "audio": [
+        "49",
+        0
+      ],
+      "frame_rate": 24.0,
+      "loop_count": 0,
+      "filename_prefix": "Eros/Agent_PREVIEW_720p",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 20,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "ACTUAL 720p VIDEO PREVIEW — emitted before optional 1080p finish"
+    }
+  },
+  "52": {
+    "inputs": {
+      "selection": 2,
+      "image_720p": [
+        "50",
+        0
+      ],
+      "image_1080p": [
+        "45",
+        0
+      ]
+    },
+    "class_type": "LTXLazyImageSwitch",
+    "_meta": {
+      "title": "Lazy final image selection — 720p / 1080p"
+    }
+  },
+  "53": {
+    "inputs": {
+      "selection": 2,
+      "audio_720p": [
+        "49",
+        0
+      ],
+      "audio_1080p": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "LTXLazyAudioSwitch",
+    "_meta": {
+      "title": "Lazy final audio selection — 720p / 1080p"
+    }
+  }
+}

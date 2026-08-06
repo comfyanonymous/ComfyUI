@@ -1,0 +1,834 @@
+{
+  "id": "163ec137-2b5c-4530-a8fb-acc942d50362",
+  "revision": 0,
+  "last_node_id": 31,
+  "last_link_id": 33,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "KSampler",
+      "pos": [
+        507.83537644490235,
+        459.8563187628542
+      ],
+      "size": [
+        270,
+        474.00000000000006
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 28
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 8
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "KSampler",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "seed": true,
+            "steps": true,
+            "cfg": true,
+            "sampler_name": true,
+            "scheduler": true,
+            "denoise": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        0,
+        "fixed",
+        8,
+        1,
+        "euler_ancestral",
+        "beta",
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAEDecode",
+      "pos": [
+        533.3554212307205,
+        237.67409730895304
+      ],
+      "size": [
+        225,
+        71.328125
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 2
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            4,
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "VAEDecode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        69.59101552862388,
+        536.3067955105726
+      ],
+      "size": [
+        270,
+        79.328125
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "VAELoader",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "vae_name": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "wan21-vae.safetensors"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "PreviewImage",
+      "pos": [
+        882.8926882819134,
+        108.91352601603133
+      ],
+      "size": [
+        488.75,
+        369.1875
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "PreviewImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        61.026190838800545,
+        133.14406810420925
+      ],
+      "size": [
+        400,
+        341.26618858187635
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            5,
+            12
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "CLIPTextEncode",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "text": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "KNP, close-up portrait of a serene woman adorned in a massive golden sunburst crown with radiating spikes and intricate filigree, dark lace-like tattoos covering her forehead and cheek, closed eyes, heavy black veil draping her head, sheer bodice with dense gold embroidery, stacked golden bracelets on a delicately raised hand, dark moody atmospheric architectural background, shallow depth of field, dramatic chiaroscuro lighting, soft golden glow on metallic textures, hyper-realistic gothic dark fantasy aesthetic, cinematic portrait photography"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "ConditioningZeroOut",
+      "pos": [
+        73.15070651478543,
+        384.90824938723097
+      ],
+      "size": [
+        225,
+        47.328125
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "ConditioningZeroOut",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "EmptyLatentImage",
+      "pos": [
+        -244.20352766583179,
+        611.1969434544516
+      ],
+      "size": [
+        270,
+        143.328125
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "EmptyLatentImage",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "width": true,
+            "height": true,
+            "batch_size": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        1024,
+        1536,
+        1
+      ]
+    },
+    {
+      "id": 13,
+      "type": "CLIPLoader",
+      "pos": [
+        -345.14310299212,
+        445.68289906919506
+      ],
+      "size": [
+        335.24269577008863,
+        107.97703932000843
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "CLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "clip_name": true,
+            "type": true,
+            "device": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "Krea 2\\qwen3vl_4b_int8.safetensors",
+        "krea2",
+        "default"
+      ]
+    },
+    {
+      "id": 16,
+      "type": "RTXVideoSuperResolution",
+      "pos": [
+        943.8360086439703,
+        622.5553646516051
+      ],
+      "size": [
+        285.81015625,
+        106
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "upscaled_images",
+          "type": "IMAGE",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_nvidia_rtx_nodes",
+        "ver": "892515e3eb9a4920a131a502a047e47adca9eb0d",
+        "Node name for S&R": "RTXVideoSuperResolution",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "scale by multiplier",
+        2,
+        "HIGH"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "SaveImageKJ",
+      "pos": [
+        1478.9011977133491,
+        372.12894118733453
+      ],
+      "size": [
+        289.302734375,
+        126
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 17
+        },
+        {
+          "name": "caption",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "f3835b7511375c13bf2fdee3377597f0ff9e8e77",
+        "Node name for S&R": "SaveImageKJ",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "Krea2",
+        "output",
+        ".txt"
+      ]
+    },
+    {
+      "id": 18,
+      "type": "PathchSageAttentionKJ",
+      "pos": [
+        196.84402375542368,
+        -331.1039944237841
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 33
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "f3835b7511375c13bf2fdee3377597f0ff9e8e77",
+        "Node name for S&R": "PathchSageAttentionKJ",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "auto",
+        true
+      ]
+    },
+    {
+      "id": 19,
+      "type": "PatchFlashAttentionKJ",
+      "pos": [
+        489.3214112228971,
+        -325.0695511000787
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            27
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "f3835b7511375c13bf2fdee3377597f0ff9e8e77",
+        "Node name for S&R": "PatchFlashAttentionKJ",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        true
+      ]
+    },
+    {
+      "id": 21,
+      "type": "MarkdownNote",
+      "pos": [
+        -793.9287780404813,
+        146.12320449263902
+      ],
+      "size": [
+        417.395467412072,
+        452.9768122279307
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Winnougan's Note",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "# 🖼️ Krea 2 Quantized — ComfyUI Quick Setup\n\nAll quantized models (FP8 / MXFP8 / NVFP4 / INT8 / ConvRot INT8) for both Base and Turbo:\n\n👉 **[Winnougan/Krea-2-Base-Turbo-NVFP4-FP8-INT8](https://huggingface.co/Winnougan/Krea-2-Base-Turbo-NVFP4-FP8-INT8)**\n\n---\n\n## Required Downloads\n\n**Text Encoder** — Comfy now supports INT8 text encoders! Load with CLIPLoader, type `krea2`:  \n👉 [qwen3vl_4b_INT8.safetensors](https://huggingface.co/Winnougan/Krea-2-Base-Turbo-NVFP4-FP8-INT8/resolve/main/Text%20Encoder/qwen3vl_4b_int8.safetensors)\n\n**VAE** — Same as Anima:  \n👉 [qwen_image_vae.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/blob/main/split_files/vae/qwen_image_vae.safetensors)\n\n---\n\n## Recommended Settings\n\n| Model | Steps | CFG | Resolution |\n|-------|-------|-----|------------|\n| Turbo | 8 | 0.0 | 1024–2048px |\n| Raw | 52 | 3.5 | up to 1024px |"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 24,
+      "type": "FantasticLoraLoader",
+      "pos": [
+        -113.92098804697973,
+        -211.84385690424145
+      ],
+      "size": [
+        560,
+        260
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 27
+        },
+        {
+          "name": "clip",
+          "shape": 7,
+          "type": "CLIP",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            28
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "name": "lora_stack",
+          "type": "LORA_STACK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-fantastic-loras",
+        "ver": "d891ad1635f675369786a7219c5fb8e38ad4d048",
+        "Node name for S&R": "FantasticLoraLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "{\"loras\":[{\"on\":false,\"name\":\"Krea2/MysticXXX_KREA2_v1.safetensors\",\"model\":1,\"clip\":1},{\"on\":true,\"name\":\"Krea2/KNPV3_1.safetensors\",\"model\":1,\"clip\":1},{\"on\":true,\"name\":\"Krea2/snofs_krea_v1.safetensors\",\"model\":1,\"clip\":1},{\"on\":true,\"name\":\"Krea2/realism_engine_krea2_v2.safetensors\",\"model\":1,\"clip\":1}],\"enabledFolders\":null}",
+        null,
+        ""
+      ]
+    },
+    {
+      "id": 31,
+      "type": "UNETLoader",
+      "pos": [
+        -207.7830417636431,
+        -337.59879021806375
+      ],
+      "size": [
+        377.1431003493767,
+        88.01926638414966
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.26.0",
+        "Node name for S&R": "UNETLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "Krea 2 Turbo\\Krea2_Turbo_int8mixed.safetensors",
+        "default"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "LATENT"
+    ],
+    [
+      3,
+      4,
+      0,
+      3,
+      1,
+      "VAE"
+    ],
+    [
+      4,
+      3,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      5,
+      6,
+      0,
+      2,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      8,
+      8,
+      0,
+      2,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      11,
+      10,
+      0,
+      2,
+      3,
+      "LATENT"
+    ],
+    [
+      12,
+      6,
+      0,
+      8,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      14,
+      13,
+      0,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      16,
+      3,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      17,
+      16,
+      0,
+      17,
+      0,
+      "IMAGE"
+    ],
+    [
+      18,
+      18,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      27,
+      19,
+      0,
+      24,
+      0,
+      "MODEL"
+    ],
+    [
+      28,
+      24,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      33,
+      31,
+      0,
+      18,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7627768444385646,
+      "offset": [
+        1283.4377522717655,
+        531.2454288434271
+      ]
+    },
+    "frontendVersion": "1.45.19",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

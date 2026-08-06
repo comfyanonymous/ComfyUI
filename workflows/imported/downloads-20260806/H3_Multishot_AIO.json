@@ -1,0 +1,735 @@
+{
+  "id": "h3-multishot-aio",
+  "revision": 0,
+  "last_node_id": 17,
+  "last_link_id": 17,
+  "nodes": [
+    {
+      "id": 6,
+      "type": "CreateVideo",
+      "pos": [
+        260.8492790310978,
+        -31.745960836869774
+      ],
+      "size": [
+        260,
+        110
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 5
+        },
+        {
+          "localized_name": "audio",
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 6
+        },
+        {
+          "localized_name": "fps",
+          "name": "fps",
+          "type": "FLOAT",
+          "widget": {
+            "name": "fps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "bit_depth",
+          "name": "bit_depth",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "bit_depth"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "VIDEO",
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0",
+        "Node name for S&R": "CreateVideo"
+      },
+      "widgets_values": [
+        24,
+        8
+      ]
+    },
+    {
+      "id": 7,
+      "type": "SaveVideo",
+      "pos": [
+        531.6228625319526,
+        -31.745960836869756
+      ],
+      "size": [
+        300,
+        106
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "video",
+          "name": "video",
+          "type": "VIDEO",
+          "link": 7
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "format",
+          "name": "format",
+          "type": "COMBO",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "codec",
+          "name": "codec",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "codec"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "video",
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "title": "SAVE MASTER",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0",
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "video/H3MULTI/MASTER",
+        "auto",
+        "auto"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MarkdownNote",
+      "pos": [
+        -226.25021715930947,
+        -268.315588315588
+      ],
+      "size": [
+        364.8544412180778,
+        200.25786116695207
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "H3 Multishot - one node",
+      "properties": {},
+      "widgets_values": [
+        "## H3 Multishot (all-in-one)\n\nWrite one prompt per shot in the sampler's script box, separated by `---` on its own line (JSON `{\"prompts\": [...]}` also works). **shot_count is real here**: 0 = one shot per prompt, N = exactly N shots render. Each shot chains from the last frame of the previous one; the seam frame and its 1/24s of audio are trimmed automatically.\n\nframes_per_shot sits on H3's 17k+5 grid (243 = ~10s, 362 = trained max ~15s). The loader takes .safetensors or .gguf. Master saves to output/video/H3MULTI/."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 9,
+      "type": "MarkdownNote",
+      "pos": [
+        263.8069435897444,
+        117.7158405028771
+      ],
+      "size": [
+        250.1901023617911,
+        421.0866413924273
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note: Size Settings Reference",
+      "properties": {},
+      "widgets_values": [
+        "| megapixels | Aspect | Output (multiple=32) |\n|---|---|---|\n| 0.2 | 16:9 | 608 x 352 |\n| 0.3 | 16:9 | 736 x 416 |\n| 0.4 | 16:9 | 864 x 480 |\n| 0.5 | 16:9 | 960 x 544 |\n| 0.6 | 16:9 | 1056 x 608 |\n| 0.7 | 16:9 | 1152 x 640 |\n| 0.8 | 16:9 | 1216 x 672 |\n| 0.9 | 16:9 | 1280 x 736 |\n| 0.98 | 16:9 | 1344 x 768 |\n| 1.0 | 16:9 | 1376 x 768 |\n| 1.2 | 16:9 | 1504 x 832 |\n| 1.5 | 16:9 | 1664 x 928 |\n| 1.8 | 16:9 | 1824 x 1024 |\n| 2.0 | 16:9 | 1920 x 1088 |\n\nReverse Output for Portrait Mode \n\n(i.e. 1920x1088)"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 11,
+      "type": "H3ClipLoaderAny",
+      "pos": [
+        -668.0669237077784,
+        148.14167304675712
+      ],
+      "size": [
+        415.6476163194443,
+        88.84285885885879
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "H3ClipLoaderAny"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3-Q4_K_M.gguf",
+        "minimax"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [
+        -667.4822822822822,
+        279.2060060060066
+      ],
+      "size": [
+        415.75855855855866,
+        80
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "title": "Video VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        -668.8960960960962,
+        397.9987987987996
+      ],
+      "size": [
+        417.17237237237237,
+        78.58618618618618
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "title": "Audio VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "H3ModelLoaderAny",
+      "pos": [
+        -666.068468468469,
+        26.907075670711997
+      ],
+      "size": [
+        414.34474474474484,
+        71.5171171171171
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model_name",
+          "name": "model_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "model_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "H3 Model (safetensors or GGUF)",
+      "properties": {
+        "Node name for S&R": "H3ModelLoaderAny"
+      },
+      "widgets_values": [
+        "MiniMax-H3-FL2VA-Q4_K_M.gguf"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "H3MultishotSampler",
+      "pos": [
+        -229.92430446975905,
+        -29.590747772565894
+      ],
+      "size": [
+        480,
+        652.7466309284491
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 9
+        },
+        {
+          "localized_name": "video_vae",
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "localized_name": "audio_vae",
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 4
+        },
+        {
+          "localized_name": "start_image",
+          "name": "start_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 17
+        },
+        {
+          "localized_name": "script",
+          "name": "script",
+          "type": "STRING",
+          "widget": {
+            "name": "script"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "shot_count",
+          "name": "shot_count",
+          "type": "INT",
+          "widget": {
+            "name": "shot_count"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "frames_per_shot",
+          "name": "frames_per_shot",
+          "type": "INT",
+          "widget": {
+            "name": "frames_per_shot"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "master_frames",
+          "name": "master_frames",
+          "type": "IMAGE",
+          "links": [
+            5
+          ]
+        },
+        {
+          "localized_name": "master_audio",
+          "name": "master_audio",
+          "type": "AUDIO",
+          "links": [
+            6
+          ]
+        },
+        {
+          "localized_name": "shots_rendered",
+          "name": "shots_rendered",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "title": "H3 Multishot Sampler",
+      "properties": {
+        "Node name for S&R": "H3MultishotSampler"
+      },
+      "widgets_values": [
+        "A woman sits at a sunlit desk in a home office, speaking to the camera. She says, \"This is multi-shot for MiniMax H3.\" Warm window light, plants and a monitor behind her. Natural room tone, her voice close on the mic.\n---\nThe same woman at the same desk continues, saying, \"One script, one node, and every shot flows into the next.\" She gestures at the screen beside her. Same warm light, same room, unbroken continuity.\n---\nThe same woman leans back and finishes, saying, \"Audio carries across the seams too.\" She smiles and the shot settles. Same room, same light, room tone continuous.",
+        0,
+        608,
+        352,
+        362,
+        217270550978761,
+        "randomize",
+        16
+      ]
+    },
+    {
+      "id": 12,
+      "type": "LoadImage",
+      "pos": [
+        -975.4299834793115,
+        99.07367149567777
+      ],
+      "size": [
+        282.798828125,
+        314
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "choose file to upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            16
+          ]
+        },
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "H3OptionalImage",
+      "pos": [
+        -967.104501465949,
+        -11.423858405561937
+      ],
+      "size": [
+        270.7258054913775,
+        68.62219244037408
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 16
+        },
+        {
+          "localized_name": "enabled",
+          "name": "enabled",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "enabled"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "H3OptionalImage"
+      },
+      "widgets_values": [
+        false
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      3,
+      0,
+      5,
+      2,
+      "VAE"
+    ],
+    [
+      4,
+      4,
+      0,
+      5,
+      3,
+      "VAE"
+    ],
+    [
+      5,
+      5,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      6,
+      5,
+      1,
+      6,
+      1,
+      "AUDIO"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      0,
+      "VIDEO"
+    ],
+    [
+      9,
+      11,
+      0,
+      5,
+      1,
+      "CLIP"
+    ],
+    [
+      16,
+      12,
+      0,
+      17,
+      0,
+      "IMAGE"
+    ],
+    [
+      17,
+      17,
+      0,
+      5,
+      4,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "MODELS",
+      "bounding": [
+        -680.6198198198203,
+        -51.51711711711722,
+        442.03363363363417,
+        542.8600600600614
+      ],
+      "color": "#3f5159",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.941425233644872,
+      "offset": [
+        1204.5805533773912,
+        398.51169003884326
+      ]
+    }
+  },
+  "version": 0.4
+}
