@@ -1638,6 +1638,8 @@ class MiniMaxModel(str, Enum):
     I2V_01_live = 'I2V-01-live'
     T2V_01 = 'T2V-01'
     Hailuo_02 = 'MiniMax-Hailuo-02'
+    Hailuo_03 = 'MiniMax-Hailuo-03'
+    H3 = 'MiniMax-H3'
 
 
 class SubjectReferenceItem(BaseModel):
@@ -1661,7 +1663,7 @@ class MinimaxVideoGenerationRequest(BaseModel):
     )
     model: MiniMaxModel = Field(
         ...,
-        description='Required. ID of model. Options: T2V-01-Director, I2V-01-Director, S2V-01, I2V-01, I2V-01-live, T2V-01',
+        description='Required. ID of model. Options: T2V-01-Director, I2V-01-Director, S2V-01, I2V-01, I2V-01-live, T2V-01, MiniMax-Hailuo-02, MiniMax-Hailuo-03, MiniMax-H3',
     )
     prompt: Optional[str] = Field(
         None,

@@ -157,7 +157,7 @@ class MinimaxTextToVideoNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["T2V-01", "T2V-01-Director"],
+                    options=["T2V-01", "T2V-01-Director", "MiniMax-Hailuo-03", "MiniMax-H3", "MiniMax-Hailuo-02"],
                     default="T2V-01",
                     tooltip="Model to use for video generation",
                 ),
@@ -228,7 +228,7 @@ class MinimaxImageToVideoNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["I2V-01-Director", "I2V-01", "I2V-01-live"],
+                    options=["I2V-01", "I2V-01-Director", "I2V-01-live", "MiniMax-Hailuo-03", "MiniMax-H3", "MiniMax-Hailuo-02"],
                     default="I2V-01",
                     tooltip="Model to use for video generation",
                 ),
@@ -348,7 +348,7 @@ class MinimaxSubjectToVideoNode(IO.ComfyNode):
 
 
 class MinimaxHailuoVideoNode(IO.ComfyNode):
-    """Generates videos from prompt, with optional start frame using the new MiniMax Hailuo-02 model."""
+    """Generates videos from prompt, with optional start frame using MiniMax Hailuo models (MiniMax-Hailuo-03 / H3, MiniMax-Hailuo-02)."""
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -363,6 +363,13 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
                     multiline=True,
                     default="",
                     tooltip="Text prompt to guide the video generation.",
+                ),
+                IO.Combo.Input(
+                    "model",
+                    options=["MiniMax-Hailuo-03", "MiniMax-H3", "MiniMax-Hailuo-02"],
+                    default="MiniMax-Hailuo-03",
+                    tooltip="Model to use for video generation.",
+                    optional=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -418,7 +425,7 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
         prompt_optimizer: bool = True,
         duration: int = 6,
         resolution: str = "768P",
-        model: str = "MiniMax-Hailuo-02",
+        model: str = "MiniMax-Hailuo-03",
     ) -> IO.NodeOutput:
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
