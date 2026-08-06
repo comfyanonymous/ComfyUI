@@ -488,14 +488,13 @@ class MiniMaxH3Model(nn.Module):
     def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
         # the sampler carries the audio as (sigma_v / sigma_a) * x_audio; undo it outside
         # the wrappers so they and the network see the stream's own latent and velocity
-        shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
-        shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
-        sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
-        sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
         scale = float((minimax_payload or {}).get("audio_scale", 1.0))
-
         audio_x = x[1]
         if scale != 1.0:
+            shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
+            shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
+            sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
+            sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
             audio_x = audio_x * (sigma_a / sigma_v).to(audio_x.dtype)
             x = [x[0], audio_x]
 
