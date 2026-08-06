@@ -665,18 +665,21 @@ class WanVAE(nn.Module):
         for i in range(iter_):
             conv_idx = [0]
             if i == 0:
-                out = self.encoder(
-                    x[:, :, :1, :, :],
-                    feat_cache=feat_map,
-                    feat_idx=conv_idx,
-                )
+                out = [
+                    self.encoder(
+                        x[:, :, :1, :, :],
+                        feat_cache=feat_map,
+                        feat_idx=conv_idx,
+                    )
+                ]
             else:
                 out_ = self.encoder(
                     x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
                     feat_cache=feat_map,
                     feat_idx=conv_idx,
                 )
-                out = torch.cat([out, out_], 2)
+                out.append(out_)
+        out = torch.cat(out, 2)
         mu, log_var = self.conv1(out).chunk(2, dim=1)
         return mu
 
@@ -688,19 +691,22 @@ class WanVAE(nn.Module):
         for i in range(iter_):
             conv_idx = [0]
             if i == 0:
-                out = self.decoder(
-                    x[:, :, i:i + 1, :, :],
-                    feat_cache=feat_map,
-                    feat_idx=conv_idx,
-                    first_chunk=True,
-                )
+                out = [
+                    self.decoder(
+                        x[:, :, i:i + 1, :, :],
+                        feat_cache=feat_map,
+                        feat_idx=conv_idx,
+                        first_chunk=True,
+                    )
+                ]
             else:
                 out_ = self.decoder(
                     x[:, :, i:i + 1, :, :],
                     feat_cache=feat_map,
                     feat_idx=conv_idx,
                 )
-                out = torch.cat([out, out_], 2)
+                out.append(out_)
+        out = torch.cat(out, 2)
         out = unpatchify(out, patch_size=2)
         return out
 

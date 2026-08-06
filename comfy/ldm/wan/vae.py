@@ -471,10 +471,12 @@ class WanVAE(nn.Module):
         for i in range(iter_):
             conv_idx = [0]
             if i == 0:
-                out = self.encoder(
-                    x[:, :, :1, :, :],
-                    feat_cache=feat_map,
-                    feat_idx=conv_idx)
+                out = [
+                    self.encoder(
+                        x[:, :, :1, :, :],
+                        feat_cache=feat_map,
+                        feat_idx=conv_idx)
+                ]
             else:
                 out_ = self.encoder(
                     x[:, :, 1 + 2 * (i - 1):1 + 2 * i, :, :],
@@ -483,8 +485,9 @@ class WanVAE(nn.Module):
                     final=(i == (iter_ - 1)))
                 if out_ is None:
                     continue
-                out = torch.cat([out, out_], 2)
+                out.append(out_)
 
+        out = torch.cat(out, 2)
         mu, log_var = self.conv1(out).chunk(2, dim=1)
         return mu
 
