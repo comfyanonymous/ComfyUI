@@ -4,6 +4,7 @@ from enum import Enum
 import logging
 
 from comfy import model_management
+import comfy.model_base
 from comfy.utils import ProgressBar
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.cascade.stage_a import StageA
@@ -98,6 +99,20 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
     key_map = {}
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
+        if isinstance(model.model, comfy.model_base.MiniMaxH3):
+            use_curves = bool(getattr(model.model.diffusion_model, "use_adaln_curves", False))
+            has_pruned_adaln = (
+                "adaln_t_table" in lora
+                or any(
+                    ".adaln_proj.linear.weight" in k
+                    or ".adaln_proj.linear.bias" in k
+                    for k in lora
+                )
+            )
+            if has_pruned_adaln and not use_curves:
+                logging.warning(
+                    "MiniMax H3 non-pruned model: complete pruned AdaLN "
+                    "replacement keys will be skipped.")
     if clip is not None:
         key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 

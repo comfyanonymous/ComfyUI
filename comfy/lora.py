@@ -37,7 +37,40 @@ LORA_CLIP_MAP = {
 def load_lora(lora, to_load, log_missing=True):
     patch_dict = {}
     loaded_keys = set()
+    adaln_skip_warned = set()
     for x in to_load:
+        is_adaln_full = (
+            ".adaln_proj.linear" in x
+            or x in ("adaln_t_table", "diffusion_model.adaln_t_table")
+            or "final_layer.adaln_proj.linear" in x
+        )
+        direct_weight_name = "{}.weight".format(x)
+        if is_adaln_full and direct_weight_name in lora:
+            patch_dict[to_load[x]] = ("set", (lora[direct_weight_name],))
+            loaded_keys.add(direct_weight_name)
+        direct_bias_name = "{}.bias".format(x)
+        if (is_adaln_full and direct_bias_name in lora
+                and to_load[x].endswith(".weight")):
+            bias_target = to_load[x][:-len(".weight")] + ".bias"
+            patch_dict[bias_target] = ("set", (lora[direct_bias_name],))
+            loaded_keys.add(direct_bias_name)
+        if is_adaln_full and x in lora:
+            patch_dict[to_load[x]] = ("set", (lora[x],))
+            loaded_keys.add(x)
+        if is_adaln_full and not (
+            direct_weight_name in lora
+            or direct_bias_name in lora
+            or x in lora
+        ):
+            warn_key = x.split("diffusion_model.", 1)[-1]
+            if ".adaln_proj.linear" in warn_key and warn_key not in adaln_skip_warned:
+                adaln_skip_warned.add(warn_key)
+                logging.warning(
+                    "MiniMax H3 pruned: AdaLN LoRA key %s skipped; "
+                    "use a complete pruned LoRA or bake it into table/projection.",
+                    x)
+            continue
+
         alpha_name = "{}.alpha".format(x)
         alpha = None
         if alpha_name in lora.keys():
@@ -196,6 +229,22 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
             else:
                 key_map["{}".format(k)] = k #generic lora format for not .weight without any weird key names
+
+    if isinstance(model, comfy.model_base.MiniMaxH3):
+        use_curves = bool(getattr(model.diffusion_model, "use_adaln_curves", False))
+        for k in sdk:
+            if k.startswith("diffusion_model."):
+                unprefixed = k[len("diffusion_model."):]
+                if k.endswith(".weight"):
+                    lora_base = unprefixed[:-len(".weight")]
+                    if use_curves or not (
+                        ".adaln_proj.linear" in lora_base
+                        or lora_base == "final_layer.adaln_proj.linear"
+                    ):
+                        key_map[lora_base] = k
+                else:
+                    if use_curves or unprefixed != "adaln_t_table":
+                        key_map[unprefixed] = k
 
     diffusers_keys = comfy.utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
