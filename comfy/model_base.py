@@ -2112,9 +2112,6 @@ class MiniMaxH3(BaseModel):
         out['minimax_payload'] = comfy.conds.CONDConstant(payload)
         return out
 
-    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
-        return latent_image
-
 class TripoSplat(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.triposplat.model.LatentSeqMMFlowModel)
