@@ -1164,6 +1164,25 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size"]),
+                expr="""
+                (
+                  widgets.size in ["1k", "1.5k"]
+                    ? {
+                        "type": "usd",
+                        "usd": 0.032,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                    : {
+                        "type": "range_usd",
+                        "min_usd": 0.032,
+                        "max_usd": 0.064,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                )
+                """,
+            ),
         )
 
     @classmethod
