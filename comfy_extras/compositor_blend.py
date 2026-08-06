@@ -44,8 +44,16 @@ CHANNEL_BLEND = {
     "overlay": lambda i, l: np.where(i < 0.5, 2 * i * l, 1 - 2 * (1 - l) * (1 - i)),
     "darken": lambda i, l: np.minimum(i, l),
     "lighten": lambda i, l: np.maximum(i, l),
-    "color-dodge": lambda i, l: safe_div(i, 1 - l),
-    "color-burn": lambda i, l: 1 - safe_div(1 - i, l),
+    "color-dodge": lambda i, l: np.where(
+        i <= 0,
+        0.0,
+        np.where(1 - l <= EPSILON, 1.0, np.minimum(safe_div(i, 1 - l), 1.0)),
+    ),
+    "color-burn": lambda i, l: np.where(
+        i >= 1,
+        1.0,
+        np.where(l <= EPSILON, 0.0, 1 - np.minimum(safe_div(1 - i, l), 1.0)),
+    ),
     "hard-light": lambda i, l: np.where(
         l > 0.5,
         np.minimum(1 - (1 - i) * (1 - (l - 0.5) * 2), 1),
@@ -58,8 +66,24 @@ CHANNEL_BLEND = {
     "linear-burn": lambda i, l: i + l - 1,
     "vivid-light": lambda i, l: np.where(
         l <= 0.5,
-        np.maximum(1 - safe_div(1 - i, 2 * l), 0),
-        np.minimum(safe_div(i, 2 * (1 - l)), 1),
+        np.where(
+            i >= 1,
+            1.0,
+            np.where(
+                2 * l <= EPSILON,
+                0.0,
+                np.maximum(1 - safe_div(1 - i, 2 * l), 0.0),
+            ),
+        ),
+        np.where(
+            i <= 0,
+            0.0,
+            np.where(
+                2 * (1 - l) <= EPSILON,
+                1.0,
+                np.minimum(safe_div(i, 2 * (1 - l)), 1.0),
+            ),
+        ),
     ),
     "pin-light": lambda i, l: np.where(
         l > 0.5, np.maximum(i, 2 * (l - 0.5)), np.minimum(i, 2 * l)
