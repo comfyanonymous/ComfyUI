@@ -335,7 +335,6 @@ class ModelSamplingAV(ModelSamplingDiscreteFlow):
         super().__init__(model_config)
         sampling_settings = model_config.sampling_settings if model_config is not None else {}
         self.audio_shift = sampling_settings.get("audio_shift", None)
-        self.latent_shapes = None
 
     def set_parameters(self, shift=1.0, audio_shift=None, timesteps=1000, multiplier=1000):
         self.audio_shift = audio_shift
@@ -346,12 +345,6 @@ class ModelSamplingAV(ModelSamplingDiscreteFlow):
         if self.audio_shift is None:
             return 1.0
         return self.shift / self.audio_shift
-
-    def video_numel(self):
-        """Width of the video slice in the flat pack, None when not sampling one."""
-        if not self.latent_shapes or len(self.latent_shapes) < 2:
-            return None
-        return math.prod(self.latent_shapes[0][1:])
 
 class StableCascadeSampling(ModelSamplingDiscrete):
     def __init__(self, model_config=None):

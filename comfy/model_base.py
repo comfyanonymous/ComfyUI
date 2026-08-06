@@ -185,6 +185,7 @@ class BaseModel(torch.nn.Module):
 
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
+        self.latent_shapes = None  # set by the sampler for models that pack several streams into one latent
 
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -2075,7 +2076,7 @@ class MiniMaxH3(BaseModel):
 
     def audio_scale(self):
         """Scale the sampler carries the audio stream at, 1.0 when not sampling the packed latent."""
-        if self.model_sampling.video_numel() is None:
+        if self.latent_shapes is None or len(self.latent_shapes) < 2:
             return 1.0
         return self.model_sampling.audio_scale
 
@@ -2083,12 +2084,10 @@ class MiniMaxH3(BaseModel):
         # the sampler carries the audio stream scaled onto the video schedule
         if scale == 1.0:
             return latent
-        if getattr(latent, "is_nested", False):  # x0 output hands back the unpacked view
+        if latent.is_nested:  # the x0 output hands back the unpacked view
             streams = latent.unbind()
             return comfy.nested_tensor.NestedTensor([streams[0], streams[1] * scale] + list(streams[2:]))
-        n = self.model_sampling.video_numel()
-        if n is None or latent.ndim != 3 or latent.shape[-1] <= n:
-            return latent  # not the flat pack
+        n = math.prod(self.latent_shapes[0][1:])
         latent = latent.clone()
         latent[..., n:] *= scale
         return latent
