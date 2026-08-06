@@ -50,8 +50,8 @@ class GetICLoRAParameters(io.ComfyNode):
         factor = 1
         if metadata:
             try:
-                factor = max(1, round(float(metadata.get("reference_downscale_factor", 1))))
-            except (TypeError, ValueError):
+                factor = max(1, round(float(next(v for k, v in metadata.items() if k.endswith("reference_downscale_factor")))))
+            except (StopIteration, TypeError, ValueError):
                 factor = 1
         parameters = {"reference_downscale_factor": factor}
         return io.NodeOutput(parameters)
@@ -746,6 +746,8 @@ class LTXVConcatAVLatent(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVConcatAVLatent",
+            display_name="Concat AV Latent",
+            description="Merge a video latent and an audio latent into a joint AV latent (any AV model, e.g. LTXV or MiniMax H3).",
             category="model/latent/ltxv",
             inputs=[
                 io.Latent.Input("video_latent"),
@@ -781,8 +783,9 @@ class LTXVSeparateAVLatent(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LTXVSeparateAVLatent",
+            display_name="Separate AV Latent",
             category="model/latent/ltxv",
-            description="LTXV Separate AV Latent",
+            description="Split a joint AV latent into its video and audio latents (any AV model, e.g. LTXV or MiniMax H3).",
             inputs=[
                 io.Latent.Input("av_latent"),
             ],

@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,10 @@ class Seedream4Options(BaseModel):
     max_images: int = Field(15)
 
 
+class Seedream5OptimizePromptOptions(BaseModel):
+    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+
+
 class Seedream4TaskCreationRequest(BaseModel):
     model: str = Field(...)
     prompt: str = Field(...)
@@ -24,10 +28,11 @@ class Seedream4TaskCreationRequest(BaseModel):
     image: list[str] | None = Field(None, description="Image URLs")
     size: str = Field(...)
     seed: int = Field(..., ge=0, le=2147483647)
-    sequential_image_generation: str = Field("disabled")
-    sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
+    sequential_image_generation: str | None = Field("disabled")
+    sequential_image_generation_options: Seedream4Options | None = Field(Seedream4Options(max_images=15))
     watermark: bool = Field(False)
     output_format: str | None = None
+    optimize_prompt_options: Seedream5OptimizePromptOptions | None = None
 
 
 class ImageTaskCreationResponse(BaseModel):
@@ -163,13 +168,29 @@ class SeedanceVirtualLibraryCreateAssetRequest(BaseModel):
     asset_type: str | None = Field(None, description="BytePlus asset type. Defaults to Image server-side when omitted.")
 
 
-# Dollars per 1K tokens, keyed by (model_id, has_video_input).
+# Dollars per 1K tokens, keyed by (model_id, has_video_input, resolution).
 SEEDANCE2_PRICE_PER_1K_TOKENS = {
-    ("dreamina-seedance-2-0-260128", False): 0.007,
-    ("dreamina-seedance-2-0-260128", True): 0.0043,
-    ("dreamina-seedance-2-0-fast-260128", False): 0.0056,
-    ("dreamina-seedance-2-0-fast-260128", True): 0.0033,
+    ("dreamina-seedance-2-0-260128", False, "480p"): 0.007,
+    ("dreamina-seedance-2-0-260128", True, "480p"): 0.0043,
+    ("dreamina-seedance-2-0-260128", False, "720p"): 0.007,
+    ("dreamina-seedance-2-0-260128", True, "720p"): 0.0043,
+    ("dreamina-seedance-2-0-260128", False, "1080p"): 0.0077,
+    ("dreamina-seedance-2-0-260128", True, "1080p"): 0.0047,
+    ("dreamina-seedance-2-0-260128", False, "4k"): 0.004,
+    ("dreamina-seedance-2-0-260128", True, "4k"): 0.0024,
+    ("dreamina-seedance-2-0-fast-260128", False, "480p"): 0.0056,
+    ("dreamina-seedance-2-0-fast-260128", True, "480p"): 0.0033,
+    ("dreamina-seedance-2-0-fast-260128", False, "720p"): 0.0056,
+    ("dreamina-seedance-2-0-fast-260128", True, "720p"): 0.0033,
+    ("dreamina-seedance-2-0-mini", False, "480p"): 0.0035,
+    ("dreamina-seedance-2-0-mini", True, "480p"): 0.0021,
+    ("dreamina-seedance-2-0-mini", False, "720p"): 0.0035,
+    ("dreamina-seedance-2-0-mini", True, "720p"): 0.0021,
 }
+
+
+def seedance2_price_per_1k_tokens(model_id: str, has_video_input: bool, resolution: str) -> float | None:
+    return SEEDANCE2_PRICE_PER_1K_TOKENS.get((model_id, has_video_input, resolution))
 
 
 RECOMMENDED_PRESETS = [
@@ -245,6 +266,19 @@ _PRESETS_SEEDREAM_4K = [
 
 _CUSTOM_PRESET = [("Custom", None, None)]
 
+_PRESETS_SEEDREAM_2K_PRO = [
+    ("(2K) 2048x2048 (1:1)", 2048, 2048),
+    ("(2K) 1728x2304 (3:4)", 1728, 2304),
+    ("(2K) 2304x1728 (4:3)", 2304, 1728),
+    # ("(2K) 2848x1600 (16:9)", 2848, 1600),  # 4,556,800 px - temporarily unavailable
+    # ("(2K) 1600x2848 (9:16)", 1600, 2848),  # 4,556,800 px - temporarily unavailable
+    ("(2K) 1664x2496 (2:3)", 1664, 2496),
+    ("(2K) 2496x1664 (3:2)", 2496, 1664),
+    # ("(2K) 3136x1344 (21:9)", 3136, 1344),  # 4,214,784 px - temporarily unavailable
+]
+RECOMMENDED_PRESETS_SEEDREAM_5_PRO = (
+    _PRESETS_SEEDREAM_1K + _PRESETS_SEEDREAM_2K_PRO + _CUSTOM_PRESET
+)
 RECOMMENDED_PRESETS_SEEDREAM_5_LITE = (
     _PRESETS_SEEDREAM_2K + _PRESETS_SEEDREAM_3K + _PRESETS_SEEDREAM_4K + _CUSTOM_PRESET
 )
@@ -263,6 +297,10 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
         "1080p": {"min": 409_600, "max": 2_073_600},
     },
     "dreamina-seedance-2-0-fast-260128": {
+        "480p": {"min": 409_600, "max": 927_408},
+        "720p": {"min": 409_600, "max": 927_408},
+    },
+    "dreamina-seedance-2-0-mini": {
         "480p": {"min": 409_600, "max": 927_408},
         "720p": {"min": 409_600, "max": 927_408},
     },
@@ -296,3 +334,36 @@ VIDEO_TASKS_EXECUTION_TIME = {
         "1080p": 150,
     },
 }
+
+
+class SeedAudioConfig(BaseModel):
+    format: str = Field(default="mp3")
+    sample_rate: int = Field(default=24000)
+    speech_rate: int = Field(default=0)
+    loudness_rate: int = Field(default=0)
+    pitch_rate: int = Field(default=0)
+
+
+class SeedAudioReference(BaseModel):
+    speaker: str | None = Field(default=None)
+    audio_data: str | None = Field(default=None)
+    audio_url: str | None = Field(default=None)
+    image_data: str | None = Field(default=None)
+    image_url: str | None = Field(default=None)
+
+
+class SeedAudioRequest(BaseModel):
+    model: str = Field(default="seed-audio-1.0")
+    text_prompt: str = Field(...)
+    references: list[SeedAudioReference] | None = Field(default=None)
+    audio_config: SeedAudioConfig = Field(default_factory=SeedAudioConfig)
+    watermark: dict[str, Any] = Field(default_factory=dict)
+
+
+class SeedAudioResponse(BaseModel):
+    audio: str | None = Field(default=None)
+    url: str | None = Field(default=None)
+    duration: float | None = Field(default=None)
+    original_duration: float | None = Field(default=None)
+    code: int | None = Field(default=None)
+    message: str | None = Field(default=None)

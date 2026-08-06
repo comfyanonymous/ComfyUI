@@ -58,7 +58,7 @@ class TestEnsureTagsExist:
         session.commit()
 
         tags = session.query(Tag).all()
-        assert {t.name for t in tags} == {"alpha", "beta"}
+        assert {t.name for t in tags} == {"ALPHA", "Beta", "alpha"}
 
     def test_empty_list_is_noop(self, session: Session):
         ensure_tags_exist(session, [])
@@ -257,6 +257,16 @@ class TestListTagsWithUsage:
 
         tag_names = {name for name, _ in rows}
         assert tag_names == {"alpha", "alphabet"}
+
+    def test_prefix_filter_is_case_sensitive(self, session: Session):
+        ensure_tags_exist(session, ["model_type:LLM", "model_type:llm"])
+        session.commit()
+
+        rows, total = list_tags_with_usage(session, prefix="model_type:L")
+
+        tag_names = {name for name, _ in rows}
+        assert tag_names == {"model_type:LLM"}
+        assert total == 1
 
     def test_order_by_name(self, session: Session):
         ensure_tags_exist(session, ["zebra", "alpha", "middle"])
