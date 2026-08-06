@@ -289,6 +289,8 @@ class WanAnimate2Model(WanModel):
 
         # the node windows the pose influence via cond timestep ranges: outside the window the cond carries no pose latents, and the branch, its cache traffic and the per-frame attention loop are all skipped
         apply_pose = pose_latents is not None
+        if apply_pose and pose_latents.shape[2] != f_gen - 1:  # before cache.select, which would otherwise keep an empty slot keyed to the rejected latents
+            raise ValueError("pose branch has {} latent frames, expected {} (generation frames minus the reference-image slot)".format(pose_latents.shape[2], f_gen - 1))
 
         cache = transformer_options.get("animate2_cache", None) if apply_pose else None
         if cache is not None:
@@ -299,20 +301,19 @@ class WanAnimate2Model(WanModel):
         if not cached and apply_pose:
             # 36ch = [latents(16) | mask(4) | latents(16)]; latents twice, and the mask is all ones since every pose frame is known
             x_pose = self.patch_embedding(torch.cat([pose_latents, torch.ones_like(pose_latents[:, :4]), pose_latents], dim=1).float()).to(x.dtype)
-            f_pose = x_pose.shape[2]
             x_pose = x_pose.flatten(2).transpose(1, 2)
-            if f_pose != f_gen - 1:
-                raise ValueError("pose branch has {} latent frames, expected {} (generation frames minus the reference-image slot)".format(f_pose, f_gen - 1))
 
         # time embeddings
         e = self.time_embedding(sinusoidal_embedding_1d(self.freq_dim, t.flatten()).to(dtype=x.dtype))
         e = e.reshape(t.shape[0], -1, e.shape[-1])
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
 
-        t_pose = torch.ones_like(t.flatten())
-        e_pose = self.time_embedding(sinusoidal_embedding_1d(self.freq_dim, t_pose).to(dtype=x.dtype))
-        e_pose = e_pose.reshape(t.shape[0], -1, e_pose.shape[-1])
-        e0_pose = self.time_projection(e_pose).unflatten(2, (6, self.dim))
+        e0_pose = None
+        if apply_pose:
+            t_pose = torch.ones_like(t.flatten())
+            e_pose = self.time_embedding(sinusoidal_embedding_1d(self.freq_dim, t_pose).to(dtype=x.dtype))
+            e_pose = e_pose.reshape(t.shape[0], -1, e_pose.shape[-1])
+            e0_pose = self.time_projection(e_pose).unflatten(2, (6, self.dim))
 
         context_gen = self.text_embedding(context)
 
@@ -346,9 +347,11 @@ class WanAnimate2Model(WanModel):
             x_pose = None
             cached = True
 
-        # allocated once and reused by every block
-        n, d = self.num_heads, self.dim // self.num_heads
-        buffers = (x.new_empty(x.shape[0], x.shape[1] + hw, n, d), x.new_empty(x.shape[0], x.shape[1] + hw, n, d), x.new_empty(x.shape[0], x.shape[1], self.dim))
+        buffers = None
+        if apply_pose:
+            # allocated once and reused by every block
+            n, d = self.num_heads, self.dim // self.num_heads
+            buffers = (x.new_empty(x.shape[0], x.shape[1] + hw, n, d), x.new_empty(x.shape[0], x.shape[1] + hw, n, d), x.new_empty(x.shape[0], x.shape[1], self.dim))
 
         for i, block in enumerate(self.blocks):
             transformer_options["block_index"] = i

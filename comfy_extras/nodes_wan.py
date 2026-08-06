@@ -1293,6 +1293,8 @@ class WanAnimate2ToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, positive, negative, vae, width, height, length, batch_size, video_frame_offset, reference_image=None, pose_video=None, clip_vision_output=None, positive_pose=None, clip_vision_output_pose=None, continue_motion=None, pose_strength=1.0, pose_start_percent=0.0, pose_end_percent=1.0, reference_image_strength=1.0) -> io.NodeOutput:
+        if pose_start_percent > pose_end_percent:
+            raise ValueError("pose_start_percent ({}) must not be greater than pose_end_percent ({}).".format(pose_start_percent, pose_end_percent))
         latent_length = ((length - 1) // 4) + 1
         latent_width = width // 8
         latent_height = height // 8
