@@ -1127,6 +1127,13 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                         "Create Layered Image."
                     ),
                 ),
+                IO.Mask.Output(
+                    display_name="base_mask",
+                    tooltip=(
+                        "Transparency of the base image (1 = transparent, LoadImage convention); currently "
+                        "always fully opaque. Wire to mask_0 of Create Layered Image."
+                    ),
+                ),
                 IO.Image.Output(
                     display_name="layers",
                     tooltip=(
@@ -1139,9 +1146,9 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 IO.Mask.Output(
                     display_name="masks",
                     tooltip=(
-                        "Transparency masks (1 = transparent, LoadImage convention); wire to mask_0 of "
-                        "Create Layered Image. The first entry keeps the base image opaque, the rest pair with "
-                        "the layers. For ImageCompositeMasked-style compositing, skip the first entry and invert."
+                        "Per-layer transparency, index-aligned with the layers batch (1 = transparent, "
+                        "LoadImage convention); wire to mask_1 of Create Layered Image. For "
+                        "ImageCompositeMasked-style compositing, add InvertMask first."
                     ),
                 ),
                 IO.BoundingBox.Output(
@@ -1257,10 +1264,10 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
             canvas_h = max((e["rect_h"] for e in entries if "bbox_degenerate" not in e["flags"]), default=1)
         else:
             canvas_w, canvas_h = width, height
+        base_mask = torch.zeros((1, height, width))
         layers = torch.zeros((len(entries), canvas_h, canvas_w, 3))
-        # Create Layered Image / LoadImage mask convention: 1 = transparent; row 0 keeps the base opaque
-        masks = torch.ones((len(entries) + 1, canvas_h, canvas_w))
-        masks[0] = 0.0
+        # Create Layered Image / LoadImage mask convention: 1 = transparent
+        masks = torch.ones((len(entries), canvas_h, canvas_w))
         bboxes = [
             {
                 "x": 0,
@@ -1285,14 +1292,14 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 # straight (unpremultiplied) RGB: downstream compositing applies the mask itself
                 if crop_layers:
                     layers[i, :rect_h, :rect_w] = rgba[..., :3]
-                    masks[i + 1, :rect_h, :rect_w] = 1.0 - rgba[..., 3]
+                    masks[i, :rect_h, :rect_w] = 1.0 - rgba[..., 3]
                 else:
                     x0, y0 = max(left, 0), max(top, 0)
                     x1, y1 = min(left + rect_w, width), min(top + rect_h, height)
                     if x0 < x1 and y0 < y1:
                         patch = rgba[y0 - top : y1 - top, x0 - left : x1 - left]
                         layers[i, y0:y1, x0:x1] = patch[..., :3]
-                        masks[i + 1, y0:y1, x0:x1] = 1.0 - patch[..., 3]
+                        masks[i, y0:y1, x0:x1] = 1.0 - patch[..., 3]
                     else:
                         flags.append("bbox_out_of_canvas")
             # placement box sized to this layer's tensor so Create Layered Image renders it 1:1;
@@ -1313,7 +1320,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     },
                 }
             )
-        return IO.NodeOutput(base_image, layers, masks, bboxes)
+        return IO.NodeOutput(base_image, base_mask, layers, masks, bboxes)
 
 
 class ByteDanceTextToVideoNode(IO.ComfyNode):
