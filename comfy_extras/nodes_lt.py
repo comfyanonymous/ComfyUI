@@ -758,22 +758,60 @@ class LTXVConcatAVLatent(io.ComfyNode):
             ],
         )
 
+    @staticmethod
+    def fit_audio(reference, audio, noise_mask):
+        """Trim or zero-pad the audio stream to the length of the one it replaces.
+
+        The padded tail is left unmasked so the model generates it, which is what a
+        clip shorter than the video should do.
+        """
+        dims = [i for i in range(reference.ndim) if reference.shape[i] != audio.shape[i]]
+        if len(dims) == 0:
+            return audio, noise_mask
+        if len(dims) > 1 or dims[0] < 2:
+            raise ValueError("audio latent {} cannot be fitted to {}".format(tuple(audio.shape), tuple(reference.shape)))
+
+        dim, length = dims[0], reference.shape[dims[0]]
+        if noise_mask is not None:  # masks carry their own shape until sampling resizes them
+            noise_mask = comfy.utils.reshape_mask(noise_mask, audio.shape)
+
+        if audio.shape[dim] > length:
+            audio = audio.narrow(dim, 0, length)
+            if noise_mask is not None:
+                noise_mask = noise_mask.narrow(dim, 0, length)
+        else:
+            pad = torch.zeros_like(audio.narrow(dim, 0, 1)).repeat(
+                [length - audio.shape[dim] if i == dim else 1 for i in range(audio.ndim)])
+            audio = torch.cat([audio, pad], dim=dim)
+            if noise_mask is not None:
+                noise_mask = torch.cat([noise_mask, torch.ones_like(pad)], dim=dim)
+        return audio, noise_mask
+
     @classmethod
     def execute(cls, video_latent, audio_latent) -> io.NodeOutput:
         output = {}
         output.update(video_latent)
         output.update(audio_latent)
+        video_samples = video_latent["samples"]
+        audio_samples = audio_latent["samples"]
         video_noise_mask = video_latent.get("noise_mask", None)
         audio_noise_mask = audio_latent.get("noise_mask", None)
 
+        if video_samples.is_nested:  # already an AV latent: keep its video and swap the audio stream
+            streams = video_samples.unbind()
+            video_samples = streams[0]
+            if video_noise_mask is not None:
+                video_noise_mask = video_noise_mask.unbind()[0]
+            audio_samples, audio_noise_mask = cls.fit_audio(streams[1], audio_samples, audio_noise_mask)
+
         if video_noise_mask is not None or audio_noise_mask is not None:
             if video_noise_mask is None:
-                video_noise_mask = torch.ones_like(video_latent["samples"])
+                video_noise_mask = torch.ones_like(video_samples)
             if audio_noise_mask is None:
-                audio_noise_mask = torch.ones_like(audio_latent["samples"])
+                audio_noise_mask = torch.ones_like(audio_samples)
             output["noise_mask"] = comfy.nested_tensor.NestedTensor((video_noise_mask, audio_noise_mask))
 
-        output["samples"] = comfy.nested_tensor.NestedTensor((video_latent["samples"], audio_latent["samples"]))
+        output["samples"] = comfy.nested_tensor.NestedTensor((video_samples, audio_samples))
 
         return io.NodeOutput(output)
 
