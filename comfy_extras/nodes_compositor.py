@@ -20,23 +20,8 @@ from nodes import MAX_RESOLUTION
 from typing_extensions import override
 
 
-def sort_autogrow_images(images: dict) -> list[torch.Tensor]:
-    images = images or {}
-    tensors = []
-    for name in sorted(images, key=lambda n: int(n.rsplit("_", 1)[-1])):
-        image = images[name]
-        if image is None:
-            continue
-        tensors.append(image)
-    return tensors
-
-
-def expand_batch_frames(tensors: list[torch.Tensor]) -> list[torch.Tensor]:
-    frames = []
-    for tensor in tensors:
-        for index in range(tensor.shape[0]):
-            frames.append(tensor[index : index + 1])
-    return frames
+def expand_batch_frames(tensor: torch.Tensor) -> list[torch.Tensor]:
+    return [tensor[index : index + 1] for index in range(tensor.shape[0])]
 
 
 def frame_alpha(
@@ -188,7 +173,7 @@ def state_from_bboxes(tensors: list[torch.Tensor], slots: list) -> dict:
         "canvas": canvas_size(tensors),
         "layers": layers,
         "inputs": None,
-        "background": {"color": "#ffffff", "opacity": 1.0, "visible": True},
+        "background": {"color": "#ffffff", "opacity": 1.0, "visible": False},
     }
 
 
@@ -419,35 +404,24 @@ class ImageCompositor(io.ComfyNode):
             node_id="ImageCompositor",
             display_name="Create Layered Image",
             category="image",
+            is_experimental=True,
             is_output_node=True,
             has_intermediate_output=True,
             inputs=[
-                io.Autogrow.Input(
-                    "images",
-                    template=io.Autogrow.TemplatePrefix(
-                        io.Image.Input("image"),
-                        prefix="image_",
-                        min=1,
-                        max=50,
-                    ),
-                    tooltip="Layers to composite. The first image is the back layer; each subsequent image is stacked above the previous one.",
+                io.Image.Input(
+                    "image",
+                    tooltip="Layers to composite. Each batch frame becomes a layer; the first frame is the back layer and each following frame is stacked above the previous one. Batch multiple images upstream to composite them.",
                 ),
-                io.Autogrow.Input(
-                    "masks",
-                    template=io.Autogrow.TemplatePrefix(
-                        io.Mask.Input("mask"),
-                        prefix="mask_",
-                        min=0,
-                        max=50,
-                    ),
+                io.Mask.Input(
+                    "mask",
                     optional=True,
-                    tooltip="Optional per-layer transparency masks, paired with image frames by index (mask_0 applies to the first frame). Masked areas (value 1) become transparent, multiplying with any alpha channel the image already carries.",
+                    tooltip="Optional transparency masks, paired with image frames by batch index (the first mask applies to the first frame). Masked areas (value 1) become transparent, multiplying with any alpha channel the image already carries.",
                 ),
                 io.MultiType.Input(
                     "bboxes",
                     [io.BoundingBox, io.Array, io.String],
                     optional=True,
-                    tooltip="Optional bounding boxes to initialize the layout, index-aligned with the image inputs (bboxes[0] places image_0). Images without a bounding box keep their natural size at the origin. A saved composition that matches the current set of inputs takes priority.",
+                    tooltip="Optional bounding boxes to initialize the layout, index-aligned with the image frames (bboxes[0] places the first frame). Frames without a bounding box keep their natural size at the origin. A saved composition that matches the current set of inputs takes priority.",
                 ),
                 io.Compositor.Input(
                     "compositor",
@@ -465,9 +439,9 @@ class ImageCompositor(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images: io.Autogrow.Type = None, masks: io.Autogrow.Type = None, compositor: io.Compositor.Type = None, bboxes: io.MultiType.Type = None) -> io.NodeOutput:
-        tensors = expand_batch_frames(sort_autogrow_images(images))
-        mask_frames = expand_batch_frames(sort_autogrow_images(masks))
+    def execute(cls, image: io.Image.Type, mask: io.Mask.Type = None, compositor: io.Compositor.Type = None, bboxes: io.MultiType.Type = None) -> io.NodeOutput:
+        tensors = expand_batch_frames(image)
+        mask_frames = expand_batch_frames(mask) if mask is not None else []
         alphas = frame_alphas(tensors, mask_frames)
 
         layer_refs = []
