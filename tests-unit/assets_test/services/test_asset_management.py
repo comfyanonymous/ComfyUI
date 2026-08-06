@@ -1,4 +1,5 @@
 """Tests for asset_management services."""
+import folder_paths
 import pytest
 from sqlalchemy.orm import Session
 
@@ -6,6 +7,7 @@ from app.assets.database.models import Asset, AssetReference
 from app.assets.database.queries import ensure_tags_exist, add_tags_to_reference
 from app.assets.helpers import get_utc_now
 from app.assets.services import (
+    delete_asset_reference_with_file,
     get_asset_detail,
     update_asset_metadata,
     delete_asset_reference,
@@ -213,6 +215,209 @@ class TestDeleteAssetReference:
         # Both ref and asset should be gone
         assert session.get(AssetReference, ref_id) is None
         assert session.get(Asset, asset_id) is None
+
+
+class TestDeleteAssetReferenceWithFile:
+    def test_deletes_only_selected_reference_file(
+        self, mock_create_session, session: Session, temp_dir
+    ):
+        selected_file = temp_dir / "selected.bin"
+        retained_file = temp_dir / "retained.bin"
+        selected_file.write_bytes(b"same-content")
+        retained_file.write_bytes(b"same-content")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, name=selected_file.name)
+        selected_ref.file_path = str(selected_file)
+        retained_ref = _make_reference(session, asset, name=retained_file.name)
+        retained_ref.file_path = str(retained_file)
+        asset_id = asset.id
+        session.commit()
+
+        result = delete_asset_reference_with_file(
+            reference_id=selected_ref.id,
+            owner_id="",
+            staging_directory=str(temp_dir / "staging"),
+            expected_file_path=str(selected_file),
+            allowed_directories=[str(temp_dir)],
+        )
+
+        assert result is True
+        assert not selected_file.exists()
+        assert retained_file.exists()
+        assert session.get(Asset, asset_id) is not None
+        assert session.get(AssetReference, retained_ref.id) is not None
+
+    def test_rejects_ownerless_reference_without_explicit_permission(
+        self, mock_create_session, session: Session, temp_dir
+    ):
+        selected_file = temp_dir / "selected.bin"
+        selected_file.write_bytes(b"content")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, owner_id="")
+        selected_ref.file_path = str(selected_file)
+        selected_ref_id = selected_ref.id
+        session.commit()
+
+        with pytest.raises(PermissionError, match="owning user"):
+            delete_asset_reference_with_file(
+                reference_id=selected_ref_id,
+                owner_id="another-user",
+                staging_directory=str(temp_dir / "staging"),
+                expected_file_path=str(selected_file),
+                allowed_directories=[str(temp_dir)],
+            )
+
+        assert selected_file.exists()
+        assert session.get(AssetReference, selected_ref_id) is not None
+
+    def test_allows_ownerless_reference_in_single_user_mode(
+        self, mock_create_session, session: Session, temp_dir
+    ):
+        selected_file = temp_dir / "selected.bin"
+        selected_file.write_bytes(b"content")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, owner_id="")
+        selected_ref.file_path = str(selected_file)
+        selected_ref_id = selected_ref.id
+        session.commit()
+
+        result = delete_asset_reference_with_file(
+            reference_id=selected_ref_id,
+            owner_id="default",
+            staging_directory=str(temp_dir / "staging"),
+            expected_file_path=str(selected_file),
+            allowed_directories=[str(temp_dir)],
+            allow_ownerless=True,
+        )
+
+        assert result is True
+        assert not selected_file.exists()
+        assert session.get(AssetReference, selected_ref_id) is None
+
+    def test_preserves_soft_deleted_shared_reference(
+        self, mock_create_session, session: Session, temp_dir
+    ):
+        selected_file = temp_dir / "selected.bin"
+        retained_file = temp_dir / "retained.bin"
+        selected_file.write_bytes(b"same-content")
+        retained_file.write_bytes(b"same-content")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, name=selected_file.name)
+        selected_ref.file_path = str(selected_file)
+        retained_ref = _make_reference(session, asset, name=retained_file.name)
+        retained_ref.file_path = str(retained_file)
+        retained_ref.deleted_at = get_utc_now()
+        asset_id = asset.id
+        retained_ref_id = retained_ref.id
+        session.commit()
+
+        result = delete_asset_reference_with_file(
+            reference_id=selected_ref.id,
+            owner_id="",
+            staging_directory=str(temp_dir / "staging"),
+            expected_file_path=str(selected_file),
+            allowed_directories=[str(temp_dir)],
+        )
+
+        assert result is True
+        assert not selected_file.exists()
+        assert retained_file.exists()
+        assert session.get(Asset, asset_id) is not None
+        assert session.get(AssetReference, retained_ref_id) is not None
+
+    def test_restores_file_when_commit_fails(
+        self, mock_create_session, session: Session, temp_dir, monkeypatch
+    ):
+        selected_file = temp_dir / "selected.bin"
+        selected_file.write_bytes(b"content")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, name=selected_file.name)
+        selected_ref.file_path = str(selected_file)
+        selected_ref_id = selected_ref.id
+        session.commit()
+
+        def fail_commit(_session):
+            raise RuntimeError("commit failed")
+
+        monkeypatch.setattr(Session, "commit", fail_commit)
+
+        with pytest.raises(RuntimeError, match="commit failed"):
+            delete_asset_reference_with_file(
+                reference_id=selected_ref_id,
+                owner_id="",
+                staging_directory=str(temp_dir / "staging"),
+                expected_file_path=str(selected_file),
+                allowed_directories=[str(temp_dir)],
+            )
+
+        session.expire_all()
+        assert selected_file.read_bytes() == b"content"
+        assert session.get(AssetReference, selected_ref_id) is not None
+
+    def test_rejects_a_source_path_changed_after_authorization(
+        self, mock_create_session, session: Session, temp_dir
+    ):
+        selected_file = temp_dir / "selected.bin"
+        replacement_file = temp_dir / "replacement.bin"
+        selected_file.write_bytes(b"selected")
+        replacement_file.write_bytes(b"replacement")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, name=selected_file.name)
+        selected_ref.file_path = str(replacement_file)
+        selected_ref_id = selected_ref.id
+        session.commit()
+
+        with pytest.raises(PermissionError, match="source path changed"):
+            delete_asset_reference_with_file(
+                reference_id=selected_ref_id,
+                owner_id="",
+                staging_directory=str(temp_dir / "staging"),
+                expected_file_path=str(selected_file),
+                allowed_directories=[str(temp_dir)],
+            )
+
+        assert selected_file.exists()
+        assert replacement_file.exists()
+        assert session.get(AssetReference, selected_ref_id) is not None
+
+    def test_rechecks_containment_immediately_before_staging(
+        self, mock_create_session, session: Session, temp_dir, monkeypatch
+    ):
+        selected_file = temp_dir / "managed" / "selected.bin"
+        selected_file.parent.mkdir()
+        selected_file.write_bytes(b"content")
+
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, name=selected_file.name)
+        selected_ref.file_path = str(selected_file)
+        selected_ref_id = selected_ref.id
+        session.commit()
+
+        containment_results = iter([True, False])
+        monkeypatch.setattr(
+            folder_paths,
+            "is_within_directory",
+            lambda *_args: next(containment_results),
+        )
+
+        with pytest.raises(PermissionError, match="moved outside"):
+            delete_asset_reference_with_file(
+                reference_id=selected_ref_id,
+                owner_id="",
+                staging_directory=str(temp_dir / "staging"),
+                expected_file_path=str(selected_file),
+                allowed_directories=[str(temp_dir / "managed")],
+            )
+
+        session.expire_all()
+        assert selected_file.read_bytes() == b"content"
+        assert session.get(AssetReference, selected_ref_id) is not None
 
 
 class TestSetAssetPreview:

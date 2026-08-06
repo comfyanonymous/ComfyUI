@@ -1,6 +1,7 @@
 from app.assets.services.asset_management import (
     asset_exists,
     delete_asset_reference,
+    delete_asset_reference_with_file,
     get_asset_by_hash,
     get_asset_detail,
     list_assets_page,
@@ -73,6 +74,7 @@ __all__ = [
     "batch_insert_seed_assets",
     "create_from_hash",
     "delete_asset_reference",
+    "delete_asset_reference_with_file",
     "get_asset_by_hash",
     "get_asset_detail",
     "ingest_existing_file",
