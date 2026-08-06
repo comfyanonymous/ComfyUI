@@ -22,6 +22,7 @@ import torch
 import logging
 import comfy.ldm.lightricks.av_model
 import comfy.ldm.minimax.model
+import comfy.nested_tensor
 import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
@@ -100,6 +101,7 @@ class ModelType(Enum):
     FLOW_COSMOS = 10
     IMG_TO_IMG_FLOW = 11
     V_PREDICTION_DDPM = 12
+    FLOW_AV = 13
 
 
 def model_sampling(model_config, model_type):
@@ -136,6 +138,9 @@ def model_sampling(model_config, model_type):
         c = comfy.model_sampling.IMG_TO_IMG_FLOW
     elif model_type == ModelType.V_PREDICTION_DDPM:
         c = comfy.model_sampling.V_PREDICTION_DDPM
+    elif model_type == ModelType.FLOW_AV:
+        c = comfy.model_sampling.CONST
+        s = comfy.model_sampling.ModelSamplingAV
 
     class ModelSampling(s, c):
         pass
@@ -180,6 +185,7 @@ class BaseModel(torch.nn.Module):
 
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
+        self.latent_shapes = None  # set by the sampler for models that pack several streams into one latent
 
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -2065,8 +2071,32 @@ class Hunyuan3Dv2_1(BaseModel):
         return out
 
 class MiniMaxH3(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+    def __init__(self, model_config, model_type=ModelType.FLOW_AV, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3Model)
+
+    def audio_scale(self):
+        """Scale the sampler carries the audio stream at, 1.0 when not sampling the packed latent."""
+        if self.latent_shapes is None or len(self.latent_shapes) < 2:
+            return 1.0
+        return self.model_sampling.audio_scale
+
+    def _scale_audio_slice(self, latent, scale):
+        # the sampler carries the audio stream scaled onto the video schedule
+        if scale == 1.0:
+            return latent
+        if latent.is_nested:  # the x0 output hands back the unpacked view
+            streams = latent.unbind()
+            return comfy.nested_tensor.NestedTensor([streams[0], streams[1] * scale] + list(streams[2:]))
+        n = math.prod(self.latent_shapes[0][1:])
+        latent = latent.clone()
+        latent[..., n:] *= scale
+        return latent
+
+    def process_latent_in(self, latent):
+        return self._scale_audio_slice(super().process_latent_in(latent), self.audio_scale())
+
+    def process_latent_out(self, latent):
+        return super().process_latent_out(self._scale_audio_slice(latent, 1.0 / self.audio_scale()))
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -2102,6 +2132,8 @@ class MiniMaxH3(BaseModel):
         if kwargs.get("minimax_audio_cond_noise_aug", None) is not None:
             payload["audio_cond_noise_aug"] = kwargs["minimax_audio_cond_noise_aug"]
         payload["seed"] = kwargs.get("seed", 0)
+        # same value process_latent_in/out used, so the model never undoes a scale that was not applied
+        payload["audio_scale"] = self.audio_scale()
         if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
             # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
             vs = latent_shapes[0]

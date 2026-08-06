@@ -9,8 +9,9 @@ The packed sequence is:
 Timestep domain: the model receives the *video* sigma from the sampler and
 derives per-token timesteps t = 1 - sigma internally; the audio stream runs on
 its own shifted schedule (sigma_shift video 12.0 / audio 3.0), mapped from the
-video sigma in closed form. The audio velocity is returned scaled by the
-schedule map's derivative d(sigma_a)/d(sigma_v).
+video sigma in closed form. The sampler carries the audio latent scaled onto the
+video schedule (ModelSamplingAV); forward() undoes that scale and converts the
+velocity back, so _forward only ever sees the stream's own latent.
 """
 
 import math
@@ -36,17 +37,6 @@ def time_shift_sigma(sigma, from_shift, to_shift):
     # invert sigma = s*b/(1+(s-1)*b) to the base grid, re-apply the other shift
     base = sigma / (from_shift + sigma * (1.0 - from_shift))
     return to_shift * base / (1.0 + (to_shift - 1.0) * base)
-
-
-def time_shift_slope(sigma, from_shift, to_shift):
-    """d(sigma_to)/d(sigma_from) at the same base-grid point.
-
-    Scaling a stream's returned velocity by this slope makes the flat ODE that
-    any sampler integrates on the from-schedule equal to that stream's true ODE
-    on its own schedule.
-    """
-    base = sigma / (from_shift + sigma * (1.0 - from_shift))
-    return (to_shift * (1.0 + (from_shift - 1.0) * base) ** 2) / (from_shift * (1.0 + (to_shift - 1.0) * base) ** 2)
 
 
 def patchify_video(latent, patch_size=(1, 2, 2)):
@@ -496,11 +486,29 @@ class MiniMaxH3Model(nn.Module):
         return torch.cat(rows, dim=0) if rows else None
 
     def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
-        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+        # the sampler carries the audio as (sigma_v / sigma_a) * x_audio; undo it outside
+        # the wrappers so they and the network see the stream's own latent and velocity
+        scale = float((minimax_payload or {}).get("audio_scale", 1.0))
+        audio_x = x[1]
+        if scale != 1.0:
+            shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
+            shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
+            sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
+            sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
+            audio_x = audio_x * (sigma_a / sigma_v).to(audio_x.dtype)
+            x = [x[0], audio_x]
+
+        out = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload, **kwargs)
+
+        if scale != 1.0:
+            # d/d(sigma_v) of the carried variable
+            out[1] = ((1.0 - scale) * audio_x
+                      + (1.0 + (scale - 1.0) * sigma_a).to(out[1].dtype) * out[1])
+        return out
 
     def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
         video_x, audio_x = x[0], x[1]
@@ -639,8 +647,4 @@ class MiniMaxH3Model(nn.Module):
         video_out = video_out[:, :, :orig_t, :orig_h, :orig_w]
         audio_out = unpack_audio(a)
 
-        # The sampler integrates the flat ODE dX/dsigma_v = (X - denoised)/sigma_v.
-        # Scaling the audio velocity by d(sigma_a)/d(sigma_v) makes that ODE equal
-        # to the audio stream's true ODE on its own shifted schedule.
-        slope_a = time_shift_slope(sigma_v, shift_v, shift_a).to(audio_out.dtype)
-        return [-video_out.to(video_x.dtype), (-slope_a) * audio_out.to(audio_x.dtype)]
+        return [-video_out.to(video_x.dtype), -audio_out.to(audio_x.dtype)]
