@@ -20,6 +20,7 @@ import comfy.model_patcher
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
 from comfy.internal_logging import detail
+import comfy.metrics
 
 from latent_preview import set_preview_method
 import nodes
@@ -445,10 +446,12 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     cached = await caches.outputs.get(unique_id)
     if cached is not None:
+        comfy.metrics.increment_cache_requests("hit")
         _send_cached_ui(server, unique_id, display_node_id, cached, prompt_id, ui_outputs)
         get_progress_state().finish_progress(unique_id)
         execution_list.cache_update(unique_id, cached)
         return (ExecutionResult.SUCCESS, None, None)
+    comfy.metrics.increment_cache_requests("miss")
 
     input_data_all = None
     try:
@@ -542,7 +545,11 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
 
             try:
+                node_start_time = time.perf_counter()
                 output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
+                comfy.metrics.record_node_execution(class_type, time.perf_counter() - node_start_time)
+                comfy.metrics.update_vram_metrics(comfy.model_management.get_torch_device())
+                comfy.metrics.update_loaded_models_count(len(comfy.model_management.current_loaded_models))
             finally:
                 if comfy.memory_management.aimdo_enabled:
                     if get_console_log_level(args.verbose) == "DEBUG":
@@ -673,6 +680,7 @@ class PromptExecutor:
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
         self.status_messages = []
         self.success = True
+        self.interrupted = False
 
     def add_message(self, event, data: dict, broadcast: bool):
         data = {
@@ -690,6 +698,7 @@ class PromptExecutor:
         # First, send back the status to the frontend depending
         # on the exception type
         if isinstance(ex, comfy.model_management.InterruptProcessingException):
+            self.interrupted = True
             mes = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,

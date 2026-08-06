@@ -126,6 +126,25 @@ See what ComfyUI can do with the [newer template workflows](https://comfy.org/wo
 - Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview) disable with: `--disable-api-nodes`
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
+## Monitoring
+
+Start ComfyUI with `--enable-prometheus` to expose metrics at `/metrics` on the
+normal server port. Use `--prometheus-port <port>` to expose them on a separate
+port instead. The optional [`prometheus_client`](https://pypi.org/project/prometheus-client/)
+package must be installed with `pip install prometheus_client`.
+
+| Metric | Type | Labels | Description |
+| --- | --- | --- | --- |
+| `comfyui_queue_length` | Gauge | — | Pending workflows in the prompt queue. |
+| `comfyui_queue_wait_seconds` | Histogram | — | Time from workflow submission until processing starts. |
+| `comfyui_job_duration_seconds` | Histogram | — | Duration of completed workflow executions. |
+| `comfyui_jobs_total` | Counter | `status` | Workflow executions by `completed`, `failed`, or `interrupted` status. |
+| `comfyui_vram_bytes` | Gauge | `device`, `type` | GPU memory. `allocated` and `reserved` are PyTorch allocator values; CUDA-only `device_used` is device-wide CUDA driver usage and includes DynamicVRAM allocations. |
+| `comfyui_loaded_models_count` | Gauge | — | Models currently held in memory. |
+| `comfyui_model_swaps_total` | Counter | — | Model load and unload transfers. |
+| `comfyui_node_execution_seconds` | Histogram | `node_type` | Individual node execution duration. |
+| `comfyui_cache_requests_total` | Counter | `result` | Node-output cache lookups by `hit` or `miss`. |
+
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 ## Release Process
