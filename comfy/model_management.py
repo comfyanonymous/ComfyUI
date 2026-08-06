@@ -1543,13 +1543,31 @@ def cast_to_device(tensor, device, dtype, copy=False):
 PINNED_MEMORY = {}
 TOTAL_PINNED_MEMORY = 0
 MAX_PINNED_MEMORY = -1
+
+def get_disk_swap_total():
+    if not os.path.exists("/proc/swaps"):
+        return 0
+
+    total = 0
+    try:
+        with open("/proc/swaps", encoding="utf-8") as swaps:
+            next(swaps, None)
+            for line in swaps:
+                filename, _, size, _, _ = line.rsplit(maxsplit=4)
+                if os.path.basename(os.path.realpath(filename)).startswith("zram"):
+                    continue
+                total += int(size) * 1024
+    except:
+        logging.warning("Could not get amount of swap memory on system.")
+    return total
+
 if not args.disable_pinned_memory:
     if is_nvidia() or is_amd():
         ram = get_total_memory(torch.device("cpu"))
         if WINDOWS:
             MAX_PINNED_MEMORY = ram * 0.40  # Windows limit is apparently 50%
         else:
-            MAX_PINNED_MEMORY = ram * 0.90
+            MAX_PINNED_MEMORY = max(ram * 0.40, min(ram * 0.90, ram - 4 * 1024 ** 3, ram + get_disk_swap_total() - 16 * 1024 ** 3))
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
