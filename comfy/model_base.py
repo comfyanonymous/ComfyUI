@@ -46,6 +46,7 @@ import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
+import comfy.ldm.wan.model_animate2
 import comfy.ldm.wan.ar_model
 import comfy.ldm.wan.model_wandancer
 import comfy.ldm.hunyuan3d.model
@@ -1809,6 +1810,41 @@ class WAN22_Animate(WAN21):
     def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         if cond_key == "face_pixel_values":
             return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_scale=4, temporal_offset=1)
+        if cond_key == "pose_latents":
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=1)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
+class WAN_Animate2(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model_animate2.WanAnimate2Model)
+        self.image_to_video = True
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        pose_video_latent = kwargs.get("pose_video_latent", None)
+        if pose_video_latent is not None:
+            out['pose_latents'] = comfy.conds.CONDRegular(self.process_latent_in(pose_video_latent))
+
+        clip_vision_output_pose = kwargs.get("clip_vision_output_pose", None)
+        if clip_vision_output_pose is not None:
+            out['clip_fea_pose'] = comfy.conds.CONDRegular(clip_vision_output_pose.penultimate_hidden_states)
+
+        cross_attn_pose = kwargs.get("cross_attn_pose", None)
+        if cross_attn_pose is not None:
+            out['context_pose'] = comfy.conds.CONDRegular(cross_attn_pose)
+
+        pose_strength = kwargs.get("pose_strength", 1.0)
+        if pose_strength != 1.0:
+            out['pose_strength'] = comfy.conds.CONDConstant(pose_strength)
+
+        reference_strength = kwargs.get("reference_strength", 1.0)
+        if reference_strength != 1.0:
+            out['reference_strength'] = comfy.conds.CONDConstant(reference_strength)
+
+        return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
         if cond_key == "pose_latents":
             return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=1)
         return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
