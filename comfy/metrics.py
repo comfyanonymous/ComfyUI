@@ -75,7 +75,7 @@ def init_metrics():
     )
 
     if args.prometheus_port is not None:
-        prometheus_client.start_http_server(args.prometheus_port)
+        prometheus_client.start_http_server(args.prometheus_port, addr="127.0.0.1")
         logging.info("Prometheus metrics server started on port %s", args.prometheus_port)
 
     _prometheus_client = prometheus_client

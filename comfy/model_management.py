@@ -954,8 +954,10 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                 to_unload = [i] + to_unload
         for i in to_unload:
             model_to_unload = current_loaded_models.pop(i)
+            comfy.metrics.increment_model_swaps()
             model_to_unload.model.detach(unpatch_all=False)
             model_to_unload.model_finalizer.detach()
+            comfy.metrics.update_vram_metrics(model_to_unload.device)
 
     total_memory_required = {}
     total_pins_required = {}

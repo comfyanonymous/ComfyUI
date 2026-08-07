@@ -454,10 +454,12 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     comfy.metrics.increment_cache_requests("miss")
 
     input_data_all = None
+    node_start_time = None
     try:
         if unique_id in pending_async_nodes:
+            pending_output_data, node_start_time = pending_async_nodes[unique_id]
             results = []
-            for r in pending_async_nodes[unique_id]:
+            for r in pending_output_data:
                 if isinstance(r, asyncio.Task):
                     try:
                         results.append(r.result())
@@ -547,9 +549,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             try:
                 node_start_time = time.perf_counter()
                 output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
-                comfy.metrics.record_node_execution(class_type, time.perf_counter() - node_start_time)
-                comfy.metrics.update_vram_metrics(comfy.model_management.get_torch_device())
-                comfy.metrics.update_loaded_models_count(len(comfy.model_management.current_loaded_models))
             finally:
                 if comfy.memory_management.aimdo_enabled:
                     if get_console_log_level(args.verbose) == "DEBUG":
@@ -559,7 +558,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     comfy_aimdo.model_vbar.vbars_reset_watermark_limits()
 
             if has_pending_tasks:
-                pending_async_nodes[unique_id] = output_data
+                pending_async_nodes[unique_id] = (output_data, node_start_time)
                 unblock = execution_list.add_external_block(unique_id)
                 async def await_completion():
                     tasks = [x for x in output_data if isinstance(x, asyncio.Task)]
@@ -567,6 +566,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     unblock()
                 asyncio.create_task(await_completion())
                 return (ExecutionResult.PENDING, None, None)
+        if node_start_time is not None:
+            comfy.metrics.record_node_execution(class_type, time.perf_counter() - node_start_time)
+            comfy.metrics.update_vram_metrics(comfy.model_management.get_torch_device())
+            comfy.metrics.update_loaded_models_count(len(comfy.model_management.current_loaded_models))
         if len(output_ui) > 0:
             # Enrich at output-processing time (not in the send path) so assets
             # are registered even when no client is connected, and the asset id
@@ -740,6 +743,7 @@ class PromptExecutor:
         set_preview_method(extra_data.get("preview_method"))
 
         nodes.interrupt_processing(False)
+        self.interrupted = False
         self.prompt_model_tracker.start()
 
         if "client_id" in extra_data:
