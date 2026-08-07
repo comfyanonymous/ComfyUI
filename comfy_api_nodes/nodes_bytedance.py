@@ -1111,10 +1111,11 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     label_on="minimal size",
                     label_off="full canvas",
                     tooltip=(
-                        "Full canvas: each layer is placed on a base-sized canvas at its bounding-box position - "
-                        "recompose directly with ImageCompositeMasked. Minimal size: each layer is cropped to its "
-                        "bounding box (padded to the largest layer for batching) and the bboxes output carries its "
-                        "placement - the pairing expected by Create Layered Image."
+                        "Geometry of the layers/masks batch outputs (layer_stack is unaffected and always "
+                        "tight). Full canvas: each layer on a base-sized canvas at its bounding-box position - "
+                        "recompose directly with ImageCompositeMasked. Minimal size: each layer cropped to its "
+                        "bounding box (padded to the largest layer for batching) - much smaller tensors; "
+                        "rebuild placement with Layers From Bounding Boxes using the bboxes output."
                     ),
                 ),
             ],
@@ -1148,11 +1149,11 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 IO.BoundingBox.Output(
                     display_name="bboxes",
                     tooltip=(
-                        "A single frame of placement boxes annotating the base image - base first, then one "
-                        "per layer: {x, y, width, height, metadata: {name, desc, z_index, native_size, "
-                        "content_rect, flags}}. content_rect = [left, top, width, height] is the layer's true "
-                        "content region within its own frame; it lands on the canvas at the box position "
-                        "plus that offset."
+                        "One placement box per layer, index-aligned with the layers batch (feed both, plus "
+                        "masks, into Layers From Bounding Boxes to rebuild per-layer placement): {x, y, width, "
+                        "height, metadata: {name, desc, z_index, native_size, content_rect, flags}}. "
+                        "content_rect = [left, top, width, height] is the layer's content region within its "
+                        "own frame; it lands on the canvas at the box position plus that offset."
                     ),
                 ),
                 IO.Layers.Output(
@@ -1365,22 +1366,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
         await asyncio.gather(*(fetch_and_place(i, s) for i, s in enumerate(specs)))
 
         stack_items = [{"image": base_image, "type": "raster", "x": 0, "y": 0, "z_index": 0, "name": "background"}]
-        boxes = [
-            {
-                "x": 0,
-                "y": 0,
-                "width": width,
-                "height": height,
-                "metadata": {
-                    "name": "background",
-                    "desc": None,
-                    "z_index": 0,
-                    "native_size": f"{width}x{height}",
-                    "content_rect": [0, 0, width, height],
-                    "flags": [],
-                },
-            }
-        ]
+        boxes = []
         for i, s in enumerate(specs):
             abnormal = [f for f in s["flags"] if f != "resized_to_bbox"]
             if abnormal:
