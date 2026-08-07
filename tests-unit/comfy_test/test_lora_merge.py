@@ -118,6 +118,7 @@ def test_table_branch_retains_base_tensor():
     loaded = {tk: ("set", (other_table,)), wk: ("set", (base_w,))}
 
     merged = dict(_merge(sd, patcher, loaded))
+    assert tk not in loaded
     assert dict(merged)[tk][1][0] is table
 
 
@@ -134,8 +135,9 @@ def test_shape_mismatch_removes_incompatible_patch(caplog):
     loaded = {tk: ("set", (table,)), wk: ("set", (bad_w,))}
 
     with caplog.at_level(logging.WARNING):
-        _merge(sd, patcher, loaded)
+        merged = _merge(sd, patcher, loaded)
     assert wk not in loaded
+    assert wk not in dict(merged)
     assert any("shape mismatch" in r.message for r in caplog.records)
 
 
