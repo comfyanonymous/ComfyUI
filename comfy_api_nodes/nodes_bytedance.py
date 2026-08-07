@@ -1151,7 +1151,8 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                         "A single frame of placement boxes annotating the base image - base first, then one "
                         "per layer: {x, y, width, height, metadata: {name, desc, z_index, native_size, "
                         "content_rect, flags}}. content_rect = [left, top, width, height] is the layer's true "
-                        "bounding box in base-image pixels."
+                        "content region within its own frame; it lands on the canvas at the box position "
+                        "plus that offset."
                     ),
                 ),
                 IO.Layers.Output(
@@ -1393,7 +1394,8 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 stack_items.append(s["stack_item"])
             zi = z_index_of(s["item"])
             # placement box sized to this layer's tensor so Create Layered Image renders it 1:1;
-            # the true content rect travels in metadata
+            # the true content rect travels in metadata, frame-relative
+            rect_x, rect_y = (0, 0) if crop_layers else (s["left"], s["top"])
             boxes.append(
                 {
                     "x": s["left"] if crop_layers else 0,
@@ -1405,7 +1407,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                         "desc": s["item"].get("description"),
                         "z_index": zi if zi != 1_000_000 else None,
                         "native_size": s["native_size"],
-                        "content_rect": [s["left"], s["top"], max(s["rect_w"], 0), max(s["rect_h"], 0)],
+                        "content_rect": [rect_x, rect_y, max(s["rect_w"], 0), max(s["rect_h"], 0)],
                         "flags": s["flags"],
                     },
                 }
