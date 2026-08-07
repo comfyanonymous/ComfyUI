@@ -1136,32 +1136,42 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     ),
                 ),
                 IO.Image.Output(
-                    display_name="layers",
+                    display_name="layers_batch",
                     tooltip=(
-                        "Transparent layers ordered bottom to top; batch after base_image and feed the result "
-                        "to the image input of Create Layered Image (each batch frame becomes one editor "
-                        "layer). Full canvas mode: placed on a black base-sized canvas at their bounding-box "
-                        "position. Minimal size mode: cropped to their bounding box, anchored top-left, padded "
-                        "to the largest layer."
+                        "Transparent layers ordered bottom to top as a plain image batch, for graphs that "
+                        "composite by hand (ImageCompositeMasked, after an InvertMask on masks). To drive "
+                        "Create Layered Image, use the layers output instead - it carries per-layer placement "
+                        "that a batch cannot. Full canvas mode: placed on a black base-sized canvas at their "
+                        "bounding-box position. Minimal size mode: cropped to their bounding box, anchored "
+                        "top-left, padded to the largest layer."
                     ),
                 ),
                 IO.Mask.Output(
                     display_name="masks",
                     tooltip=(
-                        "Per-layer transparency, index-aligned with the layers batch (1 = transparent, "
-                        "LoadImage convention); batch after base_mask and feed the result to the mask input "
-                        "of Create Layered Image. For ImageCompositeMasked-style compositing, add InvertMask "
-                        "first - that node treats 1 as opaque."
+                        "Per-layer transparency, index-aligned with layers_batch (1 = transparent, LoadImage "
+                        "convention). For ImageCompositeMasked-style compositing, add InvertMask first - that "
+                        "node treats 1 as opaque."
                     ),
                 ),
                 IO.BoundingBox.Output(
                     display_name="bboxes",
                     tooltip=(
-                        "Placement boxes for Create Layered Image, index-aligned with its image batch frames: the "
-                        "first entry covers the base image, the rest place each layer 1:1. metadata carries name, "
-                        "desc, z_index, native_size, content_rect = [left, top, width, height] (the layer's true "
-                        "bounding box in base-image pixels) and flags - a layer whose flags include "
-                        "bbox_degenerate or bbox_out_of_canvas came back fully transparent."
+                        "Placement boxes index-aligned with layers_batch: the first entry covers the base "
+                        "image, the rest place each layer. metadata carries name, desc, z_index, native_size, "
+                        "content_rect = [left, top, width, height] (the layer's true bounding box in "
+                        "base-image pixels) and flags - a layer whose flags include bbox_degenerate or "
+                        "bbox_out_of_canvas came back fully transparent."
+                    ),
+                ),
+                IO.Layers.Output(
+                    display_name="layers",
+                    tooltip=(
+                        "The full layer stack as a document: the base plate at z_index 0 with each separated "
+                        "element above it, carrying its own placement, name and stacking order. Wire straight "
+                        "into the layers input of Create Layered Image - no batching or Add Layer needed. "
+                        "Works in either crop mode; minimal size keeps each layer at its own size, which is "
+                        "the cheaper option for large images."
                     ),
                 ),
             ],
@@ -1347,7 +1357,51 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     },
                 }
             )
-        return IO.NodeOutput(base_image, base_mask, layers, masks, bboxes)
+
+        # Layer stack as a document. One item per layer, each carrying its own placement, so the
+        # per-layer positions survive - a plain image batch shares a single placement across every
+        # frame. In crop mode each item stays at its own size; in full-canvas mode placement is
+        # already baked into the pixels, so the items sit at the origin.
+        document: IO.Layers.Document = {
+            "version": 1,
+            "canvas": (width, height),
+            "layers": [
+                {
+                    "image": base_image,
+                    "mask": base_mask,
+                    "type": "raster",
+                    "x": 0,
+                    "y": 0,
+                    "z_index": 0,
+                    "name": "background",
+                }
+            ],
+        }
+        for i, e in enumerate(entries):
+            if "bbox_degenerate" in e["flags"] or "bbox_out_of_canvas" in e["flags"]:
+                continue  # came back fully transparent; nothing to composite
+            if crop_layers:
+                item_x, item_y = e["left"], e["top"]
+                image = layers[i : i + 1, : e["rect_h"], : e["rect_w"]]
+                mask = masks[i : i + 1, : e["rect_h"], : e["rect_w"]]
+            else:
+                item_x, item_y = 0, 0
+                image = layers[i : i + 1]
+                mask = masks[i : i + 1]
+            item: IO.Layers.LayerItem = {
+                "image": image,
+                "mask": mask,
+                "type": "raster",
+                "x": item_x,
+                "y": item_y,
+                "z_index": i + 1,
+            }
+            name = e["item"].get("name")
+            if isinstance(name, str) and name:
+                item["name"] = name
+            document["layers"].append(item)
+
+        return IO.NodeOutput(base_image, base_mask, layers, masks, bboxes, document)
 
 
 class ByteDanceTextToVideoNode(IO.ComfyNode):
