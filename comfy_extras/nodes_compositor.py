@@ -48,6 +48,31 @@ def _int(value, default: int) -> int:
     return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else default
 
 
+def _bbox_list(bboxes) -> list[dict]:
+    """Normalize the bounding-box forms nodes emit into a flat list of box dicts."""
+    if bboxes is None:
+        return []
+    if isinstance(bboxes, str):
+        text = bboxes.strip()
+        if not text:
+            return []
+        try:
+            bboxes = json.loads(text)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(f"bboxes string input is not valid JSON: {exc}") from exc
+    if isinstance(bboxes, dict):
+        return [bboxes]
+    if not isinstance(bboxes, list):
+        raise ValueError(
+            "bboxes input must be bounding boxes or a JSON string, "
+            f"got {type(bboxes).__name__}"
+        )
+    # CreateBoundingBoxes emits a list-of-lists (one list per source image)
+    if bboxes and isinstance(bboxes[0], list):
+        bboxes = bboxes[0]
+    return [b for b in bboxes if isinstance(b, dict)]
+
+
 def _item_mask_frame(mask, index: int) -> torch.Tensor | None:
     if not isinstance(mask, torch.Tensor):
         return None
@@ -651,10 +676,139 @@ class AddLayer(io.ComfyNode):
         return io.NodeOutput(document)
 
 
+class LayersFromBoundingBoxes(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LayersFromBoundingBoxes",
+            display_name="Layers From Bounding Boxes",
+            category="image",
+            is_experimental=True,
+            description=(
+                "Turn an image batch plus its bounding boxes into a layer stack, one layer per frame, "
+                "each placed by its own box. Use this when a node emits layers as a batch - a batch "
+                "carries a single placement for every frame, so the individual positions are otherwise lost."
+            ),
+            inputs=[
+                io.Image.Input(
+                    "image",
+                    tooltip="Image batch; each frame becomes one layer.",
+                ),
+                io.BoundingBox.Input(
+                    "bboxes",
+                    tooltip=(
+                        "Placement boxes, index-aligned with the image batch. Frames without a matching "
+                        "box are placed at the origin. metadata.name and metadata.z_index are used when "
+                        "present, and metadata.content_rect crops the frame to its real content."
+                    ),
+                ),
+                io.Mask.Input(
+                    "mask",
+                    optional=True,
+                    tooltip=(
+                        "Per-frame transparency, index-aligned with the image batch "
+                        "(1 = transparent, LoadImage convention)."
+                    ),
+                ),
+                io.Layers.Input(
+                    "layers",
+                    optional=True,
+                    tooltip="Layer stack to append to. Leave unconnected to start a new stack.",
+                ),
+                io.Boolean.Input(
+                    "crop_to_content",
+                    default=True,
+                    optional=True,
+                    tooltip=(
+                        "Crop each frame to metadata.content_rect where present. Leave on for batches "
+                        "whose frames are padded to a common size - it keeps only the real content and "
+                        "places it by the box."
+                    ),
+                ),
+                io.Int.Input(
+                    "canvas_width",
+                    default=0,
+                    min=0,
+                    max=MAX_RESOLUTION,
+                    optional=True,
+                    tooltip="Document canvas width. 0 derives it from the placed layers.",
+                ),
+                io.Int.Input(
+                    "canvas_height",
+                    default=0,
+                    min=0,
+                    max=MAX_RESOLUTION,
+                    optional=True,
+                    tooltip="Document canvas height. 0 derives it from the placed layers.",
+                ),
+            ],
+            outputs=[
+                io.Layers.Output(tooltip="The layer stack, ready for Create Layered Image."),
+            ],
+        )
+
+    @classmethod
+    def execute(
+        cls,
+        image: io.Image.Type,
+        bboxes: io.BoundingBox.Type,
+        mask: io.Mask.Type = None,
+        layers: io.Layers.Type = None,
+        crop_to_content: bool = True,
+        canvas_width: int = 0,
+        canvas_height: int = 0,
+    ) -> io.NodeOutput:
+        boxes = _bbox_list(bboxes)
+        previous = layers if isinstance(layers, dict) else None
+        items: list[dict] = list((previous.get("layers") or []) if previous else [])
+        base_z = max((_int(i.get("z_index"), 0) for i in items), default=-1) + 1
+
+        for index in range(image.shape[0]):
+            box = boxes[index] if index < len(boxes) else {}
+            meta = box.get("metadata") if isinstance(box.get("metadata"), dict) else {}
+            frame = image[index : index + 1]
+            frame_mask = _item_mask_frame(mask, index)
+
+            x, y = _int(box.get("x"), 0), _int(box.get("y"), 0)
+            rect = meta.get("content_rect")
+            if crop_to_content and isinstance(rect, (list, tuple)) and len(rect) == 4:
+                left, top, cw, ch = (_int(v, 0) for v in rect)
+                cw = min(max(cw, 0), int(frame.shape[2]))
+                ch = min(max(ch, 0), int(frame.shape[1]))
+                if cw > 0 and ch > 0:
+                    frame = frame[:, :ch, :cw]
+                    if frame_mask is not None:
+                        frame_mask = frame_mask[:, :ch, :cw]
+                    x, y = left, top
+
+            item: dict = {
+                "image": frame,
+                "type": "raster",
+                "x": x,
+                "y": y,
+                "z_index": _int(meta.get("z_index"), base_z + index),
+            }
+            if frame_mask is not None:
+                item["mask"] = frame_mask
+            name = meta.get("name")
+            if isinstance(name, str) and name:
+                item["name"] = name
+            items.append(item)
+
+        document: dict = {"version": 1, "layers": items}
+        if canvas_width > 0 and canvas_height > 0:
+            document["canvas"] = (canvas_width, canvas_height)
+        else:
+            inherited = document_canvas(previous)
+            if inherited:
+                document["canvas"] = inherited
+        return io.NodeOutput(document)
+
+
 class CompositorExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
-        return [ImageCompositor, AddLayer]
+        return [ImageCompositor, AddLayer, LayersFromBoundingBoxes]
 
 
 async def comfy_entrypoint() -> CompositorExtension:
