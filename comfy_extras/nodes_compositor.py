@@ -27,11 +27,22 @@ MAX_LAYERS = 50
 def document_items(doc) -> list[dict]:
     if not isinstance(doc, dict):
         return []
-    items = [
-        item
-        for item in (doc.get("layers") or [])
-        if isinstance(item, dict) and isinstance(item.get("image"), torch.Tensor)
-    ]
+    version = doc.get("version")
+    if version is not None and version != 1:
+        raise ValueError(f"LAYERS document version {version!r} is not supported")
+    items = []
+    for item in doc.get("layers") or []:
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type", "raster")
+        if item_type != "raster":
+            raise ValueError(f"LAYERS item type {item_type!r} is not supported yet")
+        if not isinstance(item.get("image"), torch.Tensor):
+            continue
+        blend = item.get("blend_mode")
+        if blend is not None and blend not in _LAYER_MODES:
+            raise ValueError(f"LAYERS item blend_mode {blend!r} is not a known blend mode")
+        items.append(item)
     return sorted(items, key=lambda item: _int(item.get("z_index"), 0))
 
 

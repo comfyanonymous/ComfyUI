@@ -849,6 +849,14 @@ class Load3DAnimation(Load3D):
 
 @comfytype(io_type="LAYERS")
 class Layers(ComfyTypeIO):
+    BlendMode = Literal[
+        "normal", "multiply", "screen", "overlay", "darken", "lighten",
+        "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
+        "exclusion", "linear-dodge", "linear-burn", "vivid-light", "pin-light",
+        "linear-light", "hard-mix", "subtract", "divide", "grain-extract",
+        "grain-merge", "hue", "saturation", "color", "luminosity",
+    ]
+
     class LayerItem(TypedDict):
         image: torch.Tensor
         type: Literal["raster"]
@@ -858,14 +866,13 @@ class Layers(ComfyTypeIO):
         z_index: int
         name: NotRequired[str]
         opacity: NotRequired[float]
-        blend_mode: NotRequired[str]
+        blend_mode: NotRequired["Layers.BlendMode"]
         visible: NotRequired[bool]
         flip_h: NotRequired[bool]
         flip_v: NotRequired[bool]
         rotation: NotRequired[float]
         w: NotRequired[int]
         h: NotRequired[int]
-        color: NotRequired[str]
 
     class Document(TypedDict):
         version: int
