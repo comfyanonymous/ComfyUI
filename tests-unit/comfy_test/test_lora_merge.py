@@ -54,6 +54,9 @@ def test_legacy_dora_detection():
             "blocks.0.attn.qkv_proj.diff_b": torch.randn(8, 1),
         }
     )
+    assert comfy.ldm.minimax.pruned_lora.has_legacy_dora(
+        {"blocks.0.attn.qkv_proj.diff_b": torch.randn(8, 1)}
+    )
     assert not comfy.ldm.minimax.pruned_lora.has_legacy_dora(
         {"blocks.0.attn.qkv_proj.bias.diff_b": torch.randn(8)}
     )

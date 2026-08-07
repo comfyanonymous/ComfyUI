@@ -52,7 +52,13 @@ def has_legacy_dora(lora):
     the MiniMax node package.  Loading it through the official LoraLoader
     would silently treat it as a bias diff.
     """
-    for k in lora:
+    for k, v in lora.items():
+        if (
+            isinstance(v, torch.Tensor)
+            and k.endswith(".diff_b")
+            and v.dim() == 2
+        ):
+            return True
         if k.endswith(".lora_A.weight"):
             base = k[: -len(".lora_A.weight")]
         elif k.endswith(".lora_down.weight"):
