@@ -1157,7 +1157,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 IO.BoundingBox.Output(
                     display_name="bboxes",
                     tooltip=(
-                        "Placement boxes for Create Layered Image, index-aligned with its image batch frames: "
+                        "Placement boxes for Create Layered Image, index-aligned with its image batch frames: the "
                         "first entry covers the base image, the rest place each layer 1:1 in either mode. "
                         "metadata carries name, desc, z_index, native_size and content_rect = [left, top, width, "
                         "height], the layer's true bounding box in base-image pixels."
@@ -1178,6 +1178,12 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     ? {
                         "type": "usd",
                         "usd": 0.032,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                    : widgets.size = "2k"
+                    ? {
+                        "type": "usd",
+                        "usd": 0.064,
                         "format": { "suffix": " x images/Run", "approximate": true }
                       }
                     : {
