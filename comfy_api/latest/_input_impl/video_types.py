@@ -134,6 +134,17 @@ def write_output_metadata(container: InputContainer, output, metadata: dict | No
             output.metadata[key] = value if isinstance(value, str) else json.dumps(value)
 
 
+def unsupported_remux_codecs(streams, output_container) -> list[str]:
+    supported = output_container.supported_codecs
+    return [
+        stream.codec_context.name
+        for stream in streams
+        if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream))
+        and stream.codec_context is not None
+        and stream.codec_context.name not in supported
+    ]
+
+
 def video_output_config(path: str | io.BytesIO, format: VideoContainer, codec: VideoCodec) -> tuple[dict, VideoContainer, VideoCodec]:
     if isinstance(format, str):
         format = VideoContainer(format)
@@ -592,28 +603,54 @@ class VideoFromFile(VideoInput):
                     bit_depth = source_bit_depth
                 return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space)
 
-            streams = container.streams
-
             open_kwargs = get_open_write_kwargs(path, container_format, format)
-            with av.open(path, **open_kwargs) as output_container:
-                # Add metadata before writing any streams
-                write_output_metadata(container, output_container, metadata)
+            if self._save_remuxed(container, path, open_kwargs, metadata):
+                return
 
-                # Add streams to the new container. Streams with no codec context cannot be used as an output template.
-                stream_map = {}
-                for stream in streams:
-                    if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
-                        if stream.codec_context is None:
-                            logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
-                            continue
-                        out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
-                        stream_map[stream] = out_stream
+            if bit_depth is None:
+                bit_depth = source_bit_depth
+            if isinstance(path, io.BytesIO):
+                path.seek(0)
+                path.truncate()
+            return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space)
 
-                # Write packets to the new container
-                for packet in container.demux():
-                    if packet.stream in stream_map and packet.dts is not None:
-                        packet.stream = stream_map[packet.stream]
-                        output_container.mux(packet)
+    def _save_remuxed(
+        self,
+        container: InputContainer,
+        path: str | io.BytesIO,
+        open_kwargs: dict,
+        metadata: dict | None,
+    ) -> bool:
+        streams = container.streams
+        with av.open(path, **open_kwargs) as output_container:
+            unsupported = unsupported_remux_codecs(streams, output_container)
+            if unsupported:
+                logging.info(
+                    "Cannot copy %s into a %s container; re-encoding instead.",
+                    ", ".join(sorted(set(unsupported))),
+                    output_container.format.name,
+                )
+                return False
+
+            # Add metadata before writing any streams
+            write_output_metadata(container, output_container, metadata)
+
+            # Add streams to the new container. Streams with no codec context cannot be used as an output template.
+            stream_map = {}
+            for stream in streams:
+                if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
+                    if stream.codec_context is None:
+                        logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
+                        continue
+                    out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                    stream_map[stream] = out_stream
+
+            # Write packets to the new container
+            for packet in container.demux():
+                if packet.stream in stream_map and packet.dts is not None:
+                    packet.stream = stream_map[packet.stream]
+                    output_container.mux(packet)
+        return True
 
     def _save_transcoded(
         self,

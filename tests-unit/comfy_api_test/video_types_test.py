@@ -727,6 +727,85 @@ def test_save_to_mp4_writes_metadata_before_media(video_components, tmp_path):
         assert data.index(b"moov") < data.index(b"mdat")
 
 
+def create_matroska_source(
+    tmp_path, video_codec="libvpx", audio_codec=None, frames=6, fps=10, container_format="webm"
+):
+    path = str(tmp_path / f"source_{video_codec}.{container_format}")
+    with av.open(path, mode="w", format=container_format) as container:
+        video_stream = container.add_stream(video_codec, rate=fps)
+        video_stream.width = 32
+        video_stream.height = 32
+        video_stream.pix_fmt = "yuv420p"
+        audio_stream = None
+        if audio_codec is not None:
+            audio_stream = container.add_stream(audio_codec, rate=48000)
+            audio_stream.sample_rate = 48000
+
+        for i in range(frames):
+            frame = av.VideoFrame.from_ndarray(
+                torch.full((32, 32, 3), (i * 40) % 256, dtype=torch.uint8).numpy(),
+                format="rgb24",
+            )
+            container.mux(video_stream.encode(frame.reformat(format="yuv420p")))
+        if audio_stream is not None:
+            for offset in range(0, 48000 * frames // fps, 960):
+                audio_frame = av.AudioFrame.from_ndarray(
+                    torch.zeros(1, 960, dtype=torch.int16).numpy(), format="s16", layout="mono"
+                )
+                audio_frame.sample_rate = 48000
+                audio_frame.pts = offset
+                container.mux(audio_stream.encode(audio_frame))
+        for stream in [video_stream, audio_stream]:
+            if stream is not None:
+                container.mux(stream.encode(None))
+    return path
+
+
+def test_save_to_auto_transcodes_codec_the_container_cannot_store(tmp_path):
+    source = create_matroska_source(tmp_path)
+    destination = str(tmp_path / "saved.mp4")
+
+    VideoFromFile(source).save_to(destination)
+
+    with av.open(destination) as container:
+        assert container.format.name == "mov,mp4,m4a,3gp,3g2,mj2"
+        assert container.streams.video[0].codec.name == "h264"
+
+
+def test_save_to_auto_transcodes_when_only_audio_is_unsupported(tmp_path):
+    source = create_matroska_source(
+        tmp_path, video_codec="libx264", audio_codec="pcm_u8", container_format="matroska"
+    )
+    destination = str(tmp_path / "saved.mp4")
+
+    VideoFromFile(source).save_to(destination)
+
+    with av.open(destination) as container:
+        assert container.streams.video[0].codec.name == "h264"
+        assert container.streams.audio[0].codec.name == "aac"
+
+
+def test_save_to_auto_still_remuxes_a_compatible_codec(tmp_path):
+    source = create_matroska_source(tmp_path, video_codec="libvpx-vp9")
+    destination = str(tmp_path / "saved.mp4")
+
+    VideoFromFile(source).save_to(destination)
+
+    with av.open(destination) as container:
+        assert container.streams.video[0].codec.name == "vp9"
+
+
+def test_save_to_buffer_transcodes_codec_the_container_cannot_store(tmp_path):
+    source = create_matroska_source(tmp_path)
+    buffer = io.BytesIO()
+
+    VideoFromFile(source).save_to(buffer, format=VideoContainer.MP4)
+
+    buffer.seek(0)
+    with av.open(buffer) as container:
+        assert container.streams.video[0].codec.name == "h264"
+
+
 def create_transcode_source(
     width=64, height=64, frames=30, fps=30, audio_streams=1, undecodable_audio=0, rotation=False,
     container_format="mov", audio_codec="pcm_s16le",
