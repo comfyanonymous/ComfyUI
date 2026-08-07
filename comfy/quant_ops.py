@@ -28,6 +28,7 @@ try:
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
         TensorCoreConvRotW4A4Layout as _CKTensorCoreConvRotW4A4Layout,
         TensorWiseINT8Layout as _CKTensorWiseINT8Layout,
+        AsymW4A8Int8Layout as _CKAsymW4A8Int8Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
@@ -83,6 +84,9 @@ except ImportError as e:
     class _CKTensorCoreConvRotW4A4Layout:
         pass
 
+    class _CKAsymW4A8Int8Layout:
+        pass
+
     def register_layout_class(name, cls):
         pass
 
@@ -99,18 +103,6 @@ if _CK_AVAILABLE:
 
 if not _CK_MXFP8_AVAILABLE:
     class _CKMxfp8Layout:
-        pass
-
-_CK_W4A8_AVAILABLE = False
-if _CK_AVAILABLE:
-    try:
-        from comfy_kitchen.tensor import AsymW4A8Int8Layout as _CKAsymW4A8Int8Layout
-        _CK_W4A8_AVAILABLE = True
-    except ImportError:
-        logging.warning("comfy_kitchen does not support asym_w4a8_int8, please update comfy_kitchen.")
-
-if not _CK_W4A8_AVAILABLE:
-    class _CKAsymW4A8Int8Layout:
         pass
 
 import comfy.float
@@ -238,8 +230,7 @@ register_layout_class("TensorWiseINT8Layout", _CKTensorWiseINT8Layout)
 register_layout_class("TensorCoreConvRotW4A4Layout", _CKTensorCoreConvRotW4A4Layout)
 if _CK_MXFP8_AVAILABLE:
     register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
-if _CK_W4A8_AVAILABLE:
-    register_layout_class("AsymW4A8Int8Layout", _CKAsymW4A8Int8Layout)
+register_layout_class("AsymW4A8Int8Layout", _CKAsymW4A8Int8Layout)
 
 QUANT_ALGOS = {
     "float8_e4m3fn": {
@@ -282,13 +273,12 @@ QUANT_ALGOS["convrot_w4a4"] = {
     "quantize_input": False,
 }
 
-if _CK_W4A8_AVAILABLE:
-    QUANT_ALGOS["asym_w4a8_int8"] = {
-        "storage_t": torch.int8,
-        "parameters": {"weight_scale"},
-        "comfy_tensor_layout": "AsymW4A8Int8Layout",
-        "quantize_input": False,
-    }
+QUANT_ALGOS["asym_w4a8_int8"] = {
+    "storage_t": torch.int8,
+    "parameters": {"weight_scale"},
+    "comfy_tensor_layout": "AsymW4A8Int8Layout",
+    "quantize_input": False,
+}
 
 
 # ==============================================================================
