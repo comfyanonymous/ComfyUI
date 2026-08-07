@@ -233,7 +233,7 @@ async def get_image_from_response(response: GeminiGenerateContentResponse, thoug
                 "Try rephrasing your prompt or changing the response modality to 'IMAGE+TEXT' "
                 "to see the model's reasoning."
             )
-        return torch.zeros((1, 1024, 1024, 4))
+        return torch.zeros((1, 1024, 1024, 3))
     return torch.cat(image_tensors, dim=0)
 
 
