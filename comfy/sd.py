@@ -167,7 +167,7 @@ def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
         if key.endswith("adaln_t_table"):
             base = model_sd.get(key)
             if base is not None:
-                merged.append((key, ("set", (base.float().to(new_full.dtype),))))
+                merged.append((key, ("set", (base,))))
             else:
                 merged.append((key, ("set", (new_full,))))
             loaded.pop(key)
@@ -180,6 +180,7 @@ def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
         if current_full is None:
             current_full = base
         if current_full.shape != new_full.shape or current_full.shape != base.shape:
+            loaded.pop(key)
             logging.warning(
                 "MiniMax H3 pruned LoRA merge skipped for %s: shape mismatch "
                 "current=%s new=%s base=%s",

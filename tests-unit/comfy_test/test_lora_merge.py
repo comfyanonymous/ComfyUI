@@ -105,6 +105,40 @@ def test_strength_is_applied_to_adaln_delta():
     assert torch.allclose(applied.float(), (base_w + 0.5 * delta).float())
 
 
+def test_table_branch_retains_base_tensor():
+    torch.manual_seed(4)
+    table = torch.randn(4, 4)
+    other_table = torch.randn(4, 4)
+    base_w = torch.randn(6, 4)
+
+    tk = "diffusion_model.adaln_t_table"
+    wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"
+    sd = {tk: table, wk: base_w}
+    patcher = _FakePatcher()
+    loaded = {tk: ("set", (other_table,)), wk: ("set", (base_w,))}
+
+    merged = dict(_merge(sd, patcher, loaded))
+    assert dict(merged)[tk][1][0] is table
+
+
+def test_shape_mismatch_removes_incompatible_patch(caplog):
+    torch.manual_seed(5)
+    table = torch.randn(4, 4)
+    base_w = torch.randn(6, 4)
+    bad_w = torch.randn(7, 4)
+
+    tk = "diffusion_model.adaln_t_table"
+    wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"
+    sd = {tk: table, wk: base_w}
+    patcher = _FakePatcher()
+    loaded = {tk: ("set", (table,)), wk: ("set", (bad_w,))}
+
+    with caplog.at_level(logging.WARNING):
+        _merge(sd, patcher, loaded)
+    assert wk not in loaded
+    assert any("shape mismatch" in r.message for r in caplog.records)
+
+
 def test_table_mismatch_warns_but_merges(caplog):
     torch.manual_seed(1)
     table = torch.randn(4, 4)
