@@ -35,6 +35,23 @@ class Seedream4TaskCreationRequest(BaseModel):
     optimize_prompt_options: Seedream5OptimizePromptOptions | None = None
 
 
+class Seedream5LayerOptimizePromptOptions(BaseModel):
+    mode: Literal["standard", "fast"] = Field(...)
+
+
+class Seedream5LayerSeparationRequest(BaseModel):
+    model: str = Field(...)
+    prompt: str | None = Field(None)
+    image: str = Field(..., description="Single image URL")
+    size: str = Field("auto")
+    seed: int = Field(..., ge=0, le=2147483647)
+    response_format: str = Field("url")
+    output_format: str = Field("png")
+    layer_decomposition: bool = Field(True)
+    watermark: bool = Field(False)
+    optimize_prompt_options: Seedream5LayerOptimizePromptOptions | None = Field(None)
+
+
 class ImageTaskCreationResponse(BaseModel):
     model: str = Field(...)
     created: int = Field(..., description="Unix timestamp (in seconds) indicating time when the request was created.")

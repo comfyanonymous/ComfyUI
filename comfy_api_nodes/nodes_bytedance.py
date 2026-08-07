@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import logging
@@ -34,6 +35,8 @@ from comfy_api_nodes.apis.bytedance import (
     SeedanceVirtualLibraryCreateAssetRequest,
     Seedream4Options,
     Seedream4TaskCreationRequest,
+    Seedream5LayerOptimizePromptOptions,
+    Seedream5LayerSeparationRequest,
     Seedream5OptimizePromptOptions,
     TaskAudioContent,
     TaskAudioContentUrl,
@@ -75,6 +78,7 @@ from comfy_api_nodes.util import (
     validate_video_dimensions,
     validate_video_duration,
 )
+from comfy_api_nodes.util.common_exceptions import ProcessingInterrupted
 from server import PromptServer
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
@@ -95,6 +99,8 @@ SEEDREAM_PRESETS = {
     "seedream-4-5-251128": RECOMMENDED_PRESETS_SEEDREAM_4_5,
     "seedream-4-0-250828": RECOMMENDED_PRESETS_SEEDREAM_4_0,
 }
+
+SEEDREAM_LAYER_SEPARATION_MODEL = "seedream-5-0-pro-260628"
 
 # Long-running tasks endpoints(e.g., video)
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
@@ -1042,6 +1048,369 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         if fail_on_partial and len(urls) < len(response.data):
             raise RuntimeError(f"Only {len(urls)} of {len(response.data)} images were generated before error.")
         return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
+
+
+class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceSeedreamLayerSeparationNode",
+            display_name="ByteDance Seedream 5.0 Pro Layer Separation",
+            category="partner/image/ByteDance",
+            search_aliases=["layer separation", "split layers", "decompose", "cutout", "RGBA layers"],
+            description=(
+                "Decompose an image into a background plate plus up to 16 repositionable transparent layers, "
+                "each with stacking order, bounding box, name and description."
+            ),
+            inputs=[
+                IO.Image.Input(
+                    "image",
+                    tooltip=(
+                        "The image to separate. Exactly one image, at least 512x512 pixels, aspect ratio "
+                        "between 1:16 and 16:1. Inputs larger than about 4MP are downscaled before upload."
+                    ),
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip=(
+                        "How to separate the image. Leave empty to auto-detect and separate all major elements. "
+                        "Describe elements in natural language to control the separation, or target exact regions "
+                        "with <bbox>left top right bottom</bbox> tags (0-1000 per-mille coordinates)."
+                    ),
+                ),
+                IO.Combo.Input(
+                    "size",
+                    options=["auto", "1K", "1.5K", "2K"],
+                    default="auto",
+                    tooltip="Output resolution level. 'auto' follows the input image size (clamped to the 1K-2K range).",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                ),
+                IO.Combo.Input(
+                    "prompt_optimization",
+                    options=["standard", "fast"],
+                    default="standard",
+                    optional=True,
+                    advanced=True,
+                    tooltip="Prompt-optimization mode: 'standard' gives higher quality, 'fast' shorter generation time.",
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip='Whether to add an "AI generated" watermark to the images.',
+                ),
+                IO.Boolean.Input(
+                    "crop_layers",
+                    default=False,
+                    optional=True,
+                    label_on="minimal size",
+                    label_off="full canvas",
+                    tooltip=(
+                        "Geometry of the layers/masks batch outputs (layer_stack is unaffected and always "
+                        "tight). Full canvas: each layer on a base-sized canvas at its bounding-box position - "
+                        "recompose directly with ImageCompositeMasked. Minimal size: each layer cropped to its "
+                        "bounding box (padded to the largest layer for batching) - much smaller tensors; "
+                        "rebuild placement with Layers From Bounding Boxes using the bboxes output."
+                    ),
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(
+                    display_name="base_image",
+                    tooltip="The base image (background plate) the layers stack onto.",
+                ),
+                IO.Mask.Output(
+                    display_name="base_mask",
+                    tooltip=(
+                        "Transparency of the base image (1 = transparent, LoadImage convention); currently "
+                        "always fully opaque."
+                    ),
+                ),
+                IO.Image.Output(
+                    display_name="layers",
+                    tooltip=(
+                        "Transparent layers ordered bottom to top. Full canvas mode: placed on a black "
+                        "base-sized canvas at their bounding-box position. Minimal size mode: cropped to "
+                        "their bounding box, anchored top-left, padded to the largest layer."
+                    ),
+                ),
+                IO.Mask.Output(
+                    display_name="masks",
+                    tooltip=(
+                        "Per-layer transparency, index-aligned with the layers batch (1 = transparent, "
+                        "LoadImage convention). For ImageCompositeMasked-style compositing, add InvertMask first."
+                    ),
+                ),
+                IO.BoundingBox.Output(
+                    display_name="bboxes",
+                    tooltip=(
+                        "One placement box per layer, index-aligned with the layers batch (feed both, plus "
+                        "masks, into Layers From Bounding Boxes to rebuild per-layer placement): {x, y, width, "
+                        "height, metadata: {name, desc, z_index, native_size, content_rect, flags}}. "
+                        "content_rect = [left, top, width, height] is the layer's content region within its "
+                        "own frame; it lands on the canvas at the box position plus that offset."
+                    ),
+                ),
+                IO.Layers.Output(
+                    display_name="layer_stack",
+                    tooltip=(
+                        "Ready-to-edit layer document for Create Layered Image: the base plate plus each "
+                        "element as its own named, tight-cropped layer at its true position and stacking "
+                        "order. Connect directly, or extend with Add Layer."
+                    ),
+                ),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size"]),
+                expr="""
+                (
+                  widgets.size in ["1k", "1.5k"]
+                    ? {
+                        "type": "usd",
+                        "usd": 0.032,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                    : {
+                        "type": "range_usd",
+                        "min_usd": 0.032,
+                        "max_usd": 0.064,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        prompt: str = "",
+        size: str = "auto",
+        seed: int = 0,
+        prompt_optimization: str = "standard",
+        watermark: bool = False,
+        crop_layers: bool = False,
+    ) -> IO.NodeOutput:
+        if get_number_of_images(image) != 1:
+            raise ValueError("Only a single input image is supported.")
+        validate_image_aspect_ratio(image, (1, 16), (16, 1), strict=False)
+        validate_image_dimensions(image, min_width=512, min_height=512)
+
+        request = Seedream5LayerSeparationRequest(
+            model=SEEDREAM_LAYER_SEPARATION_MODEL,
+            prompt=prompt.strip() or None,
+            image=await upload_image_to_comfyapi(cls, image),
+            size=size,
+            seed=seed,
+            watermark=watermark,
+            optimize_prompt_options=Seedream5LayerOptimizePromptOptions(mode=prompt_optimization),
+        )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            response_model=ImageTaskCreationResponse,
+            data=request,
+            wait_label="Separating layers",
+        )
+        if response.error:
+            raise RuntimeError(
+                f"ByteDance request failed. Code: {response.error['code']}, message: {response.error['message']}"
+            )
+
+        def z_index_of(d: dict) -> int:
+            v = d.get("z_index")
+            if isinstance(v, bool):
+                return 1_000_000
+            if isinstance(v, (int, float)):
+                return int(v)
+            if isinstance(v, str):
+                try:
+                    return int(v.strip())
+                except ValueError:
+                    return 1_000_000
+            return 1_000_000
+
+        data = [d for d in (response.data or []) if isinstance(d, dict)]
+        if not data or "url" not in data[0]:
+            raise RuntimeError("Unexpected response: no base image returned.")
+        base_item = data[0]
+        if base_item.get("bounding_box") is not None:
+            logging.warning(
+                "ByteDance layer separation: base item unexpectedly carries a bounding_box; ignoring it."
+            )
+        if z_index_of(base_item) not in (0, 1_000_000):
+            raise RuntimeError("Unexpected response: the first item is not the base image.")
+        layer_items = [d for d in data[1:] if "url" in d]
+        dropped = len(data) - 1 - len(layer_items)
+        if dropped > 0:
+            logging.warning(
+                "ByteDance layer separation: %d of %d returned elements had no 'url' and were dropped.",
+                dropped,
+                len(data) - 1,
+            )
+        if not layer_items:
+            raise RuntimeError("The model returned no layers. Try a different prompt or input image.")
+        layer_items.sort(key=z_index_of)
+
+        base_image = (await download_url_to_image_tensor(str(base_item["url"])))[..., :3].contiguous()
+        height, width = base_image.shape[1], base_image.shape[2]
+
+        specs = []
+        for item in layer_items:
+            flags = []
+            bbox = item.get("bounding_box")
+            absolute = bbox.get("absolute") if isinstance(bbox, dict) else None
+            if (
+                isinstance(absolute, (list, tuple))
+                and len(absolute) == 4
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in absolute)
+            ):
+                left, top, right, bottom = (int(round(v)) for v in absolute)
+                rect_w, rect_h = right - left, bottom - top  # exclusive right/bottom
+                if rect_w > width or rect_h > height:
+                    rect_w, rect_h = min(rect_w, width), min(rect_h, height)
+                    flags.append("bbox_clamped")
+                if rect_w <= 0 or rect_h <= 0:
+                    flags.append("bbox_degenerate")
+            else:
+                flags.append("bbox_missing")
+                left, top, rect_w, rect_h = 0, 0, width, height
+            specs.append({"item": item, "flags": flags, "left": left, "top": top,
+                          "rect_w": rect_w, "rect_h": rect_h, "native_size": "", "stack_item": None})
+
+        if crop_layers:
+            canvas_w = max((s["rect_w"] for s in specs if "bbox_degenerate" not in s["flags"]), default=1)
+            canvas_h = max((s["rect_h"] for s in specs if "bbox_degenerate" not in s["flags"]), default=1)
+        else:
+            canvas_w, canvas_h = width, height
+        base_mask = torch.zeros((1, height, width))
+        layers = torch.zeros((len(specs), canvas_h, canvas_w, 3))
+        # Create Layered Image / LoadImage mask convention: 1 = transparent
+        masks = torch.ones((len(specs), canvas_h, canvas_w))
+
+        semaphore = asyncio.Semaphore(4)
+
+        async def fetch_and_place(i: int, spec: dict) -> None:
+            item, flags = spec["item"], spec["flags"]
+            left, top, rect_w, rect_h = spec["left"], spec["top"], spec["rect_w"], spec["rect_h"]
+            async with semaphore:
+                try:
+                    rgba = (await download_url_to_image_tensor(str(item["url"])))[0]
+                except ProcessingInterrupted:
+                    raise
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to download layer {i + 1} of {len(specs)} (name={item.get('name')!r}): {exc} "
+                        "The generation completed and was billed; the response with all layer URLs "
+                        "is in ComfyUI/temp/api_logs/."
+                    ) from exc
+            spec["native_size"] = f"{rgba.shape[1]}x{rgba.shape[0]}"
+            if "bbox_degenerate" in flags:
+                return
+            if (rgba.shape[1], rgba.shape[0]) != (rect_w, rect_h):
+                # premultiply before resizing: interpolating straight alpha bleeds the undefined
+                # colors of transparent pixels into the anti-aliased edges
+                rgba = rgba.clone()
+                rgba[..., :3] *= rgba[..., 3:4]
+                rgba = (
+                    torch.nn.functional.interpolate(
+                        rgba.permute(2, 0, 1).unsqueeze(0),
+                        size=(rect_h, rect_w),
+                        mode="bilinear",
+                        antialias=True,
+                    )
+                    .squeeze(0)
+                    .permute(1, 2, 0)
+                )
+                alpha = rgba[..., 3:4]
+                rgba = torch.cat([rgba[..., :3] / alpha.clamp(min=1e-6), alpha], dim=-1).clamp(0, 1)
+                flags.append("resized_to_bbox")
+            # straight (unpremultiplied) RGB: downstream compositing applies the mask itself
+            if crop_layers:
+                layers[i, :rect_h, :rect_w] = rgba[..., :3]
+                masks[i, :rect_h, :rect_w] = 1.0 - rgba[..., 3]
+            else:
+                x0, y0 = max(left, 0), max(top, 0)
+                x1, y1 = min(left + rect_w, width), min(top + rect_h, height)
+                if x0 < x1 and y0 < y1:
+                    patch = rgba[y0 - top : y1 - top, x0 - left : x1 - left]
+                    layers[i, y0:y1, x0:x1] = patch[..., :3]
+                    masks[i, y0:y1, x0:x1] = 1.0 - patch[..., 3]
+                else:
+                    flags.append("bbox_out_of_canvas")
+            zi = z_index_of(item)
+            stack_item = {
+                "image": rgba[..., :3].unsqueeze(0).contiguous(),
+                "type": "raster",
+                "x": left,
+                "y": top,
+                "z_index": zi if zi != 1_000_000 else i + 1,
+                "mask": (1.0 - rgba[..., 3]).unsqueeze(0),
+            }
+            if isinstance(item.get("name"), str):
+                stack_item["name"] = item["name"]
+            spec["stack_item"] = stack_item
+
+        await asyncio.gather(*(fetch_and_place(i, s) for i, s in enumerate(specs)))
+
+        stack_items = [{"image": base_image, "type": "raster", "x": 0, "y": 0, "z_index": 0, "name": "background"}]
+        boxes = []
+        for i, s in enumerate(specs):
+            abnormal = [f for f in s["flags"] if f != "resized_to_bbox"]
+            if abnormal:
+                logging.warning(
+                    "ByteDance layer separation: layer %d (%r) flagged %s.",
+                    i + 1,
+                    s["item"].get("name"),
+                    ", ".join(abnormal),
+                )
+            if s["stack_item"] is not None:
+                stack_items.append(s["stack_item"])
+            zi = z_index_of(s["item"])
+            # placement box sized to this layer's tensor so Create Layered Image renders it 1:1;
+            # the true content rect travels in metadata, frame-relative
+            rect_x, rect_y = (0, 0) if crop_layers else (s["left"], s["top"])
+            boxes.append(
+                {
+                    "x": s["left"] if crop_layers else 0,
+                    "y": s["top"] if crop_layers else 0,
+                    "width": canvas_w,
+                    "height": canvas_h,
+                    "metadata": {
+                        "name": s["item"].get("name"),
+                        "desc": s["item"].get("description"),
+                        "z_index": zi if zi != 1_000_000 else None,
+                        "native_size": s["native_size"],
+                        "content_rect": [rect_x, rect_y, max(s["rect_w"], 0), max(s["rect_h"], 0)],
+                        "flags": s["flags"],
+                    },
+                }
+            )
+        # a single frame holding every box: the per-frame BOUNDING_BOX shape for boxes that
+        # annotate one image, as emitted and consumed by CreateBoundingBoxes
+        bboxes = [boxes]
+        layer_stack = {"version": 1, "canvas": (width, height), "layers": stack_items}
+        return IO.NodeOutput(base_image, base_mask, layers, masks, bboxes, layer_stack)
 
 
 class ByteDanceTextToVideoNode(IO.ComfyNode):
@@ -3036,6 +3405,7 @@ class ByteDanceExtension(ComfyExtension):
             ByteDanceImageNode,
             ByteDanceSeedreamNode,
             ByteDanceSeedreamNodeV2,
+            ByteDanceSeedreamLayerSeparationNode,
             ByteDanceTextToVideoNode,
             ByteDanceImageToVideoNode,
             ByteDanceFirstLastFrameNode,
