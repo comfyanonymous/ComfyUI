@@ -1245,7 +1245,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
             absolute = (item.get("bounding_box") or {}).get("absolute")
             if isinstance(absolute, (list, tuple)) and len(absolute) == 4:
                 left, top, right, bottom = (int(round(v)) for v in absolute)
-                rect_w, rect_h = right - left + 1, bottom - top + 1  # inclusive right/bottom
+                rect_w, rect_h = right - left, bottom - top  # exclusive right/bottom
                 if rect_w <= 0 or rect_h <= 0:
                     flags.append("bbox_degenerate")
             else:
