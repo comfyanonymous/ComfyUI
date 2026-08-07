@@ -47,6 +47,7 @@ from comfy_api_nodes.apis.bytedance import (
     Text2ImageTaskCreationRequest,
     Text2VideoTaskCreationRequest,
     seedance2_price_per_1k_tokens,
+    seedance2_reference_limits,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -101,10 +102,17 @@ BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tas
 BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT = "/proxy/byteplus-seedance2/api/v3/contents/generations/tasks"  # + /{task_id}
 
 SEEDANCE_MODELS = {
+    "Seedance 2.5": "dreamina-seedance-2-5-260628",
     "Seedance 2.0": "dreamina-seedance-2-0-260128",
     "Seedance 2.0 Fast": "dreamina-seedance-2-0-fast-260128",
     "Seedance 2.0 Mini": "dreamina-seedance-2-0-mini",
 }
+
+SEEDANCE_MODEL_TOOLTIP = (
+    "Seedance 2.5 for the newest model, videos up to 30 seconds and mp4/mov output; "
+    "Seedance 2.0 for maximum quality and 1080p/4k; Fast for speed optimization; "
+    "Mini for the fastest, lowest-cost generation."
+)
 
 DEPRECATED_MODELS = {"seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-i2v-250428"}
 
@@ -1692,25 +1700,272 @@ def _seedance2_text_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     ]
 
 
+def _seedance25_text_inputs(with_ratio: bool = True, with_video_editing: bool = False):
+    return [
+        IO.String.Input(
+            "prompt",
+            multiline=True,
+            default="",
+            tooltip="Text prompt for video generation. Put spoken lines in double quotes to steer "
+            "the generated dialogue.",
+        ),
+        IO.Combo.Input(
+            "resolution",
+            options=["480p", "720p"],
+            default="720p",
+            tooltip="Resolution of the output video.",
+        ),
+        *(
+            [
+                IO.Combo.Input(
+                    "ratio",
+                    options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video.",
+                )
+            ]
+            if with_ratio
+            else []
+        ),
+        IO.Int.Input(
+            "duration",
+            default=5,
+            min=4,
+            max=30,
+            step=1,
+            tooltip="Duration of the output video in seconds (4-30).",
+            display_mode=IO.NumberDisplay.slider,
+        ),
+        IO.Boolean.Input(
+            "generate_audio",
+            default=True,
+            tooltip="Enable audio generation for the output video.",
+        ),
+        *(
+            [
+                IO.Boolean.Input(
+                    "video_editing",
+                    default=False,
+                    tooltip="Enable when the prompt edits a connected reference video, for example "
+                    "replacing an object in it. The output then keeps the source clip's own length "
+                    "and aspect ratio, and the duration and ratio widgets are ignored. Leave "
+                    "disabled to generate a new video, or to extend one to the duration you set.",
+                )
+            ]
+            if with_video_editing
+            else []
+        ),
+        IO.Combo.Input(
+            "output_format",
+            options=["mp4"],
+            default="mp4",
+            tooltip="Container format of the output video.",
+        ),
+    ]
+
+
+def _seedance25_reference_inputs():
+    return [
+        *_seedance25_text_inputs(with_video_editing=True),
+        IO.Autogrow.Input(
+            "reference_images",
+            template=IO.Autogrow.TemplateNames(
+                IO.Image.Input("reference_image"),
+                names=[f"image_{i}" for i in range(1, 31)],
+                min=0,
+            ),
+        ),
+        IO.Autogrow.Input(
+            "reference_videos",
+            template=IO.Autogrow.TemplateNames(
+                IO.Video.Input("reference_video"),
+                names=[f"video_{i}" for i in range(1, 11)],
+                min=0,
+            ),
+        ),
+        IO.Autogrow.Input(
+            "reference_audios",
+            template=IO.Autogrow.TemplateNames(
+                IO.Audio.Input("reference_audio"),
+                names=[f"audio_{i}" for i in range(1, 11)],
+                min=0,
+            ),
+        ),
+        IO.Boolean.Input(
+            "auto_downscale",
+            default=True,
+            optional=True,
+            tooltip="Automatically downscale reference videos that exceed the model's pixel budget "
+            "for the selected resolution. Aspect ratio is preserved; videos already within limits are untouched.",
+        ),
+        IO.Boolean.Input(
+            "auto_upscale",
+            default=False,
+            advanced=True,
+            optional=True,
+            tooltip="Automatically upscale reference videos that are below the model's minimum pixel count "
+            "for the selected resolution. Aspect ratio is preserved; videos already meeting the minimum are "
+            "untouched. Note: upscaling a low-resolution source does not add real detail and may produce "
+            "lower-quality generations.",
+        ),
+        IO.Autogrow.Input(
+            "reference_assets",
+            template=IO.Autogrow.TemplateNames(
+                IO.String.Input("reference_asset"),
+                names=[f"asset_{i}" for i in range(1, 31)],
+                min=0,
+            ),
+        ),
+    ]
+
+
+def _seedance2_build_request(
+    model: dict,
+    model_id: str,
+    content: list,
+    seed: int,
+    watermark: bool,
+    ratio: str,
+) -> Seedance2TaskCreationRequest:
+    video_editing = bool(model.get("video_editing"))
+    return Seedance2TaskCreationRequest(
+        model=model_id,
+        content=content,
+        generate_audio=model["generate_audio"],
+        resolution=model["resolution"],
+        ratio="adaptive" if video_editing else ratio,
+        duration=-1 if video_editing else model["duration"],
+        seed=seed,
+        watermark=watermark,
+        output_format=model.get("output_format"),
+    )
+
+
+_SEEDANCE2_PRICE_EXPR_TEMPLATE = """
+(
+  $m := widgets.model;
+  $res := $lookup(widgets, "model.resolution");
+  $ratio := $lookup(widgets, "model.ratio");
+  $dur := $lookup(widgets, "model.duration");
+  $auto := $lookup(widgets, "model.video_editing") = true;
+  $hasVideo := __HAS_VIDEO__;
+  $ready := $type($m) = "string" and $type($res) = "string" and ($auto or $type($dur) = "number");
+  $ready ? (
+    $contains($m, "2.5") ? (
+      $is480 := $res = "480p";
+      $perFrame := $ratio = "1:1"  ? ($is480 ? 400      : 900) :
+                   $ratio = "4:3"  ? ($is480 ? 411.25   : 905.6719) :
+                   $ratio = "3:4"  ? ($is480 ? 411.25   : 905.6719) :
+                   $ratio = "21:9" ? ($is480 ? 418.5    : 904.3945) :
+                                     ($is480 ? 400.3125 : 900);
+      $price := $hasVideo ? 0.009152 : 0.015301;
+      $costFor := function($d) { $floor($perFrame * (24 * $d + 1)) / 1000 * $price };
+      $lo := $costFor($auto ? 4 : $dur);
+      $hi := $costFor(($auto ? 30 : $dur) + ($hasVideo ? 30 : 0));
+      $lo = $hi
+        ? {"type": "usd", "usd": $lo, "format": {"approximate": true}}
+        : {"type": "range_usd", "min_usd": $lo, "max_usd": $hi, "format": {"approximate": true}}
+    ) : (
+      $rate := $res = "4k"    ? 195200 :
+               $res = "1080p" ? 48800 :
+               $res = "720p"  ? 21600 : 10044;
+      $noVideoPrice := $res = "4k"    ? 0.00572 :
+                       $res = "1080p" ? 0.011011 :
+                       $contains($m, "mini") ? 0.005005 :
+                       $contains($m, "fast") ? 0.008008 : 0.01001;
+      $videoPrice := $res = "4k"    ? 0.003432 :
+                     $res = "1080p" ? 0.006721 :
+                     $contains($m, "mini") ? 0.003003 :
+                     $contains($m, "fast") ? 0.004719 : 0.006149;
+      $hasVideo
+        ? {"type": "range_usd",
+           "min_usd": $ceil($dur * 5 / 3) * $rate * $videoPrice / 1000,
+           "max_usd": (15 + $dur) * $rate * $videoPrice / 1000,
+           "format": {"approximate": true}}
+        : {"type": "usd", "usd": $dur * $rate * $noVideoPrice / 1000,
+           "format": {"approximate": true}}
+    )
+  ) : undefined
+)
+"""
+
+
+_SEEDANCE_AUDIO_POLICY_CODE = "OutputAudioSensitiveContentDetected.PolicyViolation"
+_SEEDANCE_TASK_TYPE_CONSTRAINT_CODE = "InvalidParameter.TaskTypeConstraint"
+
+
+async def _seedance2_poll_video_task(
+    cls: type[IO.ComfyNode],
+    task_id: str,
+    model_id: str,
+    resolution: str,
+    has_video_input: bool,
+) -> TaskStatusResponse:
+    try:
+        return await poll_op(
+            cls,
+            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: r.status,
+            price_extractor=_seedance2_price_extractor(
+                model_id, has_video_input=has_video_input, resolution=resolution
+            ),
+            poll_interval=9,
+        )
+    except Exception as exc:
+        if _SEEDANCE_AUDIO_POLICY_CODE in str(exc):
+            raise ValueError(
+                "The provider rejected the audio track this model generated for the video "
+                "(possible copyright match). The video itself was fine. Turn off generate_audio "
+                "to get a silent video, or adjust the prompt and try again."
+            ) from exc
+        if _SEEDANCE_TASK_TYPE_CONSTRAINT_CODE in str(exc):
+            raise ValueError(
+                "Seedance read this prompt as editing the reference video, and an edit always "
+                "takes its duration and aspect ratio from that video. Enable video_editing on "
+                "this node and run again, or reword the prompt so it describes a new video "
+                "rather than a change to the reference one."
+            ) from exc
+        raise
+
+
+def _seedance2_price_badge(with_reference_videos: bool) -> IO.PriceBadge:
+    widgets = ["model", "model.resolution", "model.ratio", "model.duration"]
+    if with_reference_videos:
+        widgets.append("model.video_editing")
+    has_video = (
+        '$exists(inputGroups) and $lookup(inputGroups, "model.reference_videos") > 0'
+        if with_reference_videos
+        else "false"
+    )
+    return IO.PriceBadge(
+        depends_on=IO.PriceBadgeDepends(
+            widgets=widgets,
+            input_groups=["model.reference_videos"] if with_reference_videos else [],
+        ),
+        expr=_SEEDANCE2_PRICE_EXPR_TEMPLATE.replace("__HAS_VIDEO__", has_video),
+    )
+
+
 class ByteDance2TextToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDance2TextToVideoNode",
-            display_name="ByteDance Seedance 2.0 Text to Video",
+            display_name="ByteDance Seedance 2.5 Text to Video",
             category="partner/video/ByteDance",
-            description="Generate video using Seedance 2.0 models based on a text prompt.",
+            description="Generate video using Seedance 2.5 or 2.0 models based on a text prompt.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option("Seedance 2.5", _seedance25_text_inputs()),
                         IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p", "4k"])),
                         IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
                         IO.DynamicCombo.Option("Seedance 2.0 Mini", _seedance2_text_inputs(["480p", "720p"])),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Fast for speed optimization; "
-                    "Mini for the fastest, lowest-cost generation.",
+                    tooltip=SEEDANCE_MODEL_TOOLTIP,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -1739,30 +1994,7 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution", "model.duration"]),
-                expr="""
-                (
-                  $rate480 := 10044;
-                  $rate720 := 21600;
-                  $rate1080 := 48800;
-                  $rate4k := 195200;
-                  $m := widgets.model;
-                  $res := $lookup(widgets, "model.resolution");
-                  $dur := $lookup(widgets, "model.duration");
-                  $pricePer1K := $res = "4k"    ? 0.00572 :
-                                 $res = "1080p" ? 0.011011 :
-                                 $contains($m, "mini") ? 0.005005 :
-                                 $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $rate := $res = "4k"    ? $rate4k :
-                           $res = "1080p" ? $rate1080 :
-                           $res = "720p"  ? $rate720 :
-                                            $rate480;
-                  $cost := $dur * $rate * $pricePer1K / 1000;
-                  {"type": "usd", "usd": $cost, "format": {"approximate": true}}
-                )
-                """,
-            ),
+            price_badge=_seedance2_price_badge(with_reference_videos=False),
         )
 
     @classmethod
@@ -1777,25 +2009,18 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-            data=Seedance2TaskCreationRequest(
-                model=model_id,
-                content=[TaskTextContent(text=model["prompt"])],
-                generate_audio=model["generate_audio"],
-                resolution=model["resolution"],
+            data=_seedance2_build_request(
+                model,
+                model_id,
+                [TaskTextContent(text=model["prompt"])],
+                seed,
+                watermark,
                 ratio=model["ratio"],
-                duration=model["duration"],
-                seed=seed,
-                watermark=watermark,
             ),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
-            poll_interval=9,
+        response = await _seedance2_poll_video_task(
+            cls, initial_response.id, model_id, model["resolution"], has_video_input=False
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -1806,13 +2031,15 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDance2FirstLastFrameNode",
-            display_name="ByteDance Seedance 2.0 First-Last-Frame to Video",
+            display_name="ByteDance Seedance 2.5 First-Last-Frame to Video",
             category="partner/video/ByteDance",
-            description="Generate video using Seedance 2.0 from a first frame image and optional last frame image.",
+            description="Generate video using Seedance 2.5 or 2.0 from a first frame image "
+            "and optional last frame image.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option("Seedance 2.5", _seedance25_text_inputs(with_ratio=False)),
                         IO.DynamicCombo.Option(
                             "Seedance 2.0",
                             _seedance2_text_inputs(["480p", "720p", "1080p", "4k"], default_ratio="adaptive"),
@@ -1826,8 +2053,7 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                             _seedance2_text_inputs(["480p", "720p"], default_ratio="adaptive"),
                         ),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Fast for speed optimization; "
-                    "Mini for the fastest, lowest-cost generation.",
+                    tooltip=SEEDANCE_MODEL_TOOLTIP,
                 ),
                 IO.Image.Input(
                     "first_frame",
@@ -1880,30 +2106,7 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution", "model.duration"]),
-                expr="""
-                (
-                  $rate480 := 10044;
-                  $rate720 := 21600;
-                  $rate1080 := 48800;
-                  $rate4k := 195200;
-                  $m := widgets.model;
-                  $res := $lookup(widgets, "model.resolution");
-                  $dur := $lookup(widgets, "model.duration");
-                  $pricePer1K := $res = "4k"    ? 0.00572 :
-                                 $res = "1080p" ? 0.011011 :
-                                 $contains($m, "mini") ? 0.005005 :
-                                 $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $rate := $res = "4k"    ? $rate4k :
-                           $res = "1080p" ? $rate1080 :
-                           $res = "720p"  ? $rate720 :
-                                            $rate480;
-                  $cost := $dur * $rate * $pricePer1K / 1000;
-                  {"type": "usd", "usd": $cost, "format": {"approximate": true}}
-                )
-                """,
-            ),
+            price_badge=_seedance2_price_badge(with_reference_videos=False),
         )
 
     @classmethod
@@ -1930,8 +2133,17 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         if last_frame is not None and last_frame_asset_id:
             raise ValueError("Provide only one of last_frame or last_frame_asset_id, not both.")
 
-        request_ratio = model["ratio"]
-        if first_frame_asset_id or last_frame_asset_id:
+        if model_id == "dreamina-seedance-2-5-260628":
+            # 2.5 accepts ratio="adaptive" only here and keeps the first frame's own aspect
+            # (a 1920x1088 frame yields 850x482, not a grid ratio), so pre-sizing the frames to a
+            # supported pixel pair would crop framing the model would otherwise have preserved.
+            request_ratio = "adaptive"
+            if first_frame is not None:
+                first_frame = _prepare_seedance_image(first_frame)
+            if last_frame is not None:
+                last_frame = _prepare_seedance_image(last_frame)
+        elif first_frame_asset_id or last_frame_asset_id:
+            request_ratio = model["ratio"]
             if first_frame is not None:
                 first_frame = _prepare_seedance_image(first_frame)
             if last_frame is not None:
@@ -1997,25 +2209,11 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-            data=Seedance2TaskCreationRequest(
-                model=model_id,
-                content=content,
-                generate_audio=model["generate_audio"],
-                resolution=model["resolution"],
-                ratio=request_ratio,
-                duration=model["duration"],
-                seed=seed,
-                watermark=watermark,
-            ),
+            data=_seedance2_build_request(model, model_id, content, seed, watermark, ratio=request_ratio),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
-            poll_interval=9,
+        response = await _seedance2_poll_video_task(
+            cls, initial_response.id, model_id, model["resolution"], has_video_input=False
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -2101,14 +2299,15 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDance2ReferenceNode",
-            display_name="ByteDance Seedance 2.0 Reference to Video",
+            display_name="ByteDance Seedance 2.5 Reference to Video",
             category="partner/video/ByteDance",
-            description="Generate, edit, or extend video using Seedance 2.0 with reference images, "
-            "videos, and audio. Supports multimodal reference, video editing, and video extension.",
+            description="Generate, edit, or extend video using Seedance 2.5 or 2.0 with reference "
+            "images, videos, and audio. Supports multimodal reference, video editing, and video extension.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option("Seedance 2.5", _seedance25_reference_inputs()),
                         IO.DynamicCombo.Option(
                             "Seedance 2.0",
                             _seedance2_reference_inputs(["480p", "720p", "1080p", "4k"], default_ratio="adaptive"),
@@ -2122,8 +2321,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                             _seedance2_reference_inputs(["480p", "720p"], default_ratio="adaptive"),
                         ),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Fast for speed optimization; "
-                    "Mini for the fastest, lowest-cost generation.",
+                    tooltip=SEEDANCE_MODEL_TOOLTIP,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -2152,52 +2350,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(
-                    widgets=["model", "model.resolution", "model.duration"],
-                    input_groups=["model.reference_videos"],
-                ),
-                expr="""
-                (
-                  $rate480 := 10044;
-                  $rate720 := 21600;
-                  $rate1080 := 48800;
-                  $rate4k := 195200;
-                  $m := widgets.model;
-                  $hasVideo := $lookup(inputGroups, "model.reference_videos") > 0;
-                  $res := $lookup(widgets, "model.resolution");
-                  $dur := $lookup(widgets, "model.duration");
-                  $noVideoPricePer1K := $res = "4k"    ? 0.00572 :
-                                        $res = "1080p" ? 0.011011 :
-                                        $contains($m, "mini") ? 0.005005 :
-                                        $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $videoPricePer1K := $res = "4k"    ? 0.003432 :
-                                      $res = "1080p" ? 0.006721 :
-                                      $contains($m, "mini") ? 0.003003 :
-                                      $contains($m, "fast") ? 0.004719 : 0.006149;
-                  $rate := $res = "4k"    ? $rate4k :
-                           $res = "1080p" ? $rate1080 :
-                           $res = "720p"  ? $rate720 :
-                                            $rate480;
-                  $noVideoCost := $dur * $rate * $noVideoPricePer1K / 1000;
-                  $minVideoFactor := $ceil($dur * 5 / 3);
-                  $minVideoCost := $minVideoFactor * $rate * $videoPricePer1K / 1000;
-                  $maxVideoCost := (15 + $dur) * $rate * $videoPricePer1K / 1000;
-                  $hasVideo
-                    ? {
-                        "type": "range_usd",
-                        "min_usd": $minVideoCost,
-                        "max_usd": $maxVideoCost,
-                        "format": {"approximate": true}
-                      }
-                    : {
-                        "type": "usd",
-                        "usd": $noVideoCost,
-                        "format": {"approximate": true}
-                      }
-                )
-                """,
-            ),
+            price_badge=_seedance2_price_badge(with_reference_videos=True),
         )
 
     @classmethod
@@ -2218,32 +2371,38 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             cls, list(reference_assets.values())
         )
 
+        model_id = SEEDANCE_MODELS[model["model"]]
+        limits = seedance2_reference_limits(model_id)
+
         if not reference_images and not reference_videos and not reference_image_assets and not reference_video_assets:
-            raise ValueError("At least one reference image or video or asset is required.")
+            if model_id != "dreamina-seedance-2-5-260628" or not (reference_audios or reference_audio_assets):
+                raise ValueError("At least one reference image or video or asset is required.")
 
         total_images = len(reference_images) + len(reference_image_assets)
-        if total_images > 9:
+        if total_images > limits["max_images"]:
             raise ValueError(
                 f"Too many reference images: {total_images} "
-                f"(images={len(reference_images)}, image assets={len(reference_image_assets)}). Maximum is 9."
+                f"(images={len(reference_images)}, image assets={len(reference_image_assets)}). "
+                f"Maximum is {limits['max_images']}."
             )
         total_videos = len(reference_videos) + len(reference_video_assets)
-        if total_videos > 3:
+        if total_videos > limits["max_videos"]:
             raise ValueError(
                 f"Too many reference videos: {total_videos} "
-                f"(videos={len(reference_videos)}, video assets={len(reference_video_assets)}). Maximum is 3."
+                f"(videos={len(reference_videos)}, video assets={len(reference_video_assets)}). "
+                f"Maximum is {limits['max_videos']}."
             )
         total_audios = len(reference_audios) + len(reference_audio_assets)
-        if total_audios > 3:
+        if total_audios > limits["max_audios"]:
             raise ValueError(
                 f"Too many reference audios: {total_audios} "
-                f"(audios={len(reference_audios)}, audio assets={len(reference_audio_assets)}). Maximum is 3."
+                f"(audios={len(reference_audios)}, audio assets={len(reference_audio_assets)}). "
+                f"Maximum is {limits['max_audios']}."
             )
 
         for key in reference_images:
             reference_images[key] = _prepare_seedance_image(reference_images[key])
 
-        model_id = SEEDANCE_MODELS[model["model"]]
         has_video_input = total_videos > 0
 
         if model.get("auto_downscale") and reference_videos:
@@ -2271,8 +2430,11 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 raise
             except Exception:
                 pass
-        if total_video_duration > 15.1:
-            raise ValueError(f"Total reference video duration is {total_video_duration:.1f}s. Maximum is 15.1 seconds.")
+        if total_video_duration > limits["max_total_seconds"]:
+            raise ValueError(
+                f"Total reference video duration is {total_video_duration:.1f}s. "
+                f"Maximum is {limits['max_total_seconds']} seconds."
+            )
 
         total_audio_duration = 0.0
         for i, key in enumerate(reference_audios, 1):
@@ -2281,8 +2443,11 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             if dur < 1.8:
                 raise ValueError(f"Reference audio {i} is too short: {dur:.1f}s. Minimum duration is 1.8 seconds.")
             total_audio_duration += dur
-        if total_audio_duration > 15.1:
-            raise ValueError(f"Total reference audio duration is {total_audio_duration:.1f}s. Maximum is 15.1 seconds.")
+        if total_audio_duration > limits["max_total_seconds"]:
+            raise ValueError(
+                f"Total reference audio duration is {total_audio_duration:.1f}s. "
+                f"Maximum is {limits['max_total_seconds']} seconds."
+            )
 
         asset_labels = _build_asset_labels(
             reference_assets,
@@ -2355,27 +2520,11 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-            data=Seedance2TaskCreationRequest(
-                model=model_id,
-                content=content,
-                generate_audio=model["generate_audio"],
-                resolution=model["resolution"],
-                ratio=model["ratio"],
-                duration=model["duration"],
-                seed=seed,
-                watermark=watermark,
-            ),
+            data=_seedance2_build_request(model, model_id, content, seed, watermark, ratio=model["ratio"]),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(
-                model_id, has_video_input=has_video_input, resolution=model["resolution"]
-            ),
-            poll_interval=9,
+        response = await _seedance2_poll_video_task(
+            cls, initial_response.id, model_id, model["resolution"], has_video_input=has_video_input
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 

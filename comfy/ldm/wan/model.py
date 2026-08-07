@@ -147,7 +147,8 @@ class WanI2VCrossAttention(WanSelfAttention):
         v = self.v(context)
         k_img = self.norm_k_img(self.k_img(context_img))
         v_img = self.v_img(context_img)
-        img_x = optimized_attention(q, k_img, v_img, heads=self.num_heads, transformer_options=transformer_options)
+        # Sageattn can cause Nans here, don't allow it as there is no speed difference anyway as img attention is tiny.
+        img_x = optimized_attention(q, k_img, v_img, heads=self.num_heads, transformer_options=transformer_options, low_precision_attention=False)
         # compute attention
         x = optimized_attention(q, k, v, heads=self.num_heads, transformer_options=transformer_options)
 

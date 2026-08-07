@@ -1450,6 +1450,20 @@ class WAN22_Animate(WAN21_T2V):
         out = model_base.WAN22_Animate(self, device=device)
         return out
 
+class WAN_Animate2(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "animate2",
+    }
+
+    sampling_settings = {
+        "shift": 5.0,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN_Animate2(self, device=device)
+        return out
+
 class WAN22_T2V(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -2464,6 +2478,7 @@ models = [
     WAN22_S2V,
     WAN21_HuMo,
     WAN22_Animate,
+    WAN_Animate2,
     WAN21_FlowRVS,
     WAN21_SCAIL,
     WAN21_SCAIL2,
