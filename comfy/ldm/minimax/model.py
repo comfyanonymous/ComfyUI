@@ -489,14 +489,14 @@ class MiniMaxH3Model(nn.Module):
         # the sampler carries the audio as (sigma_v / sigma_a) * x_audio; undo it outside
         # the wrappers so they and the network see the stream's own latent and velocity
         scale = float((minimax_payload or {}).get("audio_scale", 1.0))
-        audio_x = x[1]
+        audio_src = x[1]
         if scale != 1.0:
             shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
             shift_a = float(transformer_options.get("minimax_h3_sigma_shift_audio", self.sigma_shift_audio))
             sigma_v = (timestep.flatten()[0] / 1000.0).float().clamp(min=1e-6)
             sigma_a = time_shift_sigma(sigma_v, shift_v, shift_a)
-            audio_x = audio_x * (sigma_a / sigma_v).to(audio_x.dtype)
-            x = [x[0], audio_x]
+            carry = (sigma_a / sigma_v).to(audio_src.dtype)
+            x = [x[0], audio_src * carry]
 
         out = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
@@ -506,7 +506,7 @@ class MiniMaxH3Model(nn.Module):
 
         if scale != 1.0:
             # d/d(sigma_v) of the carried variable
-            out[1] = ((1.0 - scale) * audio_x
+            out[1] = ((1.0 - scale) * (audio_src * carry)
                       + (1.0 + (scale - 1.0) * sigma_a).to(out[1].dtype) * out[1])
         return out
 
