@@ -1214,9 +1214,11 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
         elif module.quant_format == "asym_w4a8_int8":
             # int4 weight (packed int8 [N,K/2]) + fp8 per-group scale (weight_s_rel),
             # fp32 per-channel scale (weight_s_channel) + optional Lloyd-Max codebook.
-            scale = pop_scale("weight_s_rel", torch.float8_e4m3fn)
+            scale = pop_scale("weight_s_rel")
             if scale is None:
                 raise ValueError(f"Missing W4A8 group scale (weight_s_rel) for layer {layer_name}")
+            if scale.dtype == torch.uint8:
+                scale = scale.view(torch.float8_e4m3fn)
             params_conf = layer_conf.get("params", {})
             if not isinstance(params_conf, dict):
                 params_conf = {}
@@ -1280,6 +1282,9 @@ def _quantized_weight_state_dict(module, sd, prefix, extra_quant_conf=None, extr
             linear_dtype = getattr(params, "linear_dtype", "int4")
             if linear_dtype != "int4":
                 quant_conf["linear_dtype"] = linear_dtype
+        elif module.quant_format == "asym_w4a8_int8":
+            quant_conf["group_size"] = getattr(params, "group_size", 16)
+            quant_conf["convrot_groupsize"] = getattr(params, "convrot_groupsize", 256)
         if extra_quant_conf:
             quant_conf.update(extra_quant_conf)
         sd[f"{prefix}comfy_quant"] = torch.tensor(list(json.dumps(quant_conf).encode("utf-8")), dtype=torch.uint8)

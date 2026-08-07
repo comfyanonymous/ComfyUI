@@ -294,6 +294,7 @@ __all__ = [
     "TensorCoreNVFP4Layout",
     "TensorCoreConvRotW4A4Layout",
     "TensorWiseINT8Layout",
+    "AsymW4A8Int8Layout",
     "QUANT_ALGOS",
     "register_layout_op",
 ]
