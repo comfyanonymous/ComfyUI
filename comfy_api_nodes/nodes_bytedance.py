@@ -1123,7 +1123,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     display_name="base_image",
                     tooltip=(
                         "The base image (background plate) the layers stack onto. For Create Layered Image, "
-                        "batch this ahead of layers (Batch Images: image1 = base_image, image2 = layers) and "
+                        "batch this ahead of layers (Batch Images: image0 = base_image, image1 = layers) and "
                         "feed the result to its image input."
                     ),
                 ),
@@ -1131,8 +1131,8 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     display_name="base_mask",
                     tooltip=(
                         "Transparency of the base image (1 = transparent, LoadImage convention); currently "
-                        "always fully opaque. Batch it ahead of masks (Batch Masks: mask1 = base_mask, "
-                        "mask2 = masks) so the mask batch stays index-aligned with the image batch."
+                        "always fully opaque. Batch it ahead of masks (Batch Masks: mask0 = base_mask, "
+                        "mask1 = masks) so the mask batch stays index-aligned with the image batch."
                     ),
                 ),
                 IO.Image.Output(
@@ -1158,9 +1158,10 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     display_name="bboxes",
                     tooltip=(
                         "Placement boxes for Create Layered Image, index-aligned with its image batch frames: the "
-                        "first entry covers the base image, the rest place each layer 1:1 in either mode. "
-                        "metadata carries name, desc, z_index, native_size and content_rect = [left, top, width, "
-                        "height], the layer's true bounding box in base-image pixels."
+                        "first entry covers the base image, the rest place each layer 1:1. metadata carries name, "
+                        "desc, z_index, native_size, content_rect = [left, top, width, height] (the layer's true "
+                        "bounding box in base-image pixels) and flags - a layer whose flags include "
+                        "bbox_degenerate or bbox_out_of_canvas came back fully transparent."
                     ),
                 ),
             ],
