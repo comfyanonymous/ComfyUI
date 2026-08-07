@@ -878,6 +878,7 @@ class Layers(ComfyTypeIO):
 @comfytype(io_type="COMPOSITOR")
 class Compositor(ComfyTypeIO):
     class LayerState(TypedDict):
+        version: NotRequired[int]
         canvas: dict
         background: NotRequired[dict]
         inputs: NotRequired[list[str]]

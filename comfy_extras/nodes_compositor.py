@@ -123,7 +123,7 @@ def frame_alpha(
     if mask is None:
         return alpha
     h, w = tensor.shape[1], tensor.shape[2]
-    m = mask[:1].to(dtype=torch.float32)
+    m = mask[:1].to(device=tensor.device, dtype=torch.float32)
     if m.shape[1] != h or m.shape[2] != w:
         m = torch.nn.functional.interpolate(
             m.unsqueeze(1), size=(h, w), mode="bilinear"
@@ -298,7 +298,7 @@ def parse_layer_state(raw) -> dict | None:
     try:
         w = int(round(float(canvas.get("w"))))
         h = int(round(float(canvas.get("h"))))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     if w <= 0 or h <= 0:
         return None
@@ -318,7 +318,13 @@ def parse_layer_state(raw) -> dict | None:
 
 def _number(source: dict, key: str, default: float) -> float:
     value = source.get(key, default)
-    return float(value) if isinstance(value, (int, float)) else float(default)
+    if not isinstance(value, (int, float)) or not math.isfinite(value):
+        return float(default)
+    return float(value)
+
+
+def _clamped_size(value: float, natural: int) -> float:
+    return float(natural) if value <= 0 else min(value, float(MAX_RESOLUTION))
 
 
 def _layer_params(entry, natural_w: int, natural_h: int) -> dict:
@@ -337,10 +343,10 @@ def _layer_params(entry, natural_w: int, natural_h: int) -> dict:
         # clamps the same field.
         "opacity": min(max(_number(entry, "opacity", 1.0), 0.0), 1.0),
         "blend": blend if isinstance(blend, str) else "normal",
-        "x": _number(transform, "x", 0.0),
-        "y": _number(transform, "y", 0.0),
-        "w": _number(transform, "w", natural_w),
-        "h": _number(transform, "h", natural_h),
+        "x": min(max(_number(transform, "x", 0.0), -MAX_RESOLUTION), MAX_RESOLUTION),
+        "y": min(max(_number(transform, "y", 0.0), -MAX_RESOLUTION), MAX_RESOLUTION),
+        "w": _clamped_size(_number(transform, "w", natural_w), natural_w),
+        "h": _clamped_size(_number(transform, "h", natural_h), natural_h),
         "rotation": _number(transform, "rotation", 0.0),
         "flip_h": bool(entry.get("flipH", False)),
         "flip_v": bool(entry.get("flipV", False)),
