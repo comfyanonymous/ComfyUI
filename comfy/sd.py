@@ -940,7 +940,11 @@ class VAE:
                 if not comfy.memory_management.aimdo_enabled:
                     self.disable_offload = True
             elif "decoder.transformer_blocks.0.scale1" in sd and "encoder.down.5.block.0.conv1.weight" in sd:  # MiniMax H3 video VAE
-                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE()
+                minimax_ops = comfy.ops.disable_weight_init
+                minimax_quant = comfy.utils.detect_layer_quantization(sd, "")
+                if minimax_quant is not None:  # int8+convrot quantized decoder
+                    minimax_ops = comfy.ops.mixed_precision_ops(minimax_quant, dtype if dtype is not None else torch.float16)
+                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE(operations=minimax_ops)
                 self.latent_channels = 24
                 self.latent_dim = 3
                 # frames 17k+5 <-> latents 5k+2, 16x spatial

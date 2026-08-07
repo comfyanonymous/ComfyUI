@@ -73,6 +73,8 @@ try:
             ]
 
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
+                    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
                 attn_mask = args[0] if len(args) > 0 else kwargs.get("attn_mask")
                 if kwargs.get("enable_gqa", False) and attn_mask is not None and not comfy.model_management.is_nvidia():
                     k, v = repeat_kv_for_gqa(k, v, q.shape[-3], -3)
@@ -1209,6 +1211,26 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
                 "quant_group_size": 64,
                 "linear_dtype": layer_conf.get("linear_dtype", params_conf.get("linear_dtype", "int4")),
             }
+        elif module.quant_format == "asym_w4a8_int8":
+            # int4 weight (packed int8 [N,K/2]) + fp8 per-group scale (weight_s_rel),
+            # fp32 per-channel scale (weight_s_channel) + optional Lloyd-Max codebook.
+            scale = pop_scale("weight_s_rel")
+            if scale is None:
+                raise ValueError(f"Missing W4A8 group scale (weight_s_rel) for layer {layer_name}")
+            if scale.dtype == torch.uint8:
+                scale = scale.view(torch.float8_e4m3fn)
+            params_conf = layer_conf.get("params", {})
+            if not isinstance(params_conf, dict):
+                params_conf = {}
+            scales = {
+                "scale": scale,
+                "s_channel": pop_scale("weight_s_channel"),
+                "codebook": pop_scale("weight_codebook"),
+                "group_size": int(layer_conf.get("group_size", params_conf.get("group_size", 16))),
+                "convrot_groupsize": int(
+                    layer_conf.get("convrot_groupsize", params_conf.get("convrot_groupsize", 256))
+                ),
+            }
         else:
             raise ValueError(f"Unsupported quantization format: {module.quant_format}")
 
@@ -1260,6 +1282,9 @@ def _quantized_weight_state_dict(module, sd, prefix, extra_quant_conf=None, extr
             linear_dtype = getattr(params, "linear_dtype", "int4")
             if linear_dtype != "int4":
                 quant_conf["linear_dtype"] = linear_dtype
+        elif module.quant_format == "asym_w4a8_int8":
+            quant_conf["group_size"] = getattr(params, "group_size", 16)
+            quant_conf["convrot_groupsize"] = getattr(params, "convrot_groupsize", 256)
         if extra_quant_conf:
             quant_conf.update(extra_quant_conf)
         sd[f"{prefix}comfy_quant"] = torch.tensor(list(json.dumps(quant_conf).encode("utf-8")), dtype=torch.uint8)

@@ -633,15 +633,18 @@ class DiffusersLoader:
     SEARCH_ALIASES = ["load diffusers model"]
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def _model_paths(cls):
         paths = []
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
                 for root, subdir, files in os.walk(search_path, followlinks=True):
                     if "model_index.json" in files:
                         paths.append(os.path.relpath(root, start=search_path))
+        return paths
 
-        return {"required": {"model_path": (paths,), }}
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"model_path": (cls._model_paths(),), }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
     DEPRECATED = True
@@ -649,14 +652,20 @@ class DiffusersLoader:
     CATEGORY = "model/loaders"
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+        if model_path not in self._model_paths():
+            raise ValueError(f"Invalid diffusers model path: {model_path!r}")
+
+        resolved_model_path = None
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
                 path = os.path.join(search_path, model_path)
-                if os.path.exists(path):
-                    model_path = path
+                if os.path.isfile(os.path.join(path, "model_index.json")):
+                    resolved_model_path = path
                     break
+        if resolved_model_path is None:
+            raise FileNotFoundError(f"Diffusers model {model_path!r} not found.")
 
-        return comfy.diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_load.load_diffusers(resolved_model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:

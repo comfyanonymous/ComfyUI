@@ -305,6 +305,12 @@
 
 - Follow existing node conventions: `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`,
   `CATEGORY`, and registration through the local mapping used by that file.
+- Treat legacy combo inputs, `io.Combo`, and `io.DynamicCombo` values as
+  untrusted when they affect filesystem access. Any value used as a file or
+  folder name, path component, format, or extension must be validated again at
+  the load/save boundary using an existing `folder_paths` resolver or
+  containment helper, or a fixed allowlist/mapping. Do not rely only on the
+  advertised combo options or prompt validation.
 - Keep node changes backward compatible by default. Add inputs with sensible
   defaults and avoid changing output types unless the request requires it.
 - Model implementations should add the minimal number of ComfyUI nodes required
