@@ -8,17 +8,18 @@ from transformers import Qwen2Tokenizer
 from comfy import sd1_clip
 import comfy.text_encoders.qwen_vl
 from .qwen35 import Qwen35VisionModel
-from .llama import BaseLlama, BaseQwen3, BaseGenerate, Llama2_, Qwen3VL_4BConfig, Qwen3VL_8BConfig
+from .llama import BaseLlama, BaseQwen3, BaseGenerate, Llama2_, Qwen3VL_4BConfig, Qwen3VL_8BConfig, Qwen3VL_32BConfig
 
 
 QWEN3VL_VISION = {
     "qwen3vl_4b": dict(hidden_size=1024, intermediate_size=4096, depth=24, deepstack_visual_indexes=[5, 11, 17]),
     "qwen3vl_8b": dict(hidden_size=1152, intermediate_size=4304, depth=27, deepstack_visual_indexes=[8, 16, 24]),
+    "qwen3vl_32b": dict(hidden_size=1152, intermediate_size=4304, depth=27, deepstack_visual_indexes=[8, 16, 24]),
 }
 QWEN3VL_VISION_COMMON = dict(num_heads=16, patch_size=16, temporal_patch_size=2, in_channels=3,
                              spatial_merge_size=2, num_position_embeddings=2304)
 
-QWEN3VL_CONFIGS = {"qwen3vl_4b": Qwen3VL_4BConfig, "qwen3vl_8b": Qwen3VL_8BConfig}
+QWEN3VL_CONFIGS = {"qwen3vl_4b": Qwen3VL_4BConfig, "qwen3vl_8b": Qwen3VL_8BConfig, "qwen3vl_32b": Qwen3VL_32BConfig}
 
 
 class Qwen3VLDeepstackMerger(nn.Module):
