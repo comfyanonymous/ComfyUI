@@ -1089,12 +1089,14 @@ class LTXVDurationPredictor(io.ComfyNode):
             node_id="LTXVDurationPredictor",
             display_name="LTXV Duration Predictor",
             category="conditioning/video_models",
-            description="Predicts the natural shot duration for a prompt using the duration head "
-                        "shipped in LTX 2.4+ checkpoints, and snaps it to the VAE's 8k+1 frame grid.",
+            description="Predicts the natural shot duration for a prompt using the LTX 2.4 duration "
+                        "head (loaded with ModelPatchLoader), and snaps it to the VAE's 8k+1 frame grid.",
             search_aliases=["auto duration", "duration head", "num_frames"],
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("positive"),
+                io.Custom("MODEL_PATCH").Input("duration_head",
+                                               tooltip="LTX 2.4 duration head loaded with ModelPatchLoader."),
                 io.Float.Input("frame_rate", default=24.0, min=1.0, max=120.0, step=0.01),
                 io.Float.Input("min_seconds", default=1.0, min=0.5, max=120.0, step=0.1),
                 io.Float.Input("max_seconds", default=20.0, min=0.5, max=120.0, step=0.1),
@@ -1106,12 +1108,11 @@ class LTXVDurationPredictor(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, positive, frame_rate, min_seconds, max_seconds) -> io.NodeOutput:
+    def execute(cls, model, positive, duration_head, frame_rate, min_seconds, max_seconds) -> io.NodeOutput:
         dm = model.model.diffusion_model
-        head = getattr(dm, "duration_head", None)
-        if head is None:
-            raise ValueError("This model has no duration head (duration_head weights ship in "
-                             "LTX 2.4+ checkpoints).")
+        head = duration_head.model
+        if not isinstance(head, comfy.ldm.lightricks.duration_head.DurationHead):
+            raise ValueError("The connected model_patch is not an LTX duration head.")
 
         context = positive[0][0]
         meta = positive[0][1]
@@ -1119,8 +1120,9 @@ class LTXVDurationPredictor(io.ComfyNode):
             context = context[:1]
 
         # Run the caption connectors exactly the way sampling does.
-        comfy.model_management.load_models_gpu([model])
+        comfy.model_management.load_models_gpu([model, duration_head])
         device = model.load_device
+        head = head.to(device)
         with torch.no_grad():
             context = context.to(device=device, dtype=model.model.get_dtype_inference())
             processed = dm.preprocess_text_embeds(context, unprocessed=meta.get("unprocessed_ltxav_embeds", False))

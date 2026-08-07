@@ -60,6 +60,14 @@ class DurationHead(nn.Module):
         return self.mlp_out(hidden).squeeze(-1).exp()
 
 
+def normalize_state_dict(sd):
+    for prefix in ("model.diffusion_model.duration_head.", "duration_head."):
+        stripped = {k[len(prefix):]: v for k, v in sd.items() if k.startswith(prefix)}
+        if stripped:
+            return stripped
+    return sd
+
+
 def seconds_to_num_frames(seconds, frame_rate, min_seconds, max_seconds, time_scale=8):
     """Convert seconds to a frame count clamped to ``[min_seconds, max_seconds]``
     and snapped (floor) to the VAE's ``8k + 1`` causal temporal grid; snapping
