@@ -146,8 +146,22 @@ def _blend_color(i: np.ndarray, l: np.ndarray) -> np.ndarray:
 
 
 def _blend_luminosity(i: np.ndarray, l: np.ndarray) -> np.ndarray:
-    ratio = safe_div(luminance(l), luminance(i))
-    return i * ratio[..., None]
+    # Scale the backdrop so it carries the layer's luminance. Where the backdrop
+    # has no luminance to scale there is no hue or saturation to preserve either,
+    # so the result is a neutral grey at the layer's luminance - which is also the
+    # analytic limit of i * lum(l)/lum(i) as a grey backdrop approaches black.
+    # Guarding the numerator here instead (returning black) makes a luminosity
+    # layer disappear over dark backdrops; see tests-unit/comfy_extras_test/
+    # compositor_blend_golden.json.
+    lum_i = luminance(i)
+    lum_l = luminance(l)
+    degenerate = lum_i <= EPSILON
+    ratio = np.where(degenerate, 0.0, lum_l / np.where(degenerate, 1.0, lum_i))
+    return np.where(
+        degenerate[..., None],
+        np.broadcast_to(lum_l[..., None], i.shape),
+        i * ratio[..., None],
+    )
 
 
 HSL_BLEND = {
