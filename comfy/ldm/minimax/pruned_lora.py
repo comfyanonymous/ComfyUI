@@ -43,6 +43,27 @@ def has_pruned_adaln(lora):
     )
 
 
+def has_legacy_dora(lora):
+    """Detect the node package's legacy ``diff_b`` DoRA convention.
+
+    ComfyUI's official ``diff_b`` handling is a 1-D bias diff.  A 2-D
+    ``diff_b``, or a ``diff_b`` paired with ``lora_A`` on the same base, means
+    the LoRA was produced with the legacy LyCORIS-style DoRA convention used by
+    the MiniMax node package.  Loading it through the official LoraLoader
+    would silently treat it as a bias diff.
+    """
+    for k in lora:
+        if k.endswith(".lora_A.weight"):
+            base = k[: -len(".lora_A.weight")]
+        elif k.endswith(".lora_down.weight"):
+            base = k[: -len(".lora_down.weight")]
+        else:
+            continue
+        if base + ".diff_b" in lora:
+            return True
+    return False
+
+
 def adaln_adapter_compatible(patch, target_shape):
     if isinstance(patch, tuple):
         if len(patch) == 2 and patch[0] == "diff":

@@ -47,6 +47,18 @@ def test_pruned_adaln_detection_covers_set_weight():
     )
 
 
+def test_legacy_dora_detection():
+    assert comfy.ldm.minimax.pruned_lora.has_legacy_dora(
+        {
+            "blocks.0.attn.qkv_proj.lora_A.weight": torch.randn(2, 6),
+            "blocks.0.attn.qkv_proj.diff_b": torch.randn(8, 1),
+        }
+    )
+    assert not comfy.ldm.minimax.pruned_lora.has_legacy_dora(
+        {"blocks.0.attn.qkv_proj.bias.diff_b": torch.randn(8)}
+    )
+
+
 def test_adapter_output_dimension_is_checked():
     target_shape = (6, 4)
     bad_patch = SimpleNamespace(
@@ -278,3 +290,80 @@ def test_table_mismatch_warns_but_merges(caplog):
     expected = w1 + (w2 - base_w)
     applied = _apply_set_patch(dict(merged)[wk][1][0], base_w)
     assert torch.allclose(applied.float(), expected.float())
+
+
+def test_combined_standard_lora_dora_adaln():
+    torch.manual_seed(9)
+    out, in_, rank = 8, 6, 4
+    model_sd = {
+        "adaln_t_table": torch.randn(4, 4),
+        "blocks.0.adaln_proj.linear.weight": torch.randn(8, 4),
+        "blocks.0.adaln_proj.linear.bias": torch.randn(8),
+        "blocks.0.attn.qkv_proj.weight": torch.randn(out, in_),
+        "blocks.0.mlp.fc1.weight": torch.randn(out, in_),
+    }
+
+    a_d = torch.randn(rank, in_)
+    b_d = torch.randn(out, rank) * 0.1
+    diff_b = torch.randn(out, 1) * 0.02
+    wq = model_sd["blocks.0.attn.qkv_proj.weight"]
+    w_temp = wq + b_d @ a_d
+    n0 = wq.norm(dim=1, keepdim=True).clamp(min=1e-8)
+    nt = w_temp.norm(dim=1, keepdim=True).clamp(min=1e-8)
+    dora_scale = (n0 + diff_b) / nt * n0
+
+    a_s = torch.randn(rank, in_)
+    b_s = torch.randn(out, rank) * 0.2
+    lora_sd = {
+        "adaln_t_table": model_sd["adaln_t_table"],
+        "blocks.0.adaln_proj.linear.weight": (
+            model_sd["blocks.0.adaln_proj.linear.weight"]
+            + torch.randn(8, 4) * 0.1
+        ),
+        "blocks.0.adaln_proj.linear.bias": (
+            model_sd["blocks.0.adaln_proj.linear.bias"]
+            + torch.randn(8) * 0.1
+        ),
+        "blocks.0.attn.qkv_proj.lora_A.weight": a_d,
+        "blocks.0.attn.qkv_proj.lora_B.weight": b_d,
+        "blocks.0.attn.qkv_proj.dora_scale": dora_scale,
+        "blocks.0.mlp.fc1.lora_A.weight": a_s,
+        "blocks.0.mlp.fc1.lora_B.weight": b_s,
+    }
+    to_load = {
+        "adaln_t_table": "adaln_t_table",
+        "blocks.0.adaln_proj.linear": "blocks.0.adaln_proj.linear.weight",
+        "blocks.0.attn.qkv_proj": "blocks.0.attn.qkv_proj.weight",
+        "blocks.0.mlp.fc1": "blocks.0.mlp.fc1.weight",
+    }
+
+    loaded = comfy.lora.load_lora(lora_sd, to_load)
+    patcher = _FakePatcher()
+    merged = dict(comfy.ldm.minimax.pruned_lora.merge_adaln_patches(
+        patcher, loaded, model_sd, 1.0
+    ))
+
+    qkv = comfy.lora.calculate_weight(
+        [(1.0, loaded["blocks.0.attn.qkv_proj.weight"], 1.0, None, None)],
+        model_sd["blocks.0.attn.qkv_proj.weight"].clone(),
+        "qkv",
+    )
+    expected_qkv = (n0 + diff_b) * w_temp / nt
+
+    mlp = comfy.lora.calculate_weight(
+        [(1.0, loaded["blocks.0.mlp.fc1.weight"], 1.0, None, None)],
+        model_sd["blocks.0.mlp.fc1.weight"].clone(),
+        "mlp",
+    )
+    expected_mlp = model_sd["blocks.0.mlp.fc1.weight"] + b_s @ a_s
+
+    wk = "blocks.0.adaln_proj.linear.weight"
+    adaln = comfy.lora.calculate_weight(
+        [(1.0, merged[wk], 1.0, None, None)],
+        model_sd[wk].clone(),
+        "adaln",
+    )
+
+    assert torch.allclose(qkv.float(), expected_qkv.float(), atol=1e-6)
+    assert torch.allclose(mlp.float(), expected_mlp.float())
+    assert torch.allclose(adaln.float(), lora_sd[wk].float())

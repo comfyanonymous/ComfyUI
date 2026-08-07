@@ -114,6 +114,12 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
     loaded = comfy.lora.load_lora(lora, key_map)
     merged_adaln = []
     if is_minimax_h3:
+        if pruned_lora.has_legacy_dora(raw_lora):
+            raise ValueError(
+                "MiniMax H3 pruned LoRA uses legacy 2D diff_b DoRA keys. "
+                "The official LoraLoader does not apply this DoRA convention. "
+                "Bake the DoRA into weights or convert it to dora_scale first."
+            )
         use_curves = bool(model.model.diffusion_model.use_adaln_curves)
         has_pruned_adaln = pruned_lora.has_pruned_adaln(raw_lora)
         model_sd = model.model.state_dict()
