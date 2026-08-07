@@ -303,8 +303,10 @@ def parse_layer_state(raw) -> dict | None:
     if w <= 0 or h <= 0:
         return None
     inputs = state.get("inputs")
-    if not isinstance(inputs, list) or not all(
-        isinstance(entry, str) for entry in inputs
+    if (
+        not isinstance(inputs, list)
+        or len(inputs) != len(layers)
+        or not all(isinstance(entry, str) for entry in inputs)
     ):
         inputs = None
     return {
