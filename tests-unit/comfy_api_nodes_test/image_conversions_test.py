@@ -44,8 +44,11 @@ def test_palette_png_with_transparency_keeps_its_alpha():
     image = Image.new("P", (4, 4), 1)
     image.putpalette([0, 0, 0, 255, 255, 255])
     image.info["transparency"] = 0
+    image.putpixel((0, 0), 0)
     tensor = bytesio_to_image_tensor(encode(image))
     assert tensor.shape == (1, 4, 4, 4)
+    assert tensor[0, 0, 0, 3] == 0.0
+    assert tensor[0, 1, 1, 3] == 1.0
 
 
 @pytest.mark.parametrize("mode,channels", [("RGB", 3), ("RGBA", 4)])

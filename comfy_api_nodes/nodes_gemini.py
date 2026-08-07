@@ -234,6 +234,10 @@ async def get_image_from_response(response: GeminiGenerateContentResponse, thoug
                 "to see the model's reasoning."
             )
         return torch.zeros((1, 1024, 1024, 3))
+    channels = max(i.shape[-1] for i in image_tensors)
+    for i in range(len(image_tensors)):
+        if image_tensors[i].shape[-1] < channels:
+            image_tensors[i] = torch.nn.functional.pad(image_tensors[i], (0, channels - image_tensors[i].shape[-1]), mode='constant', value=1.0)
     return torch.cat(image_tensors, dim=0)
 
 
