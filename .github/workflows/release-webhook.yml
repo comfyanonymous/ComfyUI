@@ -110,8 +110,13 @@ jobs:
           echo "✅ Release webhook sent successfully"
 
       - name: Send repository dispatch to desktop
+        # Runs even if the webhook step above failed: the two deliveries are
+        # independent, and a failing webhook endpoint must not silently skip
+        # the desktop release bump.
+        if: ${{ !cancelled() }}
         env:
           DISPATCH_TOKEN: ${{ env.DESKTOP_REPO_DISPATCH_TOKEN }}
+          DISPATCH_REPO: Comfy-Org/Comfy-Desktop
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_URL: ${{ github.event.release.html_url }}
         run: |
@@ -138,7 +143,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
-            https://api.github.com/repos/Comfy-Org/desktop/dispatches \
+            "https://api.github.com/repos/${DISPATCH_REPO}/dispatches" \
             -d "$PAYLOAD"
 
-          echo "✅ Dispatched ComfyUI release ${RELEASE_TAG} to Comfy-Org/desktop"
+          echo "✅ Dispatched ComfyUI release ${RELEASE_TAG} to ${DISPATCH_REPO}"
