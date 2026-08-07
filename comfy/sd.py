@@ -142,11 +142,11 @@ def _mini_max_h3_adaln_adapter_compatible(patch, target_shape):
 def _apply_merged_minimax_h3_adaln_patches(patcher, merged):
     for key, patch in merged:
         existing = patcher.patches.get(key, [])
-        preserved = [
+        preserved = [(1.0, patch, 1.0, None, None)]
+        preserved.extend([
             p for p in existing
             if _mini_max_h3_set_patch_value(p[1]) is None
-        ]
-        preserved.append((1.0, patch, 1.0, None, None))
+        ])
         patcher.patches[key] = preserved
 
 

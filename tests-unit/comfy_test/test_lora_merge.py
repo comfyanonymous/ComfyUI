@@ -71,9 +71,11 @@ def test_adapter_output_dimension_is_checked():
 def test_apply_merged_preserves_existing_non_set_patch():
     patcher = _FakePatcher()
     wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"
+    base_w = torch.randn(6, 4)
+    diff_value = torch.randn(6, 4) * 0.1
     diff_patch = (
         1.0,
-        ("diff", (torch.randn(6, 4),)),
+        ("diff", (diff_value,)),
         1.0,
         None,
         None,
@@ -93,9 +95,11 @@ def test_apply_merged_preserves_existing_non_set_patch():
     )
 
     patches = patcher.patches[wk]
-    assert patches[0] is diff_patch
+    assert comfy.sd._mini_max_h3_set_patch_value(patches[0][1]) is new_value
+    assert patches[1] is diff_patch
     assert len(patches) == 2
-    assert comfy.sd._mini_max_h3_set_patch_value(patches[1][1]) is new_value
+    applied = comfy.lora.calculate_weight(patches, base_w.clone(), wk)
+    assert torch.allclose(applied.float(), (new_value + diff_value).float())
 
 
 def test_merge_normalizes_cross_device_tensors():
