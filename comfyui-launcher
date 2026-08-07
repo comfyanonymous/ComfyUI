@@ -430,9 +430,20 @@ update_comfyui() {
     local remote="${COMFYUI_UPDATE_REMOTE:-origin}"
     local index_url="${COMFYUI_PYPI_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
     local branch remote_url before_update fetched_commit after_update pid_path instance_port
-    local python_prefix requirements_fingerprint requirements_state requirements_state_tmp
-    local restart_failed=0
+    local python_prefix full_requirements_fingerprint direct_requirements_fingerprint
+    local legacy_requirements_state direct_requirements_state requirements_state_tmp
+    local index_requirements protected_constraints
+    local restart_failed=0 install_full_requirements=0
     local -a pid_paths running_ports=()
+    local -a protected_packages=(
+        torch
+        torchvision
+        torchaudio
+        torchcodec
+        xformers
+        triton
+        flash-attn
+    )
 
     command -v git >/dev/null 2>&1 || die "git is required for updates"
     command -v flock >/dev/null 2>&1 || die "flock is required for updates"
@@ -470,22 +481,73 @@ update_comfyui() {
     after_update="$(git -C "${COMFYUI_DIR}" rev-parse HEAD)"
 
     python_prefix="$("${COMFYUI_PYTHON}" -c 'import sys; print(sys.prefix)')"
-    requirements_state="${python_prefix}/.comfyui-requirements"
-    requirements_fingerprint="$(git -C "${COMFYUI_DIR}" hash-object requirements.txt)"
-    if [[ ! -r "${requirements_state}" ]] || [[ "$(<"${requirements_state}")" != "${requirements_fingerprint}" ]]; then
-        printf 'Installing ComfyUI dependencies from %s\n' "${index_url}"
+    legacy_requirements_state="${python_prefix}/.comfyui-requirements"
+    direct_requirements_state="${python_prefix}/.comfyui-metax-requirements"
+    index_requirements="$(mktemp "${TMPDIR:-/tmp}/comfyui-index-requirements.XXXXXX")"
+    protected_constraints="$(mktemp "${TMPDIR:-/tmp}/comfyui-protected-constraints.XXXXXX")"
+
+    awk '!/@[[:space:]]*https:\/\/repos\.metax-tech\.com\/r\/maca-pypi\//' \
+        "${COMFYUI_DIR}/requirements.txt" > "${index_requirements}"
+    full_requirements_fingerprint="$(git -C "${COMFYUI_DIR}" hash-object requirements.txt)"
+    direct_requirements_fingerprint="$(
+        awk '/@[[:space:]]*https:\/\/repos\.metax-tech\.com\/r\/maca-pypi\//' \
+            "${COMFYUI_DIR}/requirements.txt" | git hash-object --stdin
+    )"
+
+    if [[ ! -r "${direct_requirements_state}" ]] &&
+            [[ -r "${legacy_requirements_state}" ]] &&
+            [[ "$(<"${legacy_requirements_state}")" == "${full_requirements_fingerprint}" ]]; then
+        requirements_state_tmp="$(mktemp "${direct_requirements_state}.tmp.XXXXXX")"
+        printf '%s\n' "${direct_requirements_fingerprint}" > "${requirements_state_tmp}"
+        mv -f "${requirements_state_tmp}" "${direct_requirements_state}"
+    fi
+
+    if [[ ! -r "${direct_requirements_state}" ]] ||
+            [[ "$(<"${direct_requirements_state}")" != "${direct_requirements_fingerprint}" ]]; then
+        install_full_requirements=1
+    elif ! "${COMFYUI_PYTHON}" - "${protected_packages[@]}" > "${protected_constraints}" <<'PY'
+import importlib.metadata
+import sys
+
+missing = []
+for package in sys.argv[1:]:
+    try:
+        print(f"{package}=={importlib.metadata.version(package)}")
+    except importlib.metadata.PackageNotFoundError:
+        missing.append(package)
+
+if missing:
+    print(f"Missing protected packages: {', '.join(missing)}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+    then
+        install_full_requirements=1
+    fi
+
+    if (( install_full_requirements )); then
+        printf 'Installing full ComfyUI dependencies from %s\n' "${index_url}"
         "${COMFYUI_PYTHON}" -m pip install \
             --no-cache-dir \
             --index-url "${index_url}" \
+            --upgrade \
+            --upgrade-strategy only-if-needed \
             -r "${COMFYUI_DIR}/requirements.txt"
         "${COMFYUI_PYTHON}" -m pip check
-        requirements_state_tmp="$(mktemp "${requirements_state}.tmp.XXXXXX")"
-        printf '%s\n' "${requirements_fingerprint}" > "${requirements_state_tmp}"
-        mv -f "${requirements_state_tmp}" "${requirements_state}"
+        requirements_state_tmp="$(mktemp "${direct_requirements_state}.tmp.XXXXXX")"
+        printf '%s\n' "${direct_requirements_fingerprint}" > "${requirements_state_tmp}"
+        mv -f "${requirements_state_tmp}" "${direct_requirements_state}"
     else
-        printf 'ComfyUI requirements are unchanged; skipping dependency installation\n'
+        printf 'Updating PyPI dependencies from %s\n' "${index_url}"
+        "${COMFYUI_PYTHON}" -m pip install \
+            --no-cache-dir \
+            --index-url "${index_url}" \
+            --upgrade \
+            --upgrade-strategy only-if-needed \
+            --constraint "${protected_constraints}" \
+            --requirement "${index_requirements}"
         "${COMFYUI_PYTHON}" -m pip check
     fi
+    rm -f -- "${index_requirements}" "${protected_constraints}"
 
     for instance_port in "${running_ports[@]}"; do
         if ! "$0" restart --port "${instance_port}" 8>&-; then
