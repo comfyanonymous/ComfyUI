@@ -1862,10 +1862,8 @@ _SEEDANCE2_PRICE_EXPR_TEMPLATE = """
       $costFor := function($d) { $floor($perFrame * (24 * $d + 1)) / 1000 * $price };
       $lo := $costFor($auto ? 4 : $dur);
       $hi := $costFor(($auto ? 30 : $dur) + ($hasVideo ? 30 : 0));
-      $exact := $not($auto) and $not($hasVideo)
-                and $type($ratio) = "string" and $ratio != "adaptive";
       $lo = $hi
-        ? {"type": "usd", "usd": $lo, "format": $exact ? {} : {"approximate": true}}
+        ? {"type": "usd", "usd": $lo, "format": {"approximate": true}}
         : {"type": "range_usd", "min_usd": $lo, "max_usd": $hi, "format": {"approximate": true}}
     ) : (
       $rate := $res = "4k"    ? 195200 :
