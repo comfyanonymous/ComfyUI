@@ -1,0 +1,525 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() {
+    printf 'comfyui-maca: %s\n' "$*" >&2
+    exit 1
+}
+
+resolve_user_root() {
+    if [[ -n "${COMFYUI_USER_ROOT:-}" ]]; then
+        [[ "${COMFYUI_USER_ROOT}" == /* ]] ||
+            die "COMFYUI_USER_ROOT must be an absolute path"
+        printf '%s\n' "${COMFYUI_USER_ROOT}"
+        return
+    fi
+
+    command -v findmnt >/dev/null 2>&1 ||
+        die "findmnt is required; set COMFYUI_USER_ROOT to override detection"
+
+    local -a roots=()
+    local target source root found
+    while read -r target source; do
+        [[ "${target}" =~ ^/[^/]+$ ]] || continue
+        [[ "${source}" == *"/user-fs/"* ]] || continue
+
+        found=0
+        for root in "${roots[@]}"; do
+            if [[ "${root}" == "${target}" ]]; then
+                found=1
+                break
+            fi
+        done
+        (( found == 0 )) && roots+=("${target}")
+    done < <(findmnt -rn -t nfs,nfs4 -o TARGET,SOURCE)
+
+    case "${#roots[@]}" in
+        0)
+            die "no user NFS mount found; set COMFYUI_USER_ROOT"
+            ;;
+        1)
+            printf '%s\n' "${roots[0]}"
+            ;;
+        *)
+            die "multiple user NFS mounts found (${roots[*]}); set COMFYUI_USER_ROOT"
+            ;;
+    esac
+}
+
+if [[ "${1:-}" == "--resolve-user-root" ]]; then
+    resolve_user_root
+    exit 0
+fi
+
+command_name="start"
+case "${1:-}" in
+    foreground|start|stop|restart|status|update)
+        command_name="${1}"
+        shift
+        ;;
+esac
+
+if [[ "${command_name}" == "update" ]] && (( $# )); then
+    die "update does not accept arguments"
+fi
+
+COMFYUI_DIR="${COMFYUI_DIR:-/opt/ComfyUI}"
+COMFYUI_PYTHON="${COMFYUI_PYTHON:-${COMFYUI_DIR}/.venv/bin/python}"
+listen="${COMFYUI_LISTEN:-0.0.0.0}"
+port="${COMFYUI_PORT:-8888}"
+cuda_device="${COMFYUI_GPU_ID:-0}"
+MACA_PATH="${MACA_PATH:-/opt/maca}"
+
+require_value() {
+    [[ -n "${2}" ]] || die "missing value for ${1}"
+}
+
+parse_runtime_args() {
+    forward_args=()
+    port_was_explicit=0
+
+    while (( $# )); do
+        case "${1}" in
+            --listen)
+                if (( $# < 2 )) || [[ "${2}" == -* ]]; then
+                    listen="0.0.0.0,::"
+                    shift
+                else
+                    require_value "--listen" "${2}"
+                    listen="${2}"
+                    shift 2
+                fi
+                ;;
+            --listen=*)
+                listen="${1#*=}"
+                require_value "--listen" "${listen}"
+                shift
+                ;;
+            --port)
+                (( $# >= 2 )) && [[ -n "${2}" && "${2}" != -* ]] || die "missing value for --port"
+                port="${2}"
+                port_was_explicit=1
+                shift 2
+                ;;
+            --port=*)
+                port="${1#*=}"
+                require_value "--port" "${port}"
+                port_was_explicit=1
+                shift
+                ;;
+            --cuda-device)
+                (( $# >= 2 )) && [[ -n "${2}" && "${2}" != -* ]] || die "missing value for --cuda-device"
+                cuda_device="${2}"
+                shift 2
+                ;;
+            --cuda-device=*)
+                cuda_device="${1#*=}"
+                require_value "--cuda-device" "${cuda_device}"
+                shift
+                ;;
+            *)
+                forward_args+=("${1}")
+                shift
+                ;;
+        esac
+    done
+
+    [[ "${port}" =~ ^[0-9]+$ ]] ||
+        die "port must be between 1 and 65535"
+    port="${port#"${port%%[!0]*}"}"
+    port="${port:-0}"
+    [[ "${#port}" -le 5 ]] && (( 10#${port} >= 1 && 10#${port} <= 65535 )) ||
+        die "port must be between 1 and 65535"
+    [[ "${cuda_device}" =~ ^[0-9]+(,[0-9]+)*$ ]] ||
+        die "GPU IDs must be comma-separated non-negative integers"
+}
+
+parse_runtime_args "$@"
+
+[[ -f "${COMFYUI_DIR}/main.py" ]] ||
+    die "ComfyUI is not installed at ${COMFYUI_DIR}"
+[[ -x "${COMFYUI_PYTHON}" ]] ||
+    die "Python environment is not available at ${COMFYUI_PYTHON}"
+
+user_root="$(resolve_user_root)"
+persistent_root="${user_root}/ComfyUI"
+
+models_dir="${persistent_root}/models"
+custom_nodes_dir="${persistent_root}/custom_nodes"
+input_dir="${persistent_root}/input"
+output_dir="${persistent_root}/output"
+temp_dir="${persistent_root}/temp/${port}"
+user_dir="${persistent_root}/user"
+if [[ "${port}" == "8888" ]]; then
+    database_url="sqlite:///${user_dir}/comfyui.db"
+else
+    database_url="sqlite:///${user_dir}/comfyui-${port}.db"
+fi
+
+mkdir -p \
+    "${models_dir}" \
+    "${custom_nodes_dir}" \
+    "${input_dir}" \
+    "${output_dir}" \
+    "${temp_dir}" \
+    "${user_dir}"
+
+ensure_manager_pip_blacklist() {
+    local manager_dir="${user_dir}/__manager"
+    local blacklist_file="${manager_dir}/pip_blacklist.list"
+    local blacklist_lock="${manager_dir}/pip_blacklist.lock"
+    local package
+    local -a protected_packages=(
+        torch
+        torchvision
+        torchaudio
+        torchcodec
+        xformers
+        triton
+        flash-attn
+    )
+
+    command -v flock >/dev/null 2>&1 || die "flock is required for Manager configuration"
+    mkdir -p "${manager_dir}"
+    chmod 0700 "${manager_dir}"
+    (
+        flock -x 8
+        touch "${blacklist_file}"
+        chmod 0600 "${blacklist_file}"
+        for package in "${protected_packages[@]}"; do
+            grep -Fqx -- "${package}" "${blacklist_file}" || printf '%s\n' "${package}" >> "${blacklist_file}"
+        done
+    ) 8>"${blacklist_lock}"
+    chmod 0600 "${blacklist_lock}"
+}
+
+ensure_manager_pip_blacklist
+
+pid_file="${user_dir}/comfyui-${port}.pid"
+log_file="${user_dir}/comfyui-${port}.log"
+args_file="${user_dir}/comfyui-${port}.args"
+lock_file="${user_dir}/comfyui-${port}.lock"
+instance_lock_held=0
+
+export MACA_PATH
+export MACA_HOME="${MACA_HOME:-${MACA_PATH}}"
+export PATH="${MACA_PATH}/bin:${PATH}"
+export LD_LIBRARY_PATH="${MACA_PATH}/lib:${MACA_PATH}/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+canonical_args=(
+    --listen "${listen}"
+    --port "${port}"
+    --cuda-device "${cuda_device}"
+    --base-directory "${persistent_root}"
+    --models-directory "${models_dir}"
+    --input-directory "${input_dir}"
+    --output-directory "${output_dir}"
+    --temp-directory "${temp_dir}"
+    --user-directory "${user_dir}"
+    --database-url "${database_url}"
+    --enable-manager
+    "${forward_args[@]}"
+)
+
+port_is_available() {
+    "${COMFYUI_PYTHON}" - "${listen}" "${port}" 2>/dev/null <<'PY'
+import socket
+import sys
+
+listen, port = sys.argv[1], int(sys.argv[2])
+for address in listen.split(","):
+    for family, socktype, proto, _, sockaddr in socket.getaddrinfo(address, port, type=socket.SOCK_STREAM):
+        with socket.socket(family, socktype, proto) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(sockaddr)
+PY
+}
+
+process_matches_instance() {
+    local pid="$1"
+    local status item found_main found_port expect_port
+    local -a command_line
+
+    [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "${pid}" 2>/dev/null || return 1
+    status="$(ps -o stat= -p "${pid}" 2>/dev/null)" || return 1
+    [[ "${status}" != *Z* ]] || return 1
+    [[ -r "/proc/${pid}/cmdline" ]] || return 1
+
+    mapfile -d '' -t command_line < "/proc/${pid}/cmdline"
+    found_main=0
+    found_port=0
+    expect_port=0
+    for item in "${command_line[@]}"; do
+        [[ "${item}" == "${COMFYUI_DIR}/main.py" ]] && found_main=1
+        if (( expect_port )); then
+            [[ "${item}" == "${port}" ]] && found_port=1
+            expect_port=0
+        elif [[ "${item}" == "--port" ]]; then
+            expect_port=1
+        fi
+    done
+    (( found_main && found_port ))
+}
+
+acquire_instance_lock() {
+    command -v flock >/dev/null 2>&1 || die "flock is required for process management"
+    if (( instance_lock_held )); then
+        return
+    fi
+
+    exec 9>"${lock_file}"
+    flock -n 9 || die "port ${port} is already being managed"
+    instance_lock_held=1
+}
+
+read_instance_pid() {
+    instance_pid=""
+    [[ -f "${pid_file}" ]] || return 1
+    IFS= read -r instance_pid < "${pid_file}" || true
+    if process_matches_instance "${instance_pid}"; then
+        return 0
+    fi
+
+    rm -f "${pid_file}"
+    instance_pid=""
+    return 1
+}
+
+status_instance() {
+    acquire_instance_lock
+    if read_instance_pid; then
+        printf 'ComfyUI is running: port=%s pid=%s\n' "${port}" "${instance_pid}"
+        return
+    fi
+
+    printf 'ComfyUI is stopped: port=%s\n' "${port}"
+    return 3
+}
+
+stop_instance_locked() {
+    local pid="$1"
+    local attempt
+
+    if process_matches_instance "${pid}"; then
+        kill -TERM "${pid}" 2>/dev/null || true
+    fi
+    for (( attempt = 0; attempt < 300; attempt++ )); do
+        if ! process_matches_instance "${pid}" && port_is_available; then
+            rm -f "${pid_file}"
+            return
+        fi
+        sleep 0.1
+    done
+
+    if process_matches_instance "${pid}"; then
+        die "ComfyUI on port ${port} did not stop within 30 seconds"
+    fi
+    die "port ${port} was not released within 30 seconds"
+}
+
+stop_instance() {
+    local pid
+
+    acquire_instance_lock
+    if ! read_instance_pid; then
+        printf 'ComfyUI is stopped: port=%s\n' "${port}"
+        return 3
+    fi
+    pid="${instance_pid}"
+    stop_instance_locked "${pid}"
+    printf 'ComfyUI stopped: port=%s pid=%s\n' "${port}" "${pid}"
+}
+
+load_saved_args() {
+    local -a saved_args=()
+    local index saved_listen saved_port saved_cuda_device
+
+    [[ -s "${args_file}" ]] || die "saved arguments are unavailable for port ${port}"
+    mapfile -d '' -t saved_args < "${args_file}"
+    (( ${#saved_args[@]} > 0 )) || die "saved arguments are invalid for port ${port}"
+
+    saved_listen=""
+    saved_port=""
+    saved_cuda_device=""
+    for (( index = 0; index < ${#saved_args[@]}; index++ )); do
+        case "${saved_args[index]}" in
+            --listen)
+                (( index + 1 < ${#saved_args[@]} )) || die "saved arguments are invalid for port ${port}"
+                saved_listen="${saved_args[++index]}"
+                ;;
+            --port)
+                (( index + 1 < ${#saved_args[@]} )) || die "saved arguments are invalid for port ${port}"
+                saved_port="${saved_args[++index]}"
+                ;;
+            --cuda-device)
+                (( index + 1 < ${#saved_args[@]} )) || die "saved arguments are invalid for port ${port}"
+                saved_cuda_device="${saved_args[++index]}"
+                ;;
+        esac
+    done
+
+    [[ "${saved_port}" == "${port}" ]] || die "saved arguments do not match port ${port}"
+    [[ -n "${saved_listen}" ]] || die "saved listen address is unavailable for port ${port}"
+    [[ -n "${saved_cuda_device}" ]] || die "saved GPU IDs are unavailable for port ${port}"
+
+    canonical_args=("${saved_args[@]}")
+    listen="${saved_listen}"
+    cuda_device="${saved_cuda_device}"
+}
+
+start_instance() {
+    local result="${1:-started}"
+    local pid saved_pid args_tmp attempt
+
+    command -v setsid >/dev/null 2>&1 || die "setsid is required for background start"
+    acquire_instance_lock
+
+    if [[ -e "${pid_file}" ]]; then
+        saved_pid="$(<"${pid_file}")"
+        if process_matches_instance "${saved_pid}"; then
+            die "ComfyUI on port ${port} is already running"
+        fi
+        rm -f "${pid_file}"
+    fi
+
+    if ! port_is_available; then
+        die "port is unavailable: ${listen}:${port}"
+    fi
+
+    : > "${log_file}"
+    nohup setsid "${COMFYUI_PYTHON}" "${COMFYUI_DIR}/main.py" "${canonical_args[@]}" \
+        </dev/null >"${log_file}" 2>&1 9>&- &
+    pid=$!
+    printf '%s\n' "${pid}" > "${pid_file}"
+
+    for (( attempt = 0; attempt < 300; attempt++ )); do
+        if ! kill -0 "${pid}" 2>/dev/null; then
+            rm -f "${pid_file}"
+            die "ComfyUI failed to start; see ${log_file}"
+        fi
+        if process_matches_instance "${pid}" && ! port_is_available; then
+            args_tmp="$(mktemp "${args_file}.tmp.XXXXXX")"
+            printf '%s\0' "${canonical_args[@]}" > "${args_tmp}"
+            mv -f "${args_tmp}" "${args_file}"
+            printf 'ComfyUI %s: port=%s pid=%s gpu=%s log=%s\n' "${result}" "${port}" "${pid}" "${cuda_device}" "${log_file}"
+            return
+        fi
+        sleep 0.1
+    done
+
+    if process_matches_instance "${pid}"; then
+        kill -TERM "${pid}" 2>/dev/null || true
+    fi
+    rm -f "${pid_file}"
+    die "ComfyUI start timed out; see ${log_file}"
+}
+
+restart_instance() {
+    local pid
+
+    acquire_instance_lock
+    read_instance_pid || die "ComfyUI on port ${port} is not running"
+    pid="${instance_pid}"
+    load_saved_args
+    stop_instance_locked "${pid}"
+    start_instance "restarted"
+}
+
+update_comfyui() {
+    local remote="${COMFYUI_UPDATE_REMOTE:-origin}"
+    local index_url="${COMFYUI_PYPI_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+    local branch remote_url before_update fetched_commit after_update pid_path instance_port
+    local python_prefix requirements_fingerprint requirements_state requirements_state_tmp
+    local restart_failed=0
+    local -a pid_paths running_ports=()
+
+    command -v git >/dev/null 2>&1 || die "git is required for updates"
+    command -v flock >/dev/null 2>&1 || die "flock is required for updates"
+    [[ -f "${COMFYUI_DIR}/requirements.txt" ]] || die "requirements.txt is missing from ${COMFYUI_DIR}"
+
+    exec 8>"${user_dir}/comfyui-update.lock"
+    flock -n 8 || die "another ComfyUI update is already running"
+
+    [[ -z "$(git -C "${COMFYUI_DIR}" status --porcelain)" ]] ||
+        die "ComfyUI repository has local changes; update aborted"
+    branch="$(git -C "${COMFYUI_DIR}" symbolic-ref --quiet --short HEAD)" ||
+        die "ComfyUI repository is not on a branch"
+    remote_url="$(git -C "${COMFYUI_DIR}" remote get-url "${remote}")" ||
+        die "git remote is unavailable: ${remote}"
+
+    shopt -s nullglob
+    pid_paths=("${user_dir}"/comfyui-*.pid)
+    shopt -u nullglob
+    for pid_path in "${pid_paths[@]}"; do
+        instance_port="${pid_path##*/comfyui-}"
+        instance_port="${instance_port%.pid}"
+        [[ "${instance_port}" =~ ^[0-9]+$ ]] || continue
+        if "$0" status --port "${instance_port}" >/dev/null 2>&1; then
+            running_ports+=("${instance_port}")
+        fi
+    done
+
+    before_update="$(git -C "${COMFYUI_DIR}" rev-parse HEAD)"
+    printf 'Updating %s/%s from %s\n' "${remote}" "${branch}" "${remote_url}"
+    git -C "${COMFYUI_DIR}" fetch "${remote}" "${branch}"
+    fetched_commit="$(git -C "${COMFYUI_DIR}" rev-parse FETCH_HEAD)"
+    git -C "${COMFYUI_DIR}" merge-base --is-ancestor "${before_update}" "${fetched_commit}" ||
+        die "${remote}/${branch} cannot be applied as a fast-forward update"
+    git -C "${COMFYUI_DIR}" merge --ff-only "${fetched_commit}"
+    after_update="$(git -C "${COMFYUI_DIR}" rev-parse HEAD)"
+
+    python_prefix="$("${COMFYUI_PYTHON}" -c 'import sys; print(sys.prefix)')"
+    requirements_state="${python_prefix}/.comfyui-requirements"
+    requirements_fingerprint="$(git -C "${COMFYUI_DIR}" hash-object requirements.txt)"
+    if [[ ! -r "${requirements_state}" ]] || [[ "$(<"${requirements_state}")" != "${requirements_fingerprint}" ]]; then
+        printf 'Installing ComfyUI dependencies from %s\n' "${index_url}"
+        "${COMFYUI_PYTHON}" -m pip install \
+            --no-cache-dir \
+            --index-url "${index_url}" \
+            -r "${COMFYUI_DIR}/requirements.txt"
+        "${COMFYUI_PYTHON}" -m pip check
+        requirements_state_tmp="$(mktemp "${requirements_state}.tmp.XXXXXX")"
+        printf '%s\n' "${requirements_fingerprint}" > "${requirements_state_tmp}"
+        mv -f "${requirements_state_tmp}" "${requirements_state}"
+    else
+        printf 'ComfyUI requirements are unchanged; skipping dependency installation\n'
+        "${COMFYUI_PYTHON}" -m pip check
+    fi
+
+    for instance_port in "${running_ports[@]}"; do
+        if ! "$0" restart --port "${instance_port}" 8>&-; then
+            printf 'comfyui-maca: failed to restart port %s\n' "${instance_port}" >&2
+            restart_failed=1
+        fi
+    done
+
+    (( restart_failed == 0 )) || die "update completed, but one or more instances failed to restart"
+    printf 'ComfyUI update completed: %s -> %s; restarted ports: %s\n' \
+        "${before_update}" "${after_update}" "${running_ports[*]:-none}"
+}
+
+case "${command_name}" in
+    foreground)
+        port_is_available || die "port is unavailable: ${listen}:${port}"
+        exec "${COMFYUI_PYTHON}" "${COMFYUI_DIR}/main.py" "${canonical_args[@]}"
+        ;;
+    start)
+        umask 077
+        start_instance
+        ;;
+    stop)
+        stop_instance
+        ;;
+    restart)
+        umask 077
+        restart_instance
+        ;;
+    status)
+        status_instance
+        ;;
+    update)
+        umask 077
+        update_comfyui
+        ;;
+esac
