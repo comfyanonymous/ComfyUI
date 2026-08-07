@@ -63,12 +63,20 @@ def expand_item_frames(items: list[dict]) -> list[dict]:
     for item in items:
         image = item["image"]
         for index in range(image.shape[0]):
+            width = _int(item.get("w"), 0)
+            height = _int(item.get("h"), 0)
+            rotation = item.get("rotation")
             frames.append({
                 "tensor": image[index : index + 1],
                 "mask": _item_mask_frame(item.get("mask"), index),
                 "name": item.get("name") if isinstance(item.get("name"), str) else None,
                 "x": _int(item.get("x"), 0),
                 "y": _int(item.get("y"), 0),
+                "w": width if width > 0 else int(image.shape[2]),
+                "h": height if height > 0 else int(image.shape[1]),
+                "rotation": float(rotation)
+                if isinstance(rotation, (int, float)) and not isinstance(rotation, bool)
+                else 0.0,
                 "opacity": item.get("opacity", 1.0),
                 "blend": item.get("blend_mode", "normal"),
                 "visible": item.get("visible", True),
@@ -108,10 +116,15 @@ def layer_preview_tensor(
 
 
 def canvas_extent(frames: list[dict]) -> tuple[int, int]:
-    return (
-        max(frame["x"] + frame["tensor"].shape[2] for frame in frames),
-        max(frame["y"] + frame["tensor"].shape[1] for frame in frames),
-    )
+    right = 1
+    bottom = 1
+    for frame in frames:
+        bx, by, bw, bh = placed_bounds(
+            frame["x"], frame["y"], frame["w"], frame["h"], frame["rotation"]
+        )
+        right = max(right, bx + bw)
+        bottom = max(bottom, by + bh)
+    return (right, bottom)
 
 
 def input_fingerprints(
@@ -134,6 +147,9 @@ def input_fingerprints(
             repr((
                 frame["x"],
                 frame["y"],
+                frame["w"],
+                frame["h"],
+                frame["rotation"],
                 frame["opacity"],
                 frame["blend"],
                 bool(frame["visible"]),
@@ -158,9 +174,9 @@ def state_from_items(frames: list[dict], canvas: tuple[int, int]) -> dict:
             "transform": {
                 "x": frame["x"],
                 "y": frame["y"],
-                "w": frame["tensor"].shape[2],
-                "h": frame["tensor"].shape[1],
-                "rotation": 0,
+                "w": frame["w"],
+                "h": frame["h"],
+                "rotation": frame["rotation"],
             },
         })
     return {
@@ -177,8 +193,9 @@ def layer_ui_entries(frames: list[dict]) -> list:
         entries.append({
             "x": frame["x"],
             "y": frame["y"],
-            "width": int(frame["tensor"].shape[2]),
-            "height": int(frame["tensor"].shape[1]),
+            "width": int(frame["w"]),
+            "height": int(frame["h"]),
+            "rotation": frame["rotation"],
             "name": frame["name"],
             "visible": bool(frame["visible"]),
             "opacity": frame["opacity"] if isinstance(frame["opacity"], (int, float)) else 1.0,
@@ -545,6 +562,31 @@ class AddLayer(io.ComfyNode):
                     optional=True,
                     tooltip="Initial blend mode.",
                 ),
+                io.Float.Input(
+                    "rotation",
+                    optional=True,
+                    default=0.0,
+                    min=-360.0,
+                    max=360.0,
+                    step=1.0,
+                    tooltip="Initial rotation in degrees, clockwise.",
+                ),
+                io.Int.Input(
+                    "width",
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=MAX_RESOLUTION,
+                    tooltip="Initial display width. 0 keeps the image's native width.",
+                ),
+                io.Int.Input(
+                    "height",
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=MAX_RESOLUTION,
+                    tooltip="Initial display height. 0 keeps the image's native height.",
+                ),
                 io.Int.Input(
                     "z_index",
                     optional=True,
@@ -572,7 +614,7 @@ class AddLayer(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image: io.Image.Type, layers: io.Layers.Type = None, mask: io.Mask.Type = None, name: str = "", x: int = 0, y: int = 0, opacity: float = 1.0, blend_mode: str = "normal", z_index: int = 0, flip_h: bool = False, flip_v: bool = False) -> io.NodeOutput:
+    def execute(cls, image: io.Image.Type, layers: io.Layers.Type = None, mask: io.Mask.Type = None, name: str = "", x: int = 0, y: int = 0, opacity: float = 1.0, blend_mode: str = "normal", rotation: float = 0.0, width: int = 0, height: int = 0, z_index: int = 0, flip_h: bool = False, flip_v: bool = False) -> io.NodeOutput:
         item: dict = {
             "image": image,
             "type": "raster",
@@ -588,6 +630,12 @@ class AddLayer(io.ComfyNode):
             item["opacity"] = float(opacity)
         if blend_mode != "normal":
             item["blend_mode"] = blend_mode
+        if rotation != 0.0:
+            item["rotation"] = math.radians(rotation)
+        if width > 0:
+            item["w"] = int(width)
+        if height > 0:
+            item["h"] = int(height)
         if flip_h:
             item["flip_h"] = True
         if flip_v:

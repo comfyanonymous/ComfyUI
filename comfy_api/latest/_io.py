@@ -862,6 +862,9 @@ class Layers(ComfyTypeIO):
         visible: NotRequired[bool]
         flip_h: NotRequired[bool]
         flip_v: NotRequired[bool]
+        rotation: NotRequired[float]
+        w: NotRequired[int]
+        h: NotRequired[int]
         color: NotRequired[str]
 
     class Document(TypedDict):
