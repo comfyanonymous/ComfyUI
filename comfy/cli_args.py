@@ -138,6 +138,7 @@ parser.add_argument("--preview-size", type=int, default=512, help="Sets the maxi
 
 cache_group = parser.add_mutually_exclusive_group()
 cache_group.add_argument("--cache-ram", nargs='*', type=float, default=[], metavar="GB", help="Use RAM pressure caching with the specified headroom thresholds. This is the default caching mode. The first value sets the active-cache threshold; the optional second value sets the inactive-cache/pin threshold. Defaults when no values are provided: active 10%% of system RAM (min 2GB, max 10GB), inactive 100%% of system RAM (max 128GB).")
+cache_group.add_argument("--cache-score", nargs='*', type=float, default=None, metavar="GB", help="Use score-based caching that favors outputs which are expensive to recompute relative to their RAM usage. Accepts the same optional headroom thresholds as --cache-ram.")
 cache_group.add_argument("--cache-classic", action="store_true", help="Use the old style (aggressive) caching.")
 cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
 cache_group.add_argument("--cache-none", action="store_true", help="Reduced RAM/VRAM usage at the expense of executing every node for each run.")
@@ -279,6 +280,8 @@ else:
 
 if args.cache_ram is not None and len(args.cache_ram) > 2:
     parser.error("--cache-ram accepts at most two values: active GB and inactive GB")
+if args.cache_score is not None and len(args.cache_score) > 2:
+    parser.error("--cache-score accepts at most two values: active GB and inactive GB")
 
 if args.high_ram:
     args.cache_classic = True
