@@ -95,156 +95,7 @@ import comfy.latent_formats
 
 import comfy.ldm.flux.redux
 
-def _mini_max_h3_set_patch_value(patch):
-    if not isinstance(patch, tuple) or len(patch) != 2:
-        return None
-    if patch[0] != "set" or not isinstance(patch[1], tuple) or len(patch[1]) != 1:
-        return None
-    return patch[1][0]
-
-
-def _mini_max_h3_existing_set(model, key):
-    for p in model.patches.get(key, []):
-        value = _mini_max_h3_set_patch_value(p[1])
-        if value is not None:
-            return value
-    return None
-
-
-def _mini_max_h3_has_pruned_adaln(lora):
-    return (
-        "adaln_t_table" in lora
-        or "diffusion_model.adaln_t_table" in lora
-        or "adaln_t_table.set_weight" in lora
-        or "diffusion_model.adaln_t_table.set_weight" in lora
-        or any(
-            ".adaln_proj.linear.weight" in k
-            or ".adaln_proj.linear.bias" in k
-            or ".adaln_proj.linear.weight.set_weight" in k
-            or ".adaln_proj.linear.bias.set_weight" in k
-            for k in lora
-        )
-    )
-
-
-def _mini_max_h3_adaln_adapter_compatible(patch, target_shape):
-    if isinstance(patch, tuple):
-        return True
-    weights = getattr(patch, "weights", None)
-    if not weights or len(weights) < 2:
-        return False
-    return (
-        weights[0].shape[0] == target_shape[0]
-        and weights[1].shape[-1] == target_shape[-1]
-    )
-
-
-def _apply_merged_minimax_h3_adaln_patches(patcher, merged):
-    for key, patch in merged:
-        existing = patcher.patches.get(key, [])
-        preserved = [(1.0, patch, 1.0, None, None)]
-        preserved.extend([
-            p for p in existing
-            if _mini_max_h3_set_patch_value(p[1]) is None
-        ])
-        patcher.patches[key] = preserved
-
-
-def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
-    """Merge stacked complete pruned AdaLN set patches at the loader boundary.
-
-    Standard ``set`` patches replace the target weight, so loading two complete
-    pruned LoRAs through separate LoraLoader nodes would otherwise overwrite the
-    first LoRA's AdaLN projection.  This helper converts the incoming set patch
-    into a delta relative to the original model weight and combines it with the
-    existing full replacement:
-
-        combined = current_full + strength * (new_full - base)
-
-    The table itself is kept from the existing/base model.  If the incoming
-    LoRA carries a different table, the merge still runs but is approximate.
-    """
-    current_table = None
-    new_table = None
-    for key in model_sd:
-        if key.endswith("adaln_t_table"):
-            current_table = _mini_max_h3_existing_set(model, key)
-            if current_table is None:
-                current_table = model_sd[key]
-            break
-    for key in loaded:
-        if key.endswith("adaln_t_table"):
-            new_table = _mini_max_h3_set_patch_value(loaded[key])
-            break
-
-    table_warned = False
-    if current_table is not None and new_table is not None:
-        if current_table.shape != new_table.shape:
-            table_warned = True
-        else:
-            target_device = current_table.device
-            current_table = current_table.to(target_device)
-            new_table = new_table.to(target_device)
-            if (current_table.float() - new_table.float()).abs().max().item() > 1e-3:
-                table_warned = True
-    if table_warned:
-        logging.warning(
-            "MiniMax H3 pruned LoRA merge: adaln_t_table differs between "
-            "stacked LoRAs. Projection deltas are still merged, but results "
-            "are approximate; use a shared fixed table or generate a combined "
-            "complete pruned LoRA."
-        )
-
-    merged = []
-    for key in list(loaded):
-        if not (
-            key.endswith("adaln_t_table")
-            or key.endswith(".adaln_proj.linear.weight")
-            or key.endswith(".adaln_proj.linear.bias")
-        ):
-            continue
-        new_full = _mini_max_h3_set_patch_value(loaded[key])
-        if new_full is None:
-            continue
-
-        if key.endswith("adaln_t_table"):
-            base = model_sd.get(key)
-            if base is not None:
-                merged.append((key, ("set", (base,))))
-            else:
-                merged.append((key, ("set", (new_full,))))
-            loaded.pop(key)
-            continue
-
-        base = model_sd.get(key)
-        if base is None:
-            continue
-        current_full = _mini_max_h3_existing_set(model, key)
-        if current_full is None:
-            current_full = base
-        if current_full.shape != new_full.shape or current_full.shape != base.shape:
-            loaded.pop(key)
-            logging.warning(
-                "MiniMax H3 pruned LoRA merge skipped for %s: shape mismatch "
-                "current=%s new=%s base=%s",
-                key,
-                tuple(current_full.shape),
-                tuple(new_full.shape),
-                tuple(base.shape),
-            )
-            continue
-        target_device = base.device
-        current_full = current_full.to(target_device)
-        new_full = new_full.to(target_device)
-        base = base.to(target_device)
-        combined = (
-            current_full.float()
-            + strength_model * (new_full.float() - base.float())
-        ).to(base.dtype)
-        merged.append((key, ("set", (combined,))))
-        loaded.pop(key)
-
-    return merged
+from comfy.ldm.minimax import pruned_lora
 
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=None):
@@ -253,7 +104,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
         if isinstance(model.model, comfy.model_base.MiniMaxH3):
             use_curves = bool(model.model.diffusion_model.use_adaln_curves)
-            has_pruned_adaln = _mini_max_h3_has_pruned_adaln(lora)
+            has_pruned_adaln = pruned_lora.has_pruned_adaln(lora)
             if has_pruned_adaln and not use_curves:
                 logging.warning(
                     "MiniMax H3 non-pruned model: complete pruned AdaLN "
@@ -280,7 +131,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
                     loaded.pop(target)
                     removed_incompatible = True
             elif target.endswith(".adaln_proj.linear.weight") and target in model_sd:
-                if not _mini_max_h3_adaln_adapter_compatible(
+                if not pruned_lora.adaln_adapter_compatible(
                     patch, model_sd[target].shape
                 ):
                     loaded.pop(target)
@@ -294,12 +145,12 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
     if model is not None and isinstance(model.model, comfy.model_base.MiniMaxH3):
         use_curves = bool(model.model.diffusion_model.use_adaln_curves)
         if use_curves:
-            merged_adaln = _merge_minimax_h3_adaln_patches(
+            merged_adaln = pruned_lora.merge_adaln_patches(
                 model, loaded, model_sd, strength_model
             )
     if model is not None:
         new_modelpatcher = model.clone()
-        _apply_merged_minimax_h3_adaln_patches(new_modelpatcher, merged_adaln)
+        pruned_lora.apply_merged_adaln_patches(new_modelpatcher, merged_adaln)
         k = new_modelpatcher.add_patches(loaded, strength_model)
         if lora_metadata:
             new_modelpatcher.set_attachments("lora_metadata", lora_metadata)

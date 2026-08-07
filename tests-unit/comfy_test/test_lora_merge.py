@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import torch
 
 import comfy.lora
-import comfy.sd
+import comfy.ldm.minimax.pruned_lora
 
 
 class _FakeModel:
@@ -21,7 +21,7 @@ class _FakePatcher:
 
 
 def _merge(sd, patcher, loaded, strength=1.0):
-    return comfy.sd._merge_minimax_h3_adaln_patches(
+    return comfy.ldm.minimax.pruned_lora.merge_adaln_patches(
         patcher, loaded, sd, strength
     )
 
@@ -36,13 +36,13 @@ def _apply_set_patch(value, base):
 
 
 def test_pruned_adaln_detection_covers_set_weight():
-    assert comfy.sd._mini_max_h3_has_pruned_adaln(
+    assert comfy.ldm.minimax.pruned_lora.has_pruned_adaln(
         {"adaln_t_table.set_weight": torch.ones(4, 4)}
     )
-    assert comfy.sd._mini_max_h3_has_pruned_adaln(
+    assert comfy.ldm.minimax.pruned_lora.has_pruned_adaln(
         {"diffusion_model.adaln_t_table.set_weight": torch.ones(4, 4)}
     )
-    assert comfy.sd._mini_max_h3_has_pruned_adaln(
+    assert comfy.ldm.minimax.pruned_lora.has_pruned_adaln(
         {"blocks.0.adaln_proj.linear.weight.set_weight": torch.ones(6, 4)}
     )
 
@@ -57,13 +57,13 @@ def test_adapter_output_dimension_is_checked():
     )
     direct_set = ("set", (torch.randn(6, 4),))
 
-    assert not comfy.sd._mini_max_h3_adaln_adapter_compatible(
+    assert not comfy.ldm.minimax.pruned_lora.adaln_adapter_compatible(
         bad_patch, target_shape
     )
-    assert comfy.sd._mini_max_h3_adaln_adapter_compatible(
+    assert comfy.ldm.minimax.pruned_lora.adaln_adapter_compatible(
         good_patch, target_shape
     )
-    assert comfy.sd._mini_max_h3_adaln_adapter_compatible(
+    assert comfy.ldm.minimax.pruned_lora.adaln_adapter_compatible(
         direct_set, target_shape
     )
 
@@ -90,12 +90,12 @@ def test_apply_merged_preserves_existing_non_set_patch():
     new_value = torch.randn(6, 4)
     patcher.patches[wk] = [diff_patch, old_set]
 
-    comfy.sd._apply_merged_minimax_h3_adaln_patches(
+    comfy.ldm.minimax.pruned_lora.apply_merged_adaln_patches(
         patcher, [(wk, ("set", (new_value,)))]
     )
 
     patches = patcher.patches[wk]
-    assert comfy.sd._mini_max_h3_set_patch_value(patches[0][1]) is new_value
+    assert comfy.ldm.minimax.pruned_lora.set_patch_value(patches[0][1]) is new_value
     assert patches[1] is diff_patch
     assert len(patches) == 2
     applied = comfy.lora.calculate_weight(patches, base_w.clone(), wk)
