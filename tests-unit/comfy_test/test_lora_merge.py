@@ -117,6 +117,22 @@ def test_merge_normalizes_cross_device_tensors():
     assert merged[wk][1][0].device == base_w.device
 
 
+def test_merge_retains_base_dtype():
+    torch.manual_seed(8)
+    table = torch.randn(4, 4, dtype=torch.float32)
+    base_w = torch.randn(6, 4, dtype=torch.float16)
+    new_w = torch.randn(6, 4, dtype=torch.float32)
+
+    tk = "diffusion_model.adaln_t_table"
+    wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"
+    sd = {tk: table, wk: base_w}
+    patcher = _FakePatcher()
+    loaded = {tk: ("set", (table,)), wk: ("set", (new_w,))}
+
+    merged = dict(_merge(sd, patcher, loaded))
+    assert merged[wk][1][0].dtype == base_w.dtype
+
+
 def test_stacked_pruned_adaln_merges_linearly():
     torch.manual_seed(0)
     table = torch.randn(4, 4)

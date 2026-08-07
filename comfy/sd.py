@@ -240,7 +240,7 @@ def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
         combined = (
             current_full.float()
             + strength_model * (new_full.float() - base.float())
-        ).to(new_full.dtype)
+        ).to(base.dtype)
         merged.append((key, ("set", (combined,))))
         loaded.pop(key)
 
