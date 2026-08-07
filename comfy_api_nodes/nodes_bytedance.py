@@ -1168,7 +1168,7 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["size"]),
                 expr="""
                 (
-                  widgets.size in ["1k", "1.5k"]
+                  $lowercase(widgets.size) in ["1k", "1.5k"]
                     ? {
                         "type": "usd",
                         "usd": 0.032,
