@@ -16,6 +16,7 @@ from comfy_extras.compositor_blend import (
     srgb_to_linear,
 )
 from comfy_extras.color_util import hex_to_rgb
+from comfy_extras.nodes_bounding_boxes import boxes_from_input
 from nodes import MAX_RESOLUTION
 from typing_extensions import override
 
@@ -48,8 +49,7 @@ def _int(value, default: int) -> int:
     return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else default
 
 
-def _bbox_list(bboxes) -> list[dict]:
-    """Normalize the bounding-box forms nodes emit into a flat list of box dicts."""
+def _bbox_list(bboxes, canvas_width: int, canvas_height: int) -> list[dict]:
     if bboxes is None:
         return []
     if isinstance(bboxes, str):
@@ -60,17 +60,18 @@ def _bbox_list(bboxes) -> list[dict]:
             bboxes = json.loads(text)
         except (json.JSONDecodeError, ValueError) as exc:
             raise ValueError(f"bboxes string input is not valid JSON: {exc}") from exc
-    if isinstance(bboxes, dict):
-        return [bboxes]
-    if not isinstance(bboxes, list):
+    probe = bboxes if isinstance(bboxes, list) else [bboxes]
+    if probe and isinstance(probe[0], list):
+        probe = probe[0]
+    has_elements = any(
+        isinstance(box, dict) and isinstance(box.get("bbox"), (list, tuple))
+        for box in probe
+    )
+    if has_elements and (canvas_width <= 0 or canvas_height <= 0):
         raise ValueError(
-            "bboxes input must be bounding boxes or a JSON string, "
-            f"got {type(bboxes).__name__}"
+            "normalized element boxes need canvas_width and canvas_height to resolve to pixels"
         )
-    # CreateBoundingBoxes emits a list-of-lists (one list per source image)
-    if bboxes and isinstance(bboxes[0], list):
-        bboxes = bboxes[0]
-    return [b for b in bboxes if isinstance(b, dict)]
+    return boxes_from_input(bboxes, canvas_width, canvas_height)
 
 
 def _item_mask_frame(mask, index: int) -> torch.Tensor | None:
@@ -694,12 +695,16 @@ class LayersFromBoundingBoxes(io.ComfyNode):
                     "image",
                     tooltip="Image batch; each frame becomes one layer.",
                 ),
-                io.BoundingBox.Input(
+                io.MultiType.Input(
                     "bboxes",
+                    [io.BoundingBox, io.Array, io.String],
                     tooltip=(
-                        "Placement boxes, index-aligned with the image batch. Frames without a matching "
-                        "box are placed at the origin. metadata.name and metadata.z_index are used when "
-                        "present, and metadata.content_rect crops the frame to its real content."
+                        "Placement boxes, index-aligned with the image batch. Accepts bounding boxes "
+                        "(x, y, width, height), normalized elements (with a 'bbox' - these need "
+                        "canvas_width/canvas_height to resolve to pixels), or a JSON string of either. "
+                        "Frames without a matching box are placed at the origin. A box's width/height "
+                        "scales the layer to fit it. metadata.name (or desc) and metadata.z_index are "
+                        "used when present, and metadata.content_rect crops the frame to its real content."
                     ),
                 ),
                 io.Mask.Input(
@@ -720,9 +725,9 @@ class LayersFromBoundingBoxes(io.ComfyNode):
                     default=True,
                     optional=True,
                     tooltip=(
-                        "Crop each frame to metadata.content_rect where present. Leave on for batches "
-                        "whose frames are padded to a common size - it keeps only the real content and "
-                        "places it by the box."
+                        "Crop each frame to metadata.content_rect where present and place the content "
+                        "back at that position. Leave on for batches whose frames are padded to the "
+                        "canvas size - it keeps only the real content at its original spot."
                     ),
                 ),
                 io.Int.Input(
@@ -751,14 +756,14 @@ class LayersFromBoundingBoxes(io.ComfyNode):
     def execute(
         cls,
         image: io.Image.Type,
-        bboxes: io.BoundingBox.Type,
+        bboxes: io.MultiType.Type,
         mask: io.Mask.Type = None,
         layers: io.Layers.Type = None,
         crop_to_content: bool = True,
         canvas_width: int = 0,
         canvas_height: int = 0,
     ) -> io.NodeOutput:
-        boxes = _bbox_list(bboxes)
+        boxes = _bbox_list(bboxes, canvas_width, canvas_height)
         previous = layers if isinstance(layers, dict) else None
         items: list[dict] = list((previous.get("layers") or []) if previous else [])
         base_z = max((_int(i.get("z_index"), 0) for i in items), default=-1) + 1
@@ -770,16 +775,21 @@ class LayersFromBoundingBoxes(io.ComfyNode):
             frame_mask = _item_mask_frame(mask, index)
 
             x, y = _int(box.get("x"), 0), _int(box.get("y"), 0)
+            box_w, box_h = _int(box.get("width"), 0), _int(box.get("height"), 0)
+            cropped = False
             rect = meta.get("content_rect")
             if crop_to_content and isinstance(rect, (list, tuple)) and len(rect) == 4:
                 left, top, cw, ch = (_int(v, 0) for v in rect)
-                cw = min(max(cw, 0), int(frame.shape[2]))
-                ch = min(max(ch, 0), int(frame.shape[1]))
+                left = min(max(left, 0), int(frame.shape[2]))
+                top = min(max(top, 0), int(frame.shape[1]))
+                cw = min(max(cw, 0), int(frame.shape[2]) - left)
+                ch = min(max(ch, 0), int(frame.shape[1]) - top)
                 if cw > 0 and ch > 0:
-                    frame = frame[:, :ch, :cw]
+                    frame = frame[:, top : top + ch, left : left + cw]
                     if frame_mask is not None:
-                        frame_mask = frame_mask[:, :ch, :cw]
+                        frame_mask = frame_mask[:, top : top + ch, left : left + cw]
                     x, y = left, top
+                    cropped = True
 
             item: dict = {
                 "image": frame,
@@ -788,9 +798,16 @@ class LayersFromBoundingBoxes(io.ComfyNode):
                 "y": y,
                 "z_index": _int(meta.get("z_index"), base_z + index),
             }
+            if not cropped:
+                if box_w > 0:
+                    item["w"] = box_w
+                if box_h > 0:
+                    item["h"] = box_h
             if frame_mask is not None:
                 item["mask"] = frame_mask
             name = meta.get("name")
+            if not (isinstance(name, str) and name):
+                name = meta.get("desc")
             if isinstance(name, str) and name:
                 item["name"] = name
             items.append(item)
