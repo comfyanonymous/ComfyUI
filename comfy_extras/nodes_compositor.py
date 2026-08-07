@@ -710,7 +710,8 @@ class LayersFromBoundingBoxes(io.ComfyNode):
                         "canvas_width/canvas_height to resolve to pixels), or a JSON string of either. "
                         "Frames without a matching box are placed at the origin. A box's width/height "
                         "scales the layer to fit it. metadata.name (or desc) and metadata.z_index are "
-                        "used when present, and metadata.content_rect crops the frame to its real content."
+                        "used when present, and metadata.content_rect (frame-relative) crops the frame "
+                        "to its real content."
                     ),
                 ),
                 io.Mask.Input(
@@ -732,8 +733,8 @@ class LayersFromBoundingBoxes(io.ComfyNode):
                     optional=True,
                     tooltip=(
                         "Crop each frame to metadata.content_rect where present and place the content "
-                        "back at that position. Leave on for batches whose frames are padded to the "
-                        "canvas size - it keeps only the real content at its original spot."
+                        "at the box position plus the rect offset. Leave on for batches whose frames "
+                        "are padded - it keeps only the real content at its true spot."
                     ),
                 ),
                 io.Int.Input(
@@ -794,7 +795,7 @@ class LayersFromBoundingBoxes(io.ComfyNode):
                     frame = frame[:, top : top + ch, left : left + cw]
                     if frame_mask is not None:
                         frame_mask = frame_mask[:, top : top + ch, left : left + cw]
-                    x, y = left, top
+                    x, y = x + left, y + top
                     cropped = True
 
             item: dict = {
