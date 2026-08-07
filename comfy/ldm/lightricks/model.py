@@ -13,6 +13,7 @@ import comfy.patcher_extension
 import comfy.ldm.modules.attention
 import comfy.ldm.common_dit
 import comfy.model_management
+import comfy.ops
 import comfy.quant_ops
 
 from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
@@ -321,7 +322,11 @@ class FeedForward(nn.Module):
         )
 
     def forward(self, x):
-        return self.net(x)
+        # net = [GELU_approx(proj), Dropout, Linear]; the fused path skips the
+        # Dropout, so leave it to the stock path whenever it could be active.
+        if comfy.model_management.in_training:
+            return self.net(x)
+        return comfy.ops.linear_input_act(self.net[2], self.net[0].proj(x), "gelu_tanh")
 
 def apply_rotary_emb(input_tensor, freqs_cis):
     rotation_matrix, split_pe = freqs_cis
@@ -535,7 +540,12 @@ class BasicTransformerBlock(nn.Module):
     def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None, transformer_options={}, self_attention_mask=None, prompt_timestep=None):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None, :6].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)[:, :, :6, :]).unbind(dim=2)
 
-        x += self.attn1(comfy.ldm.common_dit.rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe, mask=self_attention_mask, transformer_options=transformer_options) * gate_msa
+        if comfy.model_management.in_training:
+            norm_x = comfy.ldm.common_dit.rms_norm(x) * (1 + scale_msa) + shift_msa
+        else:
+            norm_x = comfy.quant_ops.ck.rms_adaln(x, scale_msa, shift_msa)
+
+        x += self.attn1(norm_x, pe=pe, mask=self_attention_mask, transformer_options=transformer_options) * gate_msa
 
         if self.cross_attention_adaln:
             shift_q_mca, scale_q_mca, gate_mca = (self.scale_shift_table[None, None, 6:9].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)[:, :, 6:9, :]).unbind(dim=2)
@@ -589,7 +599,10 @@ def apply_cross_attention_adaln(
         prompt_scale_shift_table[None, None].to(device=x.device, dtype=x.dtype)
         + prompt_timestep.reshape(batch_size, prompt_timestep.shape[1], 2, -1)
     ).unbind(dim=2)
-    attn_input = comfy.ldm.common_dit.rms_norm(x) * (1 + q_scale) + q_shift
+    if comfy.model_management.in_training:
+        attn_input = comfy.ldm.common_dit.rms_norm(x) * (1 + q_scale) + q_shift
+    else:
+        attn_input = comfy.quant_ops.ck.rms_adaln(x, q_scale, q_shift)
     encoder_hidden_states = context * (1 + scale_kv) + shift_kv
     return attn(attn_input, context=encoder_hidden_states, mask=attention_mask, transformer_options=transformer_options) * q_gate
 
