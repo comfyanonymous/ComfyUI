@@ -68,6 +68,19 @@ def test_adapter_output_dimension_is_checked():
     )
 
 
+def test_mismatched_direct_diff_patch_is_rejected():
+    target_shape = (6, 4)
+    bad_diff = ("diff", (torch.randn(7, 4),))
+    good_diff = ("diff", (torch.randn(6, 4),))
+
+    assert not comfy.ldm.minimax.pruned_lora.adaln_adapter_compatible(
+        bad_diff, target_shape
+    )
+    assert comfy.ldm.minimax.pruned_lora.adaln_adapter_compatible(
+        good_diff, target_shape
+    )
+
+
 def test_apply_merged_preserves_existing_non_set_patch():
     patcher = _FakePatcher()
     wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"

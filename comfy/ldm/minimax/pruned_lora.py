@@ -45,6 +45,10 @@ def has_pruned_adaln(lora):
 
 def adaln_adapter_compatible(patch, target_shape):
     if isinstance(patch, tuple):
+        if len(patch) == 2 and patch[0] == "diff":
+            data = patch[1]
+            if isinstance(data, tuple) and data:
+                return data[0].shape == target_shape
         return True
     weights = patch.weights
     if not weights or len(weights) < 2:
