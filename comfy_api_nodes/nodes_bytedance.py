@@ -1109,10 +1109,12 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                     label_on="minimal size",
                     label_off="full canvas",
                     tooltip=(
-                        "Full canvas: each layer is placed on a base-sized canvas at its bounding-box position - "
-                        "recompose directly with ImageCompositeMasked. Minimal size: each layer is cropped to its "
-                        "bounding box (padded to the largest layer for batching) and the bboxes output carries its "
-                        "placement - the pairing expected by Create Layered Image."
+                        "Full canvas: each layer is placed on a base-sized canvas at its bounding-box position. "
+                        "Every output is base-sized, so base_image and layers can be batched together without "
+                        "resampling - this is the mode to use with Create Layered Image. Minimal size: each layer "
+                        "is cropped to its bounding box (padded to the largest layer) and the bboxes output carries "
+                        "its placement; batching these with the base image would rescale them, so place them "
+                        "yourself (e.g. ImageCompositeMasked, after an InvertMask on the masks output)."
                     ),
                 ),
             ],
@@ -1120,38 +1122,42 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
                 IO.Image.Output(
                     display_name="base_image",
                     tooltip=(
-                        "The base image (background plate) the layers stack onto. Wire to image_0 of "
-                        "Create Layered Image."
+                        "The base image (background plate) the layers stack onto. For Create Layered Image, "
+                        "batch this ahead of layers (Batch Images: image1 = base_image, image2 = layers) and "
+                        "feed the result to its image input."
                     ),
                 ),
                 IO.Mask.Output(
                     display_name="base_mask",
                     tooltip=(
                         "Transparency of the base image (1 = transparent, LoadImage convention); currently "
-                        "always fully opaque. Wire to mask_0 of Create Layered Image."
+                        "always fully opaque. Batch it ahead of masks (Batch Masks: mask1 = base_mask, "
+                        "mask2 = masks) so the mask batch stays index-aligned with the image batch."
                     ),
                 ),
                 IO.Image.Output(
                     display_name="layers",
                     tooltip=(
-                        "Transparent layers ordered bottom to top; wire to image_1 of Create Layered Image "
-                        "(the batch expands into one editor layer per element). Full canvas mode: placed on a "
-                        "black base-sized canvas at their bounding-box position. Minimal size mode: cropped to "
-                        "their bounding box, anchored top-left, padded to the largest layer."
+                        "Transparent layers ordered bottom to top; batch after base_image and feed the result "
+                        "to the image input of Create Layered Image (each batch frame becomes one editor "
+                        "layer). Full canvas mode: placed on a black base-sized canvas at their bounding-box "
+                        "position. Minimal size mode: cropped to their bounding box, anchored top-left, padded "
+                        "to the largest layer."
                     ),
                 ),
                 IO.Mask.Output(
                     display_name="masks",
                     tooltip=(
                         "Per-layer transparency, index-aligned with the layers batch (1 = transparent, "
-                        "LoadImage convention); wire to mask_1 of Create Layered Image. For "
-                        "ImageCompositeMasked-style compositing, add InvertMask first."
+                        "LoadImage convention); batch after base_mask and feed the result to the mask input "
+                        "of Create Layered Image. For ImageCompositeMasked-style compositing, add InvertMask "
+                        "first - that node treats 1 as opaque."
                     ),
                 ),
                 IO.BoundingBox.Output(
                     display_name="bboxes",
                     tooltip=(
-                        "Placement boxes for Create Layered Image, index-aligned with its expanded inputs: the "
+                        "Placement boxes for Create Layered Image, index-aligned with its image batch frames: "
                         "first entry covers the base image, the rest place each layer 1:1 in either mode. "
                         "metadata carries name, desc, z_index, native_size and content_rect = [left, top, width, "
                         "height], the layer's true bounding box in base-image pixels."
