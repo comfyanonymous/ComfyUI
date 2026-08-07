@@ -111,6 +111,45 @@ def _mini_max_h3_existing_set(model, key):
     return None
 
 
+def _mini_max_h3_has_pruned_adaln(lora):
+    return (
+        "adaln_t_table" in lora
+        or "diffusion_model.adaln_t_table" in lora
+        or "adaln_t_table.set_weight" in lora
+        or "diffusion_model.adaln_t_table.set_weight" in lora
+        or any(
+            ".adaln_proj.linear.weight" in k
+            or ".adaln_proj.linear.bias" in k
+            or ".adaln_proj.linear.weight.set_weight" in k
+            or ".adaln_proj.linear.bias.set_weight" in k
+            for k in lora
+        )
+    )
+
+
+def _mini_max_h3_adaln_adapter_compatible(patch, target_shape):
+    if isinstance(patch, tuple):
+        return True
+    weights = getattr(patch, "weights", None)
+    if not weights or len(weights) < 2:
+        return False
+    return (
+        weights[0].shape[0] == target_shape[0]
+        and weights[1].shape[-1] == target_shape[-1]
+    )
+
+
+def _apply_merged_minimax_h3_adaln_patches(patcher, merged):
+    for key, patch in merged:
+        existing = patcher.patches.get(key, [])
+        preserved = [
+            p for p in existing
+            if _mini_max_h3_set_patch_value(p[1]) is None
+        ]
+        preserved.append((1.0, patch, 1.0, None, None))
+        patcher.patches[key] = preserved
+
+
 def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
     """Merge stacked complete pruned AdaLN set patches at the loader boundary.
 
@@ -142,8 +181,12 @@ def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
     if current_table is not None and new_table is not None:
         if current_table.shape != new_table.shape:
             table_warned = True
-        elif (current_table.float() - new_table.float()).abs().max().item() > 1e-3:
-            table_warned = True
+        else:
+            target_device = current_table.device
+            current_table = current_table.to(target_device)
+            new_table = new_table.to(target_device)
+            if (current_table.float() - new_table.float()).abs().max().item() > 1e-3:
+                table_warned = True
     if table_warned:
         logging.warning(
             "MiniMax H3 pruned LoRA merge: adaln_t_table differs between "
@@ -190,6 +233,10 @@ def _merge_minimax_h3_adaln_patches(model, loaded, model_sd, strength_model):
                 tuple(base.shape),
             )
             continue
+        target_device = base.device
+        current_full = current_full.to(target_device)
+        new_full = new_full.to(target_device)
+        base = base.to(target_device)
         combined = (
             current_full.float()
             + strength_model * (new_full.float() - base.float())
@@ -206,15 +253,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
         if isinstance(model.model, comfy.model_base.MiniMaxH3):
             use_curves = bool(model.model.diffusion_model.use_adaln_curves)
-            has_pruned_adaln = (
-                "adaln_t_table" in lora
-                or "diffusion_model.adaln_t_table" in lora
-                or any(
-                    ".adaln_proj.linear.weight" in k
-                    or ".adaln_proj.linear.bias" in k
-                    for k in lora
-                )
-            )
+            has_pruned_adaln = _mini_max_h3_has_pruned_adaln(lora)
             if has_pruned_adaln and not use_curves:
                 logging.warning(
                     "MiniMax H3 non-pruned model: complete pruned AdaLN "
@@ -241,9 +280,9 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
                     loaded.pop(target)
                     removed_incompatible = True
             elif target.endswith(".adaln_proj.linear.weight") and target in model_sd:
-                weights = getattr(patch, "weights", None)
-                if (weights and len(weights) >= 2
-                        and weights[1].shape[-1] != model_sd[target].shape[-1]):
+                if not _mini_max_h3_adaln_adapter_compatible(
+                    patch, model_sd[target].shape
+                ):
                     loaded.pop(target)
                     removed_incompatible = True
         if use_curves and removed_incompatible:
@@ -260,9 +299,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
             )
     if model is not None:
         new_modelpatcher = model.clone()
-        for key, patch in merged_adaln:
-            new_modelpatcher.patches.pop(key, None)
-            new_modelpatcher.patches[key] = [(1.0, patch, 1.0, None, None)]
+        _apply_merged_minimax_h3_adaln_patches(new_modelpatcher, merged_adaln)
         k = new_modelpatcher.add_patches(loaded, strength_model)
         if lora_metadata:
             new_modelpatcher.set_attachments("lora_metadata", lora_metadata)

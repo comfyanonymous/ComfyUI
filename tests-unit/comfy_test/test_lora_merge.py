@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 
 import torch
 
@@ -32,6 +33,88 @@ def _apply_set_patch(value, base):
         base.clone(),
         "diffusion_model.blocks.0.adaln_proj.linear.weight",
     )
+
+
+def test_pruned_adaln_detection_covers_set_weight():
+    assert comfy.sd._mini_max_h3_has_pruned_adaln(
+        {"adaln_t_table.set_weight": torch.ones(4, 4)}
+    )
+    assert comfy.sd._mini_max_h3_has_pruned_adaln(
+        {"diffusion_model.adaln_t_table.set_weight": torch.ones(4, 4)}
+    )
+    assert comfy.sd._mini_max_h3_has_pruned_adaln(
+        {"blocks.0.adaln_proj.linear.weight.set_weight": torch.ones(6, 4)}
+    )
+
+
+def test_adapter_output_dimension_is_checked():
+    target_shape = (6, 4)
+    bad_patch = SimpleNamespace(
+        weights=(torch.randn(7, 2), torch.randn(2, 4))
+    )
+    good_patch = SimpleNamespace(
+        weights=(torch.randn(6, 2), torch.randn(2, 4))
+    )
+    direct_set = ("set", (torch.randn(6, 4),))
+
+    assert not comfy.sd._mini_max_h3_adaln_adapter_compatible(
+        bad_patch, target_shape
+    )
+    assert comfy.sd._mini_max_h3_adaln_adapter_compatible(
+        good_patch, target_shape
+    )
+    assert comfy.sd._mini_max_h3_adaln_adapter_compatible(
+        direct_set, target_shape
+    )
+
+
+def test_apply_merged_preserves_existing_non_set_patch():
+    patcher = _FakePatcher()
+    wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"
+    diff_patch = (
+        1.0,
+        ("diff", (torch.randn(6, 4),)),
+        1.0,
+        None,
+        None,
+    )
+    old_set = (
+        1.0,
+        ("set", (torch.randn(6, 4),)),
+        1.0,
+        None,
+        None,
+    )
+    new_value = torch.randn(6, 4)
+    patcher.patches[wk] = [diff_patch, old_set]
+
+    comfy.sd._apply_merged_minimax_h3_adaln_patches(
+        patcher, [(wk, ("set", (new_value,)))]
+    )
+
+    patches = patcher.patches[wk]
+    assert patches[0] is diff_patch
+    assert len(patches) == 2
+    assert comfy.sd._mini_max_h3_set_patch_value(patches[1][1]) is new_value
+
+
+def test_merge_normalizes_cross_device_tensors():
+    if not torch.cuda.is_available():
+        return
+    torch.manual_seed(7)
+    table = torch.randn(4, 4)
+    other_table = torch.randn(4, 4, device="cuda")
+    base_w = torch.randn(6, 4)
+    new_w = torch.randn(6, 4, device="cuda")
+
+    tk = "diffusion_model.adaln_t_table"
+    wk = "diffusion_model.blocks.0.adaln_proj.linear.weight"
+    sd = {tk: table, wk: base_w}
+    patcher = _FakePatcher()
+    loaded = {tk: ("set", (other_table,)), wk: ("set", (new_w,))}
+
+    merged = dict(_merge(sd, patcher, loaded))
+    assert merged[wk][1][0].device == base_w.device
 
 
 def test_stacked_pruned_adaln_merges_linearly():
