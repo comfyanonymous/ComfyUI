@@ -272,7 +272,12 @@ def _layer_params(entry, natural_w: int, natural_h: int) -> dict:
     blend = entry.get("blend")
     return {
         "visible": bool(entry.get("visible", True)),
-        "opacity": _number(entry, "opacity", 1.0),
+        # The layer state is untrusted input: it round-trips through the saved
+        # workflow and can be posted directly to /prompt. An out-of-range opacity
+        # would otherwise reach blend_composite as a raw coverage multiplier and
+        # produce negative or greater-than-white RGB. _parse_background already
+        # clamps the same field.
+        "opacity": min(max(_number(entry, "opacity", 1.0), 0.0), 1.0),
         "blend": blend if isinstance(blend, str) else "normal",
         "x": _number(transform, "x", 0.0),
         "y": _number(transform, "y", 0.0),
