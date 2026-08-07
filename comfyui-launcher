@@ -581,7 +581,7 @@ case "${command_name}" in
         status_instance
         ;;
     update)
-        umask 077
+        umask 022
         update_comfyui
         ;;
 esac
