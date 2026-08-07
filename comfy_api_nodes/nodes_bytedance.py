@@ -1893,6 +1893,7 @@ _SEEDANCE2_PRICE_EXPR_TEMPLATE = """
 
 
 _SEEDANCE_AUDIO_POLICY_CODE = "OutputAudioSensitiveContentDetected.PolicyViolation"
+_SEEDANCE_TASK_TYPE_CONSTRAINT_CODE = "InvalidParameter.TaskTypeConstraint"
 
 
 async def _seedance2_poll_video_task(
@@ -1919,6 +1920,13 @@ async def _seedance2_poll_video_task(
                 "The provider rejected the audio track this model generated for the video "
                 "(possible copyright match). The video itself was fine. Turn off generate_audio "
                 "to get a silent video, or adjust the prompt and try again."
+            ) from exc
+        if _SEEDANCE_TASK_TYPE_CONSTRAINT_CODE in str(exc):
+            raise ValueError(
+                "Seedance read this prompt as editing the reference video, and an edit always "
+                "takes its duration and aspect ratio from that video. Enable video_editing on "
+                "this node and run again, or reword the prompt so it describes a new video "
+                "rather than a change to the reference one."
             ) from exc
         raise
 
