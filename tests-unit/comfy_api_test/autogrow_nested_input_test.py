@@ -18,7 +18,7 @@ def _autogrow_class_inputs():
 def test_autogrow_rejects_nested_dict_on_group_key():
     class_inputs = _autogrow_class_inputs()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Input 'images' is an Autogrow group.*dotted key"):
         get_finalized_class_inputs(class_inputs, {"images": {"image_1": ["14", 0]}})
 
 
@@ -28,6 +28,7 @@ def test_autogrow_accepts_dotted_sub_slot_key():
     _, _, v3_data = get_finalized_class_inputs(class_inputs, {"images.image_1": ["14", 0]})
 
     assert v3_data["dynamic_paths"] == {"images.image_1": "images.image_1"}
+    assert v3_data.get("dynamic_paths_default_value", {}) == {}
 
 
 def test_autogrow_defaults_to_empty_dict_when_nothing_provided():
