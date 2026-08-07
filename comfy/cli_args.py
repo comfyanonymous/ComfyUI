@@ -1,5 +1,6 @@
 import argparse
 import enum
+import math
 import os
 import comfy.options
 
@@ -280,8 +281,11 @@ else:
 
 if args.cache_ram is not None and len(args.cache_ram) > 2:
     parser.error("--cache-ram accepts at most two values: active GB and inactive GB")
-if args.cache_score is not None and len(args.cache_score) > 2:
-    parser.error("--cache-score accepts at most two values: active GB and inactive GB")
+if args.cache_score is not None:
+    if len(args.cache_score) > 2:
+        parser.error("--cache-score accepts at most two values: active GB and inactive GB")
+    if any(not math.isfinite(value) or value < 0 for value in args.cache_score):
+        parser.error("--cache-score values must be finite and non-negative")
 
 if args.high_ram:
     args.cache_classic = True
