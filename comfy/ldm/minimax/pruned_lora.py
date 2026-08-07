@@ -46,7 +46,7 @@ def has_pruned_adaln(lora):
 def adaln_adapter_compatible(patch, target_shape):
     if isinstance(patch, tuple):
         return True
-    weights = getattr(patch, "weights", None)
+    weights = patch.weights
     if not weights or len(weights) < 2:
         return False
     return (
@@ -99,7 +99,6 @@ def merge_adaln_patches(model, loaded, model_sd, strength_model):
             table_warned = True
         else:
             target_device = current_table.device
-            current_table = current_table.to(target_device)
             new_table = new_table.to(target_device)
             if (current_table.float() - new_table.float()).abs().max().item() > 1e-3:
                 table_warned = True
@@ -125,9 +124,7 @@ def merge_adaln_patches(model, loaded, model_sd, strength_model):
 
         if key.endswith("adaln_t_table"):
             base = model_sd.get(key)
-            if base is not None:
-                merged.append((key, ("set", (base,))))
-            else:
+            if base is None:
                 merged.append((key, ("set", (new_full,))))
             loaded.pop(key)
             continue
@@ -152,7 +149,6 @@ def merge_adaln_patches(model, loaded, model_sd, strength_model):
         target_device = base.device
         current_full = current_full.to(target_device)
         new_full = new_full.to(target_device)
-        base = base.to(target_device)
         combined = (
             current_full.float()
             + strength_model * (new_full.float() - base.float())

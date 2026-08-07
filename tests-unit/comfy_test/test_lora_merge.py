@@ -222,7 +222,7 @@ def test_table_branch_retains_base_tensor():
 
     merged = dict(_merge(sd, patcher, loaded))
     assert tk not in loaded
-    assert dict(merged)[tk][1][0] is table
+    assert tk not in merged
 
 
 def test_shape_mismatch_removes_incompatible_patch(caplog):

@@ -99,25 +99,29 @@ from comfy.ldm.minimax import pruned_lora
 
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_metadata=None):
+    is_minimax_h3 = (
+        model is not None
+        and isinstance(model.model, comfy.model_base.MiniMaxH3)
+    )
+    raw_lora = lora
     key_map = {}
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
-        if isinstance(model.model, comfy.model_base.MiniMaxH3):
-            use_curves = bool(model.model.diffusion_model.use_adaln_curves)
-            has_pruned_adaln = pruned_lora.has_pruned_adaln(lora)
-            if has_pruned_adaln and not use_curves:
-                logging.warning(
-                    "MiniMax H3 non-pruned model: complete pruned AdaLN "
-                    "replacement keys will be skipped.")
     if clip is not None:
         key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 
     lora = comfy.lora_convert.convert_lora(lora)
     loaded = comfy.lora.load_lora(lora, key_map)
-    if model is not None and isinstance(model.model, comfy.model_base.MiniMaxH3):
+    merged_adaln = []
+    if is_minimax_h3:
         use_curves = bool(model.model.diffusion_model.use_adaln_curves)
+        has_pruned_adaln = pruned_lora.has_pruned_adaln(raw_lora)
         model_sd = model.model.state_dict()
         removed_incompatible = False
+        if has_pruned_adaln and not use_curves:
+            logging.warning(
+                "MiniMax H3 non-pruned model: complete pruned AdaLN "
+                "replacement keys will be skipped.")
         for target, patch in list(loaded.items()):
             is_adaln_replacement = (
                 target.endswith(".adaln_proj.linear.weight")
@@ -141,9 +145,6 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_
                 "MiniMax H3 pruned: incompatible 2688-dim AdaLN LoRA "
                 "patches skipped; use a complete pruned LoRA or bake it "
                 "into table/projection.")
-    merged_adaln = []
-    if model is not None and isinstance(model.model, comfy.model_base.MiniMaxH3):
-        use_curves = bool(model.model.diffusion_model.use_adaln_curves)
         if use_curves:
             merged_adaln = pruned_lora.merge_adaln_patches(
                 model, loaded, model_sd, strength_model
