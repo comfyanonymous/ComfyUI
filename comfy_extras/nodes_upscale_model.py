@@ -72,9 +72,9 @@ class ImageUpscaleWithModel(io.ComfyNode):
         device = upscale_model.patcher.load_device
 
         alpha = None
-        if image.shape[-1] > upscale_model.input_channels:
-            alpha = image[..., upscale_model.input_channels:upscale_model.input_channels + 1]
-            image = image[..., :upscale_model.input_channels]
+        if image.shape[-1] == 4:
+            alpha = image[..., 3:4]
+            image = image[..., :3]
 
         memory_required = (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 384.0 #The 384.0 is an estimate of how much some of these models take, TODO: make it more accurate
         memory_required += image.nelement() * image.element_size()
