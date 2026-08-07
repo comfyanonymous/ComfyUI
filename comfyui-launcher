@@ -167,8 +167,9 @@ mkdir -p \
 ensure_manager_pip_blacklist() {
     local manager_dir="${user_dir}/__manager"
     local blacklist_file="${manager_dir}/pip_blacklist.list"
+    local config_file="${manager_dir}/config.ini"
     local blacklist_lock="${manager_dir}/pip_blacklist.lock"
-    local package
+    local config_tmp package
     local -a protected_packages=(
         torch
         torchvision
@@ -177,6 +178,7 @@ ensure_manager_pip_blacklist() {
         xformers
         triton
         flash-attn
+        numpy
     )
 
     command -v flock >/dev/null 2>&1 || die "flock is required for Manager configuration"
@@ -184,6 +186,12 @@ ensure_manager_pip_blacklist() {
     chmod 0700 "${manager_dir}"
     (
         flock -x 8
+        if [[ ! -e "${config_file}" ]]; then
+            config_tmp="$(mktemp "${config_file}.tmp.XXXXXX")"
+            printf '[default]\nsecurity_level = normal-\nnetwork_mode = personal_cloud\n' > "${config_tmp}"
+            chmod 0600 "${config_tmp}"
+            mv -f "${config_tmp}" "${config_file}"
+        fi
         touch "${blacklist_file}"
         chmod 0600 "${blacklist_file}"
         for package in "${protected_packages[@]}"; do
