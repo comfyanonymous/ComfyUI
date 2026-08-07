@@ -497,6 +497,7 @@ class VAE:
         self.latent_dim = 2
         self.output_channels = 3
         self.pad_channel_value = None
+        self.channel_trim_warned = False
         self.process_input = lambda image: image * 2.0 - 1.0
         self.process_output = lambda image: image.add_(1.0).div_(2.0).clamp_(0.0, 1.0)
         self.working_dtypes = [torch.bfloat16, torch.float32]
@@ -1053,6 +1054,9 @@ class VAE:
                     pixels = pixels.narrow(d + 1, x_offset, x)
 
         if pixels.shape[-1] > self.output_channels:
+            if not self.channel_trim_warned:
+                self.channel_trim_warned = True
+                logging.warning("VAE encode: input has {} channels, this VAE encodes {}. The extra channels are dropped; use SplitImageWithAlpha to keep an image's alpha as a MASK.".format(pixels.shape[-1], self.output_channels))
             pixels = pixels[..., :self.output_channels]
         elif pixels.shape[-1] < self.output_channels:
             if self.pad_channel_value is not None:
