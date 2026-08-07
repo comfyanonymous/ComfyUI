@@ -4,7 +4,7 @@ from fractions import Fraction
 from typing import Optional, Union, IO
 import io
 import av
-from .._util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoComponents, normalize_crop_rect
 
 class VideoInput(ABC):
     """
@@ -53,6 +53,39 @@ class VideoInput(ABC):
             A new VideoInput, or None if the result would have negative duration
         """
         pass
+
+    def as_cropped(
+        self,
+        x: int = 0,
+        y: int = 0,
+        width: int = 0,
+        height: int = 0,
+    ) -> VideoInput:
+        """
+        Create a new VideoInput spatially cropped to the given pixel rectangle.
+
+        """
+        components = self.get_components()
+        rect = normalize_crop_rect(
+            x, y, width, height, components.images.shape[2], components.images.shape[1]
+        )
+        if rect is None:
+            return self
+        from .._input_impl.video_types import VideoFromComponents
+
+        cx, cy, cw, ch = rect
+        return VideoFromComponents(
+            VideoComponents(
+                images=components.images[:, cy:cy + ch, cx:cx + cw, :],
+                audio=components.audio,
+                frame_rate=components.frame_rate,
+                metadata=components.metadata,
+                alpha=components.alpha[:, cy:cy + ch, cx:cx + cw]
+                if components.alpha is not None
+                else None,
+            ),
+            bit_depth=self.get_bit_depth(),
+        )
 
     def get_stream_source(self) -> Union[str, io.BytesIO]:
         """
