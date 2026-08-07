@@ -63,12 +63,18 @@ class ImageUpscaleWithModel(io.ComfyNode):
             ],
             outputs=[
                 io.Image.Output(),
+                io.Mask.Output("alpha", tooltip="The input's alpha channel, upscaled to match (1 = transparent, LoadImage convention). Wire it to Join Image with Alpha to put the transparency back; add Invert Mask first for ImageCompositeMasked. All zeros when the input had no alpha."),
             ],
         )
 
     @classmethod
     def execute(cls, upscale_model, image) -> io.NodeOutput:
         device = upscale_model.patcher.load_device
+
+        alpha = None
+        if image.shape[-1] > upscale_model.input_channels:
+            alpha = image[..., upscale_model.input_channels:upscale_model.input_channels + 1]
+            image = image[..., :upscale_model.input_channels]
 
         memory_required = (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 384.0 #The 384.0 is an estimate of how much some of these models take, TODO: make it more accurate
         memory_required += image.nelement() * image.element_size()
@@ -95,7 +101,13 @@ class ImageUpscaleWithModel(io.ComfyNode):
                     raise e
 
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0).to(comfy.model_management.intermediate_dtype())
-        return io.NodeOutput(s)
+
+        if alpha is None:
+            mask = torch.zeros(s.shape[:-1], device=s.device, dtype=s.dtype)
+        else:
+            alpha = comfy.utils.common_upscale(alpha.to(s).movedim(-1, -3), s.shape[2], s.shape[1], "bilinear", "disabled")
+            mask = 1.0 - alpha.movedim(-3, -1)[..., 0].clamp(min=0.0, max=1.0)
+        return io.NodeOutput(s, mask)
 
     upscale = execute  # TODO: remove
 
