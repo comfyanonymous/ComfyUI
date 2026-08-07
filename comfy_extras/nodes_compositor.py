@@ -115,20 +115,32 @@ def canvas_extent(frames: list[dict]) -> tuple[int, int]:
 
 
 def input_fingerprints(
-    tensors: list[torch.Tensor], alphas: list[torch.Tensor | None]
+    frames: list[dict], alphas: list[torch.Tensor | None]
 ) -> list[str]:
     fingerprints = []
-    for tensor, alpha in zip(tensors, alphas):
-        frame = tensor[0, :, :, :3].detach().cpu().numpy()
-        frame8 = np.clip(np.rint(frame * 255.0), 0, 255).astype(np.uint8)
+    for frame, alpha in zip(frames, alphas):
+        tensor = frame["tensor"]
+        rgb = tensor[0, :, :, :3].detach().cpu().numpy()
+        rgb8 = np.clip(np.rint(rgb * 255.0), 0, 255).astype(np.uint8)
         digest = hashlib.sha256()
         digest.update(repr(tuple(tensor.shape)).encode())
-        digest.update(frame8.tobytes())
+        digest.update(rgb8.tobytes())
         if alpha is not None:
             alpha8 = np.clip(
                 np.rint(alpha[0].detach().cpu().numpy() * 255.0), 0, 255
             ).astype(np.uint8)
             digest.update(alpha8.tobytes())
+        digest.update(
+            repr((
+                frame["x"],
+                frame["y"],
+                frame["opacity"],
+                frame["blend"],
+                bool(frame["visible"]),
+                frame["flip_h"],
+                frame["flip_v"],
+            )).encode()
+        )
         fingerprints.append(digest.hexdigest()[:16])
     return fingerprints
 
@@ -233,6 +245,9 @@ def parse_layer_state(raw) -> dict | None:
     if not isinstance(raw, dict):
         return None
     state = raw
+    version = state.get("version")
+    if version is not None and version != 1:
+        return None
     canvas = state.get("canvas")
     layers = state.get("layers")
     if not isinstance(canvas, dict) or not isinstance(layers, list) or not layers:
@@ -444,7 +459,7 @@ class ImageCompositor(io.ComfyNode):
                 UI.PreviewImage(layer_preview_tensor(tensor, alpha), cls=cls).values
             )
 
-        fp = input_fingerprints(tensors, alphas)
+        fp = input_fingerprints(frames, alphas)
         raw_state = compositor
         state = parse_layer_state(raw_state)
         replay = bool(state is not None and tensors and state["inputs"] == fp)
