@@ -847,6 +847,31 @@ class Load3DAnimation(Load3D):
     ...
 
 
+@comfytype(io_type="LAYERS")
+class Layers(ComfyTypeIO):
+    class LayerItem(TypedDict):
+        image: torch.Tensor
+        type: Literal["raster"]
+        x: NotRequired[int]
+        y: NotRequired[int]
+        mask: NotRequired[torch.Tensor]
+        z_index: int
+        name: NotRequired[str]
+        opacity: NotRequired[float]
+        blend_mode: NotRequired[str]
+        visible: NotRequired[bool]
+        flip_h: NotRequired[bool]
+        flip_v: NotRequired[bool]
+        color: NotRequired[str]
+
+    class Document(TypedDict):
+        version: int
+        canvas: NotRequired[tuple[int, int]]
+        layers: list["Layers.LayerItem"]
+
+    Type = Document
+
+
 @comfytype(io_type="COMPOSITOR")
 class Compositor(ComfyTypeIO):
     class LayerState(TypedDict):
@@ -2423,6 +2448,7 @@ __all__ = [
     "Load3D",
     "Load3DAnimation",
     "Compositor",
+    "Layers",
     "Photomaker",
     "Point",
     "FaceAnalysis",

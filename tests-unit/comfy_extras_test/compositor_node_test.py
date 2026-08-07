@@ -12,7 +12,8 @@ import torch
 from comfy_extras.nodes_compositor import (
     _layer_params,
     composite_from_state,
-    state_from_bboxes,
+    expand_item_frames,
+    state_from_items,
 )
 
 
@@ -54,17 +55,17 @@ class TestLayerOpacity:
 
 
 class TestGraphOnlyBackground:
-    def test_bbox_layout_background_is_hidden(self):
+    def test_default_layout_background_is_hidden(self):
         # A visible white background here would make every graph-only run emit a
         # white matte instead of transparency.
-        state = state_from_bboxes([_solid([1.0, 0.0, 0.0])], [])
+        frames = expand_item_frames([{"image": _solid([1.0, 0.0, 0.0])}])
+        state = state_from_items(frames, (4, 4))
         assert state["background"]["visible"] is False
 
     def test_uncovered_canvas_stays_transparent(self):
         tensors = [_solid([1.0, 0.0, 0.0], w=2, h=2)]
-        slots = [{"x": 0, "y": 0, "width": 2, "height": 2}]
-        state = state_from_bboxes(tensors, slots)
-        state["canvas"] = (4, 4)
+        frames = expand_item_frames([{"image": tensors[0]}])
+        state = state_from_items(frames, (4, 4))
         out = composite_from_state(tensors, state, [None])[0]
         assert out.shape[-1] == 4
         assert float(out[0, 0, 3]) == pytest.approx(1.0)
