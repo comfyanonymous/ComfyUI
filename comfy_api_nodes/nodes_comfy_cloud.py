@@ -1,7 +1,8 @@
 import math
+import posixpath
 import re
 from typing import ClassVar
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import torch
 
@@ -25,6 +26,7 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     poll_op,
     sync_op,
+    sync_op_raw,
     upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
     upload_video_to_comfyapi,
@@ -85,8 +87,20 @@ def _with_input_sockets(inputs: list[IO.Input]) -> list[IO.Input]:
 
 def _validated_output_url(url: str) -> str:
     parsed = urlsplit(url)
-    is_proxy_path = not parsed.scheme and not parsed.netloc and parsed.path.startswith("/proxy/comfy-cloud/")
-    is_signed_https_url = parsed.scheme == "https" and bool(parsed.netloc) and parsed.username is None
+    decoded_path = unquote(parsed.path)
+    is_proxy_path = (
+        not parsed.scheme
+        and not parsed.netloc
+        and decoded_path.startswith("/proxy/comfy-cloud/")
+        and posixpath.normpath(decoded_path) == decoded_path
+    )
+    is_signed_https_url = (
+        parsed.scheme == "https"
+        and parsed.hostname == "storage.googleapis.com"
+        and parsed.port is None
+        and parsed.username is None
+        and parsed.password is None
+    )
     if not is_proxy_path and not is_signed_https_url:
         raise RuntimeError("Comfy Cloud returned an invalid output URL.")
     return url
@@ -108,6 +122,31 @@ def _validate_audio_upload(audio: Input.Audio) -> None:
         raise ValueError("Audio must contain one mono or stereo waveform.")
     if waveform.numel() * waveform.element_size() > _MAX_DECODED_AUDIO_BYTES:
         raise ValueError("Decoded audio exceeds the 256 MiB Comfy Cloud limit.")
+
+
+def _progress(response: ComfyCloudStatusResponse) -> float | None:
+    if response.progress is None or not math.isfinite(response.progress):
+        return None
+    return min(100.0, max(0.0, response.progress))
+
+
+async def _poll_task(cls: type[IO.ComfyNode], task_id: str) -> ComfyCloudStatusResponse:
+    polling_endpoint, cancel_endpoint = _task_endpoints(task_id)
+    try:
+        return await poll_op(
+            cls,
+            polling_endpoint,
+            response_model=ComfyCloudStatusResponse,
+            status_extractor=lambda response: response.status,
+            progress_extractor=_progress,
+            cancel_endpoint=cancel_endpoint,
+        )
+    except Exception:
+        try:
+            await sync_op_raw(cls, cancel_endpoint, max_retries=0)
+        except Exception:
+            pass
+        raise
 
 
 def _validate_node_inputs(cls: type[IO.ComfyNode], values: dict) -> dict:
@@ -220,15 +259,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
                 inputs=inputs,
             ),
         )
-        polling_endpoint, cancel_endpoint = _task_endpoints(task.task_id)
-        result = await poll_op(
-            cls,
-            polling_endpoint,
-            response_model=ComfyCloudStatusResponse,
-            status_extractor=lambda response: response.status,
-            progress_extractor=lambda response: response.progress,
-            cancel_endpoint=cancel_endpoint,
-        )
+        result = await _poll_task(cls, task.task_id)
         if not result.output_url:
             raise RuntimeError("Comfy Cloud task completed without an output URL.")
 
@@ -557,15 +588,7 @@ class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
 
 async def _run_video_workflow(cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs) -> IO.NodeOutput:
     task = await sync_op(cls, _GENERATE_ENDPOINT, response_model=ComfyCloudGenerateResponse, data=ComfyCloudGenerateRequest(workflow=workflow, inputs=inputs))
-    polling_endpoint, cancel_endpoint = _task_endpoints(task.task_id)
-    result = await poll_op(
-        cls,
-        polling_endpoint,
-        response_model=ComfyCloudStatusResponse,
-        status_extractor=lambda response: response.status,
-        progress_extractor=lambda response: response.progress,
-        cancel_endpoint=cancel_endpoint,
-    )
+    result = await _poll_task(cls, task.task_id)
     if not result.output_url:
         raise RuntimeError("Comfy Cloud task completed without an output URL.")
     return IO.NodeOutput(
@@ -819,15 +842,7 @@ async def _audio_asset(cls: type[IO.ComfyNode], name: str, audio: Input.Audio) -
 
 async def _run_audio_workflow(cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs, output_names: tuple[str, ...] = ()) -> IO.NodeOutput:
     task = await sync_op(cls, _GENERATE_ENDPOINT, response_model=ComfyCloudGenerateResponse, data=ComfyCloudGenerateRequest(workflow=workflow, inputs=inputs))
-    polling_endpoint, cancel_endpoint = _task_endpoints(task.task_id)
-    result = await poll_op(
-        cls,
-        polling_endpoint,
-        response_model=ComfyCloudStatusResponse,
-        status_extractor=lambda response: response.status,
-        progress_extractor=lambda response: response.progress,
-        cancel_endpoint=cancel_endpoint,
-    )
+    result = await _poll_task(cls, task.task_id)
     if output_names:
         if not result.output_urls or any(not result.output_urls.get(name) for name in output_names):
             raise RuntimeError("Comfy Cloud task completed without all named output URLs.")
@@ -998,15 +1013,7 @@ class ComfyCloudMelBandRoFormerStemSeparationNode(IO.ComfyNode):
 
 async def _run_3d_workflow(cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs, file_format: str) -> IO.NodeOutput:
     task = await sync_op(cls, _GENERATE_ENDPOINT, response_model=ComfyCloudGenerateResponse, data=ComfyCloudGenerateRequest(workflow=workflow, inputs=inputs))
-    polling_endpoint, cancel_endpoint = _task_endpoints(task.task_id)
-    result = await poll_op(
-        cls,
-        polling_endpoint,
-        response_model=ComfyCloudStatusResponse,
-        status_extractor=lambda response: response.status,
-        progress_extractor=lambda response: response.progress,
-        cancel_endpoint=cancel_endpoint,
-    )
+    result = await _poll_task(cls, task.task_id)
     if not result.output_url:
         raise RuntimeError("Comfy Cloud task completed without an output URL.")
     return IO.NodeOutput(

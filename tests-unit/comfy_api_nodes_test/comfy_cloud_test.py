@@ -20,7 +20,7 @@ from comfy_api_nodes.apis.comfy_cloud import (
     ComfyCloudWorkflowInputs,
 )
 from comfy_api_nodes import nodes_comfy_cloud
-from comfy_api_nodes.util import download_helpers
+from comfy_api_nodes.util import conversions, download_helpers
 
 
 @pytest.mark.parametrize(
@@ -111,6 +111,25 @@ def test_contract_omits_optional_status_fields():
     assert status.model_dump(exclude_none=True) == {"task_id": "task-1", "status": "queued"}
 
 
+def test_status_progress_is_clamped_for_display():
+    assert nodes_comfy_cloud._progress(ComfyCloudStatusResponse(task_id="task-1", status="running", progress=100.5)) == 100
+    assert nodes_comfy_cloud._progress(ComfyCloudStatusResponse(task_id="task-1", status="running", progress=-1)) == 0
+
+
+def test_poll_failure_cancels_submitted_task(monkeypatch):
+    poll = AsyncMock(side_effect=ValueError("invalid status response"))
+    cancel = AsyncMock(return_value={"status": "cancellation_requested"})
+    monkeypatch.setattr(nodes_comfy_cloud, "poll_op", poll)
+    monkeypatch.setattr(nodes_comfy_cloud, "sync_op_raw", cancel)
+
+    with pytest.raises(ValueError, match="invalid status response"):
+        asyncio.run(nodes_comfy_cloud._poll_task(nodes_comfy_cloud.ComfyCloudTextToImageNode, "task/1"))
+
+    cancel.assert_awaited_once()
+    assert cancel.call_args.args[1].path == "/proxy/comfy-cloud/workflow/tasks/task%2F1/cancel"
+    assert cancel.call_args.kwargs["max_retries"] == 0
+
+
 @pytest.mark.parametrize("response_model", [ComfyCloudGenerateResponse, ComfyCloudStatusResponse])
 @pytest.mark.parametrize("task_id", ["", "   "])
 def test_contract_rejects_empty_task_ids(response_model, task_id):
@@ -130,6 +149,11 @@ def test_contract_rejects_empty_task_ids(response_model, task_id):
         "//169.254.169.254/latest/meta-data",
         "/unrelated/path/output.png",
         "https://user@example.com/output.png",
+        "/proxy/comfy-cloud/../../v1/users/me",
+        "/proxy/comfy-cloud/%2e%2e/%2e%2e/v1/users/me",
+        "https://127.0.0.1/output.png",
+        "https://169.254.169.254/latest/meta-data",
+        "https://attacker.example/output.png",
     ],
 )
 def test_cloud_workflows_reject_untrusted_output_urls(monkeypatch, url):
@@ -738,9 +762,42 @@ def test_download_cloud_audio_url_to_audio_input(monkeypatch):
     assert isinstance(download_call.call_args.kwargs["dest"], BytesIO)
     assert download_call.call_args.kwargs["timeout"] == 30
     assert download_call.call_args.kwargs["max_retries"] == 2
+    audio_decode.assert_called_once()
+    assert isinstance(audio_decode.call_args.args[0], BytesIO)
+    assert audio_decode.call_args.kwargs == {}
     assert download_call.call_args.kwargs["cls"] is node
     assert download_call.call_args.kwargs["allow_redirects"] is True
-    audio_decode.assert_called_once_with(downloaded)
+
+
+def test_audio_decode_stops_before_exceeding_budget(monkeypatch):
+    class Frame:
+        def to_ndarray(self):
+            return torch.ones(2, 8).numpy()
+
+    stream = type(
+        "Stream",
+        (),
+        {"codec_context": type("Codec", (), {"sample_rate": 48000})(), "channels": 2, "index": 0},
+    )()
+
+    class AudioFile:
+        streams = type("Streams", (), {"audio": [stream]})()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def decode(self, streams):
+            yield Frame()
+            yield Frame()
+
+    monkeypatch.setattr(conversions.av, "open", lambda source: AudioFile())
+    monkeypatch.setattr(conversions, "_MAX_DECODED_AUDIO_BYTES", 64)
+
+    with pytest.raises(ValueError, match="Decoded audio exceeds"):
+        conversions.audio_bytes_to_audio_input(BytesIO(b"encoded"))
 
 
 AUDIO_POC_NODES = [

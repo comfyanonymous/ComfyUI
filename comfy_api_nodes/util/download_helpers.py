@@ -286,7 +286,7 @@ async def download_url_to_audio_input(
         cls=cls,
         allow_redirects=allow_redirects,
     )
-    return audio_bytes_to_audio_input(result.getvalue())
+    return audio_bytes_to_audio_input(result)
 
 
 async def download_url_as_bytesio(

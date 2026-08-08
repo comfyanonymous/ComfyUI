@@ -107,7 +107,7 @@ class ComfyCloudGenerateResponse(BaseModel):
 class ComfyCloudStatusResponse(BaseModel):
     task_id: str = Field(..., min_length=1)
     status: str = Field(...)
-    progress: float | None = Field(None, ge=0, le=100)
+    progress: float | None = Field(None)
     output_url: str | None = Field(None)
     output_urls: dict[str, str] | None = Field(None)
     error: str | None = Field(None)
