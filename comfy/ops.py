@@ -1642,7 +1642,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 # Optimized path: lookup in fp8/int8, dequantize only the selected rows.
                 if isinstance(weight, QuantizedTensor) and len(self.weight_function) == 0:
                     qdata, _, offload_stream = cast_bias_weight(self, device=input.device, dtype=weight.dtype, offloadable=True)
-                    if isinstance(qdata, QuantizedTensor):
+                    still_quantized = isinstance(qdata, QuantizedTensor)
+                    if still_quantized:
                         params = qdata._params
                         scale = params.scale
                         qdata = qdata._qdata
@@ -1650,8 +1651,15 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         params = weight._params
                         scale = None
 
-                    # int8: per-row scale possible ConvRot, so let the layout do the gather
-                    if self.quant_format == "int8_tensorwise":
+                    # int8: per-row scale possible ConvRot, so let the layout do the gather.
+                    # Only when the cast actually returned quantized data: on some paths
+                    # (e.g. CPU-offloaded weights) cast_bias_weight hands back an
+                    # already-dequantized plain tensor — feeding that into the int8
+                    # gather kernel raises "No backend can handle
+                    # 'dequantize_int8_embedding'". Plain data falls through to the
+                    # standard F.embedding below, mirroring the guard in the int8
+                    # linear path.
+                    if self.quant_format == "int8_tensorwise" and still_quantized:
                         x = get_layout_class(self.layout_type).dequantize_embedding(qdata, params, input)
                         uncast_bias_weight(self, qdata, None, offload_stream)
                         return x if out_dtype is None else x.to(dtype=out_dtype)
