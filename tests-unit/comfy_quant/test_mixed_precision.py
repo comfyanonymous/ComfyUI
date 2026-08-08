@@ -228,6 +228,33 @@ class TestMixedPrecisionOps(unittest.TestCase):
         with self.assertRaises(KeyError):
             model.load_state_dict(state_dict, strict=False)
 
+    def test_all_nul_comfy_quant_marker_loads_as_unquantized(self):
+        """Some quantizers mark unquantized layers with an all-NUL comfy_quant
+        placeholder instead of omitting the key; it must load as plain weight,
+        not crash decoding it as JSON or raise for a missing format."""
+        state_dict = {
+            "layer1.weight": torch.randn(20, 10, dtype=torch.bfloat16),
+            "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
+            "layer1.comfy_quant": torch.zeros(29, dtype=torch.uint8),
+            "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
+            "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
+            "layer3.weight": torch.randn(40, 30, dtype=torch.bfloat16),
+            "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
+        }
+
+        model = SimpleModel(operations=ops.mixed_precision_ops({}))
+        model.load_state_dict(state_dict, strict=False)
+
+        self.assertNotIsInstance(model.layer1.weight, QuantizedTensor)
+
+        for layer in [model.layer1, model.layer2, model.layer3]:
+            layer.weight_function = []
+            layer.bias_function = []
+
+        input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
+        output = model(input_tensor)
+        self.assertEqual(output.shape, (5, 40))
+
     def test_int8_convrot_metadata_loads_into_params(self):
         """ConvRot metadata must reach TensorWiseINT8Layout params."""
         torch.manual_seed(123)

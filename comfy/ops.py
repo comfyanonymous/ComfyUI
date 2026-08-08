@@ -1151,7 +1151,10 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
 
     layer_conf = state_dict.pop(f"{prefix}comfy_quant", None)
     if layer_conf is not None:
-        layer_conf = json.loads(layer_conf.numpy().tobytes())
+        raw_conf = layer_conf.numpy().tobytes()
+        # Some quantizers mark unquantized layers with an all-NUL comfy_quant
+        # placeholder instead of omitting it; treat that the same as absent.
+        layer_conf = json.loads(raw_conf) if raw_conf.strip(b"\x00") else None
 
     if layer_conf is None:
         module.weight = torch.nn.Parameter(weight.to(device=device, dtype=compute_dtype), requires_grad=False)
@@ -1587,7 +1590,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 weight_key = f"{prefix}weight"
                 layer_conf = state_dict.pop(f"{prefix}comfy_quant", None)
                 if layer_conf is not None:
-                    layer_conf = json.loads(layer_conf.numpy().tobytes())
+                    raw_conf = layer_conf.numpy().tobytes()
+                    # Some quantizers mark unquantized layers with an all-NUL comfy_quant
+                    # placeholder instead of omitting it; treat that the same as absent.
+                    layer_conf = json.loads(raw_conf) if raw_conf.strip(b"\x00") else None
 
                 # Only fp8 and int8_tensorwise support per-row dequant via index select.
                 # Block-scaled formats (NVFP4, MXFP8) can't do per-row lookup efficiently.
