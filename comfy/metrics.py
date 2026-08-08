@@ -17,6 +17,13 @@ node_execution_histogram = None
 cache_requests_counter = None
 
 
+DURATION_BUCKETS = (
+    0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75,
+    1.0, 2.5, 5.0, 7.5, 10.0,
+    15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 900.0, 1200.0, 1800.0,
+)
+
+
 def init_metrics():
     global _enabled, _prometheus_client
     global queue_length_gauge, queue_wait_histogram, job_duration_histogram, jobs_counter
@@ -40,10 +47,12 @@ def init_metrics():
     queue_wait_histogram = prometheus_client.Histogram(
         "comfyui_queue_wait_seconds",
         "Time from workflow submission to processing",
+        buckets=DURATION_BUCKETS,
     )
     job_duration_histogram = prometheus_client.Histogram(
         "comfyui_job_duration_seconds",
         "Execution time for completed workflows",
+        buckets=DURATION_BUCKETS,
     )
     jobs_counter = prometheus_client.Counter(
         "comfyui_jobs",
@@ -67,6 +76,7 @@ def init_metrics():
         "comfyui_node_execution_seconds",
         "Execution time for individual nodes",
         ["node_type"],
+        buckets=DURATION_BUCKETS,
     )
     cache_requests_counter = prometheus_client.Counter(
         "comfyui_cache_requests",
