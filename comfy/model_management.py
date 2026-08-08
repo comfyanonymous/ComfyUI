@@ -491,16 +491,17 @@ try:
             rocm_version = (6, -1)
 
         def aotriton_supported():
-            """Whether pytorch can actually run flash attention on this gpu.
+            """Whether pytorch reports flash attention as usable on this gpu.
 
-            On ROCm can_use_flash_attention() calls aotriton::v2::flash::check_gpu(),
-            which fails when aotriton has no kernel image compiled for this arch. Asking
-            pytorch avoids assuming where those images live inside the torch install.
-            The probe tensor is shaped and typed to pass the unrelated SDPA checks, so a
-            False result means hardware support and not a rejected shape.
+            can_use_flash_attention() evaluates runtime eligibility for the given
+            parameters; on a ROCm build that includes checking the gpu arch against the
+            kernel images AOTriton was compiled for. Querying it avoids assuming where
+            those images live inside the torch install. The probe tensor is shaped and
+            typed to pass the unrelated SDPA checks, so False means no hardware support
+            rather than a rejected shape.
             """
             try:
-                if not torch.backends.cuda.is_flash_attention_available():  # built without aotriton
+                if not torch.backends.cuda.is_flash_attention_available():  # not built with flash attention
                     return False
                 q = torch.empty((1, 1, 8, 64), dtype=torch.float16, device=get_torch_device())
                 params = torch.backends.cuda.SDPAParams(q, q, q, None, 0.0, False, False)
