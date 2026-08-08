@@ -73,6 +73,8 @@ try:
             ]
 
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
+                    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
                 attn_mask = args[0] if len(args) > 0 else kwargs.get("attn_mask")
                 if kwargs.get("enable_gqa", False) and attn_mask is not None and not comfy.model_management.is_nvidia():
                     k, v = repeat_kv_for_gqa(k, v, q.shape[-3], -3)
@@ -943,12 +945,60 @@ if CUBLAS_IS_AVAILABLE:
 # ==============================================================================
 # Mixed Precision Operations
 # ==============================================================================
+from . import quant_ops
 from .quant_ops import (
     QuantizedTensor,
     QUANT_ALGOS,
     TensorCoreFP8Layout,
+    TensorWiseINT8Layout,
     get_layout_class,
 )
+
+def _swiglu_eager(x):
+    gate, up = x.chunk(2, dim=-1)
+    return torch.nn.functional.silu(gate).mul_(up)
+
+
+INPUT_ACT_EAGER = {
+    "gelu_tanh": lambda x: torch.nn.functional.gelu(x, approximate="tanh"),
+    "swiglu": _swiglu_eager,
+}
+
+
+def linear_input_act(linear, x, input_act):
+    """``linear(act(x))``, with ``act`` folded into an INT8 activation quantizer.
+
+    An INT8 linear quantizes its input anyway, so an elementwise activation can
+    ride along inside that kernel instead of writing a full-size intermediate to
+    HBM and reading it straight back. Worth it for an MLP's down-projection,
+    where the intermediate is several times the hidden size.
+
+    """
+    weight = linear.weight
+    if (comfy.model_management.in_training
+            or not isinstance(weight, QuantizedTensor)
+            or weight._layout_cls != "TensorWiseINT8Layout"
+            or getattr(weight._params, "transposed", False)):
+        return linear(INPUT_ACT_EAGER[input_act](x))
+
+    # want_requant keeps a vbar-streamed layer on the INT8 path when a LoRA is
+    # patched in on the fly; without it the cast hands back a dequantized weight.
+    weight, bias, offload_stream = cast_bias_weight(
+        linear, x, offloadable=True, compute_dtype=x.dtype, want_requant=True)
+    try:
+        if not isinstance(weight, QuantizedTensor):
+            # A LoRA weight_function, or activations whose dtype differs from the
+            # weight's, make the cast hand back a dequantized tensor.
+            return torch.nn.functional.linear(INPUT_ACT_EAGER[input_act](x), weight, bias)
+        qdata, scale = TensorWiseINT8Layout.get_plain_tensors(weight)
+        return quant_ops.ck.int8_linear(
+            x, qdata, scale, bias, x.dtype,
+            convrot=getattr(weight._params, "convrot", False),
+            convrot_groupsize=getattr(weight._params, "convrot_groupsize", 256),
+            input_act=input_act,
+        )
+    finally:
+        uncast_bias_weight(linear, weight, bias, offload_stream)
 
 
 class QuantLinearFunc(torch.autograd.Function):
@@ -1161,6 +1211,26 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
                 "quant_group_size": 64,
                 "linear_dtype": layer_conf.get("linear_dtype", params_conf.get("linear_dtype", "int4")),
             }
+        elif module.quant_format == "asym_w4a8_int8":
+            # int4 weight (packed int8 [N,K/2]) + fp8 per-group scale (weight_s_rel),
+            # fp32 per-channel scale (weight_s_channel) + optional Lloyd-Max codebook.
+            scale = pop_scale("weight_s_rel")
+            if scale is None:
+                raise ValueError(f"Missing W4A8 group scale (weight_s_rel) for layer {layer_name}")
+            if scale.dtype == torch.uint8:
+                scale = scale.view(torch.float8_e4m3fn)
+            params_conf = layer_conf.get("params", {})
+            if not isinstance(params_conf, dict):
+                params_conf = {}
+            scales = {
+                "scale": scale,
+                "s_channel": pop_scale("weight_s_channel"),
+                "codebook": pop_scale("weight_codebook"),
+                "group_size": int(layer_conf.get("group_size", params_conf.get("group_size", 16))),
+                "convrot_groupsize": int(
+                    layer_conf.get("convrot_groupsize", params_conf.get("convrot_groupsize", 256))
+                ),
+            }
         else:
             raise ValueError(f"Unsupported quantization format: {module.quant_format}")
 
@@ -1212,6 +1282,9 @@ def _quantized_weight_state_dict(module, sd, prefix, extra_quant_conf=None, extr
             linear_dtype = getattr(params, "linear_dtype", "int4")
             if linear_dtype != "int4":
                 quant_conf["linear_dtype"] = linear_dtype
+        elif module.quant_format == "asym_w4a8_int8":
+            quant_conf["group_size"] = getattr(params, "group_size", 16)
+            quant_conf["convrot_groupsize"] = getattr(params, "convrot_groupsize", 256)
         if extra_quant_conf:
             quant_conf.update(extra_quant_conf)
         sd[f"{prefix}comfy_quant"] = torch.tensor(list(json.dumps(quant_conf).encode("utf-8")), dtype=torch.uint8)
@@ -1259,7 +1332,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):
                 sd = destination if destination is not None else {}
-                return _quantized_weight_state_dict(self, sd, prefix, extra_quant_params=("input_scale",))
+                return _quantized_weight_state_dict(self, sd, prefix, extra_quant_params=("input_scale", "pre_quant_scale"))
 
             def _forward(self, input, weight, bias):
                 return torch.nn.functional.linear(input, weight, bias)
@@ -1297,6 +1370,11 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def forward(self, input, *args, **kwargs):
                 run_every_op()
+
+                # ModelOpt AWQ-style smoothing
+                pre_quant_scale = getattr(self, 'pre_quant_scale', None)
+                if pre_quant_scale is not None:
+                    input = input * comfy.model_management.cast_to_device(pre_quant_scale, input.device, input.dtype)
 
                 input_shape = input.shape
                 reshaped_nd = False
