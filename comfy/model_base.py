@@ -2202,9 +2202,12 @@ class MiniMaxH3(BaseModel):
         video_mask = torch.nn.functional.pad(video_mask.reshape((-1,) + video_mask.shape[-3:]), (0, -w % pw, 0, -h % ph), mode="replicate")
         video_mask = video_mask.reshape(lead + video_mask.shape[-2:])
         video_mask = video_mask.reshape(video_mask.shape[:-2] + (video_mask.shape[-2] // ph, ph, video_mask.shape[-1] // pw, pw)).amax(dim=(-3, -1))
+        # values above 0.995 snap to 1.0, values below 0.05 snap to 0.0
+        video_mask = video_mask.masked_fill(video_mask >= 0.995, 1.0).masked_fill(video_mask <= 0.05, 0.0)
         denoise_masks[0] = video_mask.repeat_interleave(ph, dim=-2).repeat_interleave(pw, dim=-1)[..., :h, :w]
         if len(denoise_masks) > 1:
             audio_mask = denoise_masks[1].amax(dim=1, keepdim=True)
+            audio_mask = audio_mask.masked_fill(audio_mask >= 0.995, 1.0).masked_fill(audio_mask <= 0.05, 0.0)
             denoise_masks[1] = audio_mask.expand_as(denoise_masks[1]).contiguous()
         return denoise_masks
 
