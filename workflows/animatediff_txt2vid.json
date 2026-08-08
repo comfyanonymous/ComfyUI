@@ -1,0 +1,176 @@
+{
+  "last_node_id": 14,
+  "last_link_id": 16,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [20, 200],
+      "inputs": [
+        {"name": "ckpt_name", "type": "COMBO", "link": null, "widget": {"name": "ckpt_name", "value": "v1-5-pruned-emaonly.safetensors"}}
+      ],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [1]},
+        {"name": "CLIP", "type": "CLIP", "links": [2]},
+        {"name": "VAE", "type": "VAE", "links": [3]}
+      ],
+      "title": "Load Checkpoint",
+      "properties": {"Node name": "CheckpointLoaderSimple"}
+    },
+    {
+      "id": 2,
+      "type": "CLIPTextEncode",
+      "pos": [320, 140],
+      "inputs": [
+        {"name": "clip", "type": "CLIP", "link": 2},
+        {"name": "text", "type": "STRING", "link": null, "widget": {"name": "text", "value": "a cinematic drone shot of a misty forest, sunlight rays, smooth motion, high quality"}}
+      ],
+      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [4]}],
+      "title": "Positive Prompt",
+      "properties": {"Node name": "CLIPTextEncode"}
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [320, 360],
+      "inputs": [
+        {"name": "clip", "type": "CLIP", "link": 2},
+        {"name": "text", "type": "STRING", "link": null, "widget": {"name": "text", "value": "blurry, low quality, distorted, warped, jittery, bad motion"}}
+      ],
+      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [5]}],
+      "title": "Negative Prompt",
+      "properties": {"Node name": "CLIPTextEncode"}
+    },
+    {
+      "id": 4,
+      "type": "ADE_AnimateDiffLoaderWithContext",
+      "pos": [20, 460],
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 1},
+        {"name": "model_name", "type": "COMBO", "link": null, "widget": {"name": "model_name", "value": "mm_sd_v15_v2.ckpt"}},
+        {"name": "beta_schedule", "type": "COMBO", "link": null, "widget": {"name": "beta_schedule", "value": "autoselect"}},
+        {"name": "context_options", "type": "ADE_OPTIONS", "link": 13},
+        {"name": "sample_settings", "type": "ADE_SAMPLE_SETTINGS", "link": 14},
+        {"name": "motion_lora", "type": "ADE_MOTION_LORA", "link": null},
+        {"name": "ad_settings", "type": "ADE_AD_SETTINGS", "link": null}
+      ],
+      "outputs": [{"name": "MODEL", "type": "MODEL", "links": [6]}],
+      "title": "AnimateDiff Loader",
+      "properties": {"Node name": "ADE_AnimateDiffLoaderWithContext"}
+    },
+    {
+      "id": 5,
+      "type": "ADE_AnimateDiffSamplingSettings",
+      "pos": [20, 640],
+      "inputs": [
+        {"name": "batch_offset", "type": "INT", "link": null, "widget": {"name": "batch_offset", "value": 0}},
+        {"name": "noise_type", "type": "COMBO", "link": null, "widget": {"name": "noise_type", "value": "default"}},
+        {"name": "seed_offset", "type": "INT", "link": null, "widget": {"name": "seed_offset", "value": 0}},
+        {"name": "adapt_denoise_steps", "type": "BOOLEAN", "link": null, "widget": {"name": "adapt_denoise_steps", "value": false}}
+      ],
+      "outputs": [{"name": "ADE_SAMPLE_SETTINGS", "type": "ADE_SAMPLE_SETTINGS", "links": [14]}],
+      "title": "Sampling Settings",
+      "properties": {"Node name": "ADE_AnimateDiffSamplingSettings"}
+    },
+    {
+      "id": 6,
+      "type": "ADE_StandardStaticContextOptions",
+      "pos": [20, 800],
+      "inputs": [
+        {"name": "context_length", "type": "INT", "link": null, "widget": {"name": "context_length", "value": 16}},
+        {"name": "context_stride", "type": "INT", "link": null, "widget": {"name": "context_stride", "value": 1}},
+        {"name": "context_overlap", "type": "INT", "link": null, "widget": {"name": "context_overlap", "value": 4}},
+        {"name": "fuse_method", "type": "COMBO", "link": null, "widget": {"name": "fuse_method", "value": "pyramid"}}
+      ],
+      "outputs": [{"name": "ADE_OPTIONS", "type": "ADE_OPTIONS", "links": [13]}],
+      "title": "Context Options",
+      "properties": {"Node name": "ADE_StandardStaticContextOptions"}
+    },
+    {
+      "id": 7,
+      "type": "EmptyLatentImage",
+      "pos": [320, 560],
+      "inputs": [
+        {"name": "width", "type": "INT", "link": null, "widget": {"name": "width", "value": 512}},
+        {"name": "height", "type": "INT", "link": null, "widget": {"name": "height", "value": 512}},
+        {"name": "batch_size", "type": "INT", "link": null, "widget": {"name": "batch_size", "value": 16}}
+      ],
+      "outputs": [{"name": "LATENT", "type": "LATENT", "links": [7]}],
+      "title": "Empty Latent (16 frames)",
+      "properties": {"Node name": "EmptyLatentImage"}
+    },
+    {
+      "id": 8,
+      "type": "KSampler",
+      "pos": [620, 280],
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 6},
+        {"name": "positive", "type": "CONDITIONING", "link": 4},
+        {"name": "negative", "type": "CONDITIONING", "link": 5},
+        {"name": "latent_image", "type": "LATENT", "link": 7},
+        {"name": "seed", "type": "INT", "link": null, "widget": {"name": "seed", "value": 123456789}},
+        {"name": "steps", "type": "INT", "link": null, "widget": {"name": "steps", "value": 25}},
+        {"name": "cfg", "type": "FLOAT", "link": null, "widget": {"name": "cfg", "value": 7.5}},
+        {"name": "sampler_name", "type": "COMBO", "link": null, "widget": {"name": "sampler_name", "value": "euler_ancestral"}},
+        {"name": "scheduler", "type": "COMBO", "link": null, "widget": {"name": "scheduler", "value": "normal"}},
+        {"name": "denoise", "type": "FLOAT", "link": null, "widget": {"name": "denoise", "value": 1.0}}
+      ],
+      "outputs": [{"name": "LATENT", "type": "LATENT", "links": [8]}],
+      "title": "KSampler",
+      "properties": {"Node name": "KSampler"}
+    },
+    {
+      "id": 9,
+      "type": "VAEDecode",
+      "pos": [900, 360],
+      "inputs": [
+        {"name": "samples", "type": "LATENT", "link": 8},
+        {"name": "vae", "type": "VAE", "link": 3}
+      ],
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [9]}],
+      "title": "VAE Decode",
+      "properties": {"Node name": "VAEDecode"}
+    },
+    {
+      "id": 10,
+      "type": "VHS_VideoCombine",
+      "pos": [1160, 360],
+      "inputs": [
+        {"name": "images", "type": "IMAGE", "link": 9},
+        {"name": "audio", "type": "AUDIO", "link": null},
+        {"name": "meta_batch", "type": "VHS_BatchManager", "link": null},
+        {"name": "vae", "type": "VAE", "link": null},
+        {"name": "frame_rate", "type": "FLOAT", "link": null, "widget": {"name": "frame_rate", "value": 8}},
+        {"name": "loop", "type": "COMBO", "link": null, "widget": {"name": "loop", "value": "no"}},
+        {"name": "filename_prefix", "type": "STRING", "link": null, "widget": {"name": "filename_prefix", "value": "AnimateDiff"}},
+        {"name": "format", "type": "COMBO", "link": null, "widget": {"name": "format", "value": "video/h264-mp4"}},
+        {"name": "pix_fmt", "type": "COMBO", "link": null, "widget": {"name": "pix_fmt", "value": "yuv420p"}},
+        {"name": "crf", "type": "INT", "link": null, "widget": {"name": "crf", "value": 19}},
+        {"name": "save_metadata", "type": "BOOLEAN", "link": null, "widget": {"name": "save_metadata", "value": true}},
+        {"name": "trim_to_audio", "type": "BOOLEAN", "link": null, "widget": {"name": "trim_to_audio", "value": false}},
+        {"name": "pingpong", "type": "BOOLEAN", "link": null, "widget": {"name": "pingpong", "value": false}},
+        {"name": "save_output", "type": "BOOLEAN", "link": null, "widget": {"name": "save_output", "value": true}}
+      ],
+      "outputs": [{"name": "Filenames", "type": "VHS_FILENAMES", "links": null}],
+      "title": "Video Combine (MP4)",
+      "properties": {"Node name": "VHS_VideoCombine"}
+    }
+  ],
+  "links": [
+    [1, 1, 0, 4, 0, "MODEL"],
+    [2, 1, 1, 2, 0, "CLIP"],
+    [3, 1, 2, 9, 1, "VAE"],
+    [4, 2, 0, 8, 1, "CONDITIONING"],
+    [5, 3, 0, 8, 2, "CONDITIONING"],
+    [6, 4, 0, 8, 0, "MODEL"],
+    [13, 6, 0, 4, 2, "ADE_OPTIONS"],
+    [14, 5, 0, 4, 3, "ADE_SAMPLE_SETTINGS"],
+    [7, 7, 0, 8, 3, "LATENT"],
+    [8, 8, 0, 9, 0, "LATENT"],
+    [9, 9, 0, 10, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {"ds": {"scale": 1.0, "offset": [0, 0]}},
+  "version": 0.4
+}
