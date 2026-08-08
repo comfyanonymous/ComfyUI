@@ -16,29 +16,37 @@ import os
 def resolve_output_entry_path(entry) -> str | None:
     """Resolve a file-type output entry to an absolute path inside its base dir.
 
-    Returns ``None`` for non-file entries (no ``filename``/``type``), unknown
-    folder types, paths that escape the folder-type base directory, and paths
-    with no file on disk.
+    Returns ``None`` for non-file entries (no ``filename``/``type``, or
+    non-string fields), unknown folder types, paths that escape the
+    folder-type base directory (symlinks are resolved before the containment
+    check), and paths with no file on disk.
     """
     import folder_paths
 
     if not isinstance(entry, dict) or "filename" not in entry or "type" not in entry:
         return None
+    filename = entry["filename"]
+    subfolder = entry.get("subfolder") or ""
+    if not isinstance(filename, str) or not isinstance(subfolder, str) or not isinstance(entry["type"], str):
+        return None
     base = folder_paths.get_directory_by_type(entry["type"])
     if base is None:
         return None
-    base_abs = os.path.abspath(base)
-    abs_path = os.path.abspath(os.path.join(base_abs, entry.get("subfolder") or "", entry["filename"]))
+    # realpath (not abspath) so a symlink planted inside the base directory
+    # can't smuggle an outside target past the containment check; the base is
+    # resolved too since output/temp dirs are themselves commonly symlinks.
+    base_real = os.path.realpath(base)
+    real_path = os.path.realpath(os.path.join(base_real, subfolder, filename))
     try:
-        if os.path.commonpath([base_abs, abs_path]) != base_abs:
-            logging.warning("Output entry path escapes base directory: %s", entry.get("filename"))
+        if os.path.commonpath([base_real, real_path]) != base_real:
+            logging.warning("Output entry path escapes base directory: %s", filename)
             return None
     except ValueError:
-        logging.warning("Output entry path escapes base directory: %s", entry.get("filename"))
+        logging.warning("Output entry path escapes base directory: %s", filename)
         return None
-    if not os.path.isfile(abs_path):
+    if not os.path.isfile(real_path):
         return None
-    return abs_path
+    return real_path
 
 
 def enrich_output_with_media_metadata(output_ui: dict) -> dict:
@@ -52,8 +60,11 @@ def enrich_output_with_media_metadata(output_ui: dict) -> dict:
     """
     try:
         from app.assets.services.media_metadata import extract_media_metadata
-    except ImportError:
-        logging.debug("Media metadata extraction unavailable; skipping enrichment")
+    except Exception:
+        # Broad on purpose: this enrichment is best-effort and is called
+        # unguarded from the output-processing path, so a dependency failing
+        # to import for any reason must degrade to a no-op, not block outputs.
+        logging.warning("Media metadata extraction unavailable; skipping enrichment", exc_info=True)
         return output_ui
 
     enriched = {}

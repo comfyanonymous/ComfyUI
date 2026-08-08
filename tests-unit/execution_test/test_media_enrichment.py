@@ -128,6 +128,64 @@ class TestEnrichOutputWithMediaMetadata(unittest.TestCase):
             result = mod.enrich_output_with_media_metadata(output)
         self.assertNotIn("metadata", result["images"][0])
 
+    def test_extractor_import_failure_beyond_importerror_degrades(self):
+        class ExplodingModule:
+            def __getattr__(self, name):
+                raise RuntimeError("dependency init failed")
+
+        output = {"images": [{"filename": "a.mp4", "subfolder": "", "type": "output"}]}
+        mocked = {
+            "folder_paths": MagicMock(get_directory_by_type=MagicMock(return_value=_DEFAULT_BASE)),
+            "app.assets.services.media_metadata": ExplodingModule(),
+        }
+        with patch.dict("sys.modules", mocked), \
+             patch("os.path.isfile", return_value=True):
+            import comfy_execution.media_enrichment as mod
+            result = mod.enrich_output_with_media_metadata(output)
+        self.assertNotIn("metadata", result["images"][0])
+
+    def test_non_string_fields_skipped(self):
+        output = {
+            "images": [
+                {"filename": 42, "subfolder": "", "type": "output"},
+                {"filename": "a.mp4", "subfolder": ["nested"], "type": "output"},
+                {"filename": "b.mp4", "subfolder": "", "type": 7},
+            ]
+        }
+        result, extract_mock = _call(output)
+        for entry in result["images"]:
+            self.assertNotIn("metadata", entry)
+        extract_mock.assert_not_called()
+
+    def test_symlink_escape_rejected_real_fs(self):
+        import shutil
+        import tempfile
+
+        root = tempfile.mkdtemp(prefix="media-enrichment-symlink-")
+        try:
+            base = os.path.join(root, "output")
+            os.makedirs(base)
+            secret = os.path.join(root, "secret.txt")
+            with open(secret, "w") as f:
+                f.write("outside")
+            os.symlink(secret, os.path.join(base, "clip.mp4"))
+            inside = os.path.join(base, "real.mp4")
+            with open(inside, "w") as f:
+                f.write("inside")
+
+            mocked = {"folder_paths": MagicMock(get_directory_by_type=MagicMock(return_value=base))}
+            # No isfile patching — this test runs against the real filesystem.
+            with patch.dict("sys.modules", mocked):
+                import comfy_execution.media_enrichment as mod
+                escaped = mod.resolve_output_entry_path(
+                    {"filename": "clip.mp4", "subfolder": "", "type": "output"})
+                contained = mod.resolve_output_entry_path(
+                    {"filename": "real.mp4", "subfolder": "", "type": "output"})
+            self.assertIsNone(escaped, "symlink pointing outside the base must be rejected")
+            self.assertEqual(contained, os.path.realpath(inside))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
     def test_extractor_error_does_not_block_sibling_entries(self):
         call_count = [0]
 
