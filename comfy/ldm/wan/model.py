@@ -81,13 +81,25 @@ class WanSelfAttention(nn.Module):
         q = qkv_fn_q(x)
         k = qkv_fn_k(x)
 
-        x = optimized_attention(
-            q.view(b, s, n * d),
-            k.view(b, s, n * d),
-            self.v(x).view(b, s, n * d),
-            heads=self.num_heads,
-            transformer_options=transformer_options,
-        )
+        v = self.v(x)
+        if comfy.model_management.is_amd():
+            q_attn = q.transpose(1, 2).contiguous()
+            k_attn = k.transpose(1, 2).contiguous()
+            v_attn = v.view(b, s, n, d).transpose(1, 2).contiguous()
+            x = optimized_attention(
+                q_attn, k_attn, v_attn,
+                heads=self.num_heads,
+                skip_reshape=True,
+                transformer_options=transformer_options,
+            )
+        else:
+            x = optimized_attention(
+                q.view(b, s, n * d),
+                k.view(b, s, n * d),
+                v.view(b, s, n * d),
+                heads=self.num_heads,
+                transformer_options=transformer_options,
+            )
 
         if "attn1_patch" in patches:
             for p in patches["attn1_patch"]:
