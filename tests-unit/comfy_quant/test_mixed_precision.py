@@ -255,6 +255,59 @@ class TestMixedPrecisionOps(unittest.TestCase):
         output = model(input_tensor)
         self.assertEqual(output.shape, (5, 40))
 
+    def test_formatless_scaled_comfy_quant_infers_format_from_dtype(self):
+        """Some quantizers write a comfy_quant payload with a weight_scale but no
+        "format" key (e.g. a q_proj-style layer in a MiniMax H3 nvfp4 AWQ
+        checkpoint). The loader must infer the format from the on-disk weight
+        dtype instead of raising "Unknown quantization format"."""
+        state_dict = {
+            "layer1.weight": torch.randint(-128, 127, (20, 10), dtype=torch.int8),
+            "layer1.comfy_quant": torch.tensor(list(json.dumps({}).encode("utf-8")), dtype=torch.uint8),
+            "layer1.weight_scale": torch.ones(20),
+            "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
+            "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
+            "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
+            "layer3.weight": torch.randn(40, 30, dtype=torch.bfloat16),
+            "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
+        }
+
+        model = SimpleModel(operations=ops.mixed_precision_ops({}))
+        model.load_state_dict(state_dict, strict=False)
+
+        self.assertIsInstance(model.layer1.weight, QuantizedTensor)
+        self.assertEqual(model.layer1.quant_format, "int8_tensorwise")
+
+        for layer in [model.layer1, model.layer2, model.layer3]:
+            layer.weight_function = []
+            layer.bias_function = []
+
+        input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
+        output = model(input_tensor)
+        self.assertEqual(output.shape, (5, 40))
+
+    def test_formatless_scaled_comfy_quant_embedding_infers_format_from_dtype(self):
+        """Same formatless-but-scaled scenario, but for the Embedding load path,
+        which has its own inline comfy_quant handling separate from
+        _load_quantized_module."""
+        operations = ops.mixed_precision_ops({})
+
+        class EmbModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.emb = operations.Embedding(100, 20, device="cpu", dtype=torch.bfloat16)
+
+        state_dict = {
+            "emb.weight": torch.randint(-128, 127, (100, 20), dtype=torch.int8),
+            "emb.comfy_quant": torch.tensor(list(json.dumps({}).encode("utf-8")), dtype=torch.uint8),
+            "emb.weight_scale": torch.ones(100),
+        }
+
+        model = EmbModel()
+        model.load_state_dict(state_dict, strict=False)
+
+        self.assertIsInstance(model.emb.weight, QuantizedTensor)
+        self.assertEqual(model.emb.quant_format, "int8_tensorwise")
+
     def test_int8_convrot_metadata_loads_into_params(self):
         """ConvRot metadata must reach TensorWiseINT8Layout params."""
         torch.manual_seed(123)

@@ -1118,6 +1118,16 @@ def _quantized_apply(module, fn, recurse=True):
     return module
 
 
+# Some quantizers write a comfy_quant payload with a weight_scale but no explicit
+# "format" (e.g. the MiniMax H3 nvfp4 AWQ checkpoint). Infer the format from the
+# on-disk weight dtype in that case, matching the storage dtypes each format uses.
+_QUANT_FORMAT_BY_WEIGHT_DTYPE = {
+    torch.int8: "int8_tensorwise",
+    torch.float8_e4m3fn: "float8_e4m3fn",
+    torch.uint8: "nvfp4",
+}
+
+
 def _load_quantized_module(module, super_load, state_dict, prefix, local_metadata, strict,
                             missing_keys, unexpected_keys, error_msgs, load_extra_params=False):
     """Shared _load_from_state_dict body for quantized-weight modules.
@@ -1160,6 +1170,8 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
         module.weight = torch.nn.Parameter(weight.to(device=device, dtype=compute_dtype), requires_grad=False)
     else:
         module.quant_format = layer_conf.get("format", None)
+        if module.quant_format is None and f"{prefix}weight_scale" in state_dict:
+            module.quant_format = _QUANT_FORMAT_BY_WEIGHT_DTYPE.get(weight.dtype)
         module._full_precision_mm_config = layer_conf.get("full_precision_matrix_mult", False)
         if not module._full_precision_mm:
             module._full_precision_mm = module._full_precision_mm_config
@@ -1598,6 +1610,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 # Only fp8 and int8_tensorwise support per-row dequant via index select.
                 # Block-scaled formats (NVFP4, MXFP8) can't do per-row lookup efficiently.
                 quant_format = layer_conf.get("format") if layer_conf is not None else None
+                if quant_format is None and layer_conf is not None and f"{prefix}weight_scale" in state_dict:
+                    _stored_weight = state_dict.get(weight_key)
+                    if _stored_weight is not None:
+                        quant_format = _QUANT_FORMAT_BY_WEIGHT_DTYPE.get(_stored_weight.dtype)
                 manually_loaded_keys = []
 
                 if quant_format in ("float8_e4m3fn", "float8_e5m2", "int8_tensorwise") and weight_key in state_dict:
