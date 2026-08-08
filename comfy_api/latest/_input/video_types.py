@@ -64,6 +64,12 @@ class VideoInput(ABC):
         """
         Create a new VideoInput spatially cropped to the given pixel rectangle.
 
+        The rectangle is clamped to the frame and even-aligned for encoder
+        compatibility. An empty or full-frame rectangle returns the input
+        unchanged.
+
+        Default implementation materializes the video via get_components();
+        subclasses should override with lazier strategies when possible.
         """
         components = self.get_components()
         rect = normalize_crop_rect(
