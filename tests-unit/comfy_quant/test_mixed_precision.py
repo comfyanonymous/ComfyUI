@@ -308,6 +308,78 @@ class TestMixedPrecisionOps(unittest.TestCase):
         self.assertIsInstance(model.emb.weight, QuantizedTensor)
         self.assertEqual(model.emb.quant_format, "int8_tensorwise")
 
+    def test_reload_unquantized_resets_stale_quant_state(self):
+        """A module that previously loaded a quantized checkpoint must clear
+        quant_format/layout_type when reloaded with an unquantized checkpoint,
+        so forward doesn't take the stale quantized path against what is now
+        a plain Parameter."""
+        layer_quant_config = {
+            "layer1": {
+                "format": "float8_e4m3fn",
+                "params": {}
+            }
+        }
+        fp8_weight = torch.randn(20, 10, dtype=torch.float32).to(torch.float8_e4m3fn)
+        state_dict1 = {
+            "layer1.weight": fp8_weight,
+            "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
+            "layer1.weight_scale": torch.tensor(2.0, dtype=torch.float32),
+            "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
+            "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
+            "layer3.weight": torch.randn(40, 30, dtype=torch.bfloat16),
+            "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
+        }
+        state_dict1, _ = comfy.utils.convert_old_quants(state_dict1, metadata={"_quantization_metadata": json.dumps({"layers": layer_quant_config})})
+
+        model = SimpleModel(operations=ops.mixed_precision_ops({}))
+        model.load_state_dict(state_dict1, strict=False)
+        self.assertIsInstance(model.layer1.weight, QuantizedTensor)
+
+        # Reload layer1 with a plain (unquantized) weight, no comfy_quant key.
+        state_dict2 = {
+            "layer1.weight": torch.randn(20, 10, dtype=torch.bfloat16),
+            "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
+            "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
+            "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
+            "layer3.weight": torch.randn(40, 30, dtype=torch.bfloat16),
+            "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
+        }
+        model.load_state_dict(state_dict2, strict=False)
+
+        self.assertNotIsInstance(model.layer1.weight, QuantizedTensor)
+        self.assertIsNone(model.layer1.quant_format)
+        self.assertIsNone(model.layer1.layout_type)
+
+        for layer in [model.layer1, model.layer2, model.layer3]:
+            layer.weight_function = []
+            layer.bias_function = []
+
+        input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
+        output = model(input_tensor)
+        self.assertEqual(output.shape, (5, 40))
+
+    def test_formatless_scaled_comfy_quant_embedding_rejects_nvfp4(self):
+        """A formatless comfy_quant payload that infers nvfp4 from a uint8
+        weight dtype must raise, since the embedding load path has no
+        per-row dequant support for NVFP4; it must not silently load the
+        raw quantized bytes as an ordinary embedding weight."""
+        operations = ops.mixed_precision_ops({})
+
+        class EmbModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.emb = operations.Embedding(100, 20, device="cpu", dtype=torch.bfloat16)
+
+        state_dict = {
+            "emb.weight": torch.randint(0, 255, (100, 20), dtype=torch.uint8),
+            "emb.comfy_quant": torch.tensor(list(json.dumps({}).encode("utf-8")), dtype=torch.uint8),
+            "emb.weight_scale": torch.ones(100),
+        }
+
+        model = EmbModel()
+        with self.assertRaises(ValueError):
+            model.load_state_dict(state_dict, strict=False)
+
     def test_int8_convrot_metadata_loads_into_params(self):
         """ConvRot metadata must reach TensorWiseINT8Layout params."""
         torch.manual_seed(123)

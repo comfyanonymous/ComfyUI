@@ -1167,6 +1167,8 @@ def _load_quantized_module(module, super_load, state_dict, prefix, local_metadat
         layer_conf = json.loads(raw_conf) if raw_conf.strip(b"\x00") else None
 
     if layer_conf is None:
+        module.quant_format = None
+        module.layout_type = None
         module.weight = torch.nn.Parameter(weight.to(device=device, dtype=compute_dtype), requires_grad=False)
     else:
         module.quant_format = layer_conf.get("format", None)
@@ -1614,6 +1616,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     _stored_weight = state_dict.get(weight_key)
                     if _stored_weight is not None:
                         quant_format = _QUANT_FORMAT_BY_WEIGHT_DTYPE.get(_stored_weight.dtype)
+                if quant_format == "nvfp4":
+                    raise ValueError(f"NVFP4 embedding format is unsupported for layer {prefix.rstrip('.')}")
                 manually_loaded_keys = []
 
                 if quant_format in ("float8_e4m3fn", "float8_e5m2", "int8_tensorwise") and weight_key in state_dict:
