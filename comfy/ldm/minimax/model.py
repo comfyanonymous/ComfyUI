@@ -74,14 +74,15 @@ def _axis_from_sqrt_area(dim, patch, sqrt_area):
     return (torch.arange(n, dtype=torch.float64) * (ratio / n) + (1.0 - ratio) / 2.0) * 32.0
 
 
-def mask_row_targets(mask, latent_t, lat_h, lat_w):
-    # [T, H, W] denoise mask (1 = generate) -> per-2x2-patch-row bool, None when every row generates
+def mask_row_values(mask, latent_t, lat_h, lat_w):
+    # [T, H, W] denoise mask (1 = generate) -> per-2x2-patch-row float in [0, 1],
+    # None when every row fully generates
     m = torch.nn.functional.pad(mask, (0, lat_w - mask.shape[-1], 0, lat_h - mask.shape[-2]), mode="replicate")
     m = m.reshape(latent_t, lat_h // 2, 2, lat_w // 2, 2).amax(dim=(2, 4))
-    target = m.reshape(-1) >= 0.5
-    if bool(target.all()):
+    values = m.reshape(-1)
+    if bool((values >= 1.0 - 1e-3).all()):
         return None
-    return target
+    return values
 
 
 def _frame_grid(h, w):
@@ -210,10 +211,7 @@ class AdalnProj(nn.Module):
 
 
 def _mod_row(vecs, row, dtype):
-    # row is a mod-row index, or (target_row, pin_row, weight[n,1]) blending two rows per token
-    if isinstance(row, tuple):
-        rt, rp, w = row
-        return torch.lerp(vecs[rp], vecs[rt], w.to(vecs.dtype)).to(dtype)
+    # row is a mod-row index, or a per-token LongTensor of mod-row indices
     return vecs[row].to(dtype)
 
 
@@ -566,31 +564,42 @@ class MiniMaxH3Model(nn.Module):
                  "cond": max(t_v, vis_aug), "ref_img": max(t_v, vis_aug),
                  "ref_audio": max(t_a, aud_aug)}
 
-        # rows that are preserved by the noise mask run at the cond timestep
+        # masked rows run at their own strength: mask value m puts a row at sigma = m * sigma_stream,
+        # so its label is 1 - m * sigma, clamped at the cond timestep for fully preserved rows
         t_pin_v = max(t_v, VISUAL_COND_TIMESTEP)
         t_pin_a = max(t_a, AUDIO_COND_TIMESTEP)
-        video_w = None
-        audio_w = None
+        video_rows_t = None
+        audio_rows_t = None
         if denoise_mask is not None:
-            targets = mask_row_targets(denoise_mask[0, 0].to(torch.float32), latent_t, lat_h, lat_w)
-            if targets is not None:
-                if bool(targets.any()):
-                    video_w = targets.to(torch.float32).unsqueeze(1)  # [n, 1], 1 = generate
+            m = mask_row_values(denoise_mask[0, 0].to(torch.float32), latent_t, lat_h, lat_w)
+            if m is not None:
+                rows_t = (1.0 - m * sigma_v.to(m.device)).clamp(max=t_pin_v)
+                if rows_t.unique().numel() == 1:
+                    seg_t["video"] = float(rows_t[0])
                 else:
-                    seg_t["video"] = t_pin_v
+                    video_rows_t = rows_t
         if audio_denoise_mask is not None:
-            targets = audio_denoise_mask[0, 0].to(torch.float32).reshape(-1) >= 0.5
-            if not bool(targets.all()):
-                if bool(targets.any()):
-                    audio_w = targets.to(torch.float32).unsqueeze(1)
+            m = audio_denoise_mask[0, 0].to(torch.float32).reshape(-1)
+            if not bool((m >= 1.0 - 1e-3).all()):
+                sigma_a = 1.0 - t_a
+                rows_t = (1.0 - m * sigma_a).clamp(max=t_pin_a)
+                if rows_t.unique().numel() == 1:
+                    seg_t["audio"] = float(rows_t[0])
                 else:
-                    seg_t["audio"] = t_pin_a
+                    audio_rows_t = rows_t
 
         unique_t = sorted({t_v, t_a} | {seg_t[k] for _, _, k in layout.segments}
-                          | ({t_pin_v} if video_w is not None else set())
-                          | ({t_pin_a} if audio_w is not None else set()))
+                          | (set(video_rows_t.unique().tolist()) if video_rows_t is not None else set())
+                          | (set(audio_rows_t.unique().tolist()) if audio_rows_t is not None else set()))
         t_row = {t: i for i, t in enumerate(unique_t)}
         seg_tag = {"text": 1, "video": 0, "audio": 2, "cond": 0, "ref_img": 0, "ref_audio": 2}
+
+        def rows_to_mod_index(rows_t, tag):
+            # per-row timestep values -> per-row mod-row indices into the t_emb table
+            levels = rows_t.unique()
+            base = torch.tensor([t_row[v] * 3 + tag for v in levels.tolist()],
+                                dtype=torch.long, device=rows_t.device)
+            return base[torch.searchsorted(levels, rows_t)]
 
         text_tags = payload.get("text_token_tags")
         mod_segments = []
@@ -604,10 +613,10 @@ class MiniMaxH3Model(nn.Module):
                     if i == b - a or tags[i] != tags[run_start]:
                         mod_segments.append((a + run_start, a + i, row_base + int(tags[run_start])))
                         run_start = i
-            elif kind == "video" and video_w is not None:
-                mod_segments.append((a, b, (row_base + seg_tag[kind], t_row[t_pin_v] * 3 + seg_tag[kind], video_w)))
-            elif kind == "audio" and audio_w is not None:
-                mod_segments.append((a, b, (row_base + seg_tag[kind], t_row[t_pin_a] * 3 + seg_tag[kind], audio_w)))
+            elif kind == "video" and video_rows_t is not None:
+                mod_segments.append((a, b, rows_to_mod_index(video_rows_t, seg_tag[kind])))
+            elif kind == "audio" and audio_rows_t is not None:
+                mod_segments.append((a, b, rows_to_mod_index(audio_rows_t, seg_tag[kind])))
             else:
                 mod_segments.append((a, b, row_base + seg_tag[kind]))
 
@@ -686,12 +695,12 @@ class MiniMaxH3Model(nn.Module):
         # target streams are single contiguous segments (audio then video, last two)
         va, vb, _ = next(s for s in layout.segments if s[2] == "video")
         aa, ab, _ = next(s for s in layout.segments if s[2] == "audio")
-        if video_w is not None:
-            video_seg = (va, vb, (t_row[seg_t["video"]], t_row[t_pin_v], video_w))
+        if video_rows_t is not None:
+            video_seg = (va, vb, rows_to_mod_index(video_rows_t, 0) // 3)
         else:
             video_seg = (va, vb, t_row[seg_t["video"]])
-        if audio_w is not None:
-            audio_seg = (aa, ab, (t_row[seg_t["audio"]], t_row[t_pin_a], audio_w))
+        if audio_rows_t is not None:
+            audio_seg = (aa, ab, rows_to_mod_index(audio_rows_t, 0) // 3)
         else:
             audio_seg = (aa, ab, t_row[seg_t["audio"]])
         v, a = self.final_layer(h, t_emb, video_seg, audio_seg)
