@@ -491,19 +491,21 @@ try:
             rocm_version = (6, -1)
 
         def aotriton_supported():
-            # Ask pytorch whether it can actually run flash attention on this gpu instead of
-            # listing the aotriton.images dir: on ROCm can_use_flash_attention() ends up calling
-            # aotriton::v2::flash::check_gpu(), which fails when aotriton has no image for this arch.
+            """Whether pytorch can actually run flash attention on this gpu.
+
+            On ROCm can_use_flash_attention() calls aotriton::v2::flash::check_gpu(),
+            which fails when aotriton has no kernel image compiled for this arch. Asking
+            pytorch avoids assuming where those images live inside the torch install.
+            The probe tensor is shaped and typed to pass the unrelated SDPA checks, so a
+            False result means hardware support and not a rejected shape.
+            """
             try:
                 if not torch.backends.cuda.is_flash_attention_available():  # built without aotriton
                     return False
                 q = torch.empty((1, 1, 8, 64), dtype=torch.float16, device=get_torch_device())
-                try:
-                    params = torch.backends.cuda.SDPAParams(q, q, q, None, 0.0, False, False)
-                except TypeError:  # enable_gqa arg was added in torch 2.5
-                    params = torch.backends.cuda.SDPAParams(q, q, q, None, 0.0, False)
+                params = torch.backends.cuda.SDPAParams(q, q, q, None, 0.0, False, False)
                 return torch.backends.cuda.can_use_flash_attention(params, False)
-            except Exception as e:
+            except (AttributeError, RuntimeError, TypeError) as e:
                 logging.warning("Could not query aotriton support: {}".format(e))
                 return False
 
