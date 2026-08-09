@@ -134,17 +134,6 @@ def write_output_metadata(container: InputContainer, output, metadata: dict | No
             output.metadata[key] = value if isinstance(value, str) else json.dumps(value)
 
 
-def unsupported_remux_codecs(streams, output_container) -> list[str]:
-    supported = output_container.supported_codecs
-    return [
-        stream.codec_context.name
-        for stream in streams
-        if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream))
-        and stream.codec_context is not None
-        and stream.codec_context.name not in supported
-    ]
-
-
 def video_output_config(path: str | io.BytesIO, format: VideoContainer, codec: VideoCodec) -> tuple[dict, VideoContainer, VideoCodec]:
     if isinstance(format, str):
         format = VideoContainer(format)
@@ -623,15 +612,6 @@ class VideoFromFile(VideoInput):
     ) -> bool:
         streams = container.streams
         with av.open(path, **open_kwargs) as output_container:
-            unsupported = unsupported_remux_codecs(streams, output_container)
-            if unsupported:
-                logging.info(
-                    "Cannot copy %s into a %s container; re-encoding instead.",
-                    ", ".join(sorted(set(unsupported))),
-                    output_container.format.name,
-                )
-                return False
-
             # Add metadata before writing any streams
             write_output_metadata(container, output_container, metadata)
 
@@ -642,7 +622,23 @@ class VideoFromFile(VideoInput):
                     if stream.codec_context is None:
                         logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
                         continue
-                    out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                    try:
+                        out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                    except ValueError:
+                        codec_name = stream.codec_context.name
+                        format_name = output_container.format.name
+                        if isinstance(stream, SubtitleStream):
+                            logging.warning(
+                                "Dropping %s subtitle stream %d: the %s container cannot store it.",
+                                codec_name, stream.index, format_name,
+                            )
+                            continue
+                        logging.warning(
+                            "The %s container cannot store %s, so the whole file is being re-encoded to H.264/AAC. "
+                            "Any additional audio or subtitle streams will be dropped.",
+                            format_name, codec_name,
+                        )
+                        return False
                     stream_map[stream] = out_stream
 
             # Write packets to the new container
