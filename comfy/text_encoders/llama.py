@@ -868,16 +868,10 @@ class BaseGenerate:
         else:
             module = self.model.embed_tokens
 
-        offload_stream = None
-        if module.comfy_cast_weights:
-            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
-        else:
-            weight = self.model.embed_tokens.weight.to(x)
-
-        x = torch.nn.functional.linear(input, weight, None)
-
-        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
-        return x
+        if not module.comfy_cast_weights:
+            return torch.nn.functional.linear(input, self.model.embed_tokens.weight.to(x), None)
+        with comfy.ops.CastBiasWeightContext(module, input, offloadable=True) as (weight, _bias):
+            return torch.nn.functional.linear(input, weight, None)
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
         model_config = self.model.config
