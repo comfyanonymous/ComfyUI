@@ -119,6 +119,31 @@ def load_safetensors(ckpt):
     return sd, header.get("__metadata__", {}),
 
 
+def load_safetensors_no_mmap(ckpt, device):
+    # safetensors.safe_open()/get_tensor() reads tensor data through an mmap of
+    # the file. On Windows that mmap-backed read can crash with an access
+    # violation for large files in a long-running process. Read the tensors
+    # with plain file I/O instead so no mmap of the file is ever created.
+    sd = {}
+    with open(ckpt, "rb") as f:
+        header_size = struct.unpack("<Q", f.read(8))[0]
+        header = json.loads(f.read(header_size).decode("utf-8"))
+        data_start = 8 + header_size
+        for name, info in header.items():
+            if name == "__metadata__":
+                continue
+            start, end = info["data_offsets"]
+            dtype = _TYPES[info["dtype"]]
+            shape = info["shape"]
+            if start == end:
+                sd[name] = torch.empty(shape, dtype=dtype, device=device)
+                continue
+            f.seek(data_start + start)
+            raw = f.read(end - start)
+            sd[name] = torch.frombuffer(bytearray(raw), dtype=dtype).view(shape).to(device=device)
+    return sd, header.get("__metadata__", {})
+
+
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
@@ -129,14 +154,15 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                 sd, metadata = load_safetensors(ckpt)
                 if not return_metadata:
                     metadata = None
+            elif DISABLE_MMAP:
+                sd, metadata = load_safetensors_no_mmap(ckpt, device)
+                if not return_metadata:
+                    metadata = None
             else:
                 with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                     sd = {}
                     for k in f.keys():
-                        tensor = f.get_tensor(k)
-                        if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
-                            tensor = tensor.to(device=device, copy=True)
-                        sd[k] = tensor
+                        sd[k] = f.get_tensor(k)
                     if return_metadata:
                         metadata = f.metadata()
         except Exception as e:
