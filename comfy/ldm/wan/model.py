@@ -15,6 +15,31 @@ import comfy.ops
 import comfy.patcher_extension
 
 
+_amd_arch_cache = {}
+
+
+def _amd_arch(device):
+    if device.type != "cuda" or not comfy.model_management.is_amd():
+        return None
+    key = (device.type, device.index)
+    if key not in _amd_arch_cache:
+        try:
+            _amd_arch_cache[key] = torch.cuda.get_device_properties(device).gcnArchName.split(":", 1)[0]
+        except Exception:
+            _amd_arch_cache[key] = None
+    return _amd_arch_cache[key]
+
+
+def _should_make_qkv_contiguous(q, k, v):
+    if q.shape[-2] < 5000 or q.shape[-1] != 128:
+        return False
+    if all(x.is_contiguous() for x in (q, k, v)):
+        return False
+    if _amd_arch(q.device) != "gfx1151":
+        return False
+    return True
+
+
 def sinusoidal_embedding_1d(dim, position):
     # preprocess
     assert dim % 2 == 0
@@ -82,10 +107,11 @@ class WanSelfAttention(nn.Module):
         k = qkv_fn_k(x)
 
         v = self.v(x)
-        if comfy.model_management.is_amd():
-            q_attn = q.transpose(1, 2).contiguous()
-            k_attn = k.transpose(1, 2).contiguous()
-            v_attn = v.view(b, s, n, d).transpose(1, 2).contiguous()
+        q_attn = q.transpose(1, 2)
+        k_attn = k.transpose(1, 2)
+        v_attn = v.view(b, s, n, d).transpose(1, 2)
+        if _should_make_qkv_contiguous(q_attn, k_attn, v_attn):
+            q_attn, k_attn, v_attn = (x.contiguous() for x in (q_attn, k_attn, v_attn))
             x = optimized_attention(
                 q_attn, k_attn, v_attn,
                 heads=self.num_heads,
