@@ -596,6 +596,11 @@ class VideoFromFile(VideoInput):
             if self._save_remuxed(container, path, open_kwargs, metadata):
                 return
 
+            if video_stream is None:
+                raise ValueError(
+                    f"Cannot store the audio of '{self.__file}' in this container, and there is no video "
+                    "stream to re-encode it alongside."
+                )
             if bit_depth is None:
                 bit_depth = source_bit_depth
             if isinstance(path, io.BytesIO):
