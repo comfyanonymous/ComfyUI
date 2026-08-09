@@ -119,6 +119,10 @@ def load_safetensors(ckpt):
     return sd, header.get("__metadata__", {}),
 
 
+# Matches the header size limit enforced by the safetensors library itself.
+MAX_SAFETENSORS_HEADER_SIZE = 100_000_000
+
+
 def load_safetensors_no_mmap(ckpt, device):
     # safetensors.safe_open()/get_tensor() reads tensor data through an mmap of
     # the file. On Windows that mmap-backed read can crash with an access
@@ -127,6 +131,8 @@ def load_safetensors_no_mmap(ckpt, device):
     sd = {}
     with open(ckpt, "rb") as f:
         header_size = struct.unpack("<Q", f.read(8))[0]
+        if header_size > MAX_SAFETENSORS_HEADER_SIZE:
+            raise ValueError("Invalid safetensors header: header size exceeds the maximum allowed size")
         header = json.loads(f.read(header_size).decode("utf-8"))
         data_start = 8 + header_size
         for name, info in header.items():
@@ -135,12 +141,17 @@ def load_safetensors_no_mmap(ckpt, device):
             start, end = info["data_offsets"]
             dtype = _TYPES[info["dtype"]]
             shape = info["shape"]
-            if start == end:
+            expected_size = math.prod(shape) * dtype.itemsize
+            if end < start or end - start != expected_size:
+                raise ValueError("Invalid safetensors header: tensor '{}' data range does not match its declared shape/dtype".format(name))
+            if expected_size == 0:
                 sd[name] = torch.empty(shape, dtype=dtype, device=device)
                 continue
             f.seek(data_start + start)
-            raw = f.read(end - start)
-            sd[name] = torch.frombuffer(bytearray(raw), dtype=dtype).view(shape).to(device=device)
+            raw = bytearray(end - start)
+            if f.readinto(raw) != len(raw):
+                raise ValueError("Invalid safetensors file: tensor '{}' data is truncated".format(name))
+            sd[name] = torch.frombuffer(raw, dtype=dtype).view(shape).to(device=device)
     return sd, header.get("__metadata__", {})
 
 
