@@ -1271,20 +1271,24 @@ class Gemma4_Tokenizer():
         # Process image/video frames
         is_video = video is not None
         sources = []
-        
+
         if is_video:
             sources.append(video)
         elif isinstance(images, torch.Tensor):
             if images.numel() > 0:
                 sources.append(images)
         elif isinstance(images, (list, tuple)):
-            sources.extend(source for source in images if source.numel() > 0)
+            for source in images:
+                if not isinstance(source, torch.Tensor):
+                    raise TypeError("images must be a tensor or a sequence of tensors")
+                if source.numel() > 0:
+                    sources.append(source)
         elif images is not None:
             raise TypeError("images must be a tensor or a sequence of tensors")
-        
+
         if not sources and not is_video and image is not None:
             sources.append(image)
-        
+
         image_pixels = []
         for source in sources:
             samples = source.movedim(-1, 1)  # [B, C, H, W]
