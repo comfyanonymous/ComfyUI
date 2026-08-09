@@ -955,13 +955,21 @@ class VAE:
                 self.working_dtypes = [torch.float16, torch.float32]
                 # the model tiles internally (256px spatial, 17-frame temporal chunks)
                 self.handles_tiling = True
+                # decode finalizes straight to [0, 1] while streaming chunks out
+                self.process_output = lambda image: image
+                # one decoded temporal chunk (with overlap) is all that ever sits in VRAM
+                chunk_frames = (self.first_stage_model.tokens_chunk_size + self.first_stage_model.token_overlap) * self.first_stage_model.vae_ratio_t
+
                 def estimate_encode_memory(frames, height, width, dtype):
                     fixed = 110_000_000 if frames == 1 else 1_300_000_000
                     elements_per_pixel = 7 if frames == 1 else 9.5
+                    # only one clip of the input video is ever resident on the GPU
+                    frames = min(frames, self.first_stage_model.clip_length)
                     return (elements_per_pixel * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
 
                 def estimate_decode_memory(frames, height, width, dtype):
                     fixed = 110_000_000 if frames <= 22 else 270_000_000
+                    frames = min(frames, chunk_frames + 2)
                     return (9.5 * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
 
                 self.memory_used_encode = lambda shape, dtype: estimate_encode_memory(shape[2], shape[3], shape[4], dtype)
@@ -1198,6 +1206,7 @@ class VAE:
                 do_tile = True
 
             if do_tile:
+                pixel_samples = None
                 comfy.model_management.soft_empty_cache()
                 dims = samples_in.ndim - 2
                 if dims == 1 or self.extra_1d_channel is not None:
