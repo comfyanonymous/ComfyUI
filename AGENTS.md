@@ -342,6 +342,11 @@
   comments, but do not disrespect her.
 - Warning and info messages should be short and actionable. Remove noisy or
   misleading messages rather than adding more logging.
+- Setting `is_deprecated` (or similar flags like `is_experimental`) as a class
+  attribute on a V3 (`io.ComfyNode`) node is not enough by itself: it must also
+  be passed into the `io.Schema(...)` returned by `define_schema()` (e.g.
+  `is_deprecated=cls.is_deprecated`). `/object_info` and the frontend's
+  deprecated-node filtering read the schema, not the class attribute.
 - Documentation and README edits should be concise, factual, and tied to the
   changed behavior.
 

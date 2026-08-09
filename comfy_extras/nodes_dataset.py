@@ -701,6 +701,7 @@ class ImageProcessingNode(io.ComfyNode):
                     tooltip="Processed images",
                 )
             ],
+            is_deprecated=cls.is_deprecated,
         )
 
     @classmethod
@@ -873,6 +874,7 @@ class TextProcessingNode(io.ComfyNode):
                     tooltip="Processed texts",
                 )
             ],
+            is_deprecated=cls.is_deprecated,
         )
 
     @classmethod
