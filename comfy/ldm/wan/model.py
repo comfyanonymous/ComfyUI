@@ -15,23 +15,23 @@ import comfy.ops
 import comfy.patcher_extension
 
 
-_amd_arch_cache = {}
+_AMD_ARCH_CACHE = {}
 
 
 def _amd_arch(device):
-    if device.type != "cuda" or not comfy.model_management.is_amd():
+    if device.type != "cuda":
         return None
     key = (device.type, device.index)
-    if key not in _amd_arch_cache:
-        try:
-            _amd_arch_cache[key] = torch.cuda.get_device_properties(device).gcnArchName.split(":", 1)[0]
-        except Exception:
-            _amd_arch_cache[key] = None
-    return _amd_arch_cache[key]
+    if key in _AMD_ARCH_CACHE:
+        return _AMD_ARCH_CACHE[key]
+    arch_name = torch.cuda.get_device_properties(device).gcnArchName
+    arch = arch_name.split(":", 1)[0]
+    _AMD_ARCH_CACHE[key] = arch
+    return arch
 
 
 def _should_make_qkv_contiguous(q, k, v):
-    if q.shape[-2] < 5000 or q.shape[-1] != 128:
+    if not comfy.model_management.is_amd() or q.shape[-2] < 5000 or q.shape[-1] != 128:
         return False
     if all(x.is_contiguous() for x in (q, k, v)):
         return False
