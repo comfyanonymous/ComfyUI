@@ -435,7 +435,7 @@ class CastBiasWeightContext:
         return result[:2]
 
     def __exit__(self, *_args) -> None:
-        if not self.slf:
+        if self.slf is None:
             return
         slf, state = self.slf, self.state
         self.state = self.slf = None
