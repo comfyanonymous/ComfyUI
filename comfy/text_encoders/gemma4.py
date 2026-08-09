@@ -1273,7 +1273,7 @@ class Gemma4_Tokenizer():
         images_input = kwargs.get("images", None)
         if is_video:
             sources = [video]
-        elif isinstance(images_input, torch.Tensor):
+        elif isinstance(images_input, torch.Tensor) and images_input.shape[0] > 0:
             sources = [images_input]
         elif images_input is not None and len(images_input) > 0:
             sources = images_input
