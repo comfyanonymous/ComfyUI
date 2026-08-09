@@ -48,3 +48,49 @@ def test_load_safetensors_no_mmap_rejects_corrupt_data_offsets(tmp_path):
 
     with pytest.raises(ValueError):
         comfy.utils.load_safetensors_no_mmap(str(path), torch.device("cpu"))
+
+
+def _write_safetensors_with_raw_offsets(path, header, data):
+    header_bytes = json.dumps(header).encode("utf-8")
+    with open(path, "wb") as f:
+        f.write(struct.pack("<Q", len(header_bytes)))
+        f.write(header_bytes)
+        f.write(data)
+
+
+def test_load_safetensors_no_mmap_rejects_gap_between_tensors(tmp_path):
+    # weight2 starts one byte after weight ends, leaving an unindexed gap.
+    header = {
+        "weight": {"dtype": "F32", "shape": [1], "data_offsets": [0, 4]},
+        "weight2": {"dtype": "F32", "shape": [1], "data_offsets": [5, 9]},
+    }
+    path = tmp_path / "gap.safetensors"
+    _write_safetensors_with_raw_offsets(path, header, b"\x00" * 9)
+
+    with pytest.raises(ValueError):
+        comfy.utils.load_safetensors_no_mmap(str(path), torch.device("cpu"))
+
+
+def test_load_safetensors_no_mmap_rejects_overlapping_tensors(tmp_path):
+    # weight2 starts before weight ends, so the ranges overlap.
+    header = {
+        "weight": {"dtype": "F32", "shape": [1], "data_offsets": [0, 4]},
+        "weight2": {"dtype": "F32", "shape": [1], "data_offsets": [2, 6]},
+    }
+    path = tmp_path / "overlap.safetensors"
+    _write_safetensors_with_raw_offsets(path, header, b"\x00" * 6)
+
+    with pytest.raises(ValueError):
+        comfy.utils.load_safetensors_no_mmap(str(path), torch.device("cpu"))
+
+
+def test_load_safetensors_no_mmap_rejects_trailing_bytes(tmp_path):
+    # The declared data region ends before the end of the file.
+    header = {
+        "weight": {"dtype": "F32", "shape": [1], "data_offsets": [0, 4]},
+    }
+    path = tmp_path / "trailing.safetensors"
+    _write_safetensors_with_raw_offsets(path, header, b"\x00" * 8)
+
+    with pytest.raises(ValueError):
+        comfy.utils.load_safetensors_no_mmap(str(path), torch.device("cpu"))

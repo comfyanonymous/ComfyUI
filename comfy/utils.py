@@ -135,6 +135,9 @@ def load_safetensors_no_mmap(ckpt, device):
             raise ValueError("Invalid safetensors header: header size exceeds the maximum allowed size")
         header = json.loads(f.read(header_size).decode("utf-8"))
         data_start = 8 + header_size
+        data_size = os.fstat(f.fileno()).st_size - data_start
+
+        tensors = []
         for name, info in header.items():
             if name == "__metadata__":
                 continue
@@ -142,9 +145,23 @@ def load_safetensors_no_mmap(ckpt, device):
             dtype = _TYPES[info["dtype"]]
             shape = info["shape"]
             expected_size = math.prod(shape) * dtype.itemsize
-            if end < start or end - start != expected_size:
+            if start < 0 or end < start or end - start != expected_size:
                 raise ValueError("Invalid safetensors header: tensor '{}' data range does not match its declared shape/dtype".format(name))
-            if expected_size == 0:
+            tensors.append((start, end, name, dtype, shape))
+
+        # The data region must be fully and contiguously indexed by the header,
+        # with no gaps, overlaps, or trailing bytes, matching the validation
+        # the safetensors library itself performs on the mmap path.
+        next_start = 0
+        for start, end, name, _dtype, _shape in sorted(tensors, key=lambda t: t[0]):
+            if start != next_start:
+                raise ValueError("Invalid safetensors header: tensor data ranges are not contiguous")
+            next_start = end
+        if next_start != data_size:
+            raise ValueError("Invalid safetensors header: tensor data does not cover the full file")
+
+        for start, end, name, dtype, shape in tensors:
+            if start == end:
                 sd[name] = torch.empty(shape, dtype=dtype, device=device)
                 continue
             f.seek(data_start + start)
