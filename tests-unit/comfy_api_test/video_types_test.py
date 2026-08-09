@@ -727,9 +727,32 @@ def test_save_to_mp4_writes_metadata_before_media(video_components, tmp_path):
         assert data.index(b"moov") < data.index(b"mdat")
 
 
+def require_encoder(name):
+    try:
+        av.codec.Codec(name, "w")
+    except av.codec.codec.UnknownCodecError:
+        pytest.skip(f"{name} encoder not available in this PyAV build")
+
+
+def decoded_counts(container):
+    video = sum(len(packet.decode()) for packet in container.demux(container.streams.video[0]))
+    audio = 0
+    if container.streams.audio:
+        container.seek(0)
+        audio = sum(
+            frame.samples
+            for packet in container.demux(container.streams.audio[0])
+            for frame in packet.decode()
+        )
+    return video, audio
+
+
 def create_matroska_source(
     tmp_path, video_codec="libvpx", audio_codec=None, frames=6, fps=10, container_format="webm"
 ):
+    require_encoder(video_codec)
+    if audio_codec is not None:
+        require_encoder(audio_codec)
     path = str(tmp_path / f"source_{video_codec}.{container_format}")
     with av.open(path, mode="w", format=container_format) as container:
         video_stream = container.add_stream(video_codec, rate=fps)
@@ -768,13 +791,14 @@ def test_save_to_auto_transcodes_codec_the_container_cannot_store(tmp_path):
     VideoFromFile(source).save_to(destination)
 
     with av.open(destination) as container:
-        assert container.format.name == "mov,mp4,m4a,3gp,3g2,mj2"
+        assert "mp4" in container.format.name.split(",")
         assert container.streams.video[0].codec.name == "h264"
+        assert decoded_counts(container)[0] == 6
 
 
 def test_save_to_auto_transcodes_when_only_audio_is_unsupported(tmp_path):
     source = create_matroska_source(
-        tmp_path, video_codec="libx264", audio_codec="pcm_u8", container_format="matroska"
+        tmp_path, video_codec="mpeg4", audio_codec="pcm_u8", container_format="matroska"
     )
     destination = str(tmp_path / "saved.mp4")
 
@@ -783,6 +807,9 @@ def test_save_to_auto_transcodes_when_only_audio_is_unsupported(tmp_path):
     with av.open(destination) as container:
         assert container.streams.video[0].codec.name == "h264"
         assert container.streams.audio[0].codec.name == "aac"
+        video_frames, audio_samples = decoded_counts(container)
+        assert video_frames == 6
+        assert audio_samples > 0
 
 
 def test_save_to_auto_still_remuxes_a_compatible_codec(tmp_path):
@@ -793,17 +820,23 @@ def test_save_to_auto_still_remuxes_a_compatible_codec(tmp_path):
 
     with av.open(destination) as container:
         assert container.streams.video[0].codec.name == "vp9"
+        assert decoded_counts(container)[0] == 6
 
 
 def test_save_to_buffer_transcodes_codec_the_container_cannot_store(tmp_path):
-    source = create_matroska_source(tmp_path)
+    source = create_matroska_source(
+        tmp_path, video_codec="mpeg4", audio_codec="pcm_u8", container_format="mov"
+    )
     buffer = io.BytesIO()
+    buffer.write(b"\x00" * 4096)
 
     VideoFromFile(source).save_to(buffer, format=VideoContainer.MP4)
 
     buffer.seek(0)
     with av.open(buffer) as container:
         assert container.streams.video[0].codec.name == "h264"
+        assert container.streams.audio[0].codec.name == "aac"
+        assert decoded_counts(container)[0] == 6
 
 
 def create_transcode_source(
