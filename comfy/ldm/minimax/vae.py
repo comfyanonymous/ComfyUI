@@ -696,7 +696,7 @@ class MiniMaxH3VideoVAE(nn.Module):
         return self.decode(z)
 
     def decode(self, z, output_buffer=None):
-        # z: [B, 24, T_lat, H_lat, W_lat] normalized latents -> pixels [B, 3, T, H, W] in [-1, 1]
+        # z: [B, 24, T_lat, H_lat, W_lat] normalized latents -> float32 pixels [B, 3, T, H, W] in [0, 1]
         latents_mean = self.latents_mean.view(1, -1, 1, 1, 1).to(z)
         latents_std = self.latents_std.view(1, -1, 1, 1, 1).to(z)
         z = z * latents_std + latents_mean
