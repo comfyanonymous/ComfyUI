@@ -1270,9 +1270,20 @@ class Gemma4_Tokenizer():
 
         # Process image/video frames
         is_video = video is not None
-        source = video if is_video else image
-        images = []
-        if source is not None:
+        images_input = kwargs.get("images", None)
+        if is_video:
+            sources = [video]
+        elif isinstance(images_input, torch.Tensor):
+            sources = [images_input]
+        elif images_input is not None and len(images_input) > 0:
+            sources = images_input
+        elif image is not None:
+            sources = [image]
+        else:
+            sources = []
+
+        image_pixels = []
+        for source in sources:
             samples = source.movedim(-1, 1)  # [B, C, H, W]
             num_frames = samples.shape[0]
 
@@ -1299,7 +1310,7 @@ class Gemma4_Tokenizer():
                 if target_h != h or target_w != w:
                     s = TVF.resize(s, [target_h, target_w], interpolation=TVF.InterpolationMode.BICUBIC, antialias=True)
                 s = s.float() * (1.0 / 255.0)
-                images.append({"pixels": s.unsqueeze(0).movedim(1, -1)[:, :, :, :3], "max_soft_tokens": max_soft_tokens})
+                image_pixels.append({"pixels": s.unsqueeze(0).movedim(1, -1)[:, :, :, :3], "max_soft_tokens": max_soft_tokens})
 
         if text.startswith('<|turn>'):
             skip_template = True
@@ -1313,17 +1324,17 @@ class Gemma4_Tokenizer():
                 # Build template from modalities present
                 system = "<|turn>system\n<|think|>\n<turn|>\n" if thinking else ""
                 media = ""
-                if len(images) > 0:
+                if len(image_pixels) > 0:
                     if is_video:
                         media += "\n\n"
-                        for i in range(len(images)):
+                        for i in range(len(image_pixels)):
                             ts = f"{int(i // 60):02d}:{int(i % 60):02d}"
                             sep = "" if i == 0 else " "
                             media += f"{sep}{ts} <|image><|video|><image|>"
                         media += "\n\n"
                     else:
                         media += "\n\n"
-                        for i in range(len(images)):
+                        for i in range(len(image_pixels)):
                             if i > 0:
                                 media += "\n\n\n\n"
                             media += "<|image><|image|><image|>"
@@ -1353,9 +1364,9 @@ class Gemma4_Tokenizer():
                 else:
                     i += 1
 
-        if len(images) > 0:
+        if len(image_pixels) > 0:
             img_token_id = 258884 if is_video else 258880
-            img_embeds = [{"type": "image", "data": img["pixels"], "max_soft_tokens": img["max_soft_tokens"]} for img in images]
+            img_embeds = [{"type": "image", "data": img["pixels"], "max_soft_tokens": img["max_soft_tokens"]} for img in image_pixels]
             for r in text_tokens:
                 _replace_placeholders(r, img_token_id, img_embeds)
 
