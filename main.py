@@ -58,11 +58,16 @@ if __name__ == "__main__" and args.debug_hang:
 import comfy_aimdo.control
 
 if enables_dynamic_vram():
+    simple_vram_headroom = None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3)
     try:
-        comfy_aimdo.control.init(simple_vram_headroom=None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3))
+        comfy_aimdo.control.init(simple_vram_headroom=simple_vram_headroom, nvml_pressure=not args.disable_nvml_pressure)
     except TypeError:
-        # comfy-aimdo 0.4.9 protocol.
-        comfy_aimdo.control.init()
+        # comfy-aimdo 0.4.10 protocol.
+        try:
+            comfy_aimdo.control.init(simple_vram_headroom=simple_vram_headroom)
+        except TypeError:
+            # comfy-aimdo 0.4.9 protocol.
+            comfy_aimdo.control.init()
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'

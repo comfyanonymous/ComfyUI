@@ -34,7 +34,7 @@ import comfy.utils
 import comfy.quant_ops
 import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
-from comfy.logging import detail
+from comfy.internal_logging import detail
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -671,6 +671,19 @@ def pin_eviction_tiers(loaded, evict_active):
             tiers.append((PIN_SUBSETS, True, True))
     return tiers
 
+def registration_eviction_tiers(evict_active):
+    subsets = PIN_SUBSETS + LOADED_PIN_SUBSETS
+    tiers = [
+        (subsets, False, False),
+        (subsets, True, False),
+    ]
+    if evict_active:
+        tiers.extend([
+            (subsets, False, True),
+            (subsets, True, True),
+        ])
+    return tiers
+
 def free_pins(size, evict_active=False, loaded=False):
     freed = 0
     for subsets, current_prompt, active in pin_eviction_tiers(loaded, evict_active):
@@ -684,7 +697,11 @@ def should_free_pins_for_ram_pressure(shortfall):
         return True
     if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
         return True
-    return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+    try:
+        return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+    except RuntimeError as err:
+        logging.warning("Could not read Windows swap usage; falling back to RAM-pressure pin eviction: %s", err)
+        return True
 
 def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.high_ram:
@@ -699,19 +716,19 @@ def ensure_pin_budget(size, evict_active=False, loaded=False):
     to_free = shortfall + PIN_PRESSURE_HYSTERESIS
     return free_pins(to_free, evict_active=evict_active, loaded=loaded) >= shortfall
 
-def free_registrations(shortfall, evict_active=True, loaded=False):
+def free_registrations(shortfall, evict_active=True):
     if MAX_PINNED_MEMORY <= 0:
         return False
     if shortfall <= 0:
         return True
 
     shortfall += REGISTERABLE_PIN_HYSTERESIS
-    for subsets, current_prompt, active in pin_eviction_tiers(loaded, evict_active):
+    for subsets, current_prompt, active in registration_eviction_tiers(evict_active):
         shortfall -= free_model_pins(shortfall, subsets, current_prompt, active, registrations=True)
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
-def ensure_pin_registerable(size, evict_active=True, loaded=False):
-    return free_registrations(TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY, evict_active=evict_active, loaded=loaded)
+def ensure_pin_registerable(size, evict_active=True):
+    return free_registrations(TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY, evict_active=evict_active)
 
 class LoadedModel:
     def __init__(self, model: ModelPatcher):
@@ -1526,13 +1543,31 @@ def cast_to_device(tensor, device, dtype, copy=False):
 PINNED_MEMORY = {}
 TOTAL_PINNED_MEMORY = 0
 MAX_PINNED_MEMORY = -1
+
+def get_disk_swap_total():
+    if not os.path.exists("/proc/swaps"):
+        return 0
+
+    total = 0
+    try:
+        with open("/proc/swaps", encoding="utf-8") as swaps:
+            next(swaps, None)
+            for line in swaps:
+                filename, _, size, _, _ = line.rsplit(maxsplit=4)
+                if os.path.basename(os.path.realpath(filename)).startswith("zram"):
+                    continue
+                total += int(size) * 1024
+    except:
+        logging.warning("Could not get amount of swap memory on system.")
+    return total
+
 if not args.disable_pinned_memory:
     if is_nvidia() or is_amd():
         ram = get_total_memory(torch.device("cpu"))
         if WINDOWS:
             MAX_PINNED_MEMORY = ram * 0.40  # Windows limit is apparently 50%
         else:
-            MAX_PINNED_MEMORY = ram * 0.90
+            MAX_PINNED_MEMORY = max(ram * 0.40, min(ram * 0.90, ram - 4 * 1024 ** 3, ram + get_disk_swap_total() - 16 * 1024 ** 3))
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
