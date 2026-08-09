@@ -250,7 +250,7 @@ class LoadVideo(io.ComfyNode):
         video = apply_video_trim(source, (edit or {}).get("trim"))
         video = apply_video_crop(video, (edit or {}).get("crop"))
         if video is source:
-            return io.NodeOutput(video, ui=preview_input_video(file))
+            return io.NodeOutput(video, ui=preview_input_video(file, source))
         return io.NodeOutput(video, ui=save_video_preview(video))
 
     @classmethod
@@ -268,25 +268,41 @@ class LoadVideo(io.ComfyNode):
 
         return True
 
-def preview_input_video(file: str) -> ui.PreviewVideo:
+def preview_input_video(file: str, video: Input.Video | None = None) -> ui.PreviewVideo:
     name, _ = folder_paths.annotated_filepath(file)
     subfolder, _, filename = name.replace("\\", "/").rpartition("/")
-    return ui.PreviewVideo([ui.SavedResult(filename, subfolder, io.FolderType.input)])
+    result = ui.SavedResult(filename, subfolder, io.FolderType.input)
+    if video is not None:
+        try:
+            video._preview_result = (folder_paths.get_annotated_filepath(file), result)
+        except AttributeError:
+            pass
+    return ui.PreviewVideo([result])
 
 
 def save_video_preview(video: Input.Video) -> ui.PreviewVideo:
+    cached = getattr(video, "_preview_result", None)
+    if cached is not None and os.path.isfile(cached[0]):
+        return ui.PreviewVideo([cached[1]])
+
     width, height = video.get_dimensions()
     full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
         "ComfyUI_temp_video", folder_paths.get_temp_directory(), width, height
     )
     preview_format = Types.VideoContainer.MP4
     file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(preview_format)}"
+    full_path = os.path.join(full_output_folder, file)
     video.save_to(
-        os.path.join(full_output_folder, file),
+        full_path,
         format=preview_format,
         codec="auto",
     )
-    return ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.temp)])
+    result = ui.SavedResult(file, subfolder, io.FolderType.temp)
+    try:
+        video._preview_result = (full_path, result)
+    except AttributeError:
+        pass
+    return ui.PreviewVideo([result])
 
 
 def apply_video_trim(video: Input.Video, trim, strict_duration: bool = False) -> Input.Video:

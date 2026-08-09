@@ -606,8 +606,13 @@ class VideoFromFile(VideoInput):
                 duration_cap = math.ceil(duration * sample_rate)
 
         import comfy.utils
-        raw_duration = self._get_raw_duration()
-        window_seconds = duration if duration else max(raw_duration - start_time, 0.0)
+        if duration:
+            window_seconds = duration
+        else:
+            try:
+                window_seconds = max(self._get_raw_duration() - start_time, 0.0)
+            except ValueError:
+                window_seconds = 0.0
         progress_total = max(1, int(round(window_seconds * float(rate))))
         pbar = comfy.utils.ProgressBar(progress_total)
 
@@ -707,6 +712,12 @@ class VideoFromFile(VideoInput):
                                 crop_rect = normalize_crop_rect(*self.__crop, out_width, out_height)
                                 if crop_rect is not None:
                                     out_width, out_height = crop_rect[2], crop_rect[3]
+                            if (out_width % 2 or out_height % 2) and crop_rect is None:
+                                even_width = out_width - out_width % 2
+                                even_height = out_height - out_height % 2
+                                if even_width > 0 and even_height > 0:
+                                    crop_rect = (0, 0, even_width, even_height)
+                                    out_width, out_height = even_width, even_height
                             if out_width % 2 or out_height % 2:
                                 raise ValueError(f"H.264 output requires even dimensions, got {out_width}x{out_height}")
                             source_size = (frame.width, frame.height)
@@ -873,7 +884,7 @@ class VideoFromFile(VideoInput):
             duration=duration,
             crop=self.__crop,
         )
-        if trimmed.get_duration() < duration and strict_duration:
+        if strict_duration and duration and trimmed.get_duration() < duration:
             return None
         return trimmed
 
