@@ -1,3 +1,4 @@
+import logging
 import pytest
 import torch
 import tempfile
@@ -1201,6 +1202,7 @@ def test_save_to_transcode_clamps_final_pts_to_declared_stream_duration():
         def __init__(self, video_stream):
             self.video = [video_stream]
             self.audio = []
+            self.subtitles = []
 
     class _PacketProxy:
         def __init__(self, packet, stream):
@@ -1343,6 +1345,139 @@ def test_save_to_transcode_bakes_rotation():
         assert result["frames"] == 30
     finally:
         os.unlink(file_path)
+
+
+def mov_text_payload(text: str) -> bytes:
+    """A mov_text sample is a 16-bit big-endian length followed by the UTF-8 text."""
+    encoded = text.encode("utf-8")
+    return len(encoded).to_bytes(2, "big") + encoded
+
+
+def create_subtitled_source(subtitle_codec="mov_text", container_format="mp4", frames=90, fps=30):
+    """mpeg4 video (so save_to must transcode) alongside a subtitle track carrying three cues."""
+    buffer = io.BytesIO()
+    with av.open(buffer, mode="w", format=container_format) as container:
+        video_stream = container.add_stream("mpeg4", rate=fps)
+        video_stream.width = video_stream.height = 64
+        video_stream.pix_fmt = "yuv420p"
+        subtitle_stream = container.add_mux_stream(subtitle_codec)
+        subtitle_stream.time_base = Fraction(1, 1000)
+        for i in range(frames):
+            frame = av.VideoFrame.from_ndarray(
+                torch.full((64, 64, 3), (i * 7) % 256, dtype=torch.uint8).numpy(), format="rgb24"
+            ).reformat(format="yuv420p")
+            container.mux(video_stream.encode(frame))
+        container.mux(video_stream.encode(None))
+        for start_ms, text in ((0, "one"), (1000, "two"), (2000, "three")):
+            packet = av.Packet(mov_text_payload(text))
+            packet.stream = subtitle_stream
+            packet.pts = packet.dts = start_ms
+            packet.duration = 900
+            packet.time_base = Fraction(1, 1000)
+            container.mux(packet)
+    buffer.seek(0)
+    return buffer
+
+
+def subtitle_cues(buffer):
+    """(seconds, text) for every non-empty cue; the mp4 muxer pads gaps with 2-byte empties."""
+    buffer.seek(0)
+    with av.open(buffer) as container:
+        if not container.streams.subtitles:
+            return None
+        return [
+            (float(packet.pts * packet.time_base), bytes(packet)[2:].decode("utf-8"))
+            for packet in container.demux(container.streams.subtitles[0])
+            if packet.dts is not None and packet.size > 2
+        ]
+
+
+def test_save_to_transcode_keeps_subtitles_the_container_can_store():
+    """Transcoding video must not silently drop a subtitle track the output can hold."""
+    output = io.BytesIO()
+    VideoFromFile(create_subtitled_source()).save_to(
+        output, format=VideoContainer.MP4, codec=VideoCodec.H264
+    )
+
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.name == "h264"
+        assert [s.codec_context.name for s in container.streams.subtitles] == ["mov_text"]
+    assert subtitle_cues(output) == [(0.0, "one"), (1.0, "two"), (2.0, "three")]
+
+
+def test_save_to_transcode_trims_subtitles_with_the_video():
+    """Kept cues rebase onto the trimmed timeline; cues outside the window are dropped."""
+    output = io.BytesIO()
+    VideoFromFile(create_subtitled_source(), start_time=1, duration=1).save_to(
+        output, format=VideoContainer.MP4, codec=VideoCodec.H264
+    )
+
+    assert subtitle_cues(output) == [(0.0, "two")]
+
+
+def test_save_to_transcode_drops_unstorable_subtitles_with_a_warning(caplog):
+    """There is no subtitle encoder binding, so subrip cannot become mov_text: drop it, but
+    name the stream instead of letting the track vanish silently."""
+    output = io.BytesIO()
+    with caplog.at_level(logging.WARNING):
+        VideoFromFile(create_subtitled_source(subtitle_codec="subrip", container_format="matroska")).save_to(
+            output, format=VideoContainer.MP4, codec=VideoCodec.H264
+        )
+
+    assert subtitle_cues(output) is None
+    assert any(
+        "subtitle stream" in record.message and "cannot store it" in record.message
+        for record in caplog.records
+    )
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.name == "h264"
+        assert len([f for p in container.demux(container.streams.video[0]) for f in p.decode()]) == 90
+
+
+def test_save_to_remux_fallback_keeps_subtitles():
+    """The audio-triggered fallback into the transcode path must keep subtitles too."""
+    buffer = io.BytesIO()
+    with av.open(buffer, mode="w", format="mov") as container:
+        video_stream = container.add_stream("mpeg4", rate=30)
+        video_stream.width = video_stream.height = 64
+        video_stream.pix_fmt = "yuv420p"
+        audio_stream = container.add_stream("pcm_u8", rate=44100)
+        audio_stream.sample_rate = 44100
+        subtitle_stream = container.add_mux_stream("mov_text")
+        subtitle_stream.time_base = Fraction(1, 1000)
+        for i in range(30):
+            frame = av.VideoFrame.from_ndarray(
+                torch.full((64, 64, 3), (i * 7) % 256, dtype=torch.uint8).numpy(), format="rgb24"
+            ).reformat(format="yuv420p")
+            container.mux(video_stream.encode(frame))
+        for offset in range(0, 44100, 1024):
+            audio_frame = av.AudioFrame.from_ndarray(
+                torch.zeros(1, min(1024, 44100 - offset), dtype=torch.int16).numpy(),
+                format="s16", layout="mono",
+            )
+            audio_frame.sample_rate = 44100
+            audio_frame.pts = offset
+            container.mux(audio_stream.encode(audio_frame))
+        for stream in (video_stream, audio_stream):
+            container.mux(stream.encode(None))
+        packet = av.Packet(mov_text_payload("one"))
+        packet.stream = subtitle_stream
+        packet.pts = packet.dts = 0
+        packet.duration = 900
+        packet.time_base = Fraction(1, 1000)
+        container.mux(packet)
+
+    buffer.seek(0)
+    output = io.BytesIO()
+    VideoFromFile(buffer).save_to(output, format=VideoContainer.MP4)
+
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.name == "h264"
+        assert container.streams.audio[0].codec_context.name == "aac"
+    assert subtitle_cues(output) == [(0.0, "one")]
 
 
 def test_save_to_transcode_skips_undecodable_audio():
