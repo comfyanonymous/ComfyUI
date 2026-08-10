@@ -633,15 +633,18 @@ class DiffusersLoader:
     SEARCH_ALIASES = ["load diffusers model"]
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def _model_paths(cls):
         paths = []
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
                 for root, subdir, files in os.walk(search_path, followlinks=True):
                     if "model_index.json" in files:
                         paths.append(os.path.relpath(root, start=search_path))
+        return paths
 
-        return {"required": {"model_path": (paths,), }}
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"model_path": (cls._model_paths(),), }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
     DEPRECATED = True
@@ -649,14 +652,20 @@ class DiffusersLoader:
     CATEGORY = "model/loaders"
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+        if model_path not in self._model_paths():
+            raise ValueError(f"Invalid diffusers model path: {model_path!r}")
+
+        resolved_model_path = None
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
                 path = os.path.join(search_path, model_path)
-                if os.path.exists(path):
-                    model_path = path
+                if os.path.isfile(os.path.join(path, "model_index.json")):
+                    resolved_model_path = path
                     break
+        if resolved_model_path is None:
+            raise FileNotFoundError(f"Diffusers model {model_path!r} not found.")
 
-        return comfy.diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_load.load_diffusers(resolved_model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
@@ -992,7 +1001,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu", "krea2"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis", "longcat_image", "cogvideox", "lens", "pixeldit", "ideogram4", "boogu", "krea2", "joyimage", "mage", "minimax"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1002,7 +1011,7 @@ class CLIPLoader:
 
     CATEGORY = "model/loaders"
 
-    DESCRIPTION = "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm"
+    DESCRIPTION = "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\njoyimage: qwen3-vl 8B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -1709,6 +1718,7 @@ class PreviewImage(SaveImage):
         self.compress_level = 1
 
     SEARCH_ALIASES = ["preview", "preview image", "show image", "view image", "display image", "image viewer"]
+    DESCRIPTION = "Preview the images without saving them to the ComfyUI output directory."
 
     @classmethod
     def INPUT_TYPES(s):
@@ -2435,6 +2445,7 @@ async def init_builtin_extra_nodes():
         "nodes_mahiro.py",
         "nodes_lt_upsampler.py",
         "nodes_lt_audio.py",
+        "nodes_minimax_h3.py",
         "nodes_lt.py",
         "nodes_hooks.py",
         "nodes_multigpu.py",
@@ -2458,8 +2469,11 @@ async def init_builtin_extra_nodes():
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
         "nodes_tcfg.py",
+        "nodes_seedvr.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
+        "nodes_mage.py",
+        "nodes_joyimage.py",
         "nodes_boogu.py",
         "nodes_chroma_radiance.py",
         "nodes_pid.py",
@@ -2478,6 +2492,7 @@ async def init_builtin_extra_nodes():
         "nodes_glsl.py",
         "nodes_lora_debug.py",
         "nodes_textgen.py",
+        "nodes_text_overlay.py",
         "nodes_color.py",
         "nodes_toolkit.py",
         "nodes_replacements.py",
@@ -2486,6 +2501,7 @@ async def init_builtin_extra_nodes():
         "nodes_math.py",
         "nodes_number_convert.py",
         "nodes_painter.py",
+        "nodes_compositor.py",
         "nodes_curve.py",
         "nodes_bg_removal.py",
         "nodes_rtdetr.py",
@@ -2502,6 +2518,7 @@ async def init_builtin_extra_nodes():
         "nodes_triposplat.py",
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
+        "nodes_text.py",
     ]
 
     import_failed = []

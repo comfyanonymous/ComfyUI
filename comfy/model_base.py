@@ -21,6 +21,8 @@ import comfy.ldm.hunyuan3dv2_1.hunyuandit
 import torch
 import logging
 import comfy.ldm.lightricks.av_model
+import comfy.ldm.minimax.model
+import comfy.nested_tensor
 import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
@@ -44,6 +46,7 @@ import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.wan.model_animate
+import comfy.ldm.wan.model_animate2
 import comfy.ldm.wan.ar_model
 import comfy.ldm.wan.model_wandancer
 import comfy.ldm.hunyuan3d.model
@@ -55,8 +58,11 @@ import comfy.ldm.pixeldit.model
 import comfy.ldm.pixeldit.pid
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.seedvr.model
 import comfy.ldm.boogu.model
 import comfy.ldm.qwen_image.model
+import comfy.ldm.mage_flow.model
+import comfy.ldm.joyimage.model
 import comfy.ldm.ideogram4.model
 import comfy.ldm.krea2.model
 import comfy.ldm.kandinsky5.model
@@ -96,6 +102,7 @@ class ModelType(Enum):
     FLOW_COSMOS = 10
     IMG_TO_IMG_FLOW = 11
     V_PREDICTION_DDPM = 12
+    FLOW_AV = 13
 
 
 def model_sampling(model_config, model_type):
@@ -132,6 +139,9 @@ def model_sampling(model_config, model_type):
         c = comfy.model_sampling.IMG_TO_IMG_FLOW
     elif model_type == ModelType.V_PREDICTION_DDPM:
         c = comfy.model_sampling.V_PREDICTION_DDPM
+    elif model_type == ModelType.FLOW_AV:
+        c = comfy.model_sampling.CONST
+        s = comfy.model_sampling.ModelSamplingAV
 
     class ModelSampling(s, c):
         pass
@@ -166,6 +176,7 @@ class BaseModel(torch.nn.Module):
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
+            self.diffusion_model.requires_grad_(False)
             self.diffusion_model.eval()
             if comfy.model_management.force_channels_last():
                 self.diffusion_model.to(memory_format=torch.channels_last)
@@ -175,6 +186,7 @@ class BaseModel(torch.nn.Module):
 
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
+        self.latent_shapes = None  # set by the sampler for models that pack several streams into one latent
 
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -930,6 +942,17 @@ class HunyuanDiT(BaseModel):
         target_height = kwargs.get("target_height", height)
 
         out['image_meta_size'] = comfy.conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
+        return out
+
+class SeedVR2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.seedvr.model.NaDiT)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        condition = kwargs.get("condition", None)
+        if condition is not None:
+            out["condition"] = comfy.conds.CONDRegular(condition)
         return out
 
 class PixArt(BaseModel):
@@ -1791,6 +1814,41 @@ class WAN22_Animate(WAN21):
             return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=1)
         return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
 
+class WAN_Animate2(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model_animate2.WanAnimate2Model)
+        self.image_to_video = True
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        pose_video_latent = kwargs.get("pose_video_latent", None)
+        if pose_video_latent is not None:
+            out['pose_latents'] = comfy.conds.CONDRegular(self.process_latent_in(pose_video_latent))
+
+        clip_vision_output_pose = kwargs.get("clip_vision_output_pose", None)
+        if clip_vision_output_pose is not None:
+            out['clip_fea_pose'] = comfy.conds.CONDRegular(clip_vision_output_pose.penultimate_hidden_states)
+
+        cross_attn_pose = kwargs.get("cross_attn_pose", None)
+        if cross_attn_pose is not None:
+            out['context_pose'] = comfy.conds.CONDRegular(cross_attn_pose)
+
+        pose_strength = kwargs.get("pose_strength", 1.0)
+        if pose_strength != 1.0:
+            out['pose_strength'] = comfy.conds.CONDConstant(pose_strength)
+
+        reference_strength = kwargs.get("reference_strength", 1.0)
+        if reference_strength != 1.0:
+            out['reference_strength'] = comfy.conds.CONDConstant(reference_strength)
+
+        return out
+
+    def resize_cond_for_context_window(self, cond_key, cond_value, window, x_in, device, retain_index_list=[]):
+        if cond_key == "pose_latents":
+            return comfy.context_windows.slice_cond(cond_value, window, x_in, device, temporal_dim=2, temporal_offset=1)
+        return super().resize_cond_for_context_window(cond_key, cond_value, window, x_in, device, retain_index_list=retain_index_list)
+
 class WAN22_S2V(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel_S2V)
@@ -2011,11 +2069,11 @@ class WAN22_WanDancer(WAN21):
 
         fps = kwargs.get("fps", None)
         if fps is not None:
-            out['fps'] = comfy.conds.CONDRegular(torch.FloatTensor([fps]))
+            out['fps'] = comfy.conds.CONDConstant(fps)
 
         audio_inject_scale = kwargs.get("audio_inject_scale", None)
         if audio_inject_scale is not None:
-            out['audio_inject_scale'] = comfy.conds.CONDRegular(torch.FloatTensor([audio_inject_scale]))
+            out['audio_inject_scale'] = comfy.conds.CONDConstant(audio_inject_scale)
         return out
 
 class Hunyuan3Dv2(BaseModel):
@@ -2046,6 +2104,80 @@ class Hunyuan3Dv2_1(BaseModel):
         guidance = kwargs.get("guidance", 5.0)
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+        return out
+
+class MiniMaxH3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW_AV, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax.model.MiniMaxH3Model)
+
+    def audio_scale(self):
+        """Scale the sampler carries the audio stream at, 1.0 when not sampling the packed latent."""
+        if self.latent_shapes is None or len(self.latent_shapes) < 2:
+            return 1.0
+        return self.model_sampling.audio_scale
+
+    def _scale_audio_slice(self, latent, scale):
+        # the sampler carries the audio stream scaled onto the video schedule
+        if scale == 1.0:
+            return latent
+        if latent.is_nested:  # the x0 output hands back the unpacked view
+            streams = latent.unbind()
+            return comfy.nested_tensor.NestedTensor([streams[0], streams[1] * scale] + list(streams[2:]))
+        n = math.prod(self.latent_shapes[0][1:])
+        latent = latent.clone()
+        latent[..., n:] *= scale
+        return latent
+
+    def process_latent_in(self, latent):
+        return self._scale_audio_slice(super().process_latent_in(latent), self.audio_scale())
+
+    def process_latent_out(self, latent):
+        return super().process_latent_out(self._scale_audio_slice(latent, 1.0 / self.audio_scale()))
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            # run condition_proj + token refiner once per sampling instead of per step
+            cross_attn = self.diffusion_model.preprocess_text_embeds(
+                cross_attn.to(device=kwargs["device"], dtype=self.get_dtype_inference()))
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        latent_shapes = kwargs.get("latent_shapes", None)
+        if latent_shapes is not None:
+            out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+
+        # Everything H3-specific rides in one dict so _apply_model's dtype cast
+        # (which would flatten fp32 cond latents and long tags to bf16) skips it.
+        payload = {}
+        tags = kwargs.get("minimax_token_tags", None)
+        if tags is not None:
+            payload["text_token_tags"] = tags
+        keyframes = kwargs.get("minimax_keyframes", None)
+        if keyframes is not None:
+            payload["keyframes"] = keyframes
+            payload["frame_count"] = kwargs.get("minimax_frame_count", None)
+            payload["cond_video_latents"] = [kf["latent"] for kf in keyframes]
+        refs = kwargs.get("minimax_refs", None)
+        if refs is not None:
+            payload["refs"] = refs
+            payload["cond_video_latents"] = [r["latent"] for r in refs if "latent" in r]
+            payload["cond_audio_latents"] = [r["audio_latent"] for r in refs if r.get("audio_latent") is not None]
+        if kwargs.get("minimax_visual_cond_noise_aug", None) is not None:
+            payload["visual_cond_noise_aug"] = kwargs["minimax_visual_cond_noise_aug"]
+        if kwargs.get("minimax_audio_cond_noise_aug", None) is not None:
+            payload["audio_cond_noise_aug"] = kwargs["minimax_audio_cond_noise_aug"]
+        payload["seed"] = kwargs.get("seed", 0)
+        # same value process_latent_in/out used, so the model never undoes a scale that was not applied
+        payload["audio_scale"] = self.audio_scale()
+        if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
+            # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
+            vs = latent_shapes[0]
+            payload["layout"] = comfy.ldm.minimax.model.PackedLayout(
+                cross_attn.shape[1], vs[2], (vs[3] + 1) // 2 * 2, (vs[4] + 1) // 2 * 2,
+                latent_shapes[1][-1], keyframes=payload.get("keyframes"),
+                refs=payload.get("refs"), frame_count=payload.get("frame_count"))
+        out['minimax_payload'] = comfy.conds.CONDConstant(payload)
         return out
 
 class TripoSplat(BaseModel):
@@ -2214,10 +2346,7 @@ class Omnigen2(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            latents = []
-            for lat in ref_latents:
-                latents.append(self.process_latent_in(lat))
-            out['ref_latents'] = comfy.conds.CONDList(latents)
+            out['ref_latents'] = comfy.conds.CONDList([self.process_latent_in(lat) for lat in ref_latents])
         return out
 
     def extra_conds_shapes(self, **kwargs):
@@ -2233,8 +2362,8 @@ class Boogu(Omnigen2):
         self.memory_usage_factor_conds = ("ref_latents",)
 
 class QwenImage(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.qwen_image.model.QwenImageTransformer2DModel)
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.qwen_image.model.QwenImageTransformer2DModel):
+        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
         self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
@@ -2264,6 +2393,43 @@ class QwenImage(BaseModel):
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
 
+class MageFlow(QwenImage):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.mage_flow.model.MageFlowTransformer2DModel)
+
+    def process_timestep(self, timestep, **kwargs):
+        # Mage runs in bf16 and rounds its timestep frequency table to the timestep dtype, keep that on fp32 devices.
+        return timestep.to(torch.bfloat16)
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 128, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 128])
+        return out
+
+class JoyImage(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.joyimage.model.JoyImageTransformer3DModel)
+        self.memory_usage_factor_conds = ("ref_latents",)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = comfy.conds.CONDList([self.process_latent_in(lat) for lat in ref_latents])
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
 class Ideogram4(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.ideogram4.model.Ideogram4Transformer2DModel)
@@ -2282,12 +2448,30 @@ class Ideogram4(BaseModel):
 class Krea2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.krea2.model.SingleStreamDiT)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            latents = []
+            for lat in ref_latents:
+                latents.append(self.process_latent_in(lat))
+            out['ref_latents'] = comfy.conds.CONDList(latents)
+
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
 
 class HunyuanImage21(BaseModel):

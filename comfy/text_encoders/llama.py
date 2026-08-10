@@ -265,6 +265,17 @@ class Qwen3VL_4BConfig(Qwen3VL_8BConfig):
     lm_head: bool = False  # 4B ties word embeddings
 
 @dataclass
+class Qwen3VL_32BConfig(Qwen3VL_8BConfig):
+    # MiniMax H3 conditioning checkpoint: truncated to the first 50 of 64 layers,
+    # consumed as the unnormalized hidden state after layer 50 (no final norm, no lm_head)
+    hidden_size: int = 5120
+    intermediate_size: int = 25600
+    num_hidden_layers: int = 50
+    num_attention_heads: int = 64
+    lm_head: bool = False
+    final_norm: bool = False
+
+@dataclass
 class Ovis25_2BConfig:
     vocab_size: int = 151936
     hidden_size: int = 2048
@@ -550,10 +561,8 @@ class Attention(nn.Module):
                 xv = xv[:, :, -sliding_window:]
                 attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
 
-        xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-        xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-
-        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
+        gqa_kwargs = {"enable_gqa": True} if self.num_heads != self.num_kv_heads else {}
+        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True, **gqa_kwargs)
         return self.o_proj(output), present_key_value
 
 class MLP(nn.Module):
@@ -859,16 +868,10 @@ class BaseGenerate:
         else:
             module = self.model.embed_tokens
 
-        offload_stream = None
-        if module.comfy_cast_weights:
-            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
-        else:
-            weight = self.model.embed_tokens.weight.to(x)
-
-        x = torch.nn.functional.linear(input, weight, None)
-
-        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
-        return x
+        if not module.comfy_cast_weights:
+            return torch.nn.functional.linear(input, self.model.embed_tokens.weight.to(x), None)
+        with comfy.ops.CastBiasWeightContext(module, input, offloadable=True) as (weight, _bias):
+            return torch.nn.functional.linear(input, weight, None)
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
         model_config = self.model.config
@@ -878,7 +881,7 @@ class BaseGenerate:
                                     torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
         return past_key_values
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None):
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None, embeds_info=None):
         device = embeds.device
 
         if stop_tokens is None:
@@ -913,7 +916,7 @@ class BaseGenerate:
             if step == 0 and deepstack_embeds is not None:
                 extra["deepstack_embeds"] = deepstack_embeds
                 extra["visual_pos_masks"] = visual_pos_masks
-            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra)
+            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
             logits = self.logits(x)[:, -1]
             next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
             token_id = next_token[0].item()
@@ -937,22 +940,41 @@ class BaseGenerate:
             return torch.argmax(logits, dim=-1, keepdim=True)
 
         # Sampling mode
-        if repetition_penalty != 1.0:
-            for i in range(logits.shape[0]):
-                for token_id in set(token_history):
-                    logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
-
-        if presence_penalty is not None and presence_penalty != 0.0:
-            for i in range(logits.shape[0]):
-                for token_id in set(token_history):
-                    logits[i, token_id] -= presence_penalty
+        if len(token_history) > 0 and (repetition_penalty != 1.0 or (presence_penalty is not None and presence_penalty != 0.0)):
+            token_ids = torch.tensor(list(set(token_history)), device=logits.device)
+            token_logits = logits[:, token_ids]
+            if repetition_penalty != 1.0:
+                token_logits = torch.where(token_logits < 0, token_logits * repetition_penalty, token_logits / repetition_penalty)
+            if presence_penalty is not None and presence_penalty != 0.0:
+                token_logits = token_logits - presence_penalty
+            logits[:, token_ids] = token_logits
 
         if temperature != 1.0:
             logits = logits / temperature
 
         if top_k > 0:
-            indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-            logits[indices_to_remove] = torch.finfo(logits.dtype).min
+            top_k = min(top_k, logits.shape[-1])
+            logits, top_indices = torch.topk(logits, top_k)
+
+            if min_p > 0.0:
+                probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
+                top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
+                min_threshold = min_p * top_probs
+                indices_to_remove = probs_before_filter < min_threshold
+                logits[indices_to_remove] = torch.finfo(logits.dtype).min
+
+            if top_p < 1.0:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[..., 0] = False
+                indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
+                indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
+                logits[indices_to_remove] = torch.finfo(logits.dtype).min
+
+            probs = torch.nn.functional.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1, generator=generator)
+            return top_indices.gather(1, next_token)
 
         if min_p > 0.0:
             probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
