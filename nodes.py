@@ -310,6 +310,25 @@ class ConditioningSetTimestepRange:
         c = node_helpers.conditioning_set_values(conditioning, {"start_percent": start, "end_percent": end})
         return (c, )
 
+
+def prepare_xpu_vae_decode(vae):
+    """Free XPU VRAM before decoding with a large video VAE when headroom is low.
+
+    Large video VAEs (MiniMax H3 etc.) can need several GiB of active VRAM per
+    decode call, far above the built-in memory estimate, so the regular load-time
+    eviction can leave the device too full and OOM/black-screen the Intel GPU
+    driver. When free memory is below 8GiB, release other resident models with a
+    device-scoped free_memory() (the VAE itself is loaded right after by
+    load_models_gpu).
+    """
+    if comfy.model_management.is_intel_xpu():
+        free_before = comfy.model_management.get_free_memory(vae.device)
+        if free_before < 8 * 1024 ** 3:
+            logging.info(f"VAE decode: low XPU VRAM ({free_before/2**30:.1f}GiB free) — releasing other models first")
+            comfy.model_management.free_memory(1e30, vae.device)
+            comfy.model_management.soft_empty_cache()
+
+
 class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
@@ -328,11 +347,13 @@ class VAEDecode:
     SEARCH_ALIASES = ["decode", "decode latent", "latent to image", "render latent"]
 
     def decode(self, vae, samples):
+        prepare_xpu_vae_decode(vae)
         latent = samples["samples"]
         if latent.is_nested:
             latent = latent.unbind()[0]
 
-        images = vae.decode(latent)
+        with torch.no_grad():
+            images = vae.decode(latent)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
@@ -352,6 +373,7 @@ class VAEDecodeTiled:
     CATEGORY = "model/latent"
 
     def decode(self, vae, samples, tile_size, overlap=64, temporal_size=64, temporal_overlap=8):
+        prepare_xpu_vae_decode(vae)
         if tile_size < overlap * 4:
             overlap = tile_size // 4
         if temporal_size < temporal_overlap * 2:
@@ -365,7 +387,8 @@ class VAEDecodeTiled:
             temporal_overlap = None
 
         compression = vae.spacial_compression_decode()
-        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
+        with torch.no_grad():
+            images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
