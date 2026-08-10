@@ -49,6 +49,18 @@ except ImportError:
         logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
         exit(-1)
 
+COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE = False
+try:
+    from comfy_kitchen import int8_attention as comfy_kitchen_int8_attention
+    from comfy_kitchen import int8_attention_is_available
+    from comfy_kitchen import int8_attention_from_prequantized as comfy_kitchen_int8_attention_from_prequantized
+    from comfy_kitchen import prequantize_int8_attention as comfy_kitchen_prequantize_int8_attention
+    COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE = int8_attention_is_available()
+except ImportError:
+    if model_management.comfy_kitchen_int8_attention_enabled():
+        logging.error("\n\nTo use the `--use-comfy-kitchen-int8-attention` feature, install a Comfy Kitchen build with INT8 attention support.")
+        exit(-1)
+
 REGISTERED_ATTENTION_FUNCTIONS = {}
 def register_attention_function(name: str, func: Callable):
     # avoid replacing existing functions
@@ -145,9 +157,34 @@ def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
 
+class AttentionTensorContainer:
+    """Single-owner tensor input consumed by an optimized attention backend."""
+
+    __slots__ = ("tensor",)
+
+    def __init__(self, tensor: torch.Tensor):
+        self.tensor: torch.Tensor | None = tensor
+
+    def peek(self) -> torch.Tensor:
+        if self.tensor is None:
+            raise RuntimeError("attention tensor container has already been consumed")
+        return self.tensor
+
+    def take(self) -> torch.Tensor:
+        tensor = self.peek()
+        self.tensor = None
+        return tensor
+
+
 def wrap_attn(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        containers = None
+        if len(args) >= 3 and isinstance(args[0], AttentionTensorContainer):
+            if not isinstance(args[1], AttentionTensorContainer) or not isinstance(args[2], AttentionTensorContainer):
+                raise TypeError("q, k, and v must all be attention tensor containers")
+            containers = args[:3]
+
         remove_attn_wrapper_key = False
         try:
             if "_inside_attn_wrapper" not in kwargs:
@@ -156,11 +193,19 @@ def wrap_attn(func):
                 kwargs["_inside_attn_wrapper"] = True
                 if transformer_options is not None:
                     if "optimized_attention_override" in transformer_options:
+                        if containers is not None:
+                            args = tuple(container.take() for container in containers) + args[3:]
                         return transformer_options["optimized_attention_override"](func, *args, **kwargs)
+
+            if containers is not None:
+                if wrapper.container_function is not None:
+                    return wrapper.container_function(*args, **kwargs)
+                args = tuple(container.take() for container in containers) + args[3:]
             return func(*args, **kwargs)
         finally:
             if remove_attn_wrapper_key:
                 del kwargs["_inside_attn_wrapper"]
+    wrapper.container_function = None
     return wrapper
 
 @wrap_attn
@@ -545,6 +590,65 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             ).transpose(1, 2).reshape(-1, q.shape[2], heads * dim_head)
     return out
 
+def _comfy_kitchen_int8_inputs(q, k, v, heads, mask, skip_reshape, enable_gqa):
+    dim_head = q.shape[-1] if skip_reshape else q.shape[-1] // heads
+    b = q.shape[0]
+    if not skip_reshape:
+        q, k, v = _reshape_qkv_to_heads(q, k, v, b, heads, dim_head, enable_gqa, expand_kv=False)
+        q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v))
+
+    if mask is not None:
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        if mask.ndim == 3:
+            mask = mask.unsqueeze(1)
+
+    return q, k, v, mask, b, dim_head
+
+
+@wrap_attn
+def attention_comfy_kitchen_int8(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    q, k, v, mask, b, dim_head = _comfy_kitchen_int8_inputs(
+        q, k, v, heads, mask, skip_reshape, kwargs.get("enable_gqa", False)
+    )
+    out = comfy_kitchen_int8_attention(
+        q,
+        k,
+        v,
+        scale=kwargs.get("scale", None),
+        convrot=True,
+        attn_mask=mask,
+    )
+    if not skip_output_reshape:
+        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+    return out
+
+
+def _attention_comfy_kitchen_int8_containers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    q = q.take()
+    k = k.take()
+    v = v.take()
+    q, k, v, mask, b, dim_head = _comfy_kitchen_int8_inputs(
+        q, k, v, heads, mask, skip_reshape, kwargs.get("enable_gqa", False)
+    )
+    quantized = comfy_kitchen_prequantize_int8_attention(
+        q,
+        k,
+        v,
+        scale=kwargs.get("scale", None),
+        convrot=True,
+        attn_mask=mask,
+    )
+    del q, k, v
+    out = comfy_kitchen_int8_attention_from_prequantized(quantized)
+    if not skip_output_reshape:
+        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+    return out
+
+
+attention_comfy_kitchen_int8.container_function = _attention_comfy_kitchen_int8_containers
+
+
 @wrap_attn
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     if kwargs.get("low_precision_attention", True) is False or (mask is not None and not SAGE_ATTENTION_SUPPORTS_MASK):
@@ -775,10 +879,16 @@ else:
         logging.info("Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
+if model_management.comfy_kitchen_int8_attention_enabled():
+    logging.info("Using Comfy Kitchen INT8 attention")
+    optimized_attention = attention_comfy_kitchen_int8
+
 optimized_attention_masked = optimized_attention
 
 
 # register core-supported attention functions
+if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE:
+    register_attention_function("comfy_kitchen_int8", attention_comfy_kitchen_int8)
 if SAGE_ATTENTION_IS_AVAILABLE:
     register_attention_function("sage", attention_sage)
 if SAGE_ATTENTION3_IS_AVAILABLE:
