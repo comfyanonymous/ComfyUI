@@ -1215,6 +1215,9 @@ class VAE:
                     if self.handles_tiling:
                         tile = 256 // self.spacial_compression_decode()
                         overlap = tile // 4
+                        # decode_tiled is identical to decode for these VAEs, so freeing the
+                        # memory other models hold onto is the only thing that can make the retry succeed.
+                        model_management.free_memory(1e30, self.device, keep_loaded=[model_management.LoadedModel(self.patcher)])
                         pixel_samples = self._decode_tiled_owned(samples_in, tile_x=tile, tile_y=tile, overlap=overlap)
                     else:
                         pixel_samples = self.decode_tiled_(samples_in)
@@ -1222,6 +1225,9 @@ class VAE:
                     tile = 256 // self.spacial_compression_decode()
                     overlap = tile // 4
                     if self.handles_tiling:
+                        # decode_tiled is identical to decode for these VAEs, so freeing the
+                        # memory other models hold onto is the only thing that can make the retry succeed.
+                        model_management.free_memory(1e30, self.device, keep_loaded=[model_management.LoadedModel(self.patcher)])
                         pixel_samples = self._decode_tiled_owned(samples_in, tile_x=tile, tile_y=tile, overlap=overlap)
                     else:
                         pixel_samples = self.decode_tiled_3d(samples_in, tile_x=tile, tile_y=tile, overlap=(1, overlap, overlap))
