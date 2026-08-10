@@ -213,6 +213,8 @@ export MACA_PATH
 export MACA_HOME="${MACA_HOME:-${MACA_PATH}}"
 export PATH="${MACA_PATH}/bin:${PATH}"
 export LD_LIBRARY_PATH="${MACA_PATH}/lib:${MACA_PATH}/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
+export GITHUB_ENDPOINT="${GITHUB_ENDPOINT:-https://gh-proxy.org/https://github.com}"
 
 canonical_args=(
     --listen "${listen}"
