@@ -623,6 +623,11 @@ class MiniMaxH3Model(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.blocks), device, transformer_options)
+        # Serialize the first forward on XPU: without a sync, the queued async
+        # weight uploads can race the Level Zero driver and intermittently fail
+        # with UR_RESULT_ERROR_DEVICE_LOST on the first sampling step (Arc A770).
+        if device.type == "xpu":
+            torch.xpu.synchronize(device)
         for i, block in enumerate(self.blocks):
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
             if ("double_block", i) in blocks_replace:
