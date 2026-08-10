@@ -180,6 +180,9 @@ class WanFeedForward(nn.Sequential):
     """[Linear, GELU(tanh), Linear], with the GELU folded into the down-projection."""
 
     def forward(self, x):
+        if comfy.model_management.in_training or comfy.model_management.disable_model_optimizations:
+            # Use standard path: Linear -> GELU -> Linear
+            return self[2](torch.nn.functional.gelu(self[0](x), approximate='tanh'))
         return comfy.ops.linear_input_act(self[2], self[0](x), "gelu_tanh")
 
 

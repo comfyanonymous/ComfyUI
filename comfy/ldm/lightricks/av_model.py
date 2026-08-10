@@ -273,7 +273,7 @@ class BasicAVTransformerBlock(nn.Module):
         if run_vx:
             # video self-attention
             vshift_msa, vscale_msa = (self.get_ada_values(self.scale_shift_table, vx.shape[0], v_timestep, slice(0, 2)))
-            if comfy.model_management.in_training:
+            if comfy.model_management.in_training or comfy.model_management.disable_model_optimizations:
                 norm_vx = comfy.ldm.common_dit.rms_norm(vx) * (1 + vscale_msa) + vshift_msa
             else:
                 norm_vx = comfy.quant_ops.ck.rms_adaln(vx, vscale_msa, vshift_msa)
@@ -319,7 +319,7 @@ class BasicAVTransformerBlock(nn.Module):
                 scale_ca_video_hidden_states_a2v_v, shift_ca_video_hidden_states_a2v_v = self.get_ada_values(
                     self.scale_shift_table_a2v_ca_video[:4, :], vx.shape[0], v_cross_scale_shift_timestep)[:2]
 
-                if comfy.model_management.in_training:
+                if comfy.model_management.in_training or comfy.model_management.disable_model_optimizations:
                     vx_scaled = comfy.ldm.common_dit.rms_norm(vx) * (1 + scale_ca_video_hidden_states_a2v_v) + shift_ca_video_hidden_states_a2v_v
                 else:
                     vx_scaled = comfy.quant_ops.ck.rms_adaln(vx, scale_ca_video_hidden_states_a2v_v, shift_ca_video_hidden_states_a2v_v)
@@ -341,7 +341,7 @@ class BasicAVTransformerBlock(nn.Module):
                     self.scale_shift_table_a2v_ca_video[:4, :], vx.shape[0], v_cross_scale_shift_timestep)[2:4]
 
                 ax_scaled = ax_norm3 * (1 + scale_ca_audio_hidden_states_v2a) + shift_ca_audio_hidden_states_v2a
-                if comfy.model_management.in_training:
+                if comfy.model_management.in_training or comfy.model_management.disable_model_optimizations:
                     vx_scaled = comfy.ldm.common_dit.rms_norm(vx) * (1 + scale_ca_video_hidden_states_v2a) + shift_ca_video_hidden_states_v2a
                 else:
                     vx_scaled = comfy.quant_ops.ck.rms_adaln(vx, scale_ca_video_hidden_states_v2a, shift_ca_video_hidden_states_v2a)
@@ -358,7 +358,7 @@ class BasicAVTransformerBlock(nn.Module):
         # video feedforward
         if run_vx:
             vshift_mlp, vscale_mlp = self.get_ada_values(self.scale_shift_table, vx.shape[0], v_timestep, slice(3, 5))
-            if comfy.model_management.in_training:
+            if comfy.model_management.in_training or comfy.model_management.disable_model_optimizations:
                 vx_scaled = comfy.ldm.common_dit.rms_norm(vx) * (1 + vscale_mlp) + vshift_mlp
             else:
                 vx_scaled = comfy.quant_ops.ck.rms_adaln(vx, vscale_mlp, vshift_mlp)

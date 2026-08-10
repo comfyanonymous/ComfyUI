@@ -66,6 +66,10 @@ total_vram = 0
 in_training = False
 training_fp8_bwd = False
 
+# Model Optimization State
+# Set to True if model optimizations should be disabled (e.g., if they cause performance issues)
+disable_model_optimizations = False
+
 
 def get_supported_float8_types():
     float8_types = []
@@ -106,6 +110,11 @@ lowvram_available = True
 if args.deterministic:
     logging.info("Using deterministic algorithms for pytorch")
     torch.use_deterministic_algorithms(True, warn_only=True)
+
+# Initialize model optimization flag
+disable_model_optimizations = args.disable_model_optimizations
+if disable_model_optimizations:
+    logging.info("Model optimizations disabled via CLI flag")
 
 directml_enabled = False
 if args.directml is not None:

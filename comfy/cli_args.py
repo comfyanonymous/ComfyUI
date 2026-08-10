@@ -152,6 +152,8 @@ attn_group.add_argument("--use-flash-attention", action="store_true", help="Use 
 
 parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
 
+parser.add_argument("--disable-model-optimizations", action="store_true", help="Disable optimized operations in models (rms_adaln, linear_input_act). Use if generation is slow with certain hardware.")
+
 upcast = parser.add_mutually_exclusive_group()
 upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")
 upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
