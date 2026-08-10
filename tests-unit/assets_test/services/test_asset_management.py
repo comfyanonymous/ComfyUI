@@ -359,6 +359,39 @@ class TestDeleteAssetReferenceWithFile:
         assert selected_file.read_bytes() == b"content"
         assert session.get(AssetReference, selected_ref_id) is not None
 
+    def test_queues_final_cleanup_failure_in_managed_temp(
+        self, mock_create_session, session: Session, temp_dir, monkeypatch
+    ):
+        selected_file = temp_dir / "managed" / "selected.bin"
+        selected_file.parent.mkdir()
+        selected_file.write_bytes(b"content")
+        staging_directory = temp_dir / "staging"
+        asset = _make_asset(session)
+        selected_ref = _make_reference(session, asset, name=selected_file.name)
+        selected_ref.file_path = str(selected_file)
+        selected_ref_id = selected_ref.id
+        session.commit()
+
+        def fail_remove(_path):
+            raise PermissionError("file is busy")
+
+        monkeypatch.setattr("app.assets.services.asset_management.os.remove", fail_remove)
+        result = delete_asset_reference_with_file(
+            reference_id=selected_ref_id,
+            owner_id="",
+            staging_directory=str(staging_directory),
+            expected_file_path=str(selected_file),
+            allowed_directories=[str(selected_file.parent)],
+        )
+
+        session.expire_all()
+        assert result is True
+        assert not selected_file.exists()
+        queued_files = list(staging_directory.glob(".comfy-delete-*.tmp"))
+        assert len(queued_files) == 1
+        assert queued_files[0].read_bytes() == b"content"
+        assert session.get(AssetReference, selected_ref_id) is None
+
     def test_rejects_a_source_path_changed_after_authorization(
         self, mock_create_session, session: Session, temp_dir
     ):

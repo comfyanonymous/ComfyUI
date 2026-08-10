@@ -327,11 +327,24 @@ def delete_asset_reference_with_file(
         if staged_file_path:
             try:
                 os.remove(staged_file_path)
-            except OSError:
+            except OSError as cleanup_error:
                 logging.exception(
                     "Failed to remove staged asset file after commit: %s",
                     staged_file_path,
                 )
+                if not folder_paths.is_within_directory(
+                    staging_directory, staged_file_path
+                ):
+                    retry_path = os.path.join(
+                        staging_directory, f".comfy-delete-{uuid.uuid4().hex}.tmp"
+                    )
+                    try:
+                        os.replace(staged_file_path, retry_path)
+                    except OSError:
+                        os.replace(staged_file_path, file_path)
+                        raise RuntimeError(
+                            "Cleanup could not be queued; the source file was restored."
+                        ) from cleanup_error
         return True
 
 
