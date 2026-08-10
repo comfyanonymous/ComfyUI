@@ -1313,6 +1313,9 @@ class VAE:
                     tile = 256
                     overlap = tile // 4
                     if self.handles_tiling:
+                        # encode_tiled is identical to encode for these VAEs, so freeing the
+                        # memory other models hold onto is the only thing that can make the retry succeed.
+                        model_management.free_memory(1e30, self.device, keep_loaded=[model_management.LoadedModel(self.patcher)])
                         samples = self._encode_tiled_owned(pixel_samples, tile_x=tile, tile_y=tile, overlap=overlap)
                     else:
                         samples = self.encode_tiled_3d(pixel_samples, tile_x=tile, tile_y=tile, overlap=(1, overlap, overlap))
