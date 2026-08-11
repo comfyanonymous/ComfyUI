@@ -20,18 +20,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt ./
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url ${TORCH_INDEX_URL} \
-    && grep -vE '^(torch|torchvision|torchaudio)($|[<>=~ ])' requirements.txt > /tmp/requirements-no-torch.txt \
-    && pip install --no-cache-dir -r /tmp/requirements-no-torch.txt
+RUN pip install --no-cache-dir --timeout 120 --retries 10 torch torchvision torchaudio --index-url ${TORCH_INDEX_URL}
+
+COPY requirements.txt ./
+RUN grep -vE '^(torch|torchvision|torchaudio)($|[<>=~ ])' requirements.txt > /tmp/requirements-no-torch.txt \
+    && pip install --no-cache-dir --timeout 120 --retries 10 -r /tmp/requirements-no-torch.txt
 
 COPY manager_requirements.txt ./
-RUN pip install --no-cache-dir -r manager_requirements.txt
+RUN pip install --no-cache-dir --timeout 120 --retries 10 -r manager_requirements.txt
 
 COPY . .
 RUN find custom_nodes -mindepth 2 -maxdepth 2 -name requirements.txt -print -exec sh -c \
-    'grep -vE "^(torch|torchvision|torchaudio|onnxruntime-gpu)($|[<>=~ ])" "$1" > /tmp/custom-node-requirements.txt && if [ -s /tmp/custom-node-requirements.txt ]; then pip install --no-cache-dir -r /tmp/custom-node-requirements.txt; fi' sh {} \;
+    'grep -vE "^(torch|torchvision|torchaudio|onnxruntime-gpu)($|[<>=~ ])" "$1" > /tmp/custom-node-requirements.txt && if [ -s /tmp/custom-node-requirements.txt ]; then pip install --no-cache-dir --timeout 120 --retries 10 -r /tmp/custom-node-requirements.txt; fi' sh {} \;
 
 EXPOSE 8188
-CMD ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--enable-manager"]
+CMD ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--enable-manager-legacy-ui", "--disable-cuda-malloc", "--reserve-vram", "1.5"]
