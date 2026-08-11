@@ -87,13 +87,54 @@ import comfy.float
 # FP8 Layouts with Comfy-Specific Extensions
 # ==============================================================================
 
+# The MPS backend has no float8 kernels: every op touching torch.float8_e4m3fn /
+# torch.float8_e5m2 (including a plain .to()) raises "Undefined type Float8_e4m3fn".
+# fp8 storage itself is fine, so the layouts below route around the missing casts:
+# dequantize decodes the bytes through a 256 entry lookup table (bit exact, stays on
+# the GPU), quantize falls back to CPU for the narrowing cast.
+_FP8_MPS_LUT_CACHE = {}
+
+
+def _fp8_lut(fp8_dtype, out_dtype, device):
+    key = (fp8_dtype, out_dtype, device)
+    lut = _FP8_MPS_LUT_CACHE.get(key)
+    if lut is None:
+        lut = torch.arange(256, dtype=torch.uint8).view(fp8_dtype).to(dtype=out_dtype).to(device=device)
+        _FP8_MPS_LUT_CACHE[key] = lut
+    return lut
+
+
+def _fp8_dequantize_no_cast(qdata, scale, out_dtype):
+    """dequantize_per_tensor_fp8 without any fp8 cast, for backends that lack fp8."""
+    lut = _fp8_lut(qdata.dtype, out_dtype, qdata.device)
+    # int32 indices rather than int64: half the scratch memory for large weights.
+    out = lut[qdata.view(torch.uint8).to(torch.int32)]
+    return out * scale.to(dtype=out_dtype, device=out.device)
+
+
 class _TensorCoreFP8LayoutBase(_CKFp8Layout):
     FP8_DTYPE = None  # Must be overridden in subclass
+
+    @classmethod
+    def dequantize(cls, qdata, params):
+        if qdata.device.type == "mps":
+            return _fp8_dequantize_no_cast(qdata, params.scale, params.orig_dtype)
+        return super().dequantize(qdata, params)
 
     @classmethod
     def quantize(cls, tensor, scale=None, stochastic_rounding=0, inplace_ops=False):
         if cls.FP8_DTYPE is None:
             raise NotImplementedError(f"{cls.__name__} must define FP8_DTYPE")
+
+        if tensor.device.type == "mps":
+            device = tensor.device
+            if isinstance(scale, torch.Tensor):
+                scale = scale.cpu()
+            # inplace_ops would only mutate the CPU copy, so drop it.
+            qdata, params = cls.quantize(tensor.cpu(), scale=scale, stochastic_rounding=stochastic_rounding)
+            return qdata.to(device=device), cls.Params(scale=params.scale.to(device=device),
+                                                       orig_dtype=params.orig_dtype,
+                                                       orig_shape=params.orig_shape)
 
         orig_dtype = tensor.dtype
         orig_shape = tuple(tensor.shape)
