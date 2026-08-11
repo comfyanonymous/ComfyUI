@@ -185,9 +185,12 @@ def wrap_attn(func):
                 kwargs["_inside_attn_wrapper"] = True
                 if transformer_options is not None:
                     if "optimized_attention_override" in transformer_options:
+                        optimized_attention_override = transformer_options["optimized_attention_override"]
                         if containers is not None:
+                            if hasattr(optimized_attention_override, "container_function"):
+                                return optimized_attention_override.container_function(*args, **kwargs)
                             args = tuple(container.take() for container in containers) + args[3:]
-                        return transformer_options["optimized_attention_override"](func, *args, **kwargs)
+                        return optimized_attention_override(func, *args, **kwargs)
 
             if containers is not None:
                 if wrapper.container_function is not None:

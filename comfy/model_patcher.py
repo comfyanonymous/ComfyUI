@@ -689,6 +689,8 @@ class ModelPatcher:
         def optimized_attention_override(_, *args, **kwargs):
             return optimized_attention(*args, **kwargs)
 
+        if hasattr(optimized_attention, "container_function") and optimized_attention.container_function is not None:
+            optimized_attention_override.container_function = optimized_attention.container_function
         self.model_options["transformer_options"]["optimized_attention_override"] = optimized_attention_override
 
     def set_model_input_block_patch(self, patch):
