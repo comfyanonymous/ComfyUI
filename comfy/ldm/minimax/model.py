@@ -165,6 +165,7 @@ class Attention(nn.Module):
         else:
             q = self.q_norm(q.view(s, self.heads, self.head_dim))
             k = self.k_norm(k.view(s, self.heads, self.head_dim))
+        v = v.clone()
         q = AttentionTensorContainer(q.transpose(0, 1).unsqueeze(0))
         k = AttentionTensorContainer(k.transpose(0, 1).unsqueeze(0))
         v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0))
