@@ -322,7 +322,7 @@ def xpu_get_memory_info(dev, mem_reserved):
             or mem_total_xpu - mem_free_xpu < mem_reserved
         ):
             raise RuntimeError("Inconsistent XPU memory information")
-    except (AttributeError, RuntimeError):
+    except (AttributeError, RuntimeError, TypeError, ValueError):
         mem_total_xpu = torch.xpu.get_device_properties(dev).total_memory
         mem_free_xpu = mem_total_xpu - mem_reserved
     return mem_free_xpu, mem_total_xpu
@@ -1759,9 +1759,9 @@ def get_free_memory(dev=None, torch_free_too=False):
             stats = torch.xpu.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
             mem_reserved = stats['reserved_bytes.all.current']
-            mem_free_xpu, _ = xpu_get_memory_info(dev, mem_reserved)
+            mem_free_xpu, mem_total_xpu = xpu_get_memory_info(dev, mem_reserved)
             mem_free_torch = mem_reserved - mem_active
-            mem_free_total = mem_free_xpu + mem_free_torch
+            mem_free_total = min(mem_free_xpu + mem_free_torch, mem_total_xpu)
         elif is_ascend_npu():
             stats = torch.npu.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
