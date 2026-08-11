@@ -91,6 +91,18 @@ def _video_t_grid(n, origin):
     return float(origin) + torch.cat([torch.zeros(1, dtype=torch.float64), spans[:-1].cumsum(0)])
 
 
+def _ref_t_span(blk):
+    # time-axis span a reference block occupies ahead of the target streams
+    kind = blk["kind"]
+    if kind == "image":
+        return 1.0
+    if kind == "audio":
+        return float(blk["ref_audio_t"])
+    if kind in ("video", "video_audio"):
+        return max(float(blk["ref_audio_t"]), sum(_video_t_spans(blk["latent_t"])))
+    return 0.0
+
+
 def _audio_grid(cursor, t, w_low, w_high):
     # channel-major stereo rows: t advances per latent frame, w pinned to the grid extremes per stereo channel, h stays 0
     g = torch.zeros(t * 2, 3, dtype=torch.float64)
@@ -298,15 +310,19 @@ class PackedLayout:
 
         img_pos, img_update = [], []
         audio_pos, audio_update = [], []
-        cursor = text_len
         row = text_len
 
         target_audio_w = (float(w_grid[0]), float(w_grid[-1]))
+        # refs pack between text and the targets, so the target timeline starts after their spans
+        cursor = float(text_len)
+        for blk in refs or ():
+            cursor += _ref_t_span(blk)
+
         if keyframes:
             # fl2va: keyframe cond rows right after text, sharing the target spatial grid;
-            # the time axis advances FRAME_RESCALE per pixel frame and 1.0 per audio latent frame
+            # anchors count from the target timeline origin, FRAME_RESCALE per pixel frame, 1.0 per audio latent frame
             for kf in keyframes:
-                cond_t = float(text_len) + FRAME_RESCALE * kf["resolved_frame_index"]
+                cond_t = cursor + FRAME_RESCALE * kf["resolved_frame_index"]
                 video_latent = kf.get("latent")
                 if video_latent is not None:
                     vt = video_latent.shape[2]
