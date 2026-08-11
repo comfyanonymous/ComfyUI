@@ -216,9 +216,13 @@ This is the command to install the nightly with ROCm 7.2 which might have some p
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2```
 
 
-### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.
+### AMD GPUs (Experimental: Windows and Linux), RDNA 2, 3, 3.5 and 4.
 
 These have less hardware support than the builds above but they work on windows. You also need to install the pytorch version specific to your hardware.
+
+RDNA 2 (RX 6800/6800 XT, gfx1030):
+
+```python -m pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ "torch[device-gfx1030]==2.12.0+rocm7.14.0" "torchvision[device-gfx1030]==0.27.0+rocm7.14.0" "torchaudio==2.11.0+rocm7.14.0"```
 
 RDNA 3 (RX 7000 series):
 
