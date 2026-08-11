@@ -38,7 +38,7 @@ import comfy.patcher_extension
 import comfy.utils
 import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
-from comfy.logging import detail
+from comfy.internal_logging import detail
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
@@ -558,12 +558,9 @@ class ModelPatcher:
             new_multigpu_models = []
             for mm in multigpu_models:
                 # clone main model, but bring over relevant props from existing multigpu clone
-                n = self.clone()
+                n = self.clone(model_override=mm.get_clone_model_override())
                 n.load_device = mm.load_device
-                n.backup = mm.backup
-                n.object_patches_backup = mm.object_patches_backup
                 n.hook_backup = mm.hook_backup
-                n.model = mm.model
                 n.is_multigpu_base_clone = mm.is_multigpu_base_clone
                 n.remove_additional_models("multigpu")
                 orig_additional_models: dict[str, list[ModelPatcher]] = comfy.patcher_extension.copy_nested_dicts(n.additional_models)
@@ -687,6 +684,14 @@ class ModelPatcher:
 
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
+
+    def set_model_optimized_attention(self, optimized_attention):
+        def optimized_attention_override(_, *args, **kwargs):
+            return optimized_attention(*args, **kwargs)
+
+        if hasattr(optimized_attention, "container_function") and optimized_attention.container_function is not None:
+            optimized_attention_override.container_function = optimized_attention.container_function
+        self.model_options["transformer_options"]["optimized_attention_override"] = optimized_attention_override
 
     def set_model_input_block_patch(self, patch):
         self.set_model_patch(patch, "input_block_patch")
@@ -1758,6 +1763,9 @@ class ModelPatcherDynamic(ModelPatcher):
         self.register_load_device(self.load_device)
         self.non_dynamic_delegate_model = None
         assert load_device is not None
+        if not hasattr(self.model, "dynamic_patchers"):
+            self.model.dynamic_patchers = set()
+        self.model.dynamic_patchers.add(id(self))
 
     def register_load_device(self, device):
         """Ensure dynamic_pins has an entry for *device*.
@@ -1812,6 +1820,18 @@ class ModelPatcherDynamic(ModelPatcher):
 
     def unpin_all_weights(self):
         self.partially_unload_ram(1e32)
+
+    def __del__(self):
+        model = getattr(self, "model", None)
+        dynamic_patchers = getattr(model, "dynamic_patchers", None)
+        if dynamic_patchers is None or id(self) not in dynamic_patchers:
+            return
+        dynamic_patchers.discard(id(self))
+        try:
+            if not dynamic_patchers:
+                self.unpin_all_weights()
+        finally:
+            self.detach(unpatch_all=False)
 
     def memory_required(self, input_shape):
         #Pad this significantly. We are trying to get away from precise estimates. This

@@ -15,6 +15,10 @@ class InputUrlObject(BaseModel):
     url: str = Field(...)
 
 
+class VoiceReferenceObject(BaseModel):
+    voice_id: str = Field(...)
+
+
 class ImageEditRequest(BaseModel):
     model: str = Field(...)
     images: list[InputUrlObject] = Field(...)
@@ -31,6 +35,7 @@ class VideoGenerationRequest(BaseModel):
     prompt: str = Field(...)
     image: InputUrlObject | None = Field(None)
     reference_images: list[InputUrlObject] | None = Field(None)
+    reference_audios: list[VoiceReferenceObject] | None = Field(None)
     duration: int = Field(...)
     aspect_ratio: str | None = Field(...)
     resolution: str = Field(...)
