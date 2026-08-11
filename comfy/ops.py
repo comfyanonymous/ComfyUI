@@ -123,10 +123,12 @@ def materialize_meta_param(s, param_keys):
 
 
 # FIXME: add n=1 cache hit fast path
-def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blocking):
+def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blocking, return_faulted=False):
     offload_stream = None
     cast_buffer = None
     cast_buffer_offset = 0
+    if return_faulted:
+        fully_faulted = all(not getattr(s, param_key + "_function", []) for s in comfy_modules for param_key in ("weight", "bias"))
 
     def ensure_offload_stream(module, required_size, check_largest):
         nonlocal offload_stream
@@ -163,6 +165,8 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
     for s in comfy_modules:
         signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
         resident = comfy_aimdo.model_vbar.vbar_signature_compare(signature, s._v_signature)
+        if return_faulted and (signature is None or not resident):
+            fully_faulted = False
         prefetch = {
             "signature": signature,
             "resident": resident,
@@ -255,6 +259,8 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
         prefetch["needs_cast"] = needs_cast
         s._prefetch = prefetch
 
+    if return_faulted:
+        return offload_stream, fully_faulted
     return offload_stream
 
 
