@@ -166,7 +166,7 @@ class MiniMaxH3AddGuide(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MiniMaxH3AddGuide",
-            display_name="MiniMax H3 Add Guide",
+            display_name="Add Guide for MiniMax H3",
             category="model/conditioning/minimax",
             description="Anchor an image, a short clip, audio, or a clip with its soundtrack at any frame of a MiniMax H3 video. Chain several nodes to anchor several frames.",
             inputs=[
