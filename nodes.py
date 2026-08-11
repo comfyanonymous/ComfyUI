@@ -1570,7 +1570,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
 
     if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        noise = comfy.sample.prepare_empty_noise(latent_image)
     else:
         batch_inds = latent["batch_index"] if "batch_index" in latent else None
         noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
