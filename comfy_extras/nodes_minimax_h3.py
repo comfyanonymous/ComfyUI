@@ -186,7 +186,7 @@ class MiniMaxH3AddGuide(io.ComfyNode):
     @classmethod
     def execute(cls, positive, latent, frame_idx, vae=None, audio_vae=None, image=None, audio=None) -> io.NodeOutput:
         samples = latent["samples"]
-        if not samples.is_nested:
+        if not samples.is_nested or len(samples.tensors) != 2 or samples.tensors[0].ndim != 5 or samples.tensors[0].shape[1] != 24:
             raise ValueError("MiniMaxH3AddGuide expects a MiniMax H3 AV latent")
         if image is None and audio is None:
             raise ValueError("MiniMaxH3AddGuide needs an image or an audio to anchor")
