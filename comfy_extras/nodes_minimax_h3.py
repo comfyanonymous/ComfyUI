@@ -227,7 +227,7 @@ class MiniMaxH3AddGuide(io.ComfyNode):
             if max_rt < 1:
                 raise ValueError("frame_idx {} is past the end of the video's audio track".format(frame_idx))
             if audio_rt > max_rt:
-                audio_latent = audio_latent[..., :max_rt]
+                audio_latent = audio_latent[..., :max_rt].clone()
             keyframe["audio_latent"] = audio_latent
 
         keyframes = list(positive[0][1].get("minimax_keyframes", []))
