@@ -114,7 +114,8 @@ V25_PRICE_BADGE = IO.PriceBadge(
       $table := $type($model) = "string" ? $lookup($prices, $model) : undefined;
       $res := $lookup(widgets, "model.resolution");
       $pps := $type($table) = "object" and $type($res) = "string" ? $lookup($table, $res) : undefined;
-      $dur := $lookup(widgets, "model.duration");
+      $durRaw := $lookup(widgets, "model.duration");
+      $dur := $type($durRaw) in ["string", "number"] ? $number($durRaw) : undefined;
       $type($pps) = "number" and $type($dur) = "number"
         ? {"type":"usd","usd": $pps * $dur}
         : undefined
@@ -137,12 +138,14 @@ V25_A2V_PRICE_BADGE = IO.PriceBadge(
 )
 
 
-def _v25_generation_inputs(durations: list[int], resolutions: list[str], fps_options: list[int], tooltip: str | None) -> list:
+def _v25_generation_inputs(
+    durations: list[str], resolutions: list[str], fps_options: list[str], tooltip: str | None
+) -> list:
     return [
         IO.Combo.Input(
             "duration",
             options=durations,
-            default=8,
+            default="8",
             tooltip=tooltip,
         ),
         IO.Combo.Input(
@@ -150,7 +153,7 @@ def _v25_generation_inputs(durations: list[int], resolutions: list[str], fps_opt
             options=resolutions,
             default="1920x1080",
         ),
-        IO.Combo.Input("fps", options=fps_options, default=25),
+        IO.Combo.Input("fps", options=fps_options, default="25"),
         IO.Boolean.Input(
             "generate_audio",
             default=True,
@@ -167,7 +170,7 @@ def _v25_model_combo() -> IO.DynamicCombo.Input:
             IO.DynamicCombo.Option(
                 "LTX-2.5 (Fast)",
                 _v25_generation_inputs(
-                    [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20],
+                    ["2", "3", "4", "5", "6", "8", "10", "12", "14", "16", "18", "20"],
                     [
                         "1280x720",
                         "720x1280",
@@ -178,16 +181,16 @@ def _v25_model_combo() -> IO.DynamicCombo.Input:
                         "3840x2160",
                         "2160x3840",
                     ],
-                    [24, 25, 48, 50],
+                    ["24", "25", "48", "50"],
                     "Video duration in seconds. Durations over 10s require a 720p/1080p resolution and 24/25 FPS.",
                 ),
             ),
             IO.DynamicCombo.Option(
                 "LTX-2.5 (Pro)",
                 _v25_generation_inputs(
-                    [2, 3, 4, 5, 6, 8, 10],
+                    ["2", "3", "4", "5", "6", "8", "10"],
                     ["1280x720", "720x1280", "1920x1080", "1080x1920"],
-                    [24, 25, 50],
+                    ["24", "25", "50"],
                     "Video duration in seconds.",
                 ),
             ),
@@ -195,9 +198,21 @@ def _v25_model_combo() -> IO.DynamicCombo.Input:
     )
 
 
+def _v25_seed_input() -> IO.Int.Input:
+    return IO.Int.Input(
+        "seed",
+        default=42,
+        min=0,
+        max=0xFFFFFFFF,
+        control_after_generate=True,
+        tooltip="Seed to determine if node should re-run; "
+        "actual results are nondeterministic regardless of seed.",
+    )
+
+
 def _v25_validate_settings(model: dict) -> None:
-    if model["duration"] > 10 and (
-        model["fps"] > 25 or model["resolution"] in ("2560x1440", "1440x2560", "3840x2160", "2160x3840")
+    if int(model["duration"]) > 10 and (
+        int(model["fps"]) > 25 or model["resolution"] in ("2560x1440", "1440x2560", "3840x2160", "2160x3840")
     ):
         raise ValueError("Durations over 10s require a 720p or 1080p resolution and 24/25 FPS.")
 
@@ -378,6 +393,7 @@ class Ltx25TextToVideoNode(IO.ComfyNode):
                     multiline=True,
                     default="",
                 ),
+                _v25_seed_input(),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -396,6 +412,7 @@ class Ltx25TextToVideoNode(IO.ComfyNode):
         cls,
         model: dict,
         prompt: str,
+        seed: int = 42,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=10000)
         _v25_validate_settings(model)
@@ -405,9 +422,9 @@ class Ltx25TextToVideoNode(IO.ComfyNode):
             ExecuteTaskRequest(
                 prompt=prompt,
                 model=V25_MODELS_MAP[model["model"]],
-                duration=model["duration"],
+                duration=int(model["duration"]),
                 resolution=model["resolution"],
-                fps=model["fps"],
+                fps=int(model["fps"]),
                 generate_audio=model["generate_audio"],
             ),
         )
@@ -429,6 +446,7 @@ class Ltx25ImageToVideoNode(IO.ComfyNode):
                     multiline=True,
                     default="",
                 ),
+                _v25_seed_input(),
                 IO.Image.Input(
                     "last_frame",
                     optional=True,
@@ -453,6 +471,7 @@ class Ltx25ImageToVideoNode(IO.ComfyNode):
         image: Input.Image,
         model: dict,
         prompt: str,
+        seed: int = 42,
         last_frame: Input.Image | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=10000)
@@ -472,9 +491,9 @@ class Ltx25ImageToVideoNode(IO.ComfyNode):
                 last_frame_uri=last_frame_uri,
                 prompt=prompt,
                 model=V25_MODELS_MAP[model["model"]],
-                duration=model["duration"],
+                duration=int(model["duration"]),
                 resolution=model["resolution"],
-                fps=model["fps"],
+                fps=int(model["fps"]),
                 generate_audio=model["generate_audio"],
             ),
         )
@@ -511,6 +530,7 @@ class Ltx25AudioToVideoNode(IO.ComfyNode):
                     multiline=True,
                     default="",
                 ),
+                _v25_seed_input(),
                 IO.Image.Input(
                     "image",
                     optional=True,
@@ -535,6 +555,7 @@ class Ltx25AudioToVideoNode(IO.ComfyNode):
         audio: Input.Audio,
         model: dict,
         prompt: str,
+        seed: int = 42,
         image: Input.Image | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=10000)
