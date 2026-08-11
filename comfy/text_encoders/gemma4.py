@@ -1451,10 +1451,6 @@ class Gemma4Model(sd1_clip.SDClipModel):
         self.dtypes.add(dtype)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=self.model_class, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
-    def process_tokens(self, tokens, device):
-        embeds, _, _, _ = super().process_tokens(tokens, device)
-        return embeds
-
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty=0.0):
         if isinstance(tokens, dict):
             tokens = next(iter(tokens.values()))
