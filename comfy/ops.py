@@ -264,7 +264,7 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
     return offload_stream
 
 
-def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, want_requant):
+def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, want_requant, return_weights=True):
 
     prefetch = getattr(s, "_prefetch", None)
 
@@ -304,7 +304,7 @@ def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, w
                 tensor = tensor.dequantize()
             return tensor
 
-        if orig.dtype != dtype or len(fns) > 0:
+        if (return_weights and orig.dtype != dtype) or len(fns) > 0:
             x = to_dequant(x, dtype)
         if not resident and lowvram_fn is not None:
             x = to_dequant(x, dtype if compute_dtype is None else compute_dtype)
@@ -331,7 +331,7 @@ def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, w
     if prefetch["signature"] is not None:
         prefetch["resident"] = True
 
-    return weight, bias
+    return (weight, bias) if return_weights else None
 
 
 def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, offloadable=False, compute_dtype=None, want_requant=False):
