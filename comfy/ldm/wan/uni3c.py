@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from comfy.ldm.flux.layers import EmbedND
-from .model import WanSelfAttention
+from .model import WanFeedForward, WanSelfAttention
 
 
 class Uni3CLayerNormZero(nn.Module):
@@ -41,7 +41,7 @@ class Uni3CAttentionBlock(nn.Module):
         self.norm1 = Uni3CLayerNormZero(time_embed_dim, dim, device=device, dtype=dtype, operations=operations)
         self.self_attn = WanSelfAttention(dim, num_heads, qk_norm=True, eps=eps, operation_settings=operation_settings)
         self.norm2 = Uni3CLayerNormZero(time_embed_dim, dim, device=device, dtype=dtype, operations=operations)
-        self.ffn = nn.Sequential(
+        self.ffn = WanFeedForward(
             operations.Linear(dim, ffn_dim, device=device, dtype=dtype), nn.GELU(approximate='tanh'),
             operations.Linear(ffn_dim, dim, device=device, dtype=dtype))
 
