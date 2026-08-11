@@ -1152,6 +1152,10 @@ class LTXV(BaseModel):
         if guide_attention_entries is not None:
             out['guide_attention_entries'] = comfy.conds.CONDConstant(guide_attention_entries)
 
+        generated_keyframes = kwargs.get("generated_keyframes", None)
+        if generated_keyframes is not None:
+            out['generated_keyframes'] = comfy.conds.CONDConstant(generated_keyframes)
+
         return out
 
     def process_timestep(self, timestep, x, denoise_mask=None, **kwargs):
@@ -1211,6 +1215,10 @@ class LTXAV(BaseModel):
         ref_audio = kwargs.get("ref_audio", None)
         if ref_audio is not None:
             out['ref_audio'] = comfy.conds.CONDConstant(ref_audio)
+
+        generated_keyframes = kwargs.get("generated_keyframes", None)
+        if generated_keyframes is not None:
+            out['generated_keyframes'] = comfy.conds.CONDConstant(generated_keyframes)
 
         return out
 

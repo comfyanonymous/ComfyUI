@@ -1443,6 +1443,10 @@ class Gemma4UnifiedTokenizer(Gemma4Tokenizer):
 class Gemma4Model(sd1_clip.SDClipModel):
     model_class = None
     def __init__(self, device="cpu", layer="all", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
+            model_options = model_options.copy()
+            model_options["quantization_metadata"] = llama_quantization_metadata
         self.dtypes = set()
         self.dtypes.add(dtype)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=self.model_class, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
@@ -1474,8 +1478,19 @@ class Gemma4Model(sd1_clip.SDClipModel):
         return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, initial_tokens=initial_token_ids[0], presence_penalty=presence_penalty, initial_input_ids=input_ids, embeds_info=embeds_info)
 
 
+def gemma4_clip_model(model_class):
+    return type('Gemma4Model_', (Gemma4Model,), {'model_class': model_class})
+
+
+def gemma4_text_encoder_model(model_class):
+    return type('Gemma4TextEncoderModel_', (Gemma4Model,), {
+        'model_class': model_class,
+        'process_tokens': sd1_clip.SDClipModel.process_tokens,
+    })
+
+
 def gemma4_te(dtype_llama=None, llama_quantization_metadata=None, model_class=None):
-    clip_model = type('Gemma4Model_', (Gemma4Model,), {'model_class': model_class})
+    clip_model = gemma4_clip_model(model_class)
     class Gemma4TEModel_(sd1_clip.SD1ClipModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             if llama_quantization_metadata is not None:
