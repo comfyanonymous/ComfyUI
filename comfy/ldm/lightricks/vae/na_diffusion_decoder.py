@@ -1,9 +1,10 @@
-"""LTX 2.4 diffusion video VAE decoder (NADiffusionDecoder) in pure PyTorch.
+"""LTX 2.4 diffusion video VAE decoder (NADiffusionDecoder).
 
 Port of the reference ``DiffusionVideoDecoder`` without the NATTEN dependency:
-``natten.na3d`` is replaced by a tiled pure-torch 3D neighborhood attention
-that reproduces NATTEN's semantics (window of exactly ``kernel_size`` per
-query, shifted inward at grid boundaries, dilation 1).
+``natten.na3d`` is replaced by ``comfy_kitchen.na3d``, which reproduces
+NATTEN's semantics (window of exactly ``kernel_size`` per query, shifted
+inward at grid boundaries, dilation 1) and dispatches cuda/triton/eager per
+device and dtype (the eager backend covers CPU and fp32).
 
 Stages 1-4 deterministically upsample the latent into a context volume via
 NA transformer blocks + linear pixel-shuffle upsamples. Stage 5 runs
@@ -25,22 +26,8 @@ from torch import nn
 from comfy.ldm.lightricks.model import get_timestep_embedding
 from .causal_video_autoencoder import Encoder, processor
 
-try:
-    import comfy_kitchen
-    # Fused NA and fused RMSNorm+RoPE in comfy_kitchen
-    _kitchen_na3d = getattr(comfy_kitchen, "na3d", None)
-    _kitchen_rms_rope_ = getattr(comfy_kitchen, "rms_rope_", None)
-except ImportError:
-    _kitchen_na3d = None
-    _kitchen_rms_rope_ = None
+import comfy_kitchen
 
-# Target element count for one NA tile's [Nq, Nk] attention mask. Bounds both
-# the mask allocation (~64 MB bf16 at 2**25) and, on CPU, the math-backend
-# score materialization.
-NA_SCORE_BUDGET = 2 ** 25
-# Element budget for the stacked K/V copies of one batched SDPA call on CUDA
-# (2**28 elements ~= 512 MB bf16 transient).
-NA_KV_STACK_BUDGET = 2 ** 28
 # Token chunk for the SwiGLU MLP (bounds the [chunk, hidden] workspace).
 MLP_TOKEN_CHUNK = 65536
 
@@ -91,58 +78,6 @@ def rope_inv_freqs(dim, base=10000.0, device=None):
     return (1.0 / torch.pow(torch.tensor(float(base), dtype=torch.float64, device=device), exponents)).to(torch.float32)
 
 
-def _rot_abs_axis(xc, pos, inv, axis):
-    """Absolute RoPE on one axis chunk ``xc[..., D]`` (D even) of a 6D
-    ``(B, T, H, W, NH, HD)`` tensor. ``pos`` are (global) positions along
-    ``axis``. Computed in fp32, returned in ``xc``'s dtype."""
-    out_dtype = xc.dtype
-    pairs = xc.reshape(*xc.shape[:-1], xc.shape[-1] // 2, 2)
-    xe = pairs[..., 0].float()
-    xo = pairs[..., 1].float()
-    shape = [1, 1, 1, 1, 1, inv.shape[0]]
-    shape[axis] = pos.shape[0]
-    ang = (pos[:, None].float() * inv[None, :]).reshape(shape)
-    c = ang.cos()
-    s = ang.sin()
-    re = xe * c - xo * s
-    ro = xe * s + xo * c
-    return torch.stack([re, ro], dim=-1).reshape(xc.shape).to(out_dtype)
-
-
-def apply_abs_rope(x, rope_split, inv_freqs, pos_t, pos_h, pos_w):
-    """Rotate a ``(B, T, H, W, NH, HD)`` tensor with per-axis absolute RoPE."""
-    d_t, d_h, _ = rope_split
-    xt = _rot_abs_axis(x[..., :d_t], pos_t, inv_freqs[0], axis=1)
-    xh = _rot_abs_axis(x[..., d_t:d_t + d_h], pos_h, inv_freqs[1], axis=2)
-    xw = _rot_abs_axis(x[..., d_t + d_h:], pos_w, inv_freqs[2], axis=3)
-    return torch.cat([xt, xh, xw], dim=-1)
-
-
-# --- Pure-torch 3D neighborhood attention (NATTEN na3d semantics) ---
-
-def _window_starts(length, kernel):
-    """NATTEN window start per query index: centered, shifted inward at borders."""
-    lo = max(length - kernel, 0)
-    half = kernel // 2
-    return [min(max(i - half, 0), lo) for i in range(length)]
-
-
-def _rot_axis_tables(xc, cos, sin, axis):
-    """Rotate one axis chunk ``xc[..., D]`` (D even) of a 6D ``(B,T,H,W,NH,HD)``
-    tensor with precomputed fp32 cos/sin tables ``[len, D/2]``."""
-    out_dtype = xc.dtype
-    pairs = xc.reshape(*xc.shape[:-1], xc.shape[-1] // 2, 2)
-    xe = pairs[..., 0].float()
-    xo = pairs[..., 1].float()
-    shape = [1, 1, 1, 1, 1, cos.shape[-1]]
-    shape[axis] = cos.shape[0]
-    c = cos.reshape(shape)
-    s = sin.reshape(shape)
-    re = xe * c - xo * s
-    ro = xe * s + xo * c
-    return torch.stack([re, ro], dim=-1).reshape(xc.shape).to(out_dtype)
-
-
 def _rope_tables(lengths, inv_freqs, device):
     """Precompute per-axis fp32 cos/sin tables for global 0-based positions."""
     tables = []
@@ -168,129 +103,6 @@ def _rope_matrices_slice(tables, t0, t1, h, w):
         parts[2].movedim(0, 2).expand(ts, h, w, -1, 2, 2),
     ], dim=3)
     return freqs.reshape(1, ts * h * w, 1, -1, 2, 2)
-
-
-def _rope_apply(x, rope_split, tables, t0=0):
-    """Absolute RoPE on a ``(B,Ts,H,W,NH,HD)`` slice whose temporal origin is
-    global frame ``t0`` (tables span the full axes)."""
-    d_t, d_h, d_w = rope_split
-    t1 = t0 + x.shape[1]
-    parts = []
-    if d_t:
-        parts.append(_rot_axis_tables(x[..., :d_t], tables[0][0][t0:t1], tables[0][1][t0:t1], axis=1))
-    if d_h:
-        parts.append(_rot_axis_tables(x[..., d_t:d_t + d_h], tables[1][0], tables[1][1], axis=2))
-    if d_w:
-        parts.append(_rot_axis_tables(x[..., d_t + d_h:], tables[2][0], tables[2][1], axis=3))
-    return parts[0] if len(parts) == 1 else torch.cat(parts, dim=-1)
-
-
-def _pick_tiles(dims, kernels):
-    """Choose per-axis query-tile lengths so one tile's ``[Nq, Nk]`` mask stays
-    under ``NA_SCORE_BUDGET`` elements."""
-    tiles = list(dims)
-
-    def cost(ts):
-        nq = math.prod(ts)
-        nk = math.prod(min(d, t + k - 1) for t, k, d in zip(ts, kernels, dims))
-        return nq * nk
-
-    while cost(tiles) > NA_SCORE_BUDGET and max(tiles) > 1:
-        i = max(range(3), key=lambda a: tiles[a] / kernels[a])
-        if tiles[i] <= 1:
-            break
-        tiles[i] = max(1, (tiles[i] + 1) // 2)
-    return tiles
-
-
-def _group_mask(rel_starts, kernels, dtype, device):
-    """Additive ``[1, 1, Nq, Nk]`` mask for one tile-geometry group.
-
-    ``rel_starts``: per-axis window starts relative to the key region origin.
-    Built as the AND of three tiny per-axis membership masks, so the cost is
-    one fill over Nq*Nk, not three broadcasted adds per tile."""
-    bools = []
-    for starts, kernel in zip(rel_starts, kernels):
-        st = torch.tensor(starts, device=device)
-        kj = torch.arange(int(st.max()) + kernel, device=device)
-        bools.append((kj[None, :] >= st[:, None]) & (kj[None, :] < (st[:, None] + kernel)))
-    visible = (bools[0][:, None, None, :, None, None]
-               & bools[1][None, :, None, None, :, None]
-               & bools[2][None, None, :, None, None, :])
-    nq = visible.shape[0] * visible.shape[1] * visible.shape[2]
-    nk = visible.shape[3] * visible.shape[4] * visible.shape[5]
-    mask = torch.zeros((nq, nk), dtype=dtype, device=device)
-    mask.masked_fill_(~visible.reshape(nq, nk), torch.finfo(dtype).min)
-    return mask.reshape(1, 1, nq, nk)
-
-
-def na3d(q, k, v, kernel_size):
-    """3D neighborhood attention, NATTEN ``na3d`` semantics, pure torch.
-
-    Fallback used when comfy_kitchen's fused ``na3d`` is unavailable.
-    ``q, k, v``: ``(B, T, H, W, NH, HD)``; ``q`` must already be scaled and
-    positionally embedded. Tiles sharing the same window geometry are stacked
-    into batched ``scaled_dot_product_attention`` calls (online softmax, no
-    materialized score tensor), with one additive mask per geometry group.
-    Kernels larger than an axis clamp to that axis (the window degenerates to
-    full attention there), where NATTEN itself would raise.
-    Returns ``(B, T, H, W, NH, HD)``.
-    """
-    batch, t, h, w, nh, hd = q.shape
-    kt, kh, kw = (min(kernel_size[0], t), min(kernel_size[1], h), min(kernel_size[2], w))
-    device = q.device
-
-    tile_t, tile_h, tile_w = _pick_tiles((t, h, w), (kt, kh, kw))
-    starts = (_window_starts(t, kt), _window_starts(h, kh), _window_starts(w, kw))
-
-    # Group tiles by relative window geometry: interior tiles all share one
-    # mask; boundary tiles form a handful of extra groups (<= 3 cases/axis).
-    groups = {}
-    for t0 in range(0, t, tile_t):
-        t1 = min(t0 + tile_t, t)
-        rt0, rt1 = starts[0][t0], starts[0][t1 - 1] + kt
-        rel_t = tuple(s - rt0 for s in starts[0][t0:t1])
-        for h0 in range(0, h, tile_h):
-            h1 = min(h0 + tile_h, h)
-            rh0, rh1 = starts[1][h0], starts[1][h1 - 1] + kh
-            rel_h = tuple(s - rh0 for s in starts[1][h0:h1])
-            for w0 in range(0, w, tile_w):
-                w1 = min(w0 + tile_w, w)
-                rw0, rw1 = starts[2][w0], starts[2][w1 - 1] + kw
-                rel_w = tuple(s - rw0 for s in starts[2][w0:w1])
-                groups.setdefault((rel_t, rel_h, rel_w), []).append((
-                    (slice(t0, t1), slice(h0, h1), slice(w0, w1)),
-                    (slice(rt0, rt1), slice(rh0, rh1), slice(rw0, rw1)),
-                ))
-
-    out = torch.empty((batch, t, h, w, nh, hd), device=device, dtype=v.dtype)
-    for rel, tiles in groups.items():
-        mask = _group_mask(rel, (kt, kh, kw), q.dtype, device)
-        nq, nk = mask.shape[2], mask.shape[3]
-        if device.type == "cuda":
-            # SDPA's efficient backend never materializes scores; bound the
-            # stacked K/V copies instead.
-            g_max = max(1, NA_KV_STACK_BUDGET // max(1, batch * nh * nk * hd * 2))
-        else:
-            g_max = 1  # CPU math backend materializes [G*B, NH, Nq, Nk]
-        qs0, _ = tiles[0]
-        tq, th, tw = (qs0[0].stop - qs0[0].start, qs0[1].stop - qs0[1].start, qs0[2].stop - qs0[2].start)
-        for c0 in range(0, len(tiles), g_max):
-            chunk = tiles[c0:c0 + g_max]
-            g = len(chunk)
-            q_s = torch.stack([q[:, qs[0], qs[1], qs[2]] for qs, _ in chunk])
-            k_s = torch.stack([k[:, rs[0], rs[1], rs[2]] for _, rs in chunk])
-            v_s = torch.stack([v[:, rs[0], rs[1], rs[2]] for _, rs in chunk])
-            # [G, B, t, h, w, NH, HD] -> [G*B, NH, N, HD]
-            q_s = q_s.permute(0, 1, 5, 2, 3, 4, 6).reshape(g * batch, nh, nq, hd)
-            k_s = k_s.permute(0, 1, 5, 2, 3, 4, 6).reshape(g * batch, nh, nk, hd)
-            v_s = v_s.permute(0, 1, 5, 2, 3, 4, 6).reshape(g * batch, nh, nk, hd)
-            o = F.scaled_dot_product_attention(q_s, k_s, v_s, attn_mask=mask, scale=1.0)
-            o = o.view(g, batch, nh, tq, th, tw, hd).permute(0, 1, 3, 4, 5, 2, 6)
-            for i, (qs, _) in enumerate(chunk):
-                out[:, qs[0], qs[1], qs[2]] = o[i]
-
-    return out
 
 
 class NeighborhoodAttention3D(nn.Module):
@@ -323,34 +135,25 @@ class NeighborhoodAttention3D(nn.Module):
         q = torch.empty(shape, dtype=x.dtype, device=x.device)
         k = torch.empty(shape, dtype=x.dtype, device=x.device)
         v = torch.empty(shape, dtype=x.dtype, device=x.device)
-        fused_pre = _kitchen_rms_rope_ is not None and x.is_cuda and x.dtype in (torch.float16, torch.bfloat16)
-        if fused_pre:
-            q_weight = (self.q_norm.weight.detach() * self.scale).to(x.dtype)  # scale commutes with the rotation
-            k_weight = self.k_norm.weight.detach().to(x.dtype)
+        q_weight = (self.q_norm.weight.detach() * self.scale).to(x.dtype)  # scale commutes with the rotation
+        k_weight = self.k_norm.weight.detach().to(x.dtype)
         chunk = max(1, (2 ** 25) // max(h * w * self.dim, 1))
         for t0 in range(0, t, chunk):
             t1 = min(t0 + chunk, t)
             sl = x[:, t0:t1] if pre is None else pre(x[:, t0:t1])
             qc, kc, vc = self.qkv(sl).chunk(3, dim=-1)
             cshape = (batch, t1 - t0, h, w, self.num_heads, self.head_dim)
+            q[:, t0:t1] = qc.reshape(cshape)
+            k[:, t0:t1] = kc.reshape(cshape)
             v[:, t0:t1] = vc.reshape(cshape)
-            if fused_pre:
-                q[:, t0:t1] = qc.reshape(cshape)
-                k[:, t0:t1] = kc.reshape(cshape)
-                freqs = _rope_matrices_slice(tables, t0, t1, h, w)
-                nt = (t1 - t0) * h * w
-                for b in range(batch):
-                    _kitchen_rms_rope_(
-                        q[b, t0:t1].view(1, nt, self.num_heads, self.head_dim),
-                        k[b, t0:t1].view(1, nt, self.num_heads, self.head_dim),
-                        freqs, q_weight, k_weight)
-            else:
-                q[:, t0:t1] = _rope_apply(self.q_norm(qc.reshape(cshape)) * self.scale, self.rope_split, tables, t0)
-                k[:, t0:t1] = _rope_apply(self.k_norm(kc.reshape(cshape)), self.rope_split, tables, t0)
-        if _kitchen_na3d is not None:
-            out = _kitchen_na3d(q, k, v, list(self.kernel_size), None, 1.0)
-        else:
-            out = na3d(q, k, v, self.kernel_size)
+            freqs = _rope_matrices_slice(tables, t0, t1, h, w)
+            nt = (t1 - t0) * h * w
+            for b in range(batch):
+                comfy_kitchen.rms_rope_(
+                    q[b, t0:t1].view(1, nt, self.num_heads, self.head_dim),
+                    k[b, t0:t1].view(1, nt, self.num_heads, self.head_dim),
+                    freqs, q_weight, k_weight)
+        out = comfy_kitchen.na3d(q, k, v, list(self.kernel_size), None, 1.0)
         del q, k, v
         out = out.reshape(batch, t, h, w, self.dim)
         res = add_to if add_to is not None else torch.empty_like(out)
