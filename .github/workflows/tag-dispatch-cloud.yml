@@ -9,9 +9,6 @@ jobs:
   dispatch-cloud:
     runs-on: ubuntu-latest
     steps:
-      # A GitHub App token is minted per run and cannot silently expire the way a
-      # static PAT does. Comfy-Org/cloud's own bump-comfyui-on-tag.yml already
-      # authenticates this way; this brings the sending half in line with it.
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
@@ -56,9 +53,6 @@ jobs:
 
           echo "✅ Dispatched ComfyUI tag ${RELEASE_TAG} to Comfy-Org/cloud"
 
-      # This workflow failed silently on every run for two months. A failure here
-      # means the cloud bump PR is not opened and someone has to notice by hand, so
-      # make it visible rather than relying on anyone watching the Actions tab.
       - name: Open an issue if the dispatch failed
         if: failure()
         env:
