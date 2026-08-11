@@ -1521,7 +1521,8 @@ paths:
                 Supports filtering by tags, name, metadata, and sorting options.
             operationId: listAssets
             parameters:
-                - description: Filter assets that have ALL of these tags
+                - deprecated: true
+                  description: 'Deprecated alias of tags_all: filter assets that have ALL of these tags'
                   explode: false
                   in: query
                   name: include_tags
@@ -1530,10 +1531,38 @@ paths:
                         type: string
                     type: array
                   style: form
-                - description: Exclude assets that have ANY of these tags
+                - deprecated: true
+                  description: 'Deprecated alias of tags_none: exclude assets that have ANY of these tags'
                   explode: false
                   in: query
                   name: exclude_tags
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
+                - description: Filter assets that have ALL of these tags
+                  explode: false
+                  in: query
+                  name: tags_all
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
+                - description: Filter assets that have AT LEAST ONE of these tags
+                  explode: false
+                  in: query
+                  name: tags_any
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
+                - description: Exclude assets that have ANY of these tags
+                  explode: false
+                  in: query
+                  name: tags_none
                   schema:
                     items:
                         type: string
@@ -2312,7 +2341,8 @@ paths:
                 Only returns tags with non-zero counts (tags that exist on matching assets).
             operationId: getAssetTagHistogram
             parameters:
-                - description: Filter assets that have ALL of these tags
+                - deprecated: true
+                  description: 'Deprecated alias of tags_all: filter assets that have ALL of these tags'
                   explode: false
                   in: query
                   name: include_tags
@@ -2321,10 +2351,38 @@ paths:
                         type: string
                     type: array
                   style: form
-                - description: Exclude assets that have ANY of these tags
+                - deprecated: true
+                  description: 'Deprecated alias of tags_none: exclude assets that have ANY of these tags'
                   explode: false
                   in: query
                   name: exclude_tags
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
+                - description: Filter assets that have ALL of these tags
+                  explode: false
+                  in: query
+                  name: tags_all
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
+                - description: Filter assets that have AT LEAST ONE of these tags
+                  explode: false
+                  in: query
+                  name: tags_any
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
+                - description: Exclude assets that have ANY of these tags
+                  explode: false
+                  in: query
+                  name: tags_none
                   schema:
                     items:
                         type: string

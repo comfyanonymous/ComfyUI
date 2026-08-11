@@ -28,6 +28,7 @@ try:
         TensorCoreNVFP4Layout as _CKNvfp4Layout,
         TensorCoreConvRotW4A4Layout as _CKTensorCoreConvRotW4A4Layout,
         TensorWiseINT8Layout as _CKTensorWiseINT8Layout,
+        AsymW4A8Int8Layout as _CKAsymW4A8Int8Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
@@ -39,7 +40,7 @@ try:
         cuda_version = tuple(map(int, str(torch.version.cuda).split('.')))
         if cuda_version < (13,):
             ck.registry.disable("cuda")
-            logging.warning("WARNING: You need pytorch with cu130 or higher to use optimized CUDA operations.")
+            logging.warning("WARNING: You need pytorch with cu130 or higher to use optimized CUDA operations.\nWARNING WARNING WARNING\nIf you are on nvidia 20 series and above it is required that you update your pytorch to cu130 or higher.\n")
 
     # On ROCm/AMD the CUDA backend is unavailable, so Triton is the only accelerated
     # comfy-kitchen backend. Enable it by default there, but only on Triton >= 3.7 AND a
@@ -81,6 +82,9 @@ except ImportError as e:
         pass
 
     class _CKTensorCoreConvRotW4A4Layout:
+        pass
+
+    class _CKAsymW4A8Int8Layout:
         pass
 
     def register_layout_class(name, cls):
@@ -212,7 +216,7 @@ class TensorCoreFP8E5M2Layout(_TensorCoreFP8LayoutBase):
 TensorCoreFP8Layout = TensorCoreFP8E4M3Layout
 TensorWiseINT8Layout = _CKTensorWiseINT8Layout
 TensorCoreConvRotW4A4Layout = _CKTensorCoreConvRotW4A4Layout
-
+AsymW4A8Int8Layout = _CKAsymW4A8Int8Layout
 
 # ==============================================================================
 # Registry
@@ -226,6 +230,7 @@ register_layout_class("TensorWiseINT8Layout", _CKTensorWiseINT8Layout)
 register_layout_class("TensorCoreConvRotW4A4Layout", _CKTensorCoreConvRotW4A4Layout)
 if _CK_MXFP8_AVAILABLE:
     register_layout_class("TensorCoreMXFP8Layout", TensorCoreMXFP8Layout)
+register_layout_class("AsymW4A8Int8Layout", _CKAsymW4A8Int8Layout)
 
 QUANT_ALGOS = {
     "float8_e4m3fn": {
@@ -268,6 +273,13 @@ QUANT_ALGOS["convrot_w4a4"] = {
     "quantize_input": False,
 }
 
+QUANT_ALGOS["asym_w4a8_int8"] = {
+    "storage_t": torch.int8,
+    "parameters": {"weight_scale"},
+    "comfy_tensor_layout": "AsymW4A8Int8Layout",
+    "quantize_input": False,
+}
+
 
 # ==============================================================================
 # Re-exports for backward compatibility
@@ -282,6 +294,7 @@ __all__ = [
     "TensorCoreNVFP4Layout",
     "TensorCoreConvRotW4A4Layout",
     "TensorWiseINT8Layout",
+    "AsymW4A8Int8Layout",
     "QUANT_ALGOS",
     "register_layout_op",
 ]
