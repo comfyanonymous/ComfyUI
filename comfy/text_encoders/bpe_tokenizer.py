@@ -8,34 +8,94 @@ import base64
 import json
 import os
 import re
+import unicodedata
 
 
-# Pre-tokenization patterns using re approximations for \p{L} and \p{N}.
-# \p{L} (Unicode letter) ≈ [^\W\d_]   \p{N} (Unicode number) ≈ \d
-_LLAMA_SPLIT_RE = re.compile(
-    r"(?i:'s|'t|'re|'ve|'m|'ll|'d)"
-    r"|(?:[^\w\r\n]|_)?[^\W\d_]+"
-    r"|\d{1,3}"
-    r"| ?(?:[^\s\w]|_)+[\r\n]*"
-    r"|\s*[\r\n]+"
-    r"|\s+(?!\S)"
-    r"|\s+"
-)
+_LLAMA_PATTERN = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
+_CONTRACTIONS = ("'re", "'ve", "'ll", "'s", "'t", "'m", "'d")
 
-_MISTRAL_SPLIT_RE = re.compile(
-    r"(?:[^\w\r\n]|_)?[^\W\d_]+"
-    r"|\d"
-    r"| ?(?:[^\s\w]|_)+[\r\n]*"
-    r"|\s*[\r\n]+"
-    r"|\s+(?!\S)"
-    r"|\s+"
-)
+
+def _is_letter(c):
+    return unicodedata.category(c)[0] == "L"
+
+
+def _is_number(c):
+    return unicodedata.category(c)[0] == "N"
+
+
+def _is_whitespace(c):
+    return c in " \t\n\r\v\f\x85\u2028\u2029" or unicodedata.category(c) == "Zs"
+
+
+def _split_llama(text):
+    pieces = []
+    i = 0
+    while i < len(text):
+        contraction = None
+        if text[i] == "'":
+            for suffix in _CONTRACTIONS:
+                if text[i:i + len(suffix)].casefold() == suffix:
+                    contraction = text[i:i + len(suffix)]
+                    break
+        if contraction is not None:
+            pieces.append(contraction)
+            i += len(contraction)
+            continue
+
+        j = i
+        if text[j] not in "\r\n" and not _is_letter(text[j]) and not _is_number(text[j]):
+            j += 1
+        if j < len(text) and _is_letter(text[j]):
+            j += 1
+            while j < len(text) and _is_letter(text[j]):
+                j += 1
+            pieces.append(text[i:j])
+            i = j
+            continue
+
+        if _is_number(text[i]):
+            j = i + 1
+            while j < len(text) and j - i < 3 and _is_number(text[j]):
+                j += 1
+            pieces.append(text[i:j])
+            i = j
+            continue
+
+        j = i
+        if text[j] == " ":
+            j += 1
+        punct_start = j
+        while j < len(text) and not _is_whitespace(text[j]) and not _is_letter(text[j]) and not _is_number(text[j]):
+            j += 1
+        if j > punct_start:
+            while j < len(text) and text[j] in "\r\n":
+                j += 1
+            pieces.append(text[i:j])
+            i = j
+            continue
+
+        if _is_whitespace(text[i]):
+            j = i + 1
+            while j < len(text) and _is_whitespace(text[j]):
+                j += 1
+            last_newline = max(text.rfind("\r", i, j), text.rfind("\n", i, j))
+            if last_newline >= i:
+                j = last_newline + 1
+            elif j < len(text) and j - i > 1:
+                j -= 1
+            pieces.append(text[i:j])
+            i = j
+            continue
+
+        pieces.append(text[i])
+        i += 1
+    return pieces
 
 
 def _make_split_pattern(pattern_str):
-    if "'s|'t|" in pattern_str:
-        return _LLAMA_SPLIT_RE
-    return _MISTRAL_SPLIT_RE
+    if pattern_str != _LLAMA_PATTERN:
+        raise ValueError(f"Unsupported tokenizer split pattern: {pattern_str}")
+    return _split_llama
 
 
 def _bytes_to_unicode():
@@ -67,7 +127,7 @@ class BPETokenizer:
         self._byte_decoder = byte_decoder
         self._bos_id = bos_id
 
-        self._pattern = _make_split_pattern(pattern_str)
+        self._split = _make_split_pattern(pattern_str)
         sorted_specials = sorted(special_token_ids.keys(), key=len, reverse=True)
         if sorted_specials:
             self._special_split = re.compile(
@@ -113,8 +173,7 @@ class BPETokenizer:
             if part in self._special_token_ids:
                 ids.append(self._special_token_ids[part])
             else:
-                for m in self._pattern.finditer(part):
-                    piece = m.group()
+                for piece in self._split(part):
                     byte_chars = [self._byte_encoder[b] for b in piece.encode('utf-8')]
                     for tok in self._bpe_encode_piece(byte_chars):
                         ids.append(self._vocab[tok])
@@ -201,8 +260,6 @@ def from_tekken_json(data):
     """Build a BPETokenizer from a Mistral tekken JSON blob (bytes or str)."""
     mistral_vocab = json.loads(data)
     config = mistral_vocab["config"]
-    pattern = config.get("pattern",
-        r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+""")
 
     byte_encoder = _bytes_to_unicode()
     byte_decoder = {v: k for k, v in byte_encoder.items()}
@@ -262,7 +319,7 @@ def from_tekken_json(data):
         if tok_str in bpe_vocab:
             special_str_ids[tok_str] = bpe_vocab[tok_str]
 
-    return BPETokenizer(bpe_vocab, merges_by_pair, special_str_ids, pattern,
+    return BPETokenizer(bpe_vocab, merges_by_pair, special_str_ids, _LLAMA_PATTERN,
                         byte_encoder, byte_decoder, bos_id=None)
 
 
