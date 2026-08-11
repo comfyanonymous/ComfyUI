@@ -199,6 +199,7 @@ parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable s
 parser.add_argument("--debug-hang", action="store_true", help="Enable stack trace dumps on Ctrl-C for debugging hangs.")
 
 parser.add_argument("--disable-pinned-memory", action="store_true", help="Disable pinned memory use.")
+parser.add_argument("--pinned-memory", type=float, default=None, metavar="GB", help="Set the maximum amount of RAM in GB usable for pinned (page-locked) host memory, instead of the value ComfyUI computes from total system RAM. Lower this on systems that become unstable with large amounts of pinned memory.")
 
 parser.add_argument("--mmap-torch-files", action="store_true", help="Use mmap when loading ckpt/pt files.")
 parser.add_argument("--disable-mmap", action="store_true", help="Don't use mmap when loading safetensors.")
