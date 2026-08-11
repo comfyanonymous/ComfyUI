@@ -11,6 +11,7 @@ import re
 import unicodedata
 
 
+# This is also the default pattern used by the previous MistralConverter path.
 _LLAMA_PATTERN = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
 _CONTRACTIONS = ("'re", "'ve", "'ll", "'s", "'t", "'m", "'d")
 
@@ -267,14 +268,15 @@ def from_tekken_json(data):
     def tbts(b):
         return "".join(byte_encoder[ord(c)] for c in b.decode("latin-1"))
 
-    max_vocab = config["default_vocab_size"] - len(mistral_vocab["special_tokens"])
+    special_token_offset = config["default_num_special_tokens"]
+    max_vocab = config["default_vocab_size"] - special_token_offset
 
     raw_vocab = {}
     for w in mistral_vocab["vocab"]:
         r = w["rank"]
         if r >= max_vocab:
             continue
-        raw_vocab[base64.b64decode(w["token_bytes"])] = r
+        raw_vocab[base64.b64decode(w["token_bytes"])] = r + special_token_offset
 
     special_tokens_dict = {}
     for w in mistral_vocab["special_tokens"]:
@@ -289,9 +291,9 @@ def from_tekken_json(data):
 
     bpe_vocab = {}
     merge_triples = []
-    for idx, (token, rank) in enumerate(combined.items()):
+    for token, rank in combined.items():
         if token not in all_special:
-            bpe_vocab[tbts(token)] = idx
+            bpe_vocab[tbts(token)] = rank
             if len(token) == 1:
                 continue
             local = []
@@ -303,7 +305,7 @@ def from_tekken_json(data):
             merge_triples.extend(local)
         else:
             tok_str = token.decode("utf-8", errors="replace") if isinstance(token, bytes) else token
-            bpe_vocab[tok_str] = idx
+            bpe_vocab[tok_str] = rank
 
     merge_triples.sort(key=lambda v: v[2])
 
