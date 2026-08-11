@@ -498,9 +498,14 @@ class Attention(nn.Module):
         self.inner_size = self.num_heads * self.head_dim
 
         ops = ops or nn
-        self.q_proj = ops.Linear(config.hidden_size, self.inner_size, bias=config.qkv_bias, device=device, dtype=dtype)
-        self.k_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.qkv_bias, device=device, dtype=dtype)
-        self.v_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.qkv_bias, device=device, dtype=dtype)
+        self.kv_size = self.num_kv_heads * self.head_dim
+        self.merged_qkv = getattr(config, "merged_qkv", False)
+        if self.merged_qkv:
+            self.qkv_proj = ops.Linear(config.hidden_size, self.inner_size + self.kv_size * 2, bias=config.qkv_bias, device=device, dtype=dtype)
+        else:
+            self.q_proj = ops.Linear(config.hidden_size, self.inner_size, bias=config.qkv_bias, device=device, dtype=dtype)
+            self.k_proj = ops.Linear(config.hidden_size, self.kv_size, bias=config.qkv_bias, device=device, dtype=dtype)
+            self.v_proj = ops.Linear(config.hidden_size, self.kv_size, bias=config.qkv_bias, device=device, dtype=dtype)
         self.o_proj = ops.Linear(self.inner_size, config.hidden_size, bias=False, device=device, dtype=dtype)
 
         self.q_norm = None
@@ -522,9 +527,12 @@ class Attention(nn.Module):
     ):
         batch_size, seq_length, _ = hidden_states.shape
 
-        xq = self.q_proj(hidden_states)
-        xk = self.k_proj(hidden_states)
-        xv = self.v_proj(hidden_states)
+        if self.merged_qkv:
+            xq, xk, xv = self.qkv_proj(hidden_states).split((self.inner_size, self.kv_size, self.kv_size), dim=-1)
+        else:
+            xq = self.q_proj(hidden_states)
+            xk = self.k_proj(hidden_states)
+            xv = self.v_proj(hidden_states)
 
         xq = xq.view(batch_size, seq_length, self.num_heads, self.head_dim).transpose(1, 2)
         xk = xk.view(batch_size, seq_length, self.num_kv_heads, self.head_dim).transpose(1, 2)
