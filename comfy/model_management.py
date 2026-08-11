@@ -29,6 +29,27 @@ import weakref
 import gc
 import os
 from contextlib import contextmanager, nullcontext
+
+
+def _select_default_rocm_device():
+    if torch.version.hip is None or not torch.cuda.is_available():
+        return
+    if args.cuda_device is not None or args.default_device is not None:
+        return
+
+    current_device = torch.cuda.current_device()
+    if not torch.cuda.get_device_properties(current_device).is_integrated:
+        return
+
+    for device_index in range(torch.cuda.device_count()):
+        if not torch.cuda.get_device_properties(device_index).is_integrated:
+            torch.cuda.set_device(device_index)
+            logging.info("Using discrete AMD GPU: {}".format(torch.cuda.get_device_name(device_index)))
+            return
+
+
+_select_default_rocm_device()
+
 import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
