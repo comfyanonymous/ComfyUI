@@ -236,6 +236,62 @@ class MiniMaxH3AddGuide(io.ComfyNode):
         return io.NodeOutput(positive)
 
 
+class MiniMaxH3MotionContext(io.ComfyNode):
+    """Chain generations: pin the tail of a previous clip's sampled AV latent at frame 0.
+
+    The tail rides through sampling as condition rows (like keyframes/refs), so the
+    next clip opens by reproducing it, motion and audio intact. The reproduced
+    overlap is trimmed from the decoded video via trim_time -> Video Slice.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MiniMaxH3MotionContext",
+            display_name="Add Motion Context to MiniMax H3",
+            category="model/conditioning/minimax",
+            description="Continue a previous MiniMax H3 generation: the end of its sampled AV latent guides the start of the next clip. Trim the decoded video with Video Slice (start_time = trim_time) before joining the clips.",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Latent.Input("latent", tooltip="AV latent of the clip being generated"),
+                io.Latent.Input("previous_latent", tooltip="Sampled MiniMax H3 AV latent of the clip to continue from"),
+                io.Int.Input("context_length", default=22, min=5, max=3600, step=17,
+                             tooltip="Overlap frame count at 24 fps taken from the end of the previous clip, snapped up to the model's 17k+5 grid (22 = ~1s)"),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Float.Output(display_name="trim_time", tooltip="Overlap duration in seconds; use as Video Slice start_time to drop the reproduced frames and audio from the decoded continuation"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, positive, latent, previous_latent, context_length) -> io.NodeOutput:
+        target = latent["samples"]
+        samples = previous_latent["samples"]
+        for s in (target, samples):
+            if not s.is_nested or len(s.tensors) != 2 or s.tensors[0].ndim != 5 or s.tensors[0].shape[1] != 24:
+                raise ValueError("MiniMaxH3MotionContext expects MiniMax H3 AV latents")
+        video, audio = samples.tensors
+        if video.shape[3:] != target.tensors[0].shape[3:]:
+            raise ValueError("the previous clip is {}x{} but the target is {}x{}".format(
+                video.shape[4] * 16, video.shape[3] * 16,
+                target.tensors[0].shape[4] * 16, target.tensors[0].shape[3] * 16))
+        frame_count, latent_t, audio_t = temporal_shape(context_length)
+        if latent_t > video.shape[2]:
+            raise ValueError("context_length ({} frames) exceeds the previous clip's {} frames".format(
+                frame_count, sum(FRAME_PER_TOKEN[k % 5] for k in range(video.shape[2]))))
+        if latent_t > target.tensors[0].shape[2]:
+            raise ValueError("context_length ({} frames) does not fit in the target's {} frames".format(
+                frame_count, sum(FRAME_PER_TOKEN[k % 5] for k in range(target.tensors[0].shape[2]))))
+        keyframe = {
+            "resolved_frame_index": 0,
+            "latent": video[:1, :, -latent_t:].clone(),
+            "audio_latent": audio[:1, :, :, -audio_t:].clone(),
+        }
+        positive = node_helpers.conditioning_set_values(positive, {"minimax_keyframes": [keyframe]}, append=True)
+        return io.NodeOutput(positive, frame_count / FPS)
+
+
 class MiniMaxH3ReferenceToVideo(io.ComfyNode):
     """ref2va: prompt + reference images / videos / audio -> conditioning + AV latent.
 
@@ -405,6 +461,7 @@ class MiniMaxH3Extension(ComfyExtension):
             EmptyMiniMaxH3LatentAV,
             MiniMaxH3ImageToVideo,
             MiniMaxH3AddGuide,
+            MiniMaxH3MotionContext,
             MiniMaxH3ReferenceToVideo,
             MiniMaxH3SigmaShift,
             ]
