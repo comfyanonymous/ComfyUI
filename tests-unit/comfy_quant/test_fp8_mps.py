@@ -34,6 +34,11 @@ FP8_LAYOUTS = ((TensorCoreFP8E4M3Layout, "TensorCoreFP8E4M3Layout", torch.float8
 class TestFP8OnMPS(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(0)
+        # CastWeightBiasOp.weight_function / bias_function are class level mutable
+        # defaults, so any test that appends to a layer without its own list leaks
+        # that function into every layer in the process. Start from a clean slate.
+        ops.CastWeightBiasOp.weight_function = []
+        ops.CastWeightBiasOp.bias_function = []
 
     def test_dequantize_matches_cpu(self):
         for layout, _name, fp8_dtype, _mbits in FP8_LAYOUTS:
@@ -126,16 +131,13 @@ class TestFP8OnMPS(unittest.TestCase):
         self.assertFalse(out.isnan().any())
 
         # Reference matmul on the same device, so the MPS/CPU fp16 accumulation
-        # difference stays out of it. Tolerance is loose on purpose: the cast path
-        # in front of the layer may stage the weight through a lower precision
-        # buffer, which is worth a few permille on top of fp16 accumulation.
+        # difference stays out of it: the forward must be exactly dequantize + linear.
         mps_params = TensorCoreFP8E4M3Layout.Params(scale=params.scale.to("mps"),
                                                     orig_dtype=params.orig_dtype,
                                                     orig_shape=params.orig_shape)
         weight_dq = TensorCoreFP8E4M3Layout.dequantize(qdata.to("mps"), mps_params)
-        expected = torch.nn.functional.linear(x, weight_dq).float()
-        torch.testing.assert_close(out.float(), expected,
-                                   rtol=0.02, atol=0.02 * float(expected.abs().max()))
+        expected = torch.nn.functional.linear(x, weight_dq)
+        torch.testing.assert_close(out, expected, rtol=0, atol=0)
 
 
     def test_lora_patch_on_mps(self):
