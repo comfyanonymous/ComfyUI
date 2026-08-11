@@ -232,11 +232,6 @@ class LoadVideo(io.ComfyNode):
             has_intermediate_output=True,
             inputs=[
                 io.Combo.Input("file", options=sorted(files), upload=io.UploadType.video),
-                io.VideoEdit.Input(
-                    "edit",
-                    optional=True,
-                    tooltip="Trim (seconds) and crop (pixels) applied on load. Zero values leave the video unchanged.",
-                ),
             ],
             outputs=[
                 io.Video.Output(),
@@ -244,17 +239,13 @@ class LoadVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, file, edit=None) -> io.NodeOutput:
+    def execute(cls, file) -> io.NodeOutput:
         video_path = folder_paths.get_annotated_filepath(file)
         source = InputImpl.VideoFromFile(video_path)
-        video = apply_video_trim(source, (edit or {}).get("trim"))
-        video = apply_video_crop(video, (edit or {}).get("crop"))
-        if video is source:
-            return io.NodeOutput(video, ui=preview_input_video(file, source))
-        return io.NodeOutput(video, ui=save_video_preview(video))
+        return io.NodeOutput(source, ui=preview_input_video(file, source))
 
     @classmethod
-    def fingerprint_inputs(s, file, edit=None):
+    def fingerprint_inputs(s, file):
         video_path = folder_paths.get_annotated_filepath(file)
         mod_time = os.path.getmtime(video_path)
         # Instead of hashing the file, we can just use the modification time to avoid
@@ -262,7 +253,7 @@ class LoadVideo(io.ComfyNode):
         return mod_time
 
     @classmethod
-    def validate_inputs(s, file, edit=None):
+    def validate_inputs(s, file):
         if not folder_paths.exists_annotated_filepath(file):
             return "Invalid video file: {}".format(file)
 
@@ -384,10 +375,11 @@ class VideoTrim(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VideoTrim",
-            display_name="Trim Video",
+            display_name="Trim Video (Advanced)",
             search_aliases=["trim video duration", "skip first frames", "cut video", "start time"],
             category="video",
             is_experimental=True,
+            is_output_node=True,
             essentials_category="Video Tools",
             has_intermediate_output=True,
             inputs=[
@@ -424,6 +416,7 @@ class VideoCrop(io.ComfyNode):
             search_aliases=["crop video", "cut region", "spatial crop"],
             category="video",
             is_experimental=True,
+            is_output_node=True,
             essentials_category="Video Tools",
             has_intermediate_output=True,
             inputs=[
