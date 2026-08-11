@@ -712,6 +712,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
         caption_projection_first_linear=True,
         ff_bias=True,
         use_prompt_adaln_single=True,
+        use_keyframes_abs_pos_embedding=False,
         dtype=None,
         device=None,
         operations=None,
@@ -743,6 +744,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
         self.caption_projection_first_linear = caption_projection_first_linear
         self.ff_bias = ff_bias
         self.use_prompt_adaln_single = use_prompt_adaln_single
+        self.use_keyframes_abs_pos_embedding = use_keyframes_abs_pos_embedding
 
         # Common dimensions
         self.inner_dim = num_attention_heads * attention_head_dim
@@ -769,6 +771,11 @@ class LTXBaseModel(torch.nn.Module, ABC):
         self.patchify_proj = self.operations.Linear(
             self.in_channels, self.inner_dim, bias=True, dtype=dtype, device=device
         )
+
+        if self.use_keyframes_abs_pos_embedding:
+            self.keyframes_abs_pos_embedding = nn.Parameter(torch.zeros(1, self.inner_dim, dtype=dtype, device=device))
+        else:
+            self.keyframes_abs_pos_embedding = None
 
         embedding_coefficient = ADALN_CROSS_ATTN_PARAMS_COUNT if self.cross_attention_adaln else ADALN_BASE_PARAMS_COUNT
         self.adaln_single = AdaLayerNormSingle(
@@ -1097,6 +1104,15 @@ class LTXVModel(LTXBaseModel):
 
         grid_mask = None
         if keyframe_idxs is not None and keyframe_idxs.shape[2] > 0:
+            tokens_per_frame = self.tokens_per_latent_frame(additional_args["orig_shape"])
+            if keyframe_idxs.shape[2] % tokens_per_frame != 0:
+                raise ValueError(
+                    f"keyframe_idxs holds {keyframe_idxs.shape[2]} tokens, which is not a whole number of "
+                    f"{tokens_per_frame}-token latent frames. The appended frames were recorded against a "
+                    "different spatial resolution than the latent being sampled, so their positions would land "
+                    "on the wrong tokens. Crop the guides and separate the generated keyframes before "
+                    "upscaling the latent."
+                )
             additional_args.update({ "orig_patchified_shape": list(x.shape)})
             denoise_mask = self.patchifier.patchify(denoise_mask)[0]
             grid_mask = ~torch.any(denoise_mask < 0, dim=-1)[0]
@@ -1139,7 +1155,63 @@ class LTXVModel(LTXBaseModel):
             additional_args["num_guide_tokens"] = keyframe_idxs.shape[2]
 
         x = self.patchify_proj(x)
+        x = self.apply_keyframes_abs_pos_embedding(
+            x,
+            pixel_coords,
+            orig_shape=additional_args["orig_shape"],
+            grid_mask=grid_mask,
+            num_guide_tokens=additional_args.get("num_guide_tokens", 0),
+            generated_keyframes=kwargs.get("generated_keyframes", None),
+        )
         return x, pixel_coords, additional_args
+
+    def tokens_per_latent_frame(self, orig_shape):
+        """Token count of a single latent frame at the given latent shape."""
+        patch_size = self.patchifier.patch_size
+        return (orig_shape[3] // patch_size[1]) * (orig_shape[4] // patch_size[2])
+
+    def keyframes_abs_pos_mask(self, pixel_coords, orig_shape, grid_mask, num_guide_tokens, generated_keyframes):
+        """Per-token mask selecting the latents that encode a single standalone pixel frame.
+
+        Returns a (batch, tokens) boolean mask over the already grid-filtered token sequence.
+        """
+        temporal_start = pixel_coords[:, 0]
+        if temporal_start.ndim == 3:  # (batch, tokens, [start, end])
+            temporal_start = temporal_start[..., 0]
+        mask = temporal_start == 0
+        if num_guide_tokens > 0:
+            mask[:, -num_guide_tokens:] = False
+
+        if generated_keyframes is not None:
+            # The temporal patch size is always 1, so one latent frame is one row of tokens.
+            tokens_per_frame = self.tokens_per_latent_frame(orig_shape)
+            if generated_keyframes["tokens_per_frame"] != tokens_per_frame:
+                raise ValueError(
+                    f"The generated keyframes were recorded at {generated_keyframes['tokens_per_frame']} tokens "
+                    f"per latent frame but this latent has {tokens_per_frame}. Separate the generated keyframes "
+                    "before upscaling the latent."
+                )
+            first_token = generated_keyframes["first_latent_frame"] * tokens_per_frame
+            num_slot_tokens = generated_keyframes["num_keyframes"] * tokens_per_frame
+            slots = torch.zeros(orig_shape[2] * tokens_per_frame, dtype=torch.bool, device=mask.device)
+            slots[first_token:first_token + num_slot_tokens] = True
+            if grid_mask is not None:
+                slots = slots[grid_mask]
+            mask = mask | slots
+
+        return mask
+
+    def apply_keyframes_abs_pos_embedding(self, x, pixel_coords, orig_shape, grid_mask, num_guide_tokens, generated_keyframes):
+        """Add the learned keyframe marker to the single-pixel-frame tokens.
+
+        A no-op for every checkpoint built without the parameter.
+        """
+        if self.keyframes_abs_pos_embedding is None:
+            return x
+
+        mask = self.keyframes_abs_pos_mask(pixel_coords, orig_shape, grid_mask, num_guide_tokens, generated_keyframes)
+        embedding = self.keyframes_abs_pos_embedding.to(device=x.device, dtype=x.dtype)
+        return x + mask.unsqueeze(-1).to(x.dtype) * embedding
 
     def _build_guide_self_attention_mask(self, x, transformer_options, merged_args):
         """Build self-attention mask for per-guide attention attenuation.

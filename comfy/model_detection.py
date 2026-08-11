@@ -397,6 +397,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["cross_attention_dim"] = shape[1]
         if metadata is not None and "config" in metadata:
             dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+        dit_config["use_keyframes_abs_pos_embedding"] = '{}keyframes_abs_pos_embedding'.format(key_prefix) in state_dict_keys
         return dit_config
 
     if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys: #ACE-Step model
