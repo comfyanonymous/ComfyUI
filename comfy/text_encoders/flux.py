@@ -4,11 +4,9 @@ import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.llama
 import comfy.model_management
 from transformers import T5TokenizerFast, Qwen2Tokenizer
-from .bpe_tokenizer import BPETokenizer, from_tekken_json, _bytes_to_unicode
+from .bpe_tokenizer import from_tekken_json
 import torch
 import os
-import json
-import base64
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
