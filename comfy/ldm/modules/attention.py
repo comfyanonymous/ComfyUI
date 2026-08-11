@@ -10,6 +10,8 @@ from typing import Optional, Any, Callable, Union
 import logging
 import functools
 
+import comfy_kitchen
+
 from .diffusionmodules.util import AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention
 
@@ -49,17 +51,7 @@ except ImportError:
         logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
         exit(-1)
 
-COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE = False
-try:
-    from comfy_kitchen import int8_attention as comfy_kitchen_int8_attention
-    from comfy_kitchen import int8_attention_is_available
-    from comfy_kitchen import int8_attention_from_prequantized as comfy_kitchen_int8_attention_from_prequantized
-    from comfy_kitchen import prequantize_int8_attention as comfy_kitchen_prequantize_int8_attention
-    COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE = int8_attention_is_available()
-except ImportError:
-    if model_management.comfy_kitchen_int8_attention_enabled():
-        logging.error("\n\nTo use the `--use-comfy-kitchen-int8-attention` feature, install a Comfy Kitchen build with INT8 attention support.")
-        exit(-1)
+COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE = comfy_kitchen.int8_attention_is_available()
 
 REGISTERED_ATTENTION_FUNCTIONS = {}
 def register_attention_function(name: str, func: Callable):
@@ -611,12 +603,13 @@ def attention_comfy_kitchen_int8(q, k, v, heads, mask=None, attn_precision=None,
     q, k, v, mask, b, dim_head = _comfy_kitchen_int8_inputs(
         q, k, v, heads, mask, skip_reshape, kwargs.get("enable_gqa", False)
     )
-    out = comfy_kitchen_int8_attention(
+    out = comfy_kitchen.int8_attention(
         q,
         k,
         v,
         scale=kwargs.get("scale", None),
         convrot=True,
+        stabilize_k=kwargs.get("stabilize_k", True),
         attn_mask=mask,
     )
     if not skip_output_reshape:
@@ -631,16 +624,17 @@ def _attention_comfy_kitchen_int8_containers(q, k, v, heads, mask=None, attn_pre
     q, k, v, mask, b, dim_head = _comfy_kitchen_int8_inputs(
         q, k, v, heads, mask, skip_reshape, kwargs.get("enable_gqa", False)
     )
-    quantized = comfy_kitchen_prequantize_int8_attention(
+    quantized = comfy_kitchen.prequantize_int8_attention(
         q,
         k,
         v,
         scale=kwargs.get("scale", None),
         convrot=True,
+        stabilize_k=kwargs.get("stabilize_k", True),
         attn_mask=mask,
     )
     del q, k, v
-    out = comfy_kitchen_int8_attention_from_prequantized(quantized)
+    out = comfy_kitchen.int8_attention_from_prequantized(quantized)
     if not skip_output_reshape:
         out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
     return out
@@ -879,9 +873,13 @@ else:
         logging.info("Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
-if model_management.comfy_kitchen_int8_attention_enabled():
-    logging.info("Using Comfy Kitchen INT8 attention")
-    optimized_attention = attention_comfy_kitchen_int8
+if model_management.comfy_kitchen_attention_enabled():
+    if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE:
+        logging.info("Using Comfy Kitchen attention")
+        optimized_attention = attention_comfy_kitchen_int8
+    else:
+        logging.error("Comfy Kitchen attention is unavailable. Install a Comfy Kitchen build with attention support to use --use-ck-attention.")
+        exit(-1)
 
 optimized_attention_masked = optimized_attention
 

@@ -1658,8 +1658,8 @@ def unpin_memory(tensor):
 def sage_attention_enabled():
     return args.use_sage_attention
 
-def comfy_kitchen_int8_attention_enabled():
-    return args.use_comfy_kitchen_int8_attention
+def comfy_kitchen_attention_enabled():
+    return args.use_ck_attention
 
 def flash_attention_enabled():
     return args.use_flash_attention
