@@ -26,7 +26,7 @@ def test_pinned_memory_default_uses_ram_based_calculation(monkeypatch):
     assert model_management.calculate_max_pinned_memory(None, ram) == expected
 
 
-@pytest.mark.parametrize("value", ["-1", "nan", "inf", "-inf"])
+@pytest.mark.parametrize("value", ["-1", "nan", "inf", "-inf", "1e308"])
 def test_pinned_memory_rejects_negative_and_non_finite_values(value):
     with pytest.raises(SystemExit):
         cli_parser.parse_args(["--pinned-memory", value])

@@ -201,7 +201,7 @@ parser.add_argument("--debug-hang", action="store_true", help="Enable stack trac
 
 def non_negative_finite_float(value):
     value = float(value)
-    if not math.isfinite(value) or value < 0:
+    if not math.isfinite(value) or value < 0 or not math.isfinite(value * 1024 ** 3):
         raise argparse.ArgumentTypeError(f"{value} is not a non-negative, finite number")
     return value
 
