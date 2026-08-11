@@ -62,8 +62,17 @@ def _write(directory: Path, name: str) -> str:
     return str(p)
 
 
-def _register(session: Session, file_path: str, ref_id: str, *, mtime_ns: int) -> None:
-    session.add(Asset(id=f"asset-{ref_id}", hash=f"blake3:{ref_id}", size_bytes=100))
+def _register(
+    session: Session,
+    file_path: str,
+    ref_id: str,
+    *,
+    mtime_ns: int,
+    asset_hash: str | None = "",
+) -> None:
+    if asset_hash == "":
+        asset_hash = f"blake3:{ref_id}"
+    session.add(Asset(id=f"asset-{ref_id}", hash=asset_hash, size_bytes=100))
     session.flush()
     session.add(
         AssetReference(
@@ -136,6 +145,24 @@ def test_temp_sync_marks_deleted_file_missing(session, comfy_dirs):
     session.expire_all()
     assert session.get(AssetReference, "temp-ref").is_missing is True, (
         "nothing else stats temp, so this pass is what retires a wiped file"
+    )
+
+
+def test_temp_sync_drops_unhashed_asset_whose_file_is_gone(session, comfy_dirs):
+    temp_file = _write(comfy_dirs["temp"], "preview.png")
+    _register(session, temp_file, "temp-ref", mtime_ns=_mtime(temp_file), asset_hash=None)
+    session.commit()
+    os.remove(temp_file)
+
+    sync_prefixes_with_filesystem(session, get_temp_prefixes())
+    session.commit()
+
+    session.expire_all()
+    assert session.get(AssetReference, "temp-ref") is None, (
+        "an unhashed asset with no surviving reference is retired, not kept as missing"
+    )
+    assert session.get(Asset, "asset-temp-ref") is None, (
+        "the orphaned asset row goes with its last reference"
     )
 
 
