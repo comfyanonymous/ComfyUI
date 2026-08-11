@@ -608,8 +608,6 @@ def attention_comfy_kitchen_int8(q, k, v, heads, mask=None, attn_precision=None,
         k,
         v,
         scale=kwargs.get("scale", None),
-        convrot=True,
-        stabilize_k=kwargs.get("stabilize_k", True),
         attn_mask=mask,
     )
     if not skip_output_reshape:
@@ -629,8 +627,6 @@ def _attention_comfy_kitchen_int8_containers(q, k, v, heads, mask=None, attn_pre
         k,
         v,
         scale=kwargs.get("scale", None),
-        convrot=True,
-        stabilize_k=kwargs.get("stabilize_k", True),
         attn_mask=mask,
     )
     del q, k, v
