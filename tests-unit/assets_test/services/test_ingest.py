@@ -730,6 +730,31 @@ class TestIngestExistingFileContentState:
         assert ref.is_missing is False
         assert asset.hash == "blake3:seeded"
 
+    def test_restored_reference_is_re_enriched_when_its_asset_lost_its_hash(
+        self, mock_create_session, output_root: Path, session: Session
+    ):
+        content = b"image data"
+        first = _write_output(output_root, "ComfyUI_00001_.png", content)
+        second = _write_output(output_root, "ComfyUI_00002_.png", content)
+        asset, first_ref = _seed_hashed_reference(session, first)
+        _, second_ref = _seed_hashed_reference(session, second, asset=asset)
+        second_ref.deleted_at = get_utc_now()
+        session.commit()
+
+        _rewrite_with_newer_mtime(first, b"other data")
+        assert ingest_existing_file(str(first)) is True
+        session.expire_all()
+        assert asset.hash is None
+
+        assert ingest_existing_file(str(second)) is True
+
+        session.expire_all()
+        assert second_ref.deleted_at is None
+        assert (
+            second_ref.enrichment_level == ENRICHMENT_STUB
+        ), "a reference that lost its hash must be re-enriched, not left at HASHED"
+        assert second_ref.asset_id != asset.id
+
     def test_soft_deleted_reference_with_rewritten_file_is_restored_and_reset(
         self, mock_create_session, output_root: Path, session: Session
     ):

@@ -199,9 +199,10 @@ def ingest_existing_file(
     """Register an existing on-disk file as an asset stub.
 
     If a reference already exists for this path, updates mtime_ns and job_id.
-    When the file's mtime or size differ from what was recorded the file has
-    been rewritten, so its hash, size and enrichment state are discarded and
-    the enricher re-hashes it. An unchanged file keeps the hash it already has.
+    A file whose mtime and size still match what was recorded keeps its hash,
+    size and enrichment state. If the file was rewritten, or there is no
+    recorded hash left to keep, that state is discarded and the enricher
+    re-hashes it.
 
     For brand-new paths, inserts a stub record (hash=NULL) for immediate
     UX visibility.
@@ -219,10 +220,16 @@ def ingest_existing_file(
         existing_ref = get_reference_by_file_path(session, locator)
         if existing_ref is not None:
             asset = existing_ref.asset
-            unchanged = asset is not None and verify_file_unchanged(
-                mtime_db=existing_ref.mtime_ns,
-                size_db=asset.size_bytes,
-                stat_result=stat_result,
+            # mtime + size is the subsystem-wide staleness test (see
+            # verify_file_unchanged); strengthening it is not a local decision.
+            unchanged = (
+                asset is not None
+                and asset.hash is not None
+                and verify_file_unchanged(
+                    mtime_db=existing_ref.mtime_ns,
+                    size_db=asset.size_bytes,
+                    stat_result=stat_result,
+                )
             )
 
             now = get_utc_now()
