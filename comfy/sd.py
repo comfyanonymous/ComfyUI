@@ -1269,11 +1269,13 @@ class VAE:
                 s[3] = min(s[3], tile_y)
             if tile_x is not None:
                 s[4] = min(s[4], tile_x)
-        else:
+        elif len(s) == 4 and self.extra_1d_channel is None:
             if tile_y is not None:
                 s[2] = min(s[2], tile_y)
             if tile_x is not None:
                 s[3] = min(s[3], tile_x)
+        elif tile_x is not None:
+            s[-1] = min(s[-1], tile_x)
         return tuple(s)
 
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
