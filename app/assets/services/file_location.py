@@ -2,6 +2,7 @@ import ipaddress
 import os
 import subprocess
 import sys
+import threading
 
 
 def is_loopback_address(address: str | None) -> bool:
@@ -38,9 +39,10 @@ def reveal_file_in_file_manager(file_path: str) -> None:
     if not os.path.isfile(normalized_path):
         raise FileNotFoundError(normalized_path)
 
-    subprocess.Popen(
+    process = subprocess.Popen(
         build_file_manager_command(normalized_path),
         close_fds=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    threading.Thread(target=process.wait, daemon=True).start()

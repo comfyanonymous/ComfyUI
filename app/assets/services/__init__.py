@@ -1,4 +1,5 @@
 from app.assets.services.asset_management import (
+    AssetFileDeleteForbiddenError,
     asset_exists,
     delete_asset_reference,
     delete_asset_reference_with_file,
@@ -54,6 +55,7 @@ from app.assets.services.tagging import (
 
 __all__ = [
     "AddTagsResult",
+    "AssetFileDeleteForbiddenError",
     "AssetData",
     "AssetDetailResult",
     "AssetSummaryData",

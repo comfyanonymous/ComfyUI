@@ -1,4 +1,6 @@
 import subprocess
+import threading
+from unittest.mock import Mock
 
 import pytest
 
@@ -19,7 +21,17 @@ def test_accepts_loopback_addresses(address):
 
 @pytest.mark.parametrize(
     "address",
-    [None, "", "localhost", "0.0.0.0", "192.168.1.20", "::", "fe80::1"],
+    [
+        None,
+        "",
+        "localhost",
+        "0.0.0.0",
+        "192.168.1.20",
+        "::",
+        "fe80::1",
+        "::ffff:192.168.1.20",
+        "fe80::1%eth0",
+    ],
 )
 def test_rejects_non_loopback_addresses(address):
     assert not is_loopback_address(address)
@@ -48,20 +60,22 @@ def test_builds_platform_commands(tmp_path):
 def test_reveal_launches_without_a_shell(tmp_path, monkeypatch):
     source = tmp_path / "render.png"
     source.write_bytes(b"image")
-    calls = []
-
-    def capture_popen(*args, **kwargs):
-        calls.append((args, kwargs))
-
-    monkeypatch.setattr(subprocess, "Popen", capture_popen)
+    process = Mock()
+    popen = Mock(return_value=process)
+    reaper = Mock()
+    thread = Mock(return_value=reaper)
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    monkeypatch.setattr(threading, "Thread", thread)
 
     reveal_file_in_file_manager(str(source))
 
-    assert len(calls) == 1
-    args, kwargs = calls[0]
+    popen.assert_called_once()
+    args, kwargs = popen.call_args
     assert args[0]
     assert kwargs["close_fds"] is True
     assert "shell" not in kwargs
+    thread.assert_called_once_with(target=process.wait, daemon=True)
+    reaper.start.assert_called_once_with()
 
 
 def test_reveal_rejects_missing_files(tmp_path):

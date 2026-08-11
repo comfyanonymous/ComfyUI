@@ -26,6 +26,7 @@ from app.assets.api.upload import (
 )
 from app.assets.seeder import ScanInProgressError, asset_seeder
 from app.assets.services import (
+    AssetFileDeleteForbiddenError,
     DependencyMissingError,
     HashMismatchError,
     apply_tags,
@@ -662,10 +663,11 @@ async def update_asset_route(request: web.Request) -> web.Response:
 @_require_assets_feature_enabled
 async def delete_asset_route(request: web.Request) -> web.Response:
     reference_id = str(uuid.UUID(request.match_info["id"]))
-    owner_id = USER_MANAGER.get_request_user_id(request)
     delete_content = request.query.get("delete_content") == "true"
+    owner_id = None
 
     try:
+        owner_id = USER_MANAGER.get_request_user_id(request)
         if delete_content:
             detail = get_asset_detail(reference_id=reference_id, owner_id=owner_id)
             if detail is None:
@@ -705,7 +707,7 @@ async def delete_asset_route(request: web.Request) -> web.Response:
                 owner_id=owner_id,
                 delete_content_if_orphan=False,
             )
-    except PermissionError as error:
+    except AssetFileDeleteForbiddenError as error:
         return _build_error_response(
             403,
             "ASSET_DELETE_FORBIDDEN",
@@ -730,6 +732,12 @@ async def delete_asset_route(request: web.Request) -> web.Response:
 @ROUTES.post(f"/api/assets/{{id:{UUID_RE}}}/open-location")
 @_require_assets_feature_enabled
 async def open_asset_location_route(request: web.Request) -> web.Response:
+    """Open an output in the host file manager for a direct local client.
+
+    The transport peer is the trust boundary. Operators must not forward this
+    endpoint through a same-host reverse proxy without an additional access
+    control that restricts it to the host operator.
+    """
     reference_id = str(uuid.UUID(request.match_info["id"]))
     if not is_loopback_address(request.remote):
         return _build_error_response(
@@ -745,10 +753,17 @@ async def open_asset_location_route(request: web.Request) -> web.Response:
             "Cross-site requests cannot open local file locations.",
         )
 
-    detail = get_asset_detail(
-        reference_id=reference_id,
-        owner_id=USER_MANAGER.get_request_user_id(request),
-    )
+    owner_id = None
+    try:
+        owner_id = USER_MANAGER.get_request_user_id(request)
+        detail = get_asset_detail(reference_id=reference_id, owner_id=owner_id)
+    except Exception:
+        logging.exception(
+            "get_asset_detail failed for reference_id=%s, owner_id=%s",
+            reference_id,
+            owner_id,
+        )
+        return _build_error_response(500, "INTERNAL", "Unexpected server error.")
     if detail is None:
         return _build_error_response(
             404,
@@ -770,7 +785,7 @@ async def open_asset_location_route(request: web.Request) -> web.Response:
         )
 
     try:
-        reveal_file_in_file_manager(file_path)
+        await asyncio.to_thread(reveal_file_in_file_manager, file_path)
     except FileNotFoundError:
         return _build_error_response(
             404,
