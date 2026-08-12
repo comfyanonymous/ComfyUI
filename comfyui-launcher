@@ -188,7 +188,7 @@ ensure_manager_pip_blacklist() {
         flock -x 8
         if [[ ! -e "${config_file}" ]]; then
             config_tmp="$(mktemp "${config_file}.tmp.XXXXXX")"
-            printf '[default]\nsecurity_level = normal-\nnetwork_mode = personal_cloud\n' > "${config_tmp}"
+            printf '[default]\nsecurity_level = normal-\nnetwork_mode = personal_cloud\nallow_git_url_install = True\nallow_pip_install = True\n' > "${config_tmp}"
             chmod 0600 "${config_tmp}"
             mv -f "${config_tmp}" "${config_file}"
         fi
@@ -215,6 +215,8 @@ export PATH="${MACA_PATH}/bin:${PATH}"
 export LD_LIBRARY_PATH="${MACA_PATH}/lib:${MACA_PATH}/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 export GITHUB_ENDPOINT="${GITHUB_ENDPOINT:-https://gh-proxy.org/https://github.com}"
+export PIP_CONSTRAINT="${PIP_CONSTRAINT:-${COMFYUI_DIR}/requirements.txt}"
+export UV_CONSTRAINT="${UV_CONSTRAINT:-${PIP_CONSTRAINT}}"
 
 canonical_args=(
     --listen "${listen}"
