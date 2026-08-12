@@ -105,6 +105,18 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
             self.model.audio_decoder.layers,
             comfy.text_encoders.llama.detect_merged_config(state_dict, layer_prefix="model.audio_decoder.layers.0."),
         )
+        if self.model.pruned_embedding is None:
+            self.model.pruned_embedding = "model.embed_tokens_prefill.weight" in state_dict
+            if self.model.pruned_embedding:
+                del self.model.embed_tokens
+            else:
+                del self.model.embed_tokens_prefill, self.model.embed_tokens_audio
+        if self.model.pruned_lm_head is None:
+            self.model.pruned_lm_head = "model.lm_head_pruned.weight" in state_dict
+            if self.model.pruned_lm_head:
+                del self.model.lm_head
+            else:
+                del self.model.lm_head_pruned
         return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
     def load_sd(self, state_dict):

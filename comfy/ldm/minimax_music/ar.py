@@ -152,6 +152,11 @@ class MiniMaxMusic3AR(nn.Module):
         self.model.prefetch_dynamic_vbars = True
         self.model.graph_dynamic_vbar_blocks = True
         self.model.lm_head = operations.Linear(qwen_config.hidden_size, qwen_config.vocab_size, bias=False, dtype=dtype, device=device)
+        self.model.lm_head_pruned = operations.Linear(qwen_config.hidden_size, C0_VOCAB_SIZE + 1, bias=False, dtype=dtype, device=device)
+        self.model.embed_tokens_prefill = operations.Embedding(AUDIO_CODE_OFFSET, qwen_config.hidden_size, dtype=dtype, device=device)
+        self.model.embed_tokens_audio = operations.Embedding(C0_VOCAB_SIZE, qwen_config.hidden_size, dtype=dtype, device=device)
+        self.model.pruned_lm_head = None
+        self.model.pruned_embedding = None
         self.model.audio_extra_embedding = operations.Embedding(
             int(config["audio_vocab_size"]) * (int(config["audio_num_codebooks"]) - 1),
             qwen_config.hidden_size,
@@ -192,11 +197,32 @@ class MiniMaxMusic3AR(nn.Module):
                 sequence.append(decoder.projection(embedding).unsqueeze(1))
         return torch.stack(codes, dim=1), torch.cat(hidden_parts, dim=-1)
 
+    def _embed_c0(self, codes, execution_dtype):
+        if self.model.pruned_embedding:
+            return self.model.embed_tokens_audio(codes, out_dtype=execution_dtype)
+        return self.model.embed_tokens(codes + AUDIO_CODE_OFFSET, out_dtype=execution_dtype)
+
     def _embed_audio_frame(self, codes, execution_dtype):
-        c0 = self.model.embed_tokens(codes[:, 0] + AUDIO_CODE_OFFSET, out_dtype=execution_dtype)
+        c0 = self._embed_c0(codes[:, 0], execution_dtype)
         offsets = torch.arange(self.num_codebooks - 1, device=codes.device) * self.audio_vocab_size
         extra = self.model.audio_extra_embedding(codes[:, 1:] + offsets.unsqueeze(0), out_dtype=execution_dtype).sum(dim=1)
         return ((c0 + extra) * self.embedding_scale).unsqueeze(1)
+
+    def _sample_c0(self, hidden, cfg_scale, top_k, generator):
+        if self.model.pruned_lm_head:
+            guided = self._guided_c0(self.model.lm_head_pruned(hidden).float(), cfg_scale, top_k)
+            code = sample_topk(guided, generator)
+            return None if int(code.item()) == 0 else code - 1
+
+        logits = self.model.lm_head(hidden).float()
+        mask = torch.ones_like(logits, dtype=torch.bool)
+        mask[:, AUDIO_CODE_OFFSET:AUDIO_CODE_OFFSET + C0_VOCAB_SIZE] = False
+        stop_token = SPECIAL_TOKEN_IDS["<|audio_end|>"]
+        mask[:, stop_token] = False
+        logits = logits.masked_fill(mask, -float("inf"))
+        guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(mask[:1], -float("inf"))
+        code = sample_topk(guided, generator)
+        return None if int(code.item()) == stop_token else code - AUDIO_CODE_OFFSET
 
     def generate(self, input_ids, seed, max_audio_frames, device, cfg_scale=CFG_SCALE, top_k=CFG_TOP_K):
         prompt_tokens = int(input_ids.shape[1])
@@ -211,7 +237,10 @@ class MiniMaxMusic3AR(nn.Module):
         unconditioned = input_ids.clone()
         unconditioned[:, 1:-2] = SPECIAL_TOKEN_IDS["<|audio_cfg|>"]
         text_ids = torch.cat((input_ids, unconditioned), dim=0)
-        text_embeds = self.model.embed_tokens(text_ids, out_dtype=execution_dtype)
+        if self.model.pruned_embedding:
+            text_embeds = self.model.embed_tokens_prefill(text_ids, out_dtype=execution_dtype)
+        else:
+            text_embeds = self.model.embed_tokens(text_ids, out_dtype=execution_dtype)
         decode_limit = min(int(max_audio_frames), MAX_AUDIO_FRAMES)
         past = self.model.init_kv_cache(2, prompt_tokens + decode_limit + 1, device, execution_dtype)
         output = self.model(None, embeds=text_embeds, past_key_values=past, dtype=execution_dtype)
@@ -229,22 +258,15 @@ class MiniMaxMusic3AR(nn.Module):
         comfy.model_management._register_cross_step(decoder)
         hidden_frames = []
         progress = comfy.utils.ProgressBar(decode_limit)
-        stop_token = SPECIAL_TOKEN_IDS["<|audio_end|>"]
 
         for frame_index in comfy.utils.model_trange(decode_limit + 1, desc="AR sampling"):
             comfy.model_management.throw_exception_if_processing_interrupted()
-            logits = self.model.lm_head(last_hidden).float()
-            mask = torch.ones_like(logits, dtype=torch.bool)
-            mask[:, AUDIO_CODE_OFFSET:AUDIO_CODE_OFFSET + C0_VOCAB_SIZE] = False
-            mask[:, stop_token] = False
-            logits = logits.masked_fill(mask, -float("inf"))
-            guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(mask[:1], -float("inf"))
-            code_or_stop = sample_topk(guided, generator)
-            if int(code_or_stop.item()) == stop_token:
+            c0 = self._sample_c0(last_hidden, cfg_scale, top_k, generator)
+            if c0 is None:
                 break
 
-            c0 = (code_or_stop - AUDIO_CODE_OFFSET).repeat(2)
-            c0_embed = self.model.embed_tokens(c0 + AUDIO_CODE_OFFSET, out_dtype=execution_dtype)
+            c0 = c0.repeat(2)
+            c0_embed = self._embed_c0(c0, execution_dtype)
             depth_io["hidden"].copy_(last_hidden)
             depth_io["c0"].copy_(c0)
             depth_io["c0_embed"].copy_(c0_embed)
