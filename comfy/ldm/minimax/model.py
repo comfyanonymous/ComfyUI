@@ -25,7 +25,7 @@ import comfy.model_prefetch
 import comfy.ops
 import comfy.patcher_extension
 import comfy.quant_ops
-from comfy.ldm.modules.attention import optimized_attention
+from comfy.ldm.modules.attention import AttentionTensorContainer, optimized_attention
 
 FRAME_PER_TOKEN = (1, 4, 4, 4, 4)
 FRAME_RESCALE = 5.0 / 3.0
@@ -176,6 +176,7 @@ class Attention(nn.Module):
             extra_options["n_heads"] = self.heads
             extra_options["dim_head"] = self.head_dim
 
+        v = v.clone()
         if "attn1_patch" in patches:
             q = q.reshape(1, s, -1)
             k = k.reshape(1, s, -1)
@@ -193,6 +194,9 @@ class Attention(nn.Module):
             q = q.transpose(0, 1).unsqueeze(0)
             k = k.transpose(0, 1).unsqueeze(0)
             v = v.transpose(0, 1).unsqueeze(0)
+        q = AttentionTensorContainer(q)
+        k = AttentionTensorContainer(k)
+        v = AttentionTensorContainer(v)
         out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
 
         if "attn1_output_patch" in patches:
