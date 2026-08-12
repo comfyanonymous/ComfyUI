@@ -31,8 +31,10 @@ def cleanup_prefetch_queues():
                 cleanup_prefetched_modules(comfy_modules)
     PREFETCH_QUEUES = []
 
-def prefetch_queue_pop(queue, device, module, dtype=None):
+def prefetch_queue_pop(queue, device, module, dtype=None, core=None):
     if queue is None:
+        if core is not None:
+            core()
         return
 
     consumed = queue.pop(0)
@@ -68,6 +70,9 @@ def prefetch_queue_pop(queue, device, module, dtype=None):
             for comfy_module in comfy_modules:
                 comfy.ops.resolve_cast_module_with_vbar(comfy_module, dtype, device, dtype, None, False, return_weights=False)
         queue[0] = (offload_stream, (prefetch, comfy_modules))
+
+    if core is not None:
+        core()
 
 def make_prefetch_queue(queue, device, transformer_options):
     if (not transformer_options.get("prefetch_dynamic_vbars", False)
