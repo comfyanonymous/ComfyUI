@@ -69,6 +69,9 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
     def reset_clip_options(self):
         pass
 
+    def get_dynamic_vram__units(self):
+        return [self.model.audio_decoder]
+
     def encode_token_weights(self, token_weight_pairs):
         token_ids = [token for token, _ in token_weight_pairs["minimax_music3"][0]]
         input_ids = torch.tensor([token_ids], dtype=torch.long)

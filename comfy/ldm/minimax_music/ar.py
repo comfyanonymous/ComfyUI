@@ -5,6 +5,7 @@ import torch
 from torch import nn
 
 import comfy.model_management
+import comfy.model_prefetch
 import comfy.ops
 import comfy.utils
 from comfy.ldm.modules.attention import optimized_attention_for_device
@@ -163,10 +164,9 @@ class MiniMaxMusic3AR(nn.Module):
         threshold = torch.topk(conditioned, top_k, dim=-1).values[..., -1, None]
         return guided.masked_fill(conditioned < threshold, -float("inf"))
 
-    def _depth_codes(self, hidden, c0, generator, execution_dtype, cfg_scale):
+    def _depth_codes(self, hidden, c0, c0_embed, generator, execution_dtype, cfg_scale):
         decoder = self.model.audio_decoder
         sequence = [decoder.projection(hidden).unsqueeze(1)]
-        c0_embed = self.model.embed_tokens(c0 + AUDIO_CODE_OFFSET, out_dtype=execution_dtype)
         sequence.append(decoder.projection(c0_embed).unsqueeze(1))
         codes = [c0]
         hidden_parts = []
@@ -213,6 +213,14 @@ class MiniMaxMusic3AR(nn.Module):
         past = output[2]
 
         generator = torch.Generator(device=device).manual_seed(derive_seed(seed, "ar"))
+        decoder = self.model.audio_decoder
+        depth_io = {
+            "hidden": torch.empty_like(last_hidden),
+            "c0": torch.empty((last_hidden.shape[0],), dtype=torch.long, device=device),
+            "c0_embed": torch.empty_like(last_hidden),
+        }
+        decoder._comfy_cross_step_state = depth_io
+        comfy.model_management._register_cross_step(decoder)
         hidden_frames = []
         progress = comfy.utils.ProgressBar(decode_limit)
         stop_token = SPECIAL_TOKEN_IDS["<|audio_end|>"]
@@ -229,8 +237,24 @@ class MiniMaxMusic3AR(nn.Module):
             if int(code_or_stop.item()) == stop_token:
                 break
 
-            c0 = code_or_stop - AUDIO_CODE_OFFSET
-            feedback_codes, depth_hidden = self._depth_codes(last_hidden, c0.repeat(2), generator, execution_dtype, cfg_scale)
+            c0 = (code_or_stop - AUDIO_CODE_OFFSET).repeat(2)
+            c0_embed = self.model.embed_tokens(c0 + AUDIO_CODE_OFFSET, out_dtype=execution_dtype)
+            depth_io["hidden"].copy_(last_hidden)
+            depth_io["c0"].copy_(c0)
+            depth_io["c0_embed"].copy_(c0_embed)
+
+            def depth_core():
+                depth_io["codes"], depth_io["depth_hidden"] = self._depth_codes(
+                    depth_io["hidden"], depth_io["c0"], depth_io["c0_embed"], generator, execution_dtype, cfg_scale
+                )
+
+            depth_queue = comfy.model_prefetch.make_prefetch_queue([decoder], device, {"prefetch_dynamic_vbars": True})
+            comfy.model_prefetch.prefetch_queue_pop(
+                depth_queue, device, decoder, execution_dtype, core=depth_core, enable_graph=True, generator=generator
+            )
+            comfy.model_prefetch.prefetch_queue_pop(depth_queue, device, None)
+            feedback_codes = depth_io["codes"]
+            depth_hidden = depth_io["depth_hidden"]
             frame_hidden = torch.cat((last_hidden[:1].detach(), depth_hidden), dim=-1)
             if frame_index > 0:
                 hidden_frames.append(frame_hidden[0].to(device="cpu", copy=True))
