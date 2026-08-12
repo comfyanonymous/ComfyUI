@@ -133,6 +133,7 @@ class MiniMaxMusic3AR(nn.Module):
         config_fields = {field.name for field in dataclasses.fields(Qwen3_8BConfig)}
         qwen_config = Qwen3_8BConfig(**{key: value for key, value in config.items() if key in config_fields})
         qwen_config.lm_head = False
+        qwen_config.fixed_kv = True
         self.model = Llama2_(qwen_config, device=device, dtype=dtype, ops=operations)
         self.model.lm_head = operations.Linear(qwen_config.hidden_size, qwen_config.vocab_size, bias=False, dtype=dtype, device=device)
         self.model.audio_extra_embedding = operations.Embedding(
@@ -145,17 +146,6 @@ class MiniMaxMusic3AR(nn.Module):
         self.audio_vocab_size = int(config["audio_vocab_size"])
         self.num_codebooks = int(config["audio_num_codebooks"])
         self.embedding_scale = self.num_codebooks ** -0.5
-
-    def _init_kv_cache(self, batch, length, device, execution_dtype):
-        config = self.model.config
-        return [
-            (
-                torch.empty((batch, config.num_key_value_heads, length, config.head_dim), device=device, dtype=execution_dtype),
-                torch.empty((batch, config.num_key_value_heads, length, config.head_dim), device=device, dtype=execution_dtype),
-                0,
-            )
-            for _ in range(config.num_hidden_layers)
-        ]
 
     def _guided_c0(self, logits, cfg_scale, top_k):
         conditioned = logits[0:1].float()
@@ -207,7 +197,7 @@ class MiniMaxMusic3AR(nn.Module):
         text_ids = torch.cat((input_ids, unconditioned), dim=0)
         text_embeds = self.model.embed_tokens(text_ids, out_dtype=execution_dtype)
         decode_limit = min(int(max_audio_frames), MAX_AUDIO_FRAMES)
-        past = self._init_kv_cache(2, prompt_tokens + decode_limit + 1, device, execution_dtype)
+        past = self.model.init_kv_cache(2, prompt_tokens + decode_limit + 1, device, execution_dtype)
         output = self.model(None, embeds=text_embeds, past_key_values=past, dtype=execution_dtype)
         last_hidden = output[0][:, -1]
         past = output[2]
