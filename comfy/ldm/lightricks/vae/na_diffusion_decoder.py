@@ -74,8 +74,9 @@ def default_rope_dim_split(head_dim):
 
 
 def rope_inv_freqs(dim, base=10000.0, device=None):
-    exponents = torch.arange(0, dim, 2, dtype=torch.float64, device=device) / dim
-    return (1.0 / torch.pow(torch.tensor(float(base), dtype=torch.float64, device=device), exponents)).to(torch.float32)
+    # float64 is computed on CPU because MPS does not support it, then cast/moved.
+    exponents = torch.arange(0, dim, 2, dtype=torch.float64) / dim
+    return (1.0 / torch.pow(torch.tensor(float(base), dtype=torch.float64), exponents)).to(torch.float32).to(device)
 
 
 def _rope_tables(lengths, inv_freqs, device):
