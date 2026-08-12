@@ -2,6 +2,7 @@ import torch
 from tokenizers import Tokenizer
 
 import comfy.ops
+import comfy.text_encoders.llama
 from comfy.ldm.minimax_music.ar import CFG_SCALE, CFG_TOP_K, MAX_AUDIO_FRAMES, MiniMaxMusic3AR
 from comfy.ldm.minimax_music.prompt import SPECIAL_TOKEN_IDS, build_prompt
 
@@ -81,6 +82,29 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
         top_k = token_weight_pairs["top_k"]
         hidden = self.generate(input_ids, seed, max_audio_frames, self.execution_device, cfg_scale, top_k)
         return hidden.unsqueeze(0), None, {}
+
+    def load_state_dict(self, state_dict, strict=True, assign=False):
+        def select_projections(layers, config):
+            for layer in layers:
+                if layer.self_attn.merged_qkv is None:
+                    if config["merged_qkv"]:
+                        del layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj
+                    else:
+                        del layer.self_attn.qkv_proj
+                    layer.self_attn.merged_qkv = config["merged_qkv"]
+                if layer.mlp.merged_mlp is None:
+                    if config["merged_mlp"]:
+                        del layer.mlp.gate_proj, layer.mlp.up_proj
+                    else:
+                        del layer.mlp.gate_up_proj
+                    layer.mlp.merged_mlp = config["merged_mlp"]
+
+        select_projections(self.model.layers, comfy.text_encoders.llama.detect_merged_config(state_dict))
+        select_projections(
+            self.model.audio_decoder.layers,
+            comfy.text_encoders.llama.detect_merged_config(state_dict, layer_prefix="model.audio_decoder.layers.0."),
+        )
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
     def load_sd(self, state_dict):
         return self.load_state_dict(state_dict, strict=False, assign=getattr(self, "can_assign_sd", False))

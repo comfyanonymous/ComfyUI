@@ -45,6 +45,8 @@ class RVQAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = hidden_size // num_heads
+        self.merged_qkv = None
+        self.qkv_proj = operations.Linear(hidden_size, hidden_size * 3, bias=False, dtype=dtype, device=device)
         self.q_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
         self.k_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
         self.v_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
@@ -52,9 +54,15 @@ class RVQAttention(nn.Module):
 
     def forward(self, x):
         batch, length, hidden_size = x.shape
-        q = self.q_proj(x).reshape(batch, length, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.k_proj(x).reshape(batch, length, self.num_heads, self.head_dim).transpose(1, 2)
-        v = self.v_proj(x).reshape(batch, length, self.num_heads, self.head_dim).transpose(1, 2)
+        if self.merged_qkv:
+            q, k, v = self.qkv_proj(x).chunk(3, dim=-1)
+        else:
+            q = self.q_proj(x)
+            k = self.k_proj(x)
+            v = self.v_proj(x)
+        q = q.reshape(batch, length, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(batch, length, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(batch, length, self.num_heads, self.head_dim).transpose(1, 2)
         mask = torch.full((length, length), torch.finfo(q.dtype).min, device=q.device, dtype=q.dtype).triu_(1)
         attention = optimized_attention_for_device(q.device, mask=True, small_input=True)
         out = attention(q, k, v, self.num_heads, mask=mask, skip_reshape=True)
@@ -73,11 +81,15 @@ class RVQRMSNorm(nn.Module):
 class RVQMLP(nn.Module):
     def __init__(self, hidden_size, intermediate_size, dtype, device, operations):
         super().__init__()
+        self.merged_mlp = None
+        self.gate_up_proj = operations.Linear(hidden_size, intermediate_size * 2, bias=False, dtype=dtype, device=device)
         self.gate_proj = operations.Linear(hidden_size, intermediate_size, bias=False, dtype=dtype, device=device)
         self.up_proj = operations.Linear(hidden_size, intermediate_size, bias=False, dtype=dtype, device=device)
         self.down_proj = operations.Linear(intermediate_size, hidden_size, bias=False, dtype=dtype, device=device)
 
     def forward(self, x):
+        if self.merged_mlp:
+            return comfy.ops.linear_input_act(self.down_proj, self.gate_up_proj(x), "swiglu")
         return self.down_proj(torch.nn.functional.silu(self.gate_proj(x)) * self.up_proj(x))
 
 
@@ -134,6 +146,8 @@ class MiniMaxMusic3AR(nn.Module):
         qwen_config = Qwen3_8BConfig(**{key: value for key, value in config.items() if key in config_fields})
         qwen_config.lm_head = False
         qwen_config.fixed_kv = True
+        qwen_config.merged_qkv = None
+        qwen_config.merged_mlp = None
         self.model = Llama2_(qwen_config, device=device, dtype=dtype, ops=operations)
         self.model.prefetch_dynamic_vbars = True
         self.model.graph_dynamic_vbar_blocks = True
