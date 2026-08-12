@@ -25,6 +25,7 @@ import comfy.samplers
 import comfy.sample
 import comfy.sd
 import comfy.utils
+import comfy.nested_tensor
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
@@ -543,7 +544,13 @@ class SaveLatent:
         file = os.path.join(full_output_folder, file)
 
         output = {}
-        output["latent_tensor"] = samples["samples"].contiguous()
+        latent = samples["samples"]
+        if getattr(latent, "is_nested", False):
+            # nested AV latents (e.g. MiniMax H3): one indexed key per stream
+            for i, t in enumerate(latent.unbind()):
+                output["latent_tensor_{}".format(i)] = t.contiguous()
+        else:
+            output["latent_tensor"] = latent.contiguous()
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
@@ -570,7 +577,13 @@ class LoadLatent:
         multiplier = 1.0
         if "latent_format_version_0" not in latent:
             multiplier = 1.0 / 0.18215
-        samples = {"samples": latent["latent_tensor"].float() * multiplier}
+        if "latent_tensor" in latent:
+            samples = {"samples": latent["latent_tensor"].float() * multiplier}
+        else:
+            tensors = []
+            while "latent_tensor_{}".format(len(tensors)) in latent:
+                tensors.append(latent["latent_tensor_{}".format(len(tensors))].float())
+            samples = {"samples": comfy.nested_tensor.NestedTensor(tensors)}
         return (samples, )
 
     @classmethod
