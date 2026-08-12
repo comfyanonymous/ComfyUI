@@ -1880,14 +1880,23 @@ class ModelPatcherDynamic(ModelPatcher):
             loading.sort()
 
             get_units = getattr(self.model, "get_dynamic_vram__units", None)
-            dynamic_units = list(get_units()) if get_units is not None else []
+            dynamic_units, last_dynamic_units = get_units() if get_units is not None else ([], [])
+            dynamic_units = list(dynamic_units)
+            last_dynamic_units = list(last_dynamic_units)
             loading_by_module = {entry[-2]: entry for entry in loading}
             loading = []
             for unit in dynamic_units:
                 modules = [module for module in unit.modules() if module in loading_by_module]
                 for index, module in enumerate(modules):
                     loading.append((*loading_by_module.pop(module), index == len(modules) - 1))
+            last_loading = []
+            for unit in last_dynamic_units:
+                modules = [module for module in unit.modules() if module in loading_by_module]
+                for index, module in enumerate(modules):
+                    last_loading.append((*loading_by_module.pop(module), index == len(modules) - 1))
             loading.extend((*entry, False) for entry in loading_by_module.values())
+            loading.extend(last_loading)
+            dynamic_units.extend(last_dynamic_units)
             v_block = None
 
             for x in loading:
