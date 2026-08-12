@@ -15,6 +15,14 @@ import comfy.clip_model
 
 from . import qwen_vl
 
+
+def detect_merged_config(state_dict, prefix=""):
+    return {
+        "merged_qkv": "{}model.layers.0.self_attn.qkv_proj.weight".format(prefix) in state_dict,
+        "merged_mlp": "{}model.layers.0.mlp.gate_up_proj.weight".format(prefix) in state_dict,
+    }
+
+
 @dataclass
 class FixedKV:
     key: torch.Tensor
@@ -268,6 +276,8 @@ class Qwen3_8BConfig:
     final_norm: bool = True
     lm_head: bool = True
     fixed_kv: bool = False
+    merged_qkv: bool = False
+    merged_mlp: bool = False
     stop_tokens = [151643, 151645]
 
 @dataclass
