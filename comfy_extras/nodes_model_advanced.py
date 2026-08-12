@@ -1,6 +1,9 @@
+import logging
+
 import comfy.sd
 import comfy.model_sampling
 import comfy.latent_formats
+import comfy.ldm.modules.attention
 import nodes
 import torch
 import node_helpers
@@ -346,6 +349,39 @@ class ModelComputeDtype:
         return (m, )
 
 
+class ModelAttentionBackend:
+    @classmethod
+    def INPUT_TYPES(s):
+        backends = ["pytorch attention"]
+        if comfy.ldm.modules.attention.COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE:
+            backends.append("comfy kitchen attention")
+        return {"required": {"model": ("MODEL",),
+                             "attention": (backends,),
+                             }}
+
+    @classmethod
+    def VALIDATE_INPUTS(s, attention):
+        return True
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "model/patch"
+
+    def patch(self, model, attention):
+        attention_name = {
+            "comfy kitchen attention": "comfy_kitchen_int8",
+            "pytorch attention": "pytorch",
+        }.get(attention)
+        attention_function = comfy.ldm.modules.attention.get_attention_function(attention_name, None)
+        if attention_function is None:
+            logging.warning("Attention backend '%s' is unavailable; using PyTorch attention.", attention)
+            attention_function = comfy.ldm.modules.attention.get_attention_function("pytorch")
+        m = model.clone()
+        m.set_model_optimized_attention(attention_function)
+        return (m, )
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
@@ -357,4 +393,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelNoiseScale": ModelNoiseScale,
     "RescaleCFG": RescaleCFG,
     "ModelComputeDtype": ModelComputeDtype,
+    "ModelAttentionBackend": ModelAttentionBackend,
 }

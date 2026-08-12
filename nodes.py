@@ -364,8 +364,12 @@ class VAEDecodeTiled:
             temporal_size = None
             temporal_overlap = None
 
+        latent = samples["samples"]
+        if latent.is_nested:
+            latent = latent.unbind()[0]
+
         compression = vae.spacial_compression_decode()
-        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
+        images = vae.decode_tiled(latent, tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
@@ -1566,7 +1570,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
 
     if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        noise = comfy.sample.prepare_empty_noise(latent_image)
     else:
         batch_inds = latent["batch_index"] if "batch_index" in latent else None
         noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
