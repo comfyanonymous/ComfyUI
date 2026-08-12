@@ -196,10 +196,9 @@ print(total, flush=True)
                 if self._active is None or self._active.generation != generation:
                     return True
                 remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    process = self._matching_active_process_locked(generation)
-                    break
                 process = self._matching_active_process_locked(generation)
+                if remaining <= 0:
+                    break
 
             # Handles the race where cancellation was requested just before Popen()
             # became visible to the controller.
@@ -207,13 +206,9 @@ print(total, flush=True)
                 self._terminate_process(process)
 
             with self._cv:
-                if self._active is None or self._active.generation != generation:
-                    return True
                 remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    process = self._matching_active_process_locked(generation)
-                    break
-                self._cv.wait(timeout=min(_MONITOR_INTERVAL_S, remaining))
+                if remaining > 0:
+                    self._cv.wait(timeout=min(_MONITOR_INTERVAL_S, remaining))
 
         if process is not None:
             self._terminate_process(process)
@@ -432,31 +427,19 @@ elif args.enable_model_readahead:
 def request(path: str) -> bool:
     if _reader is None:
         return False
-    try:
-        return _reader.request(path)
-    except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        logging.warning("%s request failed; normal model loading will continue: %s", _PREFIX, exc)
-        return False
+    return _reader.request(path)
 
 
 def stop_for_sampling() -> bool:
     if _reader is None:
         return True
-    try:
-        return _reader.stop_for_sampling()
-    except (OSError, RuntimeError) as exc:
-        logging.warning("%s stop failed; sampling will continue: %s", _PREFIX, exc)
-        return False
+    return _reader.stop_for_sampling()
 
 
 def shutdown() -> bool:
     if _reader is None:
         return True
-    try:
-        return _reader.shutdown()
-    except (OSError, RuntimeError) as exc:
-        logging.warning("%s shutdown failed: %s", _PREFIX, exc)
-        return False
+    return _reader.shutdown()
 
 
 if _reader is not None:
