@@ -122,13 +122,16 @@ def test_ram_guard_stops_active_child(tmp_path, monkeypatch):
     reader = readahead._SequentialReadAhead()
     reader._CHILD_READER_CODE = "import time; time.sleep(10)"
 
+    low_memory = False
+
     def available_memory():
-        with reader._cv:
-            return 0 if reader._active_process is not None else 1024 * 1024 * 1024
+        return 0 if low_memory else 1024 * 1024 * 1024
 
     monkeypatch.setattr(readahead, "_available_memory", available_memory)
     try:
         assert reader.request(str(path))
+        assert wait_for(reader, lambda: reader._active_process is not None)
+        low_memory = True
         assert wait_for(reader, lambda: reader._active is None and reader._pending is None)
     finally:
         reader.shutdown()
