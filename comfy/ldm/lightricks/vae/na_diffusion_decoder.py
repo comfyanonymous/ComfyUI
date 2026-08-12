@@ -75,7 +75,7 @@ def default_rope_dim_split(head_dim):
 
 def rope_inv_freqs(dim, base=10000.0, device=None):
     out_device = device
-    if not comfy.model_management.supports_fp64(pos.device):
+    if not comfy.model_management.supports_fp64(device):
         device = torch.device("cpu")
 
     exponents = torch.arange(0, dim, 2, dtype=torch.float64, device=device) / dim
