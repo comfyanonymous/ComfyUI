@@ -1,4 +1,5 @@
 import torch
+import threading
 import weakref
 
 import comfy_aimdo.model_vbar
@@ -8,6 +9,9 @@ import comfy.ops
 
 PREFETCH_QUEUES = []
 GRAPH_MODULES = weakref.WeakSet()
+GRAPH_WARMED_MODULES = weakref.WeakSet()
+GRAPH_CAPTURE_STREAMS = {}
+GRAPH_CAPTURE_LOCK = threading.Lock()
 
 def cleanup_prefetched_modules(module, comfy_modules):
     for s in comfy_modules:
@@ -26,7 +30,7 @@ def cleanup_prefetched_modules(module, comfy_modules):
         del module._v_block_faulted
 
 def cleanup_prefetch_queues():
-    global PREFETCH_QUEUES
+    global PREFETCH_QUEUES, GRAPH_CAPTURE_STREAMS
 
     for queue in PREFETCH_QUEUES:
         for entry in queue:
@@ -40,12 +44,21 @@ def cleanup_prefetch_queues():
     for module in GRAPH_MODULES:
         del module._comfy_graph
     GRAPH_MODULES.clear()
+    GRAPH_WARMED_MODULES.clear()
+    GRAPH_CAPTURE_STREAMS = {}
 
-def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False):
+def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False, generator=None):
     if queue is None:
         if core is not None:
             core()
         return
+
+    capture_stream = None
+    if enable_graph:
+        capture_stream = GRAPH_CAPTURE_STREAMS.get(device)
+        if capture_stream is None:
+            capture_stream = torch.cuda.Stream(device=device)
+            GRAPH_CAPTURE_STREAMS[device] = capture_stream
 
     signature = None
     graph_hit = False
@@ -96,20 +109,31 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
         queue[0] = (offload_stream, (prefetch, comfy_modules))
 
     if core is not None:
-        if enable_graph and fully_faulted:
+        if enable_graph and fully_faulted and module in GRAPH_WARMED_MODULES:
             if signature is None:
                 signature = comfy_aimdo.model_vbar.vbar_fault(module._v_block)
                 if signature is not None:
                     module._v_block_faulted = True
             if signature is not None:
                 graph = torch.cuda.CUDAGraph()
-                with torch.cuda.graph(graph):
+                if generator is not None:
+                    graph.register_generator_state(generator)
+                capture_stream.wait_stream(comfy.model_management.current_stream(device))
+                with GRAPH_CAPTURE_LOCK, torch.cuda.graph(graph, stream=capture_stream):
                     core()
+                comfy.model_management.current_stream(device).wait_stream(capture_stream)
                 graph.replay()
                 module._comfy_graph = {"graph": graph, "signature": signature}
                 GRAPH_MODULES.add(module)
                 return
-        core()
+        if capture_stream is None:
+            core()
+        else:
+            capture_stream.wait_stream(comfy.model_management.current_stream(device))
+            with torch.cuda.stream(capture_stream):
+                core()
+            comfy.model_management.current_stream(device).wait_stream(capture_stream)
+            GRAPH_WARMED_MODULES.add(module)
 
 def make_prefetch_queue(queue, device, transformer_options):
     if (not transformer_options.get("prefetch_dynamic_vbars", False)
