@@ -1,11 +1,15 @@
+import torch
+import weakref
+
 import comfy_aimdo.model_vbar
 import comfy.memory_management
 import comfy.model_management
 import comfy.ops
 
 PREFETCH_QUEUES = []
+GRAPH_MODULES = weakref.WeakSet()
 
-def cleanup_prefetched_modules(comfy_modules):
+def cleanup_prefetched_modules(module, comfy_modules):
     for s in comfy_modules:
         prefetch = getattr(s, "_prefetch", None)
         if prefetch is None:
@@ -17,6 +21,9 @@ def cleanup_prefetched_modules(comfy_modules):
         if prefetch["signature"] is not None:
             comfy_aimdo.model_vbar.vbar_unpin(s._v)
         delattr(s, "_prefetch")
+    if getattr(module, "_v_block_faulted", False):
+        comfy_aimdo.model_vbar.vbar_unpin(module._v_block)
+        del module._v_block_faulted
 
 def cleanup_prefetch_queues():
     global PREFETCH_QUEUES
@@ -26,25 +33,42 @@ def cleanup_prefetch_queues():
             if entry is None or not isinstance(entry, tuple):
                 continue
             _, prefetch_state = entry
-            comfy_modules = prefetch_state[1]
+            prefetched_module, comfy_modules = prefetch_state
             if comfy_modules is not None:
-                cleanup_prefetched_modules(comfy_modules)
+                cleanup_prefetched_modules(prefetched_module, comfy_modules)
     PREFETCH_QUEUES = []
+    for module in GRAPH_MODULES:
+        del module._comfy_graph
+    GRAPH_MODULES.clear()
 
-def prefetch_queue_pop(queue, device, module, dtype=None, core=None):
+def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False):
     if queue is None:
         if core is not None:
             core()
         return
+
+    signature = None
+    graph_hit = False
+    graph = getattr(module, "_comfy_graph", None)
+    if graph is not None:
+        signature = comfy_aimdo.model_vbar.vbar_fault(module._v_block)
+        if signature is not None:
+            module._v_block_faulted = True
+            graph_hit = comfy_aimdo.model_vbar.vbar_signature_compare(signature, graph["signature"])
 
     consumed = queue.pop(0)
     if consumed is not None:
         offload_stream, prefetch_state = consumed
         if offload_stream is not None:
             offload_stream.wait_stream(comfy.model_management.current_stream(device))
-        _, comfy_modules = prefetch_state
+        prefetched_module, comfy_modules = prefetch_state
         if comfy_modules is not None:
-            cleanup_prefetched_modules(comfy_modules)
+            cleanup_prefetched_modules(prefetched_module, comfy_modules)
+
+    if graph_hit:
+        queue[0] = (None, (module, []))
+        graph["graph"].replay()
+        return
 
     fully_faulted = False
     prefetch = queue[0]
@@ -72,6 +96,19 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None):
         queue[0] = (offload_stream, (prefetch, comfy_modules))
 
     if core is not None:
+        if enable_graph and fully_faulted:
+            if signature is None:
+                signature = comfy_aimdo.model_vbar.vbar_fault(module._v_block)
+                if signature is not None:
+                    module._v_block_faulted = True
+            if signature is not None:
+                graph = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(graph):
+                    core()
+                graph.replay()
+                module._comfy_graph = {"graph": graph, "signature": signature}
+                GRAPH_MODULES.add(module)
+                return
         core()
 
 def make_prefetch_queue(queue, device, transformer_options):
