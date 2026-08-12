@@ -37,6 +37,7 @@ class TestUnrecognizedQuantMetadata(unittest.TestCase):
         The lazy-load path (used with dynamic VRAM loading, aimdo_enabled) assigns
         the incoming tensor directly without a shape check, which is how the packed
         NVFP4 weight ends up wired into a mismatched matmul at forward time."""
+        old_aimdo_enabled = comfy.memory_management.aimdo_enabled
         comfy.memory_management.aimdo_enabled = True
         try:
             model = BaseModel.__new__(BaseModel)
@@ -51,10 +52,13 @@ class TestUnrecognizedQuantMetadata(unittest.TestCase):
                 "layer1.input_scale": torch.tensor(1.0),
             }
 
-            with self.assertRaises(RuntimeError):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"unrecognized quantization scale tensors.*layer1\.weight_scale",
+            ):
                 model.load_model_weights(state_dict, assign=True)
         finally:
-            comfy.memory_management.aimdo_enabled = False
+            comfy.memory_management.aimdo_enabled = old_aimdo_enabled
 
 
 if __name__ == "__main__":
