@@ -206,6 +206,8 @@ print(total, flush=True)
                 self._terminate_process(process)
 
             with self._cv:
+                if self._active is None or self._active.generation != generation:
+                    return True
                 remaining = deadline - time.monotonic()
                 if remaining > 0:
                     self._cv.wait(timeout=min(_MONITOR_INTERVAL_S, remaining))
