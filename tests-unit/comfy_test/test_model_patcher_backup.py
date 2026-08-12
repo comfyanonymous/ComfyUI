@@ -23,7 +23,7 @@ def test_backup_entries_share_one_type():
     )
 
     for key in keys:
-        patcher.patch_weight_to_device(key, force_cast=True)
+        patcher.patch_weight_to_device(key, device_to=torch.device("cpu"), force_cast=True)
 
     assert len(patcher.backup) == len(keys)
     for entry in patcher.backup.values():
