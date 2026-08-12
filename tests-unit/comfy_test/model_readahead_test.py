@@ -118,17 +118,15 @@ def test_newer_request_cancels_previous_child(tmp_path):
 
 def test_ram_guard_stops_active_child(tmp_path, monkeypatch):
     path = make_file(tmp_path)
-    calls = 0
-
-    def available_memory():
-        nonlocal calls
-        calls += 1
-        return 1024 * 1024 * 1024 if calls == 1 else 0
-
-    monkeypatch.setattr(readahead, "_available_memory", available_memory)
     readahead._BASE_RESERVE_BYTES = 1
     reader = readahead._SequentialReadAhead()
     reader._CHILD_READER_CODE = "import time; time.sleep(10)"
+
+    def available_memory():
+        with reader._cv:
+            return 0 if reader._active_process is not None else 1024 * 1024 * 1024
+
+    monkeypatch.setattr(readahead, "_available_memory", available_memory)
     try:
         assert reader.request(str(path))
         assert wait_for(reader, lambda: reader._active is None and reader._pending is None)
@@ -141,15 +139,18 @@ def test_shutdown_terminates_child_and_worker(tmp_path):
     reader = readahead._SequentialReadAhead()
     reader._CHILD_READER_CODE = "import time; time.sleep(10)"
 
-    assert reader.request(str(path))
-    assert wait_for(reader, lambda: reader._active_process is not None)
-    with reader._cv:
-        process = reader._active_process
-    assert process is not None
+    try:
+        assert reader.request(str(path))
+        assert wait_for(reader, lambda: reader._active_process is not None)
+        with reader._cv:
+            process = reader._active_process
+        assert process is not None
 
-    assert reader.shutdown()
-    assert process.poll() is not None
-    assert not reader._worker_thread.is_alive()
+        assert reader.shutdown()
+        assert process.poll() is not None
+        assert not reader._worker_thread.is_alive()
+    finally:
+        reader.shutdown()
 
 
 def test_public_api_is_noop_when_disabled(tmp_path, monkeypatch):
