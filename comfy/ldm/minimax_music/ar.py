@@ -135,6 +135,8 @@ class MiniMaxMusic3AR(nn.Module):
         qwen_config.lm_head = False
         qwen_config.fixed_kv = True
         self.model = Llama2_(qwen_config, device=device, dtype=dtype, ops=operations)
+        self.model.prefetch_dynamic_vbars = True
+        self.model.graph_dynamic_vbar_blocks = True
         self.model.lm_head = operations.Linear(qwen_config.hidden_size, qwen_config.vocab_size, bias=False, dtype=dtype, device=device)
         self.model.audio_extra_embedding = operations.Embedding(
             int(config["audio_vocab_size"]) * (int(config["audio_num_codebooks"]) - 1),
