@@ -212,17 +212,19 @@ class MiniMaxMusic3AR(nn.Module):
         if self.model.pruned_lm_head:
             guided = self._guided_c0(self.model.lm_head_pruned(hidden).float(), cfg_scale, top_k)
             code = sample_topk(guided, generator)
-            return None if int(code.item()) == 0 else code - 1
-
-        logits = self.model.lm_head(hidden).float()
-        mask = torch.ones_like(logits, dtype=torch.bool)
-        mask[:, AUDIO_CODE_OFFSET:AUDIO_CODE_OFFSET + C0_VOCAB_SIZE] = False
-        stop_token = SPECIAL_TOKEN_IDS["<|audio_end|>"]
-        mask[:, stop_token] = False
-        logits = logits.masked_fill(mask, -float("inf"))
-        guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(mask[:1], -float("inf"))
-        code = sample_topk(guided, generator)
-        return None if int(code.item()) == stop_token else code - AUDIO_CODE_OFFSET
+            stop_token = 0
+            offset = 1
+        else:
+            logits = self.model.lm_head(hidden).float()
+            mask = torch.ones_like(logits, dtype=torch.bool)
+            mask[:, AUDIO_CODE_OFFSET:AUDIO_CODE_OFFSET + C0_VOCAB_SIZE] = False
+            stop_token = SPECIAL_TOKEN_IDS["<|audio_end|>"]
+            mask[:, stop_token] = False
+            logits = logits.masked_fill(mask, -float("inf"))
+            guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(mask[:1], -float("inf"))
+            code = sample_topk(guided, generator)
+            offset = AUDIO_CODE_OFFSET
+        return torch.where(code == stop_token, 0, code - offset), code, stop_token
 
     def generate(self, input_ids, seed, max_audio_frames, device, cfg_scale=CFG_SCALE, top_k=CFG_TOP_K):
         prompt_tokens = int(input_ids.shape[1])
@@ -257,13 +259,30 @@ class MiniMaxMusic3AR(nn.Module):
         decoder._comfy_cross_step_state = depth_io
         comfy.model_management._register_cross_step(decoder)
         hidden_frames = []
+        pending_code = None
+        pending_event = None
+        pending_hidden = None
         progress = comfy.utils.ProgressBar(decode_limit)
 
         for frame_index in comfy.utils.model_trange(decode_limit + 1, desc="AR sampling"):
             comfy.model_management.throw_exception_if_processing_interrupted()
-            c0 = self._sample_c0(last_hidden, cfg_scale, top_k, generator)
-            if c0 is None:
-                break
+            if pending_event is not None:
+                pending_event.synchronize()
+                if int(pending_code.item()) == stop_token:
+                    pending_hidden = None
+                    break
+                if pending_hidden is not None:
+                    hidden_frames.append(pending_hidden)
+                    progress.update_absolute(len(hidden_frames))
+                    if len(hidden_frames) >= decode_limit:
+                        break
+
+            c0, code_or_stop, stop_token = self._sample_c0(last_hidden, cfg_scale, top_k, generator)
+            if pending_code is None:
+                pending_code = torch.empty_like(code_or_stop, device="cpu", pin_memory=True)
+                pending_event = torch.cuda.Event()
+            pending_code.copy_(code_or_stop, non_blocking=True)
+            pending_event.record()
 
             c0 = c0.repeat(2)
             c0_embed = self._embed_c0(c0, execution_dtype)
@@ -285,16 +304,18 @@ class MiniMaxMusic3AR(nn.Module):
             depth_hidden = depth_io["depth_hidden"]
             frame_hidden = torch.cat((last_hidden[:1].detach(), depth_hidden), dim=-1)
             if frame_index > 0:
-                hidden_frames.append(frame_hidden[0].to(device="cpu", copy=True))
-                progress.update_absolute(len(hidden_frames))
-                if len(hidden_frames) >= decode_limit:
-                    break
+                pending_hidden = frame_hidden[0].clone()
 
             feedback = self._embed_audio_frame(feedback_codes, execution_dtype)
             output = self.model(None, embeds=feedback, past_key_values=past, dtype=execution_dtype)
             last_hidden = output[0][:, -1]
             past = output[2]
 
+        if pending_hidden is not None and len(hidden_frames) < decode_limit:
+            pending_event.synchronize()
+            if int(pending_code.item()) != stop_token:
+                hidden_frames.append(pending_hidden)
+
         if not hidden_frames:
             raise ValueError("MiniMax Music3 generated zero audio frames")
-        return torch.stack(hidden_frames)
+        return torch.stack(hidden_frames).to(device="cpu")
