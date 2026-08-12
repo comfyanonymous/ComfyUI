@@ -268,6 +268,27 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 
 ```pip install -r requirements.txt```
 
+#### Linux Python standard-library modules (`_bz2`, `_lzma`)
+
+Some ComfyUI dependencies need Python builds with the `_bz2` and `_lzma` modules enabled.
+On a fresh Linux install those modules may be missing if the corresponding system libraries
+were not present when Python was built.
+
+Debian/Ubuntu/Pop!_OS:
+
+```bash
+sudo apt-get install libbz2-dev liblzma-dev
+```
+
+RHEL/Fedora/CentOS:
+
+```bash
+sudo dnf install bzip2-devel xz-devel
+```
+
+If you still see import errors for `_bz2` or `_lzma`, rebuild or reinstall Python after
+installing those packages (for example with `asdf`, `pyenv`, or your distro packages).
+
 After this you should have everything installed and can proceed to running ComfyUI.
 
 ### Others:
