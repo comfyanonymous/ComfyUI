@@ -136,6 +136,16 @@ parse_runtime_args() {
 
 parse_runtime_args "$@"
 
+default_attention_args=(--use-flash-attention)
+for arg in "${forward_args[@]}"; do
+    case "${arg}" in
+        --use-split-cross-attention|--use-quad-cross-attention|--use-pytorch-cross-attention|--use-sage-attention|--use-flash-attention)
+            default_attention_args=()
+            break
+            ;;
+    esac
+done
+
 [[ -f "${COMFYUI_DIR}/main.py" ]] ||
     die "ComfyUI is not installed at ${COMFYUI_DIR}"
 [[ -x "${COMFYUI_PYTHON}" ]] ||
@@ -234,6 +244,7 @@ canonical_args=(
     --user-directory "${user_dir}"
     --database-url "${database_url}"
     --enable-manager
+    "${default_attention_args[@]}"
     "${forward_args[@]}"
 )
 
