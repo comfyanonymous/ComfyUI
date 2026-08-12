@@ -9,6 +9,7 @@ numpy>=1.25.0
 einops
 transformers>=4.50.3
 tokenizers>=0.13.3
+huggingface_hub
 sentencepiece
 safetensors>=0.4.2
 aiohttp>=3.11.8

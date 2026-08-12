@@ -188,6 +188,49 @@ components:
                 - id
                 - updated_at
             type: object
+        AvailabilityStatusRequest:
+            description: |
+                Models to query — each entry is `model_id → URL`. The URL lets
+                the server compute file_size + is_hf_downloadable on the same
+                request, eliminating the need for a separate metadata endpoint.
+            properties:
+                models:
+                    additionalProperties:
+                        type: string
+                    description: model_id → URL declared in the workflow.
+                    type: object
+            required:
+                - models
+            type: object
+        AvailabilityStatusResponse:
+            description: Per-model state + metadata + HF auth snapshot.
+            properties:
+                hf_auth:
+                    $ref: '#/components/schemas/HfAuthStatus'
+                models:
+                    additionalProperties:
+                        $ref: '#/components/schemas/ModelStatusEntry'
+                    type: object
+            required:
+                - models
+                - hf_auth
+            type: object
+        CancelDownloadSessionRequest:
+            description: Request to cancel an in-flight download for a given model_id.
+            properties:
+                model_id:
+                    type: string
+            required:
+                - model_id
+            type: object
+        CancelDownloadSessionResponse:
+            description: Result of a cancellation request.
+            properties:
+                cancelled:
+                    type: boolean
+            required:
+                - cancelled
+            type: object
         CreateWorkflowRequest:
             description: Request body for creating a new saved workflow.
             properties:
@@ -229,6 +272,51 @@ components:
             required:
                 - base_version
                 - workflow_json
+            type: object
+        DownloadModelsRequest:
+            description: Map of model_id → URL of files to fetch into the model folders.
+            properties:
+                models:
+                    additionalProperties:
+                        type: string
+                    description: model_id → URL of models to download.
+                    type: object
+            required:
+                - models
+            type: object
+        DownloadModelsResponse:
+            description: Acknowledgement that downloads have been scheduled.
+            properties:
+                accepted:
+                    description: Always true; the request was scheduled.
+                    type: boolean
+                scheduled:
+                    description: The list of model_ids whose downloads are now in-flight.
+                    items:
+                        type: string
+                    type: array
+            required:
+                - accepted
+                - scheduled
+            type: object
+        DownloadProgress:
+            description: In-flight download progress; embedded in ModelStatusEntry.
+            properties:
+                bytes_downloaded:
+                    format: int64
+                    type: integer
+                progress:
+                    description: Fraction in [0,1]; null until total_bytes is known.
+                    format: float
+                    nullable: true
+                    type: number
+                total_bytes:
+                    description: Content-Length when supplied by the source.
+                    format: int64
+                    nullable: true
+                    type: integer
+            required:
+                - bytes_downloaded
             type: object
         ErrorResponse:
             description: Standard error response with a machine-readable code and human-readable message.
@@ -393,6 +481,46 @@ components:
                 - source
                 - name
                 - info
+            type: object
+        HfAuthLoginStartResponse:
+            description: URL the frontend should open in a new tab to complete login.
+            properties:
+                authorize_url:
+                    type: string
+            required:
+                - authorize_url
+            type: object
+        HfAuthLogoutResponse:
+            description: Result of the logout call (always logged_out = true).
+            properties:
+                logged_out:
+                    type: boolean
+            required:
+                - logged_out
+            type: object
+        HfAuthStatus:
+            description: Inline snapshot of the server's HuggingFace OAuth state.
+            properties:
+                eligible:
+                    description: True iff this deployment can surface interactive HF login.
+                    type: boolean
+                token_available:
+                    description: True iff a token (possibly expired but refreshable) is stored.
+                    type: boolean
+            required:
+                - token_available
+                - eligible
+            type: object
+        HfAuthTokenStatusResponse:
+            description: Whether the server holds an HF OAuth token + resolved username.
+            properties:
+                token_available:
+                    type: boolean
+                username:
+                    nullable: true
+                    type: string
+            required:
+                - token_available
             type: object
         HistoryDetailEntry:
             description: History entry with full prompt data
@@ -823,6 +951,41 @@ components:
             required:
                 - name
                 - folders
+            type: object
+        ModelStatusEntry:
+            description: Everything the UI needs to render one row of the model.
+            properties:
+                file_size:
+                    description: Bytes, when known. Cached server-side per URL.
+                    format: int64
+                    nullable: true
+                    type: integer
+                is_hf_downloadable:
+                    description: |
+                        HuggingFace-only signal. True if the server can fetch this
+                        URL with its current auth state (public, or gated-with-access).
+                        False if gated and lacking access. Null for non-HF URLs and
+                        for HF URLs whose probe failed entirely.
+                    nullable: true
+                    type: boolean
+                progress:
+                    type: object
+                    allOf:
+                        - $ref: '#/components/schemas/DownloadProgress'
+                    description: Present when `state == downloading`.
+                    nullable: true
+                state:
+                    description: |
+                        `available` — file is on disk.
+                        `missing` — not on disk and no download in flight.
+                        `downloading` — server is currently fetching the file.
+                    enum:
+                        - available
+                        - missing
+                        - downloading
+                    type: string
+            required:
+                - state
             type: object
         NodeInfo:
             description: Metadata describing a single ComfyUI node type and its inputs/outputs.
@@ -2440,6 +2603,72 @@ paths:
             summary: Get tag histogram for filtered assets
             tags:
                 - file
+    /api/cancel-model-download-session:
+        post:
+            description: |
+                Cancels the download session for the given model_id. The worker
+                observes the cancellation between chunks, removes its partial `.tmp`
+                file, and exits without writing the destination path.
+            operationId: postCancelModelDownloadSession
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelDownloadSessionRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelDownloadSessionResponse'
+                    description: Session cancelled.
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: No active download for that model_id.
+            summary: Cancel an in-flight server-side model download
+            tags:
+                - model
+    /api/download-models:
+        post:
+            description: |
+                Schedules downloads for every model_id in the request map. Returns
+                immediately after validation; progress is observed via
+                `/api/models-availability-status`. Fails atomically if any model
+                is already on disk, already downloading, gated, or has a URL that
+                is not on the server's allowlist (HuggingFace, Civitai, localhost).
+            operationId: postDownloadModels
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DownloadModelsRequest'
+                required: true
+            responses:
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DownloadModelsResponse'
+                    description: Downloads accepted and scheduled.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: One of the requested models is invalid, gated, or has a non-allowed URL.
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: One of the requested models is already on disk or downloading.
+            summary: Start a server-side download of one or more models
+            tags:
+                - model
     /api/embeddings:
         get:
             description: Returns the list of text-encoder embeddings available on disk.
@@ -2762,6 +2991,74 @@ paths:
             summary: Get a specific subgraph blueprint
             tags:
                 - workflow
+    /api/hf-auth-login-start:
+        post:
+            description: |
+                Spawns a short-lived loopback callback server (port 41954) and
+                returns the URL the frontend should open in a new tab. After the
+                user grants consent, HF redirects back to the callback URL with
+                an authorization code; the server exchanges that for a token and
+                persists it. Subsequent `/api/hf-auth-token-status` calls will
+                return `token_available: true`. Rejected with 403 if the
+                deployment is not eligible (not loopback or in --multi-user mode);
+                409 if another login attempt is already in progress.
+            operationId: postHfAuthLoginStart
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/HfAuthLoginStartResponse'
+                    description: Login flow started; `authorize_url` is ready.
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Deployment is not eligible for interactive HF login.
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Another login attempt is already in progress.
+            summary: Begin a HuggingFace OAuth login flow
+            tags:
+                - model
+    /api/hf-auth-logout:
+        post:
+            description: Clears the in-memory cache and removes the on-disk token file.
+            operationId: postHfAuthLogout
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/HfAuthLogoutResponse'
+                    description: Logged out (idempotent — succeeds even if no token was held).
+            summary: Drop the stored HuggingFace OAuth token
+            tags:
+                - model
+    /api/hf-auth-token-status:
+        get:
+            description: |
+                Returns `token_available: true` when the server has a token
+                in memory (or on disk) for HuggingFace, irrespective of whether
+                the access_token is currently fresh — an expired one with a
+                refresh_token still counts as "logged in" because we'll refresh
+                transparently on next use. If a username is resolvable via
+                `HfApi.whoami` we return that too, for the settings UI.
+            operationId: getHfAuthTokenStatus
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/HfAuthTokenStatusResponse'
+                    description: Token status.
+            summary: Whether the server holds a usable HuggingFace OAuth token
+            tags:
+                - model
     /api/history:
         post:
             deprecated: true
@@ -3264,6 +3561,48 @@ paths:
             summary: Cancel multiple jobs
             tags:
                 - workflow
+    /api/models-availability-status:
+        post:
+            description: |
+                Given a map of `{model_id: url}` (model_id is
+                `<directory>/<filename>`), returns per-id state plus the
+                metadata the UI needs to render the row:
+
+                  - `state` — one of `available` / `missing` / `downloading`
+                  - `progress` — embedded when `state == downloading`
+                  - `file_size` — bytes (when known)
+                  - `is_hf_downloadable` — for HF URLs only: true if the
+                    server can currently fetch the file with its stored auth
+                    state, false if gated and lacking access, null otherwise
+
+                Designed for 1 Hz polling. `file_size` and the intrinsic
+                "is this model gated" check are cached server-side per URL;
+                `is_hf_downloadable` is recomputed per call so license
+                acceptance and login/logout transitions show up within one
+                poll interval without any client-side cache plumbing.
+            operationId: postModelsAvailabilityStatus
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AvailabilityStatusRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AvailabilityStatusResponse'
+                    description: Per-model status and metadata.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Malformed request body.
+            summary: Unified per-model status + metadata for the polling UI
+            tags:
+                - model
     /api/node_replacements:
         get:
             description: |
@@ -5216,3 +5555,5 @@ tags:
       name: queue
     - description: Job lifecycle queries
       name: job
+    - description: Server-side model availability and downloads
+      name: model

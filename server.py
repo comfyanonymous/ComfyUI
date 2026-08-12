@@ -49,6 +49,7 @@ from app.assets.api.routes import register_assets_routes
 from app.assets.services.ingest import register_file_in_place
 from app.assets.services.path_utils import get_known_subfolder_tags
 from app.assets.services.asset_management import resolve_hash_to_path
+from app.model_downloader.api.routes import register_routes as register_model_downloader_routes
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -259,6 +260,7 @@ class PromptServer():
         else:
             register_assets_routes(self.app)
             asset_seeder.disable()
+        register_model_downloader_routes(self.app)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None

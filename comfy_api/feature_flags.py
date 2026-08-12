@@ -98,6 +98,16 @@ def _parse_cli_feature_flags() -> dict[str, Any]:
 
 
 # Default server capabilities
+def _hf_auth_eligible_at_startup() -> bool:
+    """Snapshot eligibility once at feature-flag init time.
+
+    Imports lazily because the flags module loads very early in the
+    server boot sequence — earlier than the model_downloader package.
+    """
+    from app.model_downloader.hf_auth.eligibility import is_hf_auth_eligible
+    return is_hf_auth_eligible()
+
+
 _CORE_FEATURE_FLAGS: dict[str, Any] = {
     "supports_preview_metadata": True,
     "supports_model_type_tags": True,
@@ -105,6 +115,8 @@ _CORE_FEATURE_FLAGS: dict[str, Any] = {
     "extension": {"manager": {"supports_v4": True}},
     "node_replacements": True,
     "assets": args.enable_assets,
+    "server_side_model_downloads": True,
+    "hf_auth_eligible": _hf_auth_eligible_at_startup(),
 }
 
 # CLI-provided flags cannot overwrite core flags
