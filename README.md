@@ -37,7 +37,7 @@
 
 ComfyUI is the AI creation engine for visual professionals who demand control over every model, every parameter, and every output. Its powerful and modular node graph interface empowers creatives to generate images, videos, 3D models, audio, and more...
 - ComfyUI natively supports the latest open-source state of the art models.
-- API nodes provide access to the best closed source models such as Nano Banana, Seedance, Hunyuan3D, etc.
+- [Partner nodes](https://docs.comfy.org/tutorials/partner-nodes/overview#partner-nodes) provide access to the best closed source models such as Nano Banana, Seedance, Hunyuan3D, etc.
 - It is available on Windows, Linux, and macOS, locally with our [desktop application](https://www.comfy.org/download), our [portable install](#installing) or on our [cloud](https://www.comfy.org/cloud).
 - The most sophisticated workflows can be exposed through a simple UI thanks to App Mode.
 - It integrates seamlessly into production pipelines with our API endpoints.
@@ -194,7 +194,7 @@ Python 3.14 works but some custom nodes may have issues. The free threaded varia
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 
-torch 2.5 is minimally supported but using a newer version is extremely recommended. Some features and optimizations might only work on newer versions. We generally recommend using the latest major version of pytorch with the latest cuda version unless it is less than 2 weeks old. If your pytorch is more than 6 months old, please update it.
+torch 2.7 is minimally supported but using a newer version is extremely recommended. Using a cu130 or above version of pytorch is required on Nvidia 20 series and above. Some features and optimizations might only work on newer versions. We generally recommend using the latest major version of pytorch with the latest cuda version unless it is less than 2 weeks old. If your pytorch is more than 6 months old, please update it.
 
 ### Instructions:
 

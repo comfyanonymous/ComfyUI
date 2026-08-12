@@ -1,5 +1,5 @@
-comfyui-frontend-package==1.48.6
-comfyui-workflow-templates==0.11.31
+comfyui-frontend-package==1.48.7
+comfyui-workflow-templates==0.11.40
 comfyui-embedded-docs==0.5.9
 torch @ https://repos.metax-tech.com/r/maca-pypi/packages/torch/2.8.0+metax3.5.3.9/torch-2.8.0+metax3.5.3.9-cp310-cp310-linux_x86_64.whl
 torchsde
@@ -26,7 +26,7 @@ alembic
 SQLAlchemy>=2.0.0
 filelock
 av>=16.0.0
-comfy-kitchen==0.2.27
+comfy-kitchen==0.2.30
 comfy-aimdo==0.4.13
 requests
 simpleeval>=1.0.0
