@@ -31,7 +31,7 @@ def cleanup_prefetch_queues():
                 cleanup_prefetched_modules(comfy_modules)
     PREFETCH_QUEUES = []
 
-def prefetch_queue_pop(queue, device, module):
+def prefetch_queue_pop(queue, device, module, dtype=None):
     if queue is None:
         return
 
@@ -44,6 +44,7 @@ def prefetch_queue_pop(queue, device, module):
         if comfy_modules is not None:
             cleanup_prefetched_modules(comfy_modules)
 
+    fully_faulted = False
     prefetch = queue[0]
     if prefetch is not None:
         comfy_modules = []
@@ -59,10 +60,13 @@ def prefetch_queue_pop(queue, device, module):
                 if lowvram_fn is not None:
                     registerable_size += lowvram_fn.memory_required()
 
-        offload_stream = comfy.ops.cast_modules_with_vbar(comfy_modules, None, device, None, True)
+        offload_stream, fully_faulted = comfy.ops.cast_modules_with_vbar(comfy_modules, None, device, None, True, return_faulted=True)
         if not comfy.model_management.args.fast_disk:
             comfy.model_management.ensure_pin_registerable(registerable_size)
         comfy.model_management.sync_stream(device, offload_stream)
+        if fully_faulted and dtype is not None:
+            for comfy_module in comfy_modules:
+                comfy.ops.resolve_cast_module_with_vbar(comfy_module, dtype, device, dtype, None, False, return_weights=False)
         queue[0] = (offload_stream, (prefetch, comfy_modules))
 
 def make_prefetch_queue(queue, device, transformer_options):
