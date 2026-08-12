@@ -1651,6 +1651,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         te_model = detect_te_model(clip_data[0])
         if clip_type == CLIPType.MINIMAX and "model.audio_decoder.projection.weight" in clip_data[0]:
             tokenizer_data["tokenizer_json"] = clip_data[0].pop("tokenizer_json", None)
+            quant = comfy.utils.detect_layer_quantization(clip_data[0], "")
+            if quant is not None:
+                model_options = model_options.copy()
+                model_options["quantization_metadata"] = quant
             clip_target.clip = comfy.text_encoders.minimax_music.MiniMaxMusic3TEModel
             clip_target.tokenizer = comfy.text_encoders.minimax_music.MiniMaxMusic3Tokenizer
         elif te_model == TEModel.CLIP_G:

@@ -60,7 +60,10 @@ class MiniMaxMusic3Tokenizer:
 class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
     def __init__(self, device="cpu", dtype=None, model_options={}):
         dtype = torch.bfloat16
-        operations = model_options.get("custom_operations", comfy.ops.manual_cast)
+        quant_config = model_options.get("quantization_metadata", None)
+        operations = model_options.get("custom_operations", None)
+        if operations is None:
+            operations = comfy.ops.mixed_precision_ops(quant_config, dtype) if quant_config is not None else comfy.ops.manual_cast
         super().__init__(MODEL_CONFIG, dtype, device, operations)
         self.dtypes = {dtype}
         self.execution_device = device
