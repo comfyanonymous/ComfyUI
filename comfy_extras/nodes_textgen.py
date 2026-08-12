@@ -211,6 +211,24 @@ AESTHETIC QUALITY (in addition to the above, without breaking the objective capt
 """
 
 
+LTX2_MARKERS = re.compile(r"</?think>|<\|channel>\w*\n?|<channel\|>|<\|turn>\w*\n?")
+
+
+def parse_ltx2_prompt(generated_text, prompt):
+    """Strip reasoning blocks and channel markers from the generated LTX2 prompt.
+
+    A close marker with no opening tag leaves nothing after the split, so fall back to the
+    text before it and then to the user prompt. Both system prompts ask for the original
+    prompt back when the model has nothing to give, and an empty string here silently
+    generates the video with no conditioning at all.
+    """
+    text = re.sub(r"<think>.*?</think>", "", generated_text, flags=re.DOTALL)
+    if "</think>" in text:  # unclosed/truncated reasoning: keep what follows the last close
+        head, _, tail = text.rpartition("</think>")
+        text = tail if LTX2_MARKERS.sub("", tail).strip() else head
+    return LTX2_MARKERS.sub("", text).strip() or prompt
+
+
 class TextGenerateLTX2Prompt(TextGenerate):
     @classmethod
     def define_schema(cls):
@@ -256,12 +274,7 @@ class TextGenerateLTX2Prompt(TextGenerate):
 
         out = super().execute(clip, formatted_prompt, max_length, sampling_mode, image=image, thinking=thinking, use_default_template=use_default_template, video=video, audio=audio)
 
-        text = out.args[0]
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        if "</think>" in text:  # unclosed/truncated reasoning: keep what follows the last close
-            text = text.rsplit("</think>", 1)[-1]
-        text = re.sub(r"</?think>|<\|channel>\w*\n?|<channel\|>|<\|turn>\w*\n?", "", text).strip()
-        return io.NodeOutput(text)
+        return io.NodeOutput(parse_ltx2_prompt(out.args[0], prompt))
 
 
 class TextgenExtension(ComfyExtension):
