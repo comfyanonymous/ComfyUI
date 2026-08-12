@@ -9,6 +9,7 @@ import comfy_kitchen
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
+import comfy.model_prefetch
 import comfy.ops
 import comfy.ldm.common_dit
 import comfy.clip_model
@@ -666,6 +667,7 @@ class TransformerBlock(nn.Module):
         optimized_attention=None,
         past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ):
+        output = x
         # Self Attention
         residual = x
         x = self.input_layernorm(x)
@@ -682,7 +684,7 @@ class TransformerBlock(nn.Module):
         residual = x
         x = self.post_attention_layernorm(x)
         x = self.mlp(x)
-        x = residual + x
+        x = torch.add(residual, x, out=output)
 
         return x, present_key_value
 
@@ -711,6 +713,7 @@ class TransformerBlockGemma2(nn.Module):
         optimized_attention=None,
         past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ):
+        output = x
         sliding_window = None
         if self.transformer_type == 'gemma3':
             if self.sliding_attention:
@@ -746,7 +749,7 @@ class TransformerBlockGemma2(nn.Module):
         x = self.pre_feedforward_layernorm(x)
         x = self.mlp(x)
         x = self.post_feedforward_layernorm(x)
-        x = residual + x
+        x = torch.add(residual, x, out=output)
 
         return x, present_key_value
 
@@ -762,6 +765,7 @@ class Llama2_(nn.Module):
         super().__init__()
         self.config = config
         self.fixed_kv = getattr(config, "fixed_kv", False)
+        self.graph_dynamic_vbar_blocks = False
         self.vocab_size = config.vocab_size
 
         if self.config.transformer_type == "gemma2" or self.config.transformer_type == "gemma3":
@@ -783,6 +787,9 @@ class Llama2_(nn.Module):
 
         if config.lm_head:
             self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+
+    def get_dynamic_vram__units(self):
+        return (list(self.layers), []) if self.graph_dynamic_vbar_blocks else ([], [])
 
     def get_past_len(self, past_key_values):
         first = past_key_values[0]
@@ -845,6 +852,29 @@ class Llama2_(nn.Module):
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
         fixed_kv = self.fixed_kv
+        freqs_cis_groups = freqs_cis if isinstance(freqs_cis, list) else [freqs_cis]
+        cross_step_state_key = [(x.shape, x.stride(), x.dtype, x.device)]
+        for group in freqs_cis_groups:
+            for tensor in group:
+                cross_step_state_key.append((tensor.shape, tensor.stride(), tensor.dtype, tensor.device))
+        cross_step_state_key = tuple(cross_step_state_key)
+        cross_step_state = getattr(self, "_comfy_cross_step_state", None)
+        if cross_step_state is None or cross_step_state["key"] != cross_step_state_key:
+            static_freqs_cis = []
+            for group in freqs_cis_groups:
+                static_freqs_cis.append(tuple(torch.empty_like(tensor) for tensor in group))
+            if not isinstance(freqs_cis, list):
+                static_freqs_cis = static_freqs_cis[0]
+            cross_step_state = {"key": cross_step_state_key, "x": torch.empty_like(x), "freqs_cis": static_freqs_cis}
+            self._comfy_cross_step_state = cross_step_state
+            comfy.model_management._register_cross_step(self)
+        cross_step_state["x"].copy_(x)
+        static_freqs_cis_groups = cross_step_state["freqs_cis"] if isinstance(freqs_cis, list) else [cross_step_state["freqs_cis"]]
+        for source_group, target_group in zip(freqs_cis_groups, static_freqs_cis_groups):
+            for source, target in zip(source_group, target_group):
+                target.copy_(source)
+        x = cross_step_state["x"]
+        freqs_cis = cross_step_state["freqs_cis"]
 
         intermediate = None
         all_intermediate = None
@@ -859,7 +889,9 @@ class Llama2_(nn.Module):
             elif intermediate_output < 0:
                 intermediate_output = len(self.layers) + intermediate_output
 
-        next_key_values = []
+        enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv and seq_len == 1 and mask is None
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.layers), x.device, {"prefetch_dynamic_vbars": getattr(self, "prefetch_dynamic_vbars", False)})
+        next_key_values = list(past_key_values) if past_key_values is not None else []
         for i, layer in enumerate(self.layers):
             if all_intermediate is not None:
                 if only_layers is None or (i in only_layers):
@@ -872,19 +904,20 @@ class Llama2_(nn.Module):
             if fixed_kv:
                 past_kv.prepare(seq_len)
 
-            x, current_kv = layer(
-                x=x,
-                attention_mask=mask,
-                freqs_cis=freqs_cis,
-                optimized_attention=optimized_attention,
-                past_key_value=past_kv,
-            )
+            def core():
+                _, current_kv = layer(
+                    x=x,
+                    attention_mask=mask,
+                    freqs_cis=freqs_cis,
+                    optimized_attention=optimized_attention,
+                    past_key_value=past_kv,
+                )
+                if next_key_values:
+                    next_key_values[i] = current_kv
 
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, x.device, layer, x.dtype, core=core, enable_graph=enable_graph)
             if fixed_kv:
-                current_kv.advance(seq_len)
-
-            if current_kv is not None:
-                next_key_values.append(current_kv)
+                next_key_values[i].advance(seq_len)
 
             # DeepStack: add per-layer visual features into the first len() decoder layers at image positions (Qwen3-VL)
             if deepstack_embeds is not None and i < len(deepstack_embeds):
@@ -892,6 +925,9 @@ class Llama2_(nn.Module):
 
             if i == intermediate_output:
                 intermediate = x.clone()
+
+        if prefetch_queue is not None:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, x.device, None)
 
         if self.norm is not None:
             x = self.norm(x)
@@ -906,7 +942,7 @@ class Llama2_(nn.Module):
         if intermediate is not None and final_layer_norm_intermediate and self.norm is not None:
             intermediate = self.norm(intermediate)
 
-        if len(next_key_values) > 0:
+        if next_key_values:
             return x, intermediate, next_key_values
         else:
             return x, intermediate
