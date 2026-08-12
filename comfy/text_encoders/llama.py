@@ -5,6 +5,7 @@ from typing import Optional, Any, Tuple
 import math
 from tqdm import tqdm
 import comfy.utils
+import comfy_kitchen
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
@@ -13,6 +14,23 @@ import comfy.ldm.common_dit
 import comfy.clip_model
 
 from . import qwen_vl
+
+@dataclass
+class FixedKV:
+    key: torch.Tensor
+    value: torch.Tensor
+    index: int
+    position: torch.Tensor
+    seqlen: torch.Tensor
+    cu_q: torch.Tensor
+    cu_k: torch.Tensor
+
+    def prepare(self, num_tokens):
+        self.position.fill_(self.index)
+        self.seqlen.fill_(self.index + num_tokens)
+
+    def advance(self, num_tokens):
+        self.index += num_tokens
 
 @dataclass
 class Llama2Config:
@@ -249,6 +267,7 @@ class Qwen3_8BConfig:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = True
+    fixed_kv: bool = False
     stop_tokens = [151643, 151645]
 
 @dataclass
@@ -545,8 +564,29 @@ class Attention(nn.Module):
 
         xq, xk = apply_rope(xq, xk, freqs_cis=freqs_cis)
 
-        present_key_value = None
-        if past_key_value is not None:
+        fixed_cache = past_key_value if isinstance(past_key_value, FixedKV) else None
+        if fixed_cache is not None:
+            xq = xq.transpose(1, 2)
+            xk = xk.transpose(1, 2)
+            xv = xv.transpose(1, 2)
+            if seq_length == 1:
+                # CUDA-graphable decode path.
+                fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
+                fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
+                output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
+                return self.o_proj(output.view(hidden_states.shape)), fixed_cache
+
+            fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
+            fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
+            xk = fixed_cache.key[:, :fixed_cache.index + seq_length]
+            xv = fixed_cache.value[:, :fixed_cache.index + seq_length]
+
+            xq = xq.transpose(1, 2)
+            xk = xk.transpose(1, 2)
+            xv = xv.transpose(1, 2)
+
+        present_key_value = fixed_cache
+        if fixed_cache is None and past_key_value is not None:
             index = 0
             num_tokens = xk.shape[2]
             if len(past_key_value) > 0:
@@ -711,6 +751,7 @@ class Llama2_(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
         self.config = config
+        self.fixed_kv = getattr(config, "fixed_kv", False)
         self.vocab_size = config.vocab_size
 
         if self.config.transformer_type == "gemma2" or self.config.transformer_type == "gemma3":
@@ -734,7 +775,24 @@ class Llama2_(nn.Module):
             self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
 
     def get_past_len(self, past_key_values):
-        return past_key_values[0][2]
+        first = past_key_values[0]
+        return first.index if isinstance(first, FixedKV) else first[2]
+
+    def init_kv_cache(self, batch, capacity, device, dtype):
+        caches = []
+        for _ in range(self.config.num_hidden_layers):
+            if self.fixed_kv:
+                key = torch.empty((batch, capacity, self.config.num_key_value_heads, self.config.head_dim), device=device, dtype=dtype)
+                value = torch.empty_like(key)
+                position = torch.empty((1,), device=device, dtype=torch.int64)
+                seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
+                cu_q = torch.arange(batch + 1, device=device, dtype=torch.int32)
+                cu_k = cu_q * capacity
+                caches.append(FixedKV(key, value, 0, position, seqlen, cu_q, cu_k))
+            else:
+                key = torch.empty((batch, self.config.num_key_value_heads, capacity, self.config.head_dim), device=device, dtype=dtype)
+                caches.append((key, torch.empty_like(key), 0))
+        return caches
 
     def compute_freqs_cis(self, position_ids, device):
         return precompute_freqs_cis(self.config.head_dim,
@@ -776,6 +834,8 @@ class Llama2_(nn.Module):
 
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
+        fixed_kv = self.fixed_kv
+
         intermediate = None
         all_intermediate = None
         only_layers = None
@@ -799,6 +859,9 @@ class Llama2_(nn.Module):
             if past_key_values is not None:
                 past_kv = past_key_values[i] if len(past_key_values) > 0 else []
 
+            if fixed_kv:
+                past_kv.prepare(seq_len)
+
             x, current_kv = layer(
                 x=x,
                 attention_mask=mask,
@@ -806,6 +869,9 @@ class Llama2_(nn.Module):
                 optimized_attention=optimized_attention,
                 past_key_value=past_kv,
             )
+
+            if fixed_kv:
+                current_kv.advance(seq_len)
 
             if current_kv is not None:
                 next_key_values.append(current_kv)
@@ -894,12 +960,7 @@ class BaseGenerate:
             return torch.nn.functional.linear(input, weight, None)
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
-        model_config = self.model.config
-        past_key_values = []
-        for x in range(model_config.num_hidden_layers):
-            past_key_values.append((torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype),
-                                    torch.empty([batch, model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
-        return past_key_values
+        return self.model.init_kv_cache(batch, max_cache_len, device, execution_dtype)
 
     def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None, embeds_info=None):
         device = embeds.device
