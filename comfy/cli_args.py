@@ -69,9 +69,9 @@ parser.add_argument("--max-upload-size", type=float, default=100, help="Set the 
 
 parser.add_argument("--base-directory", type=str, default=None, help="Set the ComfyUI base directory for models, custom_nodes, input, output, temp, and user directories.")
 parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH", nargs='+', action='append', help="Load one or more extra_model_paths.yaml files.")
-parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory (defaults to ComfyUI/output). Overrides --base-directory.")
-parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (defaults to ComfyUI/temp). Overrides --base-directory.")
-parser.add_argument("--input-directory", type=str, default=None, help="Set the ComfyUI input directory (defaults to ComfyUI/input). Overrides --base-directory.")
+parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory (defaults to <base-directory>/output). Overrides --base-directory.")
+parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (defaults to <base-directory>/temp). Overrides --base-directory.")
+parser.add_argument("--input-directory", type=str, default=None, help="Set the ComfyUI input directory (defaults to <base-directory>/input). Overrides --base-directory.")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
 parser.add_argument("--cuda-device", type=str, default=None, metavar="DEVICE_ID", help="Set the ids of cuda devices this instance will use, as a comma-separated list (e.g. '0' or '0,1'). All other devices will not be visible.")
