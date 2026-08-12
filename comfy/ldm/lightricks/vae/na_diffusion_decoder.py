@@ -22,6 +22,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
+import comfy.model_management
 
 from comfy.ldm.lightricks.model import get_timestep_embedding
 from .causal_video_autoencoder import Encoder, processor
