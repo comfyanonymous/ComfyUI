@@ -72,7 +72,10 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
         pass
 
     def get_dynamic_vram__units(self):
-        return [self.model.audio_decoder, *self.model.layers]
+        units, last_units = self.model.get_dynamic_vram__units()
+        if self.model.pruned_embedding:
+            last_units = [*last_units, self.model.embed_tokens_prefill]
+        return [self.model.audio_decoder, *units], last_units
 
     def encode_token_weights(self, token_weight_pairs):
         token_ids = [token for token, _ in token_weight_pairs["minimax_music3"][0]]
