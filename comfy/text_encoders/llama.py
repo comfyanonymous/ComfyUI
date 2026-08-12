@@ -3,6 +3,7 @@ import torch.nn as nn
 from dataclasses import dataclass
 from typing import Optional, Any, Tuple
 import math
+import sys
 from tqdm import tqdm
 import comfy.utils
 import comfy_kitchen
@@ -584,6 +585,13 @@ class Attention(nn.Module):
                 # CUDA-graphable decode path.
                 fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
                 fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
+                # HACK: Linux builds (AFAIK) let you call this and it works deterministacally with SDPA. CK solution TBD.
+                if sys.platform == "linux":
+                    output = torch.ops.aten._flash_attention_forward(
+                        xq.flatten(0, 1), fixed_cache.key.flatten(0, 1), fixed_cache.value.flatten(0, 1), fixed_cache.cu_q, fixed_cache.cu_k,
+                        1, fixed_cache.key.shape[1], 0.0, False, False, seqused_k=fixed_cache.seqlen,
+                    )[0]
+                    return self.o_proj(output.view(hidden_states.shape)), fixed_cache
                 output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
                 return self.o_proj(output.view(hidden_states.shape)), fixed_cache
 
