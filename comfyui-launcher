@@ -179,6 +179,10 @@ ensure_manager_pip_blacklist() {
         triton
         flash-attn
         numpy
+        opencv-python
+        opencv-python-headless
+        opencv-contrib-python
+        opencv-contrib-python-headless
     )
 
     command -v flock >/dev/null 2>&1 || die "flock is required for Manager configuration"
