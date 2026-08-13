@@ -89,9 +89,11 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
     prefetch = queue[0]
     if prefetch is not None:
         comfy_modules = []
-        for s in prefetch.modules():
-            if hasattr(s, "_v"):
-                comfy_modules.append(s)
+        prefetch_modules = prefetch if isinstance(prefetch, (list, tuple)) else (prefetch,)
+        for root in prefetch_modules:
+            for s in root.modules():
+                if hasattr(s, "_v"):
+                    comfy_modules.append(s)
 
         registerable_size = 0
         for s in comfy_modules:
@@ -108,7 +110,7 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
         if fully_faulted and dtype is not None:
             for comfy_module in comfy_modules:
                 comfy.ops.resolve_cast_module_with_vbar(comfy_module, dtype, device, dtype, None, False, return_weights=False)
-        queue[0] = (offload_stream, (prefetch, comfy_modules))
+        queue[0] = (offload_stream, (module, comfy_modules))
 
     if core is not None:
         if enable_graph and fully_faulted and module in GRAPH_WARMED_MODULES:
