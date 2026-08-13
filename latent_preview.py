@@ -123,6 +123,8 @@ def prepare_callback(model, steps, x0_output_dict=None):
 
         preview_bytes = None
         if previewer:
+            if x0.is_nested:
+                x0 = x0.tensors[0]
             preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
     return callback

@@ -36,6 +36,7 @@ def test_get_open_write_kwargs_filepath_no_format():
     kwargs_specific = get_open_write_kwargs("output.avi", "mp4", "avi")
     fail_msg = "Format should not be set for file paths (Specific)"
     assert "format" not in kwargs_specific, fail_msg
+    assert kwargs_specific["options"]["movflags"] == "use_metadata_tags"
 
 
 def test_get_open_write_kwargs_base_options_mode():
@@ -43,9 +44,9 @@ def test_get_open_write_kwargs_base_options_mode():
     kwargs = get_open_write_kwargs("output.mp4", "mp4", VideoContainer.AUTO)
     assert kwargs["mode"] == "w", "mode should be set to write"
 
-    fail_msg = "movflags should be set to preserve custom metadata tags"
+    fail_msg = "movflags should preserve custom metadata tags and enable faststart for MP4 files"
     assert "movflags" in kwargs["options"], fail_msg
-    assert kwargs["options"]["movflags"] == "use_metadata_tags", fail_msg
+    assert kwargs["options"]["movflags"] == "use_metadata_tags+faststart", fail_msg
 
 
 def test_get_open_write_kwargs_bytesio_auto_format():
