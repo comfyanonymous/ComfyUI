@@ -1625,23 +1625,27 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                             params = qdata._params
                             scale = params.scale
                             qdata = qdata._qdata
+
+                            # int8: per-row scale possible ConvRot, so let the layout do the gather
+                            if self.quant_format == "int8_tensorwise":
+                                x = get_layout_class(self.layout_type).dequantize_embedding(qdata, params, input)
+                                return x if out_dtype is None else x.to(dtype=out_dtype)
+
+                            x = torch.nn.functional.embedding(
+                                input, qdata, self.padding_idx, self.max_norm,
+                                self.norm_type, self.scale_grad_by_freq, self.sparse)
+                            target_dtype = out_dtype if out_dtype is not None else weight._params.orig_dtype
+                            x = x.to(dtype=target_dtype)
+                            if scale is not None and scale != 1.0:
+                                x = x * scale.to(dtype=target_dtype)
+                            return x
                         else:
-                            params = weight._params
-                            scale = None
-
-                        # int8: per-row scale possible ConvRot, so let the layout do the gather
-                        if self.quant_format == "int8_tensorwise":
-                            x = get_layout_class(self.layout_type).dequantize_embedding(qdata, params, input)
+                            # DynamicVRAM (vbar) already dequantized the weight to raw bf16/fp16.
+                            # Scale is already baked into qdata by vbar's dequantization pass.
+                            x = torch.nn.functional.embedding(
+                                input, qdata, self.padding_idx, self.max_norm,
+                                self.norm_type, self.scale_grad_by_freq, self.sparse)
                             return x if out_dtype is None else x.to(dtype=out_dtype)
-
-                        x = torch.nn.functional.embedding(
-                            input, qdata, self.padding_idx, self.max_norm,
-                            self.norm_type, self.scale_grad_by_freq, self.sparse)
-                    target_dtype = out_dtype if out_dtype is not None else weight._params.orig_dtype
-                    x = x.to(dtype=target_dtype)
-                    if scale is not None and scale != 1.0:
-                        x = x * scale.to(dtype=target_dtype)
-                    return x
 
                 # Fallback for non-quantized or weight_function (LoRA) case
                 return super().forward_comfy_cast_weights(input, out_dtype=out_dtype)
