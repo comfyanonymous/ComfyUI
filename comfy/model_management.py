@@ -1368,8 +1368,13 @@ STREAM_CAST_BUFFERS = {}
 LARGEST_CASTED_WEIGHT = (None, 0)
 STREAM_AIMDO_CAST_BUFFERS = {}
 LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+CROSS_STEP_STATE = weakref.WeakSet()
 
 DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
+
+# NOTE: devs/agents: this is temporary and will be removed in a future comfy. Not supported for custom node use.
+def _register_cross_step(module):
+    CROSS_STEP_STATE.add(module)
 
 def get_cast_buffer(offload_stream, device, size, ref):
     global LARGEST_CASTED_WEIGHT
@@ -1424,6 +1429,10 @@ def reset_cast_buffers():
     for mmap_obj in DIRTY_MMAPS:
         mmap_obj.bounce()
     DIRTY_MMAPS.clear()
+
+    for module in CROSS_STEP_STATE:
+        del module._comfy_cross_step_state
+    CROSS_STEP_STATE.clear()
 
     for loaded_model in current_loaded_models:
         model = loaded_model.model

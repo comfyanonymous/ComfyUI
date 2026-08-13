@@ -22,6 +22,7 @@ import torch
 import logging
 import comfy.ldm.lightricks.av_model
 import comfy.ldm.minimax.model
+import comfy.ldm.minimax_music.dit
 import comfy.nested_tensor
 import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
@@ -2335,6 +2336,18 @@ class ACEStep15(BaseModel):
             refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
 
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
+        return out
+
+class MiniMaxMusic3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax_music.dit.MiniMaxMusic3DiT)
+
+    def process_timestep(self, timestep, **kwargs):
+        return 1.0 - timestep
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        out["conditioning_scale"] = comfy.conds.CONDRegular(kwargs["conditioning_scale"])
         return out
 
 class Omnigen2(BaseModel):
