@@ -906,7 +906,8 @@ class Llama2_(nn.Module):
                 past_kv.prepare(seq_len)
 
             def core():
-                _, current_kv = layer(
+                nonlocal x
+                x, current_kv = layer(
                     x=x,
                     attention_mask=mask,
                     freqs_cis=freqs_cis,
