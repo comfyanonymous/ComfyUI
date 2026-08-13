@@ -32,9 +32,10 @@ def derive_seed(seed, *parts):
     return int.from_bytes(digest.digest(), "little") & ((1 << 63) - 1)
 
 
-def sample_topk(logits, generator):
+def sample_topk(logits, top_k, generator):
     values = torch.nan_to_num(logits.float(), nan=-1e9, posinf=1e9, neginf=-1e9)
-    threshold = torch.topk(values, 50, dim=-1).values[..., -1, None]
+    top_k = min(top_k, values.shape[-1])
+    threshold = torch.topk(values, top_k, dim=-1).values[..., -1, None]
     values = values.masked_fill(values < threshold, -float("inf"))
     probabilities = torch.nan_to_num(torch.softmax(values, dim=-1), nan=0.0)
     probabilities = probabilities / probabilities.sum(dim=-1, keepdim=True).clamp_min(1e-12)
@@ -176,7 +177,7 @@ class MiniMaxMusic3AR(nn.Module):
         threshold = torch.topk(conditioned, top_k, dim=-1).values[..., -1, None]
         return guided.masked_fill(conditioned < threshold, -float("inf"))
 
-    def _depth_codes(self, hidden, c0, c0_embed, generator, execution_dtype, cfg_scale):
+    def _depth_codes(self, hidden, c0, c0_embed, generator, execution_dtype, cfg_scale, top_k):
         decoder = self.model.audio_decoder
         sequence = [decoder.projection(hidden).unsqueeze(1)]
         sequence.append(decoder.projection(c0_embed).unsqueeze(1))
@@ -188,7 +189,7 @@ class MiniMaxMusic3AR(nn.Module):
             logits = decoder.audio_heads[index - 1](out)
             conditioned = logits[:1].float()
             unconditioned = logits[1:2].float()
-            code = sample_topk(unconditioned + (conditioned - unconditioned) * cfg_scale, generator).repeat(2)
+            code = sample_topk(unconditioned + (conditioned - unconditioned) * cfg_scale, top_k, generator).repeat(2)
             codes.append(code)
             if index < self.num_codebooks - 1:
                 embedding = self.model.audio_extra_embedding(
@@ -212,7 +213,7 @@ class MiniMaxMusic3AR(nn.Module):
     def _sample_c0(self, hidden, cfg_scale, top_k, generator):
         if self.model.pruned_lm_head:
             guided = self._guided_c0(self.model.lm_head_pruned(hidden).float(), cfg_scale, top_k)
-            code = sample_topk(guided, generator)
+            code = sample_topk(guided, top_k, generator)
             stop_token = 0
             offset = 1
         else:
@@ -223,7 +224,7 @@ class MiniMaxMusic3AR(nn.Module):
             mask[:, stop_token] = False
             logits = logits.masked_fill(mask, -float("inf"))
             guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(mask[:1], -float("inf"))
-            code = sample_topk(guided, generator)
+            code = sample_topk(guided, top_k, generator)
             offset = AUDIO_CODE_OFFSET
         return torch.where(code == stop_token, 0, code - offset), code, stop_token
 
@@ -296,7 +297,7 @@ class MiniMaxMusic3AR(nn.Module):
 
             def depth_core():
                 codes, depth_hidden = self._depth_codes(
-                    depth_io["hidden"], depth_io["c0"], depth_io["c0_embed"], generator, execution_dtype, cfg_scale
+                    depth_io["hidden"], depth_io["c0"], depth_io["c0_embed"], generator, execution_dtype, cfg_scale, top_k
                 )
                 depth_io["codes"].copy_(codes)
                 depth_io["depth_hidden"].copy_(depth_hidden)
