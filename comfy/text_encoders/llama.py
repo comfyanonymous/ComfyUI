@@ -759,6 +759,9 @@ def _make_scaled_embedding(ops, vocab_size, hidden_size, scale, device, dtype):
 
 
 class Llama2_(nn.Module):
+    fixed_kv = False
+    graph_dynamic_vbar_blocks = False
+
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
         self.config = config
@@ -795,8 +798,9 @@ class Llama2_(nn.Module):
 
     def init_kv_cache(self, batch, capacity, device, dtype):
         caches = []
+        fixed_kv = self.fixed_kv and comfy_kitchen.flash_attention_decode_is_available(device)
         for _ in range(self.config.num_hidden_layers):
-            if self.fixed_kv:
+            if fixed_kv:
                 key = torch.empty((batch, capacity, self.config.num_key_value_heads, self.config.head_dim), device=device, dtype=dtype)
                 value = torch.empty_like(key)
                 position = torch.empty((1,), device=device, dtype=torch.int64)
@@ -847,7 +851,7 @@ class Llama2_(nn.Module):
 
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
-        fixed_kv = self.fixed_kv
+        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
         enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv and seq_len == 1 and mask is None
         if enable_graph:
             freqs_cis_groups = freqs_cis if isinstance(freqs_cis, list) else [freqs_cis]
