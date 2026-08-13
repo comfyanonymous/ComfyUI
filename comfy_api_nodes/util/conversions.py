@@ -266,15 +266,13 @@ def audio_tensor_to_contiguous_ndarray(waveform: torch.Tensor) -> np.ndarray:
         waveform: a tensor of shape (1, channels, samples) derived from a Comfy `AUDIO` type.
 
     Returns:
-        Contiguous numpy array of the audio waveform. If the audio was batched,
-            the first item is taken.
+        Contiguous numpy array of the audio waveform.
+
+    Raises:
+        ValueError: If the waveform is not shaped (1, channels, samples).
     """
     if waveform.ndim != 3 or waveform.shape[0] != 1:
         raise ValueError("Expected waveform tensor shape (1, channels, samples)")
-
-    # If batch is > 1, take first item
-    if waveform.shape[0] > 1:
-        waveform = waveform[0]
 
     # Prepare for av: remove batch dim, move to CPU, make contiguous, convert to numpy array
     audio_data_np = waveform.squeeze(0).cpu().contiguous().numpy()
@@ -285,20 +283,21 @@ def audio_tensor_to_contiguous_ndarray(waveform: torch.Tensor) -> np.ndarray:
 
 
 def audio_input_to_mp3(audio: Input.Audio) -> BytesIO:
-    waveform = audio["waveform"].cpu()
+    audio_data_np = audio_tensor_to_contiguous_ndarray(audio["waveform"])
+    sample_rate = int(audio["sample_rate"])
 
     output_buffer = BytesIO()
     output_container = av.open(output_buffer, mode="w", format="mp3")
 
-    out_stream = output_container.add_stream("libmp3lame", rate=audio["sample_rate"])
+    out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
     out_stream.bit_rate = 320000
 
     frame = av.AudioFrame.from_ndarray(
-        waveform.movedim(0, 1).reshape(1, -1).float().numpy(),
-        format="flt",
-        layout="mono" if waveform.shape[0] == 1 else "stereo",
+        audio_data_np,
+        format="fltp",
+        layout="stereo" if audio_data_np.shape[0] > 1 else "mono",
     )
-    frame.sample_rate = audio["sample_rate"]
+    frame.sample_rate = sample_rate
     frame.pts = 0
     output_container.mux(out_stream.encode(frame))
     output_container.mux(out_stream.encode(None))

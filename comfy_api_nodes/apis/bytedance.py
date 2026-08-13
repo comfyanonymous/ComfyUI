@@ -35,6 +35,23 @@ class Seedream4TaskCreationRequest(BaseModel):
     optimize_prompt_options: Seedream5OptimizePromptOptions | None = None
 
 
+class Seedream5LayerOptimizePromptOptions(BaseModel):
+    mode: Literal["standard", "fast"] = Field(...)
+
+
+class Seedream5LayerSeparationRequest(BaseModel):
+    model: str = Field(...)
+    prompt: str | None = Field(None)
+    image: str = Field(..., description="Single image URL")
+    size: str = Field("auto")
+    seed: int = Field(..., ge=0, le=2147483647)
+    response_format: str = Field("url")
+    output_format: str = Field("png")
+    layer_decomposition: bool = Field(True)
+    watermark: bool = Field(False)
+    optimize_prompt_options: Seedream5LayerOptimizePromptOptions | None = Field(None)
+
+
 class ImageTaskCreationResponse(BaseModel):
     model: str = Field(...)
     created: int = Field(..., description="Unix timestamp (in seconds) indicating time when the request was created.")
@@ -95,9 +112,10 @@ class Seedance2TaskCreationRequest(BaseModel):
     generate_audio: bool | None = Field(None)
     resolution: str | None = Field(None)
     ratio: str | None = Field(None)
-    duration: int | None = Field(None, ge=4, le=15)
+    duration: int | None = Field(None)
     seed: int | None = Field(None, ge=0, le=2147483647)
     watermark: bool | None = Field(None)
+    output_format: str | None = Field(None)
 
 
 class TaskCreationResponse(BaseModel):
@@ -186,6 +204,10 @@ SEEDANCE2_PRICE_PER_1K_TOKENS = {
     ("dreamina-seedance-2-0-mini", True, "480p"): 0.0021,
     ("dreamina-seedance-2-0-mini", False, "720p"): 0.0035,
     ("dreamina-seedance-2-0-mini", True, "720p"): 0.0021,
+    ("dreamina-seedance-2-5-260628", False, "480p"): 0.0107,
+    ("dreamina-seedance-2-5-260628", True, "480p"): 0.0064,
+    ("dreamina-seedance-2-5-260628", False, "720p"): 0.0107,
+    ("dreamina-seedance-2-5-260628", True, "720p"): 0.0064,
 }
 
 
@@ -304,7 +326,30 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
         "480p": {"min": 409_600, "max": 927_408},
         "720p": {"min": 409_600, "max": 927_408},
     },
+    "dreamina-seedance-2-5-260628": {
+        "480p": {"min": 409_600, "max": 8_295_044},
+        "720p": {"min": 409_600, "max": 8_295_044},
+    },
 }
+
+SEEDANCE2_REFERENCE_LIMITS_DEFAULT = {
+    "max_images": 9,
+    "max_videos": 3,
+    "max_audios": 3,
+    "max_total_seconds": 15.1,
+}
+SEEDANCE2_REFERENCE_LIMITS = {
+    "dreamina-seedance-2-5-260628": {
+        "max_images": 30,
+        "max_videos": 10,
+        "max_audios": 10,
+        "max_total_seconds": 30.1,
+    },
+}
+
+
+def seedance2_reference_limits(model_id: str) -> dict:
+    return SEEDANCE2_REFERENCE_LIMITS.get(model_id, SEEDANCE2_REFERENCE_LIMITS_DEFAULT)
 
 # The time in this dictionary are given for 10 seconds duration.
 VIDEO_TASKS_EXECUTION_TIME = {

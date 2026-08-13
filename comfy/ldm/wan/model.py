@@ -11,6 +11,7 @@ from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.flux.math import apply_rope1, rope
 import comfy.ldm.common_dit
 import comfy.model_management
+import comfy.ops
 import comfy.patcher_extension
 
 
@@ -146,7 +147,8 @@ class WanI2VCrossAttention(WanSelfAttention):
         v = self.v(context)
         k_img = self.norm_k_img(self.k_img(context_img))
         v_img = self.v_img(context_img)
-        img_x = optimized_attention(q, k_img, v_img, heads=self.num_heads, transformer_options=transformer_options)
+        # Sageattn can cause Nans here, don't allow it as there is no speed difference anyway as img attention is tiny.
+        img_x = optimized_attention(q, k_img, v_img, heads=self.num_heads, transformer_options=transformer_options, low_precision_attention=False)
         # compute attention
         x = optimized_attention(q, k, v, heads=self.num_heads, transformer_options=transformer_options)
 
@@ -172,6 +174,13 @@ def repeat_e(e, x):
         return torch.repeat_interleave(e, repeats, dim=1)
     else:
         return torch.repeat_interleave(e, repeats + 1, dim=1)[:, :x.size(1)]
+
+
+class WanFeedForward(nn.Sequential):
+    """[Linear, GELU(tanh), Linear], with the GELU folded into the down-projection."""
+
+    def forward(self, x):
+        return comfy.ops.linear_input_act(self[2], self[0](x), "gelu_tanh")
 
 
 class WanAttentionBlock(nn.Module):
@@ -207,7 +216,7 @@ class WanAttentionBlock(nn.Module):
                                                                       qk_norm,
                                                                       eps, operation_settings=operation_settings)
         self.norm2 = operation_settings.get("operations").LayerNorm(dim, eps, elementwise_affine=False, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
-        self.ffn = nn.Sequential(
+        self.ffn = WanFeedForward(
             operation_settings.get("operations").Linear(dim, ffn_dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")), nn.GELU(approximate='tanh'),
             operation_settings.get("operations").Linear(ffn_dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")))
 

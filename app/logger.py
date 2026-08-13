@@ -6,7 +6,7 @@ import os
 import sys
 import threading
 
-import comfy.logging
+import comfy.internal_logging
 
 ANSI_NAMED_COLORS = {
     'black':   '\033[30m',
@@ -91,7 +91,7 @@ def on_flush(callback):
 
 
 def get_log_level(level):
-    return comfy.logging.DETAIL if level == "DETAIL" else logging.getLevelName(level)
+    return comfy.internal_logging.DETAIL if level == "DETAIL" else logging.getLevelName(level)
 
 
 def setup_logger(log_level: str = 'INFO', file_outputs=None, capacity: int = 300, use_stdout: bool = False):
@@ -113,7 +113,7 @@ def setup_logger(log_level: str = 'INFO', file_outputs=None, capacity: int = 300
     logger = logging.getLogger()
     console_level = get_log_level(log_level)
     file_levels = [get_log_level(level) for level, _ in file_outputs]
-    logger.setLevel(min(console_level, *file_levels))
+    logger.setLevel(min([console_level, *file_levels]))
 
     formatter = ColoredFormatter("%(message)s")
 
