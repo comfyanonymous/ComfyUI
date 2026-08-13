@@ -3,6 +3,7 @@ import threading
 import weakref
 
 import comfy_aimdo.model_vbar
+from comfy.cli_args import args
 import comfy.memory_management
 import comfy.model_management
 import comfy.ops
@@ -48,6 +49,7 @@ def cleanup_prefetch_queues():
     GRAPH_CAPTURE_STREAMS = {}
 
 def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False, generator=None):
+    enable_graph = enable_graph and not args.disable_cuda_graphs
     if queue is None:
         if core is not None:
             core()
@@ -62,7 +64,7 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
 
     signature = None
     graph_hit = False
-    graph = getattr(module, "_comfy_graph", None)
+    graph = getattr(module, "_comfy_graph", None) if enable_graph else None
     if graph is not None:
         signature = comfy_aimdo.model_vbar.vbar_fault(module._v_block)
         if signature is not None:
