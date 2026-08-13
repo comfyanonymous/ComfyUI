@@ -31,8 +31,6 @@ class FixedKV:
     index: int
     position: torch.Tensor
     seqlen: torch.Tensor
-    cu_q: torch.Tensor
-    cu_k: torch.Tensor
 
     def prepare(self, num_tokens):
         self.position.fill_(self.index)
@@ -803,9 +801,7 @@ class Llama2_(nn.Module):
                 value = torch.empty_like(key)
                 position = torch.empty((1,), device=device, dtype=torch.int64)
                 seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
-                cu_q = torch.arange(batch + 1, device=device, dtype=torch.int32)
-                cu_k = cu_q * capacity
-                caches.append(FixedKV(key, value, 0, position, seqlen, cu_q, cu_k))
+                caches.append(FixedKV(key, value, 0, position, seqlen))
             else:
                 key = torch.empty((batch, self.config.num_key_value_heads, capacity, self.config.head_dim), device=device, dtype=dtype)
                 caches.append((key, torch.empty_like(key), 0))
