@@ -424,6 +424,17 @@ def prompt_worker(q, server_instance):
                 asset_seeder.resume()
 
 
+def suppress_proactor_connection_reset(loop, context):
+    # On Windows the proactor event loop tears down transports with
+    # socket.shutdown(), which raises WinError 10054 if the client (usually the
+    # frontend websocket) already disconnected abruptly. The connection is gone
+    # either way, so drop the error traceback instead of logging it after every
+    # generation. See https://github.com/Comfy-Org/ComfyUI/issues/15163
+    if isinstance(context.get("exception"), ConnectionResetError) and "_Proactor" in context.get("message", ""):
+        return
+    loop.default_exception_handler(context)
+
+
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
     addresses = []
     for addr in address.split(","):
@@ -512,6 +523,8 @@ def start_comfyui(asyncio_loop=None):
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
+        if os.name == "nt":
+            asyncio_loop.set_exception_handler(suppress_proactor_connection_reset)
     prompt_server = server.PromptServer(asyncio_loop)
 
     if args.enable_manager and not args.disable_manager_ui:
