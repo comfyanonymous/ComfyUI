@@ -495,10 +495,20 @@ class Gemma4Transformer(nn.Module):
             for i in range(first_kv_shared):
                 share_source[bool(self.layers[i].sliding_attention)] = i
 
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(
+            list(self._prefetch_units), x.device,
+            {"prefetch_dynamic_vbars": self.prefetch_dynamic_vbars and past_key_values is not None})
+
         fixed_kv = (past_key_values is not None and len(past_key_values) > 0
                     and isinstance(past_key_values[0], FixedKV))
         decode = fixed_kv and seq_len == 1 and mask is None
-        enable_graph = decode and self.graph_dynamic_vbar_blocks and hasattr(self.layers[0], "_v_block")
+        # mirror the conditions under which prefetch_queue_pop can actually capture, so
+        # eager fallbacks keep the sliced decode path instead of the full-capacity one
+        enable_graph = (decode and self.graph_dynamic_vbar_blocks
+                        and prefetch_queue is not None
+                        and hasattr(self.layers[0], "_v_block")
+                        and not comfy.model_management.args.disable_cuda_graphs
+                        and comfy.model_management.is_device_cuda(x.device))
         decode_bias = None
         if decode:
             prepared = set()
@@ -552,10 +562,6 @@ class Gemma4Transformer(nn.Module):
                 intermediate_output = None
             elif intermediate_output < 0:
                 intermediate_output = len(self.layers) + intermediate_output
-
-        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(
-            list(self._prefetch_units), x.device,
-            {"prefetch_dynamic_vbars": self.prefetch_dynamic_vbars and past_key_values is not None})
 
         next_key_values = []
         for i, layer in enumerate(self.layers):
