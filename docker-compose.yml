@@ -27,3 +27,10 @@ services:
       # 下载/元数据请求超时，避免连不上时无限阻塞 ComfyUI 执行队列
       HF_HUB_DOWNLOAD_TIMEOUT: "30"
       HF_HUB_ETAG_TIMEOUT: "10"
+    # Keep the container privileged for ComfyUI-Manager's automatic package
+    # installs, while making files created in the bind-mounted data folders
+    # group-writable by the host user (momo, gid 1000).
+    command:
+      - /bin/sh
+      - -lc
+      - umask 0002 && exec python main.py --listen 0.0.0.0 --port 8188 --enable-manager-legacy-ui --disable-cuda-malloc --reserve-vram 1.5

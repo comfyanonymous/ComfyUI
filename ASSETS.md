@@ -31,6 +31,7 @@ Docker Compose 会挂载仓库根目录下的 `custom_nodes/` 和 `models/`，�
 | `comfyui-frame-interpolation` | [Fannovel16/ComfyUI-Frame-Interpolation](https://github.com/Fannovel16/ComfyUI-Frame-Interpolation) |
 | `comfyui-videohelpersuite` | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) |
 | `comfyui_controlnet_aux` | [Fannovel16/comfyui_controlnet_aux](https://github.com/Fannovel16/comfyui_controlnet_aux) |
+| `.disabled/sources/perfectPixel` | [theamusing/perfectPixel](https://github.com/theamusing/perfectPixel)（上游源码，置于禁用区避免被 ComfyUI 重复扫描） |
 | `rgthree-comfy` | [rgthree/rgthree-comfy](https://github.com/rgthree/rgthree-comfy) |
 | `was-ns` | [ltdrdata/was-node-suite-comfyui](https://github.com/ltdrdata/was-node-suite-comfyui) |
 
@@ -68,16 +69,27 @@ was-ns https://github.com/ltdrdata/was-node-suite-comfyui.git
 NODES
 ```
 
+`perfectPixel` 的 ComfyUI 包位于上游仓库子目录。首次克隆后，在仓库根目录创建以下链接；以后只需在
+`custom_nodes/.disabled/sources/perfectPixel` 中执行 `git pull`，节点代码会随上游一起更新：
+
+```bash
+mkdir -p custom_nodes/.disabled/sources
+[ -d custom_nodes/.disabled/sources/perfectPixel ] || git clone https://github.com/theamusing/perfectPixel.git custom_nodes/.disabled/sources/perfectPixel
+mkdir -p custom_nodes/PerfectPixelComfy
+cp custom_node_overlays/PerfectPixelComfy/__init__.py custom_nodes/PerfectPixelComfy/__init__.py
+ln -sfn ../.disabled/sources/perfectPixel/integrations/comfyui/PerfectPixelComfy/nodes_perfect_pixel.py custom_nodes/PerfectPixelComfy/nodes_perfect_pixel.py
+ln -sfn ../.disabled/sources/perfectPixel/src/perfect_pixel/perfect_pixel.py custom_nodes/PerfectPixelComfy/perfect_pixel.py
+ln -sfn ../.disabled/sources/perfectPixel/src/perfect_pixel/perfect_pixel_noCV2.py custom_nodes/PerfectPixelComfy/perfect_pixel_noCV2.py
+```
+
 ### SOS 本地扩展
 
 以下目录当前没有可直接克隆的独立扩展仓库，不包含在一键安装命令中：
 
 | 扩展 | 说明 |
 | --- | --- |
-| `ComfyUI-FrameRonin-API` | SOS 本地 API 节点 |
-| `ComfyUI-FrameRonin-Matte` | 从 [systemchester/FrameRonin](https://github.com/systemchester/FrameRonin) 移植的抠图节点 |
-| `ComfyUI-FrameRonin-Pixel` | 从 [systemchester/FrameRonin](https://github.com/systemchester/FrameRonin) 移植的像素与 Sprite 节点 |
 | `ComfyUI-SOS-RigTools` | SOS 本地 Rig 工具节点 |
+| `PerfectPixelComfy` | 链接 `.disabled/sources/perfectPixel` 上游仓库内置的 ComfyUI 集成与算法源码，保留直接 `git pull` 更新能力 |
 
 ## 模型
 
