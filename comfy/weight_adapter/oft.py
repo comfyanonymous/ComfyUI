@@ -232,7 +232,7 @@ class OFTAdapter(WeightAdapterBase):
             _, *shape = weight.shape
             lora_diff = torch.einsum(
                 "k n m, k n ... -> k m ...",
-                (r * strength) - strength * I_w,
+                r - I_w,
                 weight.view(block_num, block_size, *shape),
             ).view(-1, *shape)
             if dora_scale is not None:

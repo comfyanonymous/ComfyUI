@@ -126,7 +126,7 @@ class BOFTAdapter(WeightAdapterBase):
                     function,
                 )
             else:
-                weight += function((strength * lora_diff).type(weight.dtype))
+                weight += function(lora_diff.type(weight.dtype))
         except Exception as e:
             logging.error("ERROR {} {} {}".format(self.name, key, e))
         return weight
