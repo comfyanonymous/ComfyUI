@@ -529,6 +529,9 @@ class VAE:
                 self.working_dtypes = [torch.float32]
                 self.disable_offload = True
                 self.memory_used_decode = lambda shape, dtype: (shape[-1] * 512 * 1400 + 800_000_000) * model_management.dtype_size(dtype)
+                def _no_encode(*args, **kwargs):
+                    raise RuntimeError("MiniMax Music3 DAV cannot encode audio")
+                self.memory_used_encode = _no_encode
             elif "decoder.mid.block_1.mix_factor" in sd:
                 encoder_config = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 decoder_config = encoder_config.copy()
