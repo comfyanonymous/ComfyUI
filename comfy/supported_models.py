@@ -2218,7 +2218,10 @@ class MiniMaxMusic3(supported_models_base.BASE):
         return model_base.ModelType.FLOW
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.minimax_music.MiniMaxMusic3Tokenizer, comfy.text_encoders.minimax_music.MiniMaxMusic3TEModel)
+        detect = comfy.text_encoders.minimax_music.detect_merged_config(state_dict, self.text_encoder_key_prefix[0])
+        target = supported_models_base.ClipTarget(comfy.text_encoders.minimax_music.MiniMaxMusic3Tokenizer, comfy.text_encoders.minimax_music.MiniMaxMusic3TEModel)
+        target.params["projection_config"] = detect
+        return target
 
 
 class LongCatImage(supported_models_base.BASE):

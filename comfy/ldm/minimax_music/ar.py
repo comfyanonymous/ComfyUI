@@ -43,15 +43,17 @@ def sample_topk(logits, top_k, generator):
 
 
 class RVQAttention(nn.Module):
-    def __init__(self, hidden_size, num_heads, dtype, device, operations):
+    def __init__(self, hidden_size, num_heads, merged_qkv, dtype, device, operations):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = hidden_size // num_heads
-        self.merged_qkv = None
-        self.qkv_proj = operations.Linear(hidden_size, hidden_size * 3, bias=False, dtype=dtype, device=device)
-        self.q_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
-        self.k_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
-        self.v_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
+        self.merged_qkv = merged_qkv
+        if merged_qkv:
+            self.qkv_proj = operations.Linear(hidden_size, hidden_size * 3, bias=False, dtype=dtype, device=device)
+        else:
+            self.q_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
+            self.k_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
+            self.v_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
         self.o_proj = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
 
     def forward(self, x):
@@ -81,12 +83,14 @@ class RVQRMSNorm(nn.Module):
 
 
 class RVQMLP(nn.Module):
-    def __init__(self, hidden_size, intermediate_size, dtype, device, operations):
+    def __init__(self, hidden_size, intermediate_size, merged_mlp, dtype, device, operations):
         super().__init__()
-        self.merged_mlp = None
-        self.gate_up_proj = operations.Linear(hidden_size, intermediate_size * 2, bias=False, dtype=dtype, device=device)
-        self.gate_proj = operations.Linear(hidden_size, intermediate_size, bias=False, dtype=dtype, device=device)
-        self.up_proj = operations.Linear(hidden_size, intermediate_size, bias=False, dtype=dtype, device=device)
+        self.merged_mlp = merged_mlp
+        if merged_mlp:
+            self.gate_up_proj = operations.Linear(hidden_size, intermediate_size * 2, bias=False, dtype=dtype, device=device)
+        else:
+            self.gate_proj = operations.Linear(hidden_size, intermediate_size, bias=False, dtype=dtype, device=device)
+            self.up_proj = operations.Linear(hidden_size, intermediate_size, bias=False, dtype=dtype, device=device)
         self.down_proj = operations.Linear(intermediate_size, hidden_size, bias=False, dtype=dtype, device=device)
 
     def forward(self, x):
@@ -96,12 +100,12 @@ class RVQMLP(nn.Module):
 
 
 class RVQDecoderBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, intermediate_size, dtype, device, operations):
+    def __init__(self, hidden_size, num_heads, intermediate_size, merged_qkv, merged_mlp, dtype, device, operations):
         super().__init__()
         self.input_layernorm = RVQRMSNorm(hidden_size, dtype, device)
-        self.self_attn = RVQAttention(hidden_size, num_heads, dtype, device, operations)
+        self.self_attn = RVQAttention(hidden_size, num_heads, merged_qkv, dtype, device, operations)
         self.post_attention_layernorm = RVQRMSNorm(hidden_size, dtype, device)
-        self.mlp = RVQMLP(hidden_size, intermediate_size, dtype, device, operations)
+        self.mlp = RVQMLP(hidden_size, intermediate_size, merged_mlp, dtype, device, operations)
 
     def forward(self, x):
         x = x + self.self_attn(self.input_layernorm(x))
@@ -113,6 +117,8 @@ class RVQDepthDecoder(nn.Module):
         super().__init__()
         hidden_size = int(config["hidden_size"])
         audio_vocab_size = int(config["audio_vocab_size"])
+        merged_qkv = config.get("decoder_merged_qkv", False)
+        merged_mlp = config.get("decoder_merged_mlp", False)
         num_codebooks = int(config["audio_num_codebooks"])
         self.projection = operations.Linear(hidden_size, hidden_size, bias=False, dtype=dtype, device=device)
         self.pos_embedding = operations.Embedding(16, hidden_size, dtype=dtype, device=device)
@@ -125,6 +131,8 @@ class RVQDepthDecoder(nn.Module):
                 hidden_size,
                 int(config["decoder_num_heads"]),
                 int(config["decoder_intermediate_size"]),
+                merged_qkv,
+                merged_mlp,
                 dtype,
                 device,
                 operations,
@@ -148,8 +156,6 @@ class MiniMaxMusic3AR(nn.Module):
         qwen_config = Qwen3_8BConfig(**{key: value for key, value in config.items() if key in config_fields})
         qwen_config.lm_head = False
         qwen_config.fixed_kv = True
-        qwen_config.merged_qkv = None
-        qwen_config.merged_mlp = None
         self.model = Llama2_(qwen_config, device=device, dtype=dtype, ops=operations)
         self.model.prefetch_dynamic_vbars = True
         self.model.graph_dynamic_vbar_blocks = True
