@@ -493,7 +493,12 @@ try:
         def aotriton_supported(gpu_arch):
             path = torch.__path__[0]
             path = os.path.join(os.path.join(path, "lib"), "aotriton.images")
-            gfx = set(map(lambda a: a[4:], filter(lambda a: a.startswith("amd-gfx"), os.listdir(path))))
+            try:
+                aotriton_files = os.listdir(path)
+            except FileNotFoundError:
+                logging.warning("No aotriton.images in this torch build, pytorch attention will not be auto enabled: {}".format(path))
+                return False
+            gfx = set(map(lambda a: a[4:], filter(lambda a: a.startswith("amd-gfx"), aotriton_files)))
             if gpu_arch in gfx:
                 return True
             if "{}x".format(gpu_arch[:-1]) in gfx:
