@@ -15,7 +15,7 @@ SPECIAL_TOKEN_IDS = {
 AUDIO_CODE_OFFSET = 151675
 
 _SPECIAL_TAG_RE = re.compile(r"<\|([^|]*)\|>")
-_LEADING_TAGS_RE = re.compile(r"^[ \t]*((?:\[[^\]]+\][ \t]*)+)")
+_LYRIC_TAG_RE = re.compile(r"\s*(\[[^\]]+\])\s*")
 
 
 def _remove_markdown_format(text):
@@ -47,15 +47,9 @@ def clean_caption(caption):
 
 
 def normalize_lyrics(lyrics):
-    lines = []
-    for line in lyrics.split("\n"):
-        match = _LEADING_TAGS_RE.match(line)
-        lines.append(match.group(1).strip() if match else line)
-    text = "\n".join(lines)
-    text = text.replace("] ", "]\n")
-    text = text.replace(" [", "\n[")
+    parts = _LYRIC_TAG_RE.split(lyrics)
+    text = "\n".join(part.lower() if part.startswith("[") else part for part in parts if part)
     text = text.replace(" ^ ", "\n")
-    text = re.sub(r"\[([^\]]+)\]", lambda match: f"[{match.group(1).lower()}]", text)
     return f"[start]\n{text}"
 
 
