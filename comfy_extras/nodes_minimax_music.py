@@ -32,10 +32,6 @@ class MiniMaxMusic3TextEncode(io.ComfyNode):
 
     @classmethod
     def execute(cls, clip, caption, lyrics, seed, max_duration, cfg_scale, top_k):
-        if not caption.strip():
-            raise ValueError("MiniMax Music3 caption must not be empty")
-        if not lyrics.strip():
-            raise ValueError("MiniMax Music3 lyrics must not be empty")
         max_audio_frames = min(MAX_AUDIO_FRAMES, max(1, round(max_duration * 25)))
         tokens = clip.tokenize(caption, lyrics=lyrics, seed=seed, max_audio_frames=max_audio_frames, cfg_scale=cfg_scale, top_k=top_k)
         conditioning = clip.encode_from_tokens_scheduled(tokens)
