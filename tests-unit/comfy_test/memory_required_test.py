@@ -43,6 +43,11 @@ def test_pytorch_flash_attention_uses_efficient_estimate(monkeypatch):
     assert _estimate() == EFFICIENT
 
 
+def test_xformers_uses_efficient_estimate(monkeypatch):
+    _patch_attention(monkeypatch, xformers=True)
+    assert _estimate() == EFFICIENT
+
+
 def test_flash_attention_flag_uses_efficient_estimate(monkeypatch):
     # --use-flash-attention must select the efficient estimate even when
     # pytorch attention was not auto enabled (e.g. torch builds without
