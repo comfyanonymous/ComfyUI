@@ -1716,6 +1716,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if quant is not None:
                 model_options = model_options.copy()
                 model_options["quantization_metadata"] = quant
+            clip_target.params["projection_config"] = comfy.text_encoders.minimax_music.detect_merged_config(clip_data[0])
             clip_target.clip = comfy.text_encoders.minimax_music.MiniMaxMusic3TEModel
             clip_target.tokenizer = comfy.text_encoders.minimax_music.MiniMaxMusic3Tokenizer
         elif te_model == TEModel.CLIP_G:

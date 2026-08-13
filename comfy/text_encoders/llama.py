@@ -17,13 +17,6 @@ import comfy.clip_model
 from . import qwen_vl
 
 
-def detect_merged_config(state_dict, prefix="", layer_prefix="model.layers.0."):
-    return {
-        "merged_qkv": "{}{}self_attn.qkv_proj.weight".format(prefix, layer_prefix) in state_dict,
-        "merged_mlp": "{}{}mlp.gate_up_proj.weight".format(prefix, layer_prefix) in state_dict,
-    }
-
-
 @dataclass
 class FixedKV:
     key: torch.Tensor
@@ -528,9 +521,9 @@ class Attention(nn.Module):
         ops = ops or nn
         self.kv_size = self.num_kv_heads * self.head_dim
         self.merged_qkv = getattr(config, "merged_qkv", False)
-        if self.merged_qkv is not False:
+        if self.merged_qkv:
             self.qkv_proj = ops.Linear(config.hidden_size, self.inner_size + self.kv_size * 2, bias=config.qkv_bias, device=device, dtype=dtype)
-        if self.merged_qkv is not True:
+        else:
             self.q_proj = ops.Linear(config.hidden_size, self.inner_size, bias=config.qkv_bias, device=device, dtype=dtype)
             self.k_proj = ops.Linear(config.hidden_size, self.kv_size, bias=config.qkv_bias, device=device, dtype=dtype)
             self.v_proj = ops.Linear(config.hidden_size, self.kv_size, bias=config.qkv_bias, device=device, dtype=dtype)
@@ -627,9 +620,9 @@ class MLP(nn.Module):
         super().__init__()
         intermediate_size = intermediate_size or config.intermediate_size
         self.merged_mlp = getattr(config, "merged_mlp", False)
-        if self.merged_mlp is not False:
+        if self.merged_mlp:
             self.gate_up_proj = ops.Linear(config.hidden_size, intermediate_size * 2, bias=False, device=device, dtype=dtype)
-        if self.merged_mlp is not True:
+        else:
             self.gate_proj = ops.Linear(config.hidden_size, intermediate_size, bias=False, device=device, dtype=dtype)
             self.up_proj = ops.Linear(config.hidden_size, intermediate_size, bias=False, device=device, dtype=dtype)
         self.down_proj = ops.Linear(intermediate_size, config.hidden_size, bias=False, device=device, dtype=dtype)
