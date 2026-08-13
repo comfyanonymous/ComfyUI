@@ -265,6 +265,7 @@ class MiniMaxMusic3AR(nn.Module):
         pending_event = None
         pending_hidden = None
         progress = comfy.utils.ProgressBar(decode_limit)
+        cuda_device = torch.device(device).type == "cuda"
         vocab_mask = None
         if not self.model.pruned_lm_head:
             vocab_mask = torch.ones(self.model.vocab_size, dtype=torch.bool, device=device)
@@ -273,8 +274,9 @@ class MiniMaxMusic3AR(nn.Module):
 
         for frame_index in comfy.utils.model_trange(decode_limit + 1, desc="AR sampling"):
             comfy.model_management.throw_exception_if_processing_interrupted()
-            if pending_event is not None:
-                pending_event.synchronize()
+            if pending_code is not None:
+                if pending_event is not None:
+                    pending_event.synchronize()
                 if int(pending_code.item()) == stop_token:
                     pending_hidden = None
                     break
@@ -286,10 +288,12 @@ class MiniMaxMusic3AR(nn.Module):
 
             c0, code_or_stop, stop_token = self._sample_c0(last_hidden, cfg_scale, top_k, generator, vocab_mask)
             if pending_code is None:
-                pending_code = torch.empty_like(code_or_stop, device="cpu", pin_memory=True)
-                pending_event = torch.cuda.Event()
-            pending_code.copy_(code_or_stop, non_blocking=True)
-            pending_event.record()
+                pending_code = torch.empty_like(code_or_stop, device="cpu", pin_memory=cuda_device)
+                if cuda_device:
+                    pending_event = torch.cuda.Event()
+            pending_code.copy_(code_or_stop, non_blocking=cuda_device)
+            if pending_event is not None:
+                pending_event.record()
 
             c0 = c0.repeat(2)
             c0_embed = self._embed_c0(c0, execution_dtype)
@@ -323,7 +327,8 @@ class MiniMaxMusic3AR(nn.Module):
             past = output[2]
 
         if pending_hidden is not None and len(hidden_frames) < decode_limit:
-            pending_event.synchronize()
+            if pending_event is not None:
+                pending_event.synchronize()
             if int(pending_code.item()) != stop_token:
                 hidden_frames.append(pending_hidden)
 
