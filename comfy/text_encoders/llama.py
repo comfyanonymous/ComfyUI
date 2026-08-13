@@ -583,7 +583,7 @@ class Attention(nn.Module):
                 fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
                 fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
                 output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
-                return self.o_proj(output.view(hidden_states.shape)), fixed_cache
+                return self.o_proj(output.view(batch_size, seq_length, self.inner_size)), fixed_cache
 
             fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
             fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
