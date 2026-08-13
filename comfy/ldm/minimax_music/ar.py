@@ -210,7 +210,7 @@ class MiniMaxMusic3AR(nn.Module):
         extra = self.model.audio_extra_embedding(codes[:, 1:] + offsets.unsqueeze(0), out_dtype=execution_dtype).sum(dim=1)
         return ((c0 + extra) * self.embedding_scale).unsqueeze(1)
 
-    def _sample_c0(self, hidden, cfg_scale, top_k, generator):
+    def _sample_c0(self, hidden, cfg_scale, top_k, generator, vocab_mask):
         if self.model.pruned_lm_head:
             guided = self._guided_c0(self.model.lm_head_pruned(hidden).float(), cfg_scale, top_k)
             code = sample_topk(guided, top_k, generator)
@@ -218,12 +218,9 @@ class MiniMaxMusic3AR(nn.Module):
             offset = 1
         else:
             logits = self.model.lm_head(hidden).float()
-            mask = torch.ones_like(logits, dtype=torch.bool)
-            mask[:, AUDIO_CODE_OFFSET:AUDIO_CODE_OFFSET + C0_VOCAB_SIZE] = False
             stop_token = SPECIAL_TOKEN_IDS["<|audio_end|>"]
-            mask[:, stop_token] = False
-            logits = logits.masked_fill(mask, -float("inf"))
-            guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(mask[:1], -float("inf"))
+            logits = logits.masked_fill(vocab_mask, -float("inf"))
+            guided = self._guided_c0(logits, cfg_scale, top_k).masked_fill(vocab_mask, -float("inf"))
             code = sample_topk(guided, top_k, generator)
             offset = AUDIO_CODE_OFFSET
         return torch.where(code == stop_token, 0, code - offset), code, stop_token
@@ -268,6 +265,11 @@ class MiniMaxMusic3AR(nn.Module):
         pending_event = None
         pending_hidden = None
         progress = comfy.utils.ProgressBar(decode_limit)
+        vocab_mask = None
+        if not self.model.pruned_lm_head:
+            vocab_mask = torch.ones(self.model.vocab_size, dtype=torch.bool, device=device)
+            vocab_mask[AUDIO_CODE_OFFSET:AUDIO_CODE_OFFSET + C0_VOCAB_SIZE] = False
+            vocab_mask[SPECIAL_TOKEN_IDS["<|audio_end|>"]] = False
 
         for frame_index in comfy.utils.model_trange(decode_limit + 1, desc="AR sampling"):
             comfy.model_management.throw_exception_if_processing_interrupted()
@@ -282,7 +284,7 @@ class MiniMaxMusic3AR(nn.Module):
                     if len(hidden_frames) >= decode_limit:
                         break
 
-            c0, code_or_stop, stop_token = self._sample_c0(last_hidden, cfg_scale, top_k, generator)
+            c0, code_or_stop, stop_token = self._sample_c0(last_hidden, cfg_scale, top_k, generator, vocab_mask)
             if pending_code is None:
                 pending_code = torch.empty_like(code_or_stop, device="cpu", pin_memory=True)
                 pending_event = torch.cuda.Event()
