@@ -423,7 +423,7 @@ class BaseModel(torch.nn.Module):
                 if len(shape) > 0:
                     input_shapes += shape
 
-        if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
+        if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention() or comfy.model_management.flash_attention_enabled():
             dtype = self.get_dtype_inference()
             #TODO: this needs to be tweaked
             area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
