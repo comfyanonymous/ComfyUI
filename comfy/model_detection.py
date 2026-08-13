@@ -44,6 +44,13 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
 def detect_unet_config(state_dict, key_prefix, metadata=None):
     state_dict_keys = list(state_dict.keys())
 
+    if (
+        '{}cond_layer_logits'.format(key_prefix) in state_dict_keys
+        and '{}latent_conditioners.0.weight'.format(key_prefix) in state_dict_keys
+        and '{}diffusion_transformer.transformer.layers.0.self_attn.to_qkv.weight'.format(key_prefix) in state_dict_keys
+    ):
+        return {"audio_model": "minimax_music3"}
+
     if '{}joint_blocks.0.context_block.attn.qkv.weight'.format(key_prefix) in state_dict_keys: #mmdit model
         unet_config = {}
         unet_config["in_channels"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[1]
