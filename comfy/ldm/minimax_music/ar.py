@@ -262,6 +262,7 @@ class MiniMaxMusic3AR(nn.Module):
         comfy.model_management._register_cross_step(decoder)
         hidden_frames = []
         pending_code = None
+        stop_token = None
         pending_event = None
         pending_hidden = None
         progress = comfy.utils.ProgressBar(decode_limit)
