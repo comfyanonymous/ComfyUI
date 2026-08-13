@@ -2069,7 +2069,7 @@ def _seedance2_text_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     ]
 
 
-def _seedance25_text_inputs(with_ratio: bool = True, with_video_editing: bool = False):
+def _seedance25_text_inputs(with_ratio: bool = True, with_task_type: bool = False):
     return [
         IO.String.Input(
             "prompt",
@@ -2112,30 +2112,39 @@ def _seedance25_text_inputs(with_ratio: bool = True, with_video_editing: bool = 
         ),
         *(
             [
-                IO.Boolean.Input(
-                    "video_editing",
-                    default=False,
-                    tooltip="Enable when the prompt edits a connected reference video, for example "
-                    "replacing an object in it. The output then keeps the source clip's own length "
-                    "and aspect ratio, and the duration and ratio widgets are ignored. Leave "
-                    "disabled to generate a new video, or to extend one to the duration you set.",
+                IO.Combo.Input(
+                    "task_type",
+                    options=["auto", "reference", "edit", "extend"],
+                    default="auto",
+                    tooltip="Which job to run against the connected references.\n"
+                    "auto: let the model infer the job from the prompt and the references.\n"
+                    "reference: generate a new video guided by the references.\n"
+                    "edit: change the visuals or audio of a connected video. The output keeps that "
+                    "clip's length and aspect ratio, so the duration and ratio widgets are ignored.\n"
+                    "extend: continue a connected video to the duration you set. Describe the "
+                    "direction, forward or backward, in the prompt. The aspect ratio is taken from "
+                    "the source clip, so the ratio widget is ignored.\n"
+                    "Naming the job instead of leaving it on auto validates the request when it is "
+                    "submitted, rather than failing part-way through generation.",
                 )
             ]
-            if with_video_editing
+            if with_task_type
             else []
         ),
         IO.Combo.Input(
             "output_format",
-            options=["mp4"],
+            options=["mp4", "mov"],
             default="mp4",
-            tooltip="Container format of the output video.",
+            tooltip="Container format of the output video. MOV preserves color and brightness more "
+            "precisely and is the provider's recommendation for edit and extend, where the output "
+            "has to match footage you already have. Some players do not support it.",
         ),
     ]
 
 
 def _seedance25_reference_inputs():
     return [
-        *_seedance25_text_inputs(with_video_editing=True),
+        *_seedance25_text_inputs(with_task_type=True),
         IO.Autogrow.Input(
             "reference_images",
             template=IO.Autogrow.TemplateNames(
@@ -2196,17 +2205,27 @@ def _seedance2_build_request(
     watermark: bool,
     ratio: str,
 ) -> Seedance2TaskCreationRequest:
-    video_editing = bool(model.get("video_editing"))
+    # Only the reference node offers task_type; the text-to-video and first/last-frame nodes
+    # share this builder and have no such widget, so an absent key means a plain generation.
+    task_type = model.get("task_type", "auto")
+    duration = model["duration"]
+    if task_type == "edit":
+        # An edit always inherits the source clip's aspect ratio and length.
+        ratio, duration = "adaptive", -1
+    elif task_type == "extend":
+        # An extension inherits the aspect ratio but keeps the requested length.
+        ratio = "adaptive"
     return Seedance2TaskCreationRequest(
         model=model_id,
         content=content,
         generate_audio=model["generate_audio"],
         resolution=model["resolution"],
-        ratio="adaptive" if video_editing else ratio,
-        duration=-1 if video_editing else model["duration"],
+        ratio=ratio,
+        duration=duration,
         seed=seed,
         watermark=watermark,
         output_format=model.get("output_format"),
+        omni_reference_task_type=None if task_type == "auto" else task_type,
     )
 
 
@@ -2216,7 +2235,7 @@ _SEEDANCE2_PRICE_EXPR_TEMPLATE = """
   $res := $lookup(widgets, "model.resolution");
   $ratio := $lookup(widgets, "model.ratio");
   $dur := $lookup(widgets, "model.duration");
-  $auto := $lookup(widgets, "model.video_editing") = true;
+  $auto := $lookup(widgets, "model.task_type") = "edit";
   $hasVideo := __HAS_VIDEO__;
   $ready := $type($m) = "string" and $type($res) = "string" and ($auto or $type($dur) = "number");
   $ready ? (
@@ -2261,6 +2280,7 @@ _SEEDANCE2_PRICE_EXPR_TEMPLATE = """
 
 _SEEDANCE_AUDIO_POLICY_CODE = "OutputAudioSensitiveContentDetected.PolicyViolation"
 _SEEDANCE_TASK_TYPE_CONSTRAINT_CODE = "InvalidParameter.TaskTypeConstraint"
+_SEEDANCE_TASK_TYPE_MISMATCH_CODE = "InvalidParameter.TaskTypeMismatch"
 
 
 async def _seedance2_poll_video_task(
@@ -2269,6 +2289,7 @@ async def _seedance2_poll_video_task(
     model_id: str,
     resolution: str,
     has_video_input: bool,
+    task_type: str = "auto",
 ) -> TaskStatusResponse:
     try:
         return await poll_op(
@@ -2289,11 +2310,25 @@ async def _seedance2_poll_video_task(
                 "to get a silent video, or adjust the prompt and try again."
             ) from exc
         if _SEEDANCE_TASK_TYPE_CONSTRAINT_CODE in str(exc):
+            if task_type == "auto":
+                raise ValueError(
+                    "Seedance read this prompt as editing the reference video, and an edit always "
+                    "takes its duration and aspect ratio from that video. Set task_type on this "
+                    "node to the job you actually want, then run again. Use 'extend' to continue "
+                    "the reference video, 'reference' to generate a new one from it, or 'edit' to "
+                    "change it in place."
+                ) from exc
             raise ValueError(
-                "Seedance read this prompt as editing the reference video, and an edit always "
-                "takes its duration and aspect ratio from that video. Enable video_editing on "
-                "this node and run again, or reword the prompt so it describes a new video "
-                "rather than a change to the reference one."
+                f"The request does not satisfy the constraints for a '{task_type}' task. "
+                "An edit takes its duration and aspect ratio from the reference video, and an "
+                "extension takes its aspect ratio from it. Check that a reference video is "
+                "connected and that its length is within the model's limits."
+            ) from exc
+        if _SEEDANCE_TASK_TYPE_MISMATCH_CODE in str(exc):
+            raise ValueError(
+                f"You asked for a '{task_type}' task, but Seedance read the prompt as a different "
+                "job. Reword the prompt so it clearly describes that job, or set task_type to "
+                "'auto' to let the model decide."
             ) from exc
         raise
 
@@ -2301,7 +2336,7 @@ async def _seedance2_poll_video_task(
 def _seedance2_price_badge(with_reference_videos: bool) -> IO.PriceBadge:
     widgets = ["model", "model.resolution", "model.ratio", "model.duration"]
     if with_reference_videos:
-        widgets.append("model.video_editing")
+        widgets.append("model.task_type")
     has_video = (
         '$exists(inputGroups) and $lookup(inputGroups, "model.reference_videos") > 0'
         if with_reference_videos
@@ -2747,6 +2782,16 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             if model_id != "dreamina-seedance-2-5-260628" or not (reference_audios or reference_audio_assets):
                 raise ValueError("At least one reference image or video or asset is required.")
 
+        # Checked before the reference assets are uploaded, so an unsatisfiable request fails
+        # immediately rather than after a full upload and a round trip to the provider.
+        task_type = model.get("task_type", "auto")
+        if task_type in ("edit", "extend") and not reference_videos and not reference_video_assets:
+            raise ValueError(
+                f"A '{task_type}' task needs at least one reference video. Connect the video you "
+                f"want to {'change' if task_type == 'edit' else 'continue'}, or set task_type to "
+                "'reference' to generate a new video from the references you have."
+            )
+
         total_images = len(reference_images) + len(reference_image_assets)
         if total_images > limits["max_images"]:
             raise ValueError(
@@ -2893,7 +2938,12 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             response_model=TaskCreationResponse,
         )
         response = await _seedance2_poll_video_task(
-            cls, initial_response.id, model_id, model["resolution"], has_video_input=has_video_input
+            cls,
+            initial_response.id,
+            model_id,
+            model["resolution"],
+            has_video_input=has_video_input,
+            task_type=task_type,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
