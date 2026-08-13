@@ -44,6 +44,13 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
 def detect_unet_config(state_dict, key_prefix, metadata=None):
     state_dict_keys = list(state_dict.keys())
 
+    if (
+        '{}cond_layer_logits'.format(key_prefix) in state_dict_keys
+        and '{}latent_conditioners.0.weight'.format(key_prefix) in state_dict_keys
+        and '{}diffusion_transformer.transformer.layers.0.self_attn.to_qkv.weight'.format(key_prefix) in state_dict_keys
+    ):
+        return {"audio_model": "minimax_music3"}
+
     if '{}joint_blocks.0.context_block.attn.qkv.weight'.format(key_prefix) in state_dict_keys: #mmdit model
         unet_config = {}
         unet_config["in_channels"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[1]
@@ -378,6 +385,35 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         # PixArt diffusers
         return None
 
+    if '{}video_patch_proj.weight'.format(key_prefix) in state_dict_keys and '{}audio_patch_proj.weight'.format(key_prefix) in state_dict_keys: # MiniMax H3
+        dit_config = {}
+        dit_config["image_model"] = "minimax_h3"
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        dit_config["token_refiner_num_layers"] = count_blocks(state_dict_keys, '{}token_refiner.blocks.'.format(key_prefix) + '{}.')
+        dit_config["hidden_size"] = state_dict['{}video_patch_proj.weight'.format(key_prefix)].shape[0]
+        dit_config["latents_dim"] = state_dict['{}final_layer.video_out.weight'.format(key_prefix)].shape[0] // 4  # patch 1x2x2
+        dit_config["audio_latents_dim"] = state_dict['{}final_layer.audio_out.weight'.format(key_prefix)].shape[0]
+        dit_config["attention_head_dim"] = state_dict['{}blocks.0.attn.q_norm.weight'.format(key_prefix)].shape[0]
+        qkv = state_dict['{}blocks.0.attn.qkv_proj.weight'.format(key_prefix)]
+        dit_config["num_attention_heads"] = qkv.shape[0] // (3 * dit_config["attention_head_dim"])
+        dit_config["ffn_hidden_size"] = state_dict['{}blocks.0.mlp.fc1.weight'.format(key_prefix)].shape[0] // 2
+        dit_config["text_dim"] = state_dict['{}condition_proj.weight'.format(key_prefix)].shape[1]
+        table_key = '{}adaln_t_table'.format(key_prefix)
+        if table_key in state_dict_keys:
+            # adaln shipped over a precomputed curve basis: the adaln linears span a small shared basis of the time-embedding curve (no time embedder)
+            table = state_dict[table_key].shape  # [grid, k]
+            dit_config["adaln_curve_grid"] = table[0]
+            dit_config["time_embed_dim"] = table[1]
+        else:
+            te = state_dict['{}time_embedder.proj_in.weight'.format(key_prefix)]
+            dit_config["timestep_input_dim"] = te.shape[1]
+            dit_config["time_embed_hidden_size"] = te.shape[0]
+            dit_config["time_embed_dim"] = state_dict['{}time_embedder.proj_out.weight'.format(key_prefix)].shape[0]
+        dit_config["rope_inv_freq_len"] = state_dict['{}rope.inv_freq'.format(key_prefix)].shape[0]
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+        return dit_config
+
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
         dit_config = {}
         dit_config["image_model"] = "ltxav" if f'{key_prefix}audio_adaln_single.linear.weight' in state_dict_keys else "ltxv"
@@ -387,6 +423,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["cross_attention_dim"] = shape[1]
         if metadata is not None and "config" in metadata:
             dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+        dit_config["use_keyframes_abs_pos_embedding"] = '{}keyframes_abs_pos_embedding'.format(key_prefix) in state_dict_keys
         return dit_config
 
     if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys: #ACE-Step model
@@ -819,11 +856,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         dit_config["use_adaln_lora"] = True
         dit_config["adaln_lora_dim"] = 256
+        dit_config["num_blocks"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
         if dit_config["model_channels"] == 2048:
-            dit_config["num_blocks"] = 28
             dit_config["num_heads"] = 16
         elif dit_config["model_channels"] == 5120:
-            dit_config["num_blocks"] = 36
             dit_config["num_heads"] = 40
 
         if dit_config["in_channels"] == 16:
