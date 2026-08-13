@@ -255,6 +255,8 @@ class MiniMaxMusic3AR(nn.Module):
             "hidden": torch.empty_like(last_hidden),
             "c0": torch.empty((last_hidden.shape[0],), dtype=torch.long, device=device),
             "c0_embed": torch.empty_like(last_hidden),
+            "codes": torch.empty((last_hidden.shape[0], self.num_codebooks), dtype=torch.long, device=device),
+            "depth_hidden": torch.empty((1, last_hidden.shape[-1] * (self.num_codebooks - 1)), dtype=execution_dtype, device=device),
         }
         decoder._comfy_cross_step_state = depth_io
         comfy.model_management._register_cross_step(decoder)
@@ -291,9 +293,11 @@ class MiniMaxMusic3AR(nn.Module):
             depth_io["c0_embed"].copy_(c0_embed)
 
             def depth_core():
-                depth_io["codes"], depth_io["depth_hidden"] = self._depth_codes(
+                codes, depth_hidden = self._depth_codes(
                     depth_io["hidden"], depth_io["c0"], depth_io["c0_embed"], generator, execution_dtype, cfg_scale
                 )
+                depth_io["codes"].copy_(codes)
+                depth_io["depth_hidden"].copy_(depth_hidden)
 
             depth_queue = comfy.model_prefetch.make_prefetch_queue(
                 [(decoder, self.model.audio_extra_embedding)], device, {"prefetch_dynamic_vbars": True}
