@@ -24,11 +24,11 @@ class Snake1d(nn.Module):
 
 
 def _weight_norm_conv(operations, *args, **kwargs):
-    return nn.utils.weight_norm(operations.Conv1d(*args, **kwargs))
+    return nn.utils.parametrizations.weight_norm(operations.Conv1d(*args, **kwargs))
 
 
 def _weight_norm_conv_transpose(operations, *args, **kwargs):
-    return nn.utils.weight_norm(operations.ConvTranspose1d(*args, **kwargs))
+    return nn.utils.parametrizations.weight_norm(operations.ConvTranspose1d(*args, **kwargs))
 
 
 class ResidualUnit(nn.Module):
