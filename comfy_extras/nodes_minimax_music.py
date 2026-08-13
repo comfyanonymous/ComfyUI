@@ -20,7 +20,7 @@ class MiniMaxMusic3TextEncode(io.ComfyNode):
                 io.String.Input("caption", multiline=True, dynamic_prompts=True),
                 io.String.Input("lyrics", multiline=True, dynamic_prompts=True),
                 io.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True),
-                io.Float.Input("duration", default=120.0, min=0.04, max=MAX_AUDIO_FRAMES / 25, step=0.04, tooltip="Maximum duration in seconds; the model can end the song earlier."),
+                io.Float.Input("max_duration", default=120.0, min=0.04, max=MAX_AUDIO_FRAMES / 25, step=0.04, tooltip="Maximum duration in seconds; the model can end the song earlier."),
                 io.Float.Input("cfg_scale", default=CFG_SCALE, min=0.0, max=100.0, step=0.1, round=0.01, advanced=True),
                 io.Int.Input("top_k", default=CFG_TOP_K, min=1, max=C0_VOCAB_SIZE, advanced=True),
             ],
@@ -31,12 +31,12 @@ class MiniMaxMusic3TextEncode(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, caption, lyrics, seed, duration, cfg_scale, top_k):
+    def execute(cls, clip, caption, lyrics, seed, max_duration, cfg_scale, top_k):
         if not caption.strip():
             raise ValueError("MiniMax Music3 caption must not be empty")
         if not lyrics.strip():
             raise ValueError("MiniMax Music3 lyrics must not be empty")
-        max_audio_frames = min(MAX_AUDIO_FRAMES, max(1, round(duration * 25)))
+        max_audio_frames = min(MAX_AUDIO_FRAMES, max(1, round(max_duration * 25)))
         tokens = clip.tokenize(caption, lyrics=lyrics, seed=seed, max_audio_frames=max_audio_frames, cfg_scale=cfg_scale, top_k=top_k)
         conditioning = clip.encode_from_tokens_scheduled(tokens)
         for cond in conditioning:
