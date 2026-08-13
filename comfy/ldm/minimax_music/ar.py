@@ -309,7 +309,7 @@ class MiniMaxMusic3AR(nn.Module):
                 depth_io["depth_hidden"].copy_(depth_hidden)
 
             depth_queue = comfy.model_prefetch.make_prefetch_queue(
-                [(decoder, self.model.audio_extra_embedding)], device, {"prefetch_dynamic_vbars": True}
+                [[decoder, self.model.audio_extra_embedding]], device, {"prefetch_dynamic_vbars": True}
             )
             comfy.model_prefetch.prefetch_queue_pop(
                 depth_queue, device, decoder, execution_dtype, core=depth_core, enable_graph=True, generator=generator
