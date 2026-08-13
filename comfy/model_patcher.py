@@ -1879,8 +1879,28 @@ class ModelPatcherDynamic(ModelPatcher):
             loading = self._load_list(for_dynamic=True, default_device=device_to)
             loading.sort()
 
+            get_units = getattr(self.model, "get_dynamic_vram__units", None)
+            dynamic_units, last_dynamic_units = get_units() if get_units is not None else ([], [])
+            dynamic_units = list(dynamic_units)
+            last_dynamic_units = list(last_dynamic_units)
+            loading_by_module = {entry[-2]: entry for entry in loading}
+            loading = []
+            for unit in dynamic_units:
+                modules = [module for module in unit.modules() if module in loading_by_module]
+                for index, module in enumerate(modules):
+                    loading.append((*loading_by_module.pop(module), index == len(modules) - 1))
+            last_loading = []
+            for unit in last_dynamic_units:
+                modules = [module for module in unit.modules() if module in loading_by_module]
+                for index, module in enumerate(modules):
+                    last_loading.append((*loading_by_module.pop(module), index == len(modules) - 1))
+            loading.extend((*entry, False) for entry in loading_by_module.values())
+            loading.extend(last_loading)
+            dynamic_units.extend(last_dynamic_units)
+            v_block = None
+
             for x in loading:
-                *_, module_mem, n, m, params = x
+                *_, module_mem, n, m, params, end_of_block = x
 
                 def set_dirty(item, dirty):
                     if dirty or not hasattr(item, "_v_signature"):
@@ -1972,6 +1992,12 @@ class ModelPatcherDynamic(ModelPatcher):
                         self.model.model_loaded_weight_memory += casted_weight.numel() * casted_weight.element_size()
 
                 move_weight_functions(m, device_to)
+
+                if hasattr(m, "_v"):
+                    v_block = m._v if v_block is None else (v_block[0], v_block[1], max(v_block[2], m._v[1] + m._v[2] - v_block[1]))
+                if end_of_block:
+                    dynamic_units.pop(0)._v_block = v_block
+                    v_block = None
 
             for key, buf in self.model.named_buffers(recurse=True):
                 if key not in self.backup_buffers:

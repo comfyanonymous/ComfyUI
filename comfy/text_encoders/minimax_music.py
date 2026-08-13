@@ -2,6 +2,7 @@ import torch
 from tokenizers import Tokenizer
 
 import comfy.ops
+import comfy.text_encoders.llama
 from comfy.ldm.minimax_music.ar import CFG_SCALE, CFG_TOP_K, MAX_AUDIO_FRAMES, MiniMaxMusic3AR
 from comfy.ldm.minimax_music.prompt import SPECIAL_TOKEN_IDS, build_prompt
 
@@ -58,7 +59,11 @@ class MiniMaxMusic3Tokenizer:
 
 class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
     def __init__(self, device="cpu", dtype=None, model_options={}):
-        operations = model_options.get("custom_operations", comfy.ops.manual_cast)
+        dtype = torch.bfloat16
+        quant_config = model_options.get("quantization_metadata", None)
+        operations = model_options.get("custom_operations", None)
+        if operations is None:
+            operations = comfy.ops.mixed_precision_ops(quant_config, dtype) if quant_config is not None else comfy.ops.manual_cast
         super().__init__(MODEL_CONFIG, dtype, device, operations)
         self.dtypes = {dtype}
         self.execution_device = device
@@ -69,6 +74,12 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
     def reset_clip_options(self):
         pass
 
+    def get_dynamic_vram__units(self):
+        units, last_units = self.model.get_dynamic_vram__units()
+        if self.model.pruned_embedding:
+            last_units = [*last_units, self.model.embed_tokens_prefill]
+        return [self.model.audio_decoder, *units], last_units
+
     def encode_token_weights(self, token_weight_pairs):
         token_ids = [token for token, _ in token_weight_pairs["minimax_music3"][0]]
         input_ids = torch.tensor([token_ids], dtype=torch.long)
@@ -78,6 +89,41 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
         top_k = token_weight_pairs["top_k"]
         hidden = self.generate(input_ids, seed, max_audio_frames, self.execution_device, cfg_scale, top_k)
         return hidden.unsqueeze(0), None, {}
+
+    def load_state_dict(self, state_dict, strict=True, assign=False):
+        def select_projections(layers, config):
+            for layer in layers:
+                if layer.self_attn.merged_qkv is None:
+                    if config["merged_qkv"]:
+                        del layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj
+                    else:
+                        del layer.self_attn.qkv_proj
+                    layer.self_attn.merged_qkv = config["merged_qkv"]
+                if layer.mlp.merged_mlp is None:
+                    if config["merged_mlp"]:
+                        del layer.mlp.gate_proj, layer.mlp.up_proj
+                    else:
+                        del layer.mlp.gate_up_proj
+                    layer.mlp.merged_mlp = config["merged_mlp"]
+
+        select_projections(self.model.layers, comfy.text_encoders.llama.detect_merged_config(state_dict))
+        select_projections(
+            self.model.audio_decoder.layers,
+            comfy.text_encoders.llama.detect_merged_config(state_dict, layer_prefix="model.audio_decoder.layers.0."),
+        )
+        if self.model.pruned_embedding is None:
+            self.model.pruned_embedding = "model.embed_tokens_prefill.weight" in state_dict
+            if self.model.pruned_embedding:
+                del self.model.embed_tokens
+            else:
+                del self.model.embed_tokens_prefill, self.model.embed_tokens_audio
+        if self.model.pruned_lm_head is None:
+            self.model.pruned_lm_head = "model.lm_head_pruned.weight" in state_dict
+            if self.model.pruned_lm_head:
+                del self.model.lm_head
+            else:
+                del self.model.lm_head_pruned
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
     def load_sd(self, state_dict):
         return self.load_state_dict(state_dict, strict=False, assign=getattr(self, "can_assign_sd", False))
