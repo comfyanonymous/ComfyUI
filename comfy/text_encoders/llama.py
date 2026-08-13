@@ -271,6 +271,17 @@ class Qwen3VL_4BConfig(Qwen3VL_8BConfig):
     lm_head: bool = False  # 4B ties word embeddings
 
 @dataclass
+class Qwen3VL_32BConfig(Qwen3VL_8BConfig):
+    # MiniMax H3 conditioning checkpoint: truncated to the first 50 of 64 layers,
+    # consumed as the unnormalized hidden state after layer 50 (no final norm, no lm_head)
+    hidden_size: int = 5120
+    intermediate_size: int = 25600
+    num_hidden_layers: int = 50
+    num_attention_heads: int = 64
+    lm_head: bool = False
+    final_norm: bool = False
+
+@dataclass
 class Ovis25_2BConfig:
     vocab_size: int = 151936
     hidden_size: int = 2048
@@ -980,16 +991,10 @@ class BaseGenerate:
         else:
             module = self.model.embed_tokens
 
-        offload_stream = None
-        if module.comfy_cast_weights:
-            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
-        else:
-            weight = self.model.embed_tokens.weight.to(x)
-
-        x = torch.nn.functional.linear(input, weight, None)
-
-        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
-        return x
+        if not module.comfy_cast_weights:
+            return torch.nn.functional.linear(input, self.model.embed_tokens.weight.to(x), None)
+        with comfy.ops.CastBiasWeightContext(module, input, offloadable=True) as (weight, _bias):
+            return torch.nn.functional.linear(input, weight, None)
 
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype, allow_static=False):
         model_config = self.model.config

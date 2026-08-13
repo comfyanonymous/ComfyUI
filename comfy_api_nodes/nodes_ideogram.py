@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from comfy_api_nodes.apis.ideogram import (
     IdeogramGenerateResponse,
+    IdeogramPImageRequest,
     IdeogramV3Request,
     IdeogramV3EditRequest,
     IdeogramV4Request,
@@ -524,12 +525,155 @@ class IdeogramV4(IO.ComfyNode):
         return IO.NodeOutput(await download_and_process_images(image_urls))
 
 
+class IdeogramPImage(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="IdeogramPImage",
+            display_name="Ideogram P-Image",
+            category="partner/image/Ideogram",
+            description="Generates images using P-Image, Ideogram's fast text-to-image model. "
+                        "Strong typography and photorealism; "
+                        "supports Ideogram 4.0 structured JSON captions for exact text, "
+                        "colors and layout.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt. Also accepts an Ideogram 4.0 structured JSON caption "
+                            "(exact colors as #RRGGBB hexes, exact text strings, bounding-box "
+                            "layout) — set prompt_upsampling to OFF to use it verbatim.",
+                ),
+                IO.Combo.Input(
+                    "quality",
+                    options=["VERY_LOW", "LOW", "MEDIUM", "HIGH"],
+                    default="MEDIUM",
+                    tooltip="Speed/price/quality tier. MEDIUM is the everyday default; HIGH for "
+                            "complex prompts, fine detail and difficult text; VERY_LOW/LOW for "
+                            "drafts at scale. Difficult text renders poorly below MEDIUM.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=["1K", "2K"],
+                    default="1K",
+                    tooltip="Output size class (exact pixels follow the aspect ratio, e.g. "
+                            "16:9 gives 1280x720 at 1K and 2560x1440 at 2K). "
+                            "Prefer HIGH + 2K for crisp typography.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=list(V3_RATIO_MAP.keys()),
+                    default="1:1",
+                    tooltip="The aspect ratio for image generation.",
+                ),
+                IO.Combo.Input(
+                    "prompt_upsampling",
+                    options=["AUTO", "ON", "OFF"],
+                    default="AUTO",
+                    tooltip="Expands short prompts into a detailed structured caption before "
+                            "generation (the rewritten prompt is returned as final_prompt). "
+                            "Set OFF when supplying your own JSON caption or exact wording.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    control_after_generate=True,
+                    display_mode=IO.NumberDisplay.number,
+                    optional=True,
+                    tooltip="Seed for reproducible generation. With prompt_upsampling OFF, "
+                            "the same seed and settings return the same image; with ON/AUTO "
+                            "the prompt rewrite varies per run — reproduce a result by reusing "
+                            "its final_prompt output with prompt_upsampling OFF and the same "
+                            "seed.",
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+                IO.String.Output(
+                    "final_prompt",
+                    tooltip="The prompt the image was actually generated from (the rewritten "
+                            "structured caption when prompt_upsampling ran, else your prompt). "
+                            "Feed it back with prompt_upsampling OFF and the same seed to "
+                            "reproduce this image.",
+                ),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["quality", "resolution"]),
+                expr="""
+                (
+                  $q := widgets.quality;
+                  $is2k := $contains(widgets.resolution, "2k");
+                  $usd :=
+                    $contains($q, "very_low") ? ($is2k ? 0.00858 : 0.00429) :
+                    $contains($q, "high")     ? ($is2k ? 0.0429  : 0.02145) :
+                    $contains($q, "medium")   ? ($is2k ? 0.0286  : 0.0143)  :
+                                                ($is2k ? 0.02145 : 0.010725);
+                  {"type": "usd", "usd": $usd}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        quality: str = "MEDIUM",
+        resolution: str = "1K",
+        aspect_ratio: str = "1:1",
+        prompt_upsampling: str = "AUTO",
+        seed: int = 42,
+    ):
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        request = IdeogramPImageRequest(
+            prompt=prompt,
+            quality=quality,
+            resolution=resolution,
+            aspect_ratio=V3_RATIO_MAP[aspect_ratio],
+            prompt_upsampling=prompt_upsampling,
+            seed=seed,
+        )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/ideogram/text-to-image/p-image-ideogram", method="POST"),
+            response_model=IdeogramGenerateResponse,
+            data=request,
+            max_retries=1,
+        )
+        if not response.data:
+            raise Exception("No images were generated in the response")
+        image_urls = [image_data.url for image_data in response.data if image_data.url]
+        if not image_urls:
+            if any(image_data.is_image_safe is False for image_data in response.data):
+                raise Exception(
+                    "The generation was blocked by Ideogram's content safety filter. "
+                    "Adjust the prompt and try again."
+                )
+            raise Exception("No image URLs were generated in the response")
+        return IO.NodeOutput(
+            await download_and_process_images(image_urls),
+            response.data[0].prompt or prompt,
+        )
+
+
 class IdeogramExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             IdeogramV3,
             IdeogramV4,
+            IdeogramPImage,
         ]
 
 
