@@ -1183,6 +1183,7 @@ def _get_aspect_ratio_preserving_size(height, width, patch_size, max_patches, po
 
 class Gemma4_Tokenizer():
     tokenizer_json_data = None
+    prime_empty_thought = False
 
     def state_dict(self):
         if self.tokenizer_json_data is not None:
@@ -1333,8 +1334,8 @@ class Gemma4_Tokenizer():
                     num_samples = int(waveform.shape[-1] * 16000 / sample_rate) if sample_rate != 16000 else waveform.shape[-1]
                     n_audio_tokens = self._audio_token_count(num_samples)
                     media += "<|audio>" + "<|audio|>" * n_audio_tokens + "<audio|>"
-                # Non-thinking mode primes an empty thought channel so the model answers directly.
-                model_open = "" if thinking else "<|channel>thought\n<channel|>"
+                # 12B/31B prime a closed thought block for non-thinking mode, E2B/E4B must not: it cues them into reasoning inline.
+                model_open = "<|channel>thought\n<channel|>" if self.prime_empty_thought and not thinking else ""
                 llama_text = f"{system}<|turn>user\n{text}{media}<turn|>\n<|turn>model\n{model_open}"
 
         text_tokens = super().tokenize_with_weights(llama_text, return_word_ids)
@@ -1418,6 +1419,7 @@ class Gemma4Tokenizer(sd1_clip.SD1Tokenizer):
 class Gemma4UnifiedSDTokenizer(Gemma4SDTokenizer):
     """Encoder-free (gemma4_unified) audio: raw 16kHz waveform frames instead of mel spectrogram."""
     embedding_size = 3840
+    prime_empty_thought = True
 
     def _extract_audio_features(self, waveform, sample_rate):
         audio = self._resample_16k(waveform, sample_rate)
@@ -1500,7 +1502,7 @@ def gemma4_te(dtype_llama=None, llama_quantization_metadata=None, model_class=No
 
 # Variants
 
-def _make_variant(config_cls):
+def _make_variant(config_cls, prime_empty_thought=False):
     audio = config_cls.audio_config is not None
     bases = (Gemma4AudioMixin, Gemma4Base) if audio else (Gemma4Base,)
     class Variant(*bases):
@@ -1510,8 +1512,8 @@ def _make_variant(config_cls):
             if audio:
                 self._init_audio(self.model.config, dtype, device, operations)
     embedding_size = config_cls.hidden_size
-    if embedding_size != Gemma4SDTokenizer.embedding_size:
-        tok_cls = type('T', (Gemma4SDTokenizer,), {'embedding_size': embedding_size})
+    if embedding_size != Gemma4SDTokenizer.embedding_size or prime_empty_thought:
+        tok_cls = type('T', (Gemma4SDTokenizer,), {'embedding_size': embedding_size, 'prime_empty_thought': prime_empty_thought})
         class Tokenizer(Gemma4Tokenizer):
             tokenizer_class = tok_cls
         Variant.tokenizer = Tokenizer
@@ -1521,7 +1523,7 @@ def _make_variant(config_cls):
 
 Gemma4_E4B = _make_variant(Gemma4Config)
 Gemma4_E2B = _make_variant(Gemma4_E2B_Config)
-Gemma4_31B = _make_variant(Gemma4_31B_Config)
+Gemma4_31B = _make_variant(Gemma4_31B_Config, prime_empty_thought=True)
 
 
 # Gemma4 12B Unified: encoder-free multimodal, distinct base/tokenizer (not via _make_variant).
