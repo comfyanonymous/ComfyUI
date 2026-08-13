@@ -1,5 +1,4 @@
 import torch
-import threading
 import weakref
 
 import comfy_aimdo.model_vbar
@@ -12,7 +11,6 @@ PREFETCH_QUEUES = []
 GRAPH_MODULES = weakref.WeakSet()
 GRAPH_WARMED_MODULES = weakref.WeakSet()
 GRAPH_CAPTURE_STREAMS = {}
-GRAPH_CAPTURE_LOCK = threading.Lock()
 
 def cleanup_prefetched_modules(module, comfy_modules):
     for s in comfy_modules:
@@ -123,7 +121,7 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
                 if generator is not None:
                     graph.register_generator_state(generator)
                 capture_stream.wait_stream(comfy.model_management.current_stream(device))
-                with GRAPH_CAPTURE_LOCK, torch.cuda.graph(graph, stream=capture_stream):
+                with torch.cuda.graph(graph, stream=capture_stream, capture_error_mode="thread_local"):
                     core()
                 comfy.model_management.current_stream(device).wait_stream(capture_stream)
                 graph.replay()
