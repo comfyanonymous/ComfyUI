@@ -180,10 +180,9 @@ class MiniMaxMusic3DiT(nn.Module):
         self.cond_layer_scale = nn.Parameter(torch.empty(1, dtype=dtype, device=device))
 
     def aligned_condition(self, hidden):
-        hidden = hidden.to(dtype=self.cond_layer_logits.dtype)
         frames = hidden.shape[1]
         hidden = hidden.transpose(1, 2).reshape(hidden.shape[0], 8, 4096, frames)
-        weights = torch.softmax(self.cond_layer_logits, dim=0).to(hidden.dtype)
+        weights = torch.softmax(comfy.ops.cast_to_input(self.cond_layer_logits, hidden), dim=0)
         hidden = torch.einsum("blht,l->bht", hidden, weights)
         hidden = comfy.ops.cast_to_input(self.cond_layer_scale, hidden) * hidden
         condition = self.latent_conditioners(hidden)
