@@ -1719,9 +1719,6 @@ def gemma4_te(dtype_llama=None, llama_quantization_metadata=None, model_class=No
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, name="gemma4", clip_model=clip_model, model_options=model_options)
-
-        def get_dynamic_vram__units(self):
-            return getattr(self, self.clip).transformer.model.get_dynamic_vram__units()
     return Gemma4TEModel_
 
 
