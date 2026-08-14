@@ -230,6 +230,12 @@ def _mod_gate(x, gate, other, segments):
     return x
 
 
+def _rms_adaln(norm, x, shift, scale, segment_ids):
+    with comfy.ops.CastBiasWeightContext(norm, x, offloadable=True) as (weight, _):
+        scale = (1.0 + scale[segment_ids].to(x.dtype)).mul_(weight).sub_(1.0)
+        return comfy.quant_ops.ck.rms_adaln(x, scale, shift[segment_ids].to(x.dtype), eps=norm.eps)
+
+
 class RefinerBlock(nn.Module):
     def __init__(self, hidden, heads, head_dim, ffn, eps, qk_eps, dtype=None, device=None, operations=None):
         super().__init__()
@@ -274,12 +280,12 @@ class DiTBlock(nn.Module):
     def forward(self, x, t_emb, mod_segments, rope_freqs, transformer_options={}):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaln_proj(t_emb)
         if isinstance(mod_segments, torch.Tensor):
-            h = comfy.quant_ops.ck.rms_adaln(x, scale_msa[mod_segments], shift_msa[mod_segments], eps=self.norm1.eps)
+            h = _rms_adaln(self.norm1, x, shift_msa, scale_msa, mod_segments)
         else:
             h = _mod_scale_shift(self.norm1(x), shift_msa, scale_msa, mod_segments)
         x = _mod_gate(x, gate_msa, self.attn(h, rope_freqs=rope_freqs, transformer_options=transformer_options), mod_segments)
         if isinstance(mod_segments, torch.Tensor):
-            h = comfy.quant_ops.ck.rms_adaln(x, scale_mlp[mod_segments], shift_mlp[mod_segments], eps=self.norm2.eps)
+            h = _rms_adaln(self.norm2, x, shift_mlp, scale_mlp, mod_segments)
         else:
             h = _mod_scale_shift(self.norm2(x), shift_mlp, scale_mlp, mod_segments)
         return _mod_gate(x, gate_mlp, self.mlp(h), mod_segments)

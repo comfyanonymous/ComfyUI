@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import torch
 
@@ -36,7 +36,7 @@ class TestMiniMaxH3Optimizations(unittest.TestCase):
         )
         for p in model.parameters():
             torch.nn.init.normal_(p, std=0.02)
-            p.requires_grad = False
+        model.rope.inv_freq.fill_(1.0)
 
         x_video = torch.randn(1, 24, 2, 8, 8)
         x_audio = torch.randn(1, 32, 2, 10)
@@ -44,11 +44,82 @@ class TestMiniMaxH3Optimizations(unittest.TestCase):
         timestep = torch.tensor([500.0])
 
         payload = {}
-        out1 = model([x_video, x_audio], timestep, context, minimax_payload=payload)
-        out2 = model([x_video, x_audio], timestep, context, minimax_payload=payload)
+        with patch.object(m.comfy.quant_ops.ck, "rms_rope_split_half_"):
+            out1 = model([x_video, x_audio], timestep, context, minimax_payload=payload)
+            out2 = model([x_video, x_audio], timestep, context, minimax_payload=payload)
 
         self.assertTrue(torch.allclose(out1[0], out2[0], atol=1e-5))
         self.assertTrue(torch.allclose(out1[1], out2[1], atol=1e-5))
+
+    def test_tensor_segment_modulation_matches_tuple_path(self):
+        hidden = 16
+        norm = m.comfy.ops.disable_weight_init.RMSNorm(hidden, eps=1e-6)
+        norm.weight.detach().copy_(torch.linspace(0.5, 1.5, hidden))
+        x = torch.randn(12, hidden)
+        shift = torch.randn(3, hidden)
+        scale = torch.randn(3, hidden)
+        gate = torch.randn(3, hidden)
+        other = torch.randn_like(x)
+        segments = [(0, 4, 0), (4, 9, 1), (9, 12, 2)]
+        segment_ids = torch.tensor([0] * 4 + [1] * 5 + [2] * 3)
+
+        tuple_out = m._mod_scale_shift(norm(x), shift, scale, segments)
+        tensor_out = m._rms_adaln(norm, x, shift, scale, segment_ids)
+        tuple_gated = m._mod_gate(x.clone(), gate, other, segments)
+        tensor_gated = m._mod_gate(x.clone(), gate, other, segment_ids)
+
+        self.assertEqual(tensor_out.shape, x.shape)
+        self.assertEqual(tensor_out.dtype, x.dtype)
+        self.assertEqual(tensor_out.device, x.device)
+        self.assertTrue(torch.allclose(tuple_out, tensor_out, rtol=1e-5, atol=1e-5))
+        self.assertTrue(torch.allclose(tuple_gated, tensor_gated, rtol=1e-5, atol=1e-5))
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required for FP16 modulation coverage")
+    def test_tensor_segment_modulation_cuda_fp16(self):
+        device = torch.device("cuda")
+        dtype = torch.float16
+        seq_len = 4096
+        hidden = 1536
+        num_segments = 16
+        segment_len = seq_len // num_segments
+        segments = [(i * segment_len, (i + 1) * segment_len, i) for i in range(num_segments)]
+        segment_ids = torch.arange(num_segments, device=device).repeat_interleave(segment_len)
+        norm = m.comfy.ops.disable_weight_init.RMSNorm(hidden, eps=1e-6, dtype=dtype, device=device)
+        norm.weight.detach().copy_(torch.linspace(0.5, 1.5, hidden, device=device, dtype=dtype))
+        x = torch.randn(seq_len, hidden, device=device, dtype=dtype)
+        shift = torch.randn(num_segments, hidden, device=device, dtype=dtype) * 0.1
+        scale = torch.randn(num_segments, hidden, device=device, dtype=dtype) * 0.1
+        gate = torch.randn(num_segments, hidden, device=device, dtype=dtype) * 0.1
+        other = torch.randn_like(x)
+
+        tuple_out = m._mod_scale_shift(norm(x), shift, scale, segments)
+        tensor_out = m._rms_adaln(norm, x, shift, scale, segment_ids)
+        tuple_gated = m._mod_gate(x.clone(), gate, other, segments)
+        tensor_gated = m._mod_gate(x.clone(), gate, other, segment_ids)
+
+        self.assertEqual(tensor_out.shape, x.shape)
+        self.assertEqual(tensor_out.dtype, dtype)
+        self.assertEqual(tensor_out.device, x.device)
+        self.assertTrue(torch.allclose(tuple_out, tensor_out, rtol=2e-3, atol=2e-3))
+        self.assertTrue(torch.allclose(tuple_gated, tensor_gated, rtol=2e-3, atol=2e-3))
+
+        def benchmark(fn):
+            for _ in range(2):
+                fn()
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+            for _ in range(10):
+                fn()
+            end.record()
+            end.synchronize()
+            return start.elapsed_time(end) / 10
+
+        tuple_ms = benchmark(lambda: m._mod_scale_shift(norm(x), shift, scale, segments))
+        tensor_ms = benchmark(lambda: m._rms_adaln(norm, x, shift, scale, segment_ids))
+        self.assertGreater(tuple_ms, 0.0)
+        self.assertGreater(tensor_ms, 0.0)
+        self.assertLess(tensor_ms, tuple_ms)
 
     def test_quantized_model_detection(self):
         quant_weight = MagicMock()
