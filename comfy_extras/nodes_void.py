@@ -175,7 +175,7 @@ class VOIDInpaintConditioning(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDInpaintConditioning",
-            category="model/conditioning/video_models",
+            category="model/conditioning/void",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -288,7 +288,7 @@ class VOIDWarpedNoise(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDWarpedNoise",
-            category="model/latent/video",
+            category="model/latent/void",
             inputs=[
                 OpticalFlow.Input(
                     "optical_flow",
@@ -393,7 +393,7 @@ class VOIDWarpedNoiseSource(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="VOIDWarpedNoiseSource",
-            category="model/sampling/noise",
+            category="model/latent/void",
             inputs=[
                 io.Latent.Input("warped_noise",
                     tooltip="Warped noise latent from VOIDWarpedNoise"),

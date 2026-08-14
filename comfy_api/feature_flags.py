@@ -25,6 +25,11 @@ CLI_FEATURE_FLAG_REGISTRY: dict[str, FeatureFlagInfo] = {
         "default": False,
         "description": "Show the sign-in button in the frontend even when not signed in",
     },
+    "enable_telemetry": {
+        "type": "bool",
+        "default": False,
+        "description": "Signal the frontend that telemetry collection is enabled",
+    },
 }
 
 
@@ -95,6 +100,7 @@ def _parse_cli_feature_flags() -> dict[str, Any]:
 # Default server capabilities
 _CORE_FEATURE_FLAGS: dict[str, Any] = {
     "supports_preview_metadata": True,
+    "supports_model_type_tags": True,
     "max_upload_size": args.max_upload_size * 1024 * 1024, # Convert MB to bytes
     "extension": {"manager": {"supports_v4": True}},
     "node_replacements": True,

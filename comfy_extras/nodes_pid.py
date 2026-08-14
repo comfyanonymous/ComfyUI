@@ -14,10 +14,8 @@ class PiDConditioning(io.ComfyNode):
         return io.Schema(
             node_id="PiDConditioning",
             display_name="PiD Conditioning",
-            category="advanced/conditioning",
-            description=(
-                "Attaches a latent and a degrade_sigma scalar to a CONDITIONING for PiD decoding/upscaling"
-            ),
+            category="model/conditioning",
+            description=("Attaches a latent and a degrade_sigma scalar to a CONDITIONING for PiD decoding/upscaling"),
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Latent.Input("latent", tooltip="latent (from VAEEncode or a KSampler)."),

@@ -847,6 +847,61 @@ class Load3DAnimation(Load3D):
     ...
 
 
+@comfytype(io_type="LAYERS")
+class Layers(ComfyTypeIO):
+    BlendMode = Literal[
+        "normal", "multiply", "screen", "overlay", "darken", "lighten",
+        "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
+        "exclusion", "linear-dodge", "linear-burn", "vivid-light", "pin-light",
+        "linear-light", "hard-mix", "subtract", "divide", "grain-extract",
+        "grain-merge", "hue", "saturation", "color", "luminosity",
+    ]
+
+    class LayerItem(TypedDict):
+        image: torch.Tensor
+        type: Literal["raster"]
+        x: NotRequired[int]
+        y: NotRequired[int]
+        mask: NotRequired[torch.Tensor]
+        z_index: int
+        name: NotRequired[str]
+        opacity: NotRequired[float]
+        blend_mode: NotRequired["Layers.BlendMode"]
+        visible: NotRequired[bool]
+        flip_h: NotRequired[bool]
+        flip_v: NotRequired[bool]
+        rotation: NotRequired[float]
+        w: NotRequired[int]
+        h: NotRequired[int]
+
+    class Document(TypedDict):
+        version: int
+        canvas: NotRequired[tuple[int, int]]
+        layers: list["Layers.LayerItem"]
+
+    Type = Document
+
+
+@comfytype(io_type="COMPOSITOR")
+class Compositor(ComfyTypeIO):
+    class LayerState(TypedDict):
+        version: NotRequired[int]
+        canvas: dict
+        background: NotRequired[dict]
+        inputs: NotRequired[list[str]]
+        order: NotRequired[list[int]]
+        layers: list[dict]
+
+    Type = LayerState
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: dict=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = {}
+
+
 @comfytype(io_type="PHOTOMAKER")
 class Photomaker(ComfyTypeIO):
     Type = Any
@@ -890,6 +945,14 @@ class Tracks(ComfyTypeIO):
         track_path: torch.Tensor
         track_visibility: torch.Tensor
     Type = TrackDict
+
+@comfytype(io_type="DICT")
+class Dict(ComfyTypeIO):
+    Type = dict
+
+@comfytype(io_type="ARRAY")
+class Array(ComfyTypeIO):
+    Type = list
 
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
@@ -1279,6 +1342,19 @@ class Color(ComfyTypeIO):
       def as_dict(self):
           return super().as_dict()
 
+
+@comfytype(io_type="COLORS")
+class Colors(ComfyTypeIO):
+    Type = list[Color.Type]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[str]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = []
+
+
 @comfytype(io_type="BOUNDING_BOX")
 class BoundingBox(ComfyTypeIO):
     class BoundingBoxDict(TypedDict):
@@ -1324,6 +1400,20 @@ class Curve(ComfyTypeIO):
             if self.default is not None:
                 d["default"] = {"points": [list(p) for p in self.default], "interpolation": "monotone_cubic"}
             return d
+
+
+@comfytype(io_type="BOUNDING_BOXES")
+class BoundingBoxes(ComfyTypeIO):
+    class BoundingBoxWithMetadata(BoundingBox.BoundingBoxDict):
+        metadata: dict
+    Type = list[BoundingBoxWithMetadata]
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: list[dict]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = []
 
 
 @comfytype(io_type="HISTOGRAM")
@@ -2368,6 +2458,8 @@ __all__ = [
     "Load3DModelInfo",
     "Load3D",
     "Load3DAnimation",
+    "Compositor",
+    "Layers",
     "Photomaker",
     "Point",
     "FaceAnalysis",
@@ -2376,6 +2468,8 @@ __all__ = [
     "AnyType",
     "MultiType",
     "Tracks",
+    "Dict",
+    "Array",
     "Color",
     # Dynamic Types
     "MatchType",
@@ -2394,6 +2488,8 @@ __all__ = [
     "PriceBadgeDepends",
     "PriceBadge",
     "BoundingBox",
+    "BoundingBoxes",
+    "Colors",
     "Curve",
     "Histogram",
     "Range",

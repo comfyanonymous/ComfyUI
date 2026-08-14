@@ -214,11 +214,13 @@ class SaveAnimatedWEBP(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[IO.Image.Output(display_name="images")]
         )
 
     @classmethod
     def execute(cls, images, fps, filename_prefix, lossless, quality, method, num_frames=0) -> IO.NodeOutput:
         return IO.NodeOutput(
+            images,
             ui=UI.ImageSaveHelper.get_save_animated_webp_ui(
                 images=images,
                 filename_prefix=filename_prefix,
@@ -229,8 +231,6 @@ class SaveAnimatedWEBP(IO.ComfyNode):
                 method=cls.COMPRESS_METHODS.get(method)
             )
         )
-
-    save_images = execute  # TODO: remove
 
 
 class SaveAnimatedPNG(IO.ComfyNode):
@@ -249,11 +249,13 @@ class SaveAnimatedPNG(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[IO.Image.Output(display_name="images")]
         )
 
     @classmethod
     def execute(cls, images, fps, compress_level, filename_prefix="ComfyUI") -> IO.NodeOutput:
         return IO.NodeOutput(
+            images,
             ui=UI.ImageSaveHelper.get_save_animated_png_ui(
                 images=images,
                 filename_prefix=filename_prefix,
@@ -262,8 +264,6 @@ class SaveAnimatedPNG(IO.ComfyNode):
                 compress_level=compress_level,
             )
         )
-
-    save_images = execute  # TODO: remove
 
 
 class ImageStitch(IO.ComfyNode):
@@ -513,6 +513,7 @@ class SaveSVGNode(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[IO.SVG.Output("svg")],
         )
 
     @classmethod
@@ -562,9 +563,7 @@ class SaveSVGNode(IO.ComfyNode):
 
             results.append(UI.SavedResult(filename=file, subfolder=subfolder, type=IO.FolderType.output))
             counter += 1
-        return IO.NodeOutput(ui={"images": results})
-
-    save_svg = execute  # TODO: remove
+        return IO.NodeOutput(svg, ui={"images": results})
 
 
 class GetImageSize(IO.ComfyNode):
@@ -845,15 +844,18 @@ class ImageMergeTileList(IO.ComfyNode):
 # Format specifications
 # ---------------------------------------------------------------------------
 
-# Maps (file_format, bit_depth, has_alpha) -> (numpy dtype scale, av pixel format,
-# stream pix_fmt). Keeps the encode path declarative instead of branchy.
+# Maps (file_format, bit_depth, num_channels) -> (quantization scale, numpy dtype,
+# av frame pix_fmt, stream pix_fmt). Keeps the encode path declarative instead of branchy.
 _FORMAT_SPECS = {
-    ("png", "8-bit", False):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgb24",     "stream_fmt": "rgb24"},
-    ("png", "8-bit", True):   {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgba",      "stream_fmt": "rgba"},
-    ("png", "16-bit", False): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgb48le",   "stream_fmt": "rgb48be"},
-    ("png", "16-bit", True):  {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgba64le",  "stream_fmt": "rgba64be"},
-    ("exr", "32-bit float", False): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrpf32le",  "stream_fmt": "gbrpf32le"},
-    ("exr", "32-bit float", True):  {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrapf32le", "stream_fmt": "gbrapf32le"},
+    ("png", "8-bit", 1):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "gray",      "stream_fmt": "gray"},
+    ("png", "8-bit", 3):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgb24",     "stream_fmt": "rgb24"},
+    ("png", "8-bit", 4):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgba",      "stream_fmt": "rgba"},
+    ("png", "16-bit", 1): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "gray16le",  "stream_fmt": "gray16be"},
+    ("png", "16-bit", 3): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgb48le",   "stream_fmt": "rgb48be"},
+    ("png", "16-bit", 4): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgba64le",  "stream_fmt": "rgba64be"},
+    ("exr", "32-bit float", 1): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "grayf32le",  "stream_fmt": "grayf32le"},
+    ("exr", "32-bit float", 3): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrpf32le",  "stream_fmt": "gbrpf32le"},
+    ("exr", "32-bit float", 4): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrapf32le", "stream_fmt": "gbrapf32le"},
 }
 
 
@@ -892,10 +894,11 @@ def hlg_to_linear(t: torch.Tensor) -> torch.Tensor:
         return torch.cat([hlg_to_linear(rgb), alpha], dim=-1)
 
     # Piecewise: sqrt branch below 0.5, log branch above.
-    # Clamp inside the log branch so negative / out-of-range values don't blow up;
+    # Clamp the log branch at the 0.5 branch point (not above it) so the
+    # unselected lane stays finite in exp() without altering selected values;
     # values above 1.0 are allowed and extrapolate naturally.
     low = (t ** 2) / 3.0
-    high = (torch.exp((t.clamp(min=_HLG_C) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
+    high = (torch.exp((t.clamp(min=0.5) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
     return torch.where(t <= 0.5, low, high)
 
 
@@ -1088,7 +1091,8 @@ def _encode_image(
     bit_depth: str,
     colorspace: str,
 ) -> bytes:
-    """Encode a single HxWxC tensor to PNG or EXR bytes in memory.
+    """Encode a single HxWxC (or channel-less HxW grayscale) tensor to PNG or
+    EXR bytes in memory. Grayscale is written as single-channel PNG / Y-only EXR.
 
     For EXR the input is interpreted according to `colorspace` and converted
     to scene-linear (EXR's convention) before writing:
@@ -1102,10 +1106,16 @@ def _encode_image(
     For PNG, colorspace selection does not modify pixels — PNG is delivered
     sRGB-encoded and there is no PNG path for wide-gamut HDR in this node.
     """
+    if img_tensor.ndim == 2:
+        img_tensor = img_tensor.unsqueeze(-1)  # Some nodes emit grayscale as (H, W) with no channel dim, mask-style.
     height, width, num_channels = img_tensor.shape
-    has_alpha = num_channels == 4
 
-    spec = _FORMAT_SPECS[(file_format, bit_depth, has_alpha)]
+    spec = _FORMAT_SPECS.get((file_format, bit_depth, num_channels))
+    if spec is None:
+        raise ValueError(
+            f"No {file_format}/{bit_depth} encoder for {num_channels}-channel images: "
+            "supported channel counts are 1 (grayscale), 3 (RGB) and 4 (RGBA)."
+        )
 
     if spec["dtype"] == np.float32:
         # EXR path: preserve full range, no clamp.
@@ -1157,40 +1167,27 @@ class SaveImageAdvanced(IO.ComfyNode):
                 IO.String.Input(
                     "filename_prefix",
                     default="ComfyUI",
-                    tooltip=(
-                        "The prefix for the file to save. May include formatting tokens "
-                        "such as %date:yyyy-MM-dd% or %Empty Latent Image.width%."
-                    ),
+                    tooltip=("The prefix for the file to save. May include formatting tokens such as %date:yyyy-MM-dd% or %Empty Latent Image.width%."),
                 ),
                 IO.DynamicCombo.Input(
                     "format",
                     options=[
                         IO.DynamicCombo.Option("png", [
-                            IO.Combo.Input("bit_depth", options=["8-bit", "16-bit"],
-                                           default="8-bit", advanced=True),
-                            IO.Combo.Input("input_color_space", options=["sRGB"],
-                                           default="sRGB", advanced=True),
+                            IO.Combo.Input("bit_depth", options=["8-bit", "16-bit"], default="8-bit", advanced=True),
+                            IO.Combo.Input("input_color_space", options=["sRGB"], default="sRGB", advanced=True),
                         ]),
                         IO.DynamicCombo.Option("exr", [
-                            IO.Combo.Input("bit_depth", options=["32-bit float"],
-                                           default="32-bit float", advanced=True),
+                            IO.Combo.Input("bit_depth", options=["32-bit float"], default="32-bit float", advanced=True),
                             IO.Combo.Input(
                                 "input_color_space",
                                 options=["sRGB", "HDR", "linear"],
                                 default="sRGB",
                                 advanced=True,
                                 tooltip=(
-                                    "Colorspace of the input tensor. The EXR is "
-                                    "always written as scene-linear in the matching "
-                                    "gamut.\n"
-                                    "  'sRGB'   — input is sRGB-encoded Rec.709; "
-                                    "the inverse sRGB EOTF is applied.\n"
-                                    "  'HDR'    — input is HLG-encoded Rec.2020 "
-                                    "(BT.2100); the inverse HLG OETF is applied "
-                                    "to get scene-linear light.\n"
-                                    "  'linear' — input is already scene-linear "
-                                    "(Rec.709 primaries); written through unchanged. "
-                                    "Use this for renderer/compositor output."
+                                    "Colorspace of the input tensor. The EXR is always written as scene-linear in the matching gamut.\n"
+                                    "sRGB — input is sRGB-encoded Rec.709; the inverse sRGB EOTF is applied.\n"
+                                    "HDR — input is HLG-encoded Rec.2020 (BT.2100); the inverse HLG OETF is applied to get scene-linear light.\n"
+                                    "linear — input is already scene-linear (Rec.709 primaries); written through unchanged. Use this for renderer/compositor output."
                                 ),
                             ),
                         ]),
@@ -1200,6 +1197,7 @@ class SaveImageAdvanced(IO.ComfyNode):
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[IO.Image.Output(display_name="images")]
         )
 
     @classmethod
@@ -1237,7 +1235,7 @@ class SaveImageAdvanced(IO.ComfyNode):
             results.append({"filename": file, "subfolder": subfolder, "type": "output"})
             counter += 1
 
-        return IO.NodeOutput(ui={"images": results})
+        return IO.NodeOutput(images, ui={"images": results})
 
 
 class ImagesExtension(ComfyExtension):

@@ -2,6 +2,7 @@ import comfy.options
 comfy.options.enable_args_parsing()
 
 from comfy.cli_args import args
+from comfy.cli_args import get_console_log_level, get_file_log_outputs
 
 if args.list_feature_flags:
     import json
@@ -17,7 +18,9 @@ import folder_paths
 import time
 from comfy.cli_args import enables_dynamic_vram
 from app.logger import setup_logger
-setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+console_log_level = get_console_log_level(args.verbose)
+file_log_outputs = get_file_log_outputs(args.verbose)
+setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
 from app.assets.seeder import asset_seeder
 from app.assets.services import register_output_files
@@ -55,7 +58,16 @@ if __name__ == "__main__" and args.debug_hang:
 import comfy_aimdo.control
 
 if enables_dynamic_vram():
-    comfy_aimdo.control.init()
+    simple_vram_headroom = None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3)
+    try:
+        comfy_aimdo.control.init(simple_vram_headroom=simple_vram_headroom, nvml_pressure=not args.disable_nvml_pressure)
+    except TypeError:
+        # comfy-aimdo 0.4.10 protocol.
+        try:
+            comfy_aimdo.control.init(simple_vram_headroom=simple_vram_headroom)
+        except TypeError:
+            # comfy-aimdo 0.4.9 protocol.
+            comfy_aimdo.control.init()
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
@@ -122,6 +134,14 @@ def apply_custom_paths():
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
+
+    # --base-directory
+    if args.base_directory:
+        logging.info(f"Setting base directory to: {folder_paths.base_path}")
+
+    # --models-directory
+    if args.models_directory:
+        logging.info(f"Setting models directory to: {folder_paths.models_dir}")
 
     # --output-directory, --input-directory, --user-directory
     if args.output_directory:
@@ -231,23 +251,35 @@ import comfy.model_patcher
 if args.enable_dynamic_vram or (enables_dynamic_vram() and comfy.model_management.is_nvidia() and not comfy.model_management.is_wsl()):
     if (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
         logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
-    elif comfy_aimdo.control.init_devices(d.index for d in comfy.model_management.get_all_torch_devices()):
-        if args.verbose == 'DEBUG':
-            comfy_aimdo.control.set_log_debug()
-        elif args.verbose == 'CRITICAL':
-            comfy_aimdo.control.set_log_critical()
-        elif args.verbose == 'ERROR':
-            comfy_aimdo.control.set_log_error()
-        elif args.verbose == 'WARNING':
-            comfy_aimdo.control.set_log_warning()
-        else: #INFO
-            comfy_aimdo.control.set_log_info()
-
-        comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
-        comfy.memory_management.aimdo_enabled = True
-        logging.info("DynamicVRAM support detected and enabled")
     else:
-        logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+        try:
+            aimdo_initialized = comfy_aimdo.control.init_devices((d.index, int(args.vram_headroom * 1024 ** 3)) for d in comfy.model_management.get_all_torch_devices())
+        except TypeError:
+            # comfy-aimdo 0.4.9 protocol.
+            aimdo_initialized = comfy_aimdo.control.init_devices(d.index for d in comfy.model_management.get_all_torch_devices())
+
+        if aimdo_initialized:
+            if console_log_level == 'DEBUG':
+                comfy_aimdo.control.set_log_debug()
+            elif console_log_level == 'DETAIL':
+                try:
+                    comfy_aimdo.control.set_log_detail()
+                except AttributeError:
+                    comfy_aimdo.control.set_log_info()
+            elif console_log_level == 'CRITICAL':
+                comfy_aimdo.control.set_log_critical()
+            elif console_log_level == 'ERROR':
+                comfy_aimdo.control.set_log_error()
+            elif console_log_level == 'WARNING':
+                comfy_aimdo.control.set_log_warning()
+            else: #INFO
+                comfy_aimdo.control.set_log_info()
+
+            comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
+            comfy.memory_management.aimdo_enabled = True
+            logging.info("DynamicVRAM support detected and enabled")
+        else:
+            logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
 
 
 def cuda_malloc_warning():
@@ -300,7 +332,7 @@ def prompt_worker(q, server_instance):
     cache_ram_inactive = 0
     if not args.cache_classic and not args.cache_none and args.cache_lru <= 0:
         cache_ram = min(10.0, max(2.0, comfy.model_management.total_ram * 0.10 / 1024.0))
-        cache_ram_inactive = min(96.0, comfy.model_management.total_ram / 1024.0)
+        cache_ram_inactive = min(128.0, comfy.model_management.total_ram / 1024.0)
         if len(args.cache_ram) > 0:
             cache_ram = args.cache_ram[0]
         if len(args.cache_ram) > 1:
@@ -388,7 +420,7 @@ def prompt_worker(q, server_instance):
                 hook_breaker_ac10a0.restore_functions()
 
                 if not asset_seeder.is_disabled():
-                    asset_seeder.enqueue_enrich(roots=("output",), compute_hashes=True)
+                    asset_seeder.enqueue_enrich(roots=("output",), compute_hashes=args.enable_asset_hashing)
                 asset_seeder.resume()
 
 
@@ -443,7 +475,7 @@ def setup_database():
         if dependencies_available():
             init_db()
             if args.enable_assets:
-                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=True):
+                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=args.enable_asset_hashing):
                     logging.info("Background asset scan initiated for models, input, output")
     except Exception as e:
         if "database is locked" in str(e):
@@ -542,8 +574,13 @@ if __name__ == "__main__":
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
 
     if args.disable_dynamic_vram:
-        logging.warning("Dynamic vram disabled with argument. If you have any issues with dynamic vram enabled please give us a detailed reports as this argument will be removed soon.")
-
+        logging.warning(
+            "Dynamic vram disabled with argument. If you have any issues with "
+            "dynamic vram enabled please give us a detailed reports as this "
+            "argument will be removed soon. If you use gguf we recommend keeping "
+            "dynamic vram enabled and using native ComfyUI model formats instead. "
+            "ComfyUI native formats like fp8 will be faster even if they are larger than your memory."
+        )
     event_loop, _, start_all_func = start_comfyui()
     try:
         x = start_all_func()
