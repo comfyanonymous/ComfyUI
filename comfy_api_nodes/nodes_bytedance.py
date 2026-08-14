@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import logging
@@ -16,6 +17,7 @@ from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS_SEEDREAM_4_0,
     RECOMMENDED_PRESETS_SEEDREAM_4_5,
     RECOMMENDED_PRESETS_SEEDREAM_5_LITE,
+    RECOMMENDED_PRESETS_SEEDREAM_5_PRO,
     SEEDANCE2_REF_VIDEO_PIXEL_LIMITS,
     VIDEO_TASKS_EXECUTION_TIME,
     GetAssetResponse,
@@ -33,6 +35,9 @@ from comfy_api_nodes.apis.bytedance import (
     SeedanceVirtualLibraryCreateAssetRequest,
     Seedream4Options,
     Seedream4TaskCreationRequest,
+    Seedream5LayerOptimizePromptOptions,
+    Seedream5LayerSeparationRequest,
+    Seedream5OptimizePromptOptions,
     TaskAudioContent,
     TaskAudioContentUrl,
     TaskCreationResponse,
@@ -45,6 +50,7 @@ from comfy_api_nodes.apis.bytedance import (
     Text2ImageTaskCreationRequest,
     Text2VideoTaskCreationRequest,
     seedance2_price_per_1k_tokens,
+    seedance2_reference_limits,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -72,6 +78,7 @@ from comfy_api_nodes.util import (
     validate_video_dimensions,
     validate_video_duration,
 )
+from comfy_api_nodes.util.common_exceptions import ProcessingInterrupted
 from server import PromptServer
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
@@ -80,16 +87,20 @@ _VERIFICATION_POLL_TIMEOUT_SEC = 120
 _VERIFICATION_POLL_INTERVAL_SEC = 3
 
 SEEDREAM_MODELS = {
+    "seedream 5.0 pro": "seedream-5-0-pro-260628",
     "seedream 5.0 lite": "seedream-5-0-260128",
     "seedream-4-5-251128": "seedream-4-5-251128",
     "seedream-4-0-250828": "seedream-4-0-250828",
 }
 
 SEEDREAM_PRESETS = {
+    "seedream-5-0-pro-260628": RECOMMENDED_PRESETS_SEEDREAM_5_PRO,
     "seedream-5-0-260128": RECOMMENDED_PRESETS_SEEDREAM_5_LITE,
     "seedream-4-5-251128": RECOMMENDED_PRESETS_SEEDREAM_4_5,
     "seedream-4-0-250828": RECOMMENDED_PRESETS_SEEDREAM_4_0,
 }
+
+SEEDREAM_LAYER_SEPARATION_MODEL = "seedream-5-0-pro-260628"
 
 # Long-running tasks endpoints(e.g., video)
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
@@ -97,10 +108,17 @@ BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tas
 BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT = "/proxy/byteplus-seedance2/api/v3/contents/generations/tasks"  # + /{task_id}
 
 SEEDANCE_MODELS = {
+    "Seedance 2.5": "dreamina-seedance-2-5-260628",
     "Seedance 2.0": "dreamina-seedance-2-0-260128",
     "Seedance 2.0 Fast": "dreamina-seedance-2-0-fast-260128",
     "Seedance 2.0 Mini": "dreamina-seedance-2-0-mini",
 }
+
+SEEDANCE_MODEL_TOOLTIP = (
+    "Seedance 2.5 for the newest model, videos up to 30 seconds and mp4/mov output; "
+    "Seedance 2.0 for maximum quality and 1080p/4k; Fast for speed optimization; "
+    "Mini for the fastest, lowest-cost generation."
+)
 
 DEPRECATED_MODELS = {"seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-i2v-250428"}
 
@@ -743,8 +761,15 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
 
 
-def _seedream_model_inputs(*, max_ref_images: int, presets: list):
-    return [
+def _seedream_model_inputs(
+    *,
+    max_ref_images: int,
+    presets: list,
+    max_width: int = 6240,
+    max_height: int = 4992,
+    supports_batch: bool = True,
+):
+    inputs = [
         IO.Combo.Input(
             "size_preset",
             options=[label for label, _, _ in presets],
@@ -754,7 +779,7 @@ def _seedream_model_inputs(*, max_ref_images: int, presets: list):
             "width",
             default=2048,
             min=1024,
-            max=6240,
+            max=max_width,
             step=2,
             tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
         ),
@@ -762,22 +787,27 @@ def _seedream_model_inputs(*, max_ref_images: int, presets: list):
             "height",
             default=2048,
             min=1024,
-            max=4992,
+            max=max_height,
             step=2,
             tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
         ),
-        IO.Int.Input(
-            "max_images",
-            default=1,
-            min=1,
-            max=max_ref_images,
-            step=1,
-            display_mode=IO.NumberDisplay.number,
-            tooltip="Maximum number of images to generate. With 1, exactly one image is produced. "
-            "With >1, the model generates between 1 and max_images related images "
-            "(e.g., story scenes, character variations). "
-            "Total images (input + generated) cannot exceed 15.",
-        ),
+    ]
+    if supports_batch:
+        inputs.append(
+            IO.Int.Input(
+                "max_images",
+                default=1,
+                min=1,
+                max=max_ref_images,
+                step=1,
+                display_mode=IO.NumberDisplay.number,
+                tooltip="Maximum number of images to generate. With 1, exactly one image is produced. "
+                "With >1, the model generates between 1 and max_images related images "
+                "(e.g., story scenes, character variations). "
+                "Total images (input + generated) cannot exceed 15.",
+            )
+        )
+    inputs.append(
         IO.Autogrow.Input(
             "images",
             template=IO.Autogrow.TemplateNames(
@@ -787,14 +817,18 @@ def _seedream_model_inputs(*, max_ref_images: int, presets: list):
             ),
             tooltip=f"Optional reference image(s) for image-to-image or multi-reference generation. "
             f"Up to {max_ref_images} images.",
-        ),
-        IO.Boolean.Input(
-            "fail_on_partial",
-            default=False,
-            tooltip="If enabled, abort execution if any requested images are missing or return an error.",
-            advanced=True,
-        ),
-    ]
+        )
+    )
+    if supports_batch:
+        inputs.append(
+            IO.Boolean.Input(
+                "fail_on_partial",
+                default=False,
+                tooltip="If enabled, abort execution if any requested images are missing or return an error.",
+                advanced=True,
+            )
+        )
+    return inputs
 
 
 class ByteDanceSeedreamNodeV2(IO.ComfyNode):
@@ -816,6 +850,16 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "seedream 5.0 pro",
+                            _seedream_model_inputs(
+                                max_ref_images=10,
+                                presets=RECOMMENDED_PRESETS_SEEDREAM_5_PRO,
+                                max_width=3136,
+                                max_height=2496,
+                                supports_batch=False,
+                            ),
+                        ),
                         IO.DynamicCombo.Option(
                             "seedream 5.0 lite",
                             _seedream_model_inputs(max_ref_images=14, presets=RECOMMENDED_PRESETS_SEEDREAM_5_LITE),
@@ -846,6 +890,17 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     advanced=True,
                 ),
+                IO.Boolean.Input(
+                    "thinking",
+                    default=True,
+                    tooltip=(
+                        "Enable the model's prompt-optimization reasoning ('thinking') for better adherence. "
+                        "Can substantially increase generation time — notably on Seedream 5.0 Pro. "
+                        "Can only be disabled for text-to-image (not when reference images are provided)."
+                    ),
+                    optional=True,
+                    advanced=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -857,15 +912,27 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=["model", "model.size_preset", "model.width", "model.height"]
+                ),
                 expr="""
                 (
-                  $price := $contains(widgets.model, "5.0 lite") ? 0.035 :
-                            $contains(widgets.model, "4-5") ? 0.04 : 0.03;
+                  $sp := $lookup(widgets, "model.size_preset");
+                  $px := $lookup(widgets, "model.width") * $lookup(widgets, "model.height");
+                  $isPro := $contains(widgets.model, "5.0 pro");
+                  $price := $isPro
+                              ? (
+                                  $contains($sp, "custom")
+                                    ? ($px <= 2360000 ? 0.045 : 0.09)
+                                    : ($contains($sp, "1k") ? 0.045 : 0.09)
+                                )
+                              : $contains(widgets.model, "5.0 lite") ? 0.035
+                              : $contains(widgets.model, "4-5") ? 0.04
+                              : 0.03;
                   {
-                    "type":"usd",
+                    "type": "usd",
                     "usd": $price,
-                    "format": { "suffix":" x images/Run", "approximate": true }
+                    "format": { "suffix": $isPro ? "/Image" : " x images/Run", "approximate": true }
                   }
                 )
                 """,
@@ -879,10 +946,12 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         model: dict,
         seed: int = 0,
         watermark: bool = False,
+        thinking: bool = True,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         model_id = SEEDREAM_MODELS[model["model"]]
         presets = SEEDREAM_PRESETS[model_id]
+        is_pro = "seedream-5-0-pro" in model_id
 
         size_preset = model.get("size_preset", presets[0][0])
         width = model.get("width", 2048)
@@ -902,19 +971,29 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
 
         out_num_pixels = w * h
         mp_provided = out_num_pixels / 1_000_000.0
-        if ("seedream-4-5" in model_id or "seedream-5-0" in model_id) and out_num_pixels < 3686400:
-            raise ValueError(
-                f"Minimum image resolution for the selected model is 3.68MP, but {mp_provided:.2f}MP provided."
-            )
-        if "seedream-4-0" in model_id and out_num_pixels < 921600:
-            raise ValueError(
-                f"Minimum image resolution that the selected model can generate is 0.92MP, "
-                f"but {mp_provided:.2f}MP provided."
-            )
-        if out_num_pixels > 16_777_216:
-            raise ValueError(
-                f"Maximum image resolution for the selected model is 16.78MP, but {mp_provided:.2f}MP provided."
-            )
+        if is_pro:
+            if out_num_pixels < 921_600:
+                raise ValueError(
+                    f"Minimum image resolution for the selected model is 0.92MP, but {mp_provided:.2f}MP provided."
+                )
+            if out_num_pixels > 4_194_304:
+                raise ValueError(
+                    f"Maximum image resolution for the selected model is 4.19MP, but {mp_provided:.2f}MP provided."
+                )
+        else:
+            if ("seedream-4-5" in model_id or "seedream-5-0" in model_id) and out_num_pixels < 3_686_400:
+                raise ValueError(
+                    f"Minimum image resolution for the selected model is 3.68MP, but {mp_provided:.2f}MP provided."
+                )
+            if "seedream-4-0" in model_id and out_num_pixels < 921_600:
+                raise ValueError(
+                    f"Minimum image resolution that the selected model can generate is 0.92MP, "
+                    f"but {mp_provided:.2f}MP provided."
+                )
+            if out_num_pixels > 16_777_216:
+                raise ValueError(
+                    f"Maximum image resolution for the selected model is 16.78MP, but {mp_provided:.2f}MP provided."
+                )
 
         image_tensors: list[Input.Image] = [t for t in images_dict.values() if t is not None]
         n_input_images = sum(get_number_of_images(t) for t in image_tensors)
@@ -926,6 +1005,10 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         if sequential_image_generation == "auto" and n_input_images + max_images > 15:
             raise ValueError(
                 "The maximum number of generated images plus the number of reference images cannot exceed 15."
+            )
+        if not thinking and n_input_images > 0:
+            raise ValueError(
+                "'thinking' can only be disabled for text-to-image; enable it when using reference images."
             )
 
         reference_images_urls: list[str] = []
@@ -940,6 +1023,9 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 wait_label="Uploading reference images",
             )
 
+        optimize_prompt_options = None
+        if n_input_images == 0:
+            optimize_prompt_options = Seedream5OptimizePromptOptions(thinking="enabled" if thinking else "disabled")
         response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
@@ -950,9 +1036,10 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
                 image=reference_images_urls,
                 size=f"{w}x{h}",
                 seed=seed,
-                sequential_image_generation=sequential_image_generation,
-                sequential_image_generation_options=Seedream4Options(max_images=max_images),
+                sequential_image_generation=None if is_pro else sequential_image_generation,
+                sequential_image_generation_options=None if is_pro else Seedream4Options(max_images=max_images),
                 watermark=watermark,
+                optimize_prompt_options=optimize_prompt_options,
             ),
         )
         if len(response.data) == 1:
@@ -961,6 +1048,369 @@ class ByteDanceSeedreamNodeV2(IO.ComfyNode):
         if fail_on_partial and len(urls) < len(response.data):
             raise RuntimeError(f"Only {len(urls)} of {len(response.data)} images were generated before error.")
         return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
+
+
+class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceSeedreamLayerSeparationNode",
+            display_name="ByteDance Seedream 5.0 Pro Layer Separation",
+            category="partner/image/ByteDance",
+            search_aliases=["layer separation", "split layers", "decompose", "cutout", "RGBA layers"],
+            description=(
+                "Decompose an image into a background plate plus up to 16 repositionable transparent layers, "
+                "each with stacking order, bounding box, name and description."
+            ),
+            inputs=[
+                IO.Image.Input(
+                    "image",
+                    tooltip=(
+                        "The image to separate. Exactly one image, at least 512x512 pixels, aspect ratio "
+                        "between 1:16 and 16:1. Inputs larger than about 4MP are downscaled before upload."
+                    ),
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip=(
+                        "How to separate the image. Leave empty to auto-detect and separate all major elements. "
+                        "Describe elements in natural language to control the separation, or target exact regions "
+                        "with <bbox>left top right bottom</bbox> tags (0-1000 per-mille coordinates)."
+                    ),
+                ),
+                IO.Combo.Input(
+                    "size",
+                    options=["auto", "1K", "1.5K", "2K"],
+                    default="auto",
+                    tooltip="Output resolution level. 'auto' follows the input image size (clamped to the 1K-2K range).",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                ),
+                IO.Combo.Input(
+                    "prompt_optimization",
+                    options=["standard", "fast"],
+                    default="standard",
+                    optional=True,
+                    advanced=True,
+                    tooltip="Prompt-optimization mode: 'standard' gives higher quality, 'fast' shorter generation time.",
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip='Whether to add an "AI generated" watermark to the images.',
+                ),
+                IO.Boolean.Input(
+                    "crop_layers",
+                    default=False,
+                    optional=True,
+                    label_on="minimal size",
+                    label_off="full canvas",
+                    tooltip=(
+                        "Geometry of the layers/masks batch outputs (layer_stack is unaffected and always "
+                        "tight). Full canvas: each layer on a base-sized canvas at its bounding-box position - "
+                        "recompose directly with ImageCompositeMasked. Minimal size: each layer cropped to its "
+                        "bounding box (padded to the largest layer for batching) - much smaller tensors; "
+                        "rebuild placement with Layers From Bounding Boxes using the bboxes output."
+                    ),
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(
+                    display_name="base_image",
+                    tooltip="The base image (background plate) the layers stack onto.",
+                ),
+                IO.Mask.Output(
+                    display_name="base_mask",
+                    tooltip=(
+                        "Transparency of the base image (1 = transparent, LoadImage convention); currently "
+                        "always fully opaque."
+                    ),
+                ),
+                IO.Image.Output(
+                    display_name="layers",
+                    tooltip=(
+                        "Transparent layers ordered bottom to top. Full canvas mode: placed on a black "
+                        "base-sized canvas at their bounding-box position. Minimal size mode: cropped to "
+                        "their bounding box, anchored top-left, padded to the largest layer."
+                    ),
+                ),
+                IO.Mask.Output(
+                    display_name="masks",
+                    tooltip=(
+                        "Per-layer transparency, index-aligned with the layers batch (1 = transparent, "
+                        "LoadImage convention). For ImageCompositeMasked-style compositing, add InvertMask first."
+                    ),
+                ),
+                IO.BoundingBox.Output(
+                    display_name="bboxes",
+                    tooltip=(
+                        "One placement box per layer, index-aligned with the layers batch (feed both, plus "
+                        "masks, into Layers From Bounding Boxes to rebuild per-layer placement): {x, y, width, "
+                        "height, metadata: {name, desc, z_index, native_size, content_rect, flags}}. "
+                        "content_rect = [left, top, width, height] is the layer's content region within its "
+                        "own frame; it lands on the canvas at the box position plus that offset."
+                    ),
+                ),
+                IO.Layers.Output(
+                    display_name="layer_stack",
+                    tooltip=(
+                        "Ready-to-edit layer document for Create Layered Image: the base plate plus each "
+                        "element as its own named, tight-cropped layer at its true position and stacking "
+                        "order. Connect directly, or extend with Add Layer."
+                    ),
+                ),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size"]),
+                expr="""
+                (
+                  widgets.size in ["1k", "1.5k"]
+                    ? {
+                        "type": "usd",
+                        "usd": 0.032,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                    : {
+                        "type": "range_usd",
+                        "min_usd": 0.032,
+                        "max_usd": 0.064,
+                        "format": { "suffix": " x images/Run", "approximate": true }
+                      }
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        prompt: str = "",
+        size: str = "auto",
+        seed: int = 0,
+        prompt_optimization: str = "standard",
+        watermark: bool = False,
+        crop_layers: bool = False,
+    ) -> IO.NodeOutput:
+        if get_number_of_images(image) != 1:
+            raise ValueError("Only a single input image is supported.")
+        validate_image_aspect_ratio(image, (1, 16), (16, 1), strict=False)
+        validate_image_dimensions(image, min_width=512, min_height=512)
+
+        request = Seedream5LayerSeparationRequest(
+            model=SEEDREAM_LAYER_SEPARATION_MODEL,
+            prompt=prompt.strip() or None,
+            image=await upload_image_to_comfyapi(cls, image),
+            size=size,
+            seed=seed,
+            watermark=watermark,
+            optimize_prompt_options=Seedream5LayerOptimizePromptOptions(mode=prompt_optimization),
+        )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            response_model=ImageTaskCreationResponse,
+            data=request,
+            wait_label="Separating layers",
+        )
+        if response.error:
+            raise RuntimeError(
+                f"ByteDance request failed. Code: {response.error['code']}, message: {response.error['message']}"
+            )
+
+        def z_index_of(d: dict) -> int:
+            v = d.get("z_index")
+            if isinstance(v, bool):
+                return 1_000_000
+            if isinstance(v, (int, float)):
+                return int(v)
+            if isinstance(v, str):
+                try:
+                    return int(v.strip())
+                except ValueError:
+                    return 1_000_000
+            return 1_000_000
+
+        data = [d for d in (response.data or []) if isinstance(d, dict)]
+        if not data or "url" not in data[0]:
+            raise RuntimeError("Unexpected response: no base image returned.")
+        base_item = data[0]
+        if base_item.get("bounding_box") is not None:
+            logging.warning(
+                "ByteDance layer separation: base item unexpectedly carries a bounding_box; ignoring it."
+            )
+        if z_index_of(base_item) not in (0, 1_000_000):
+            raise RuntimeError("Unexpected response: the first item is not the base image.")
+        layer_items = [d for d in data[1:] if "url" in d]
+        dropped = len(data) - 1 - len(layer_items)
+        if dropped > 0:
+            logging.warning(
+                "ByteDance layer separation: %d of %d returned elements had no 'url' and were dropped.",
+                dropped,
+                len(data) - 1,
+            )
+        if not layer_items:
+            raise RuntimeError("The model returned no layers. Try a different prompt or input image.")
+        layer_items.sort(key=z_index_of)
+
+        base_image = (await download_url_to_image_tensor(str(base_item["url"])))[..., :3].contiguous()
+        height, width = base_image.shape[1], base_image.shape[2]
+
+        specs = []
+        for item in layer_items:
+            flags = []
+            bbox = item.get("bounding_box")
+            absolute = bbox.get("absolute") if isinstance(bbox, dict) else None
+            if (
+                isinstance(absolute, (list, tuple))
+                and len(absolute) == 4
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in absolute)
+            ):
+                left, top, right, bottom = (int(round(v)) for v in absolute)
+                rect_w, rect_h = right - left, bottom - top  # exclusive right/bottom
+                if rect_w > width or rect_h > height:
+                    rect_w, rect_h = min(rect_w, width), min(rect_h, height)
+                    flags.append("bbox_clamped")
+                if rect_w <= 0 or rect_h <= 0:
+                    flags.append("bbox_degenerate")
+            else:
+                flags.append("bbox_missing")
+                left, top, rect_w, rect_h = 0, 0, width, height
+            specs.append({"item": item, "flags": flags, "left": left, "top": top,
+                          "rect_w": rect_w, "rect_h": rect_h, "native_size": "", "stack_item": None})
+
+        if crop_layers:
+            canvas_w = max((s["rect_w"] for s in specs if "bbox_degenerate" not in s["flags"]), default=1)
+            canvas_h = max((s["rect_h"] for s in specs if "bbox_degenerate" not in s["flags"]), default=1)
+        else:
+            canvas_w, canvas_h = width, height
+        base_mask = torch.zeros((1, height, width))
+        layers = torch.zeros((len(specs), canvas_h, canvas_w, 3))
+        # Create Layered Image / LoadImage mask convention: 1 = transparent
+        masks = torch.ones((len(specs), canvas_h, canvas_w))
+
+        semaphore = asyncio.Semaphore(4)
+
+        async def fetch_and_place(i: int, spec: dict) -> None:
+            item, flags = spec["item"], spec["flags"]
+            left, top, rect_w, rect_h = spec["left"], spec["top"], spec["rect_w"], spec["rect_h"]
+            async with semaphore:
+                try:
+                    rgba = (await download_url_to_image_tensor(str(item["url"])))[0]
+                except ProcessingInterrupted:
+                    raise
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to download layer {i + 1} of {len(specs)} (name={item.get('name')!r}): {exc} "
+                        "The generation completed and was billed; the response with all layer URLs "
+                        "is in ComfyUI/temp/api_logs/."
+                    ) from exc
+            spec["native_size"] = f"{rgba.shape[1]}x{rgba.shape[0]}"
+            if "bbox_degenerate" in flags:
+                return
+            if (rgba.shape[1], rgba.shape[0]) != (rect_w, rect_h):
+                # premultiply before resizing: interpolating straight alpha bleeds the undefined
+                # colors of transparent pixels into the anti-aliased edges
+                rgba = rgba.clone()
+                rgba[..., :3] *= rgba[..., 3:4]
+                rgba = (
+                    torch.nn.functional.interpolate(
+                        rgba.permute(2, 0, 1).unsqueeze(0),
+                        size=(rect_h, rect_w),
+                        mode="bilinear",
+                        antialias=True,
+                    )
+                    .squeeze(0)
+                    .permute(1, 2, 0)
+                )
+                alpha = rgba[..., 3:4]
+                rgba = torch.cat([rgba[..., :3] / alpha.clamp(min=1e-6), alpha], dim=-1).clamp(0, 1)
+                flags.append("resized_to_bbox")
+            # straight (unpremultiplied) RGB: downstream compositing applies the mask itself
+            if crop_layers:
+                layers[i, :rect_h, :rect_w] = rgba[..., :3]
+                masks[i, :rect_h, :rect_w] = 1.0 - rgba[..., 3]
+            else:
+                x0, y0 = max(left, 0), max(top, 0)
+                x1, y1 = min(left + rect_w, width), min(top + rect_h, height)
+                if x0 < x1 and y0 < y1:
+                    patch = rgba[y0 - top : y1 - top, x0 - left : x1 - left]
+                    layers[i, y0:y1, x0:x1] = patch[..., :3]
+                    masks[i, y0:y1, x0:x1] = 1.0 - patch[..., 3]
+                else:
+                    flags.append("bbox_out_of_canvas")
+            zi = z_index_of(item)
+            stack_item = {
+                "image": rgba[..., :3].unsqueeze(0).contiguous(),
+                "type": "raster",
+                "x": left,
+                "y": top,
+                "z_index": zi if zi != 1_000_000 else i + 1,
+                "mask": (1.0 - rgba[..., 3]).unsqueeze(0),
+            }
+            if isinstance(item.get("name"), str):
+                stack_item["name"] = item["name"]
+            spec["stack_item"] = stack_item
+
+        await asyncio.gather(*(fetch_and_place(i, s) for i, s in enumerate(specs)))
+
+        stack_items = [{"image": base_image, "type": "raster", "x": 0, "y": 0, "z_index": 0, "name": "background"}]
+        boxes = []
+        for i, s in enumerate(specs):
+            abnormal = [f for f in s["flags"] if f != "resized_to_bbox"]
+            if abnormal:
+                logging.warning(
+                    "ByteDance layer separation: layer %d (%r) flagged %s.",
+                    i + 1,
+                    s["item"].get("name"),
+                    ", ".join(abnormal),
+                )
+            if s["stack_item"] is not None:
+                stack_items.append(s["stack_item"])
+            zi = z_index_of(s["item"])
+            # placement box sized to this layer's tensor so Create Layered Image renders it 1:1;
+            # the true content rect travels in metadata, frame-relative
+            rect_x, rect_y = (0, 0) if crop_layers else (s["left"], s["top"])
+            boxes.append(
+                {
+                    "x": s["left"] if crop_layers else 0,
+                    "y": s["top"] if crop_layers else 0,
+                    "width": canvas_w,
+                    "height": canvas_h,
+                    "metadata": {
+                        "name": s["item"].get("name"),
+                        "desc": s["item"].get("description"),
+                        "z_index": zi if zi != 1_000_000 else None,
+                        "native_size": s["native_size"],
+                        "content_rect": [rect_x, rect_y, max(s["rect_w"], 0), max(s["rect_h"], 0)],
+                        "flags": s["flags"],
+                    },
+                }
+            )
+        # a single frame holding every box: the per-frame BOUNDING_BOX shape for boxes that
+        # annotate one image, as emitted and consumed by CreateBoundingBoxes
+        bboxes = [boxes]
+        layer_stack = {"version": 1, "canvas": (width, height), "layers": stack_items}
+        return IO.NodeOutput(base_image, base_mask, layers, masks, bboxes, layer_stack)
 
 
 class ByteDanceTextToVideoNode(IO.ComfyNode):
@@ -1619,25 +2069,272 @@ def _seedance2_text_inputs(resolutions: list[str], default_ratio: str = "16:9"):
     ]
 
 
+def _seedance25_text_inputs(with_ratio: bool = True, with_video_editing: bool = False):
+    return [
+        IO.String.Input(
+            "prompt",
+            multiline=True,
+            default="",
+            tooltip="Text prompt for video generation. Put spoken lines in double quotes to steer "
+            "the generated dialogue.",
+        ),
+        IO.Combo.Input(
+            "resolution",
+            options=["480p", "720p"],
+            default="720p",
+            tooltip="Resolution of the output video.",
+        ),
+        *(
+            [
+                IO.Combo.Input(
+                    "ratio",
+                    options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video.",
+                )
+            ]
+            if with_ratio
+            else []
+        ),
+        IO.Int.Input(
+            "duration",
+            default=5,
+            min=4,
+            max=30,
+            step=1,
+            tooltip="Duration of the output video in seconds (4-30).",
+            display_mode=IO.NumberDisplay.slider,
+        ),
+        IO.Boolean.Input(
+            "generate_audio",
+            default=True,
+            tooltip="Enable audio generation for the output video.",
+        ),
+        *(
+            [
+                IO.Boolean.Input(
+                    "video_editing",
+                    default=False,
+                    tooltip="Enable when the prompt edits a connected reference video, for example "
+                    "replacing an object in it. The output then keeps the source clip's own length "
+                    "and aspect ratio, and the duration and ratio widgets are ignored. Leave "
+                    "disabled to generate a new video, or to extend one to the duration you set.",
+                )
+            ]
+            if with_video_editing
+            else []
+        ),
+        IO.Combo.Input(
+            "output_format",
+            options=["mp4"],
+            default="mp4",
+            tooltip="Container format of the output video.",
+        ),
+    ]
+
+
+def _seedance25_reference_inputs():
+    return [
+        *_seedance25_text_inputs(with_video_editing=True),
+        IO.Autogrow.Input(
+            "reference_images",
+            template=IO.Autogrow.TemplateNames(
+                IO.Image.Input("reference_image"),
+                names=[f"image_{i}" for i in range(1, 31)],
+                min=0,
+            ),
+        ),
+        IO.Autogrow.Input(
+            "reference_videos",
+            template=IO.Autogrow.TemplateNames(
+                IO.Video.Input("reference_video"),
+                names=[f"video_{i}" for i in range(1, 11)],
+                min=0,
+            ),
+        ),
+        IO.Autogrow.Input(
+            "reference_audios",
+            template=IO.Autogrow.TemplateNames(
+                IO.Audio.Input("reference_audio"),
+                names=[f"audio_{i}" for i in range(1, 11)],
+                min=0,
+            ),
+        ),
+        IO.Boolean.Input(
+            "auto_downscale",
+            default=True,
+            optional=True,
+            tooltip="Automatically downscale reference videos that exceed the model's pixel budget "
+            "for the selected resolution. Aspect ratio is preserved; videos already within limits are untouched.",
+        ),
+        IO.Boolean.Input(
+            "auto_upscale",
+            default=False,
+            advanced=True,
+            optional=True,
+            tooltip="Automatically upscale reference videos that are below the model's minimum pixel count "
+            "for the selected resolution. Aspect ratio is preserved; videos already meeting the minimum are "
+            "untouched. Note: upscaling a low-resolution source does not add real detail and may produce "
+            "lower-quality generations.",
+        ),
+        IO.Autogrow.Input(
+            "reference_assets",
+            template=IO.Autogrow.TemplateNames(
+                IO.String.Input("reference_asset"),
+                names=[f"asset_{i}" for i in range(1, 31)],
+                min=0,
+            ),
+        ),
+    ]
+
+
+def _seedance2_build_request(
+    model: dict,
+    model_id: str,
+    content: list,
+    seed: int,
+    watermark: bool,
+    ratio: str,
+) -> Seedance2TaskCreationRequest:
+    video_editing = bool(model.get("video_editing"))
+    return Seedance2TaskCreationRequest(
+        model=model_id,
+        content=content,
+        generate_audio=model["generate_audio"],
+        resolution=model["resolution"],
+        ratio="adaptive" if video_editing else ratio,
+        duration=-1 if video_editing else model["duration"],
+        seed=seed,
+        watermark=watermark,
+        output_format=model.get("output_format"),
+    )
+
+
+_SEEDANCE2_PRICE_EXPR_TEMPLATE = """
+(
+  $m := widgets.model;
+  $res := $lookup(widgets, "model.resolution");
+  $ratio := $lookup(widgets, "model.ratio");
+  $dur := $lookup(widgets, "model.duration");
+  $auto := $lookup(widgets, "model.video_editing") = true;
+  $hasVideo := __HAS_VIDEO__;
+  $ready := $type($m) = "string" and $type($res) = "string" and ($auto or $type($dur) = "number");
+  $ready ? (
+    $contains($m, "2.5") ? (
+      $is480 := $res = "480p";
+      $perFrame := $ratio = "1:1"  ? ($is480 ? 400      : 900) :
+                   $ratio = "4:3"  ? ($is480 ? 411.25   : 905.6719) :
+                   $ratio = "3:4"  ? ($is480 ? 411.25   : 905.6719) :
+                   $ratio = "21:9" ? ($is480 ? 418.5    : 904.3945) :
+                                     ($is480 ? 400.3125 : 900);
+      $price := $hasVideo ? 0.009152 : 0.015301;
+      $costFor := function($d) { $floor($perFrame * (24 * $d + 1)) / 1000 * $price };
+      $lo := $costFor($auto ? 4 : $dur);
+      $hi := $costFor(($auto ? 30 : $dur) + ($hasVideo ? 30 : 0));
+      $lo = $hi
+        ? {"type": "usd", "usd": $lo, "format": {"approximate": true}}
+        : {"type": "range_usd", "min_usd": $lo, "max_usd": $hi, "format": {"approximate": true}}
+    ) : (
+      $rate := $res = "4k"    ? 195200 :
+               $res = "1080p" ? 48800 :
+               $res = "720p"  ? 21600 : 10044;
+      $noVideoPrice := $res = "4k"    ? 0.00572 :
+                       $res = "1080p" ? 0.011011 :
+                       $contains($m, "mini") ? 0.005005 :
+                       $contains($m, "fast") ? 0.008008 : 0.01001;
+      $videoPrice := $res = "4k"    ? 0.003432 :
+                     $res = "1080p" ? 0.006721 :
+                     $contains($m, "mini") ? 0.003003 :
+                     $contains($m, "fast") ? 0.004719 : 0.006149;
+      $hasVideo
+        ? {"type": "range_usd",
+           "min_usd": $ceil($dur * 5 / 3) * $rate * $videoPrice / 1000,
+           "max_usd": (15 + $dur) * $rate * $videoPrice / 1000,
+           "format": {"approximate": true}}
+        : {"type": "usd", "usd": $dur * $rate * $noVideoPrice / 1000,
+           "format": {"approximate": true}}
+    )
+  ) : undefined
+)
+"""
+
+
+_SEEDANCE_AUDIO_POLICY_CODE = "OutputAudioSensitiveContentDetected.PolicyViolation"
+_SEEDANCE_TASK_TYPE_CONSTRAINT_CODE = "InvalidParameter.TaskTypeConstraint"
+
+
+async def _seedance2_poll_video_task(
+    cls: type[IO.ComfyNode],
+    task_id: str,
+    model_id: str,
+    resolution: str,
+    has_video_input: bool,
+) -> TaskStatusResponse:
+    try:
+        return await poll_op(
+            cls,
+            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: r.status,
+            price_extractor=_seedance2_price_extractor(
+                model_id, has_video_input=has_video_input, resolution=resolution
+            ),
+            poll_interval=9,
+        )
+    except Exception as exc:
+        if _SEEDANCE_AUDIO_POLICY_CODE in str(exc):
+            raise ValueError(
+                "The provider rejected the audio track this model generated for the video "
+                "(possible copyright match). The video itself was fine. Turn off generate_audio "
+                "to get a silent video, or adjust the prompt and try again."
+            ) from exc
+        if _SEEDANCE_TASK_TYPE_CONSTRAINT_CODE in str(exc):
+            raise ValueError(
+                "Seedance read this prompt as editing the reference video, and an edit always "
+                "takes its duration and aspect ratio from that video. Enable video_editing on "
+                "this node and run again, or reword the prompt so it describes a new video "
+                "rather than a change to the reference one."
+            ) from exc
+        raise
+
+
+def _seedance2_price_badge(with_reference_videos: bool) -> IO.PriceBadge:
+    widgets = ["model", "model.resolution", "model.ratio", "model.duration"]
+    if with_reference_videos:
+        widgets.append("model.video_editing")
+    has_video = (
+        '$exists(inputGroups) and $lookup(inputGroups, "model.reference_videos") > 0'
+        if with_reference_videos
+        else "false"
+    )
+    return IO.PriceBadge(
+        depends_on=IO.PriceBadgeDepends(
+            widgets=widgets,
+            input_groups=["model.reference_videos"] if with_reference_videos else [],
+        ),
+        expr=_SEEDANCE2_PRICE_EXPR_TEMPLATE.replace("__HAS_VIDEO__", has_video),
+    )
+
+
 class ByteDance2TextToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDance2TextToVideoNode",
-            display_name="ByteDance Seedance 2.0 Text to Video",
+            display_name="ByteDance Seedance 2.5 Text to Video",
             category="partner/video/ByteDance",
-            description="Generate video using Seedance 2.0 models based on a text prompt.",
+            description="Generate video using Seedance 2.5 or 2.0 models based on a text prompt.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option("Seedance 2.5", _seedance25_text_inputs()),
                         IO.DynamicCombo.Option("Seedance 2.0", _seedance2_text_inputs(["480p", "720p", "1080p", "4k"])),
                         IO.DynamicCombo.Option("Seedance 2.0 Fast", _seedance2_text_inputs(["480p", "720p"])),
                         IO.DynamicCombo.Option("Seedance 2.0 Mini", _seedance2_text_inputs(["480p", "720p"])),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Fast for speed optimization; "
-                    "Mini for the fastest, lowest-cost generation.",
+                    tooltip=SEEDANCE_MODEL_TOOLTIP,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -1666,30 +2363,7 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution", "model.duration"]),
-                expr="""
-                (
-                  $rate480 := 10044;
-                  $rate720 := 21600;
-                  $rate1080 := 48800;
-                  $rate4k := 195200;
-                  $m := widgets.model;
-                  $res := $lookup(widgets, "model.resolution");
-                  $dur := $lookup(widgets, "model.duration");
-                  $pricePer1K := $res = "4k"    ? 0.00572 :
-                                 $res = "1080p" ? 0.011011 :
-                                 $contains($m, "mini") ? 0.005005 :
-                                 $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $rate := $res = "4k"    ? $rate4k :
-                           $res = "1080p" ? $rate1080 :
-                           $res = "720p"  ? $rate720 :
-                                            $rate480;
-                  $cost := $dur * $rate * $pricePer1K / 1000;
-                  {"type": "usd", "usd": $cost, "format": {"approximate": true}}
-                )
-                """,
-            ),
+            price_badge=_seedance2_price_badge(with_reference_videos=False),
         )
 
     @classmethod
@@ -1704,25 +2378,18 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-            data=Seedance2TaskCreationRequest(
-                model=model_id,
-                content=[TaskTextContent(text=model["prompt"])],
-                generate_audio=model["generate_audio"],
-                resolution=model["resolution"],
+            data=_seedance2_build_request(
+                model,
+                model_id,
+                [TaskTextContent(text=model["prompt"])],
+                seed,
+                watermark,
                 ratio=model["ratio"],
-                duration=model["duration"],
-                seed=seed,
-                watermark=watermark,
             ),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
-            poll_interval=9,
+        response = await _seedance2_poll_video_task(
+            cls, initial_response.id, model_id, model["resolution"], has_video_input=False
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -1733,13 +2400,15 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDance2FirstLastFrameNode",
-            display_name="ByteDance Seedance 2.0 First-Last-Frame to Video",
+            display_name="ByteDance Seedance 2.5 First-Last-Frame to Video",
             category="partner/video/ByteDance",
-            description="Generate video using Seedance 2.0 from a first frame image and optional last frame image.",
+            description="Generate video using Seedance 2.5 or 2.0 from a first frame image "
+            "and optional last frame image.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option("Seedance 2.5", _seedance25_text_inputs(with_ratio=False)),
                         IO.DynamicCombo.Option(
                             "Seedance 2.0",
                             _seedance2_text_inputs(["480p", "720p", "1080p", "4k"], default_ratio="adaptive"),
@@ -1753,8 +2422,7 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                             _seedance2_text_inputs(["480p", "720p"], default_ratio="adaptive"),
                         ),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Fast for speed optimization; "
-                    "Mini for the fastest, lowest-cost generation.",
+                    tooltip=SEEDANCE_MODEL_TOOLTIP,
                 ),
                 IO.Image.Input(
                     "first_frame",
@@ -1807,30 +2475,7 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution", "model.duration"]),
-                expr="""
-                (
-                  $rate480 := 10044;
-                  $rate720 := 21600;
-                  $rate1080 := 48800;
-                  $rate4k := 195200;
-                  $m := widgets.model;
-                  $res := $lookup(widgets, "model.resolution");
-                  $dur := $lookup(widgets, "model.duration");
-                  $pricePer1K := $res = "4k"    ? 0.00572 :
-                                 $res = "1080p" ? 0.011011 :
-                                 $contains($m, "mini") ? 0.005005 :
-                                 $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $rate := $res = "4k"    ? $rate4k :
-                           $res = "1080p" ? $rate1080 :
-                           $res = "720p"  ? $rate720 :
-                                            $rate480;
-                  $cost := $dur * $rate * $pricePer1K / 1000;
-                  {"type": "usd", "usd": $cost, "format": {"approximate": true}}
-                )
-                """,
-            ),
+            price_badge=_seedance2_price_badge(with_reference_videos=False),
         )
 
     @classmethod
@@ -1857,8 +2502,17 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         if last_frame is not None and last_frame_asset_id:
             raise ValueError("Provide only one of last_frame or last_frame_asset_id, not both.")
 
-        request_ratio = model["ratio"]
-        if first_frame_asset_id or last_frame_asset_id:
+        if model_id == "dreamina-seedance-2-5-260628":
+            # 2.5 accepts ratio="adaptive" only here and keeps the first frame's own aspect
+            # (a 1920x1088 frame yields 850x482, not a grid ratio), so pre-sizing the frames to a
+            # supported pixel pair would crop framing the model would otherwise have preserved.
+            request_ratio = "adaptive"
+            if first_frame is not None:
+                first_frame = _prepare_seedance_image(first_frame)
+            if last_frame is not None:
+                last_frame = _prepare_seedance_image(last_frame)
+        elif first_frame_asset_id or last_frame_asset_id:
+            request_ratio = model["ratio"]
             if first_frame is not None:
                 first_frame = _prepare_seedance_image(first_frame)
             if last_frame is not None:
@@ -1924,25 +2578,11 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-            data=Seedance2TaskCreationRequest(
-                model=model_id,
-                content=content,
-                generate_audio=model["generate_audio"],
-                resolution=model["resolution"],
-                ratio=request_ratio,
-                duration=model["duration"],
-                seed=seed,
-                watermark=watermark,
-            ),
+            data=_seedance2_build_request(model, model_id, content, seed, watermark, ratio=request_ratio),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(model_id, has_video_input=False, resolution=model["resolution"]),
-            poll_interval=9,
+        response = await _seedance2_poll_video_task(
+            cls, initial_response.id, model_id, model["resolution"], has_video_input=False
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -2028,14 +2668,15 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDance2ReferenceNode",
-            display_name="ByteDance Seedance 2.0 Reference to Video",
+            display_name="ByteDance Seedance 2.5 Reference to Video",
             category="partner/video/ByteDance",
-            description="Generate, edit, or extend video using Seedance 2.0 with reference images, "
-            "videos, and audio. Supports multimodal reference, video editing, and video extension.",
+            description="Generate, edit, or extend video using Seedance 2.5 or 2.0 with reference "
+            "images, videos, and audio. Supports multimodal reference, video editing, and video extension.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option("Seedance 2.5", _seedance25_reference_inputs()),
                         IO.DynamicCombo.Option(
                             "Seedance 2.0",
                             _seedance2_reference_inputs(["480p", "720p", "1080p", "4k"], default_ratio="adaptive"),
@@ -2049,8 +2690,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                             _seedance2_reference_inputs(["480p", "720p"], default_ratio="adaptive"),
                         ),
                     ],
-                    tooltip="Seedance 2.0 for maximum quality; Fast for speed optimization; "
-                    "Mini for the fastest, lowest-cost generation.",
+                    tooltip=SEEDANCE_MODEL_TOOLTIP,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -2079,52 +2719,7 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(
-                    widgets=["model", "model.resolution", "model.duration"],
-                    input_groups=["model.reference_videos"],
-                ),
-                expr="""
-                (
-                  $rate480 := 10044;
-                  $rate720 := 21600;
-                  $rate1080 := 48800;
-                  $rate4k := 195200;
-                  $m := widgets.model;
-                  $hasVideo := $lookup(inputGroups, "model.reference_videos") > 0;
-                  $res := $lookup(widgets, "model.resolution");
-                  $dur := $lookup(widgets, "model.duration");
-                  $noVideoPricePer1K := $res = "4k"    ? 0.00572 :
-                                        $res = "1080p" ? 0.011011 :
-                                        $contains($m, "mini") ? 0.005005 :
-                                        $contains($m, "fast") ? 0.008008 : 0.01001;
-                  $videoPricePer1K := $res = "4k"    ? 0.003432 :
-                                      $res = "1080p" ? 0.006721 :
-                                      $contains($m, "mini") ? 0.003003 :
-                                      $contains($m, "fast") ? 0.004719 : 0.006149;
-                  $rate := $res = "4k"    ? $rate4k :
-                           $res = "1080p" ? $rate1080 :
-                           $res = "720p"  ? $rate720 :
-                                            $rate480;
-                  $noVideoCost := $dur * $rate * $noVideoPricePer1K / 1000;
-                  $minVideoFactor := $ceil($dur * 5 / 3);
-                  $minVideoCost := $minVideoFactor * $rate * $videoPricePer1K / 1000;
-                  $maxVideoCost := (15 + $dur) * $rate * $videoPricePer1K / 1000;
-                  $hasVideo
-                    ? {
-                        "type": "range_usd",
-                        "min_usd": $minVideoCost,
-                        "max_usd": $maxVideoCost,
-                        "format": {"approximate": true}
-                      }
-                    : {
-                        "type": "usd",
-                        "usd": $noVideoCost,
-                        "format": {"approximate": true}
-                      }
-                )
-                """,
-            ),
+            price_badge=_seedance2_price_badge(with_reference_videos=True),
         )
 
     @classmethod
@@ -2145,32 +2740,38 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             cls, list(reference_assets.values())
         )
 
+        model_id = SEEDANCE_MODELS[model["model"]]
+        limits = seedance2_reference_limits(model_id)
+
         if not reference_images and not reference_videos and not reference_image_assets and not reference_video_assets:
-            raise ValueError("At least one reference image or video or asset is required.")
+            if model_id != "dreamina-seedance-2-5-260628" or not (reference_audios or reference_audio_assets):
+                raise ValueError("At least one reference image or video or asset is required.")
 
         total_images = len(reference_images) + len(reference_image_assets)
-        if total_images > 9:
+        if total_images > limits["max_images"]:
             raise ValueError(
                 f"Too many reference images: {total_images} "
-                f"(images={len(reference_images)}, image assets={len(reference_image_assets)}). Maximum is 9."
+                f"(images={len(reference_images)}, image assets={len(reference_image_assets)}). "
+                f"Maximum is {limits['max_images']}."
             )
         total_videos = len(reference_videos) + len(reference_video_assets)
-        if total_videos > 3:
+        if total_videos > limits["max_videos"]:
             raise ValueError(
                 f"Too many reference videos: {total_videos} "
-                f"(videos={len(reference_videos)}, video assets={len(reference_video_assets)}). Maximum is 3."
+                f"(videos={len(reference_videos)}, video assets={len(reference_video_assets)}). "
+                f"Maximum is {limits['max_videos']}."
             )
         total_audios = len(reference_audios) + len(reference_audio_assets)
-        if total_audios > 3:
+        if total_audios > limits["max_audios"]:
             raise ValueError(
                 f"Too many reference audios: {total_audios} "
-                f"(audios={len(reference_audios)}, audio assets={len(reference_audio_assets)}). Maximum is 3."
+                f"(audios={len(reference_audios)}, audio assets={len(reference_audio_assets)}). "
+                f"Maximum is {limits['max_audios']}."
             )
 
         for key in reference_images:
             reference_images[key] = _prepare_seedance_image(reference_images[key])
 
-        model_id = SEEDANCE_MODELS[model["model"]]
         has_video_input = total_videos > 0
 
         if model.get("auto_downscale") and reference_videos:
@@ -2198,8 +2799,11 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
                 raise
             except Exception:
                 pass
-        if total_video_duration > 15.1:
-            raise ValueError(f"Total reference video duration is {total_video_duration:.1f}s. Maximum is 15.1 seconds.")
+        if total_video_duration > limits["max_total_seconds"]:
+            raise ValueError(
+                f"Total reference video duration is {total_video_duration:.1f}s. "
+                f"Maximum is {limits['max_total_seconds']} seconds."
+            )
 
         total_audio_duration = 0.0
         for i, key in enumerate(reference_audios, 1):
@@ -2208,8 +2812,11 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
             if dur < 1.8:
                 raise ValueError(f"Reference audio {i} is too short: {dur:.1f}s. Minimum duration is 1.8 seconds.")
             total_audio_duration += dur
-        if total_audio_duration > 15.1:
-            raise ValueError(f"Total reference audio duration is {total_audio_duration:.1f}s. Maximum is 15.1 seconds.")
+        if total_audio_duration > limits["max_total_seconds"]:
+            raise ValueError(
+                f"Total reference audio duration is {total_audio_duration:.1f}s. "
+                f"Maximum is {limits['max_total_seconds']} seconds."
+            )
 
         asset_labels = _build_asset_labels(
             reference_assets,
@@ -2282,27 +2889,11 @@ class ByteDance2ReferenceNode(IO.ComfyNode):
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
-            data=Seedance2TaskCreationRequest(
-                model=model_id,
-                content=content,
-                generate_audio=model["generate_audio"],
-                resolution=model["resolution"],
-                ratio=model["ratio"],
-                duration=model["duration"],
-                seed=seed,
-                watermark=watermark,
-            ),
+            data=_seedance2_build_request(model, model_id, content, seed, watermark, ratio=model["ratio"]),
             response_model=TaskCreationResponse,
         )
-        response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-            response_model=TaskStatusResponse,
-            status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(
-                model_id, has_video_input=has_video_input, resolution=model["resolution"]
-            ),
-            poll_interval=9,
+        response = await _seedance2_poll_video_task(
+            cls, initial_response.id, model_id, model["resolution"], has_video_input=has_video_input
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
@@ -2617,7 +3208,8 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                 "with ByteDance Seed Audio 1.0. Describe the voice(s), emotion, ambience, background music "
                 "and sound effects in the prompt, and include the lines to speak. Optionally pick a built-in "
                 "preset voice, clone voices from up to 3 reference clips (tagged @Audio1-3 in the prompt), "
-                "or derive a voice from a character image. Up to 2 minutes of audio per run."
+                "or derive a voice from a character image. Up to 2 minutes of audio per run. "
+                "The multilingual model supports 20 languages and timestamp-based timing control."
             ),
             inputs=[
                 IO.String.Input(
@@ -2628,7 +3220,9 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                         "Describe the voice(s), emotion, pacing, ambience, background music and sound "
                         "effects, and include the lines to speak (name characters inline for dialogue). "
                         "In 'audio reference' mode, refer to connected clips by order as @Audio1, @Audio2, "
-                        "@Audio3. Maximum 3000 characters."
+                        "@Audio3. With the multilingual model, a quoted line can start with a timestamp "
+                        'range that controls when and how long it is spoken, e.g. "[5.5s:8.0s] Wait for me!". '
+                        "Write the prompt in the same language as the lines to speak. Maximum 3000 characters."
                     ),
                 ),
                 IO.DynamicCombo.Input(
@@ -2723,6 +3317,19 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
                     tooltip="Seed controls whether the node should re-run; "
                     "results are non-deterministic regardless of seed.",
                 ),
+                IO.Combo.Input(
+                    "model",
+                    options=["seed-audio-1.0-multilingual", "seed-audio-1.0"],
+                    default="seed-audio-1.0-multilingual",
+                    optional=True,
+                    tooltip=(
+                        "seed-audio-1.0-multilingual: 20 languages (English, Chinese, Japanese, Korean, "
+                        "Mexican & Castilian Spanish, Indonesian, German, Brazilian Portuguese, French, "
+                        "Thai, Vietnamese, Malay, Filipino, Italian, Russian, Dutch, Polish, Turkish, "
+                        'Swedish) plus per-sentence timing control via "[5.5s:8.0s] ..." timestamps. '
+                        "seed-audio-1.0: English and Chinese only, no timing control."
+                    ),
+                ),
             ],
             outputs=[IO.Audio.Output()],
             hidden=[
@@ -2746,6 +3353,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
         loudness_rate: int,
         pitch_rate: int,
         seed: int,
+        model: str = "seed-audio-1.0-multilingual",
     ) -> IO.NodeOutput:
         mode = reference_mode["reference_mode"]
         audio_indices = connected_audio_indices(reference_mode)
@@ -2772,6 +3380,7 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
             ApiEndpoint(path="/proxy/byteplus/api/v3/tts/create", method="POST"),
             response_model=SeedAudioResponse,
             data=SeedAudioRequest(
+                model=model,
                 text_prompt=text_prompt,
                 references=references,
                 audio_config=SeedAudioConfig(
@@ -2796,6 +3405,7 @@ class ByteDanceExtension(ComfyExtension):
             ByteDanceImageNode,
             ByteDanceSeedreamNode,
             ByteDanceSeedreamNodeV2,
+            ByteDanceSeedreamLayerSeparationNode,
             ByteDanceTextToVideoNode,
             ByteDanceImageToVideoNode,
             ByteDanceFirstLastFrameNode,

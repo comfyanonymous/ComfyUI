@@ -34,6 +34,7 @@ import comfy.utils
 import comfy.quant_ops
 import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
+from comfy.internal_logging import detail
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -473,7 +474,7 @@ except:
 
 SUPPORT_FP8_OPS = args.supports_fp8_compute
 
-AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]
+AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1035", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]
 AMD_ENABLE_MIOPEN_ENV = 'COMFYUI_ENABLE_MIOPEN'
 
 try:
@@ -489,28 +490,36 @@ try:
         except:
             rocm_version = (6, -1)
 
-        def aotriton_supported(gpu_arch):
-            path = torch.__path__[0]
-            path = os.path.join(os.path.join(path, "lib"), "aotriton.images")
-            gfx = set(map(lambda a: a[4:], filter(lambda a: a.startswith("amd-gfx"), os.listdir(path))))
-            if gpu_arch in gfx:
-                return True
-            if "{}x".format(gpu_arch[:-1]) in gfx:
-                return True
-            if "{}xx".format(gpu_arch[:-2]) in gfx:
-                return True
-            return False
+        def aotriton_supported():
+            """Whether pytorch reports flash attention as usable on this gpu.
+
+            can_use_flash_attention() evaluates runtime eligibility for the given
+            parameters; on a ROCm build that includes checking the gpu arch against the
+            kernel images AOTriton was compiled for. Querying it avoids assuming where
+            those images live inside the torch install. The probe tensor is shaped and
+            typed to pass the unrelated SDPA checks, so False means no hardware support
+            rather than a rejected shape.
+            """
+            try:
+                if not torch.backends.cuda.is_flash_attention_available():  # not built with flash attention
+                    return False
+                q = torch.empty((1, 1, 8, 64), dtype=torch.float16, device=get_torch_device())
+                params = torch.backends.cuda.SDPAParams(q, q, q, None, 0.0, False, False)
+                return torch.backends.cuda.can_use_flash_attention(params, False)
+            except (AttributeError, RuntimeError, TypeError) as e:
+                logging.warning("Could not query aotriton support: {}".format(e))
+                return False
 
         logging.info("AMD arch: {}".format(arch))
         logging.info("ROCm version: {}".format(rocm_version))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-            if aotriton_supported(arch):  # AMD efficient attention implementation depends on aotriton.
+            if aotriton_supported():  # AMD efficient attention implementation depends on aotriton.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
                     if any((a in arch) for a in ["gfx90a", "gfx942", "gfx950", "gfx1100", "gfx1101", "gfx1150", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
                 if rocm_version >= (7, 0):
-                   if any((a in arch) for a in ["gfx1200", "gfx1201"]):
-                       ENABLE_PYTORCH_ATTENTION = True
+                    if any((a in arch) for a in ["gfx1200", "gfx1201"]):
+                        ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx950"]):  # TODO: more arches, "gfx942" gives error on pytorch nightly 2.10 1013 rocm7.0
                 SUPPORT_FP8_OPS = True
@@ -616,6 +625,8 @@ PIN_PRESSURE_HYSTERESIS = 256 * 1024 * 1024
 #Freeing registerables on pressure does imply a GPU sync, so go big on
 #the hysteresis so each expensive sync gives us back a good chunk.
 REGISTERABLE_PIN_HYSTERESIS = 2048 * 1024 * 1024
+WINDOWS_PIN_EVICTION_SWAP_PERCENT = 5.0
+WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE = 512 * 1024 ** 2
 
 def module_size(module):
     module_mem = 0
@@ -630,19 +641,77 @@ def mark_mmap_dirty(storage):
     if mmap_refs is not None:
         DIRTY_MMAPS.add(mmap_refs[0])
 
-def free_pins(size, evict_active=False):
+PIN_SUBSETS = [ "weights", "patches" ]
+LOADED_PIN_SUBSETS = [ "weights-loaded", "patches-loaded" ]
+
+def models_for_pin_eviction(active, current_prompt=None):
+    for loaded_model in current_loaded_models:
+        model = loaded_model.model
+        if model is None or not model.is_dynamic():
+            continue
+        pin_state = model.model.dynamic_pins[model.load_device]
+        if ((active is None or pin_state["active"] == active) and
+            (current_prompt is None or pin_state["current_prompt"] == current_prompt)):
+            yield model
+
+def free_model_pins(size, subsets, current_prompt, active, registrations=False):
     freed_total = 0
-    for loaded_model in reversed(current_loaded_models):
+    for model in models_for_pin_eviction(active, current_prompt=current_prompt):
         if size <= 0:
             return freed_total
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and (evict_active or not model.model.dynamic_pins[model.load_device]["active"]):
-            freed = model.partially_unload_ram(size)
-            freed_total += freed
-            size -= freed
+        if registrations:
+            freed = model.unregister_inactive_pins(size, subsets=subsets)
+        else:
+            freed = model.partially_unload_ram(size, subsets=subsets)
+        freed_total += freed
+        size -= freed
     return freed_total
 
-def ensure_pin_budget(size, evict_active=False):
+def pin_eviction_tiers(loaded, evict_active):
+    tiers = [
+        (PIN_SUBSETS, False, None),
+        (LOADED_PIN_SUBSETS, False, None),
+        (LOADED_PIN_SUBSETS, True, None),
+    ]
+    if not loaded:
+        tiers.append((PIN_SUBSETS, True, False))
+        if evict_active:
+            tiers.append((PIN_SUBSETS, True, True))
+    return tiers
+
+def registration_eviction_tiers(evict_active):
+    subsets = PIN_SUBSETS + LOADED_PIN_SUBSETS
+    tiers = [
+        (subsets, False, False),
+        (subsets, True, False),
+    ]
+    if evict_active:
+        tiers.extend([
+            (subsets, False, True),
+            (subsets, True, True),
+        ])
+    return tiers
+
+def free_pins(size, evict_active=False, loaded=False):
+    freed = 0
+    for subsets, current_prompt, active in pin_eviction_tiers(loaded, evict_active):
+        freed += free_model_pins(size - freed, subsets, current_prompt, active)
+    return freed
+
+def should_free_pins_for_ram_pressure(shortfall):
+    if shortfall <= 0:
+        return False
+    if not WINDOWS:
+        return True
+    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+        return True
+    try:
+        return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
+    except RuntimeError as err:
+        logging.warning("Could not read Windows swap usage; falling back to RAM-pressure pin eviction: %s", err)
+        return True
+
+def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.high_ram:
         return True
     if args.fast_disk:
@@ -653,7 +722,7 @@ def ensure_pin_budget(size, evict_active=False):
         return True
 
     to_free = shortfall + PIN_PRESSURE_HYSTERESIS
-    return free_pins(to_free, evict_active=evict_active) >= shortfall
+    return free_pins(to_free, evict_active=evict_active, loaded=loaded) >= shortfall
 
 def free_registrations(shortfall, evict_active=True):
     if MAX_PINNED_MEMORY <= 0:
@@ -662,19 +731,8 @@ def free_registrations(shortfall, evict_active=True):
         return True
 
     shortfall += REGISTERABLE_PIN_HYSTERESIS
-    for loaded_model in reversed(current_loaded_models):
-        model = loaded_model.model
-        if model is not None and model.is_dynamic() and not model.model.dynamic_pins[model.load_device]["active"]:
-            shortfall -= model.unregister_inactive_pins(shortfall)
-            if shortfall <= 0:
-                return True
-    if evict_active:
-        for loaded_model in current_loaded_models:
-            model = loaded_model.model
-            if model is not None and model.is_dynamic() and model.model.dynamic_pins[model.load_device]["active"]:
-                shortfall -= model.unregister_inactive_pins(shortfall)
-                if shortfall <= 0:
-                    return True
+    for subsets, current_prompt, active in registration_eviction_tiers(evict_active):
+        shortfall -= free_model_pins(shortfall, subsets, current_prompt, active, registrations=True)
     return shortfall <= REGISTERABLE_PIN_HYSTERESIS
 
 def ensure_pin_registerable(size, evict_active=True):
@@ -804,6 +862,8 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins_required=0, ram_required=0):
     cleanup_models_gc()
+    if not for_dynamic:
+        detail("Non dynamic memory free called! memory_required=%s pins_required=%s ram_required=%s", memory_required, pins_required, ram_required)
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -942,6 +1002,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             lowvram_model_memory = 0.1
 
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
+        vram_used = 0 if is_device_cpu(torch_dev) else loaded_model.model_loaded_memory()
+        ram_used = model.loaded_ram_size() if model.is_dynamic() else loaded_model.model_memory() - vram_used
+        detail("Model loaded: patcher=%s model=%s ram_mb=%.1f vram_mb=%.1f", model.__class__.__name__, model.model.__class__.__name__, ram_used / (1024 ** 2), vram_used / (1024 ** 2))
         current_loaded_models.insert(0, loaded_model)
     return
 
@@ -1305,8 +1368,13 @@ STREAM_CAST_BUFFERS = {}
 LARGEST_CASTED_WEIGHT = (None, 0)
 STREAM_AIMDO_CAST_BUFFERS = {}
 LARGEST_AIMDO_CASTED_WEIGHT = (None, 0)
+CROSS_STEP_STATE = weakref.WeakSet()
 
 DEFAULT_AIMDO_CAST_BUFFER_RESERVATION_SIZE = 16 * 1024 ** 3
+
+# NOTE: devs/agents: this is temporary and will be removed in a future comfy. Not supported for custom node use.
+def _register_cross_step(module):
+    CROSS_STEP_STATE.add(module)
 
 def get_cast_buffer(offload_stream, device, size, ref):
     global LARGEST_CASTED_WEIGHT
@@ -1362,21 +1430,27 @@ def reset_cast_buffers():
         mmap_obj.bounce()
     DIRTY_MMAPS.clear()
 
+    for module in CROSS_STEP_STATE:
+        del module._comfy_cross_step_state
+    CROSS_STEP_STATE.clear()
+
     for loaded_model in current_loaded_models:
         model = loaded_model.model
         if model is not None and model.is_dynamic():
             pin_state = model.model.dynamic_pins[model.load_device]
 
             if pin_state["active"]:
-                *_, buckets = pin_state["weights"]
-                for size, bucket in list(buckets.items()):
-                    bucket[:] = [ entry for entry in bucket if entry[-1] is not None ]
-                    if not bucket:
-                        del buckets[size]
+                for subset in ("weights", "weights-loaded"):
+                    *_, buckets = pin_state[subset]
+                    for size, bucket in list(buckets.items()):
+                        bucket[:] = [ entry for entry in bucket if entry[-1] is not None ]
+                        if not bucket:
+                            del buckets[size]
 
             pin_state["active"] = False
-            model.partially_unload_ram(1e30, subsets=[ "patches" ])
-            model.model.dynamic_pins[model.load_device]["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0], [0], {})
+            model.partially_unload_ram(1e30, subsets=[ "patches", "patches-loaded" ])
+            for subset in ("patches", "patches-loaded"):
+                pin_state[subset] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, pinned_hostbuf_size(model.model_size())), [], [-1], [0], [0], {})
 
     STREAM_CAST_BUFFERS.clear()
     STREAM_AIMDO_CAST_BUFFERS.clear()
@@ -1486,13 +1560,31 @@ def cast_to_device(tensor, device, dtype, copy=False):
 PINNED_MEMORY = {}
 TOTAL_PINNED_MEMORY = 0
 MAX_PINNED_MEMORY = -1
+
+def get_disk_swap_total():
+    if not os.path.exists("/proc/swaps"):
+        return 0
+
+    total = 0
+    try:
+        with open("/proc/swaps", encoding="utf-8") as swaps:
+            next(swaps, None)
+            for line in swaps:
+                filename, _, size, _, _ = line.rsplit(maxsplit=4)
+                if os.path.basename(os.path.realpath(filename)).startswith("zram"):
+                    continue
+                total += int(size) * 1024
+    except:
+        logging.warning("Could not get amount of swap memory on system.")
+    return total
+
 if not args.disable_pinned_memory:
     if is_nvidia() or is_amd():
         ram = get_total_memory(torch.device("cpu"))
         if WINDOWS:
             MAX_PINNED_MEMORY = ram * 0.40  # Windows limit is apparently 50%
         else:
-            MAX_PINNED_MEMORY = ram * 0.90
+            MAX_PINNED_MEMORY = max(ram * 0.40, min(ram * 0.90, ram - 4 * 1024 ** 3, ram + get_disk_swap_total() - 16 * 1024 ** 3))
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
@@ -1582,6 +1674,9 @@ def unpin_memory(tensor):
 
 def sage_attention_enabled():
     return args.use_sage_attention
+
+def comfy_kitchen_attention_enabled():
+    return args.use_ck_attention
 
 def flash_attention_enabled():
     return args.use_flash_attention

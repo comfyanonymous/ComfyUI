@@ -17,6 +17,10 @@ class Seedream4Options(BaseModel):
     max_images: int = Field(15)
 
 
+class Seedream5OptimizePromptOptions(BaseModel):
+    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+
+
 class Seedream4TaskCreationRequest(BaseModel):
     model: str = Field(...)
     prompt: str = Field(...)
@@ -24,10 +28,28 @@ class Seedream4TaskCreationRequest(BaseModel):
     image: list[str] | None = Field(None, description="Image URLs")
     size: str = Field(...)
     seed: int = Field(..., ge=0, le=2147483647)
-    sequential_image_generation: str = Field("disabled")
-    sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
+    sequential_image_generation: str | None = Field("disabled")
+    sequential_image_generation_options: Seedream4Options | None = Field(Seedream4Options(max_images=15))
     watermark: bool = Field(False)
     output_format: str | None = None
+    optimize_prompt_options: Seedream5OptimizePromptOptions | None = None
+
+
+class Seedream5LayerOptimizePromptOptions(BaseModel):
+    mode: Literal["standard", "fast"] = Field(...)
+
+
+class Seedream5LayerSeparationRequest(BaseModel):
+    model: str = Field(...)
+    prompt: str | None = Field(None)
+    image: str = Field(..., description="Single image URL")
+    size: str = Field("auto")
+    seed: int = Field(..., ge=0, le=2147483647)
+    response_format: str = Field("url")
+    output_format: str = Field("png")
+    layer_decomposition: bool = Field(True)
+    watermark: bool = Field(False)
+    optimize_prompt_options: Seedream5LayerOptimizePromptOptions | None = Field(None)
 
 
 class ImageTaskCreationResponse(BaseModel):
@@ -90,9 +112,10 @@ class Seedance2TaskCreationRequest(BaseModel):
     generate_audio: bool | None = Field(None)
     resolution: str | None = Field(None)
     ratio: str | None = Field(None)
-    duration: int | None = Field(None, ge=4, le=15)
+    duration: int | None = Field(None)
     seed: int | None = Field(None, ge=0, le=2147483647)
     watermark: bool | None = Field(None)
+    output_format: str | None = Field(None)
 
 
 class TaskCreationResponse(BaseModel):
@@ -181,6 +204,10 @@ SEEDANCE2_PRICE_PER_1K_TOKENS = {
     ("dreamina-seedance-2-0-mini", True, "480p"): 0.0021,
     ("dreamina-seedance-2-0-mini", False, "720p"): 0.0035,
     ("dreamina-seedance-2-0-mini", True, "720p"): 0.0021,
+    ("dreamina-seedance-2-5-260628", False, "480p"): 0.0107,
+    ("dreamina-seedance-2-5-260628", True, "480p"): 0.0064,
+    ("dreamina-seedance-2-5-260628", False, "720p"): 0.0107,
+    ("dreamina-seedance-2-5-260628", True, "720p"): 0.0064,
 }
 
 
@@ -261,6 +288,19 @@ _PRESETS_SEEDREAM_4K = [
 
 _CUSTOM_PRESET = [("Custom", None, None)]
 
+_PRESETS_SEEDREAM_2K_PRO = [
+    ("(2K) 2048x2048 (1:1)", 2048, 2048),
+    ("(2K) 1728x2304 (3:4)", 1728, 2304),
+    ("(2K) 2304x1728 (4:3)", 2304, 1728),
+    # ("(2K) 2848x1600 (16:9)", 2848, 1600),  # 4,556,800 px - temporarily unavailable
+    # ("(2K) 1600x2848 (9:16)", 1600, 2848),  # 4,556,800 px - temporarily unavailable
+    ("(2K) 1664x2496 (2:3)", 1664, 2496),
+    ("(2K) 2496x1664 (3:2)", 2496, 1664),
+    # ("(2K) 3136x1344 (21:9)", 3136, 1344),  # 4,214,784 px - temporarily unavailable
+]
+RECOMMENDED_PRESETS_SEEDREAM_5_PRO = (
+    _PRESETS_SEEDREAM_1K + _PRESETS_SEEDREAM_2K_PRO + _CUSTOM_PRESET
+)
 RECOMMENDED_PRESETS_SEEDREAM_5_LITE = (
     _PRESETS_SEEDREAM_2K + _PRESETS_SEEDREAM_3K + _PRESETS_SEEDREAM_4K + _CUSTOM_PRESET
 )
@@ -286,7 +326,30 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
         "480p": {"min": 409_600, "max": 927_408},
         "720p": {"min": 409_600, "max": 927_408},
     },
+    "dreamina-seedance-2-5-260628": {
+        "480p": {"min": 409_600, "max": 8_295_044},
+        "720p": {"min": 409_600, "max": 8_295_044},
+    },
 }
+
+SEEDANCE2_REFERENCE_LIMITS_DEFAULT = {
+    "max_images": 9,
+    "max_videos": 3,
+    "max_audios": 3,
+    "max_total_seconds": 15.1,
+}
+SEEDANCE2_REFERENCE_LIMITS = {
+    "dreamina-seedance-2-5-260628": {
+        "max_images": 30,
+        "max_videos": 10,
+        "max_audios": 10,
+        "max_total_seconds": 30.1,
+    },
+}
+
+
+def seedance2_reference_limits(model_id: str) -> dict:
+    return SEEDANCE2_REFERENCE_LIMITS.get(model_id, SEEDANCE2_REFERENCE_LIMITS_DEFAULT)
 
 # The time in this dictionary are given for 10 seconds duration.
 VIDEO_TASKS_EXECUTION_TIME = {

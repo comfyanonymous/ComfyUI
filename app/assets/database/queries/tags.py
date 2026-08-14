@@ -265,6 +265,8 @@ def list_tags_with_usage(
     order: str = "count_desc",
     owner_id: str = "",
 ) -> tuple[list[tuple[str, str, int]], int]:
+    prefix_filter = prefix.strip() if prefix else ""
+
     counts_sq = (
         select(
             AssetReferenceTag.tag_name.label("tag_name"),
@@ -293,9 +295,8 @@ def list_tags_with_usage(
         .join(counts_sq, counts_sq.c.tag_name == Tag.name, isouter=True)
     )
 
-    if prefix:
-        escaped, esc = escape_sql_like_string(prefix.strip().lower())
-        q = q.where(Tag.name.like(escaped + "%", escape=esc))
+    if prefix_filter:
+        q = q.where(func.substr(Tag.name, 1, len(prefix_filter)) == prefix_filter)
 
     if not include_zero:
         q = q.where(func.coalesce(counts_sq.c.cnt, 0) > 0)
@@ -306,9 +307,8 @@ def list_tags_with_usage(
         q = q.order_by(func.coalesce(counts_sq.c.cnt, 0).desc(), Tag.name.asc())
 
     total_q = select(func.count()).select_from(Tag)
-    if prefix:
-        escaped, esc = escape_sql_like_string(prefix.strip().lower())
-        total_q = total_q.where(Tag.name.like(escaped + "%", escape=esc))
+    if prefix_filter:
+        total_q = total_q.where(func.substr(Tag.name, 1, len(prefix_filter)) == prefix_filter)
     if not include_zero:
         visible_tags_sq = (
             select(AssetReferenceTag.tag_name)
@@ -340,6 +340,8 @@ def list_tag_counts_for_filtered_assets(
     name_contains: str | None = None,
     metadata_filter: dict | None = None,
     limit: int = 100,
+    # Appended last so pre-existing positional callers keep binding correctly.
+    any_tags: Sequence[str] | None = None,
 ) -> dict[str, int]:
     """Return tag counts for assets matching the given filters.
 
@@ -359,7 +361,7 @@ def list_tag_counts_for_filtered_assets(
         escaped, esc = escape_sql_like_string(name_contains)
         ref_sq = ref_sq.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
 
-    ref_sq = apply_tag_filters(ref_sq, include_tags, exclude_tags)
+    ref_sq = apply_tag_filters(ref_sq, include_tags, exclude_tags, any_tags)
     ref_sq = apply_metadata_filter(ref_sq, metadata_filter)
     ref_sq = ref_sq.subquery()
 

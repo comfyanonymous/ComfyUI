@@ -38,7 +38,7 @@ from app.assets.database.queries import (
     update_reference_updated_at,
 )
 from app.assets.helpers import select_best_live_path
-from app.assets.services.path_utils import compute_relative_filename
+from app.assets.services.path_utils import compute_loader_path
 from app.assets.services.schemas import (
     AssetData,
     AssetDetailResult,
@@ -91,7 +91,7 @@ def update_asset_metadata(
             update_reference_name(session, reference_id=reference_id, name=name)
             touched = True
 
-        computed_filename = compute_relative_filename(ref.file_path) if ref.file_path else None
+        computed_filename = compute_loader_path(ref.file_path) if ref.file_path else None
 
         new_meta: dict | None = None
         if user_metadata is not None:
@@ -279,6 +279,8 @@ def list_assets_page(
     sort: str = "created_at",
     order: str = "desc",
     after: str | None = None,
+    # Appended last so pre-existing positional callers keep binding correctly.
+    any_tags: Sequence[str] | None = None,
 ) -> ListAssetsResult:
     """List assets with optional cursor pagination.
 
@@ -317,6 +319,7 @@ def list_assets_page(
             owner_id=owner_id,
             include_tags=include_tags,
             exclude_tags=exclude_tags,
+            any_tags=any_tags,
             name_contains=name_contains,
             metadata_filter=metadata_filter,
             limit=fetch_limit,
