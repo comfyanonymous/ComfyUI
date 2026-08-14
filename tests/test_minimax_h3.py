@@ -37,6 +37,14 @@ class TestMiniMaxH3ModelDetection(unittest.TestCase):
                 ("condition_proj.weight",),
                 ("text_dim",),
             ),
+            "time_embedder_proj_in": (
+                ("time_embedder.proj_in.weight",),
+                ("timestep_input_dim", "time_embed_hidden_size"),
+            ),
+            "time_embedder_proj_out": (
+                ("time_embedder.proj_out.weight",),
+                ("time_embed_dim",),
+            ),
             "time_embedder": (
                 ("time_embedder.proj_in.weight", "time_embedder.proj_out.weight"),
                 ("timestep_input_dim", "time_embed_hidden_size", "time_embed_dim"),
