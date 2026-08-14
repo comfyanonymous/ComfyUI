@@ -149,6 +149,7 @@ attn_group.add_argument("--use-quad-cross-attention", action="store_true", help=
 attn_group.add_argument("--use-pytorch-cross-attention", action="store_true", help="Use the new pytorch 2.0 cross attention function.")
 attn_group.add_argument("--use-sage-attention", action="store_true", help="Use sage attention.")
 attn_group.add_argument("--use-flash-attention", action="store_true", help="Use FlashAttention.")
+attn_group.add_argument("--use-ck-attention", action="store_true", help="Use Comfy Kitchen attention.")
 
 parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
 
@@ -179,6 +180,7 @@ parser.add_argument("--disable-async-offload", action="store_true", help="Disabl
 parser.add_argument("--disable-dynamic-vram", action="store_true", help="Disable dynamic VRAM and use estimate based model loading.")
 parser.add_argument("--enable-dynamic-vram", action="store_true", help="Enable dynamic VRAM on systems where it's not enabled by default.")
 parser.add_argument("--fast-disk", action="store_true", help="Prefer disk-backed dynamic loading and offload over unpinned RAM. Can be faster for users with fast NVME disks.")
+parser.add_argument("--disable-cuda-graphs", action="store_true", help="Disable CUDA graphs.")
 
 parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
 
