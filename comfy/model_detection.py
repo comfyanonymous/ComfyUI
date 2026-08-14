@@ -44,6 +44,13 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
 def detect_unet_config(state_dict, key_prefix, metadata=None):
     state_dict_keys = list(state_dict.keys())
 
+    if (
+        '{}cond_layer_logits'.format(key_prefix) in state_dict_keys
+        and '{}latent_conditioners.0.weight'.format(key_prefix) in state_dict_keys
+        and '{}diffusion_transformer.transformer.layers.0.self_attn.to_qkv.weight'.format(key_prefix) in state_dict_keys
+    ):
+        return {"audio_model": "minimax_music3"}
+
     if '{}joint_blocks.0.context_block.attn.qkv.weight'.format(key_prefix) in state_dict_keys: #mmdit model
         unet_config = {}
         unet_config["in_channels"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[1]
@@ -830,11 +837,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         dit_config["use_adaln_lora"] = True
         dit_config["adaln_lora_dim"] = 256
+        dit_config["num_blocks"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
         if dit_config["model_channels"] == 2048:
-            dit_config["num_blocks"] = 28
             dit_config["num_heads"] = 16
         elif dit_config["model_channels"] == 5120:
-            dit_config["num_blocks"] = 36
             dit_config["num_heads"] = 40
 
         if dit_config["in_channels"] == 16:
