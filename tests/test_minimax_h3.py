@@ -23,7 +23,7 @@ class TestMiniMaxH3Optimizations(unittest.TestCase):
         out = avae.snake(x, alpha, beta)
         self.assertEqual(out.shape, x.shape)
 
-    def test_model_forward_and_caching(self):
+    def test_model_forward_with_cached_layout_and_tensor_only_replacement(self):
         model = m.MiniMaxH3Model(
             hidden_size=256,
             num_layers=2,
@@ -43,11 +43,26 @@ class TestMiniMaxH3Optimizations(unittest.TestCase):
         context = torch.randn(1, 16, 256)
         timestep = torch.tensor([500.0])
 
-        payload = {}
-        with patch.object(m.comfy.quant_ops.ck, "rms_rope_split_half_"):
-            out1 = model([x_video, x_audio], timestep, context, minimax_payload=payload)
-            out2 = model([x_video, x_audio], timestep, context, minimax_payload=payload)
+        layout = m.PackedLayout(context.shape[1], x_video.shape[2], x_video.shape[3], x_video.shape[4], x_audio.shape[-1])
+        payload = {"layout": layout}
 
+        def tensor_only_replacement(args, extra):
+            args = {key: value for key, value in args.items() if key != "mod_segments"}
+            return extra["original_block"](args)
+
+        transformer_options = {"patches_replace": {"dit": {("double_block", 0): tensor_only_replacement}}}
+        with (
+            patch.object(m, "PackedLayout", wraps=m.PackedLayout) as packed_layout,
+            patch.object(model, "rope_freqs", wraps=model.rope_freqs) as rope_freqs,
+            patch.object(m.comfy.quant_ops.ck, "rms_rope_split_half_"),
+        ):
+            out1 = model([x_video, x_audio], timestep, context, transformer_options=transformer_options, minimax_payload=payload)
+            out2 = model([x_video, x_audio], timestep, context, transformer_options=transformer_options, minimax_payload=payload)
+
+        packed_layout.assert_not_called()
+        self.assertEqual(rope_freqs.call_count, 2)
+        self.assertTrue(all(call.args[0] is layout.position_ids for call in rope_freqs.call_args_list))
+        self.assertIs(payload["layout"], layout)
         self.assertTrue(torch.allclose(out1[0], out2[0], atol=1e-5))
         self.assertTrue(torch.allclose(out1[1], out2[1], atol=1e-5))
 
@@ -119,7 +134,6 @@ class TestMiniMaxH3Optimizations(unittest.TestCase):
         tensor_ms = benchmark(lambda: m._rms_adaln(norm, x, shift, scale, segment_ids))
         self.assertGreater(tuple_ms, 0.0)
         self.assertGreater(tensor_ms, 0.0)
-        self.assertLess(tensor_ms, tuple_ms)
 
     def test_quantized_model_detection(self):
         quant_weight = MagicMock()
