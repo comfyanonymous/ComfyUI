@@ -119,6 +119,18 @@ class RingKV(FixedKV):
         self.seqlen.fill_(min(self.index + num_tokens, capacity))
 
 
+def _fixed_kv_decode_mask(mask, cache, min_val):
+    capacity = cache.key.shape[2]
+    valid = min(cache.index + 1, capacity)
+    output = mask.new_full((*mask.shape[:-1], capacity), min_val)
+    if isinstance(cache, RingKV):
+        positions = torch.arange(cache.index + 1 - valid, cache.index + 1, device=mask.device) % capacity
+        output.index_copy_(-1, positions, mask[..., -valid:])
+    else:
+        output[..., :valid] = mask[..., :valid]
+    return output
+
+
 # unfused RoPE as addcmul_ RoPE diverges from reference code (vision only; text
 # layers use the kitchen split-half kernel, bitwise-equal to this with bf16 freqs)
 def _apply_rotary_pos_emb(x, freqs_cis):
@@ -372,8 +384,9 @@ class Gemma4Transformer(nn.Module):
         for i, layer in enumerate(self.layers):
             if i >= first_kv_shared:
                 dead = {layer.self_attn.k_proj, layer.self_attn.v_proj, layer.self_attn.k_norm}
-                self._prefetch_units.append(tuple(
-                    m for m in layer.modules() if next(m.children(), None) is None and m not in dead))
+                self._prefetch_units.append([
+                    m for m in layer.modules() if next(m.children(), None) is None and m not in dead
+                ])
             else:
                 self._prefetch_units.append(layer)
 
@@ -501,21 +514,27 @@ class Gemma4Transformer(nn.Module):
 
         fixed_kv = (past_key_values is not None and len(past_key_values) > 0
                     and isinstance(past_key_values[0], FixedKV))
-        decode = fixed_kv and seq_len == 1 and mask is None
+        decode = fixed_kv and seq_len == 1
         # mirror the conditions under which prefetch_queue_pop can actually capture, so
         # eager fallbacks keep the sliced decode path instead of the full-capacity one
-        enable_graph = (decode and self.graph_dynamic_vbar_blocks
+        enable_graph = (decode and mask is None and self.graph_dynamic_vbar_blocks
                         and prefetch_queue is not None
                         and hasattr(self.layers[0], "_v_block")
                         and not comfy.model_management.args.disable_cuda_graphs
                         and comfy.model_management.is_device_cuda(x.device))
         decode_bias = None
+        decode_masks = None
         if decode:
             prepared = set()
             for kv in past_key_values:
                 if isinstance(kv, FixedKV) and id(kv.position) not in prepared:
                     kv.prepare(seq_len)
                     prepared.add(id(kv.position))
+            if mask is not None:
+                decode_masks = {}
+                for kv in past_key_values:
+                    if isinstance(kv, FixedKV) and id(kv.position) not in decode_masks:
+                        decode_masks[id(kv.position)] = _fixed_kv_decode_mask(mask, kv, min_val)
         if enable_graph:
             # static buffers + per-capacity attention biases: layer graphs replay against
             # stable storage, refreshed eagerly each step
@@ -588,8 +607,8 @@ class Gemma4Transformer(nn.Module):
                 bias_cache = layer_kwargs.get('shared_kv', past_kv)
                 layer_mask = decode_bias[bias_cache.key.shape[2]]
             elif decode:
-                # eager decode: attention slices the cache by its python index instead
-                layer_mask = None
+                bias_cache = layer_kwargs.get('shared_kv', past_kv)
+                layer_mask = None if decode_masks is None else decode_masks[id(bias_cache.position)]
             else:
                 layer_mask = mask
 
