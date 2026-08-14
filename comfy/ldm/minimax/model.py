@@ -661,10 +661,10 @@ class MiniMaxH3Model(nn.Module):
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
-                    return {"img": block(args["img"], args["t_emb"], args["mod_segments"], args["rope_freqs"],
+                    return {"img": block(args["img"], args["t_emb"], args.get("segment_ids", args["mod_segments"]), args["rope_freqs"],
                                          transformer_options=args["transformer_options"])}
                 h = blocks_replace[("double_block", i)](
-                    {"img": h, "t_emb": t_emb, "mod_segments": segment_ids, "rope_freqs": rope_freqs,
+                    {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "segment_ids": segment_ids, "rope_freqs": rope_freqs,
                      "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
