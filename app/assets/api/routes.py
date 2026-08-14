@@ -18,7 +18,7 @@ from app.assets.api.schemas_in import (
     AssetValidationError,
     UploadError,
 )
-from app.assets.helpers import validate_blake3_hash
+from app.assets.helpers import normalize_tags, validate_blake3_hash
 from app.assets.api.upload import (
     delete_temp_file_if_exists,
     parse_multipart_upload,
@@ -115,6 +115,87 @@ def _build_error_response(
 def _build_validation_error_response(code: str, ve: ValidationError) -> web.Response:
     errors = json.loads(ve.json())
     return _build_error_response(400, code, "Validation failed.", {"errors": errors})
+
+
+class InvalidTagFilterError(Exception):
+    """Invalid combination of tag-filter query parameters."""
+
+    def __init__(self, message: str, details: dict):
+        super().__init__(message)
+        self.details = details
+
+
+# Caps the per-tag EXISTS fan-out; deliberately covers the legacy spellings too.
+MAX_TAG_FILTER_TAGS = 100
+
+
+def _resolve_tag_filters(
+    q: schemas_in.ListAssetsQuery | schemas_in.TagsRefineQuery,
+) -> tuple[list[str], list[str], list[str]]:
+    """Resolve legacy (include/exclude) and new (all/any/none) tag-filter
+    spellings into effective (all, any, none) lists.
+
+    Combination validation applies only when the request uses at least one
+    new-name parameter (non-empty after normalisation); requests using only
+    the legacy names keep their historical behaviour, including degenerate
+    combinations like include_tags=a&exclude_tags=a.
+    """
+    # model_dump, not attribute access: deprecated fields warn on every attribute read.
+    legacy = q.model_dump(include={"include_tags", "exclude_tags"})
+    include_tags = normalize_tags(legacy["include_tags"])
+    exclude_tags = normalize_tags(legacy["exclude_tags"])
+    tags_all = normalize_tags(q.tags_all)
+    tags_any = normalize_tags(q.tags_any)
+    tags_none = normalize_tags(q.tags_none)
+
+    for param_name, values in (
+        ("include_tags", include_tags),
+        ("exclude_tags", exclude_tags),
+        ("tags_all", tags_all),
+        ("tags_any", tags_any),
+        ("tags_none", tags_none),
+    ):
+        if len(values) > MAX_TAG_FILTER_TAGS:
+            raise InvalidTagFilterError(
+                f"'{param_name}' lists {len(values)} tags; the maximum is "
+                f"{MAX_TAG_FILTER_TAGS}.",
+                {
+                    "parameter": param_name,
+                    "count": len(values),
+                    "max": MAX_TAG_FILTER_TAGS,
+                },
+            )
+
+    if not (tags_all or tags_any or tags_none):
+        return include_tags, [], exclude_tags
+
+    if include_tags and tags_all:
+        raise InvalidTagFilterError(
+            "Cannot combine 'include_tags' with 'tags_all'; use 'tags_all'.",
+            {"parameters": ["include_tags", "tags_all"]},
+        )
+    if exclude_tags and tags_none:
+        raise InvalidTagFilterError(
+            "Cannot combine 'exclude_tags' with 'tags_none'; use 'tags_none'.",
+            {"parameters": ["exclude_tags", "tags_none"]},
+        )
+
+    all_param, all_list = (
+        ("tags_all", tags_all) if tags_all else ("include_tags", include_tags)
+    )
+    none_param, none_list = (
+        ("tags_none", tags_none) if tags_none else ("exclude_tags", exclude_tags)
+    )
+
+    conflicting = sorted(set(all_list) & set(none_list))
+    if conflicting:
+        raise InvalidTagFilterError(
+            f"Query can never match: {', '.join(repr(t) for t in conflicting)} "
+            f"required by '{all_param}' but rejected by '{none_param}'.",
+            {"conflicting_tags": conflicting, "parameters": [all_param, none_param]},
+        )
+
+    return all_list, tags_any, none_list
 
 
 def _validate_sort_field(requested: str | None) -> str:
@@ -217,6 +298,11 @@ async def list_assets_route(request: web.Request) -> web.Response:
     except ValidationError as ve:
         return _build_validation_error_response("INVALID_QUERY", ve)
 
+    try:
+        tags_all, tags_any, tags_none = _resolve_tag_filters(q)
+    except InvalidTagFilterError as e:
+        return _build_error_response(400, "INVALID_TAG_FILTER", str(e), e.details)
+
     sort = _validate_sort_field(q.sort)
     order_candidate = (q.order or "desc").lower()
     order = order_candidate if order_candidate in {"asc", "desc"} else "desc"
@@ -224,8 +310,9 @@ async def list_assets_route(request: web.Request) -> web.Response:
     try:
         result = list_assets_page(
             owner_id=USER_MANAGER.get_request_user_id(request),
-            include_tags=q.include_tags,
-            exclude_tags=q.exclude_tags,
+            include_tags=tags_all,
+            exclude_tags=tags_none,
+            any_tags=tags_any,
             name_contains=q.name_contains,
             metadata_filter=q.metadata_filter,
             limit=q.limit,
@@ -715,10 +802,16 @@ async def get_tags_refine(request: web.Request) -> web.Response:
     except ValidationError as ve:
         return _build_validation_error_response("INVALID_QUERY", ve)
 
+    try:
+        tags_all, tags_any, tags_none = _resolve_tag_filters(q)
+    except InvalidTagFilterError as e:
+        return _build_error_response(400, "INVALID_TAG_FILTER", str(e), e.details)
+
     tag_counts = list_tag_histogram(
         owner_id=USER_MANAGER.get_request_user_id(request),
-        include_tags=q.include_tags,
-        exclude_tags=q.exclude_tags,
+        include_tags=tags_all,
+        exclude_tags=tags_none,
+        any_tags=tags_any,
         name_contains=q.name_contains,
         metadata_filter=q.metadata_filter,
         limit=q.limit,
