@@ -57,6 +57,17 @@ def image_tensor_pair_to_batch(image1: torch.Tensor, image2: torch.Tensor) -> to
     return torch.cat((image1, image2), dim=0)
 
 
+def pad_images_to_common_channels(images: list[torch.Tensor]) -> list[torch.Tensor]:
+    """Pads [B, H, W, C] image tensors with opaque alpha so they all share the largest channel count."""
+    channels = max(image.shape[-1] for image in images)
+    return [
+        torch.nn.functional.pad(image, (0, channels - image.shape[-1]), value=1.0)
+        if image.shape[-1] < channels
+        else image
+        for image in images
+    ]
+
+
 def tensor_to_bytesio(
     image: torch.Tensor,
     *,

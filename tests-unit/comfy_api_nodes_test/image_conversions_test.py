@@ -9,7 +9,7 @@ from comfy.cli_args import args
 if not torch.cuda.is_available():
     args.cpu = True
 
-from comfy_api_nodes.util.conversions import bytesio_to_image_tensor  # noqa: E402
+from comfy_api_nodes.util.conversions import bytesio_to_image_tensor, pad_images_to_common_channels  # noqa: E402
 
 
 def encode(image: Image.Image, image_format: str = "PNG") -> BytesIO:
@@ -55,3 +55,26 @@ def test_palette_png_with_transparency_keeps_its_alpha():
 def test_explicit_mode_is_respected(mode, channels):
     tensor = bytesio_to_image_tensor(encode(Image.new("RGBA", (4, 4), (10, 20, 30, 128))), mode=mode)
     assert tensor.shape == (1, 4, 4, channels)
+
+
+def test_pad_mixed_channels_concatenates():
+    rgb = torch.rand(1, 4, 4, 3)
+    rgba = torch.rand(2, 4, 4, 4)
+    padded = pad_images_to_common_channels([rgb, rgba])
+    result = torch.cat(padded, dim=0)
+    assert result.shape == (3, 4, 4, 4)
+
+
+def test_pad_adds_opaque_alpha_and_keeps_rgb_values():
+    rgb = torch.rand(1, 4, 4, 3)
+    rgba = torch.rand(1, 4, 4, 4)
+    padded_rgb, padded_rgba = pad_images_to_common_channels([rgb, rgba])
+    assert torch.equal(padded_rgb[..., :3], rgb)
+    assert padded_rgb[..., 3].min() == 1.0
+    assert padded_rgba is rgba
+
+
+def test_pad_leaves_homogeneous_channels_unchanged():
+    images = [torch.rand(1, 4, 4, 3), torch.rand(2, 4, 4, 3)]
+    padded = pad_images_to_common_channels(images)
+    assert all(p is i for p, i in zip(padded, images))
