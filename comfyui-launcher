@@ -421,7 +421,7 @@ start_instance() {
     pid=$!
     printf '%s\n' "${pid}" > "${pid_file}"
 
-    for (( attempt = 0; attempt < 300; attempt++ )); do
+    for (( attempt = 0; attempt < 1800; attempt++ )); do
         if ! kill -0 "${pid}" 2>/dev/null; then
             rm -f "${pid_file}"
             die "ComfyUI failed to start; see ${log_file}"
