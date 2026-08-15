@@ -254,9 +254,6 @@ class BaseModel(torch.nn.Module):
     def process_timestep(self, timestep, **kwargs):
         return timestep
 
-    def process_denoise_mask(self, denoise_masks):
-        return denoise_masks
-
     def get_dtype(self):
         return self.diffusion_model.dtype
 
@@ -2185,11 +2182,13 @@ class MiniMaxH3(BaseModel):
 
         denoise_mask = kwargs.get("denoise_mask", None)
         if denoise_mask is not None and latent_shapes is not None and len(latent_shapes) > 1:
+            # quantize to 1/256 to limit the number of row timestep values
+            denoise_mask = torch.round(denoise_mask * 256.0) / 256.0
             masks = utils.unpack_latents(denoise_mask, latent_shapes)
             if torch.amin(masks[0]).item() < 1.0 - 1e-3:
                 out['denoise_mask'] = comfy.conds.CONDRegular(masks[0][:1, :1].clone())
             if torch.amin(masks[1]).item() < 1.0 - 1e-3:
-                out['audio_denoise_mask'] = comfy.conds.CONDRegular(masks[1][:1, :1].clone())
+                out['audio_denoise_mask'] = comfy.conds.CONDRegular(masks[1][:1].amax(dim=1, keepdim=True))
 
         if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
             # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
@@ -2201,29 +2200,22 @@ class MiniMaxH3(BaseModel):
         out['minimax_payload'] = comfy.conds.CONDConstant(payload)
         return out
 
-    def process_denoise_mask(self, denoise_masks):
-        # snap the video mask to the DiT patch grid (2x2 latent pixels per patch)
-        # and the audio mask to each audio latent frame (which run at 40 audio frames per second)
-        video_mask = denoise_masks[0]
+    def _pool_masks_to_token_grid(self, masks):
+        # pool the per-pixel masks to the label grid with amax: video per 2x2 DiT patch, audio per latent frame
+        video_mask = masks[0]
         h, w = video_mask.shape[-2:]
         ph, pw = self.diffusion_model.patch_size[1:]
         lead = video_mask.shape[:-2]
         video_mask = torch.nn.functional.pad(video_mask.reshape((-1,) + video_mask.shape[-3:]), (0, -w % pw, 0, -h % ph), mode="replicate")
         video_mask = video_mask.reshape(lead + video_mask.shape[-2:])
         video_mask = video_mask.reshape(video_mask.shape[:-2] + (video_mask.shape[-2] // ph, ph, video_mask.shape[-1] // pw, pw)).amax(dim=(-3, -1))
-        # quantize to 1/256 so a gradient mask yields a bounded set of row timesteps
-        video_mask = torch.round(video_mask * 256.0) / 256.0
-        # threshold values above 0.995 to 1.0 and values below 0.05 to 0.0
-        video_mask = video_mask.masked_fill(video_mask >= 0.995, 1.0).masked_fill(video_mask <= 0.05, 0.0)
-        denoise_masks[0] = video_mask.repeat_interleave(ph, dim=-2).repeat_interleave(pw, dim=-1)[..., :h, :w]
-        if len(denoise_masks) > 1:
-            audio_mask = denoise_masks[1].amax(dim=1, keepdim=True)
-            audio_mask = torch.round(audio_mask * 256.0) / 256.0
-            audio_mask = audio_mask.masked_fill(audio_mask >= 0.995, 1.0).masked_fill(audio_mask <= 0.05, 0.0)
-            denoise_masks[1] = audio_mask.expand_as(denoise_masks[1]).contiguous()
-        return denoise_masks
+        pooled = [video_mask.repeat_interleave(ph, dim=-2).repeat_interleave(pw, dim=-1)[..., :h, :w]]
+        if len(masks) > 1:
+            audio_mask = masks[1].amax(dim=1, keepdim=True)
+            pooled.append(audio_mask.expand_as(masks[1]).contiguous())
+        return pooled
 
-    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+    def scale_latent_inpaint(self, sigma, noise, latent_image, x=None, denoise_mask=None, **kwargs):
         # preserved regions run at the cond timestep, inject them at cond strength
         shapes = self.latent_shapes
         if shapes is None or len(shapes) < 2:
@@ -2241,7 +2233,16 @@ class MiniMaxH3(BaseModel):
             sigma_a = comfy.ldm.minimax.model.time_shift_sigma(sigma_v, model_sampling.shift, model_sampling.audio_shift)
             factor = (sigma_v / sigma_a) / scale
             cleans[1] = cleans[1] * factor.view(factor.shape[:1] + (1,) * (cleans[1].ndim - 1)).to(cleans[1].dtype)
-        return utils.pack_latents(cleans)[0]
+        injected = utils.pack_latents(cleans)[0]
+        if x is None or denoise_mask is None:
+            return injected
+        # return the value that makes the sampler's per-pixel blend land every pixel at its token's pooled strength
+        masks = utils.unpack_latents(denoise_mask, shapes)
+        pooled_token_grid = utils.pack_latents(self._pool_masks_to_token_grid(masks))[0]
+        pooled_token_grid = torch.round(pooled_token_grid * 256.0) / 256.0  # match the label quantization
+        x_blend_weight = (pooled_token_grid - denoise_mask) / (1.0 - denoise_mask).clamp(min=1e-6)  # fraction to move from injected toward x
+        x_blend_weight = torch.where(denoise_mask < 1.0, x_blend_weight.clamp(0.0, 1.0), torch.zeros_like(x_blend_weight))
+        return injected + x_blend_weight.to(injected.dtype) * (x - injected)
 
 class TripoSplat(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
