@@ -555,7 +555,7 @@ PY
 
     if (( install_full_requirements )); then
         printf 'Installing full ComfyUI dependencies from %s\n' "${index_url}"
-        "${COMFYUI_PYTHON}" -m pip install \
+        env -u PIP_CONSTRAINT -u UV_CONSTRAINT "${COMFYUI_PYTHON}" -m pip install \
             --no-cache-dir \
             --index-url "${index_url}" \
             --upgrade \
@@ -567,7 +567,7 @@ PY
         mv -f "${requirements_state_tmp}" "${direct_requirements_state}"
     else
         printf 'Updating PyPI dependencies from %s\n' "${index_url}"
-        "${COMFYUI_PYTHON}" -m pip install \
+        env -u PIP_CONSTRAINT -u UV_CONSTRAINT "${COMFYUI_PYTHON}" -m pip install \
             --no-cache-dir \
             --index-url "${index_url}" \
             --upgrade \
