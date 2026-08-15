@@ -36,7 +36,10 @@ def _to_nvfp4(sd):
         sd[prefix + ".weight"] = qdata
         sd[prefix + ".weight_scale"] = params.block_scale
         sd[prefix + ".weight_scale_2"] = params.scale
-        sd[key] = torch.tensor(list(b'{"format": "nvfp4"}'), dtype=torch.uint8)
+        meta = {"format": "nvfp4"}
+        if "full_precision_matrix_mult" in conf:
+            meta["full_precision_matrix_mult"] = conf["full_precision_matrix_mult"]
+        sd[key] = torch.tensor(list(json.dumps(meta).encode()), dtype=torch.uint8)
 
 
 MODEL_CONFIG = {
