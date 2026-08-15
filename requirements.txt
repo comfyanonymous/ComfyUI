@@ -9,6 +9,7 @@ torchcodec @ https://repos.metax-tech.com/r/maca-pypi/packages/torchcodec/0.6.0+
 triton @ https://repos.metax-tech.com/r/maca-pypi/packages/triton/3.0.0+metax3.5.3.9/triton-3.0.0+metax3.5.3.9-cp310-cp310-linux_x86_64.whl
 xformers @ https://repos.metax-tech.com/r/maca-pypi/packages/xformers/0.0.22+metax3.5.3.9torch2.8/xformers-0.0.22+metax3.5.3.9torch2.8-cp310-cp310-linux_x86_64.whl
 flash-attn @ https://repos.metax-tech.com/r/maca-pypi/packages/flash-attn/2.6.3+metax3.5.3.9torch2.8/flash_attn-2.6.3+metax3.5.3.9torch2.8-cp310-cp310-linux_x86_64.whl
+sageattention @ https://repos.metax-tech.com/r/maca-pypi/packages/sageattention/2.0.1+metax3.5.3.9torch2.8/sageattention-2.0.1+metax3.5.3.9torch2.8-cp310-cp310-linux_x86_64.whl
 numpy>=1.25.0,<2
 einops
 transformers>=4.50.3

@@ -188,6 +188,7 @@ ensure_manager_pip_blacklist() {
         xformers
         triton
         flash-attn
+        sageattention
         numpy
         opencv-python
         opencv-python-headless
@@ -470,6 +471,7 @@ update_comfyui() {
         xformers
         triton
         flash-attn
+        sageattention
     )
 
     command -v git >/dev/null 2>&1 || die "git is required for updates"
