@@ -56,6 +56,8 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     audio_bytes_to_audio_input,
     audio_input_to_mp3,
+    bytesio_to_image_tensor,
+    download_url_as_bytesio,
     download_url_to_image_tensor,
     download_url_to_video_output,
     downscale_image_tensor_by_max_side,
@@ -1315,7 +1317,9 @@ class ByteDanceSeedreamLayerSeparationNode(IO.ComfyNode):
             left, top, rect_w, rect_h = spec["left"], spec["top"], spec["rect_w"], spec["rect_h"]
             async with semaphore:
                 try:
-                    rgba = (await download_url_to_image_tensor(str(item["url"])))[0]
+                    # the layer math below needs the alpha channel, and ByteDance encodes
+                    # alpha-less images as plain RGB (the base plate is one), so force RGBA
+                    rgba = bytesio_to_image_tensor(await download_url_as_bytesio(str(item["url"])), mode="RGBA")[0]
                 except ProcessingInterrupted:
                     raise
                 except Exception as exc:
