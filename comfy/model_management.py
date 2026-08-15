@@ -889,7 +889,11 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
         if memory_to_free > 0:
             model = current_loaded_models[i].model
             if retain_ram_cache and model.is_dynamic():
-                model.partially_unload(model.offload_device, memory_to_free)
+                loaded_size = model.loaded_size()
+                freed = model.partially_unload(model.offload_device, memory_to_free)
+                if freed < min(memory_to_free, loaded_size) and current_loaded_models[i].model_unload(memory_to_free):
+                    logging.debug(f"Unloading {model.model.__class__.__name__}")
+                    unloaded_model.append(i)
             elif current_loaded_models[i].model_unload(memory_to_free):
                 logging.debug(f"Unloading {model.model.__class__.__name__}")
                 unloaded_model.append(i)
