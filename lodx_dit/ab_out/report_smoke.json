@@ -1,0 +1,23 @@
+{
+ "config": {
+  "steps": 4,
+  "seed": 1234,
+  "width": 256,
+  "height": 256,
+  "length": 39,
+  "top_pages": 4,
+  "select_block": 64,
+  "page_size": 64,
+  "local_radius": 0,
+  "start_percent": 0.0,
+  "sampler": "euler",
+  "scheduler": "simple",
+  "tag": "smoke",
+  "skip_dense": false
+ },
+ "times": {
+  "dense": 14.549236059188843,
+  "lod": 31.79023838043213
+ },
+ "report": "frames 39  256x256\nPSNR  mean   15.05 dB   min   14.05   max   15.77\nSSIM  mean  0.4384      min  0.4114\n|diff| mean 0.12980   max 0.89836\ndrift  first half PSNR  15.08 dB -> second half  15.01 dB\nworst frames: #10 14.05 dB, #11 14.11 dB, #9 14.21 dB, #12 14.22 dB, #8 14.22 dB"
+}

@@ -1,0 +1,10 @@
+256x256 39f steps=4 seed=1234
+top_pages=4 select_block=64 page_size=64 local_radius=0 start_percent=0.0
+dense 15s / lod 32s = 0.46x
+
+frames 39  256x256
+PSNR  mean   15.05 dB   min   14.05   max   15.77
+SSIM  mean  0.4384      min  0.4114
+|diff| mean 0.12980   max 0.89836
+drift  first half PSNR  15.08 dB -> second half  15.01 dB
+worst frames: #10 14.05 dB, #11 14.11 dB, #9 14.21 dB, #12 14.22 dB, #8 14.22 dB
