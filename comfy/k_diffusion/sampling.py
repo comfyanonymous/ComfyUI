@@ -1445,7 +1445,7 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
                 x = sigma_fn(h) * x + h * (b1 * denoised + b2 * old_denoised)
 
         # Noise addition
-        if sigmas[i + 1] > 0:
+        if sigma_up > 0:
             x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
 
         if cfg_pp:

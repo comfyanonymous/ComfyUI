@@ -36,7 +36,7 @@ from app.assets.services.hashing import HashCheckpoint, compute_blake3_hash
 from app.assets.services.image_dimensions import extract_image_dimensions
 from app.assets.services.metadata_extract import extract_file_metadata
 from app.assets.services.path_utils import (
-    compute_relative_filename,
+    compute_loader_path,
     get_comfy_models_folders,
     get_name_and_tags_from_asset_path,
 )
@@ -63,7 +63,7 @@ RootType = Literal["models", "input", "output"]
 def get_prefixes_for_root(root: RootType) -> list[str]:
     if root == "models":
         bases: list[str] = []
-        for _bucket, paths in get_comfy_models_folders():
+        for _bucket, paths, _exts in get_comfy_models_folders():
             bases.extend(paths)
         return [os.path.abspath(p) for p in bases]
     if root == "input":
@@ -81,7 +81,7 @@ def get_all_known_prefixes() -> list[str]:
 
 def collect_models_files() -> list[str]:
     out: list[str] = []
-    for folder_name, bases in get_comfy_models_folders():
+    for folder_name, bases, _exts in get_comfy_models_folders():
         rel_files = folder_paths.get_filename_list(folder_name) or []
         for rel_path in rel_files:
             if not all(is_visible(part) for part in Path(rel_path).parts):
@@ -308,7 +308,7 @@ def build_asset_specs(
         if not stat_p.st_size:
             continue
         name, tags = get_name_and_tags_from_asset_path(abs_p)
-        rel_fname = compute_relative_filename(abs_p)
+        rel_fname = compute_loader_path(abs_p)
 
         # Extract metadata (tier 1: filesystem, tier 2: safetensors header)
         metadata = None
@@ -430,7 +430,7 @@ def enrich_asset(
         return new_level
 
     initial_mtime_ns = get_mtime_ns(stat_p)
-    rel_fname = compute_relative_filename(file_path)
+    rel_fname = compute_loader_path(file_path)
     mime_type: str | None = None
     metadata = None
 
