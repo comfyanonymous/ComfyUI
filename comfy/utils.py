@@ -1166,73 +1166,75 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
     output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
 
     term_pbar = None
-    for b in range(samples.shape[0]):
-        s = samples[b:b+1]
+    try:
+        for b in range(samples.shape[0]):
+            s = samples[b:b+1]
 
-        # handle entire input fitting in a single tile
-        if all(s.shape[d+2] <= tile[d] for d in range(dims)):
+            # handle entire input fitting in a single tile
+            if all(s.shape[d+2] <= tile[d] for d in range(dims)):
+                if term_pbar_desc and term_pbar is None:
+                    term_pbar = tqdm(desc=term_pbar_desc, total=samples.shape[0])
+                output[b:b+1] = function(s).to(output_device)
+                if pbar is not None:
+                    pbar.update(1)
+                if term_pbar is not None:
+                    term_pbar.update(1)
+                continue
+
+            out = output[b:b+1].zero_()
+            out_div = torch.zeros([s.shape[0], 1] + mult_list_upscale(s.shape[2:]), device=output_device)
+
+            positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+
             if term_pbar_desc and term_pbar is None:
-                term_pbar = tqdm(desc=term_pbar_desc, total=samples.shape[0])
-            output[b:b+1] = function(s).to(output_device)
-            if pbar is not None:
-                pbar.update(1)
-            if term_pbar is not None:
-                term_pbar.update(1)
-            continue
+                term_pbar = tqdm(desc=term_pbar_desc, total=samples.shape[0] * sum(1 for e in itertools.product(*positions)))
 
-        out = output[b:b+1].zero_()
-        out_div = torch.zeros([s.shape[0], 1] + mult_list_upscale(s.shape[2:]), device=output_device)
+            for it in itertools.product(*positions):
+                s_in = s
+                upscaled = []
 
-        positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+                for d in range(dims):
+                    pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
+                    l = min(tile[d], s.shape[d + 2] - pos)
+                    s_in = s_in.narrow(d + 2, pos, l)
+                    upscaled.append(round(get_pos(d, pos)))
 
-        if term_pbar_desc and term_pbar is None:
-            term_pbar = tqdm(desc=term_pbar_desc, total=samples.shape[0] * sum(1 for e in itertools.product(*positions)))
+                ps = function(s_in).to(output_device)
+                mask = torch.ones([1, 1] + list(ps.shape[2:]), device=output_device)
 
-        for it in itertools.product(*positions):
-            s_in = s
-            upscaled = []
+                for d in range(2, dims + 2):
+                    feather = round(get_scale(d - 2, overlap[d - 2]))
+                    if feather >= mask.shape[d]:
+                        continue
+                    for t in range(feather):
+                        a = (t + 1) / feather
+                        mask.narrow(d, t, 1).mul_(a)
+                        mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
 
-            for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
-                l = min(tile[d], s.shape[d + 2] - pos)
-                s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(get_pos(d, pos)))
+                o = out
+                o_d = out_div
+                ps_view = ps
+                mask_view = mask
+                for d in range(dims):
+                    l = min(ps_view.shape[d + 2], o.shape[d + 2] - upscaled[d])
+                    o = o.narrow(d + 2, upscaled[d], l)
+                    o_d = o_d.narrow(d + 2, upscaled[d], l)
+                    if l < ps_view.shape[d + 2]:
+                        ps_view = ps_view.narrow(d + 2, 0, l)
+                        mask_view = mask_view.narrow(d + 2, 0, l)
 
-            ps = function(s_in).to(output_device)
-            mask = torch.ones([1, 1] + list(ps.shape[2:]), device=output_device)
+                o.add_(ps_view * mask_view)
+                o_d.add_(mask_view)
 
-            for d in range(2, dims + 2):
-                feather = round(get_scale(d - 2, overlap[d - 2]))
-                if feather >= mask.shape[d]:
-                    continue
-                for t in range(feather):
-                    a = (t + 1) / feather
-                    mask.narrow(d, t, 1).mul_(a)
-                    mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
+                if pbar is not None:
+                    pbar.update(1)
+                if term_pbar:
+                    term_pbar.update(1)
 
-            o = out
-            o_d = out_div
-            ps_view = ps
-            mask_view = mask
-            for d in range(dims):
-                l = min(ps_view.shape[d + 2], o.shape[d + 2] - upscaled[d])
-                o = o.narrow(d + 2, upscaled[d], l)
-                o_d = o_d.narrow(d + 2, upscaled[d], l)
-                if l < ps_view.shape[d + 2]:
-                    ps_view = ps_view.narrow(d + 2, 0, l)
-                    mask_view = mask_view.narrow(d + 2, 0, l)
-
-            o.add_(ps_view * mask_view)
-            o_d.add_(mask_view)
-
-            if pbar is not None:
-                pbar.update(1)
-            if term_pbar:
-                term_pbar.update(1)
-
-        out.div_(out_div)
-    if term_pbar:
-        term_pbar.close()
+            out.div_(out_div)
+    finally:
+        if term_pbar:
+            term_pbar.close()
     return output
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None, term_pbar_desc=None):
