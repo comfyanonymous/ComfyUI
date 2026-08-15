@@ -31,7 +31,7 @@ import itertools
 from torch.nn.functional import interpolate
 from tqdm.auto import trange
 from einops import rearrange
-from comfy.cli_args import args, enables_dynamic_vram
+from comfy.cli_args import args
 from tqdm import tqdm
 import json
 import time
