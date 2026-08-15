@@ -8,7 +8,7 @@ if not torch.cuda.is_available():
 
 from comfy_extras.nodes_post_processing import Quantize  # noqa: E402
 
-DITHERS = ["none", "floyd-steinberg", "bayer-2", "bayer-8"]
+DITHERS = ["none", "floyd-steinberg", "bayer-2", "bayer-4", "bayer-8", "bayer-16"]
 
 
 def image(channels, alpha=0.8, size=8):
