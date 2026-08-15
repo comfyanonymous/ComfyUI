@@ -4,7 +4,7 @@ import itertools
 import time
 import torch
 from typing import Sequence, Mapping, Dict
-from comfy.cgroup_memory import virtual_memory_available
+from comfy.system_memory import virtual_memory_available
 from comfy.model_patcher import is_model_patcher_output
 from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod

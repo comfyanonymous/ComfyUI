@@ -1,4 +1,4 @@
-"""Container (cgroup) aware system memory reporting.
+"""Container aware system memory reporting.
 
 ComfyUI sizes its RAM caches and its pinned memory budget from psutil, which
 reads /proc/meminfo. That file is not namespaced, so inside a container with a
@@ -6,9 +6,12 @@ memory limit psutil reports the host's RAM rather than the limit the process is
 actually killed at. The RAM pressure logic then compares against host-wide
 numbers, never frees anything, and the kernel OOM-kills the process instead.
 
-These helpers clamp the reported values to the active cgroup limit. When there
-is no limit -- bare metal, or an unconstrained container -- they return psutil's
-values untouched, so behaviour on those systems is unchanged.
+These helpers clamp the reported values to the limit that actually applies. When
+there is no limit -- bare metal, or an unconstrained container -- they return
+psutil's values untouched, so behaviour on those systems is unchanged.
+
+Callers only need virtual_memory_total() and virtual_memory_available(). The
+cgroup specifics are an implementation detail of this module.
 """
 
 import logging
@@ -25,9 +28,8 @@ CGROUP_V1_UNLIMITED = 1 << 62
 
 # Probed once; the cgroup layout and limit do not change while we run.
 # Usage is deliberately not cached -- it is the value that moves.
-_LIMIT = None
-_CANDIDATE_DIRS = None
-_USAGE_DIR = None
+_SCOPE = None
+_HIERARCHY_DIRS = None
 
 
 def _read(path):
@@ -63,40 +65,78 @@ def _read_stat_field(path, field):
     return None
 
 
-def _own_cgroup_dirs():
-    """Resolve this process' own memory cgroup directory.
+def _own_cgroup_scopes():
+    """[(mount_root, cgroup_dir)] for this process, one entry per hierarchy.
 
-    With a private cgroup namespace -- the Docker default -- the container's
-    cgroup is mounted at the root of /sys/fs/cgroup and the root paths below
-    are enough. This covers the other case (for example --cgroupns=host, or
-    cgroup v1), where the process sits in a sub-path such as /docker/<id>.
+    With a private cgroup namespace -- the Docker default -- /proc/self/cgroup
+    reads "0::/" and the container's own cgroup is mounted at the root, so the
+    mount root is the right directory. This also covers --cgroupns=host and
+    cgroup v1, where the process sits in a sub-path such as /docker/<id>.
     """
     content = _read("/proc/self/cgroup")
     if content is None:
         return []
 
-    dirs = []
+    scopes = []
     for line in content.splitlines():
         parts = line.split(":", 2)
         if len(parts) != 3:
             continue
         _, controllers, path = parts
         path = path.lstrip("/")
-        if not path:
-            # "0::/" -- a process in the root cgroup, i.e. not constrained.
-            continue
+
         if controllers == "":  # cgroup v2 unified hierarchy
-            dirs.append(os.path.join(CGROUP_V2_ROOT, path))
+            root = CGROUP_V2_ROOT
         elif "memory" in controllers.split(","):
-            dirs.append(os.path.join(CGROUP_V1_MEMORY_ROOT, path))
-    return dirs
+            root = CGROUP_V1_MEMORY_ROOT
+        else:
+            continue
+
+        scopes.append((root, os.path.join(root, path) if path else root))
+    return scopes
 
 
-def _candidate_dirs():
-    global _CANDIDATE_DIRS
-    if _CANDIDATE_DIRS is None:
-        _CANDIDATE_DIRS = [CGROUP_V2_ROOT, CGROUP_V1_MEMORY_ROOT] + _own_cgroup_dirs()
-    return _CANDIDATE_DIRS
+def _ancestors(mount_root, directory):
+    """directory, then each parent up to and including mount_root."""
+    root = os.path.normpath(mount_root)
+    current = os.path.normpath(directory)
+
+    out = []
+    while True:
+        out.append(current)
+        if current == root:
+            break
+        parent = os.path.dirname(current)
+        if parent == current or not parent.startswith(root):
+            break
+        current = parent
+    return out
+
+
+def _hierarchy_dirs():
+    """Directories to consult, nearest cgroup first, then its ancestors.
+
+    Ordering matters. Reading the mount roots first would let a limit found on
+    the process' own cgroup be paired with usage read from the host root, which
+    on a host cgroup namespace reports host-wide usage and can drive the
+    available figure to zero.
+    """
+    global _HIERARCHY_DIRS
+    if _HIERARCHY_DIRS is None:
+        dirs = []
+        for root, own in _own_cgroup_scopes():
+            for directory in _ancestors(root, own):
+                if directory not in dirs:
+                    dirs.append(directory)
+
+        # /proc/self/cgroup unreadable (or no memory controller): fall back to
+        # the well-known roots so a namespaced container still works.
+        for root in (CGROUP_V2_ROOT, CGROUP_V1_MEMORY_ROOT):
+            if root not in dirs:
+                dirs.append(root)
+
+        _HIERARCHY_DIRS = dirs
+    return _HIERARCHY_DIRS
 
 
 def _limit_from_dir(directory):
@@ -105,43 +145,57 @@ def _limit_from_dir(directory):
     raw = _read(os.path.join(directory, "memory.max"))
     if raw is not None and raw != "max":
         try:
-            return int(raw)
+            value = int(raw)
+            if value >= 0:
+                return value
+            # Negative is malformed. Treat it as absent rather than letting it
+            # propagate into a negative "total", and try the v1 file below.
         except ValueError:
             pass
 
     # cgroup v1
     limit = _read_int(os.path.join(directory, "memory.limit_in_bytes"))
-    if limit is not None and limit < CGROUP_V1_UNLIMITED:
+    if limit is not None and 0 <= limit < CGROUP_V1_UNLIMITED:
         return limit
 
     return None
 
 
-def cgroup_memory_limit():
-    """Effective memory limit in bytes, or None when unconstrained.
+def _resolve_scope():
+    """(limit, directory) for the most binding finite limit in the hierarchy.
 
-    A limit at or above physical RAM tells us nothing the host total doesn't
-    already, so it is treated as no limit.
+    A cgroup inherits its ancestors' limits, so the effective ceiling is the
+    smallest one found walking up. Returning the directory alongside it lets
+    usage be read from the same level, which is what keeps the two consistent.
     """
-    global _LIMIT
-    if _LIMIT is not None:
-        return _LIMIT[0]
+    global _SCOPE
+    if _SCOPE is not None:
+        return _SCOPE
 
     limit = None
-    if sys.platform.startswith("linux"):
-        for directory in _candidate_dirs():
-            limit = _limit_from_dir(directory)
-            if limit is not None:
-                break
+    directory = None
 
+    if sys.platform.startswith("linux"):
+        for candidate in _hierarchy_dirs():
+            found = _limit_from_dir(candidate)
+            if found is not None and (limit is None or found < limit):
+                limit, directory = found, candidate
+
+        # A limit at or above physical RAM tells us nothing the host total does
+        # not already, so it is treated as no limit.
         if limit is not None and limit >= psutil.virtual_memory().total:
-            limit = None
+            limit, directory = None, None
 
         if limit is not None:
             logging.info("Detected cgroup memory limit {:0.0f} MB".format(limit / (1024 * 1024)))
 
-    _LIMIT = (limit,)
-    return limit
+    _SCOPE = (limit, directory)
+    return _SCOPE
+
+
+def cgroup_memory_limit():
+    """Effective memory limit in bytes, or None when unconstrained."""
+    return _resolve_scope()[0]
 
 
 def _usage_from_dir(directory):
@@ -165,17 +219,16 @@ def _usage_from_dir(directory):
 
 
 def cgroup_memory_usage():
-    """Current non-reclaimable usage in bytes, or None if unavailable."""
-    global _USAGE_DIR
-    if _USAGE_DIR is not None:
-        return _usage_from_dir(_USAGE_DIR)
+    """Current non-reclaimable usage in bytes, or None if unavailable.
 
-    for directory in _candidate_dirs():
-        usage = _usage_from_dir(directory)
-        if usage is not None:
-            _USAGE_DIR = directory
-            return usage
-    return None
+    Read from the same cgroup the limit came from. Any other directory would
+    describe a different scope, and subtracting one from the other would be
+    meaningless.
+    """
+    directory = _resolve_scope()[1]
+    if directory is None:
+        return None
+    return _usage_from_dir(directory)
 
 
 def virtual_memory_total():
