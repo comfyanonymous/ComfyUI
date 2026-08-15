@@ -1412,9 +1412,9 @@ class VAE:
         with model_management.cuda_device_context(self.device):
             if dims == 1:
                 args.pop("tile_y")
-                samples = self.encode_tiled_1d(pixel_samples, **args)
+                samples = self.encode_tiled_1d(pixel_samples, **args, term_pbar_desc=term_pbar_desc)
             elif dims == 2:
-                samples = self.encode_tiled_(pixel_samples, **args)
+                samples = self.encode_tiled_(pixel_samples, **args, term_pbar_desc=term_pbar_desc)
             elif dims == 3:
                 if self.handles_tiling:
                     samples = self._encode_tiled_owned(pixel_samples, **self._owned_tiled_args(tile_x, tile_y, overlap, tile_t, overlap_t))

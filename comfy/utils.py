@@ -1171,9 +1171,13 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
         # handle entire input fitting in a single tile
         if all(s.shape[d+2] <= tile[d] for d in range(dims)):
+            if term_pbar_desc and term_pbar is None:
+                term_pbar = tqdm(desc=term_pbar_desc, total=samples.shape[0])
             output[b:b+1] = function(s).to(output_device)
             if pbar is not None:
                 pbar.update(1)
+            if term_pbar is not None:
+                term_pbar.update(1)
             continue
 
         out = output[b:b+1].zero_()
@@ -1296,6 +1300,7 @@ class ProgressBar:
         self.current = value
 
         if self.term_pbar and inc > 0:
+            self.term_pbar.total = self.total
             self.term_pbar.update(inc)
             if value >= self.total:
                 self.term_pbar.close()
