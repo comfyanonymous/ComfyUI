@@ -1,9 +1,42 @@
+import json
+import os
+
 import torch
 from tokenizers import Tokenizer
 
 import comfy.ops
 from comfy.ldm.minimax_music.ar import CFG_SCALE, CFG_TOP_K, MAX_AUDIO_FRAMES, MiniMaxMusic3AR
 from comfy.ldm.minimax_music.prompt import SPECIAL_TOKEN_IDS, build_prompt
+
+
+def _to_nvfp4(sd):
+    """Rewrite int8+convrot quantized layers to NVFP4 in place (MM3_NVFP4=1).
+
+    NVFP4 keeps the same 2D quantized-weight contract with ~half the storage
+    bytes, so the AR model's resident set fits VRAM and aimdo stops paging.
+    """
+    import comfy_kitchen as ck
+    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
+
+    dtype_code = ck.DTYPE_TO_CODE[torch.float32]
+    for key in list(sd):
+        if not key.endswith(".comfy_quant"):
+            continue
+        conf = json.loads(sd[key].numpy().tobytes())
+        if conf.get("format") != "int8_tensorwise":
+            continue
+        prefix = key[:-len(".comfy_quant")]
+        params_conf = conf.get("params", {})
+        groupsize = int(conf.get("convrot_groupsize", params_conf.get("convrot_groupsize", 256)))
+        if conf.get("convrot", params_conf.get("convrot", False)):
+            fp = torch.ops.comfy_kitchen.dequantize_int8_convrot_weight_dtype(sd[prefix + ".weight"], sd[prefix + ".weight_scale"], groupsize, dtype_code)
+        else:
+            fp = ck.dequantize_int8_simple_dtype(sd[prefix + ".weight"], sd[prefix + ".weight_scale"], dtype_code)
+        qdata, params = TensorCoreNVFP4Layout.quantize(fp)
+        sd[prefix + ".weight"] = qdata
+        sd[prefix + ".weight_scale"] = params.block_scale
+        sd[prefix + ".weight_scale_2"] = params.scale
+        sd[key] = torch.tensor(list(b'{"format": "nvfp4"}'), dtype=torch.uint8)
 
 
 MODEL_CONFIG = {
@@ -99,6 +132,8 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
         return hidden.unsqueeze(0), None, {}
 
     def load_state_dict(self, state_dict, strict=True, assign=False):
+        if os.environ.get("MM3_NVFP4"):
+            _to_nvfp4(state_dict)
         if self.model.pruned_embedding is None:
             self.model.pruned_embedding = "model.embed_tokens_prefill.weight" in state_dict
             if self.model.pruned_embedding:
