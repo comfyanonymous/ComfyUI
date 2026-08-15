@@ -667,12 +667,23 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
         if mask.ndim == 3:
             mask = mask.unsqueeze(1)
 
-    sage_kwargs = {"is_causal": False, "tensor_layout": tensor_layout, "sm_scale": kwargs.get("scale", None), "smooth_k": False}
+    sage_layout = tensor_layout
+    if tensor_layout == "HND":
+        q_s, k_s, v_s = (x.transpose(1, 2) for x in (q, k, v))
+        sage_layout = "NHD"
+    else:
+        q_s, k_s, v_s = q, k, v
+
+    sage_kwargs = {"is_causal": False, "tensor_layout": sage_layout, "sm_scale": kwargs.get("scale", None), "smooth_k": False}
     if mask is not None:
         sage_kwargs["attn_mask"] = mask
 
     try:
-        out = sageattn(q, k, v, **sage_kwargs)
+        out = sageattn(q_s, k_s, v_s, **sage_kwargs)
+        if isinstance(out, tuple):
+            out = out[0]
+        if tensor_layout == "HND":
+            out = out.transpose(1, 2)
     except Exception as e:
         logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
         exception_fallback = True
