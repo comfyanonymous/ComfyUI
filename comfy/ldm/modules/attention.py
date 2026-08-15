@@ -1,6 +1,7 @@
 import math
 import sys
 import inspect
+import importlib.metadata
 
 import torch
 import torch.nn.functional as F
@@ -23,10 +24,12 @@ if model_management.xformers_enabled():
 
 SAGE_ATTENTION_IS_AVAILABLE = False
 SAGE_ATTENTION_SUPPORTS_MASK = False
+SAGE_ATTENTION_IS_METAX = False
 try:
     from sageattention import sageattn
     SAGE_ATTENTION_IS_AVAILABLE = True
     SAGE_ATTENTION_SUPPORTS_MASK = "attn_mask" in inspect.signature(sageattn).parameters
+    SAGE_ATTENTION_IS_METAX = "+metax" in importlib.metadata.version("sageattention")
 except ImportError as e:
     if model_management.sage_attention_enabled():
         if e.name == "sageattention":
@@ -645,6 +648,10 @@ attention_comfy_kitchen_int8.container_function = _attention_comfy_kitchen_int8_
 @wrap_attn
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     if kwargs.get("low_precision_attention", True) is False or (mask is not None and not SAGE_ATTENTION_SUPPORTS_MASK):
+        return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
+
+    dim_head = q.shape[-1] if skip_reshape else q.shape[-1] // heads
+    if SAGE_ATTENTION_IS_METAX and (q.dtype != torch.float16 or dim_head != 128):
         return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
 
     exception_fallback = False
