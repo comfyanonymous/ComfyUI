@@ -2267,7 +2267,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
     parameters = comfy.utils.calculate_parameters(sd)
     weight_dtype = comfy.utils.weight_dtype(sd)
 
-    if os.environ.get("MM3_NVFP4") and metadata is not None and metadata.get("comfy_model") == "minimax_music3_dit":
+    if os.environ.get("MM3_NVFP4") == "1" and metadata is not None and metadata.get("comfy_model") == "minimax_music3_dit":
         comfy.text_encoders.minimax_music._to_nvfp4(sd)
 
     load_device = model_options.get("load_device", model_management.get_torch_device())

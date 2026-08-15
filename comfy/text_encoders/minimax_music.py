@@ -16,7 +16,7 @@ def _to_nvfp4(sd):
     bytes, so the AR model's resident set fits VRAM and aimdo stops paging.
     """
     import comfy_kitchen as ck
-    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
+    from comfy.quant_ops import TensorCoreNVFP4Layout
 
     dtype_code = ck.DTYPE_TO_CODE[torch.float32]
     for key in list(sd):
@@ -132,7 +132,7 @@ class MiniMaxMusic3TEModel(MiniMaxMusic3AR):
         return hidden.unsqueeze(0), None, {}
 
     def load_state_dict(self, state_dict, strict=True, assign=False):
-        if os.environ.get("MM3_NVFP4"):
+        if os.environ.get("MM3_NVFP4") == "1":
             _to_nvfp4(state_dict)
         if self.model.pruned_embedding is None:
             self.model.pruned_embedding = "model.embed_tokens_prefill.weight" in state_dict
