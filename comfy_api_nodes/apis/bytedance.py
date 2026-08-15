@@ -116,6 +116,7 @@ class Seedance2TaskCreationRequest(BaseModel):
     seed: int | None = Field(None, ge=0, le=2147483647)
     watermark: bool | None = Field(None)
     output_format: str | None = Field(None)
+    omni_reference_task_type: str | None = Field(None, description="One of: auto, reference, edit, extend.")
 
 
 class TaskCreationResponse(BaseModel):
