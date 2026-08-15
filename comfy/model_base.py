@@ -22,6 +22,7 @@ import torch
 import logging
 import comfy.ldm.lightricks.av_model
 import comfy.ldm.minimax.model
+import comfy.ldm.minimax_music.dit
 import comfy.nested_tensor
 import comfy.ldm.lightricks.symmetric_patchifier
 import comfy.context_windows
@@ -2164,13 +2165,13 @@ class MiniMaxH3(BaseModel):
         keyframes = kwargs.get("minimax_keyframes", None)
         if keyframes is not None:
             payload["keyframes"] = keyframes
-            payload["frame_count"] = kwargs.get("minimax_frame_count", None)
-            payload["cond_video_latents"] = [kf["latent"] for kf in keyframes]
+            payload["cond_video_latents"] = [kf["latent"] for kf in keyframes if kf.get("latent") is not None]
+            payload["cond_audio_latents"] = [kf["audio_latent"] for kf in keyframes if kf.get("audio_latent") is not None]
         refs = kwargs.get("minimax_refs", None)
         if refs is not None:
             payload["refs"] = refs
-            payload["cond_video_latents"] = [r["latent"] for r in refs if "latent" in r]
-            payload["cond_audio_latents"] = [r["audio_latent"] for r in refs if r.get("audio_latent") is not None]
+            payload["cond_video_latents"] = payload.get("cond_video_latents", []) + [r["latent"] for r in refs if "latent" in r]
+            payload["cond_audio_latents"] = payload.get("cond_audio_latents", []) + [r["audio_latent"] for r in refs if r.get("audio_latent") is not None]
         if kwargs.get("minimax_visual_cond_noise_aug", None) is not None:
             payload["visual_cond_noise_aug"] = kwargs["minimax_visual_cond_noise_aug"]
         if kwargs.get("minimax_audio_cond_noise_aug", None) is not None:
@@ -2184,7 +2185,7 @@ class MiniMaxH3(BaseModel):
             payload["layout"] = comfy.ldm.minimax.model.PackedLayout(
                 cross_attn.shape[1], vs[2], (vs[3] + 1) // 2 * 2, (vs[4] + 1) // 2 * 2,
                 latent_shapes[1][-1], keyframes=payload.get("keyframes"),
-                refs=payload.get("refs"), frame_count=payload.get("frame_count"))
+                refs=payload.get("refs"))
         out['minimax_payload'] = comfy.conds.CONDConstant(payload)
         return out
 
@@ -2335,6 +2336,18 @@ class ACEStep15(BaseModel):
             refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
 
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
+        return out
+
+class MiniMaxMusic3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.minimax_music.dit.MiniMaxMusic3DiT)
+
+    def process_timestep(self, timestep, **kwargs):
+        return 1.0 - timestep
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        out["conditioning_scale"] = comfy.conds.CONDRegular(kwargs["conditioning_scale"])
         return out
 
 class Omnigen2(BaseModel):
