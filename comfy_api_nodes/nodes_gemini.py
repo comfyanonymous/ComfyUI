@@ -592,6 +592,7 @@ class GeminiNode(IO.ComfyNode):
 
 
 GEMINI_V2_MODELS: dict[str, str] = {
+    "Gemini 3.7 Flash": "gemini-3.7-flash",
     "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
     "Gemini 3.5 Flash": "gemini-3.5-flash",
     "Gemini 3.1 Flash-Lite": "gemini-3.1-flash-lite-preview",
@@ -695,6 +696,10 @@ class GeminiNodeV2(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
+                            "Gemini 3.7 Flash",
+                            _gemini_text_model_inputs("MEDIUM", ["LOW", "MEDIUM", "HIGH"]),
+                        ),
+                        IO.DynamicCombo.Option(
                             "Gemini 3.5 Flash",
                             _gemini_text_model_inputs("MEDIUM", ["MINIMAL", "LOW", "MEDIUM", "HIGH"]),
                         ),
@@ -737,6 +742,11 @@ class GeminiNodeV2(IO.ComfyNode):
                   $contains($m, "lite") ? {
                     "type": "list_usd",
                     "usd": [0.00025, 0.0015],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "3.7 flash") ? {
+                    "type": "list_usd",
+                    "usd": [0.00215, 0.01073],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : $contains($m, "3.5 flash") ? {
