@@ -49,7 +49,6 @@ from comfy_api_nodes.apis.bytedance import (
     TaskVideoContentUrl,
     Text2ImageTaskCreationRequest,
     Text2VideoTaskCreationRequest,
-    seedance2_price_per_1k_tokens,
     seedance2_reference_limits,
 )
 from comfy_api_nodes.util import (
@@ -406,20 +405,6 @@ async def _seedance_virtual_library_upload_video_asset(
     )
     await _wait_for_asset_active(cls, create_resp.asset_id, group_id="virtual-library")
     return f"asset://{create_resp.asset_id}"
-
-
-def _seedance2_price_extractor(model_id: str, has_video_input: bool, resolution: str):
-    """Returns a price_extractor closure for Seedance 2.0 poll_op."""
-    rate = seedance2_price_per_1k_tokens(model_id, has_video_input, resolution)
-    if rate is None:
-        return None
-
-    def extractor(response: TaskStatusResponse) -> float | None:
-        if response.usage is None:
-            return None
-        return response.usage.total_tokens * 1.43 * rate / 1_000.0
-
-    return extractor
 
 
 def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
@@ -2300,9 +2285,6 @@ _SEEDANCE_TASK_TYPE_MISMATCH_CODE = "InvalidParameter.TaskTypeMismatch"
 async def _seedance2_poll_video_task(
     cls: type[IO.ComfyNode],
     task_id: str,
-    model_id: str,
-    resolution: str,
-    has_video_input: bool,
     task_type: str | None = None,
 ) -> TaskStatusResponse:
     try:
@@ -2311,9 +2293,6 @@ async def _seedance2_poll_video_task(
             ApiEndpoint(path=f"{BYTEPLUS_SEEDANCE2_TASK_STATUS_ENDPOINT}/{task_id}"),
             response_model=TaskStatusResponse,
             status_extractor=lambda r: r.status,
-            price_extractor=_seedance2_price_extractor(
-                model_id, has_video_input=has_video_input, resolution=resolution
-            ),
             poll_interval=9,
         )
     except Exception as exc:
@@ -2452,9 +2431,7 @@ class ByteDance2TextToVideoNode(IO.ComfyNode):
             ),
             response_model=TaskCreationResponse,
         )
-        response = await _seedance2_poll_video_task(
-            cls, initial_response.id, model_id, model["resolution"], has_video_input=False
-        )
+        response = await _seedance2_poll_video_task(cls, initial_response.id)
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
@@ -2645,9 +2622,7 @@ class ByteDance2FirstLastFrameNode(IO.ComfyNode):
             data=_seedance2_build_request(model, model_id, content, seed, watermark, ratio=request_ratio),
             response_model=TaskCreationResponse,
         )
-        response = await _seedance2_poll_video_task(
-            cls, initial_response.id, model_id, model["resolution"], has_video_input=False
-        )
+        response = await _seedance2_poll_video_task(cls, initial_response.id)
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
@@ -2843,8 +2818,6 @@ class ByteDance2ReferenceNodeV2(IO.ComfyNode):
         for key in reference_images:
             reference_images[key] = _prepare_seedance_image(reference_images[key])
 
-        has_video_input = total_videos > 0
-
         if model.get("auto_downscale") and reference_videos:
             max_px = SEEDANCE2_REF_VIDEO_PIXEL_LIMITS.get(model_id, {}).get(model["resolution"], {}).get("max")
             if max_px:
@@ -2966,9 +2939,6 @@ class ByteDance2ReferenceNodeV2(IO.ComfyNode):
         response = await _seedance2_poll_video_task(
             cls,
             initial_response.id,
-            model_id,
-            model["resolution"],
-            has_video_input=has_video_input,
             task_type=task_type,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
