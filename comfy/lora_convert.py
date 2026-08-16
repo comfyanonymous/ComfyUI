@@ -32,6 +32,12 @@ def convert_uso_lora(sd):
         sd_out[k_to] = tensor
     return sd_out
 
+def convert_lora_minimax_h3(sd):
+    sd_out = {}
+    for k in sd:
+        sd_out["diffusion_model.{}".format(k)] = sd[k]
+    return sd_out
+
 
 def convert_lora(sd):
     if "img_in.lora_A.weight" in sd and "single_blocks.0.norm.key_norm.scale" in sd:
@@ -40,4 +46,6 @@ def convert_lora(sd):
         return convert_lora_wan_fun(sd)
     if "single_blocks.37.processor.qkv_lora.up.weight" in sd and "double_blocks.18.processor.qkv_lora2.up.weight" in sd:
         return convert_uso_lora(sd)
+    if "blocks.0.attn.qkv_proj.lora_A.default.weight" in sd:
+        return convert_lora_minimax_h3(sd)
     return sd
