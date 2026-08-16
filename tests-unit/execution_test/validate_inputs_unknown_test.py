@@ -36,4 +36,8 @@ def test_unknown_input_is_warned_and_ignored(monkeypatch, caplog):
 
     assert valid
     assert errors == []
-    assert any("ref_audios" in record.message for record in caplog.records)
+    assert any(
+        "Node 1 (StubNodeForUnknownInputTest)" in record.message
+        and "ref_audios" in record.message
+        for record in caplog.records
+    )
