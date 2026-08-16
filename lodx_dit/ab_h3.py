@@ -121,7 +121,14 @@ def sample(model, cond, latent, seed, steps, sampler, scheduler):
 
 
 def decode(latent, width, height, length):
-    """Video through the video VAE, audio through the audio VAE."""
+    """Video through the video VAE, audio through the audio VAE.
+
+    Under ``inference_mode`` because comfy's VAE does not disable autograd
+    itself -- the only place ComfyUI does is execution.py:751, where the prompt
+    executor wraps the whole run.  Called from a script the graph is built and
+    retained: ~9 GiB of saved activations per decode, invisible to gc and not
+    freed by empty_cache, so a long clip runs the card out.
+    """
     import comfy.model_management
     import comfy.sd
     import comfy.utils
@@ -134,9 +141,11 @@ def decode(latent, width, height, length):
         "vae", "minimax_h3_video_vae_fp16.safetensors")
     log(f"loading video vae ({os.path.getsize(vae_path)/1e9:.1f} GB)")
     vae = comfy.sd.VAE(sd=comfy.utils.load_torch_file(vae_path))
-    images = vae.decode(video_latent)
-    if images.dim() == 5:
-        images = images.reshape(-1, *images.shape[-3:])
+    with torch.inference_mode():
+        images = vae.decode(video_latent)
+        if images.dim() == 5:
+            images = images.reshape(-1, *images.shape[-3:])
+        images = images.clone()
     del vae
     comfy.model_management.unload_all_models()
     comfy.model_management.soft_empty_cache()
@@ -145,7 +154,8 @@ def decode(latent, width, height, length):
         "vae", "minimax_h3_audio_vae_fp32.safetensors")
     log("loading audio vae")
     avae = comfy.sd.VAE(sd=comfy.utils.load_torch_file(apath))
-    audio = avae.decode(audio_latent).movedim(-1, 1).to(audio_latent.device)
+    with torch.inference_mode():
+        audio = avae.decode(audio_latent).movedim(-1, 1).to(audio_latent.device).clone()
     rate = int(avae.first_stage_model.output_sample_rate)
     del avae
     comfy.model_management.unload_all_models()

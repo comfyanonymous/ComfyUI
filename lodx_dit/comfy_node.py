@@ -93,6 +93,18 @@ def _report(cfg, grid, text_len, sigma):
     if leaves >= video:
         logging.warning("[LoD]   top_pages covers every page: this is a dense "
                         "read with extra bookkeeping. Lower top_pages.")
+    if tile is None:
+        logging.warning("[LoD]   grid %s has no exact spatial tile (prime "
+                        "sides); falling back to raster pages of %d.",
+                        grid, page_size)
+    elif max(tile[1], tile[2]) > 4 * min(tile[1], tile[2]):
+        logging.warning("[LoD]   tile %s is a thin strip -- the grid admits no "
+                        "squarer block. Selection quality may suffer.", tile)
+    if cfg["sigma_end"] >= cfg["sigma_start"]:
+        logging.warning("[LoD]   window %.3f..%.3f is empty or a single point: "
+                        "LoD will be off for almost every step. Check "
+                        "start_percent/end_percent (0.0 and 1.0 = always on).",
+                        cfg["sigma_end"], cfg["sigma_start"])
 
 
 def _order_for(grid, tile, seq, prefix, device):
@@ -172,9 +184,12 @@ def _install():
         tile, page_size = best_tile(grid, cfg["page_size"])
         qt, kt, vt = q.take(), k.take(), v.take()
         order = None
-        if cfg["tiled_pages"]:
+        if cfg["tiled_pages"] and tile is not None:
             order = _order_for(grid, tile, seq, prefix, qt.device)
         else:
+            # a grid with prime sides may admit no exact tile at all; keep the
+            # raster order and the requested page size rather than paging by
+            # single rows, which would make every page a summary
             page_size = cfg["page_size"]
         out = lod_attention(qt, kt, vt, order=order, prefix=prefix,
                             page_size=page_size, top_pages=cfg["top_pages"],
@@ -214,12 +229,13 @@ class MiniMaxH3LoDAttention(io.ComfyNode):
                                        "leave it unconnected and the setting "
                                        "applies to every MiniMax H3 sample."),
                 io.Combo.Input("mode", options=["dense", "lod"], default="lod",
+                               optional=True,
                                tooltip="dense = the stock read, unchanged. "
                                        "lod = each query block reads top_pages "
                                        "pages of video rows exactly and the "
                                        "rest as one summary term each, in a "
                                        "single softmax."),
-                io.Boolean.Input("contiguous_qkv", default=True,
+                io.Boolean.Input("contiguous_qkv", default=True, optional=True,
                                  tooltip="Copy q/k/v to contiguous memory "
                                          "before attention. The model builds "
                                          "them as a transpose, which on ROCm "
@@ -239,18 +255,19 @@ class MiniMaxH3LoDAttention(io.ComfyNode):
                                      "rounded to a spatial block that divides the "
                                      "frame (64 -> 8x7 = 56 at 1344x768)."),
                 io.Int.Input("local_radius", default=0, min=-1, max=8,
+                             optional=True,
                              tooltip="Neighbouring pages forced into every query "
                                      "block's selection alongside its own. -1 "
                                      "disables the forcing entirely."),
                 io.Combo.Input("kernel_variant", options=list(VARIANTS),
-                               default="default",
+                               default="default", optional=True,
                                tooltip="Experimental kernels from "
                                        "kernel_exp.py. 'default' is the tuned, "
                                        "shipping one; the others trade "
                                        "accumulator precision or launch count "
                                        "for register pressure. Check the "
                                        "report line for which one ran."),
-                io.Boolean.Input("tiled_pages", default=True,
+                io.Boolean.Input("tiled_pages", default=True, optional=True,
                                  tooltip="Reorder video rows so a page is a "
                                          "spatial block instead of a 42-wide, "
                                          "2-tall raster strip."),
@@ -266,9 +283,13 @@ class MiniMaxH3LoDAttention(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mode, contiguous_qkv, top_pages, select_block,
-                page_size, local_radius, kernel_variant, tiled_pages,
-                start_percent, end_percent, model=None) -> io.NodeOutput:
+    def execute(cls, top_pages=128, select_block=64, page_size=64,
+                start_percent=0.0, end_percent=1.0, mode="lod",
+                contiguous_qkv=True, local_radius=0, kernel_variant="default",
+                tiled_pages=True, model=None) -> io.NodeOutput:
+        # Every widget carries its default here as well as in the schema, so a
+        # workflow saved before an input existed still loads: ComfyUI validates
+        # against the current schema and would otherwise reject the old graph.
         global _global_cfg
         if mode == "lod" and not HAVE_TRITON:
             raise RuntimeError("LoD attention needs triton")

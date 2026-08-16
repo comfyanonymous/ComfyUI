@@ -58,24 +58,50 @@ def best_tile(grid, page_size: int, keep: float = 0.75):
     squarest block among those within ``keep`` of the target and only then
     prefer the larger one.
 
-    Returns ``((bt, bh, bw), page_size)``; ``bt`` stays 1 because a DiT frame is
-    a much longer stride than a row and mixing frames into one page buys
-    nothing.
+    Returns ``((bt, bh, bw), page_size)``.
+
+    ``bt`` stays 1, and that is now known to be the wrong call.  The assumption
+    was that a frame is a much longer stride than a row, so mixing frames into
+    one page buys nothing.  Probed against real H3 activations at 1344x768 with
+    page_size held at 56, spending the page on time instead beats this
+    spatial-only tile in every layer/budget cell measured:
+
+        layer  0, kP=64:  1x8x7 = 0.1452 rel   4x2x7 = 0.1262 rel   (-13%)
+        layer 25, kP=64:  1x8x7 = 0.3252        4x2x7 = 0.3235
+        layer 49, kP=64:  1x8x7 = 0.1450        4x2x7 = 0.1281      (-12%)
+
+    Latent frames are already temporally compressed, so tokens one latent frame
+    apart are more alike than tokens a few patches apart -- the opposite of the
+    intuition above.  Depth is a U-curve though: 8 frames (8x1x7) is worse than
+    4, because the spatial side collapses to one row.  A balanced 3D block wins,
+    not a temporal one.  See docs/lod-dit-results.md for the full tables.
+
+    Not changed yet because it moves the default read and would invalidate
+    quality evaluations done at the current setting.
     """
     _, h, w = grid
     floor = int(page_size * keep)
-    best = None
+    near, any_ = None, None
     for bh in _divisors(h):
         for bw in _divisors(w):
             size = bh * bw
-            if size > page_size or size < floor:
+            if size > page_size:
                 continue
-            key = (max(bh, bw) / min(bh, bw), -size)
-            if best is None or key < best[0]:
-                best = (key, (1, bh, bw), size)
-    if best is None:                        # nothing divides near the target
-        return (1, 1, 1), 1
-    return best[1], best[2]
+            aspect = max(bh, bw) / min(bh, bw)
+            if any_ is None or (-size, aspect) < any_[0]:
+                any_ = ((-size, aspect), (1, bh, bw), size)
+            if size >= floor and (near is None or (aspect, -size) < near[0]):
+                near = ((aspect, -size), (1, bh, bw), size)
+
+    if near is not None:
+        return near[1], near[2]
+    # Nothing lands near the target.  A grid with prime sides has almost no
+    # exact tiles -- 13 x 23 offers only 1, 13 and 23 -- so take the largest
+    # that does divide rather than the old fallback of one row per page, which
+    # made every row its own page and turned the read into all-summaries.
+    if any_ is not None and any_[2] > 1:
+        return any_[1], any_[2]
+    return None, page_size                  # no tiling; caller keeps raster
 
 
 def video_grid_shape(width: int, height: int, frames: int):

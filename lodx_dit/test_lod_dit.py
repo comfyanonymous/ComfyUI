@@ -42,6 +42,13 @@ def gpu_case(fn):
     return fn
 
 
+def multigpu_case(fn):
+    fn.needs_cuda = True
+    fn.needs_gpus = 2
+    CASES.append(fn)
+    return fn
+
+
 def dense(query, key, value, scale=None):
     """Bidirectional dense attention in fp32 -- no mask of any kind."""
     if scale is None:
@@ -212,6 +219,19 @@ def tiling_shrinks_the_page_bounding_box():
         # an exact tile has a bounding box equal to its own area, by definition
         assert tiled == ps, f"{grid}: tile {tile} not exact ({tiled} vs {ps})"
         assert tiled <= raster, f"{grid}: raster {raster:.0f} vs {tiled:.0f}"
+
+
+@case
+def a_prime_grid_never_pages_by_single_rows():
+    """13 x 23 admits only 1, 13 and 23 -- the old fallback made every row a
+    page, so the read became all-summaries and cost more than dense."""
+    from lodx_dit.ordering import best_tile
+    for grid in [(142, 13, 23), (22, 17, 29), (5, 11, 13)]:
+        tile, ps = best_tile(grid, 64)
+        assert ps > 1, f"{grid}: page_size collapsed to {ps}"
+        if tile is not None:
+            assert grid[1] % tile[1] == 0 and grid[2] % tile[2] == 0, (grid, tile)
+            assert tile[1] * tile[2] == ps, (tile, ps)
 
 
 @case
@@ -443,12 +463,93 @@ def every_kernel_variant_keeps_the_dense_anchor():
         assert err < 2e-2, f"{name}: rel={err:.2e}"
 
 
+def _tiny_h3(device, layers=4):
+    """A MiniMaxH3Model small enough to test placement logic on."""
+    import comfy.ops
+    import comfy.ldm.minimax.model as h3
+    m = h3.MiniMaxH3Model(
+        hidden_size=256, num_layers=layers, token_refiner_num_layers=1,
+        num_attention_heads=2, attention_head_dim=128, ffn_hidden_size=512,
+        latents_dim=24, audio_latents_dim=32, text_dim=256,
+        timestep_input_dim=32, time_embed_hidden_size=64, time_embed_dim=64,
+        rope_inv_freq_len=16, dtype=torch.float32, device="cpu",
+        operations=comfy.ops.disable_weight_init)
+    g = torch.Generator().manual_seed(5)
+    for p in m.parameters():
+        p.data = torch.randn(p.shape, generator=g) * 0.05
+        # the in-place RoPE kernel is inference-only and refuses autograd
+        p.requires_grad_(False)
+    for b in m.buffers():
+        b.data = torch.randn(b.shape, generator=g).abs() * 0.05 + 0.01
+    return m.to(device).eval()
+
+
+def _tiny_inputs(device, t=2, hh=4, ww=4, text=8, audio=6):
+    g = torch.Generator().manual_seed(7)
+    video = (torch.randn(1, 24, t, hh, ww, generator=g)).to(device)
+    aud = (torch.randn(1, 32, 2, audio, generator=g)).to(device)
+    ctx = (torch.randn(1, text, 256, generator=g)).to(device)
+    ts = torch.tensor([500.0], device=device)
+    return [video, aud], ts, ctx
+
+
+@multigpu_case
+def pipeline_split_does_not_change_the_output():
+    """Placement is a device change, not a maths change."""
+    from lodx_dit import pipeline
+    d0, d1 = torch.device("cuda:0"), torch.device("cuda:1")
+    model = _tiny_h3(d0)
+    x, ts, ctx = _tiny_inputs(d0)
+    want = model._forward(x, ts, ctx, transformer_options={},
+                          minimax_payload={})
+
+    real_f, real_b, real_fin = (
+        __import__("comfy.ldm.minimax.model", fromlist=["x"]).MiniMaxH3Model._forward,
+        __import__("comfy.ldm.minimax.model", fromlist=["x"]).DiTBlock.forward,
+        __import__("comfy.ldm.minimax.model", fromlist=["x"]).FinalLayer.forward)
+    pipeline._installed = False
+    try:
+        pipeline.install(2)
+        got = model._forward(x, ts, ctx, transformer_options={},
+                             minimax_payload={})
+        devs = {str(next(b.parameters()).device) for b in model.blocks}
+        assert devs == {"cuda:0", "cuda:1"}, devs
+        for a, b in zip(want, got):
+            err = rel_err(b.to(a.device), a)
+            assert err < 1e-5, f"rel={err:.2e}"
+    finally:
+        import comfy.ldm.minimax.model as h3
+        h3.MiniMaxH3Model._forward = real_f
+        h3.DiTBlock.forward = real_b
+        h3.FinalLayer.forward = real_fin
+        pipeline._installed = False
+
+
+@case
+def pipeline_plan_is_contiguous_and_even():
+    from lodx_dit.pipeline import plan
+    for n_blocks, n_dev in [(50, 2), (50, 3), (4, 2), (7, 2)]:
+        devs = [f"d{i}" for i in range(n_dev)]
+        m = plan(n_blocks, devs)
+        seq = [m[i] for i in range(n_blocks)]
+        # every device used, and each one owns one contiguous run
+        assert set(seq) == set(devs), (n_blocks, n_dev, set(seq))
+        runs = [k for k, _ in __import__("itertools").groupby(seq)]
+        assert len(runs) == n_dev, runs
+
+
 def main():
     passed = failed = skipped = 0
     for fn in CASES:
         name = fn.__name__
         if getattr(fn, "needs_cuda", False) and not CUDA:
             print(f"  SKIP  {name} (no GPU)")
+            skipped += 1
+            continue
+        need = getattr(fn, "needs_gpus", 1)
+        if need > torch.cuda.device_count():
+            print(f"  SKIP  {name} (needs {need} GPUs, "
+                  f"{torch.cuda.device_count()} visible)")
             skipped += 1
             continue
         try:
