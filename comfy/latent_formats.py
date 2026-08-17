@@ -1,4 +1,5 @@
 import torch
+import comfy.nested_tensor
 
 class LatentFormat:
     scale_factor = 1.0
@@ -16,6 +17,9 @@ class LatentFormat:
 
     def process_out(self, latent):
         return latent / self.scale_factor
+
+    def fix_empty_latent(self, latent):
+        return latent
 
 class SD15(LatentFormat):
     def __init__(self, scale_factor=0.18215):
@@ -605,6 +609,19 @@ class MiniMaxH3Video(LatentFormat):
 class MiniMaxH3AV(MiniMaxH3Video):
     # max channels across the two streams (video 24, audio 32) so per-stream slices keep both streams whole
     latent_channels = 32
+
+    def fix_empty_latent(self, latent):
+        video_latent_channels = MiniMaxH3Video.latent_channels
+        audio_latent_channels = 32
+        audio_channels = 2
+        frames_per_token = (1, 4, 4, 4, 4)
+        audio_frame_rescale = 5.0 / 3.0
+
+        video = latent[:, :video_latent_channels].clone()
+        frame_count = sum(frames_per_token[i % len(frames_per_token)] for i in range(video.shape[2]))
+        audio_t = round(frame_count * audio_frame_rescale)
+        audio = latent.new_zeros((latent.shape[0], audio_latent_channels, audio_channels, audio_t))
+        return comfy.nested_tensor.NestedTensor((video, audio))
 
 class HunyuanVideo(LatentFormat):
     latent_channels = 16
