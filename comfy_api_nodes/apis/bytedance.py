@@ -301,6 +301,7 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
     "dreamina-seedance-2-5-260628": {
         "480p": {"min": 409_600, "max": 8_295_044},
         "720p": {"min": 409_600, "max": 8_295_044},
+        "1080p": {"min": 409_600, "max": 8_295_044},
     },
 }
 
