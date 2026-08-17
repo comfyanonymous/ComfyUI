@@ -32,6 +32,19 @@ class FixedKV:
     def advance(self, num_tokens):
         self.index += num_tokens
 
+
+@dataclass
+class CompactFixedKV(FixedKV):
+    tracker: dict = None
+
+    def prepare(self, num_tokens):
+        if self.tracker["step"] == self.index:
+            return
+        self.tracker["step"] = self.index
+        self.position.copy_(self.seqlen)
+        self.seqlen.add_(num_tokens)
+
+
 @dataclass
 class Llama2Config:
     vocab_size: int = 128320
@@ -571,17 +584,35 @@ class Attention(nn.Module):
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
             xv = xv.transpose(1, 2)
-            if seq_length == 1:
+            if seq_length == 1 and (not isinstance(fixed_cache, CompactFixedKV) or fixed_cache.index > 0):
                 # CUDA-graphable decode path.
-                fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
-                fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
+                if isinstance(fixed_cache, CompactFixedKV):
+                    position = fixed_cache.position.view(batch_size, 1, 1, 1).expand_as(xk)
+                    fixed_cache.key.scatter_(1, position, xk)
+                    fixed_cache.value.scatter_(1, position, xv)
+                else:
+                    fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
+                    fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
                 output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
                 return self.o_proj(output.view(batch_size, seq_length, self.inner_size)), fixed_cache
 
-            fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
-            fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
-            xk = fixed_cache.key[:, :fixed_cache.index + seq_length]
-            xv = fixed_cache.value[:, :fixed_cache.index + seq_length]
+            if isinstance(fixed_cache, CompactFixedKV):
+                if attention_mask is None or attention_mask.ndim < 4:
+                    fixed_cache.key[:, :seq_length].copy_(xk)
+                    fixed_cache.value[:, :seq_length].copy_(xv)
+                else:
+                    valid = attention_mask[:, 0, -1, -seq_length:] == 0
+                    indices = torch.arange(seq_length, device=xk.device).expand(batch_size, -1)
+                    indices = indices.masked_fill(~valid, seq_length).sort(dim=1).values.clamp_max_(seq_length - 1)
+                    indices = indices.view(batch_size, seq_length, 1, 1).expand_as(xk)
+                    fixed_cache.key[:, :seq_length].copy_(xk.gather(1, indices))
+                    fixed_cache.value[:, :seq_length].copy_(xv.gather(1, indices))
+                    fixed_cache.seqlen.copy_(valid.sum(dim=1))
+            else:
+                fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
+                fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
+                xk = fixed_cache.key[:, :fixed_cache.index + seq_length]
+                xv = fixed_cache.value[:, :fixed_cache.index + seq_length]
 
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
@@ -759,6 +790,7 @@ class Llama2_(nn.Module):
         super().__init__()
         self.config = config
         self.fixed_kv = getattr(config, "fixed_kv", False)
+        self.compact_kv = False
         self.graph_dynamic_vbar_blocks = False
         self.vocab_size = config.vocab_size
 
@@ -791,14 +823,20 @@ class Llama2_(nn.Module):
 
     def init_kv_cache(self, batch, capacity, device, dtype):
         caches = []
-        fixed_kv = self.fixed_kv and comfy_kitchen.flash_attention_decode_is_available(device)
+        flash_kv = self.fixed_kv and comfy_kitchen.flash_attention_decode_is_available(device)
+        position = torch.empty((batch,), device=device, dtype=torch.int64) if flash_kv and self.compact_kv else None
+        seqlen = torch.zeros((batch,), device=device, dtype=torch.int32) if flash_kv and self.compact_kv else None
+        tracker = {"step": -1} if flash_kv and self.compact_kv else None
         for _ in range(self.config.num_hidden_layers):
-            if fixed_kv:
+            if flash_kv:
                 key = torch.empty((batch, capacity, self.config.num_key_value_heads, self.config.head_dim), device=device, dtype=dtype)
                 value = torch.empty_like(key)
-                position = torch.empty((1,), device=device, dtype=torch.int64)
-                seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
-                caches.append(FixedKV(key, value, 0, position, seqlen))
+                if self.compact_kv:
+                    caches.append(CompactFixedKV(key, value, 0, position, seqlen, tracker))
+                else:
+                    pos = torch.empty((1,), device=device, dtype=torch.int64)
+                    lengths = torch.empty((batch,), device=device, dtype=torch.int32)
+                    caches.append(FixedKV(key, value, 0, pos, lengths))
             else:
                 key = torch.empty((batch, self.config.num_key_value_heads, capacity, self.config.head_dim), device=device, dtype=dtype)
                 caches.append((key, torch.empty_like(key), 0))
