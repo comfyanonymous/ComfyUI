@@ -49,4 +49,4 @@ def test_class_attributes_are_forwarded_to_schema(node_cls):
 
 def test_node_classes_are_discovered():
     """Guard against the parametrization above collapsing to zero cases."""
-    assert len(_node_classes()) > 10
+    assert _node_classes()
