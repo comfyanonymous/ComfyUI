@@ -117,7 +117,7 @@ SEEDANCE_MODELS = {
 
 SEEDANCE_MODEL_TOOLTIP = (
     "Seedance 2.5 for the newest model, videos up to 30 seconds and mp4/mov output; "
-    "Seedance 2.0 for maximum quality and 1080p/4k; Fast for speed optimization; "
+    "Seedance 2.0 for maximum quality and 4k; Fast for speed optimization; "
     "Mini for the fastest, lowest-cost generation."
 )
 
@@ -2069,7 +2069,7 @@ def _seedance25_text_inputs(with_ratio: bool = True, with_video_editing: bool = 
         ),
         IO.Combo.Input(
             "resolution",
-            options=["480p", "720p"],
+            options=["480p", "720p", "1080p"],
             default="720p",
             tooltip="Resolution of the output video.",
         ),
@@ -2240,12 +2240,15 @@ _SEEDANCE2_PRICE_EXPR_TEMPLATE = """
   $ready ? (
     $contains($m, "2.5") ? (
       $is480 := $res = "480p";
-      $perFrame := $ratio = "1:1"  ? ($is480 ? 400      : 900) :
-                   $ratio = "4:3"  ? ($is480 ? 411.25   : 905.6719) :
-                   $ratio = "3:4"  ? ($is480 ? 411.25   : 905.6719) :
-                   $ratio = "21:9" ? ($is480 ? 418.5    : 904.3945) :
-                                     ($is480 ? 400.3125 : 900);
-      $price := $hasVideo ? 0.009152 : 0.015301;
+      $is1080 := $res = "1080p";
+      $perFrame := $ratio = "1:1"  ? ($is480 ? 400      : $is1080 ? 2025      : 900) :
+                   $ratio = "4:3"  ? ($is480 ? 411.25   : $is1080 ? 2028      : 905.6719) :
+                   $ratio = "3:4"  ? ($is480 ? 411.25   : $is1080 ? 2028      : 905.6719) :
+                   $ratio = "21:9" ? ($is480 ? 418.5    : $is1080 ? 2037.9648 : 904.3945) :
+                                     ($is480 ? 400.3125 : $is1080 ? 2025      : 900);
+      $price := $is1080
+        ? ($hasVideo ? 0.01001 : 0.016731)
+        : ($hasVideo ? 0.009152 : 0.015301);
       $costFor := function($d) { $floor($perFrame * (24 * $d + 1)) / 1000 * $price };
       $lo := $costFor($auto ? 4 : $dur);
       $hi := $costFor(($auto ? 30 : $dur) + ($hasVideo ? 30 : 0));
