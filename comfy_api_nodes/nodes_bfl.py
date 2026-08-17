@@ -1,7 +1,6 @@
 import math
 
 import torch
-from pydantic import BaseModel
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
@@ -588,16 +587,12 @@ class FluxEraseNode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -669,16 +664,12 @@ class FluxVTONode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -802,16 +793,12 @@ class Flux2ProImageNode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -994,16 +981,12 @@ class Flux2ImageNode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -1171,17 +1154,12 @@ async def _flux3_execute(cls: type[IO.ComfyNode], request: Flux3VideoRequest) ->
         response_model=BFLFluxProGenerateResponse,
         data=request,
     )
-
-    def price_extractor(_r: BaseModel) -> float | None:
-        return None if initial_response.cost is None else initial_response.cost / 100
-
     response = await poll_op(
         cls,
         ApiEndpoint(initial_response.polling_url),
         response_model=BFLFluxStatusResponse,
         status_extractor=lambda r: r.status,
         progress_extractor=lambda r: r.progress,
-        price_extractor=price_extractor,
         completed_statuses=[BFLStatus.ready],
         failed_statuses=[
             BFLStatus.request_moderated,
