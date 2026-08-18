@@ -1,13 +1,50 @@
 """Gemma4 tokenization regression tests."""
 
+import importlib
+import importlib.util
+
 import torch
 
 from comfy.cli_args import args
 
-if not torch.cuda.is_available():
+
+def supported_accelerator_available():
+    if torch.cuda.is_available():
+        return True
+    try:
+        if torch.backends.mps.is_available():
+            return True
+    except (AttributeError, RuntimeError):
+        pass
+    try:
+        if torch.xpu.is_available():
+            return True
+    except (AttributeError, RuntimeError):
+        pass
+    if args.directml is not None:
+        return True
+    if hasattr(torch, "corex"):
+        return True
+    return any(
+        importlib.util.find_spec(package) is not None
+        for package in ("torch_npu", "torch_mlu")
+    )
+
+
+prior_cpu_mode = args.cpu
+if not supported_accelerator_available():
     args.cpu = True
 
-from comfy.text_encoders.gemma4 import Gemma4SDTokenizer  # noqa: E402
+try:
+    gemma4 = importlib.import_module("comfy.text_encoders.gemma4")
+finally:
+    args.cpu = prior_cpu_mode
+
+Gemma4SDTokenizer = gemma4.Gemma4SDTokenizer
+
+
+def test_cpu_mode_is_restored_after_import():
+    assert args.cpu == prior_cpu_mode
 
 
 class _SingleTokenTokenizer:
