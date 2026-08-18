@@ -332,9 +332,8 @@ def get_path_derived_tag_vocabulary() -> set[str]:
     vocabulary.update(_KNOWN_SUBFOLDER_TAGS)
     for folder_name, _bases, _extensions in get_comfy_models_folders():
         vocabulary.add(f"model_type:{folder_name}")
-    # Stored tag names reach the database through normalize_tags, so an
-    # un-normalized vocabulary entry would never match one and the stale tag
-    # it is meant to authorise removing would survive.
+    # Stored names reach the database through normalize_tags, so an un-normalized
+    # entry would never match the tag it exists to authorise removing.
     return set(normalize_tags(list(vocabulary)))
 
 

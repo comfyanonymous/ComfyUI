@@ -384,7 +384,6 @@ class TestTagReprojection:
     def test_vocabulary_matches_tags_as_the_database_stores_them(
         self, session, comfy_dirs
     ):
-        """Stored names arrive normalized, so a raw vocabulary entry never matches."""
         path = _write(comfy_dirs["checkpoints"], "model.safetensors")
         _register(
             session,
