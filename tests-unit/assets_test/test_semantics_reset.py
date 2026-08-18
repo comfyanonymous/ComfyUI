@@ -392,8 +392,6 @@ class TestTagReprojection:
             tags={"model_type:loras": "automatic"},
         )
 
-        # Leading whitespace lands after "model_type:", where a strip of the
-        # finished tag cannot reach it; trailing whitespace a strip would catch.
         for registered in (" loras", "loras "):
             with patch(
                 "app.assets.services.path_utils.get_comfy_models_folders",

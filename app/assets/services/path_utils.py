@@ -330,9 +330,7 @@ def get_path_derived_tag_vocabulary() -> set[str]:
     vocabulary = {"input", "output", "temp", "models"}
     vocabulary.update(_KNOWN_SUBFOLDER_TAGS)
     for folder_name, _bases, _extensions in get_comfy_models_folders():
-        # Strip the name, not the finished tag: whitespace landing after
-        # "model_type:" survives the strip that stored names are put through,
-        # so the entry would never match the tag it authorises removing.
+        # Strip the name, not the finished tag: whitespace after "model_type:" survives an end-strip.
         vocabulary.add(f"model_type:{folder_name.strip()}")
     return vocabulary
 
