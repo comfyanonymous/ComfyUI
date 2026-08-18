@@ -74,6 +74,17 @@ def _axis_from_sqrt_area(dim, patch, sqrt_area):
     return (torch.arange(n, dtype=torch.float64) * (ratio / n) + (1.0 - ratio) / 2.0) * 32.0
 
 
+def mask_row_values(mask, latent_t, lat_h, lat_w):
+    # [T, H, W] denoise mask (1 = generate) -> per-2x2-patch-row float in [0, 1],
+    # None when every row fully generates
+    m = torch.nn.functional.pad(mask, (0, lat_w - mask.shape[-1], 0, lat_h - mask.shape[-2]), mode="replicate")
+    m = m.reshape(latent_t, lat_h // 2, 2, lat_w // 2, 2).amax(dim=(2, 4))
+    values = m.reshape(-1)
+    if bool((values >= 1.0 - 1e-3).all()):
+        return None
+    return values
+
+
 def _frame_grid(h, w):
     # area-normalized (h, w) coordinates of one latent frame's 2x2-patch rows
     area = math.sqrt(h * w)
@@ -89,6 +100,18 @@ def _video_t_grid(n, origin):
     # origin + exclusive cumsum
     spans = torch.tensor(_video_t_spans(n), dtype=torch.float64)
     return float(origin) + torch.cat([torch.zeros(1, dtype=torch.float64), spans[:-1].cumsum(0)])
+
+
+def _ref_t_span(blk):
+    # time-axis span a reference block occupies ahead of the target streams
+    kind = blk["kind"]
+    if kind == "image":
+        return 1.0
+    if kind == "audio":
+        return float(blk["ref_audio_t"])
+    if kind in ("video", "video_audio"):
+        return max(float(blk["ref_audio_t"]), sum(_video_t_spans(blk["latent_t"])))
+    return 0.0
 
 
 def _audio_grid(cursor, t, w_low, w_high):
@@ -200,17 +223,22 @@ class AdalnProj(nn.Module):
         return x.chunk(self.expand, dim=-1)
 
 
+def _mod_row(vecs, row, dtype):
+    # row is a mod-row index, or a per-token LongTensor of mod-row indices
+    return vecs[row].to(dtype)
+
+
 def _mod_scale_shift(h, shift, scale, segments):
     # segments: [(start, stop, mod_row)] covering h contiguously.
     for a, b, row in segments:
-        h[a:b].mul_(1.0 + scale[row].to(h.dtype)).add_(shift[row].to(h.dtype))
+        h[a:b].mul_(1.0 + _mod_row(scale, row, h.dtype)).add_(_mod_row(shift, row, h.dtype))
     return h
 
 
 def _mod_gate(x, gate, other, segments):
     # other is the fresh attn/mlp output: accumulate the gated residual into the stream in place, one fused kernel per segment
     for a, b, row in segments:
-        x[a:b].addcmul_(other[a:b], gate[row].to(x.dtype))
+        x[a:b].addcmul_(other[a:b], _mod_row(gate, row, x.dtype))
     return x
 
 
@@ -276,19 +304,21 @@ class FinalLayer(nn.Module):
         self.audio_out = operations.Linear(hidden, audio_dim, bias=True, dtype=torch.float32, device=device)
 
     def forward(self, x, t_emb, video_seg, audio_seg):
-        # video_seg / audio_seg: (start, stop, timestep_row) of the target streams
+        # video_seg / audio_seg: (start, stop, row) of the target streams, where row
+        # is a mod-row index or a per-token blend (see _mod_row)
         shift, scale = self.adaln_proj(t_emb)
-        va, vb, vrow = video_seg
-        aa, ab, arow = audio_seg
-        hv = (self.norm(x[va:vb]) * (1.0 + scale[vrow]) + shift[vrow]).to(torch.float32)
-        ha = (self.norm(x[aa:ab]) * (1.0 + scale[arow]) + shift[arow]).to(torch.float32)
-        return self.video_out(hv), self.audio_out(ha)
+
+        def mod(seg):
+            a, b, row = seg
+            return (self.norm(x[a:b]) * (1.0 + _mod_row(scale, row, scale.dtype)) + _mod_row(shift, row, shift.dtype)).to(torch.float32)
+
+        return self.video_out(mod(video_seg)), self.audio_out(mod(audio_seg))
 
 
 class PackedLayout:
     """Static packed-sequence structure for one shape/conditioning signature."""
 
-    def __init__(self, text_len, latent_t, latent_h, latent_w, audio_t, keyframes=None, refs=None, frame_count=None):
+    def __init__(self, text_len, latent_t, latent_h, latent_w, audio_t, keyframes=None, refs=None):
         frame, w_grid = _frame_grid(latent_h, latent_w)
         frame_rows = frame.shape[0]
 
@@ -299,29 +329,37 @@ class PackedLayout:
 
         img_pos, img_update = [], []
         audio_pos, audio_update = [], []
-        cursor = text_len
         row = text_len
 
-        if keyframes:
-            # fl2va: keyframe cond rows right after text, sharing the target spatial grid
-            for kf in keyframes:
-                pixel_index = kf["resolved_frame_index"]
-                if pixel_index == 0:
-                    cond_t = float(text_len)
-                elif frame_count is not None and pixel_index == frame_count - 1:
-                    cond_t = float(text_len) + sum(_video_t_spans(latent_t)) - FRAME_RESCALE
-                else:
-                    raise ValueError("only first/last keyframe anchors are supported")
-                g = torch.empty(frame_rows, 3, dtype=torch.float64)
-                g[:, 0] = cond_t
-                g[:, 1:] = frame
-                segments.append(("cond", frame_rows))
-                pos.append(g)
-                img_pos.append(torch.arange(row, row + frame_rows))
-                img_update.append(torch.zeros(frame_rows, dtype=torch.bool))
-                row += frame_rows
-
         target_audio_w = (float(w_grid[0]), float(w_grid[-1]))
+        # refs pack between text and the targets, so the target timeline starts after their spans
+        cursor = float(text_len)
+        for blk in refs or ():
+            cursor += _ref_t_span(blk)
+
+        if keyframes:
+            # fl2va: keyframe cond rows right after text, sharing the target spatial grid;
+            # anchors count from the target timeline origin, FRAME_RESCALE per pixel frame, 1.0 per audio latent frame
+            for kf in keyframes:
+                cond_t = cursor + FRAME_RESCALE * kf["resolved_frame_index"]
+                video_latent = kf.get("latent")
+                if video_latent is not None:
+                    vt = video_latent.shape[2]
+                    n = vt * frame_rows
+                    segments.append(("cond", n))
+                    pos.append(_video_grid(vt, frame, cond_t))
+                    img_pos.append(torch.arange(row, row + n))
+                    img_update.append(torch.zeros(n, dtype=torch.bool))
+                    row += n
+                audio_latent = kf.get("audio_latent")
+                if audio_latent is not None:
+                    rt = audio_latent.shape[-1]
+                    segments.append(("cond_audio", rt * 2))
+                    pos.append(_audio_grid(cond_t, rt, *target_audio_w))
+                    audio_pos.append(torch.arange(row, row + rt * 2))
+                    audio_update.append(torch.zeros(rt * 2, dtype=torch.bool))
+                    row += rt * 2
+
         if refs:
             cursor = float(text_len)
             for blk in refs:
@@ -389,7 +427,7 @@ class PackedLayout:
         self.audio_update = torch.cat(audio_update)
         self.signature = (text_len, latent_t, latent_h, latent_w, audio_t)
         # contiguous segment table (start, stop, kind)
-        # kinds: text / cond / ref_img / ref_audio / audio / video
+        # kinds: text / cond / cond_audio / ref_img / ref_audio / audio / video
         # the packed sequence is uniform per segment in (modality tag, timestep class),
         # except the text span (tag runs resolved at forward time from the presentation tags)
         seg_abs = []
@@ -486,7 +524,7 @@ class MiniMaxH3Model(nn.Module):
             rows.append(r.to(device))
         return torch.cat(rows, dim=0) if rows else None
 
-    def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
+    def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, denoise_mask=None, audio_denoise_mask=None, **kwargs):
         # the sampler carries the audio as (sigma_v / sigma_a) * x_audio; undo it outside
         # the wrappers so they and the network see the stream's own latent and velocity
         scale = float((minimax_payload or {}).get("audio_scale", 1.0))
@@ -503,7 +541,8 @@ class MiniMaxH3Model(nn.Module):
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
-        ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload, **kwargs)
+        ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload,
+                  denoise_mask=denoise_mask, audio_denoise_mask=audio_denoise_mask, **kwargs)
 
         if scale != 1.0:
             # d/d(sigma_v) of the carried variable
@@ -511,7 +550,7 @@ class MiniMaxH3Model(nn.Module):
                       + (1.0 + (scale - 1.0) * sigma_a).to(out[1].dtype) * out[1])
         return out
 
-    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
+    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, denoise_mask=None, audio_denoise_mask=None, **kwargs):
         video_x, audio_x = x[0], x[1]
         orig_t, orig_h, orig_w = video_x.shape[2], video_x.shape[3], video_x.shape[4]
         video_x = comfy.ldm.common_dit.pad_to_patch_size(video_x, self.patch_size)
@@ -529,8 +568,7 @@ class MiniMaxH3Model(nn.Module):
         if layout is None or layout.signature != (text_len, latent_t, lat_h, lat_w, audio_t):
             layout = PackedLayout(text_len, latent_t, lat_h, lat_w, audio_t,
                                   keyframes=payload.get("keyframes"),
-                                  refs=payload.get("refs"),
-                                  frame_count=payload.get("frame_count"))
+                                  refs=payload.get("refs"))
 
         # model_base passes model_sampling.timestep(sigma) = sigma * 1000
         shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
@@ -542,15 +580,46 @@ class MiniMaxH3Model(nn.Module):
         # distinct timesteps are known analytically: text/pad follow video, cond rows pin near 1
         vis_aug = float(payload.get("visual_cond_noise_aug", VISUAL_COND_TIMESTEP))
         aud_aug = float(payload.get("audio_cond_noise_aug", AUDIO_COND_TIMESTEP))
-        has_vis_cond = any(k in ("cond", "ref_img") for _, _, k in layout.segments)
-        has_aud_cond = any(k == "ref_audio" for _, _, k in layout.segments)
         seg_t = {"text": t_v, "video": t_v, "audio": t_a,
                  "cond": max(t_v, vis_aug), "ref_img": max(t_v, vis_aug),
-                 "ref_audio": max(t_a, aud_aug)}
-        unique_t = sorted({t_v, t_a} | ({seg_t["cond"]} if has_vis_cond else set())
-                          | ({seg_t["ref_audio"]} if has_aud_cond else set()))
+                 "cond_audio": max(t_a, aud_aug), "ref_audio": max(t_a, aud_aug)}
+
+        # masked rows run at their own strength: mask value m puts a row at sigma = m * sigma_stream,
+        # so its label is 1 - m * sigma, clamped at the cond timestep for fully preserved rows
+        t_pin_v = max(t_v, VISUAL_COND_TIMESTEP)
+        t_pin_a = max(t_a, AUDIO_COND_TIMESTEP)
+        video_rows_t = None
+        audio_rows_t = None
+        if denoise_mask is not None:
+            m = mask_row_values(denoise_mask[0, 0].to(torch.float32), latent_t, lat_h, lat_w)
+            if m is not None:
+                rows_t = (1.0 - m * sigma_v.to(m.device)).clamp(max=t_pin_v)
+                if rows_t.unique().numel() == 1:
+                    seg_t["video"] = float(rows_t[0])
+                else:
+                    video_rows_t = rows_t
+        if audio_denoise_mask is not None:
+            m = audio_denoise_mask[0, 0].to(torch.float32).reshape(-1)
+            if not bool((m >= 1.0 - 1e-3).all()):
+                sigma_a = 1.0 - t_a
+                rows_t = (1.0 - m * sigma_a).clamp(max=t_pin_a)
+                if rows_t.unique().numel() == 1:
+                    seg_t["audio"] = float(rows_t[0])
+                else:
+                    audio_rows_t = rows_t
+
+        unique_t = sorted({t_v, t_a} | {seg_t[k] for _, _, k in layout.segments}
+                          | (set(video_rows_t.unique().tolist()) if video_rows_t is not None else set())
+                          | (set(audio_rows_t.unique().tolist()) if audio_rows_t is not None else set()))
         t_row = {t: i for i, t in enumerate(unique_t)}
-        seg_tag = {"text": 1, "video": 0, "audio": 2, "cond": 0, "ref_img": 0, "ref_audio": 2}
+        seg_tag = {"text": 1, "video": 0, "audio": 2, "cond": 0, "ref_img": 0, "cond_audio": 2, "ref_audio": 2}
+
+        def rows_to_mod_index(rows_t, tag):
+            # per-row timestep values -> per-row mod-row indices into the t_emb table
+            levels = rows_t.unique()
+            base = torch.tensor([t_row[v] * 3 + tag for v in levels.tolist()],
+                                dtype=torch.long, device=rows_t.device)
+            return base[torch.searchsorted(levels, rows_t)]
 
         text_tags = payload.get("text_token_tags")
         mod_segments = []
@@ -564,6 +633,10 @@ class MiniMaxH3Model(nn.Module):
                     if i == b - a or tags[i] != tags[run_start]:
                         mod_segments.append((a + run_start, a + i, row_base + int(tags[run_start])))
                         run_start = i
+            elif kind == "video" and video_rows_t is not None:
+                mod_segments.append((a, b, rows_to_mod_index(video_rows_t, seg_tag[kind])))
+            elif kind == "audio" and audio_rows_t is not None:
+                mod_segments.append((a, b, rows_to_mod_index(audio_rows_t, seg_tag[kind])))
             else:
                 mod_segments.append((a, b, row_base + seg_tag[kind]))
 
@@ -640,8 +713,16 @@ class MiniMaxH3Model(nn.Module):
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
 
         # target streams are single contiguous segments (audio then video, last two)
-        video_seg = next((a, b, t_row[seg_t["video"]]) for a, b, k in layout.segments if k == "video")
-        audio_seg = next((a, b, t_row[seg_t["audio"]]) for a, b, k in layout.segments if k == "audio")
+        va, vb, _ = next(s for s in layout.segments if s[2] == "video")
+        aa, ab, _ = next(s for s in layout.segments if s[2] == "audio")
+        if video_rows_t is not None:
+            video_seg = (va, vb, rows_to_mod_index(video_rows_t, 0) // 3)
+        else:
+            video_seg = (va, vb, t_row[seg_t["video"]])
+        if audio_rows_t is not None:
+            audio_seg = (aa, ab, rows_to_mod_index(audio_rows_t, 0) // 3)
+        else:
+            audio_seg = (aa, ab, t_row[seg_t["audio"]])
         v, a = self.final_layer(h, t_emb, video_seg, audio_seg)
 
         video_out = unpatchify_video(v, latent_t, lat_h // 2, lat_w // 2, self.latents_dim, self.patch_size)

@@ -25,6 +25,7 @@ import comfy.ldm.cogvideo.vae
 import comfy.ldm.hunyuan_video.vae
 import comfy.ldm.mmaudio.vae.autoencoder
 import comfy.ldm.audio.vae_sa3
+import comfy.ldm.minimax_music.dav
 import comfy.pixel_space_convert
 import comfy.weight_adapter
 import yaml
@@ -32,6 +33,7 @@ import math
 import os
 
 import comfy.utils
+import comfy.ops
 
 from . import clip_vision
 from . import gligen
@@ -74,6 +76,7 @@ import comfy.text_encoders.longcat_image
 import comfy.text_encoders.qwen35
 import comfy.text_encoders.qwen3vl
 import comfy.text_encoders.minimax
+import comfy.text_encoders.minimax_music
 import comfy.ldm.minimax.vae
 import comfy.ldm.minimax.audio_vae
 import comfy.text_encoders.boogu
@@ -515,7 +518,22 @@ class VAE:
         self.audio_sample_rate = 44100
 
         if config is None:
-            if "decoder.mid.block_1.mix_factor" in sd:
+            if "dec_in_proj.weight" in sd and "decoder.model.0.weight_g" in sd:  # MiniMax Music3 DAV
+                self.first_stage_model = comfy.ldm.minimax_music.dav.MiniMaxMusic3DAV(operations=comfy.ops.disable_weight_init)
+                self.latent_channels = 128
+                self.output_channels = 2
+                self.upscale_ratio = 512
+                self.downscale_ratio = 512
+                self.latent_dim = 1
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float32]
+                self.disable_offload = True
+                self.memory_used_decode = lambda shape, dtype: (shape[-1] * 512 * 1400 + 800_000_000) * model_management.dtype_size(dtype)
+                def _no_encode(*args, **kwargs):
+                    raise RuntimeError("MiniMax Music3 DAV cannot encode audio")
+                self.memory_used_encode = _no_encode
+            elif "decoder.mid.block_1.mix_factor" in sd:
                 encoder_config = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 decoder_config = encoder_config.copy()
                 decoder_config["video_kernel_size"] = [3, 1, 1]
@@ -889,7 +907,14 @@ class VAE:
                 self.upscale_index_formula = (4, 16, 16)
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
                 self.downscale_index_formula = (4, 16, 16)
-                if self.latent_channels in [48, 128]: # Wan 2.2 and LTX2
+                if self.latent_channels == 24 and sd["decoder.22.bias"].shape[0] == 12: # MiniMax H3
+                    self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=None)
+                    self.process_input = self.process_output = lambda image: image
+                    self.upscale_ratio = (lambda a: max(1, (a - 2) // 5 * 17 + 5), 16, 16)
+                    self.downscale_ratio = (lambda a: max(1, (a - 1) // 17 * 5 + 2) if a > 1 else 1, 16, 16)
+                    self.memory_used_encode = lambda shape, dtype: (400 * ((shape[-3] + 16) // 17) * shape[-2] * shape[-1] * model_management.dtype_size(dtype))
+                    self.memory_used_decode = lambda shape, dtype: ((260 * 16 * 16 + shape[1] * shape[-3]) * shape[-2] * shape[-1] * model_management.dtype_size(dtype))
+                elif self.latent_channels in [48, 128]: # Wan 2.2 and LTX2
                     self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=None) # taehv doesn't need scaling
                     self.process_input = self.process_output = lambda image: image
                     self.process_output = lambda image: image
@@ -1692,7 +1717,16 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
     clip_target.params = {}
     if len(clip_data) == 1:
         te_model = detect_te_model(clip_data[0])
-        if te_model == TEModel.CLIP_G:
+        if clip_type == CLIPType.MINIMAX and "model.audio_decoder.projection.weight" in clip_data[0]:
+            tokenizer_data["tokenizer_json"] = clip_data[0].pop("tokenizer_json", None)
+            quant = comfy.utils.detect_layer_quantization(clip_data[0], "")
+            if quant is not None:
+                model_options = model_options.copy()
+                model_options["quantization_metadata"] = quant
+            clip_target.params["projection_config"] = comfy.text_encoders.minimax_music.detect_merged_config(clip_data[0])
+            clip_target.clip = comfy.text_encoders.minimax_music.MiniMaxMusic3TEModel
+            clip_target.tokenizer = comfy.text_encoders.minimax_music.MiniMaxMusic3Tokenizer
+        elif te_model == TEModel.CLIP_G:
             if clip_type == CLIPType.STABLE_CASCADE:
                 clip_target.clip = sdxl_clip.StableCascadeClipModel
                 clip_target.tokenizer = sdxl_clip.StableCascadeTokenizer
