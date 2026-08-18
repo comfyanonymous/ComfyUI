@@ -64,13 +64,7 @@ class ReprojectionSummary(StepResult):
 
     @property
     def complete(self) -> bool:
-        """A path under no known root today may be under one tomorrow.
-
-        Its file is on disk -- an absent file is counted separately -- so the
-        root was configured away rather than deleted, and nothing else will ever
-        re-derive the row: the scan only builds specs for paths it has not seen.
-        Staying unstamped is what lets restoring the root repair them.
-        """
+        """Nothing else re-derives these rows -- the scan only builds specs for paths it has not seen -- so staying unstamped is what lets a restored root repair them."""
         return self.unclassified_paths == 0
 
     def __str__(self) -> str:

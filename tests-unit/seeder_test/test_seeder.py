@@ -564,11 +564,6 @@ class TestSeederSemanticsReset:
 
 
     def test_semantics_reset_suspends_on_pause(self, fresh_seeder: _AssetSeeder):
-        """A pause must stop the walk between batches, not just a cancel.
-
-        The seeder is paused while a prompt runs, so a check that ignores pause
-        keeps statting the whole asset table during generation.
-        """
         captured = {}
 
         with (
@@ -610,7 +605,6 @@ class TestSeederSemanticsReset:
     def test_cancel_during_semantics_reset_stops_before_pruning(
         self, fresh_seeder: _AssetSeeder
     ):
-        """A cancelled reset must not fall through into the prune's writes."""
         calls = []
 
         def _cancel_during_reset(interrupt_check=None):

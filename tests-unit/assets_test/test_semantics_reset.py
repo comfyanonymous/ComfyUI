@@ -553,7 +553,6 @@ class TestRunner:
         assert session.get(AssetReference, "ref-1").loader_path == "model.safetensors"
 
     def test_unclassified_row_withholds_the_stamp(self, session, comfy_dirs):
-        """Skipping a row must not also stamp past it -- nothing else repairs one."""
         _register(
             session,
             _write(comfy_dirs["elsewhere"], "unconfigured.safetensors"),
@@ -581,7 +580,6 @@ class TestRunner:
     def test_restoring_a_root_repairs_the_rows_it_had_hidden(
         self, session, comfy_dirs
     ):
-        """The point of withholding the stamp: a re-added root gets reprojected."""
         hidden = _write(comfy_dirs["elsewhere"], "unconfigured.safetensors")
         _register(session, hidden, "ref-outside", loader_path=None)
 
