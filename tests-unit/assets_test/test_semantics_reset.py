@@ -381,35 +381,33 @@ class TestTagReprojection:
         )
         assert "model_type:checkpoints" in _tags(session, "ref-1")
 
+    @pytest.mark.parametrize(
+        ("position", "registered"),
+        [("leading", " loras"), ("trailing", "loras ")],
+    )
     def test_vocabulary_matches_tags_as_the_database_stores_them(
-        self, session, comfy_dirs
+        self, session, comfy_dirs, position, registered
     ):
-        path = _write(comfy_dirs["checkpoints"], "model.safetensors")
         _register(
             session,
-            path,
+            _write(comfy_dirs["checkpoints"], "model.safetensors"),
             "ref-1",
             tags={"model_type:loras": "automatic"},
         )
 
-        for position, registered in (("leading", " loras"), ("trailing", "loras ")):
-            with patch(
-                "app.assets.services.path_utils.get_comfy_models_folders",
-                return_value=[
-                    (
-                        "checkpoints",
-                        [str(comfy_dirs["checkpoints"])],
-                        {".safetensors"},
-                    ),
-                    (registered, [str(comfy_dirs["loras"])], {".safetensors"}),
-                ],
-            ):
-                reproject_derived_state()
+        with patch(
+            "app.assets.services.path_utils.get_comfy_models_folders",
+            return_value=[
+                ("checkpoints", [str(comfy_dirs["checkpoints"])], {".safetensors"}),
+                (registered, [str(comfy_dirs["loras"])], {".safetensors"}),
+            ],
+        ):
+            reproject_derived_state()
 
-            assert "model_type:loras" not in _tags(session, "ref-1"), (
-                f"{position} whitespace in {registered!r} must not smuggle an "
-                "entry past the vocabulary and leave the stale tag in place"
-            )
+        assert "model_type:loras" not in _tags(session, "ref-1"), (
+            f"{position} whitespace in {registered!r} must not smuggle an entry "
+            "past the vocabulary and leave the stale tag in place"
+        )
 
     def test_automatic_tag_outside_the_vocabulary_is_left_alone(
         self, session, comfy_dirs
