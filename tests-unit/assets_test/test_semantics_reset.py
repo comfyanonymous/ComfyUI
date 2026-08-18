@@ -570,7 +570,7 @@ class TestRunner:
 
         session.expire_all()
         assert get_semantics_version(session) == 0, (
-            "a pass that could not classify every row must run again"
+            "skipping a row must not stamp past it -- nothing else repairs one"
         )
         assert (
             session.get(AssetReference, "ref-inside").loader_path
@@ -600,7 +600,7 @@ class TestRunner:
         assert (
             session.get(AssetReference, "ref-outside").loader_path
             == "unconfigured.safetensors"
-        )
+        ), "withholding the stamp is what lets a re-added root get reprojected"
 
     def test_fully_classified_pass_stamps(self, session, comfy_dirs):
         _register(

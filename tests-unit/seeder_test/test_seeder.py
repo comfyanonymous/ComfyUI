@@ -596,7 +596,8 @@ class TestSeederSemanticsReset:
 
         threading.Thread(target=_call_check, daemon=True).start()
         assert not returned.wait(timeout=0.5), (
-            "the interrupt check must block while paused, not report 'keep going'"
+            "the seeder is paused while a prompt runs, so the walk must block "
+            "between batches rather than keep statting the whole table"
         )
 
         fresh_seeder._run_gate.set()
