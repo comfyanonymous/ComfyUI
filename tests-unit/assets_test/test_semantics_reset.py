@@ -427,6 +427,24 @@ class TestFileState:
             "a file that is simply gone is the scanner's business, not unfinished work"
         )
 
+    def test_unclassified_row_is_not_flagged_for_verify(self, session, comfy_dirs):
+        """needs_verify is a write like any other; it must skip out-of-view rows too."""
+        _register(
+            session,
+            _write(comfy_dirs["elsewhere"], "model.safetensors"),
+            "ref-1",
+            mtime_ns=1,
+        )
+
+        summary = reproject_derived_state()
+
+        session.expire_all()
+        assert session.get(AssetReference, "ref-1").needs_verify is False, (
+            "the one write that did not skip made 'leaves it alone' untrue"
+        )
+        assert summary.unclassified_paths == 1
+        assert summary.changed_files == 0
+
     def test_path_outside_every_known_root_is_left_alone(self, session, comfy_dirs):
         path = _write(comfy_dirs["elsewhere"], "model.safetensors")
         _register(
@@ -622,6 +640,27 @@ class TestRunner:
             side_effect=AssertionError("a stamped database must not be walked"),
         ):
             assert run_pending_semantics_steps() == 0
+
+    def test_stamp_failure_does_not_escape_to_the_caller(self, session, comfy_dirs):
+        """The seeder calls this; a transient lock here must not abort its scan."""
+        _register(
+            session,
+            _write(comfy_dirs["checkpoints"], "model.safetensors"),
+            "ref-1",
+            loader_path=None,
+        )
+
+        with patch(
+            "app.assets.semantics.set_semantics_version",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            assert run_pending_semantics_steps() == 0
+
+        session.expire_all()
+        assert get_semantics_version(session) == 0
+        assert (
+            session.get(AssetReference, "ref-1").loader_path == "model.safetensors"
+        ), "the step's own committed work survives a failed stamp"
 
     def test_stamp_is_not_advanced_when_a_step_raises(self, session, comfy_dirs):
         def _explode(_interrupt_check):

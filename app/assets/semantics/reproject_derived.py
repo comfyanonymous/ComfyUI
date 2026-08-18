@@ -129,14 +129,6 @@ def _reproject_batch(
             summary.absent_files += 1
             continue
 
-        if unchanged:
-            summary.unchanged_files += 1
-        else:
-            # Hand it to the verify path rather than re-read the file for hash and size.
-            summary.changed_files += 1
-            if not row.needs_verify:
-                set_needs_verify.append(row.reference_id)
-
         try:
             derived_tags = set(
                 normalize_tags(get_path_derived_tags_from_path(row.file_path))
@@ -144,6 +136,14 @@ def _reproject_batch(
         except ValueError:
             summary.unclassified_paths += 1
             continue
+
+        if unchanged:
+            summary.unchanged_files += 1
+        else:
+            # Hand it to the verify path rather than re-read the file for hash and size.
+            summary.changed_files += 1
+            if not row.needs_verify:
+                set_needs_verify.append(row.reference_id)
 
         loader_path = compute_loader_path(row.file_path)
         if loader_path != row.loader_path:

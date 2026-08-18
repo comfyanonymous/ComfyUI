@@ -101,9 +101,18 @@ def run_pending_semantics_steps(interrupt_check: InterruptCheck | None = None) -
             )
             return applied
 
-        with create_session() as session:
-            set_semantics_version(session, step.version)
-            session.commit()
+        try:
+            with create_session() as session:
+                set_semantics_version(session, step.version)
+                session.commit()
+        except Exception:
+            logging.exception(
+                "Asset semantics step %d (%s) finished but could not be stamped, "
+                "so it runs again; its own writes are already committed",
+                step.version,
+                step.description,
+            )
+            return applied
 
         applied += 1
         logging.info(
