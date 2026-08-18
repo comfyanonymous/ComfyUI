@@ -428,7 +428,6 @@ class TestFileState:
         )
 
     def test_unclassified_row_is_not_flagged_for_verify(self, session, comfy_dirs):
-        """needs_verify is a write like any other; it must skip out-of-view rows too."""
         _register(
             session,
             _write(comfy_dirs["elsewhere"], "model.safetensors"),
@@ -642,7 +641,6 @@ class TestRunner:
             assert run_pending_semantics_steps() == 0
 
     def test_stamp_failure_does_not_escape_to_the_caller(self, session, comfy_dirs):
-        """The seeder calls this; a transient lock here must not abort its scan."""
         _register(
             session,
             _write(comfy_dirs["checkpoints"], "model.safetensors"),
