@@ -50,7 +50,7 @@ class TensorLoopOpen(io.ComfyNode):
         return io.Schema(
             node_id="TensorLoopOpen",
             display_name="Open Tensor Loop",
-            category="advanced/looping/accumulation",
+            category="advanced/looping",
             inputs=[
                 io.DynamicCombo.Input("mode", tooltip="Loop termination mode.", options=[
                     io.DynamicCombo.Option("iterations", [
