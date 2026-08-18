@@ -381,6 +381,32 @@ class TestTagReprojection:
         )
         assert "model_type:checkpoints" in _tags(session, "ref-1")
 
+    def test_vocabulary_matches_tags_as_the_database_stores_them(
+        self, session, comfy_dirs
+    ):
+        """Stored names arrive normalized, so a raw vocabulary entry never matches."""
+        path = _write(comfy_dirs["checkpoints"], "model.safetensors")
+        _register(
+            session,
+            path,
+            "ref-1",
+            tags={"model_type:loras": "automatic"},
+        )
+
+        with patch(
+            "app.assets.services.path_utils.get_comfy_models_folders",
+            return_value=[
+                ("checkpoints", [str(comfy_dirs["checkpoints"])], {".safetensors"}),
+                ("loras ", [str(comfy_dirs["loras"])], {".safetensors"}),
+            ],
+        ):
+            reproject_derived_state()
+
+        assert "model_type:loras" not in _tags(session, "ref-1"), (
+            "a category name with stray whitespace must not smuggle an entry "
+            "past the vocabulary and leave the stale tag in place"
+        )
+
     def test_automatic_tag_outside_the_vocabulary_is_left_alone(
         self, session, comfy_dirs
     ):
